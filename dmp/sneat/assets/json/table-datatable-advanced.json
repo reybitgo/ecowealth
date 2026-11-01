@@ -1,0 +1,14 @@
+{
+  "data": [
+    ["Aidan Gonzalez", "aidan.gonzalez@example.com", "Senior Developer", "New York", "01/15/2024", "$92000"],
+    ["Adrienne Payne", "adrienne.payne@example.com", "Product Designer", "London", "02/03/2024", "$78000"],
+    ["Alisha Little", "alisha.little@example.com", "QA Engineer", "Berlin", "02/19/2024", "$71000"],
+    ["Arden Presley", "arden.presley@example.com", "Data Analyst", "Toronto", "03/05/2024", "$84000"],
+    ["Ashton Poole", "ashton.poole@example.com", "DevOps Engineer", "Sydney", "03/22/2024", "$96000"],
+    ["Camila Hartman", "camila.hartman@example.com", "Frontend Developer", "Chicago", "04/09/2024", "$87000"],
+    ["Cedrick Lancaster", "cedrick.lancaster@example.com", "Backend Developer", "Dublin", "04/26/2024", "$89000"],
+    ["Delia Ferrell", "delia.ferrell@example.com", "Project Manager", "Amsterdam", "05/13/2024", "$94000"],
+    ["Desmond Chan", "desmond.chan@example.com", "Support Specialist", "Singapore", "05/30/2024", "$58000"],
+    ["Esperanza Bond", "esperanza.bond@example.com", "Marketing Lead", "Madrid", "06/16/2024", "$81000"]
+  ]
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <symbol id="wizardPersonal" viewBox="0 0 54 54">
+    <g transform="scale(2.25)">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 5h2v2h-2V7zm0 4h2v6h-2v-6zm4 8h-2v-2h2v2zm0-4h-2v-2h2v2z"/>
+    </g>
+  </symbol>
+</svg>

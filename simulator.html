@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harvest Simulator: General + Team + Royalty</title>
+<style>
+:root{--bg:#eef1f6;--pan:#fff;--ink:#1c2340;--mut:#65708a;--line:#d5dbe8;--ok:#1f8a5b;--amb:#b7791f;--hi:#e8ecfb;--btn:#2b3a8c;--btnink:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10142a;--pan:#181e3a;--ink:#e7eaf7;--mut:#94a0c2;--line:#2a3358;--ok:#4fd39a;--amb:#e7b45a;--hi:#212a54;--btn:#8fa2ff;--btnink:#10142a}}:root[data-theme="dark"]{--bg:#10142a;--pan:#181e3a;--ink:#e7eaf7;--mut:#94a0c2;--line:#2a3358;--ok:#4fd39a;--amb:#e7b45a;--hi:#212a54;--btn:#8fa2ff;--btnink:#10142a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:1040px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.05rem;margin:0 0 .6em}
+.mut{color:var(--mut)}.err{background:#fde8e8;color:#8a1f1f;padding:8px 12px;border-radius:6px}
+.pan{background:var(--pan);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:14px 0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.stats{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:6px;background:var(--pan);margin-top:14px}
+.stats div{flex:1 1 150px;padding:12px 16px;border-right:1px solid var(--line)}
+.stats div:last-child{border-right:0}
+.stats b{display:block;font-size:1.4rem}
+label{display:block;margin:0 0 10px;font-weight:600}
+input{display:block;width:100%;margin-top:4px;padding:8px 10px;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:5px}
+button{font:inherit;font-weight:600;padding:8px 14px;border:0;border-radius:5px;background:var(--btn);color:var(--btnink);cursor:pointer}
+button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--btn);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.row input{width:auto;flex:1 1 160px;margin:0}.row .n{flex:0 0 90px}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.sc{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;color:var(--mut)}
+tr.me td{background:var(--hi)}
+.ok{color:var(--ok);font-weight:600}
+.bar{width:110px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--amb)}
+:root{--tok:#4fd39a}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--tok:#1f8a5b}}:root[data-theme="dark"]{--tok:#1f8a5b}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+a{color:var(--btn)}
+select{font:inherit;display:block;width:100%;margin-top:4px;padding:8px 10px;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:5px}
+.row select{width:auto;flex:1 1 140px;margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.pgr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;padding-top:10px}
+.pbs{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.pb{min-width:36px;height:36px;padding:0 8px;background:transparent;color:var(--ink);border:1px solid var(--line)}
+.pb.cur{background:var(--btn);color:var(--btnink);border-color:var(--btn)}
+.pb[aria-disabled=true]{opacity:.4;cursor:not-allowed}
+.rpp{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:400}
+.rpp select{padding:6px 8px;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:5px}
+select:focus-visible{outline:2px solid var(--btn);outline-offset:2px}
+@media(pointer:coarse){.pb{min-width:44px;height:44px}}
+#toasts{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);padding-bottom:env(safe-area-inset-bottom,0px);z-index:10;pointer-events:none}
+.toast{pointer-events:auto;display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:6px;background:var(--ink);color:var(--bg);box-shadow:0 4px 14px rgba(0,0,0,.25);animation:tin .18s ease-out}
+.toast .ti{color:var(--tok);font-weight:700}
+.toast span:nth-child(2){flex:1}
+.toast button{padding:0 6px;background:none;color:inherit;font-size:1.2rem;line-height:1}
+.toast button:focus-visible{outline-color:currentColor}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}}
+.toast.out{opacity:0;transform:translateY(6px);transition:opacity .5s ease,transform .5s ease}
+@media(prefers-reduced-motion:reduce){.toast{animation:none}.toast.out{transform:none}}
+</style>
+</head>
+<body>
+<main id="root"></main>
+<div id="toasts" role="status" aria-live="polite"></div>
+<div id="alerts" class="sr" role="alert"></div>
+<script>
+// Three bonus systems share one sponsor tree and one registration event:
+//  - General Harvest: one shared 3x10 matrix. Apex = first-ever member to reach 3 directs.
+//  - Team Harvest: each qualified member's own 3x10 matrix, filled by downline who qualified after them.
+//  - Royalty: a rank ladder (Leader/Supervisor/Manager/Director) driven purely by team composition,
+//    unconditional on Harvest qualification, plus a monthly peso royalty on group repeat-purchases.
+// Harvest qualification (3 directs) and Royalty's Leader threshold (10 directs) are independent gates
+// on the same direct-count: a member can be Harvest-qualified without being a Royalty Leader yet.
+const BONUS_G=[0,2e3,4e3,8e3,12e3,25e3,1e5,25e4,48e4,25e5,5e6];
+const BONUS_T=[0,1e3,2e3,4e3,6e3,12e3,5e4,12e4,2e5,12e5,35e5];
+const T=n=>3**n;
+const RANK_QUOTA={Supervisor:500000,Manager:1000000,Director:5000000};
+const GROUP_PCT={Supervisor:.03,Manager:.05,Director:.10};
+const PERSONAL_PCT={Supervisor:.05,Manager:.10,Director:.15};
+const PUR_RATE=.3,PUR_MIN=500,PUR_MAX=5000;
+const UNILEVEL_PCT=[.10,.05,.05,.05,.03,.03,.02,.02,.02,.01,.01];
+const UNILEVEL_QUOTA=500;
+const INDIRECT_BONUS=[0,500,100,50,40,30,20,10,5,5,5]; // index 0 unused - there is no Level 0 here
+const BASIC_ACCOUNT_PRICE=5000;
+const RN=['Member','Leader','Supervisor','Manager','Director'];
+const nf=n=>n.toLocaleString('en-US'),peso=n=>'₱'+nf(n);
+const KEY='royalty_harvests_v1';
+let mem='',warn=false,armed=false,lastIndirect=null;
+const fresh=()=>({users:[{id:0,name:'company',sp:null}],mx:[],me:null,on:{g:1,t:1,r:1,u:1},month:1,sales:{},purchasedAll:{},earnedAll:{},lastMonthTotal:0,lastMonthCount:0,unilevelEarned:{},unilevelFlag:{},unilevelLastSales:{},unilevelMonthTotal:0,lastMonthUnilevelTotal:0,lastAutoPurchaseLog:[],indirectEarned:{}});
+function load(){try{const s=localStorage.getItem(KEY);if(s)return JSON.parse(s)}catch(e){warn=true}return mem?JSON.parse(mem):fresh()}
+let S=load();
+S.on=S.on||{g:1,t:1,r:1,u:1,i:1};if(S.on.u===undefined)S.on.u=1;if(S.on.i===undefined)S.on.i=1;
+S.unilevelEarned=S.unilevelEarned||{};S.unilevelLastSales=S.unilevelLastSales||{};
+// Migrate the old gate naming (missing meant closed) to the new flag (missing means Active). Existing
+// explicit true/false decisions carry over unchanged; only never-yet-evaluated members change meaning.
+S.unilevelFlag=S.unilevelFlag||S.unilevelGate||{};delete S.unilevelGate;
+S.unilevelMonthTotal=S.unilevelMonthTotal||0;S.lastMonthUnilevelTotal=S.lastMonthUnilevelTotal||0;
+S.indirectEarned=S.indirectEarned||{};
+S.lastAutoPurchaseLog=S.lastAutoPurchaseLog||[];
+function save(){mem=JSON.stringify(S);try{localStorage.setItem(KEY,mem)}catch(e){warn=true}}
+const U=id=>S.users[id];
+const byName=n=>S.users.find(u=>u.name.toLowerCase()===String(n).trim().toLowerCase());
+const directs=id=>S.users.filter(u=>u.sp===id).length;
+const pos=id=>S.mx.indexOf(id);
+
+// Pays a flat, unconditional bonus to each of a new member's sponsors, up to 10 levels up, the instant
+// registration succeeds - no quota, no rank, no monthly cycle, unlike Unilevel or Royalty. Stashes its
+// own result in lastIndirect so whichever caller just registered someone can report on it immediately.
+function payIndirectReferral(newId){
+  let cur=U(newId).sp,total=0;const dist=[];
+  for(let L=1;L<=10&&cur!==null;L++){
+    if(cur>0){
+      const amt=INDIRECT_BONUS[L];
+      S.indirectEarned[cur]=(S.indirectEarned[cur]||0)+amt;
+      total+=amt;dist.push({id:cur,level:L,amount:amt});
+    }
+    cur=U(cur).sp;
+  }
+  lastIndirect={total,dist};
+  return lastIndirect;
+}
+// Register a free member. If the sponsor now has 3 directs, they join the Harvest queue. Royalty rank
+// is never tracked here - it is derived fresh from the tree whenever ranks() is called. Indirect
+// Referral always runs, as an unconditional side effect of registering - see payIndirectReferral().
+function reg(name,spName){
+  name=name.trim();
+  if(!/^[a-z0-9_]{2,20}$/i.test(name))return'Username must be 2 to 20 letters, numbers or underscores.';
+  if(byName(name))return'That username is already taken.';
+  const sp=byName(spName||'company');
+  if(!sp)return'Sponsor not found. Use an existing username, or "company".';
+  S.users.push({id:S.users.length,name,sp:sp.id});
+  if(sp.id&&pos(sp.id)<0&&directs(sp.id)>=3)S.mx.push(sp.id);
+  const u=S.users[S.users.length-1];
+  payIndirectReferral(u.id);
+  return u;
+}
+
+// General matrix: position p = queue index, apex p=0. Team matrix: n = teammates who qualified after the apex.
+function levelsG(p){const N=S.mx.length;return Array.from({length:10},(_,i)=>{const L=i+1,t=T(L),s=t*p+(t-1)/2,f=Math.max(0,Math.min(t,N-s));return{L,t,f,paid:f>=t,b:BONUS_G[L]}})}
+const levelsT=n=>Array.from({length:10},(_,i)=>{const L=i+1,t=T(L),f=Math.max(0,Math.min(t,n-(t-3)/2));return{L,t,f,paid:f>=t,b:BONUS_T[L]}});
+const earn=a=>a.reduce((s,l)=>s+(l.paid?l.b:0),0),prg=a=>{const l=a.find(x=>!x.paid);return l?`Level ${l.L}: ${nf(l.f)}/${nf(l.t)}`:'All 10 levels complete'};
+const earnedG=p=>earn(levelsG(p)),progG=p=>prg(levelsG(p)),earnedT=n=>earn(levelsT(n)),progT=n=>prg(levelsT(n));
+const lvT=L=>`<div class="sc"><table><tr><th>Level</th><th>Slots</th><th>Filled</th><th>Bonus</th><th>Status</th></tr>${L.map(l=>`<tr><td>${l.L}</td><td>${nf(l.t)}</td><td>${nf(l.f)}</td><td>${peso(l.b)}</td><td>${l.paid?'<span class="ok">Paid</span>':`<div class="bar" title="${nf(l.f)} of ${nf(l.t)}"><i style="width:${l.f/l.t*100}%"></i></div>`}</td></tr>`).join('')}</table></div>`;
+const dep=n=>{let L=0;while((T(L+1)-1)/2<=n)L++;return L};
+const parentName=q=>U(S.mx[Math.floor((q-1)/3)]).name;
+function depth(){const i=S.mx.length-1;if(i<0)return'None yet';let L=0;while((T(L+1)-1)/2<=i)L++;return L?'Level '+L:'Apex only'}
+const lvOf=r=>{let L=1;while(r>=(T(L+1)-3)/2)L++;return L};
+const pd=a=>a.filter(l=>l.paid).length;
+const isUp=(a,u)=>{let x=U(u).sp;while(x!==null&&x!==a)x=U(x).sp;return x===a};
+// Teammate counts: for each ancestor, downline who joined the Harvest queue after them (company counts everyone).
+function counts(){const Q=new Map(S.mx.map((u,i)=>[u,i])),n={};
+  S.mx.forEach((u,i)=>{for(let a=U(u).sp;a!==null;a=U(a).sp){const q=a===0?-1:Q.has(a)?Q.get(a):Infinity;if(q<i)n[a]=(n[a]||0)+1}});return n}
+function team(id){const o=[];for(let i=pos(id)+1;i<S.mx.length;i++)if(isUp(id,S.mx[i]))o.push(S.mx[i]);return o}
+const snap=()=>{const n=counts(),g={},t={};S.mx.forEach((u,i)=>{g[u]=pd(levelsG(i));t[u]=pd(levelsT(n[u]||0))});return{q:S.mx.length,g,t}};
+
+// Subtree rollup: out[id] = fn(id) + fn summed over id's entire downline. out[0] totals the whole network.
+// Valid because every sponsor already has a smaller id than its sponsee (ids are assigned in join order).
+function rollup(fn){
+  const N=S.users.length-1,out={};
+  for(let i=N;i>=1;i--){out[i]=(out[i]||0)+fn(i);const p=S.users[i].sp;if(p!==null)out[p]=(out[p]||0)+out[i]}
+  return out;
+}
+function directCounts(){const d={};for(let i=1;i<S.users.length;i++){const p=S.users[i].sp;if(p!==null)d[p]=(d[p]||0)+1}return d}
+// Royalty ranks are self-prerequisite and therefore automatically cumulative: a team member who has gone
+// on to Director still satisfies "10 Leaders", because Director required Manager, which required
+// Supervisor, which required Leader. Entirely independent of Harvest's own 3-direct qualification.
+function ranks(){
+  const N=S.users.length-1,d=directCounts();
+  const isL={};for(let i=1;i<=N;i++)isL[i]=(d[i]||0)>=10;
+  const r1=rollup(i=>isL[i]?1:0);
+  const isS={};for(let i=1;i<=N;i++)isS[i]=isL[i]&&(r1[i]-(isL[i]?1:0))>=10;
+  const r2=rollup(i=>isS[i]?1:0);
+  const isM={};for(let i=1;i<=N;i++)isM[i]=isS[i]&&(r2[i]-(isS[i]?1:0))>=10;
+  const r3=rollup(i=>isM[i]?1:0);
+  const isD={};for(let i=1;i<=N;i++)isD[i]=isM[i]&&(r3[i]-(isM[i]?1:0))>=10;
+  const ts=rollup(()=>1);
+  return{d,isL,isS,isM,isD,r1,r2,r3,ts};
+}
+const rankName=(R,i)=>R.isD[i]?'Director':R.isM[i]?'Manager':R.isS[i]?'Supervisor':R.isL[i]?'Leader':'Member';
+const rankLvl=(R,i)=>R.isD[i]?4:R.isM[i]?3:R.isS[i]?2:R.isL[i]?1:0;
+const groupSalesAll=()=>rollup(i=>S.sales[i]||0);
+function teamOf(id){
+  const kids={};for(let i=1;i<S.users.length;i++){const p=S.users[i].sp;if(p!==null)(kids[p]=kids[p]||[]).push(i)}
+  const out=[],stack=[id];
+  while(stack.length){const x=stack.pop();(kids[x]||[]).forEach(c=>{out.push(c);stack.push(c)})}
+  return out;
+}
+const RANK_ROWS=[
+  {r:'Member',req:'Automatic on registration'},
+  {r:'Leader',req:'10 direct sponsees (not royalty-eligible)'},
+  {r:'Supervisor',req:'10 team members who are Leader+'},
+  {r:'Manager',req:'10 team members who are Supervisor+'},
+  {r:'Director',req:'10 team members who are Manager+'},
+];
+const ladderT=()=>`<div class="sc"><table><caption class="sr">Royalty rank ladder</caption><tr><th>Rank</th><th>Requirement</th><th>Monthly quota</th><th>Group %</th><th>Personal %</th></tr>${RANK_ROWS.map(x=>`<tr><td>${x.r}</td><td>${x.req}</td><td>${RANK_QUOTA[x.r]?peso(RANK_QUOTA[x.r]):'—'}</td><td>${GROUP_PCT[x.r]?Math.round(GROUP_PCT[x.r]*100)+'%':'—'}</td><td>${PERSONAL_PCT[x.r]?Math.round(PERSONAL_PCT[x.r]*100)+'%':'—'}</td></tr>`).join('')}</table></div>`;
+const unilevelT=()=>`<div class="sc"><table><caption class="sr">Unilevel Repeat-Purchase Bonus schedule</caption><tr><th>Level</th><th>Who</th><th>Rate</th></tr>${UNILEVEL_PCT.map((pct,L)=>`<tr><td>${L}</td><td>${L===0?'The buyer (self)':'Upline, '+L+' level'+(L>1?'s':'')+' up'}</td><td>${Math.round(pct*100)}%</td></tr>`).join('')}</table></div>`;
+const indirectT=()=>`<div class="sc"><table><caption class="sr">Indirect Referral Bonus schedule</caption><tr><th>Level</th><th>Who</th><th>Bonus</th></tr>${INDIRECT_BONUS.slice(1).map((amt,i)=>`<tr><td>${i+1}</td><td>Upline, ${i+1} level${i+1>1?'s':''} up</td><td>${peso(amt)}</td></tr>`).join('')}</table></div>`;
+
+function payout(rankNm,gs,ps){
+  const q=RANK_QUOTA[rankNm];
+  if(q===undefined)return{elig:false,hit:false,quota:0,pay:0};
+  const hit=gs>=q;
+  return{elig:true,hit,quota:q,pay:hit?Math.round(GROUP_PCT[rankNm]*gs+PERSONAL_PCT[rankNm]*ps):0};
+}
+// Unilevel pays in real time, on every purchase: Level 0 always goes to the buyer; levels 1-10 walk the
+// sponsor chain and pay each upline unless THEIR flag (set by last month's evaluateMonth) is explicitly
+// Inactive. A member with no entry yet - never evaluated, brand new, or still in month 1 - reads as
+// Active by default, which is what lets month 1 (and any new member) earn from their downline immediately.
+function recordPurchase(id,amt){
+  amt=Math.max(0,Math.round(+amt||0));
+  if(amt<=0)return null;
+  S.sales[id]=(S.sales[id]||0)+amt;
+  S.purchasedAll[id]=(S.purchasedAll[id]||0)+amt;
+  const l0=Math.round(UNILEVEL_PCT[0]*amt);
+  S.unilevelEarned[id]=(S.unilevelEarned[id]||0)+l0;
+  S.unilevelMonthTotal=(S.unilevelMonthTotal||0)+l0;
+  let cur=U(id).sp,upTotal=0,paidCount=0,skippedCount=0;const dist=[];
+  for(let L=1;L<=10&&cur!==null;L++){
+    if(cur>0){
+      if(S.unilevelFlag[cur]!==false){
+        const pay=Math.round(UNILEVEL_PCT[L]*amt);
+        S.unilevelEarned[cur]=(S.unilevelEarned[cur]||0)+pay;
+        S.unilevelMonthTotal=(S.unilevelMonthTotal||0)+pay;
+        upTotal+=pay;paidCount++;dist.push({id:cur,level:L,amount:pay});
+      }else skippedCount++;
+    }
+    cur=U(cur).sp;
+  }
+  return{amt,l0,upTotal,paidCount,skippedCount,dist};
+}
+// Simulates purchase activity for ~PUR_RATE of the network. Each purchase still runs through
+// recordPurchase(), so Unilevel still pays in real time, exactly as a manual purchase would - this
+// is a standalone action now, separate from evaluateMonth()/Advance Month, which only judges eligibility.
+function autoPurchasePass(){
+  const N=S.users.length-1;let buyers=0,total=0,unilevel=0;const log=[];
+  for(let i=1;i<=N;i++)if(Math.random()<PUR_RATE){
+    const amt=PUR_MIN+Math.floor(Math.random()*((PUR_MAX-PUR_MIN)/100+1))*100;
+    const r=recordPurchase(i,amt);
+    if(r){buyers++;total+=r.amt;unilevel+=r.l0+r.upTotal;log.push({buyer:i,amt:r.amt,l0:r.l0,dist:r.dist})}
+  }
+  S.lastAutoPurchaseLog=log;
+  return{buyers,total,unilevel};
+}
+// Evaluate every member's Group Sales against their rank's quota, pay Supervisor+, then reset the month.
+// Independent of Harvest: registering members never triggers this, only "Advance month" does.
+function evaluateMonth(){
+  const R=ranks(),gs=groupSalesAll(),N=S.users.length-1;
+  let total=0,count=0;
+  for(let i=1;i<=N;i++){
+    const{pay}=payout(rankName(R,i),gs[i]||0,S.sales[i]||0);
+    if(pay>0){S.earnedAll[i]=(S.earnedAll[i]||0)+pay;total+=pay;count++}
+  }
+  // Unilevel's status for the WHOLE next month is fixed here, from this month's personal sales alone -
+  // always an explicit true/false for every member, replacing whatever they had before. A member who has
+  // never been through this check at all (brand new, or month 1) has no entry here yet, and the
+  // eligibility check in recordPurchase() treats that absence as Active, not Inactive.
+  const newFlag={},lastSales={};let activeNext=0;
+  for(let i=1;i<=N;i++){const s=S.sales[i]||0;lastSales[i]=s;newFlag[i]=s>=UNILEVEL_QUOTA;if(newFlag[i])activeNext++}
+  S.unilevelFlag=newFlag;S.unilevelLastSales=lastSales;
+  const unilevelTotal=S.unilevelMonthTotal||0;
+  S.lastMonthUnilevelTotal=unilevelTotal;S.unilevelMonthTotal=0;
+  S.sales={};S.month=(S.month||1)+1;S.lastMonthTotal=total;S.lastMonthCount=count;
+  return{total,count,unilevelTotal,activeNext};
+}
+
+// Sponsor-pattern bulk add, scoped to root's team (root=null means the whole network). Pure tree
+// structure, independent of Harvest qualification or Royalty rank - it only decides who sponsors whom.
+function sponsorPlan(pattern,root,K){
+  const real=root===null?S.users.filter(u=>u.id!==0).map(u=>u.id):[root,...teamOf(root)];
+  if(pattern==='chain'){
+    let cur=real.reduce((a,b)=>Math.max(a,b),0);
+    const out=[];for(let k=0;k<K;k++){out.push(cur);cur={ph:k}}
+    return out;
+  }
+  if(pattern==='balanced'){
+    const d=directCounts(),rem=new Map(),queue=[];
+    if(root===null&&real.length===0){rem.set(0,1);queue.push(0)}
+    real.forEach(id=>{const r=10-(d[id]||0);if(r>0){rem.set(id,r);queue.push(id)}});
+    if(!queue.length){rem.set(root,10);queue.push(root)}
+    let head=0;const out=[];
+    for(let k=0;k<K;k++){
+      while(rem.get(queue[head])<=0)head++;
+      const sp=queue[head];out.push(sp);rem.set(sp,rem.get(sp)-1);
+      const ph={ph:k};rem.set(ph,10);queue.push(ph);
+      if(rem.get(sp)<=0)head++;
+    }
+    return out;
+  }
+  const pool=real.length?real.slice():[0];
+  const out=[];
+  for(let k=0;k<K;k++){out.push(pool[Math.floor(Math.random()*pool.length)]);pool.push({ph:k})}
+  return out;
+}
+// Fast bulk registration path: name assumed pre-validated and unique, sponsor given by id. Harvest's
+// 3-direct qualification is tracked incrementally (liveDirects/mxIdx) rather than rescanning the whole
+// network per registration, so a whole bulk batch stays O(K) even though it can push onto S.mx many
+// times over. Royalty rank needs no equivalent bookkeeping here, since ranks() derives it fresh on demand.
+function bulkAdd(pattern,root,K){
+  const plan=sponsorPlan(pattern,root,K);
+  const newIds=new Array(K).fill(undefined);
+  const liveDirects=directCounts();
+  const mxIdx=new Map(S.mx.map((id,i)=>[id,i]));
+  let added=0,indirectTotal=0;
+  for(let k=0;k<K;k++){
+    let sp=plan[k];
+    if(sp&&typeof sp==='object')sp=newIds[sp.ph];
+    if(sp===undefined)continue;
+    const u={id:S.users.length,name:'m'+S.users.length,sp};
+    S.users.push(u);
+    liveDirects[sp]=(liveDirects[sp]||0)+1;
+    if(sp>0&&liveDirects[sp]===3&&!mxIdx.has(sp)){mxIdx.set(sp,S.mx.length);S.mx.push(sp)}
+    indirectTotal+=payIndirectReferral(u.id).total;
+    newIds[k]=u.id;added++;
+  }
+  return{added,indirectTotal};
+}
+
+function rankSnap(){const R=ranks(),N=S.users.length-1,s={};for(let i=1;i<=N;i++)s[i]=rankLvl(R,i);return s}
+// Extra sentence for toasts: who newly reached which Royalty rank since snapshot b (id gets its own mention).
+function rankMsg(before,id){
+  const R=ranks(),N=S.users.length-1;let mine='';const c=[0,0,0,0,0];
+  for(let i=1;i<=N;i++){const b=before[i]||0,a=rankLvl(R,i);if(a>b){if(i===id)mine=` You are now a <b>${RN[a]}</b>!`;else c[a]++}}
+  const parts=[];for(let L=1;L<=4;L++)if(c[L])parts.push(`${c[L]} reached ${RN[L]}`);
+  return mine+(parts.length?` ${parts.join(', ')}.`:'');
+}
+// Extra sentence for toasts: who qualified for Harvest and which levels completed (either matrix) since snapshot b.
+function qmsg(b,id){const a=snap(),me=a.g[id]!==undefined&&b.g[id]===undefined,oq=S.mx.length-b.q-(me?1:0);let c=0;const y=[];
+  for(const u in a.g)for(const[k,B,nm]of[['g',BONUS_G,'General'],['t',BONUS_T,'Team']]){const o=b[k][u]||0,d=a[k][u]-o;if(d>0){if(+u===id){let s=0;for(let L=o+1;L<=a[k][u];L++)s+=B[L];y.push(`${nm} Level ${o+1}${d>1?'-'+a[k][u]:''} (+${peso(s)})`)}else c+=d}}
+  return(me?` You qualified for Harvest at position <b>#${pos(id)+1}</b>.`:'')+(oq>0?` ${oq} ${me?'other ':''}member${oq>1?'s':''} qualified.`:'')+(y.length?` You completed ${y.join(' and ')}.`:'')+(c?` ${c} other level completion${c>1?'s':''}.`:'')}
+
+// Toasts live outside #root so they survive re-renders; the region is announced politely.
+function toast(msg){
+  const box=document.getElementById('toasts'),el=document.createElement('div');
+  el.className='toast';
+  el.innerHTML=`<span class="ti" aria-hidden="true">✓</span><span>${msg}</span><button type="button" aria-label="Dismiss notification">×</button>`;
+  let t,r;
+  const stop=()=>{clearTimeout(t);clearTimeout(r);el.classList.remove('out')},
+    close=()=>{stop();el.remove()},
+    fade=()=>{el.classList.add('out');r=setTimeout(()=>el.remove(),500)},
+    arm=()=>{stop();t=setTimeout(fade,5000)};
+  el.querySelector('button').onclick=close;
+  el.onmouseenter=stop;el.onmouseleave=arm;el.addEventListener('focusin',stop);el.addEventListener('focusout',arm);
+  box.appendChild(el);
+  while(box.children.length>3)box.firstChild.remove();
+  arm();
+}
+// Full re-renders keep keyboard focus and typed text - inputs and selects alike.
+function keep(fn){
+  const a=document.activeElement,k=a&&a.dataset&&a.dataset.f,v={};
+  document.querySelectorAll('input[data-f],select[data-f]').forEach(i=>v[i.dataset.f]=i.value);
+  fn();
+  for(const x in v){const i=document.querySelector('[data-f="'+x+'"]');if(i)i.value=v[x]}
+  if(k){const e=document.querySelector('[data-f="'+k+'"]');if(e)e.focus()}
+}
+// Pagination: state per table, page sizes start at 10. 'team' is Team Harvest's downline (qualified
+// after you); 'rteam' is Royalty's downline (unconditional, entire subtree) - genuinely different sets.
+const PG={},PL={gen:'Your general matrix',team:'Your team',rteam:'Your Royalty team',apl:'Auto-purchase breakdown',members:'Members'};
+const pgs=k=>PG[k]||(PG[k]={p:1,s:10});
+function page(k,arr){const st=pgs(k),n=Math.max(1,Math.ceil(arr.length/st.s));st.p=Math.min(Math.max(1,st.p),n);return arr.slice((st.p-1)*st.s,st.p*st.s)}
+function goPg(k,to){const st=pgs(k);if(to===st.p)return;st.p=to;render()}
+function setSize(k,v){const st=pgs(k);st.p=Math.floor((st.p-1)*st.s/v)+1;st.s=v;render()}
+const pageList=(p,n)=>{if(n<=7)return Array.from({length:n},(_,i)=>i+1);const a=[...new Set([1,2,p-1,p,p+1,n-1,n])].filter(x=>x>=1&&x<=n).sort((x,y)=>x-y),o=[];a.forEach((x,i)=>{if(i&&x-a[i-1]>1)o.push('…');o.push(x)});return o};
+function pager(k,n){
+  const st=pgs(k),pages=Math.max(1,Math.ceil(n/st.s)),p=st.p,a=n?(p-1)*st.s+1:0,b=Math.min(n,p*st.s);
+  const sum=`<span class="mut">Showing ${nf(a)}–${nf(b)} of ${nf(n)}</span>`;
+  if(n<=10)return`<div class="pgr">${sum}</div>`;
+  const B=(key,lbl,to,txt,off,cur)=>`<button type="button" class="pb${cur?' cur':''}" data-f="${k}-${key}" aria-label="${lbl}"${cur?' aria-current="page"':''}${off?' aria-disabled="true"':''} onclick="goPg('${k}',${to})">${txt}</button>`;
+  const nums=pageList(p,pages).map(x=>x==='…'?'<span class="mut" aria-hidden="true">…</span>':B('n'+x,x===p?`Page ${x}, current page`:`Go to page ${x}`,x,x,0,x===p)).join('');
+  return`<nav class="pgr" aria-label="${PL[k]} pagination"><label class="rpp">Rows per page<select data-f="${k}-size" onchange="setSize('${k}',+this.value)">${[10,25,50,100].map(v=>`<option${v===st.s?' selected':''}>${v}</option>`).join('')}</select></label>${sum}<div class="pbs">${B('first','First page',1,'«',p===1)}${B('prev','Previous page',Math.max(1,p-1),'‹',p===1)}${nums}${B('next','Next page',Math.min(pages,p+1),'›',p===pages)}${B('last','Last page',pages,'»',p===pages)}</div></nav>`;
+}
+
+function dash(m){
+  const on=S.on,me=U(S.me);
+  const N=S.users.length-1,NQ=S.mx.length;
+  const Qm=new Map(S.mx.map((u,i)=>[u,i])),pq=id=>Qm.has(id)?Qm.get(id):-1;
+  const R=ranks(),gsAll=groupSalesAll(),C=counts();
+  const myD=R.d[me.id]||0,p=pq(me.id),nmH=C[me.id]||0;
+  const rl=rankName(R,me.id),lvl=rankLvl(R,me.id),myGS=gsAll[me.id]||0,myPS=S.sales[me.id]||0;
+  const sum=(g,t,r,u,i)=>(on.g?g:0)+(on.t?t:0)+(on.r?r:0)+(on.u?u:0)+(on.i?i:0);
+  const myActive=S.unilevelFlag[me.id]!==false,myLastSales=(S.unilevelLastSales||{})[me.id]||0,myEverChecked=me.id in (S.unilevelLastSales||{});
+  const tg=S.mx.reduce((a,_,i)=>a+earnedG(i),0),tt=S.mx.reduce((a,u)=>a+earnedT(C[u]||0),0);
+  const tr=Object.values(S.earnedAll).reduce((a,b)=>a+b,0);
+  const tu=Object.values(S.unilevelEarned).reduce((a,b)=>a+b,0);
+  const ti=Object.values(S.indirectEarned).reduce((a,b)=>a+b,0);
+  // Company Report: always every peso actually paid out and every peso modeled as revenue, regardless
+  // of the Count-G/T/R/U/I checkboxes above, which only affect personal ranking, not company finances.
+  const regRevenue=N*BASIC_ACCOUNT_PRICE,purchaseRevenue=Object.values(S.purchasedAll).reduce((a,b)=>a+b,0);
+  const totalRevenue=regRevenue+purchaseRevenue,totalPayouts=tg+tt+tr+tu+ti,netProfit=totalRevenue-totalPayouts;
+  const margin=totalRevenue>0?(netProfit/totalRevenue*100):0;
+  const companyReport=`<div class="pan"><h2>Company Report</h2>
+<div class="stats"><div><b>${peso(totalRevenue)}</b>Total revenue</div><div><b>${peso(totalPayouts)}</b>Total payouts</div><div><b class="${netProfit>=0?'ok':''}"${netProfit>=0?'':' style="color:var(--amb)"'}>${peso(netProfit)}</b>Net profit</div><div><b>${margin.toFixed(1)}%</b>Margin</div></div>
+<div class="sc"><table><caption class="sr">Company revenue and payouts, all-time</caption><tr><th>Line item</th><th>Amount</th></tr>
+<tr><td>Registration revenue (${nf(N)} &times; ${peso(BASIC_ACCOUNT_PRICE)} Basic account)</td><td>${peso(regRevenue)}</td></tr>
+<tr><td>Repeat-purchase revenue (all-time)</td><td>${peso(purchaseRevenue)}</td></tr>
+<tr><td><b>Total Revenue</b></td><td><b>${peso(totalRevenue)}</b></td></tr>
+<tr><td>General Harvest paid</td><td>${peso(tg)}</td></tr>
+<tr><td>Team Harvest paid</td><td>${peso(tt)}</td></tr>
+<tr><td>Royalty paid</td><td>${peso(tr)}</td></tr>
+<tr><td>Unilevel paid</td><td>${peso(tu)}</td></tr>
+<tr><td>Indirect Referral paid</td><td>${peso(ti)}</td></tr>
+<tr><td><b>Total Payouts</b></td><td><b>${peso(totalPayouts)}</b></td></tr>
+<tr><td><b>Net Profit</b></td><td><b>${peso(netProfit)}</b></td></tr>
+</table></div>
+<p class="mut">Simulation only: every registration is modeled as a ${peso(BASIC_ACCOUNT_PRICE)} Basic account, and every recorded personal purchase counts as revenue in full, with no cost of goods modeled. This report always reflects every peso actually paid out - it is not affected by the Count General/Team/Royalty/Unilevel/Indirect Referral checkboxes below, which only change your personal ranking.</p></div>`;
+  let activeNow=0;for(let i=1;i<=N;i++)if(S.unilevelFlag[i]!==false)activeNow++;
+  const top=S.mx.reduce((a,u)=>Math.max(a,C[u]||0),0);
+  const tierCounts=[0,0,0,0,0];for(let i=1;i<=N;i++)tierCounts[rankLvl(R,i)]++;
+
+  const rows=S.users.slice(1).map(u=>{
+    const q=pq(u.id),n=C[u.id]||0,g=q<0?0:earnedG(q),t=q<0?0:earnedT(n),royaltyE=S.earnedAll[u.id]||0,unilevelE=S.unilevelEarned[u.id]||0,indirectE=S.indirectEarned[u.id]||0;
+    return{u,q,n,g,t,d:R.d[u.id]||0,rn:rankName(R,u.id),royaltyTeam:R.ts[u.id]-1,royaltyE,unilevelE,indirectE,e:sum(g,t,royaltyE,unilevelE,indirectE)};
+  }).sort((a,b)=>b.e-a.e||(a.q<0)-(b.q<0)||a.q-b.q||a.u.id-b.u.id);
+
+  const tm=p<0?[]:team(me.id),pre=p<0?0:S.mx.slice(0,p).filter(u=>isUp(me.id,u)).length;
+  const gm=[];if(p>=0)levelsG(p).forEach(l=>{const s=l.t*p+(l.t-1)/2;for(let q=s;q<s+l.f;q++)gm.push({q,L:l.L})});
+  const tmR=teamOf(me.id).map(id=>({u:U(id),rn:rankName(R,id),lvl:rankLvl(R,id),d:R.d[id]||0})).sort((a,b)=>b.lvl-a.lvl||a.u.id-b.u.id).map((x,r)=>({...x,r}));
+
+  const mineH=p<0
+    ?`<p>You are not in the Harvest matrix yet. Sponsor <b>${Math.max(0,3-myD)}</b> more direct member${3-myD===1?'':'s'} to qualify (${Math.min(myD,3)}/3).</p>`
+    :`<p>Position <b>#${p+1}</b>${p?`, placed under <b>${parentName(p)}</b>`:' (apex)'}. Harvest team: <b>${nmH}</b> qualified after you (${tm.filter(u=>U(u).sp===me.id).length} direct).</p><p>General <b>${peso(earnedG(p))}</b> + Team <b>${peso(earnedT(nmH))}</b></p>${pre?`<p class="mut">${pre} downline member${pre>1?'s':''} qualified before you, so ${pre>1?'are':'is'} not in your Team Harvest matrix.</p>`:''}`;
+
+  let mineR;
+  if(lvl===0){
+    mineR=`<p>You are a <b>Member</b>. Sponsor <b>${Math.max(0,10-myD)}</b> more direct member${10-myD===1?'':'s'} to become a Leader (${Math.min(myD,10)}/10).</p>`;
+  }else if(lvl===1){
+    const tn=R.r1[me.id]-1;
+    mineR=`<p>You are a <b>Leader</b> with <b>${myD}</b> direct${myD===1?'':'s'}. Royalty team has <b>${tn}</b> Leader+ member${tn===1?'':'s'}; reach 10 to become Supervisor (${Math.min(tn,10)}/10).</p>`;
+  }else{
+    const q=RANK_QUOTA[rl],gPct=GROUP_PCT[rl],pPct=PERSONAL_PCT[rl],hit=myGS>=q,preview=hit?Math.round(gPct*myGS+pPct*myPS):0;
+    let nextLine;
+    if(lvl===2){const tn=R.r2[me.id]-1;nextLine=`<p>Royalty team has <b>${tn}</b> Supervisor+ member${tn===1?'':'s'}; reach 10 to become Manager (${Math.min(tn,10)}/10).</p>`}
+    else if(lvl===3){const tn=R.r3[me.id]-1;nextLine=`<p>Royalty team has <b>${tn}</b> Manager+ member${tn===1?'':'s'}; reach 10 to become Director (${Math.min(tn,10)}/10).</p>`}
+    else nextLine='<p class="mut">Director is the top Royalty rank.</p>';
+    mineR=`<p>You are a <b>${rl}</b>. This month: Personal <b>${peso(myPS)}</b>, Group <b>${peso(myGS)}</b> (quota <b>${peso(q)}</b>).</p>
+<div class="bar" title="${peso(myGS)} of ${peso(q)}"><i style="width:${Math.min(100,myGS/q*100)}%"></i></div>
+<p class="mut">${hit?'<span class="ok">Quota met.</span>':'Not yet met, need <b>'+peso(q-myGS)+'</b> more.'} If evaluated now: <b>${peso(preview)}</b>.</p>
+${nextLine}<p class="mut">Royalty earned all-time: <b>${peso(S.earnedAll[me.id]||0)}</b>.</p>`;
+  }
+  const mineU=`<p>Your Unilevel status is currently <b class="${myActive?'ok':''}">${myActive?'Active':'Inactive'}</b>${myEverChecked?` (you personally bought ${peso(myLastSales)} last month; quota is ${peso(UNILEVEL_QUOTA)})`:' (not checked yet - everyone starts Active until their first missed quota)'}. While Active, you earn a level-based cut of every purchase your downline makes, up to 10 levels up - Level 0 (your own purchases) always pays, Active or not.</p>
+<p class="mut">This month so far, you've personally bought <b>${peso(myPS)}</b>. ${myPS>=UNILEVEL_QUOTA?'<span class="ok">On track to be Active next month.</span>':`Buy <b>${peso(UNILEVEL_QUOTA-myPS)}</b> more to be Active next month.`}</p>
+<p class="mut">Unilevel earned all-time: <b>${peso(S.unilevelEarned[me.id]||0)}</b>.</p>`;
+  const myG=p<0?0:earnedG(p),myT=p<0?0:earnedT(nmH),myR=S.earnedAll[me.id]||0,myU=S.unilevelEarned[me.id]||0,myI=S.indirectEarned[me.id]||0,myTotal=sum(myG,myT,myR,myU,myI);
+  const mineI=`<p>Indirect Referral pays a flat bonus to each of your uplines, up to 10 levels, every time someone joins under you at any depth - unconditional, no quota or rank needed, paid the instant the registration happens.</p>
+<p class="mut">Indirect Referral earned all-time: <b>${peso(myI)}</b>.</p>`;
+
+  const mp=p<0?'':`<div class="g2"><div class="pan"><h2>General matrix</h2>${lvT(levelsG(p))}</div><div class="pan"><h2>Team matrix</h2>${lvT(levelsT(nmH))}</div></div>`;
+  const gp=p<0?'':`<div class="pan"><h2>Your general matrix, by position</h2><div class="sc"><table><caption class="sr">Positions beneath you in the general matrix</caption><tr><th>Position</th><th>Member</th><th>Sponsor</th><th>Relation</th><th>Level</th><th>Placed under</th></tr>
+${page('gen',gm).map(({q,L})=>{const u=S.mx[q];return`<tr><td>#${q+1}</td><td>${U(u).name}</td><td>${U(U(u).sp).name}</td><td>${U(u).sp===me.id?'Direct':isUp(me.id,u)?'Indirect':'Outside your team'}</td><td>${L}</td><td>${parentName(q)}</td></tr>`}).join('')||'<tr><td colspan="6" class="mut">Nobody beneath you yet.</td></tr>'}</table></div>${pager('gen',gm.length)}</div>`;
+  const tp=p<0?'':`<div class="pan"><h2>Your team, in qualification order</h2><div class="sc"><table><caption class="sr">Your Team Harvest matrix</caption><tr><th>#</th><th>Member</th><th>Sponsor</th><th>Type</th><th>Position</th><th>Level</th><th>Placed under</th></tr>
+${page('team',tm.map((u,r)=>({u,r}))).map(({u,r})=>`<tr><td>${r+1}</td><td>${U(u).name}</td><td>${U(U(u).sp).name}</td><td>${U(u).sp===me.id?'Direct':'Indirect'}</td><td>#${pq(u)+1}</td><td>${lvOf(r)}</td><td>${r<3?'you':U(tm[Math.floor(r/3)-1]).name}</td></tr>`).join('')||'<tr><td colspan="7" class="mut">No teammates yet.</td></tr>'}</table></div>${pager('team',tm.length)}</div>`;
+  const rtp=`<div class="pan"><h2>Your Royalty team</h2><div class="sc"><table><caption class="sr">Your entire downline, any depth, highest rank first</caption><tr><th>#</th><th>Member</th><th>Sponsor</th><th>Type</th><th>Rank</th><th>Directs</th></tr>
+${page('rteam',tmR).map(x=>`<tr><td>${x.r+1}</td><td>${x.u.name}</td><td>${U(x.u.sp).name}</td><td>${x.u.sp===me.id?'Direct':'Indirect'}</td><td>${x.rn}</td><td>${x.d}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">No team members yet.</td></tr>'}</table></div>${pager('rteam',tmR.length)}</div>`;
+  // Auto-purchase's log is replaced wholesale every click, never accumulated, and filtered here to
+  // whichever member is logged in - both as a possible buyer (Level 0) and as a possible paid upline.
+  const aLog=S.lastAutoPurchaseLog||[];
+  const aplSummary=aLog.length?{buyers:aLog.length,total:aLog.reduce((a,x)=>a+x.amt,0),unilevel:aLog.reduce((a,x)=>a+x.l0+(x.dist||[]).reduce((s,d)=>s+d.amount,0),0)}:null;
+  const myAutoLog=aLog.flatMap(x=>{
+    const rows=[];
+    if(x.buyer===me.id)rows.push({name:U(x.buyer).name,level:0,amt:x.amt,earned:x.l0});
+    const d=(x.dist||[]).find(d=>d.id===me.id);
+    if(d)rows.push({name:U(x.buyer).name,level:d.level,amt:x.amt,earned:d.amount});
+    return rows;
+  }).sort((a,b)=>b.earned-a.earned);
+  const apl=`<div class="pan"><h2>Last Auto-purchase: Unilevel breakdown</h2>${aplSummary?`<p class="mut">That pass: <b>${aplSummary.buyers}</b> member${aplSummary.buyers===1?'':'s'} bought, totaling <b>${peso(aplSummary.total)}</b>, generating <b>${peso(aplSummary.unilevel)}</b> in Unilevel across the network.</p>`:''}
+${myAutoLog.length?`<div class="sc"><table><caption class="sr">Your Unilevel earnings from the last Auto-purchase pass</caption><tr><th>Buyer</th><th>Level</th><th>They bought</th><th>You earned</th></tr>
+${page('apl',myAutoLog).map(x=>`<tr><td>${x.name}</td><td>${x.level===0?'0 (you)':x.level}</td><td>${peso(x.amt)}</td><td>${peso(x.earned)}</td></tr>`).join('')}</table></div>${pager('apl',myAutoLog.length)}`
+:`<p class="mut">${aplSummary?'Nobody in that pass earned you anything - either none of them were in your line, or you weren\'t Active at the time.':'No Auto-purchase pass has run yet.'}</p>`}</div>`;
+  const cb=(k,f,l)=>`<label style="display:inline-flex;align-items:center;margin-right:16px"><input type="checkbox" data-f="${f}" style="width:auto;margin-right:6px"${on[k]?' checked':''} onchange="S.on.${k}=this.checked?1:0;save();render()">${l}</label>`;
+
+  return `<div class="top"><div><h1>Harvest Simulator: General + Team + Royalty</h1><span class="mut">Admin view, logged in as <b>${me.name}</b>. Simulation only.</span></div>
+<div class="row"><button class="sec" onclick="S.me=null;save();render()">Log out</button><button class="sec" onclick="reset()">Reset</button></div></div>
+${m?`<p class="err">${m}</p>`:''}${warn?'<p class="mut">Browser storage is unavailable here, so data resets when this tab closes.</p>':''}
+<div class="stats"><div><b>${N}</b>members registered</div><div><b>${NQ}</b>Harvest-qualified</div><div><b>${tierCounts[1]}</b>Leaders</div><div><b>${tierCounts[2]}</b>Supervisors</div><div><b>${tierCounts[3]}</b>Managers</div><div><b>${tierCounts[4]}</b>Directors</div><div><b>${peso(tg)}</b>General credited</div><div><b>${peso(tt)}</b>Team credited</div><div><b>${peso(tr)}</b>Royalty credited</div><div><b>${peso(tu)}</b>Unilevel credited</div><div><b>${peso(ti)}</b>Indirect credited</div><div><b>${peso(sum(tg,tt,tr,tu,ti))}</b>total credited</div><div><b>${activeNow}</b>Unilevel active members</div><div><b>${depth()} / ${NQ&&dep(top)?'Level '+dep(top):'none'}</b>deepest level (General / Team)</div></div>
+${companyReport}
+<div class="row">${cb('g','cg','Count General')}${cb('t','ct','Count Team')}${cb('r','cr','Count Royalty')}${cb('u','cu','Count Unilevel')}${cb('i','ci','Count Indirect Referral')}<span class="mut">Totals and ranking use the ticked streams.</span></div>
+<div class="g2"><div class="pan"><h2>Your Harvest account</h2><p class="mut">Sponsor: ${U(me.sp).name}. Directs: ${myD}.</p>${mineH}</div>
+<div class="pan"><h2>Your Royalty account</h2>${mineR}</div>
+<div class="pan"><h2>Your Unilevel account</h2>${mineU}</div>
+<div class="pan"><h2>Your Indirect Referral account</h2>${mineI}</div>
+<div class="pan"><h2>Your total</h2><p>General <b>${peso(myG)}</b> + Team <b>${peso(myT)}</b> + Royalty <b>${peso(myR)}</b> + Unilevel <b>${peso(myU)}</b> + Indirect <b>${peso(myI)}</b> = <b>${peso(myTotal)}</b>${on.g&&on.t&&on.r&&on.u&&on.i?'':' (not all streams counted)'}</p><p class="mut">This is what counts toward your ranking in the members table below.</p></div></div>
+<div class="pan"><h2>Grow the network</h2>
+<form class="row" onsubmit="return under(this)"><input id="nn" data-f="nn" name="n" placeholder="Username (blank = auto-name)" autocomplete="off" aria-label="Username"><input class="n" name="c" type="number" min="1" max="20000" value="10" aria-label="How many"><select name="pat" data-f="pat" aria-label="Sponsor pattern, under you"><option value="random">Random</option><option value="balanced">Balanced</option><option value="chain">Chain</option></select><button data-f="bu">Register under me</button></form>
+<p class="mut">A typed username registers one member under you. Leave it blank to add the given count under you, using the chosen pattern. Three directs qualify you for Harvest; ten make you a Royalty Leader.</p>
+<form class="row" onsubmit="return netGrow(this)"><input class="n" name="c2" type="number" min="1" max="20000" value="100" aria-label="How many, whole network"><select name="pat2" data-f="pat2" aria-label="Sponsor pattern, whole network"><option value="random">Random</option><option value="balanced">Balanced</option><option value="chain">Chain</option></select><button class="sec" data-f="ng">Grow whole network</button></form>
+<p class="mut"><b>Random</b> sponsors each new member under any existing one. <b>Balanced</b> fills the shallowest open slot first, 10 per member - good for both matrices and the rank ladder. <b>Chain</b> sponsors each new member under the last, so nobody reaches 3 directs, let alone 10.</p></div>
+<div class="pan"><h2>Rank ladder</h2>${ladderT()}</div>
+<div class="pan"><h2>Indirect Referral Bonus</h2>${indirectT()}<p class="mut">Paid instantly to each upline, up to 10 levels, the moment a new member registers under them at any depth - flat pesos, no quota, no rank required. A short chain near the top just pays fewer levels; nothing is redirected.</p></div>
+<div class="pan"><h2>Unilevel Repeat-Purchase Bonus</h2>${unilevelT()}<p class="mut">Level 0 always pays, straight to the buyer. Levels 1-10 pay only if that particular upline is currently Active, which is decided once a month: everyone starts Active, and personally buying at least ${peso(UNILEVEL_QUOTA)} in a month keeps (or restores) Active status for the whole of the next month; falling short switches it to Inactive until quota is cleared again, regardless of rank. Unilevel pays instantly, the moment a purchase is recorded - it does not wait for "Advance month".</p></div>
+${mp}
+<div class="pan"><h2>Month ${S.month}</h2>
+<form class="row" onsubmit="return doPurchase(this)"><input name="amt" type="number" min="1" step="1" placeholder="Amount (₱)" aria-label="Purchase amount" data-f="amt"><button data-f="rp">Record a purchase for me</button></form>
+<p class="mut">Adds to your personal sales this month, feeds your upline's Royalty group sales, and pays Unilevel instantly to whichever of your uplines are currently Active.</p>
+<button class="sec" onclick="doAutoPurchase()">Auto-purchase: simulate ~30% of the network buying</button>
+<p class="mut">Picks a random ~30% of all members and records a ₱500–₱5,000 purchase for each. Every one of those purchases pays Unilevel in real time, exactly like the button above - it just runs it for many members in one click. See who it paid you from in the breakdown panel below.</p>
+<button class="sec" onclick="doAdvance()">Advance month</button>
+<p class="mut">Pays Royalty to Supervisors, Managers and Directors who cleared quota, then sets every member's Unilevel status (Active or Inactive) for next month from this month's personal sales - manual, Auto-purchase, or both. Creates no purchases and pays no Unilevel money itself; it only decides who's eligible starting next month. Does not affect the Harvest matrices.</p></div>
+${apl}
+${gp}${tp}${rtp}
+${NQ?`<div class="pan"><h2>Whole network: fill at the top of the matrix</h2>${lvT(levelsG(0))}</div>`:''}
+<div class="pan"><h2>Whole network this month</h2><p>Combined personal sales so far: <b>${peso(gsAll[0]||0)}</b>. Last month, <b>${S.lastMonthCount||0}</b> member${(S.lastMonthCount||0)===1?'':'s'} earned Royalty totaling <b>${peso(S.lastMonthTotal||0)}</b>, and Unilevel paid out <b>${peso(S.lastMonthUnilevelTotal||0)}</b> across the network.</p></div>
+<div class="pan"><h2>All members, richest first</h2><div class="sc"><table><caption class="sr">All members ranked by bonuses earned</caption><tr><th>Member</th><th>Sponsor</th><th>Directs</th><th>Position</th><th>Harvest team</th><th>Rank</th><th>Royalty team</th><th>General ₱</th><th>Team ₱</th><th>Royalty ₱</th><th>Unilevel ₱</th><th>Indirect ₱</th><th>Total ₱</th></tr>
+${page('members',rows).map(r=>`<tr class="${r.u.id===me.id?'me':''}"><td><a href="#" onclick="S.me=${r.u.id};save();render();return false">${r.u.name}</a></td><td>${U(r.u.sp).name}</td><td>${r.d}</td><td>${r.q<0?'<span class="mut">Not qualified</span>':'#'+(r.q+1)+(r.q?', under '+parentName(r.q):' (apex)')}</td><td>${r.q<0?'-':r.n}</td><td>${r.rn}</td><td>${r.royaltyTeam}</td><td>${peso(r.g)}</td><td>${peso(r.t)}</td><td>${peso(r.royaltyE)}</td><td>${peso(r.unilevelE)}</td><td>${peso(r.indirectE)}</td><td>${peso(r.e)}</td></tr>`).join('')||'<tr><td colspan="13" class="mut">No members yet.</td></tr>'}</table></div>
+${pager('members',rows.length)}<p class="mut">Click a member's name to log in as them.</p></div>`;
+}
+
+function authView(m){return `<h1>Harvest Simulator: General + Team + Royalty</h1>
+<p class="mut">Register for free, sponsor members, and grow three income streams at once: the shared General Harvest matrix, your own Team Harvest matrix, and the Royalty rank ladder. Nothing here is real money. Data stays in this browser.</p>
+${m?`<p class="err">${m}</p>`:''}${warn?'<p class="mut">Browser storage is unavailable here, so data resets when this tab closes.</p>':''}
+<div class="g2"><form class="pan" onsubmit="return doReg(this)"><h2>Register</h2><label>Username<input name="n" data-f="rn" autocomplete="off"></label><label>Sponsor<input name="s" data-f="rs" list="ul" value="company" autocomplete="off"></label><button>Register and log in</button></form>
+<form class="pan" onsubmit="return doLogin(this)"><h2>Log in</h2><label>Username<input name="n" data-f="ln" list="ul" autocomplete="off"></label><button>Log in</button></form></div>
+<datalist id="ul">${S.users.map(u=>`<option value="${u.name}">`).join('')}</datalist>`}
+
+function doReg(f){
+  const bH=snap(),bR=rankSnap();
+  const r=reg(f.n.value,f.s.value);
+  if(typeof r==='string'){render(r);return false}
+  S.me=r.id;save();render();
+  const iMsg=lastIndirect&&lastIndirect.total>0?` Indirect Referral paid <b>${peso(lastIndirect.total)}</b> across ${lastIndirect.dist.length} upline${lastIndirect.dist.length>1?'s':''}.`:'';
+  toast(`Registered <b>${r.name}</b> under <b>${U(r.sp).name}</b>. You are logged in.${qmsg(bH,r.id)}${rankMsg(bR,r.id)}${iMsg}`);
+  return false;
+}
+function doLogin(f){const u=byName(f.n.value);if(!u||!u.id){render('No member with that username.');return false}S.me=u.id;save();render();return false}
+function under(f){
+  const me=U(S.me);
+  if(f.n.value.trim()){
+    const bH=snap(),bR=rankSnap();
+    const r=reg(f.n.value,me.name);
+    if(typeof r==='string'){render(r);return false}
+    save();f.n.value='';render();
+    const iMsg=lastIndirect&&lastIndirect.total>0?` Indirect Referral paid <b>${peso(lastIndirect.total)}</b> across ${lastIndirect.dist.length} upline${lastIndirect.dist.length>1?'s':''}.`:'';
+    toast(`Registered <b>${r.name}</b> under you.${qmsg(bH,me.id)}${rankMsg(bR,me.id)}${iMsg}`);
+    return false;
+  }
+  doBulk(f.pat.value,me.id,Math.max(1,Math.min(20000,+f.c.value||1)),true);
+  return false;
+}
+function netGrow(f){doBulk(f.pat2.value,null,Math.max(1,Math.min(20000,+f.c2.value||1)),false);return false}
+function doBulk(pattern,root,K,underMe){
+  const bH=snap(),bR=rankSnap();
+  const{added,indirectTotal}=bulkAdd(pattern,root,K);
+  save();render();
+  toast(`Added <b>${added}</b> member${added===1?'':'s'} (${pattern} pattern${underMe?', under you':''}).${qmsg(bH,S.me)}${rankMsg(bR,S.me)}${indirectTotal>0?` Indirect Referral paid <b>${peso(indirectTotal)}</b> across the batch.`:''}`);
+}
+function doPurchase(f){
+  const r=recordPurchase(S.me,+f.amt.value);
+  if(!r){render('Enter a purchase amount greater than 0.');return false}
+  save();f.amt.value='';render();
+  const parts=[`<b>${peso(r.l0)}</b> to you`];
+  if(r.paidCount)parts.push(`<b>${peso(r.upTotal)}</b> across ${r.paidCount} Active upline${r.paidCount>1?'s':''}`);
+  if(r.skippedCount)parts.push(`${r.skippedCount} upline${r.skippedCount>1?'s':''} skipped (not Active)`);
+  toast(`Recorded <b>${peso(r.amt)}</b> in personal purchases this month. Unilevel paid ${parts.join(', ')}.`);
+  return false;
+}
+function doAutoPurchase(){
+  const before=S.unilevelEarned[S.me]||0;
+  const{buyers,total,unilevel}=autoPurchasePass();
+  save();render();
+  const mine=(S.unilevelEarned[S.me]||0)-before;
+  toast(`Auto-purchase: <b>${buyers}</b> member${buyers===1?'':'s'} bought, totaling <b>${peso(total)}</b>, generating <b>${peso(unilevel)}</b> in Unilevel, paid in real time as each purchase happened.${mine>0?` You personally earned <b>${peso(mine)}</b> from this pass.`:''} See the breakdown below.`);
+}
+function doAdvance(){
+  const before=S.earnedAll[S.me]||0;
+  const{total,count,unilevelTotal,activeNext}=evaluateMonth();
+  save();render();
+  const mine=(S.earnedAll[S.me]||0)-before;
+  toast(`Advanced to <b>Month ${S.month}</b>. ${count} member${count===1?'':'s'} earned Royalty totaling <b>${peso(total)}</b> for the month that just ended (Unilevel paid <b>${peso(unilevelTotal)}</b> total that month, in real time as it happened).${mine>0?` You earned <b>${peso(mine)}</b> in Royalty.`:''} <b>${activeNext}</b> member${activeNext===1?'':'s'} will be Active for Unilevel next month.`);
+}
+function reset(){if(!armed){armed=true;render('Click Reset again to erase all simulation data.');return}armed=false;S=fresh();save();render()}
+let view=null;
+function render(m){
+  if(m===undefined)armed=false;
+  const v=(S.me>0&&U(S.me))?'d':'a';
+  keep(()=>{document.getElementById('root').innerHTML=v==='d'?dash(m):authView(m)});
+  document.getElementById('alerts').textContent=m||'';
+  if(view!==null&&v!==view){const h=document.querySelector('h1');h.tabIndex=-1;h.focus()}
+  view=v;
+}
+render();
+</script>
+</body>
+</html>

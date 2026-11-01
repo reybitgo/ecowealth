@@ -1,0 +1,137 @@
+{
+  "navigation": {
+    "Pages": [
+      { "name": "Dashboard", "url": "index.html", "icon": "bx-home" },
+      { "name": "Analytics", "url": "dashboards-analytics.html", "icon": "bx-trending-up" },
+      { "name": "CRM", "url": "dashboards-crm.html", "icon": "bx-user" },
+      { "name": "User Profile", "url": "pages-profile-user.html", "icon": "bx-user" },
+      { "name": "Account Settings", "url": "pages-account-settings-account.html", "icon": "bx-cog" },
+      { "name": "Pricing", "url": "pages-pricing.html", "icon": "bx-dollar" },
+      { "name": "FAQ", "url": "pages-faq.html", "icon": "bx-help-circle" },
+      { "name": "Error 404", "url": "pages-misc-error.html", "icon": "bx-error-circle" },
+      { "name": "Under Maintenance", "url": "pages-misc-under-maintenance.html", "icon": "bx-time" }
+    ],
+    "Apps": [
+      { "name": "eCommerce", "url": "app-ecommerce-dashboard.html", "icon": "bx-store" },
+      { "name": "Academy", "url": "app-academy-dashboard.html", "icon": "bx-book" },
+      { "name": "Logistics", "url": "app-logistics-dashboard.html", "icon": "bx-car" }
+    ],
+    "Authentication": [
+      { "name": "Login", "url": "auth-login-cover.html", "icon": "bx-lock" },
+      { "name": "Register", "url": "auth-register-cover.html", "icon": "bx-edit" },
+      { "name": "Forgot Password", "url": "auth-forgot-password-cover.html", "icon": "bx-support" },
+      { "name": "Reset Password", "url": "auth-reset-password-cover.html", "icon": "bx-time" },
+      { "name": "Verify Email", "url": "auth-verify-email-cover.html", "icon": "bx-at" },
+      { "name": "Two Steps", "url": "auth-two-steps-cover.html", "icon": "bx-wallet" }
+    ],
+    "Tables & Forms": [
+      { "name": "Basic Tables", "url": "tables-basic.html", "icon": "bx-table" },
+      { "name": "Datatables", "url": "tables-datatables-basic.html", "icon": "bx-grid" },
+      { "name": "Form Layouts", "url": "form-layouts-vertical.html", "icon": "bx-file" },
+      { "name": "Form Wizard", "url": "form-wizard-numbered.html", "icon": "bx-file" },
+      { "name": "Form Validation", "url": "form-validation.html", "icon": "bx-check-circle" }
+    ],
+    "Miscellaneous": [
+      { "name": "Icons", "url": "icons-boxicons.html", "icon": "bx-party" },
+      { "name": "Charts", "url": "charts-apex.html", "icon": "bx-line-chart" },
+      { "name": "Maps", "url": "maps-leaflet.html", "icon": "bx-wifi" },
+      { "name": "Kanban", "url": "app-kanban.html", "icon": "bx-grid" },
+      { "name": "Chat", "url": "app-chat.html", "icon": "bx-chat" },
+      { "name": "Email", "url": "app-email.html", "icon": "bx-at" }
+    ],
+    "files": [
+      {
+        "name": "Project brief.pdf",
+        "url": "app-invoice-preview.html",
+        "src": "img/pages/header.png",
+        "subtitle": "PDF · 1.2 MB",
+        "meta": "2 Aug"
+      },
+      {
+        "name": "Invoice #INV-2024-084.pdf",
+        "url": "app-invoice-preview.html",
+        "src": "img/pages/header-1.png",
+        "subtitle": "PDF · 860 KB",
+        "meta": "1 Aug"
+      },
+      {
+        "name": "Sales summary.xlsx",
+        "url": "app-ecommerce-order-list.html",
+        "src": "img/elements/13.png",
+        "subtitle": "XLSX · 240 KB",
+        "meta": "28 Jul"
+      },
+      {
+        "name": "Design system.png",
+        "url": "cards-basic.html",
+        "src": "img/pages/app-academy-tutor-1.png",
+        "subtitle": "PNG · 3.4 MB",
+        "meta": "24 Jul"
+      },
+      {
+        "name": "Brand guidelines.pdf",
+        "url": "pages-profile-projects.html",
+        "src": "img/elements/7.png",
+        "subtitle": "PDF · 5.1 MB",
+        "meta": "19 Jul"
+      }
+    ],
+    "members": [
+      {
+        "name": "Aidan Gonzalez",
+        "url": "pages-profile-user.html",
+        "src": "img/avatars/1.png",
+        "subtitle": "Senior Developer",
+        "meta": "Online"
+      },
+      {
+        "name": "Adrienne Payne",
+        "url": "pages-profile-user.html",
+        "src": "img/avatars/2.png",
+        "subtitle": "Product Designer",
+        "meta": "Online"
+      },
+      {
+        "name": "Alisha Little",
+        "url": "pages-profile-user.html",
+        "src": "img/avatars/3.png",
+        "subtitle": "QA Engineer",
+        "meta": "Away"
+      },
+      {
+        "name": "Arden Presley",
+        "url": "pages-profile-user.html",
+        "src": "img/avatars/4.png",
+        "subtitle": "Data Analyst",
+        "meta": "Offline"
+      },
+      {
+        "name": "Ashton Poole",
+        "url": "pages-profile-user.html",
+        "src": "img/avatars/5.png",
+        "subtitle": "DevOps Engineer",
+        "meta": "Online"
+      }
+    ]
+  },
+  "suggestions": {
+    "Pages": [
+      { "name": "Dashboard", "url": "index.html", "icon": "bx-home" },
+      { "name": "Account Settings", "url": "pages-account-settings-account.html", "icon": "bx-cog" },
+      { "name": "Pricing", "url": "pages-pricing.html", "icon": "bx-dollar" }
+    ],
+    "Apps": [
+      { "name": "eCommerce", "url": "app-ecommerce-dashboard.html", "icon": "bx-store" },
+      { "name": "Academy", "url": "app-academy-dashboard.html", "icon": "bx-book" },
+      { "name": "Logistics", "url": "app-logistics-dashboard.html", "icon": "bx-car" }
+    ],
+    "Tables": [
+      { "name": "Basic Tables", "url": "tables-basic.html", "icon": "bx-table" },
+      { "name": "Datatables", "url": "tables-datatables-basic.html", "icon": "bx-grid" }
+    ],
+    "Miscellaneous": [
+      { "name": "Icons", "url": "icons-boxicons.html", "icon": "bx-party" },
+      { "name": "Charts", "url": "charts-apex.html", "icon": "bx-line-chart" }
+    ]
+  }
+}

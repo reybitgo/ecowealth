@@ -1,0 +1,90 @@
+[
+  {
+    "id": "1",
+    "text": "src",
+    "state": { "opened": true },
+    "children": [
+      {
+        "id": "1.1",
+        "text": "assets",
+        "state": { "opened": true },
+        "children": [
+          {
+            "id": "1.1.1",
+            "text": "css",
+            "state": { "opened": true },
+            "children": [
+              { "id": "1.1.1.1", "text": "app.css", "type": "css" },
+              { "id": "1.1.1.2", "text": "theme.css", "type": "css" },
+              { "id": "1.1.1.3", "text": "style.css", "type": "css" }
+            ]
+          },
+          {
+            "id": "1.1.2",
+            "text": "img",
+            "children": [
+              { "id": "1.1.2.1", "text": "bg.jpg", "type": "img" },
+              { "id": "1.1.2.2", "text": "logo.png", "type": "img" },
+              { "id": "1.1.2.3", "text": "avatar.png", "type": "img" },
+              { "id": "1.1.2.4", "text": "favicon.ico", "type": "img" }
+            ]
+          },
+          {
+            "id": "1.1.3",
+            "text": "js",
+            "children": [
+              { "id": "1.1.3.1", "text": "jquery.js", "type": "js" },
+              { "id": "1.1.3.2", "text": "app.js", "type": "js" },
+              { "id": "1.1.3.3", "text": "main.js", "type": "js" },
+              { "id": "1.1.3.4", "text": "utils.js", "type": "js" }
+            ]
+          }
+        ]
+      },
+      { "id": "1.2", "text": "index.html", "type": "html" },
+      { "id": "1.3", "text": "page-one.html", "type": "html" },
+      { "id": "1.4", "text": "page-two.html", "type": "html" },
+      { "id": "1.5", "text": "about.html", "type": "html" }
+    ]
+  },
+  {
+    "id": "2",
+    "text": "dist",
+    "children": [
+      {
+        "id": "2.1",
+        "text": "assets",
+        "children": [
+          {
+            "id": "2.1.1",
+            "text": "css",
+            "children": [
+              { "id": "2.1.1.1", "text": "bundle.css", "type": "css" },
+              { "id": "2.1.1.2", "text": "vendor.css", "type": "css" }
+            ]
+          },
+          {
+            "id": "2.1.2",
+            "text": "js",
+            "children": [
+              { "id": "2.1.2.1", "text": "bundle.js", "type": "js" },
+              { "id": "2.1.2.2", "text": "vendor.js", "type": "js" }
+            ]
+          }
+        ]
+      },
+      { "id": "2.2", "text": "index.html", "type": "html" },
+      { "id": "2.3", "text": "404.html", "type": "html" }
+    ]
+  },
+  {
+    "id": "3",
+    "text": "package.json",
+    "type": "js"
+  },
+  {
+    "id": "4",
+    "text": "README.md",
+    "type": "html"
+  }
+]

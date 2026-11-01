@@ -1,0 +1,23 @@
+# ==============================================================
+#  Sneat Auth — Apache / XAMPP clean URLs
+#  Maps /login → login.php etc. so the app works out of the box,
+#  at the document root OR inside a sub-folder (e.g. /sneat-auth/public/).
+# ==============================================================
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Clean page routes (QSA keeps any extra query parameters)
+  RewriteRule ^login/?$      login.php      [L,QSA]
+  RewriteRule ^register/?$   register.php   [L,QSA]
+  RewriteRule ^dashboard/?$  dashboard.php  [L,QSA]
+  RewriteRule ^logout/?$     logout.php     [L,QSA]
+</IfModule>
+
+# Default entry point
+DirectoryIndex index.php
+
+# Never serve dotfiles (.htaccess itself, .env, …)
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>

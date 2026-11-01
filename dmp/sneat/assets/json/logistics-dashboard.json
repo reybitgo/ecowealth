@@ -1,0 +1,1 @@
+{"data": [{"id": 1, "location": "Truck 001", "start_city": "New York", "end_city": "Boston", "warnings": 0, "progress": 75}, {"id": 2, "location": "Truck 002", "start_city": "Chicago", "end_city": "Detroit", "warnings": 1, "progress": 45}]}

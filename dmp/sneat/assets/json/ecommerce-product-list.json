@@ -1,0 +1,1 @@
+{"data": [{"id": 1, "product_name": "Sample Product 1", "product_brand": "Brand A", "image": null, "category": 0, "stock": 1, "sku": "SKU001", "price": "$50", "quantity": 100, "status": 2}, {"id": 2, "product_name": "Sample Product 2", "product_brand": "Brand B", "image": null, "category": 1, "stock": 1, "sku": "SKU002", "price": "$75", "quantity": 50, "status": 2}]}

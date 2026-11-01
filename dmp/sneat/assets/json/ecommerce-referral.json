@@ -1,0 +1,1 @@
+{"data": [{"id": 1, "user": "John Doe", "email": "john@example.com", "avatar": null, "referred_id": "#R001", "status": 1, "value": "$100", "earning": "$50"}, {"id": 2, "user": "Jane Smith", "email": "jane@example.com", "avatar": null, "referred_id": "#R002", "status": 2, "value": "$200", "earning": "$0"}]}
