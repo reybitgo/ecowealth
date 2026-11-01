@@ -6,7 +6,7 @@
                 >
                   <div class="mb-2 mb-md-0">
                     &#169;
-                    <?= date('Y') ?> — Sneat login &amp; registration demo, made with
+                    <?= date('Y') ?> — Eco-wealth login &amp; registration, made with
                     <span class="text-danger">&#x2764;</span> using
                     <a href="https://www.php.net" target="_blank" rel="noopener" class="footer-link">PHP <?= PHP_VERSION ?></a>
                     &amp;

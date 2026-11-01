@@ -24,6 +24,11 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <!-- Favicon -->
     <link
       rel="icon"
+      type="image/png"
+      href="<?= e(url('assets/img/favicon/favicon.png')) ?>"
+    />
+    <link
+      rel="alternate icon"
       type="image/x-icon"
       href="<?= e(url('assets/img/favicon/favicon.ico')) ?>"
     />

@@ -1,13 +1,13 @@
 /**
- * Sneat Auth — Growth overview widgets
+ * Eco-wealth — Growth overview widgets
  * ------------------------------------
  * Boots the community-growth chart and the members DataTable from the
- * payload printed by dashboard.php (window.SNEAT_DASH).
+ * payload printed by dashboard.php (window.ECOWEALTH_DASH).
  */
 (function () {
   'use strict';
 
-  var data = window.SNEAT_DASH || {};
+  var data = window.ECOWEALTH_DASH || {};
   var palette = (window.config && window.config.colors) || {};
   var muted = palette.textMuted || '#8a8f98';
   var border = palette.borderColor || '#e7e7e8';
@@ -88,7 +88,7 @@
 
     areaChart = new ApexCharts(areaEl, buildAreaOptions(range));
     areaChart.render();
-    window.SNEAT_REGISTRATIONS_CHART = areaChart;
+    window.ECOWEALTH_REGISTRATIONS_CHART = areaChart;
     currentRange = range;
     lastWidth = Math.round(areaEl.clientWidth);
   };
@@ -174,7 +174,7 @@
       }
     } catch (error) {
       /* A plain table is still perfectly readable without the plugin. */
-      console.warn('[sneat-auth] DataTables init skipped:', error);
+      console.warn('[eco-wealth] DataTables init skipped:', error);
     }
 
     /* Navbar search filters the community table instead of navigating away. */
@@ -196,7 +196,7 @@
   }
 
   /* ---------------------------------------------------------------
-   * Active menu item (Sneat `.menu-item.active`) follows the section
+   * Active menu item (`.menu-item.active`) follows the section
    * in view, and stays on the clicked entry until it leaves the view.
    * ------------------------------------------------------------- */
   var spyLinks = Array.prototype.slice.call(document.querySelectorAll('#layout-menu [data-spy-target]'));

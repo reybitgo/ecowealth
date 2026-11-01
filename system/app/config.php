@@ -19,7 +19,7 @@ const DB_CHARSET = 'utf8mb4';
 const DB_TIMEZONE = '+08:00';
 
 /* ---------- Application ---------- */
-const APP_NAME    = 'Sneat';
+const APP_NAME    = 'Eco-wealth';
 const APP_TAGLINE = 'Login & Registration — PHP + MySQL';
 
 /* PHP display timezone (Asia/Manila) */

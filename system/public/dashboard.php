@@ -4,7 +4,7 @@ declare(strict_types=1);
 /* ==============================================================
  *  Dashboard (protected page)
  *  "Growth overview" — the Eco-wealth concept from index.html,
- *  expressed with Sneat components and live community data.
+ *  expressed with the app's UI components and live community data.
  * ============================================================== */
 require __DIR__ . '/../app/bootstrap.php';
 
@@ -69,7 +69,7 @@ try {
          LIMIT 25'
     )->fetchAll();
 } catch (Throwable $e) {
-    error_log('[sneat-auth] dashboard data: ' . $e->getMessage());
+    error_log('[eco-wealth] dashboard data: ' . $e->getMessage());
 }
 
 /* --------------------------------------------------------------
@@ -202,7 +202,7 @@ $page_css = [
 $page_js = [
     'assets/vendor/libs/apex-charts/apexcharts.js',
     'assets/vendor/libs/datatables-bs5/datatables-bootstrap5.js',
-    'assets/js/dashboards-sneat-auth.js',
+    'assets/js/dashboards-ecowealth.js',
 ];
 
 $page_styles = <<<CSS
@@ -820,7 +820,7 @@ require __DIR__ . '/../app/layout/app_header.php';
               </div>
 
               <script>
-                window.SNEAT_DASH = <?= json_encode([
+                window.ECOWEALTH_DASH = <?= json_encode([
                     'signups' => [
                         'labels' => $chartDates,
                         'values' => array_values($signupByDay),

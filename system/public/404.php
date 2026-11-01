@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/* 404 — styled like the Sneat "misc error" page. */
+/* 404 — styled like the app's "misc error" page. */
 if (!function_exists('url')) {
     require __DIR__ . '/../app/helpers.php';
 }
@@ -13,8 +13,9 @@ $page_title = 'Page Not Found';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>Page Not Found | <?= e(defined('APP_NAME') ? APP_NAME : 'Sneat') ?></title>
-    <link rel="icon" type="image/x-icon" href="<?= e(url('assets/img/favicon/favicon.ico')) ?>" />
+    <title>Page Not Found | <?= e(defined('APP_NAME') ? APP_NAME : 'Eco-wealth') ?></title>
+    <link rel="icon" type="image/png" href="<?= e(url('assets/img/favicon/favicon.png')) ?>" />
+    <link rel="alternate icon" type="image/x-icon" href="<?= e(url('assets/img/favicon/favicon.ico')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/boxicons/boxicons.min.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />

@@ -1,7 +1,7 @@
 # ==============================================================
-#  Sneat Auth — Apache / XAMPP clean URLs
+#  Eco-wealth — Apache / XAMPP clean URLs
 #  Maps /login → login.php etc. so the app works out of the box,
-#  at the document root OR inside a sub-folder (e.g. /sneat-auth/public/).
+#  at the document root OR inside a sub-folder (e.g. /ecowealth/system/public/).
 # ==============================================================
 
 <IfModule mod_rewrite.c>

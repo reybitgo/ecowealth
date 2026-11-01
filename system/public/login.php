@@ -60,7 +60,7 @@ require __DIR__ . '/../app/layout/auth_header.php';
                 </a>
               </div>
               <!-- /Logo -->
-              <h4 class="mb-1">Welcome to Sneat! &#x1f44b;</h4>
+              <h4 class="mb-1">Welcome to Eco-wealth! &#x1f44b;</h4>
               <p class="mb-6">
                 Please sign-in to your account and start the adventure
               </p>
