@@ -91,6 +91,26 @@ function e(null|string $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/**
+ * URL for a static asset with a cache-busting version stamp.
+ *
+ *   asset_url('assets/css/fonts.css')  →  '/assets/css/fonts.css?v=1762…'
+ *
+ * Keeps browsers from serving a stale stylesheet after the file changes.
+ */
+function asset_url(string $path): string
+{
+    $path = ltrim($path, '/');
+    $file = dirname(__DIR__) . '/public/' . $path;
+    $link = url($path);
+
+    if (is_file($file)) {
+        $link .= (str_contains($link, '?') ? '&' : '?') . 'v=' . filemtime($file);
+    }
+
+    return $link;
+}
+
 /** Redirect inside the app and stop execution. */
 function redirect(string $path): never
 {

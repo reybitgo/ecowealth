@@ -15,7 +15,7 @@ $page_title = 'Page Not Found';
     <meta name="robots" content="noindex, nofollow" />
     <title>Page Not Found | <?= e(defined('APP_NAME') ? APP_NAME : 'Sneat') ?></title>
     <link rel="icon" type="image/x-icon" href="<?= e(url('assets/img/favicon/favicon.ico')) ?>" />
-    <link rel="stylesheet" href="<?= e(url('assets/css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/boxicons/boxicons.min.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
     <link rel="stylesheet" href="<?= e(url('assets/css/demo.css')) ?>" />

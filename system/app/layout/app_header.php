@@ -1,10 +1,24 @@
 <?php
 /** Shared header for authenticated (app) pages — Sneat vertical layout. */
 
-/** @var array $user Currently authenticated user (set by dashboard.php) */
+/**
+ * @var array    $user        Currently authenticated user (set by the page)
+ * @var string[] $page_css    Extra stylesheets, paths relative to public/
+ * @var string[] $page_js     Extra scripts, paths relative to public/
+ * @var string   $page_styles Optional inline CSS for one page
+ * @var array    $nav_notes   Optional notification entries:
+ *                            [['icon' => 'bx bx-user-plus', 'tone' => 'primary',
+ *                              'title' => 'New member', 'text' => 'jane', 'time' => '2 min ago'], …]
+ */
 
-$page_title = $page_title ?? APP_NAME;
-$me         = $user;
+$me          = $user;
+$page_title  = $page_title ?? APP_NAME;
+$page_css    = $page_css ?? [];
+$page_js     = $page_js ?? [];
+$page_styles = $page_styles ?? '';
+$nav_notes   = $nav_notes ?? [];
+$nav_badges  = $nav_badges ?? [];
+$current_nav = $current_nav ?? 'dashboard';
 ?>
 <!doctype html>
 <!-- beautify ignore:start -->
@@ -31,15 +45,24 @@ $me         = $user;
       type="image/x-icon"
       href="<?= e(url('assets/img/favicon/favicon.ico')) ?>"
     />
-    <link rel="stylesheet" href="<?= e(url('assets/css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/fonts/iconify-icons.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/boxicons/boxicons.min.css')) ?>">
     <!-- Core CSS -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
-    <link rel="stylesheet" href="<?= e(url('assets/css/demo.css')) ?>" />
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />
     <!-- Vendors CSS -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css')) ?>" />
+<?php foreach ($page_css as $css): ?>
+    <link rel="stylesheet" href="<?= e(asset_url($css)) ?>" />
+<?php endforeach; ?>
     <!-- Page CSS -->
+<?php if ($page_styles !== ''): ?>
+    <style>
+<?= $page_styles ?>
+
+    </style>
+<?php endif; ?>
     <!-- Helpers -->
     <script src="<?= e(url('assets/vendor/js/helpers.js')) ?>"></script>
     <!--? Template customizer: To hide customizer set displayCustomizer value false in config.js.  -->
@@ -67,21 +90,83 @@ $me         = $user;
           </div>
           <div class="menu-inner-shadow"></div>
           <ul class="menu-inner py-1">
-            <!-- Dashboard -->
-            <li class="menu-item active">
-              <a href="<?= e(url('dashboard')) ?>" class="menu-link">
+            <!-- Growth overview -->
+            <li class="menu-header mt-7">
+              <span class="menu-header-text" data-i18n="Growth overview">Growth overview</span>
+            </li>
+            <li class="menu-item <?= $current_nav === 'dashboard' ? 'active' : '' ?>">
+              <a href="<?= e(url('dashboard')) ?>" class="menu-link" data-spy-target="overview">
                 <i class="menu-icon icon-base bx bx-home-smile"></i>
-                <div data-i18n="Dashboard">Dashboard</div>
+                <div data-i18n="Overview">Overview</div>
               </a>
             </li>
-            <!-- Account -->
             <li class="menu-item">
-              <a href="<?= e(url('dashboard')) ?>#account" class="menu-link">
-                <i class="menu-icon icon-base bx bx-user"></i>
-                <div data-i18n="My Account">My Account</div>
+              <a href="#community" class="menu-link" data-spy-target="community">
+                <i class="menu-icon icon-base bx bx-group"></i>
+                <div data-i18n="Community">Community</div>
+                <?php if (!empty($nav_badges['members'])): ?>
+                  <span class="badge rounded-pill bg-label-primary ms-auto"><?= (int) $nav_badges['members'] ?></span>
+                <?php endif; ?>
               </a>
             </li>
-            <!-- Sign out -->
+            <li class="menu-item">
+              <a href="#growth" class="menu-link" data-spy-target="growth">
+                <i class="menu-icon icon-base bx bx-line-chart"></i>
+                <div data-i18n="Community growth">Community growth</div>
+              </a>
+            </li>
+
+            <!-- The ecosystem -->
+            <li class="menu-header mt-7">
+              <span class="menu-header-text" data-i18n="The ecosystem">The ecosystem</span>
+            </li>
+            <li class="menu-item">
+              <a href="#dimensions" class="menu-link" data-spy-target="dimensions">
+                <i class="menu-icon icon-base bx bx-layer"></i>
+                <div data-i18n="Five dimensions">Five dimensions</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="#leadership" class="menu-link" data-spy-target="leadership">
+                <i class="menu-icon icon-base bx bx-medal"></i>
+                <div data-i18n="Leadership path">Leadership path</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="#participation" class="menu-link" data-spy-target="participation">
+                <i class="menu-icon icon-base bx bx-check-shield"></i>
+                <div data-i18n="Participation">Participation</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="#journey" class="menu-link" data-spy-target="journey">
+                <i class="menu-icon icon-base bx bx-map"></i>
+                <div data-i18n="The journey">The journey</div>
+              </a>
+            </li>
+
+            <!-- Account -->
+            <li class="menu-header mt-7">
+              <span class="menu-header-text" data-i18n="Account">Account</span>
+            </li>
+            <li class="menu-item">
+              <a href="#membership" class="menu-link" data-spy-target="membership">
+                <i class="menu-icon icon-base bx bx-user-circle"></i>
+                <div data-i18n="My membership">My membership</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="#questions" class="menu-link" data-spy-target="questions">
+                <i class="menu-icon icon-base bx bx-help-circle"></i>
+                <div data-i18n="Questions">Questions</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="<?= e(url('register')) ?>" class="menu-link">
+                <i class="menu-icon icon-base bx bx-user-plus"></i>
+                <div data-i18n="Add member">Add member</div>
+              </a>
+            </li>
             <li class="menu-item">
               <form method="POST" action="<?= e(url('logout')) ?>" class="w-100">
                 <?= csrf_field() ?>
@@ -116,7 +201,75 @@ $me         = $user;
               class="navbar-nav-right d-flex align-items-center justify-content-end"
               id="navbar-collapse"
             >
+              <!-- Quick search -->
+              <div class="navbar-nav align-items-center d-none d-md-flex me-xl-4">
+                <div class="nav-item d-flex align-items-center">
+                  <i class="icon-base bx bx-search icon-md"></i>
+                  <input
+                    type="search"
+                    id="navbarQuickSearch"
+                    class="form-control border-0 bg-transparent shadow-none ps-2"
+                    placeholder="Search members…"
+                    aria-label="Search members"
+                  />
+                </div>
+              </div>
+              <!-- / Quick search -->
+
               <ul class="navbar-nav flex-row align-items-center ms-md-auto">
+                <!-- Notifications -->
+                <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-2">
+                  <a
+                    class="nav-link dropdown-toggle hide-arrow btn btn-icon btn-text-secondary rounded-pill"
+                    href="javascript:void(0);"
+                    data-bs-toggle="dropdown"
+                    data-bs-auto-close="outside"
+                    aria-expanded="false"
+                  >
+                    <i class="icon-base bx bx-bell icon-md"></i>
+                    <?php if ($nav_notes !== []): ?>
+                      <span class="position-absolute top-0 start-50 translate-middle-y badge badge-dot bg-danger mt-2 border"></span>
+                    <?php endif; ?>
+                  </a>
+                  <ul class="dropdown-menu dropdown-menu-end py-0" style="min-width: 21rem">
+                    <li class="border-bottom">
+                      <div class="d-flex align-items-center justify-content-between px-4 py-3">
+                        <h6 class="mb-0">Notifications</h6>
+                        <span class="badge rounded-pill bg-label-primary"><?= count($nav_notes) ?> new</span>
+                      </div>
+                    </li>
+                    <li>
+                      <ul class="list-group list-group-flush" style="max-height: 19rem; overflow-y: auto">
+<?php if ($nav_notes === []): ?>
+                        <li class="list-group-item text-body-secondary small px-4 py-4">
+                          Nothing new right now — you are all caught up.
+                        </li>
+<?php endif; ?>
+<?php foreach ($nav_notes as $note): ?>
+                        <li class="list-group-item d-flex align-items-start gap-3 px-4 py-3 border-0">
+                          <div class="avatar avatar-sm flex-shrink-0">
+                            <span class="avatar-initial rounded bg-label-<?= e($note['tone'] ?? 'primary') ?>">
+                              <i class="icon-base bx <?= e($note['icon'] ?? 'bx-bell') ?>"></i>
+                            </span>
+                          </div>
+                          <div class="flex-grow-1">
+                            <h6 class="mb-0 small"><?= e($note['title'] ?? '') ?></h6>
+                            <small class="text-body-secondary"><?= e($note['text'] ?? '') ?></small>
+                          </div>
+                          <small class="text-body-secondary text-nowrap"><?= e($note['time'] ?? '') ?></small>
+                        </li>
+<?php endforeach; ?>
+                      </ul>
+                    </li>
+                    <li class="border-top">
+                      <div class="d-grid p-3">
+                        <a class="btn btn-primary btn-sm" href="#community">View the community</a>
+                      </div>
+                    </li>
+                  </ul>
+                </li>
+                <!-- / Notifications -->
+
                 <!-- User -->
                 <li class="nav-item navbar-dropdown dropdown-user dropdown">
                   <a
@@ -132,7 +285,7 @@ $me         = $user;
                   </a>
                   <ul class="dropdown-menu dropdown-menu-end">
                     <li>
-                      <a class="dropdown-item" href="<?= e(url('dashboard')) ?>#account">
+                      <a class="dropdown-item" href="#account">
                         <div class="d-flex">
                           <div class="flex-shrink-0 me-3">
                             <div class="avatar avatar-online">
@@ -152,9 +305,15 @@ $me         = $user;
                       <div class="dropdown-divider my-1"></div>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="<?= e(url('dashboard')) ?>#account">
+                      <a class="dropdown-item" href="#membership">
                         <i class="icon-base bx bx-user icon-md me-3"></i
-                        ><span>My Profile</span>
+                        ><span>My membership</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="#questions">
+                        <i class="icon-base bx bx-help-circle icon-md me-3"></i
+                        ><span>Questions</span>
                       </a>
                     </li>
                     <li>

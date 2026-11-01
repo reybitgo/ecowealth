@@ -48,6 +48,9 @@
     <script src="<?= e(url('assets/vendor/libs/i18n/i18n.js')) ?>"></script>
     <script src="<?= e(url('assets/vendor/js/menu.js')) ?>"></script>
     <!-- endbuild -->
+<?php foreach ($page_js as $js): ?>
+    <script src="<?= e(asset_url($js)) ?>"></script>
+<?php endforeach; ?>
     <!-- Main JS -->
     <script src="<?= e(url('assets/js/main.js')) ?>"></script>
   </body>

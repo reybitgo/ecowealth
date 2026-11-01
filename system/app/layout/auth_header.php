@@ -27,14 +27,14 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
       type="image/x-icon"
       href="<?= e(url('assets/img/favicon/favicon.ico')) ?>"
     />
-    <link rel="stylesheet" href="<?= e(url('assets/css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/fonts/iconify-icons.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/boxicons/boxicons.min.css')) ?>">
     <!-- Core CSS -->
     <!-- build:css assets/vendor/css/theme.css  -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/libs/pickr/pickr-themes.css')) ?>" />
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
-    <link rel="stylesheet" href="<?= e(url('assets/css/demo.css')) ?>" />
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />
     <!-- Vendors CSS -->
     <link
       rel="stylesheet"

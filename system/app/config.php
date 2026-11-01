@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /* ==============================================================
@@ -7,11 +8,11 @@ declare(strict_types=1);
  * ============================================================== */
 
 /* ---------- Database (MySQL) ---------- */
-const DB_HOST    = '127.0.0.1';
+const DB_HOST    = '127.0.0.1'; // sql102.infinityfree.com
 const DB_PORT    = 3306;
-const DB_NAME    = 'sneat_auth';
-const DB_USER    = 'sneat_user';
-const DB_PASS    = 'Sneat#2026Secure';
+const DB_NAME    = 'if0_42820471_ew1_db';
+const DB_USER    = 'if0_42820471';
+const DB_PASS    = 'zM0t8q6kS6au';
 const DB_CHARSET = 'utf8mb4';
 
 /* MySQL session time zone (Asia/Manila, UTC+8) */
