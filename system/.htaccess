@@ -1,0 +1,31 @@
+# ==============================================================
+#  EcoWealth - public/ front door
+#
+#  http://localhost/ecowealth/system/           ->  system/public/
+#  http://localhost/ecowealth/system/login      ->  system/public/login.php
+#  http://localhost/ecowealth/system/assets/... ->  system/public/assets/...
+#
+#  Everything below this folder is served from public/, so the
+#  "/public" segment never shows up in the browser's address bar.
+#  Needs Apache with mod_rewrite + AllowOverride All (the Laragon
+#  and XAMPP defaults).
+# ==============================================================
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Loop guard: if a path already inside public/ ever reaches this
+  # file, leave it alone instead of prepending "public/" again.
+  RewriteRule ^public(/.*)?$ - [L]
+
+  # Front door: everything else -> the same path inside public/.
+  # public/.htaccess then maps the clean URLs (login -> login.php,
+  # dashboard -> dashboard.php, ...) and serves assets as-is.
+  # Query strings are kept automatically.
+  RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# No directory listings under this folder.
+<IfModule mod_autoindex.c>
+  Options -Indexes
+</IfModule>
