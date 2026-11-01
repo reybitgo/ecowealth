@@ -79,7 +79,6 @@ $current_nav = $current_nav ?? 'dashboard';
           <div class="app-brand demo">
             <a href="<?= e(url('dashboard')) ?>" class="app-brand-link">
               <?php require __DIR__ . '/logo.php'; ?>
-              <span class="app-brand-text demo menu-text fw-bold ms-2">sneat</span>
             </a>
             <a
               href="javascript:void(0);"

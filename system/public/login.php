@@ -55,8 +55,8 @@ require __DIR__ . '/../app/layout/auth_header.php';
               <!-- Logo -->
               <div class="app-brand justify-content-center">
                 <a href="<?= e(url('/')) ?>" class="app-brand-link gap-2">
+                  <?php $brand_logo_height = 56; ?>
                   <?php require __DIR__ . '/../app/layout/logo.php'; ?>
-                  <span class="app-brand-text demo text-heading fw-bold">sneat</span>
                 </a>
               </div>
               <!-- /Logo -->
