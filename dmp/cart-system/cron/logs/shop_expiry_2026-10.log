@@ -1,0 +1,50 @@
+[2026-10-06 17:01:18 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-06 17:01:18 PST] [INFO ] Shop expiry started — Live Altas Farm
+[2026-10-06 17:01:18 PST] [INFO ] Database    : u938213108_altas6_db
+[2026-10-06 17:01:18 PST] [INFO ] Server time : Tue, 06 Oct 2026 05:01:18 PM PST
+[2026-10-06 17:01:18 PST] [OK   ] Database connection established.
+[2026-10-06 17:01:18 PST] [INFO ] Shop master switch (shop_enabled): 1
+[2026-10-06 17:01:18 PST] [INFO ] Expiry: no orders past their payment/correction deadline.
+[2026-10-06 17:01:18 PST] [INFO ] Auto-complete: no delivered orders past their report window.
+[2026-10-06 17:01:18 PST] [OK   ] Shop expiry complete. Expired: 0, auto-completed: 0. Duration: 65.36ms
+[2026-10-06 17:01:18 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-06 17:36:10 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-06 17:36:10 PST] [INFO ] Shop expiry started — Live Altas Farm
+[2026-10-06 17:36:10 PST] [INFO ] Database    : u938213108_altas6_db
+[2026-10-06 17:36:10 PST] [INFO ] Server time : Tue, 06 Oct 2026 05:36:10 PM PST
+[2026-10-06 17:36:10 PST] [OK   ] Database connection established.
+[2026-10-06 17:36:10 PST] [INFO ] Shop master switch (shop_enabled): 1
+[2026-10-06 17:36:10 PST] [INFO ] Expiry: no orders past their payment/correction deadline.
+[2026-10-06 17:36:10 PST] [INFO ] Auto-complete: no delivered orders past their report window.
+[2026-10-06 17:36:10 PST] [OK   ] Shop expiry complete. Expired: 0, auto-completed: 0. Duration: 57.49ms
+[2026-10-06 17:36:10 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-07 00:30:22 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-07 00:30:22 PST] [INFO ] Shop expiry started — Live Altas Farm
+[2026-10-07 00:30:22 PST] [INFO ] Database    : u938213108_altas6_db
+[2026-10-07 00:30:22 PST] [INFO ] Server time : Wed, 07 Oct 2026 12:30:22 AM PST
+[2026-10-07 00:30:22 PST] [OK   ] Database connection established.
+[2026-10-07 00:30:22 PST] [INFO ] Shop master switch (shop_enabled): 1
+[2026-10-07 00:30:22 PST] [INFO ] Expiry: no orders past their payment/correction deadline.
+[2026-10-07 00:30:22 PST] [INFO ] Auto-complete: no delivered orders past their report window.
+[2026-10-07 00:30:22 PST] [OK   ] Shop expiry complete. Expired: 0, auto-completed: 0. Duration: 53.99ms
+[2026-10-07 00:30:22 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-08 05:13:27 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-08 05:13:27 PST] [INFO ] Shop expiry started — Live Altas Farm
+[2026-10-08 05:13:27 PST] [INFO ] Database    : u938213108_altas6_db
+[2026-10-08 05:13:27 PST] [INFO ] Server time : Thu, 08 Oct 2026 05:13:27 AM PST
+[2026-10-08 05:13:27 PST] [OK   ] Database connection established.
+[2026-10-08 05:13:27 PST] [INFO ] Shop master switch (shop_enabled): 1
+[2026-10-08 05:13:27 PST] [INFO ] Expiry: no orders past their payment/correction deadline.
+[2026-10-08 05:13:27 PST] [INFO ] Auto-complete: no delivered orders past their report window.
+[2026-10-08 05:13:27 PST] [OK   ] Shop expiry complete. Expired: 0, auto-completed: 0. Duration: 47.8ms
+[2026-10-08 05:13:27 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-08 05:13:27 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-10-08 05:13:27 PST] [INFO ] Shop expiry started — Live Altas Farm
+[2026-10-08 05:13:27 PST] [INFO ] Database    : u938213108_altas6_db
+[2026-10-08 05:13:27 PST] [INFO ] Server time : Thu, 08 Oct 2026 05:13:27 AM PST
+[2026-10-08 05:13:27 PST] [OK   ] Database connection established.
+[2026-10-08 05:13:27 PST] [INFO ] Shop master switch (shop_enabled): 1
+[2026-10-08 05:13:27 PST] [INFO ] Expiry: no orders past their payment/correction deadline.
+[2026-10-08 05:13:27 PST] [INFO ] Auto-complete: no delivered orders past their report window.
+[2026-10-08 05:13:27 PST] [OK   ] Shop expiry complete. Expired: 0, auto-completed: 0. Duration: 43.52ms
+[2026-10-08 05:13:27 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

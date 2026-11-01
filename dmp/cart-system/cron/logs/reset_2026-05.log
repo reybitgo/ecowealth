@@ -1,0 +1,221 @@
+[2026-05-28 09:17:10 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 09:17:10 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 09:17:10 PST] [INFO ] Environment : development
+[2026-05-28 09:17:10 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 09:17:10 PST] [INFO ] Server time : Thu, 28 May 2026 09:17:10 AM PST
+[2026-05-28 09:17:11 PST] [OK   ] Database connection established.
+[2026-05-28 09:17:11 PST] [INFO ] Members (total)         : 14
+[2026-05-28 09:17:11 PST] [INFO ] Members (active)        : 14
+[2026-05-28 09:17:11 PST] [INFO ] Members with pairs today  : 4
+[2026-05-28 09:17:11 PST] [INFO ] Total pairs today       : 6
+[2026-05-28 09:17:11 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 14
+[2026-05-28 09:17:11 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 09:17:11 PST] [OK   ] last_reset timestamp updated: 2026-05-28 09:17:11
+[2026-05-28 09:17:11 PST] [OK   ] Cap expiration: 1 member(s) moved from 'capped' to 'perminact'.
+[2026-05-28 09:17:11 PST] [OK   ] DFI payout: 0 paid to 0 member(s), 0 skipped.
+[2026-05-28 09:17:11 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 09:17:11 PST] [OK   ] Reset complete. Duration: 92.94ms
+[2026-05-28 09:17:11 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 10:15:18 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 10:15:18 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 10:15:18 PST] [INFO ] Environment : development
+[2026-05-28 10:15:18 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 10:15:18 PST] [INFO ] Server time : Thu, 28 May 2026 10:15:18 AM PST
+[2026-05-28 10:15:18 PST] [OK   ] Database connection established.
+[2026-05-28 10:15:18 PST] [INFO ] Members (total)         : 15
+[2026-05-28 10:15:18 PST] [INFO ] Members (active)        : 15
+[2026-05-28 10:15:18 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 10:15:18 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 10:15:18 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 10:15:18 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 10:15:18 PST] [OK   ] last_reset timestamp updated: 2026-05-28 10:15:18
+[2026-05-28 10:15:18 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 10:15:18 PST] [OK   ] DFI payout: 0 paid to 0 member(s), 0 skipped.
+[2026-05-28 10:15:18 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 10:15:18 PST] [OK   ] Reset complete. Duration: 84.34ms
+[2026-05-28 10:15:18 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:19:20 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:19:20 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 11:19:20 PST] [INFO ] Environment : development
+[2026-05-28 11:19:20 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 11:19:20 PST] [INFO ] Server time : Thu, 28 May 2026 11:19:20 AM PST
+[2026-05-28 11:19:20 PST] [OK   ] Database connection established.
+[2026-05-28 11:19:20 PST] [INFO ] Members (total)         : 15
+[2026-05-28 11:19:20 PST] [INFO ] Members (active)        : 15
+[2026-05-28 11:19:20 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 11:19:20 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 11:19:20 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 11:19:20 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 11:19:21 PST] [OK   ] last_reset timestamp updated: 2026-05-28 11:19:21
+[2026-05-28 11:19:21 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 11:22:03 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:22:03 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 11:22:03 PST] [INFO ] Environment : development
+[2026-05-28 11:22:03 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 11:22:03 PST] [INFO ] Server time : Thu, 28 May 2026 11:22:03 AM PST
+[2026-05-28 11:22:03 PST] [OK   ] Database connection established.
+[2026-05-28 11:22:03 PST] [INFO ] Members (total)         : 15
+[2026-05-28 11:22:03 PST] [INFO ] Members (active)        : 15
+[2026-05-28 11:22:03 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 11:22:03 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 11:22:03 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 11:22:03 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 11:22:03 PST] [OK   ] last_reset timestamp updated: 2026-05-28 11:22:03
+[2026-05-28 11:22:03 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 11:22:03 PST] [WARN ] DFI payout: Globally disabled via settings.
+[2026-05-28 11:22:03 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:22:03 PST] [OK   ] Reset complete. Duration: 81.98ms
+[2026-05-28 11:22:03 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:25:24 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:25:24 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 11:25:24 PST] [INFO ] Environment : development
+[2026-05-28 11:25:24 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 11:25:24 PST] [INFO ] Server time : Thu, 28 May 2026 11:25:24 AM PST
+[2026-05-28 11:25:24 PST] [OK   ] Database connection established.
+[2026-05-28 11:25:24 PST] [INFO ] Members (total)         : 15
+[2026-05-28 11:25:24 PST] [INFO ] Members (active)        : 15
+[2026-05-28 11:25:24 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 11:25:24 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 11:25:24 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 11:25:24 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 11:25:24 PST] [OK   ] last_reset timestamp updated: 2026-05-28 11:25:24
+[2026-05-28 11:25:24 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 11:28:46 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:28:46 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 11:28:46 PST] [INFO ] Environment : development
+[2026-05-28 11:28:46 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 11:28:46 PST] [INFO ] Server time : Thu, 28 May 2026 11:28:46 AM PST
+[2026-05-28 11:28:46 PST] [OK   ] Database connection established.
+[2026-05-28 11:28:46 PST] [INFO ] Members (total)         : 15
+[2026-05-28 11:28:46 PST] [INFO ] Members (active)        : 15
+[2026-05-28 11:28:46 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 11:28:46 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 11:28:46 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 11:28:46 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 11:28:46 PST] [OK   ] last_reset timestamp updated: 2026-05-28 11:28:46
+[2026-05-28 11:28:46 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 11:28:47 PST] [OK   ] DFI payout: 1200 paid to 12 member(s), 0 skipped.
+[2026-05-28 11:28:47 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:28:47 PST] [OK   ] Reset complete. Duration: 234.5ms
+[2026-05-28 11:28:47 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:41:43 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:41:43 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 11:41:43 PST] [INFO ] Environment : development
+[2026-05-28 11:41:43 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 11:41:43 PST] [INFO ] Server time : Thu, 28 May 2026 11:41:43 AM PST
+[2026-05-28 11:41:43 PST] [OK   ] Database connection established.
+[2026-05-28 11:41:43 PST] [INFO ] Members (total)         : 15
+[2026-05-28 11:41:43 PST] [INFO ] Members (active)        : 15
+[2026-05-28 11:41:43 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 11:41:43 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 11:41:43 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 11:41:43 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 11:41:43 PST] [OK   ] last_reset timestamp updated: 2026-05-28 11:41:43
+[2026-05-28 11:41:43 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 11:41:43 PST] [OK   ] DFI payout: 1130 paid to 12 member(s), 0 skipped.
+[2026-05-28 11:41:43 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 11:41:43 PST] [OK   ] Reset complete. Duration: 214.36ms
+[2026-05-28 11:41:43 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 12:09:40 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 12:09:40 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-28 12:09:40 PST] [INFO ] Environment : development
+[2026-05-28 12:09:40 PST] [INFO ] Database    : u938213108_altas_db
+[2026-05-28 12:09:40 PST] [INFO ] Server time : Thu, 28 May 2026 12:09:40 PM PST
+[2026-05-28 12:09:40 PST] [OK   ] Database connection established.
+[2026-05-28 12:09:40 PST] [INFO ] Members (total)         : 15
+[2026-05-28 12:09:40 PST] [INFO ] Members (active)        : 15
+[2026-05-28 12:09:40 PST] [INFO ] Members with pairs today  : 0
+[2026-05-28 12:09:40 PST] [INFO ] Total pairs today       : 0
+[2026-05-28 12:09:40 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 15
+[2026-05-28 12:09:40 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-28 12:09:40 PST] [OK   ] last_reset timestamp updated: 2026-05-28 12:09:40
+[2026-05-28 12:09:40 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-28 12:09:41 PST] [OK   ] DFI payout: 1100 paid to 11 member(s), 0 skipped.
+[2026-05-28 12:09:41 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-28 12:09:41 PST] [OK   ] Reset complete. Duration: 196.98ms
+[2026-05-28 12:09:41 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:00:07 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:00:07 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-31 08:00:07 PST] [INFO ] Environment : development
+[2026-05-31 08:00:07 PST] [INFO ] Database    : u938213108_altas2_db
+[2026-05-31 08:00:07 PST] [INFO ] Server time : Sun, 31 May 2026 08:00:07 AM PST
+[2026-05-31 08:00:07 PST] [OK   ] Database connection established.
+[2026-05-31 08:00:07 PST] [INFO ] Members (total)         : 7
+[2026-05-31 08:00:07 PST] [INFO ] Members (active)        : 7
+[2026-05-31 08:00:07 PST] [INFO ] Members with pairs today  : 3
+[2026-05-31 08:00:07 PST] [INFO ] Total pairs today       : 5
+[2026-05-31 08:00:07 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 7
+[2026-05-31 08:00:07 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-31 08:00:07 PST] [OK   ] last_reset timestamp updated: 2026-05-31 08:00:07
+[2026-05-31 08:18:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:18:05 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-31 08:18:05 PST] [INFO ] Environment : development
+[2026-05-31 08:18:05 PST] [INFO ] Database    : u938213108_altas2_db
+[2026-05-31 08:18:05 PST] [INFO ] Server time : Sun, 31 May 2026 08:18:05 AM PST
+[2026-05-31 08:18:05 PST] [OK   ] Database connection established.
+[2026-05-31 08:18:05 PST] [INFO ] Members (total)         : 7
+[2026-05-31 08:18:05 PST] [INFO ] Members (active)        : 7
+[2026-05-31 08:18:05 PST] [INFO ] Members with pairs today  : 0
+[2026-05-31 08:18:05 PST] [INFO ] Total pairs today       : 0
+[2026-05-31 08:18:05 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 7
+[2026-05-31 08:18:05 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-31 08:18:05 PST] [OK   ] last_reset timestamp updated: 2026-05-31 08:18:05
+[2026-05-31 08:18:05 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-31 08:18:05 PST] [OK   ] DFI payout: 231 paid to 7 member(s), 0 skipped.
+[2026-05-31 08:18:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:18:05 PST] [OK   ] Reset complete. Duration: 15.63ms
+[2026-05-31 08:18:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:19:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:19:05 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-31 08:19:05 PST] [INFO ] Environment : development
+[2026-05-31 08:19:05 PST] [INFO ] Database    : u938213108_altas2_db
+[2026-05-31 08:19:05 PST] [INFO ] Server time : Sun, 31 May 2026 08:19:05 AM PST
+[2026-05-31 08:19:05 PST] [OK   ] Database connection established.
+[2026-05-31 08:19:05 PST] [INFO ] Members (total)         : 7
+[2026-05-31 08:19:05 PST] [INFO ] Members (active)        : 7
+[2026-05-31 08:19:05 PST] [INFO ] Members with pairs today  : 0
+[2026-05-31 08:19:05 PST] [INFO ] Total pairs today       : 0
+[2026-05-31 08:19:05 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 7
+[2026-05-31 08:19:05 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-31 08:19:05 PST] [OK   ] last_reset timestamp updated: 2026-05-31 08:19:05
+[2026-05-31 08:19:05 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-31 08:19:05 PST] [OK   ] DFI payout: 231 paid to 7 member(s), 0 skipped.
+[2026-05-31 08:19:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:19:05 PST] [OK   ] Reset complete. Duration: 14.58ms
+[2026-05-31 08:19:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:20:06 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:20:06 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-31 08:20:06 PST] [INFO ] Environment : development
+[2026-05-31 08:20:06 PST] [INFO ] Database    : u938213108_altas2_db
+[2026-05-31 08:20:06 PST] [INFO ] Server time : Sun, 31 May 2026 08:20:06 AM PST
+[2026-05-31 08:20:06 PST] [OK   ] Database connection established.
+[2026-05-31 08:20:06 PST] [INFO ] Members (total)         : 7
+[2026-05-31 08:20:06 PST] [INFO ] Members (active)        : 7
+[2026-05-31 08:20:06 PST] [INFO ] Members with pairs today  : 0
+[2026-05-31 08:20:06 PST] [INFO ] Total pairs today       : 0
+[2026-05-31 08:20:06 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 7
+[2026-05-31 08:20:06 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-31 08:20:06 PST] [OK   ] last_reset timestamp updated: 2026-05-31 08:20:06
+[2026-05-31 08:20:06 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-31 08:20:06 PST] [OK   ] DFI payout: 231 paid to 7 member(s), 0 skipped.
+[2026-05-31 08:20:06 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:20:06 PST] [OK   ] Reset complete. Duration: 18.02ms
+[2026-05-31 08:20:06 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:21:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:21:05 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-05-31 08:21:05 PST] [INFO ] Environment : development
+[2026-05-31 08:21:05 PST] [INFO ] Database    : u938213108_altas2_db
+[2026-05-31 08:21:05 PST] [INFO ] Server time : Sun, 31 May 2026 08:21:05 AM PST
+[2026-05-31 08:21:05 PST] [OK   ] Database connection established.
+[2026-05-31 08:21:05 PST] [INFO ] Members (total)         : 7
+[2026-05-31 08:21:05 PST] [INFO ] Members (active)        : 7
+[2026-05-31 08:21:05 PST] [INFO ] Members with pairs today  : 0
+[2026-05-31 08:21:05 PST] [INFO ] Total pairs today       : 0
+[2026-05-31 08:21:05 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 7
+[2026-05-31 08:21:05 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-05-31 08:21:05 PST] [OK   ] last_reset timestamp updated: 2026-05-31 08:21:05
+[2026-05-31 08:21:05 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-05-31 08:21:05 PST] [OK   ] DFI payout: 231 paid to 7 member(s), 0 skipped.
+[2026-05-31 08:21:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-05-31 08:21:05 PST] [OK   ] Reset complete. Duration: 15.03ms
+[2026-05-31 08:21:05 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,0 +1,723 @@
+/**
+ * @file   assets/css/main.css
+ * @brief  Main styles for the application
+ */
+
+/* ============================================================
+   MAIN.CSS — Design tokens + Bootstrap 5 overrides
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  --bs-body-font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  --bs-primary: #3b6ff0;
+  --bs-primary-rgb: 59, 111, 240;
+  --bs-success: #12a05c;
+  --bs-success-rgb: 18, 160, 92;
+  --bs-danger: #e03434;
+  --bs-danger-rgb: 224, 52, 52;
+  --bs-warning: #d97706;
+  --bs-warning-rgb: 217, 119, 6;
+  --bs-info: #0891b2;
+  --bs-border-radius: 0.6rem;
+  --bs-border-radius-lg: 0.875rem;
+  --bs-border-color: #dde3ef;
+  --bs-body-bg: #f4f6fb;
+  --bs-body-color: #111827;
+  --bs-card-border-color: #dde3ef;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e8ecf5;
+  --sidebar-w: 260px;
+  --topbar-h: 60px;
+  --font-mono: "JetBrains Mono", monospace;
+  --primary: #3b6ff0;
+  --primary-light: #eff6ff;
+  --success: #12a05c;
+  --danger: #e03434;
+  --warning: #d97706;
+  --purple: #7c3aed;
+  --orange: #ea580c;
+  --muted: #6b7a99;
+}
+
+body {
+  font-family: var(--bs-body-font-family);
+  background: var(--bs-body-bg);
+  -webkit-font-smoothing: antialiased;
+}
+.font-mono {
+  font-family: var(--font-mono) !important;
+}
+
+/* Buttons */
+.btn {
+  font-weight: 600;
+  border-radius: 0.55rem;
+}
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.btn-primary:hover {
+  background: #2954cc;
+  border-color: #2954cc;
+}
+.btn-outline-primary {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.btn-outline-primary:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* Cards */
+.card {
+  border: 1px solid var(--bs-card-border-color);
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.card-header {
+  background: #f8fafd;
+  border-bottom: 1px solid var(--bs-border-color);
+  font-weight: 700;
+}
+.card-header .card-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+/* Stat Cards */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+.stat-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+.stat-accent {
+  height: 3px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: var(--bs-border-radius-lg) var(--bs-border-radius-lg) 0 0;
+}
+.stat-accent-primary {
+  background: var(--primary);
+}
+.stat-accent-success {
+  background: var(--success);
+}
+.stat-accent-warning {
+  background: var(--warning);
+}
+.stat-accent-danger {
+  background: var(--danger);
+}
+.stat-accent-purple {
+  background: var(--purple);
+}
+.stat-accent-orange {
+  background: var(--orange);
+}
+.stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  margin-bottom: 0.875rem;
+}
+.stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.375rem;
+}
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+.stat-sub {
+  font-size: 0.73rem;
+  color: var(--muted);
+  margin-top: 0.375rem;
+}
+
+/* Pairing Cap */
+.cap-bar-track {
+  height: 8px;
+  background: #e8ecf5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.cap-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), #6c9ef8);
+  transition: width 0.6s;
+}
+.cap-bar-fill.full {
+  background: linear-gradient(90deg, var(--danger), #f87171);
+}
+.cap-earned {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--success);
+  margin-top: 0.75rem;
+}
+.cap-earned strong {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+/* Leg Bar */
+.leg-box {
+  background: #f4f6fb;
+  border-radius: 0.6rem;
+  padding: 0.875rem 1rem;
+}
+.leg-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.leg-count {
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+/* Tables */
+.table {
+  font-size: 0.825rem;
+}
+.table thead th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #f8fafd;
+  border-color: #eef1f8;
+  white-space: nowrap;
+}
+.table tbody tr:hover {
+  background: #f8fafd;
+}
+.table td {
+  vertical-align: middle;
+  border-color: #f0f3f8;
+}
+.td-green {
+  color: var(--success);
+  font-weight: 600;
+}
+.td-red {
+  color: var(--danger);
+  font-weight: 600;
+}
+.td-muted {
+  color: var(--muted);
+}
+
+/* Reg Code display */
+.reg-code {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--primary);
+  background: var(--primary-light);
+  border: 1px solid rgba(59, 111, 240, 0.2);
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  display: inline-block;
+}
+
+/* Info table */
+.info-table {
+  width: 100%;
+}
+.info-table tr + tr td {
+  border-top: 1px solid #f0f3f8;
+}
+.info-table td {
+  padding: 0.6rem 0;
+  vertical-align: top;
+}
+.info-table td:first-child {
+  width: 140px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding-right: 1rem;
+}
+.info-table td:last-child {
+  font-size: 0.875rem;
+}
+
+/* ── Choice card (radio/checkbox as a selectable card) ───────
+   Requires: <label class="choice-card"><input class="choice-card__input">
+   <span class="choice-card__mark"></span><span class="choice-card__body">…
+   Toggle .is-selected / .is-disabled from JS for explicit state. */
+.choice-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: #fff;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.choice-card:hover {
+  border-color: #b9c8ea;
+}
+.choice-card:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 111, 240, 0.12);
+}
+.choice-card.is-selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+.choice-card.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #f8fafd;
+}
+.choice-card__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+}
+.choice-card__mark {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 0.1rem;
+  border: 2px solid #c3cede;
+  border-radius: 50%;
+  background: #fff;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.choice-card__input:checked ~ .choice-card__mark {
+  border-color: var(--primary);
+  background: radial-gradient(circle, var(--primary) 0 5px, #fff 5.5px);
+}
+.choice-card__input:focus-visible ~ .choice-card__mark {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 111, 240, 0.25);
+}
+.choice-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.choice-card__title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.choice-card__meta {
+  display: block;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+.choice-card__aside {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.choice-card-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+.choice-card-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* ── Combo box (autocomplete with listbox) ────────────────────
+   ARIA attributes stay in the markup; this only handles paint. */
+.combo {
+  position: relative;
+}
+.combo__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.combo__control .form-control {
+  padding-left: 2.4rem;
+  padding-right: 2.4rem;
+}
+.combo__icon {
+  position: absolute;
+  left: 0.8rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+.combo__clear {
+  position: absolute;
+  right: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.combo__clear:hover {
+  color: var(--danger);
+  background: #f1f5f9;
+}
+.combo__listbox {
+  position: absolute;
+  z-index: 1055;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  background: #fff;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 8px 24px rgba(15, 23, 40, 0.12);
+}
+.combo__option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8rem;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.combo__option strong {
+  min-width: 0;
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+.combo__option span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+.combo__option:hover,
+.combo__option.is-active {
+  background: var(--primary-light);
+}
+
+/* ── Mobile ergonomics ────────────────────────────────────────
+   16px inputs prevent iOS Safari auto-zoom on focus.
+   44px is the minimum comfortable touch target. */
+@media (max-width: 575.98px) {
+  .form-control,
+  .form-select,
+  .input-group-text,
+  textarea.form-control {
+    font-size: 16px;
+  }
+  .form-control,
+  .form-select,
+  .input-group > .form-control,
+  .input-group > .form-select,
+  .input-group > .btn,
+  .input-group > .input-group-text {
+    min-height: 44px;
+  }
+  .input-group-sm > .form-control,
+  .input-group-sm > .form-select,
+  .input-group-sm > .btn,
+  .input-group-sm > .input-group-text {
+    min-height: auto;
+  }
+  .btn:not(.btn-sm):not(.btn-xs) {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .info-table,
+  .info-table tbody,
+  .info-table tr,
+  .info-table td {
+    display: block;
+    width: auto;
+  }
+  .info-table td:first-child {
+    width: auto;
+    padding-right: 0;
+    padding-bottom: 0.15rem;
+  }
+  .info-table td:last-child {
+    padding-bottom: 0.7rem;
+  }
+  .info-table tr:last-child td:last-child {
+    padding-bottom: 0;
+  }
+  .choice-card-grid--2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .combo__clear {
+    width: 40px;
+    height: 40px;
+    right: 0.2rem;
+  }
+  .combo__control .form-control {
+    padding-left: 2.6rem;
+    padding-right: 2.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Activity */
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f0f3f8;
+}
+.activity-item:last-child {
+  border-bottom: none;
+}
+.activity-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.activity-desc {
+  font-size: 0.825rem;
+  font-weight: 500;
+}
+.activity-meta {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.activity-amount {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* Modals */
+.modal-content {
+  border: none;
+  border-radius: 1rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+.modal-header {
+  border-bottom: 1px solid #eef1f8;
+}
+.modal-footer {
+  border-top: 1px solid #eef1f8;
+}
+.modal-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* Forms */
+.form-control,
+.form-select {
+  font-size: 0.875rem;
+  border-color: #dde3ef;
+  border-radius: 0.55rem;
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 111, 240, 0.12);
+}
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+.form-text {
+  font-size: 0.73rem;
+}
+
+/* Nav pills */
+.nav-pills .nav-link {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  border-radius: 0.5rem;
+}
+.nav-pills .nav-link.active {
+  background: var(--primary);
+}
+
+/* Pagination */
+.pagination .page-link {
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.pagination .page-item.active .page-link,
+.pagination .page-item.active .page-link:hover,
+.pagination .page-item.active .page-link:focus {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff !important;
+}
+
+/* Toast container */
+#toastContainer {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  /* Was `min-width: 280px` with no cap, while Bootstrap sizes a toast at
+     350px. The result was a toast that could only ever grow, with a long
+     message stretching it across the corner. Fixed width, and clamped on
+     narrow viewports so it never reaches the edge. */
+  width: 320px;
+  max-width: calc(100vw - 2.5rem);
+}
+
+/* The close button is pinned to the corner rather than laid out beside the
+   message. With a flex row the button's vertical position depends on the
+   message wrapping, which is how it ended up floating in the middle of a
+   tall toast; absolute placement puts it in the top-right every time. */
+#toastContainer .toast {
+  position: relative;
+  width: 100%;
+}
+
+/* Toast exit: glide out slowly and silently instead of popping away.
+   Added by app.js at hide time so the entrance keeps Bootstrap's fast fade. */
+#toastContainer .toast.slow-hide {
+  transition: opacity 1.6s ease-out !important;
+}
+
+#toastContainer .btn-close {
+  position: absolute;
+  top: .5rem;
+  right: .5rem;
+  margin: 0;
+  padding: .3rem;
+}
+
+#toastContainer .toast-body {
+  /* Keeps the last word of a long message clear of the button. */
+  padding-right: 2.25rem;
+}
+
+/* Inline flash alerts (render_flash in core/helpers.php) fade out silently
+   and slowly via app.js, mirroring the toast exit. */
+.flash-alert {
+  position: relative;
+  padding-right: 2.25rem;
+  transition: opacity 1.6s ease-out;
+}
+.flash-alert .btn-close {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  margin: 0;
+  padding: .28rem;
+}
+.flash-alert.flash-fading {
+  opacity: 0;
+}
+
+/* Print-only for codes */
+@media print {
+  .sidebar,
+  .topbar-wrapper,
+  .no-print {
+    display: none !important;
+  }
+  .main-content {
+    margin-left: 0 !important;
+  }
+  .print-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .print-code-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    break-inside: avoid;
+  }
+}
+.print-grid {
+  display: none;
+}

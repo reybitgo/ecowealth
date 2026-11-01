@@ -1,0 +1,16 @@
+[2026-04-20 11:08:40 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-20 11:08:40 PST] [INFO ] Midnight reset started — Altas Farm
+[2026-04-20 11:08:40 PST] [INFO ] Environment : development
+[2026-04-20 11:08:40 PST] [INFO ] Database    : u938213108_altas_db
+[2026-04-20 11:08:40 PST] [INFO ] Server time : Mon, 20 Apr 2026 11:08:40 AM PST
+[2026-04-20 11:08:40 PST] [OK   ] Database connection established.
+[2026-04-20 11:08:40 PST] [INFO ] Members (total)         : 7
+[2026-04-20 11:08:40 PST] [INFO ] Members (active)        : 7
+[2026-04-20 11:08:40 PST] [INFO ] Members with pairs today: 3
+[2026-04-20 11:08:40 PST] [INFO ] Total pairs today       : 5
+[2026-04-20 11:08:40 PST] [OK   ] pairs_paid_today reset to 0. Rows updated: 7
+[2026-04-20 11:08:40 PST] [OK   ] Verification passed — all pairs_paid_today confirmed at 0.
+[2026-04-20 11:08:40 PST] [OK   ] last_reset timestamp updated: 2026-04-20 11:08:40
+[2026-04-20 11:08:40 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-04-20 11:08:40 PST] [OK   ] Reset complete. Duration: 88.67ms
+[2026-04-20 11:08:40 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

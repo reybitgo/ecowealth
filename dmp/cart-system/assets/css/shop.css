@@ -1,0 +1,19 @@
+/* ── Shop product card add-to-cart ──────────────────────────────────*/
+
+.shop-add-btn {
+  width: 100%;
+  border-radius: .5rem;
+  margin-top: 0.75rem;
+}
+
+/* Product card image — fixed crop on desktop, taller when the card is
+   full-width on phones. */
+.shop-card-img {
+  height: 170px;
+  object-fit: cover;
+}
+@media (max-width: 575.98px) {
+  .shop-card-img {
+    height: 230px;
+  }
+}

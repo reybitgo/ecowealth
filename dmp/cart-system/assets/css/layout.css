@@ -1,0 +1,354 @@
+/**
+ * @file   assets/css/layout.css
+ * @brief  Layout styles for sidebar and topbar
+ */
+
+/* ============================================================
+   LAYOUT.CSS — Sidebar + topbar (Bootstrap 5 compatible)
+   ============================================================ */
+
+/* ── Sidebar (desktop fixed) ─────────────────────────────────*/
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 1040;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Brand ───────────────────────────────────────────────────*/
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem 0.875rem;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+  text-decoration: none;
+  /* Sticky: stays pinned while the nav (and footer) scroll under it */
+  position: sticky;
+  top: 0;
+  z-index: 2; /* above .nav-item-link (position:relative) */
+  background: var(--sidebar-bg); /* opaque — content must not show through */
+}
+.brand-icon {
+  width: 38px;
+  height: 38px;
+  /* The brand mark draws its own dark tile — no chip behind it. */
+  background: transparent;
+  border-radius: 0.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.brand-icon img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+.brand-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
+}
+.brand-sub {
+  font-size: 0.65rem;
+  color: #64748b;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────*/
+.sidebar-nav {
+  flex: 1;
+  padding: 0.5rem 0;
+}
+.nav-section-label {
+  padding: 0.9rem 1.25rem 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.nav-item-link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.625rem 1.25rem;
+  color: #4b5563;
+  font-size: 0.83rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  position: relative;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.nav-item-link:hover {
+  background: #f4f6fb;
+  color: #111827;
+  text-decoration: none;
+}
+.nav-item-link.active {
+  background: var(--primary-light);
+  color: #2954cc;
+  font-weight: 600;
+}
+.nav-item-link.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 0 3px 3px 0;
+}
+.nav-icon {
+  font-size: 1.05rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+.nav-item-link.active .nav-icon,
+.nav-item-link:hover .nav-icon {
+  opacity: 1;
+}
+.nav-badge {
+  margin-left: auto;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Sidebar Footer ──────────────────────────────────────────*/
+.sidebar-footer {
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 2px solid rgba(59, 111, 240, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+.user-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-role {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+.sidebar-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 0.5rem;
+  color: #7d8aa0;
+  text-decoration: none;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.sidebar-logout:hover {
+  background: #f1f4fa;
+  color: var(--danger);
+}
+
+/* ── Main content wrapper ────────────────────────────────────*/
+.main-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Modals ──────────────────────────────────────────────────*/
+/* Bootstrap 5.3's .modal-dialog-scrollable sets overflow-y:auto on
+   .modal-body but the flex container (.modal-content) has no definite
+   height, so the body grows to fit all form fields and the footer gets
+   clipped by .modal-content's overflow:hidden on small viewports.
+   Give the body a viewport-relative max-height so it scrolls internally
+   while header + footer stay visible. */
+.modal-dialog-scrollable .modal-body {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────*/
+.topbar-wrapper {
+  height: var(--topbar-h);
+  background: #fff;
+  border-bottom: 1px solid #e8ecf5;
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  gap: 1rem;
+}
+.topbar-title {
+  font-size: 1rem;
+  font-weight: 700;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-cart-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Stretch-capable, like the sidebar nav-badge: keep the fixed height and a
+     pill radius so multi-digit counts (1000+) grow horizontally instead of
+     overflowing the circle. */
+  min-width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0 .3rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+.topbar-balance {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--primary-light);
+  border: 1px solid rgba(59, 111, 240, 0.2);
+  border-radius: 999px;
+  padding: 0.35rem 0.875rem 0.35rem 0.625rem;
+}
+.topbar-balance .bal-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.topbar-balance .bal-amount {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--primary);
+  font-family: var(--font-mono);
+}
+.topbar-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: 2px solid rgba(59, 111, 240, 0.2);
+  overflow: hidden;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.topbar-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Page content ────────────────────────────────────────────*/
+.page-content {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+/* ── Mobile sidebar via Bootstrap Offcanvas ──────────────────*/
+/* Override Bootstrap offcanvas to match our light sidebar */
+#mobileSidebar.offcanvas {
+  width: var(--sidebar-w) !important;
+  background: var(--sidebar-bg) !important;
+  border-right: none !important;
+}
+
+/* ── Responsive ──────────────────────────────────────────────*/
+@media (max-width: 991.98px) {
+  .sidebar {
+    display: none;
+  } /* hidden — use offcanvas on mobile/tablet */
+  .main-content {
+    margin-left: 0;
+  }
+  .topbar-wrapper {
+    padding: 0 1rem;
+  }
+  .page-content {
+    padding: 1rem;
+  }
+  .topbar-balance .bal-label {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .topbar-balance {
+    padding: 0.3rem 0.7rem;
+  }
+  .bal-amount {
+    font-size: 0.8rem;
+  }
+}

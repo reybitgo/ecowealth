@@ -1,0 +1,22 @@
+[2026-09-12 16:51:28 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-09-12 16:51:28 PST] [INFO ] Midnight reset started — Live Altas Farm
+[2026-09-12 16:51:28 PST] [INFO ] Environment : development
+[2026-09-12 16:51:28 PST] [INFO ] Database    : u938213108_altas2_db
+[2026-09-12 16:51:28 PST] [INFO ] Server time : Sat, 12 Sep 2026 04:51:28 PM PST
+[2026-09-12 16:51:28 PST] [INFO ] Triggered by: ::1
+[2026-09-12 16:51:28 PST] [OK   ] Database connection established.
+[2026-09-12 16:51:28 PST] [INFO ] Members (total)         : 77
+[2026-09-12 16:51:28 PST] [INFO ] Members (active)        : 69
+[2026-09-12 16:51:28 PST] [INFO ] Members with pairs today  : 9
+[2026-09-12 16:51:28 PST] [INFO ] Total pairs today       : 15
+[2026-09-12 16:51:28 PST] [INFO ] Members with volume today : 2
+[2026-09-12 16:51:28 PST] [INFO ] Total matched volume today: 12,500.00
+[2026-09-12 16:51:28 PST] [OK   ] pairs_paid_today / pairs_volume_today reset to 0. Rows updated: 10
+[2026-09-12 16:51:28 PST] [OK   ] Verification passed — all daily pairing counters confirmed at 0.
+[2026-09-12 16:51:28 PST] [OK   ] last_reset timestamp updated: 2026-09-12 16:51:28
+[2026-09-12 16:51:28 PST] [INFO ] Cap expiration: No members past reactivation window.
+[2026-09-12 16:51:28 PST] [OK   ] DFI payout: 3317 paid to 60 member(s), 1 skipped.
+[2026-09-12 16:51:28 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-09-12 16:51:28 PST] [OK   ] Reset complete. Duration: 743ms
+[2026-09-12 16:51:28 PST] [INFO ] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[2026-09-18 10:01:09 PST] [WARN ] Midnight reset DISABLED via $midnightResetEnabled — maintenance mode, skipping.
