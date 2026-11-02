@@ -1,0 +1,21 @@
+# ---------------------------------------------------------------------------
+# Local development: always revalidate the front-end files.
+#
+# Apache sends no Cache-Control for static files, so browsers fall back to
+# heuristic caching and keep showing an old logo, CSS or JS until a hard
+# reload (Ctrl+F5). With "no-cache" every request is revalidated instead:
+# unchanged files still answer 304 Not Modified (cheap), changed files come
+# back with fresh bytes, so one normal page load always shows the latest
+# version of index.html, its inline CSS/JS and every image or font it uses.
+#
+# The /system application is excluded and keeps its normal caching.
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  SetEnvIf Request_URI "(^|/)system/" ecowealth_keep_cache
+
+  <FilesMatch "\.(html?|css|js|mjs|map|json|png|jpe?g|gif|svg|webp|avif|ico|bmp|woff2?|ttf|otf|eot)$">
+    Header set Cache-Control "no-cache, max-age=0, must-revalidate" env=!ecowealth_keep_cache
+    Header set Pragma "no-cache" env=!ecowealth_keep_cache
+    Header set Expires "0" env=!ecowealth_keep_cache
+  </FilesMatch>
+</IfModule>
