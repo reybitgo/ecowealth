@@ -1,8 +1,10 @@
 # Eco-wealth frontend — continued design draft
 
 ## Included
-- `index.html` — responsive landing page with the Eco-wealth identity, animated botanical hero, product-led participation section, growth-system overview, journey, sandbox preview and expanded FAQs.
-- `assets/logo.png` — supplied Eco-wealth logo.
+- `index.html` — responsive landing page markup with the Eco-wealth identity, animated botanical hero, product-led participation section, growth-system overview, journey, sandbox preview and expanded FAQs.
+- `assets/css/style.css` — all landing page styles, including the responsive breakpoints and animations.
+- `assets/js/script.js` — page behaviour: navigation, scroll effects, reveals and the rotating product showcases.
+- `assets/img/` — logo, favicon, product packs (`assets/img/products/`) and the supporting photography.
 - `simulator.html` — original browser-local Harvest simulator provided as the prototype reference.
 
 ## Preview locally
