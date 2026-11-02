@@ -1,0 +1,296 @@
+<?php include 'template/modal_products.php'; ?>
+
+<!-- Best Selling Products -->
+<section class="best-selling-products-area mb-70" id="our-products">
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <div class="section-heading mb-50">
+                    <?php /* * ?>
+                        <h5>Our Products</h5>
+                        <?php /* */ ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <!-- Single Product -->
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Organic Herbal Coffee"
+                           data-modaltitle2="with Purple Corn"
+                           data-modalimg="assets/img/product-img/1.jpg"
+                           data-modaldetail="Contains Purple Corn, Coffee Bean, Agaricus Mushroom, Ginseng, Beetroot, Gotu Kola, Maca Root, Mangosteen, Moringa, Turmeric, Tongkat Ali, Horny Goat Weed, Spirulina, Stevia, Non-dairy Creamer for every sachet (Net Weight 21 grams). Each box of 10 sachets is FDA Approved with Halal (Islam) Certified Manufacturing Process for food security and standardization.">
+                            <!-- Product Image -->
+                            <img class="normal_img" src="assets/img/product-img/1.jpg" alt="Purple Corn Herbal Coffee">
+                        </a>
+                        <!-- Product Badge -->
+                        <?php /* * ?>
+                            <div class="product_badge">
+                                <span>Top</span>
+                            </div>
+
+                            <!-- Wishlist -->
+                            <div class="product_wishlist">
+                                <a href="wishlist.php"><i class="icofont-heart"></i></a>
+                            </div>
+
+                            <!-- Compare -->
+                            <div class="product_compare">
+                                <a href="compare.php"><i class="icofont-exchange"></i></a>
+                            </div>
+                            <?php /* */ ?>
+                    </div>
+
+                    <!-- Product Description -->
+                    <div class="product_description">
+                        <?php /* * ?>
+                            <!-- Add to cart -->
+                            <div class="product_add_to_cart">
+                                <a href="javascript:void(0)"><i class="icofont-cart"></i> Add to Cart</a>
+                            </div>
+
+                            <!-- Quick View -->
+                            <div class="product_quick_view">
+                                <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"><i
+                                            class="icofont-eye-alt"></i>
+                                    Quick View</a>
+                            </div>
+                            <?php /* */ ?>
+
+                        <a href="javascript:void(0)">Purple Corn</a>
+                        <h6>Herbal Coffee</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Collagen Coffee"
+                           data-modaltitle2="with Glutathione"
+                           data-modalimg="assets/img/product-img/2.jpg"
+                           data-modaldetail="Contains Collagen, Glutathione, Coffee Bean, Agaricus Mushroom, Grapeseed, Gotu Kola, Mangosteen, Stevia, Non-dairy Creamer for every sachet (Net Weight 21 grams). Each box of 10 sachets is FDA Approved with Halal (Islam) Certified Manufacturing Process for food security and standardization.">
+                            <img class="normal_img" src="assets/img/product-img/2.jpg" alt="Purple Corn Herbal Coffee">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Collagen</a>
+                        <h6>Premium Coffee</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Insulin Herbal Coffee"
+                           data-modaltitle2="with Stevia"
+                           data-modalimg="assets/img/product-img/17.jpg"
+                           data-modaldetail="Contains Insulin Plant, Ampalaya, Banaba, Serpentina, Turmeric, Moringa, Stevia, Non-dairy Creamer for every sachet (Net Weight 21 grams). Each box of 10 sachets is FDA Approved with Halal (Islam) Certified Manufacturing Process for food security and standardization.">
+                            <img class="normal_img" src="assets/img/product-img/17.jpg" alt="Insulin Herbal Coffee">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Insulin</a>
+                        <h6>Herbal Coffee</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Tongkat Ali Premium Coffee"
+                           data-modaltitle2="with Maca Root"
+                           data-modalimg="assets/img/product-img/5.jpg"
+                           data-modaldetail="Contains Tongkat Ali, Maca Root, Moringa, Ginseng, Mangosteen, Coffee Beans, Stevia, Non-dairy Creamer for every sachet (Net Weight 21 grams). Each box of 10 sachets is FDA Approved with Halal (Islam) Certified Manufacturing Process for food security and standardization.">
+                            <img class="normal_img" src="assets/img/product-img/5.jpg" alt="Tongkat Ali Premium Coffee">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Tongkat Ali</a>
+                        <h6>Premium Coffee</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Slimming Herbal Coffee"
+                           data-modaltitle2="with Stevia"
+                           data-modalimg="assets/img/product-img/4.jpg"
+                           data-modaldetail="Contains Green Coffee Beans, Garcinia Cambogia, L-Carnitine, Barley Green Tea, Grapeseed, Gotu Kola, Mangosteen, Stevia, Non-dairy Creamer for every sachet (Net Weight 21 grams). Each box of 10 sachets is FDA Approved with Halal (Islam) Certified Manufacturing Process for food security and standardization.">
+                            <img class="normal_img" src="assets/img/product-img/4.jpg" alt="Slimming Herbal Coffee">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Slimming</a>
+                        <h6>Herbal Coffee</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Purple Premium Juice Drink"
+                           data-modaltitle2="with Glutathione"
+                           data-modalimg="assets/img/product-img/7.jpg"
+                           data-modaldetail="Contains Purple Corn, Glutathione, Beetroot, Mangosteen, Guyabano, Acai Berry, Barley Grass, Stevia for every bottle (500ml).">
+                            <img class="normal_img" src="assets/img/product-img/7.jpg" alt="Purple Premium Juice Drink">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Purple Juice</a>
+                        <h6>Premium Drink</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Immune Booster"
+                           data-modaltitle2="Food Supplement"
+                           data-modalimg="assets/img/product-img/6.jpg"
+                           data-modaldetail="Benefits inlcude Antiviral Effects, Weight Loss, Prevents Gum Disease, Prevents Eye Disease, Reduces Oxidative Stress Levels, Improves Digestion, Anti-inflammatory Effects, Improves Quality of Sleep, Reduces Hay Fever Symptoms, Reduces Depression Symptoms, Reduces Ostheoarthritis Pain, Reduces Itching, Reduces Blood Sugar, Alleviates Cough and Soar Throat, Alleviates Tonsillitis, Alleviates Ulcerative Colitis, Improves Lung Function, Increases Body Mass Index (BMI), Improves Menopausal Symptoms, Inhibits Cancer Cell Proliferation.">
+                            <img class="normal_img" src="assets/img/product-img/6.jpg"
+                                 alt="Immune Booster Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Immune Booster</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Serpentina Capsule"
+                           data-modaltitle2="Food Supplement"
+                           data-modalimg="assets/img/product-img/8.jpg"
+                           data-modaldetail="Benefits inlcude Enhances Immunity, Antibacterial, Anti-inflammatory, Cardioprotective, Canceolytic, Antiviral, Antioxidant, Antihepatotoxic and Hepatoprotective, Hypoglycemic, Vermicidal, Depurative, Choleretic, Analgesic, Antimalarial, Antipyretic, Antithrombotic, Expectorant.">
+                            <img class="normal_img" src="assets/img/product-img/8.jpg"
+                                 alt="Serpentina Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Serpentina Capsule</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Barako Capsule Extreme"
+                           data-modaltitle2="Food Supplement"
+                           data-modalimg="assets/img/product-img/12.jpg"
+                           data-modaldetail="Benefits inlcude Reduces Cholesterol, Improved Erectile Function, Reduces Bone Loss, Lowers Blood Pressure, Endurance Booster, Improved Brain Function, Improved Blood Sugar, Reduction of Chronic Fatigue, Pain Relief, Healthy Joints and Bones, Skin Elasticity and Hydration, Heals Ulcers, Decreases Swelling, Improved Muscle Mass.">
+                            <img class="normal_img" src="assets/img/product-img/12.jpg"
+                                 alt="Barako Capsule Extreme Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Barako Extreme</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Spirulina Capsule"
+                           data-modaltitle2="Food Supplement"
+                           data-modalimg="assets/img/product-img/13.jpg"
+                           data-modaldetail="Benefits inlcude High in protein, Beneficial for the skin, Anti-inflammatory, Reduces blood pressure, Improves digestion, Prevents cancer, Detoxifying heavy metals, Reduces cholesterol, Speeds up weight loss, Alleviates sinus issues.">
+                            <img class="normal_img" src="assets/img/product-img/13.jpg"
+                                 alt="Spirulina Capsule Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Spirulina Capsule</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Stone Buster"
+                           data-modaltitle2="Food Supplement"
+                           data-modalimg="assets/img/product-img/14.jpg"
+                           data-modaldetail="Benefits inlcude Antipyretic, Relieves spasms, Diuretic, Reduces intestinal gas, Antibacterial, Antiviral, Hypoglycemic, Breaks up and expel both kidney stones and gallstones, Choleretic, Antihepatotoxic and Hepatoprotective. Active ingredients: Chanca Piedra, Sambong, Banaba, Bignay, Ampalaya.">
+                            <img class="normal_img" src="assets/img/product-img/14.jpg"
+                                 alt="Stone Buster Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Stone Buster</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Vitamin C"
+                           data-modaltitle2="Calcium Ascorbate + Zinc"
+                           data-modalimg="assets/img/product-img/15.jpg"
+                           data-modaldetail="Used for the prevention and treatment of Vitamin C deficiency illnesses. Supplements bodily demands for Vitamin C especially during stressful times, illnesses, convalescence, and post operatives. Active ingredients: Calcium Ascorbate, Zinc, Rosehip, Guava.">
+                            <img class="normal_img" src="assets/img/product-img/15.jpg"
+                                 alt="Vitamin C Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Vitamin C</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-9 col-sm-6 col-md-4 col-lg-3">
+                <div class="single-product-area mb-30">
+                    <div class="product_image">
+                        <a href="javascript:void(0)" data-toggle="modal" data-target="#quickview"
+                           data-modaltitle="Spirulina Tablets"
+                           data-modaltitle2="Food Supplement"
+                           data-modalimg="assets/img/product-img/24.jpg"
+                           data-modaldetail="Benefits inlcude High in protein, Beneficial for the skin, Anti-inflammatory, Reduces blood pressure, Improves digestion, Prevents cancer, Detoxifying heavy metals, Reduces cholesterol, Speeds up weight loss, Alleviates sinus issues.">
+                            <img class="normal_img" src="assets/img/product-img/24.jpg"
+                                 alt="Spirulina Tablets Food Supplement">
+                        </a>
+                    </div>
+                    <div class="product_description">
+                        <a href="javascript:void(0)">Spirulina Tablets</a>
+                        <h6>Food Supplement</h6>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- Best Selling Products -->
+
+Eye drops: Give your eyes the daily cleanse they deserve. Our natural Eye Drops, formulated with ionic trace minerals and oxygenated water, are designed for modern eye care. Perfect for relaxing tired eyes, soothing redness and irritation, and relieving strain from screens and contact lenses. It's your all-in-one solution for clearer, more comfortable vision. Gentle enough for daily use.
