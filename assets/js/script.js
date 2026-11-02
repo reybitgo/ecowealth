@@ -178,9 +178,9 @@
   const navLinks = $$('#desktopNav a[href^="#"]');
   const sections = [
     "vision",
-    "pillars",
-    "foundation",
-    "ecosystem",
+    "mission",
+    "products",
+    "community",
     "preview",
   ]
     .map((id) => doc.getElementById(id))
