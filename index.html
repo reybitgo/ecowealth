@@ -917,6 +917,82 @@
         stroke-dashoffset: 360;
         animation: stemDraw 1.5s var(--ease) 0.65s forwards;
       }
+      /* Rotating product showcase: a real product rises over the leaf, holds, then leaves. */
+      .product-showcase {
+        --pop: 0.86;
+        --rise: 16px;
+        --shift: 0px;
+        position: absolute;
+        z-index: 3;
+        top: 50%;
+        left: 50%;
+        width: 200px;
+        height: 280px;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(
+            calc(-50% + var(--shift)),
+            calc(-50% + var(--rise))
+          )
+          scale(var(--pop));
+        transition:
+          opacity 0.7s ease,
+          transform 1s cubic-bezier(0.16, 0.86, 0.3, 1);
+        will-change: opacity, transform;
+      }
+      .product-showcase::before {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        inset: -12% -28%;
+        border-radius: 50%;
+        background: radial-gradient(
+          ellipse at 50% 44%,
+          rgba(255, 255, 255, 0.92) 0%,
+          rgba(244, 249, 237, 0.74) 38%,
+          rgba(228, 239, 217, 0.3) 66%,
+          rgba(228, 239, 217, 0) 100%
+        );
+        opacity: 0;
+        transform: scale(0.84);
+        transition:
+          opacity 0.85s ease,
+          transform 1.15s cubic-bezier(0.16, 0.86, 0.3, 1);
+      }
+      .product-showcase.is-visible {
+        --pop: 1;
+        --rise: 0px;
+        opacity: 1;
+      }
+      .product-showcase.is-visible::before {
+        opacity: 1;
+        transform: scale(1);
+      }
+      .product-showcase.is-leaving {
+        --pop: 1.03;
+        --rise: -18px;
+        opacity: 0;
+        transition:
+          opacity 0.62s ease,
+          transform 0.62s cubic-bezier(0.4, 0, 0.7, 0.3);
+      }
+      .product-showcase.is-leaving::before {
+        opacity: 0;
+        transform: scale(1.05);
+      }
+      .product-shot {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 24px 24px rgba(26, 66, 42, 0.26))
+          drop-shadow(0 5px 10px rgba(26, 66, 42, 0.16));
+        user-select: none;
+        -webkit-user-drag: none;
+        animation: productDrift 7s ease-in-out infinite;
+      }
       .float-card {
         position: absolute;
         z-index: 4;
@@ -2262,6 +2338,15 @@
           transform: translateY(-11px);
         }
       }
+      @keyframes productDrift {
+        0%,
+        100% {
+          transform: translateY(-5px);
+        }
+        50% {
+          transform: translateY(5px);
+        }
+      }
       @keyframes seedRise {
         0% {
           transform: translate3d(0, 15px, 0) rotate(0);
@@ -3333,6 +3418,19 @@
               />
               <circle cx="225" cy="372" r="8" fill="#e8d3a4" />
             </svg>
+            <div
+              class="product-showcase"
+              id="productShowcase"
+              aria-hidden="true"
+            >
+              <img
+                class="product-shot"
+                id="productShot"
+                alt=""
+                draggable="false"
+                decoding="async"
+              />
+            </div>
             <div class="seed-field" aria-hidden="true">
               <i style="--i: 0"></i><i style="--i: 1"></i><i style="--i: 2"></i
               ><i style="--i: 3"></i><i style="--i: 4"></i><i style="--i: 5"></i
@@ -4508,6 +4606,336 @@
             running = !doc.hidden;
             if (running) requestAnimationFrame(animate);
           });
+        }
+
+        // Rotating product showcase. One pack at a time rises over the leaf, stays long
+        // enough to be recognised, leaves, and makes way for another random product.
+        // Every pack is measured against the pillar widgets so it never crosses them.
+        const productShowcase = $("#productShowcase");
+        const productShot = $("#productShot");
+        if (productShowcase && productShot && hero) {
+          const PRODUCTS = [
+            { src: "assets/products/purple-coffee.png", name: "Purple Coffee" },
+            {
+              src: "assets/products/collagen-coffee.png",
+              name: "Collagen Coffee",
+            },
+            {
+              src: "assets/products/insulin-coffee.png",
+              name: "Insulin Coffee",
+            },
+            {
+              src: "assets/products/immune-booster.png",
+              name: "Immune Booster",
+            },
+            { src: "assets/products/vitamin-c.png", name: "Vitamin C" },
+            { src: "assets/products/spirulina.png", name: "Spirulina" },
+            { src: "assets/products/eye-drops.png", name: "Eye Drops" },
+            { src: "assets/products/stone-buster.png", name: "Stone Buster" },
+          ];
+          const HOLD_MS = 7000; // fully visible: long enough to read the pack
+          const LEAVE_MS = 620; // matches the .is-leaving transition
+          const GAP_MS = 1500; // quiet beat before the next pack arrives
+          const START_MS = 1500; // let the hero entrance animation settle first
+          const FLOAT_LIFT = 11; // px the widgets rise on their float loop
+          const CLEARANCE_MAX = 18; // space kept around a pack beside the desktop widgets
+          const CLEARANCE_MIN = 10; // ...and beside the compact widgets on phones
+          const EDGE_PAD = 10; // px free inside the illustration frame
+          const MIN_HEIGHT = 118; // below this a pack stops being recognisable
+          const MAX_HEIGHT = 0.58; // share of the illustration height
+          const MAX_WIDTH = 0.5; // share of the illustration width
+          const MAX_SHIFT = 0.07; // how far the pack may slide sideways off centre
+          const SHIFT_STEPS = 10;
+          const CENTRE_BIAS = 1.15; // only slide when it buys a 15% bigger pack
+          const COMFORT_HEIGHT = 0.4; // cramped arts fall back to this share of the height
+          const COMFORT_WIDTH = 0.42;
+
+          // Static widget geometry: offsetLeft/Top ignore the floating animation.
+          function measureArt() {
+            const width = hero.clientWidth;
+            const height = hero.clientHeight;
+            const cards = $$(".float-card", hero).map((card) => ({
+              left: card.offsetLeft,
+              top: card.offsetTop,
+              right: card.offsetLeft + card.offsetWidth,
+              bottom: card.offsetTop + card.offsetHeight,
+            }));
+            // The breathing room scales with the widgets, so phones stay tidy too.
+            const clearance = cards.length
+              ? Math.min(
+                  CLEARANCE_MAX,
+                  Math.max(
+                    CLEARANCE_MIN,
+                    (cards[0].bottom - cards[0].top) * 0.26,
+                  ),
+                )
+              : CLEARANCE_MIN;
+            return {
+              width,
+              height,
+              cx: width / 2,
+              cy: height / 2,
+              cards,
+              clearance,
+            };
+          }
+
+          function clearsWidgets(halfWidth, halfHeight, cx, art) {
+            if (
+              halfWidth > art.width / 2 - EDGE_PAD ||
+              halfHeight > art.height / 2 - EDGE_PAD
+            )
+              return false;
+            return !art.cards.some((card) => {
+              // A widget sitting below the middle drifts up towards the pack.
+              const top =
+                card.top -
+                art.clearance -
+                (card.top >= art.cy ? FLOAT_LIFT : 0);
+              return (
+                cx - halfWidth < card.right + art.clearance &&
+                cx + halfWidth > card.left - art.clearance &&
+                art.cy - halfHeight < card.bottom + art.clearance &&
+                art.cy + halfHeight > top
+              );
+            });
+          }
+
+          // Largest scale that clears every widget with the pack nudged `shift` sideways.
+          function clearScale(naturalWidth, naturalHeight, shift, art) {
+            const cx = art.cx + shift;
+            let low = 0;
+            let high = Math.min(
+              (art.height * MAX_HEIGHT) / naturalHeight,
+              (art.width * MAX_WIDTH) / naturalWidth,
+            );
+            if (!(high > 0)) return 0;
+            if (
+              clearsWidgets(
+                (naturalWidth * high) / 2,
+                (naturalHeight * high) / 2,
+                cx,
+                art,
+              )
+            )
+              return high;
+            for (let step = 0; step < 22; step += 1) {
+              const mid = (low + high) / 2;
+              if (
+                clearsWidgets(
+                  (naturalWidth * mid) / 2,
+                  (naturalHeight * mid) / 2,
+                  cx,
+                  art,
+                )
+              )
+                low = mid;
+              else high = mid;
+            }
+            return low;
+          }
+
+          function overlapArea(halfWidth, halfHeight, cx, art, pad) {
+            return art.cards.reduce((total, card) => {
+              const x =
+                Math.min(cx + halfWidth, card.right + pad) -
+                Math.max(cx - halfWidth, card.left - pad);
+              const y =
+                Math.min(art.cy + halfHeight, card.bottom + pad) -
+                Math.max(art.cy - halfHeight, card.top - pad);
+              return total + Math.max(0, x) * Math.max(0, y);
+            }, 0);
+          }
+
+          function sizeStage(naturalWidth, naturalHeight) {
+            if (!naturalWidth || !naturalHeight) return;
+            const art = measureArt();
+            const reach = art.width * MAX_SHIFT;
+            const shifts = [0];
+            for (let step = 1; step <= SHIFT_STEPS; step += 1) {
+              const offset = (reach * step) / SHIFT_STEPS;
+              shifts.push(-offset, offset);
+            }
+
+            let scale = 0;
+            let shift = 0;
+            shifts.forEach((offset) => {
+              const candidate = clearScale(
+                naturalWidth,
+                naturalHeight,
+                offset,
+                art,
+              );
+              // Keep the pack centred unless sliding opens up a noticeably bigger one.
+              if (candidate > (scale === 0 ? 0 : scale * CENTRE_BIAS)) {
+                scale = candidate;
+                shift = offset;
+              }
+            });
+
+            if (naturalHeight * scale < MIN_HEIGHT) {
+              // Cramped art areas: favour a recognisable pack, then slide it to the
+              // quietest spot. The widgets keep the higher stacking level regardless.
+              scale = Math.min(
+                (art.height * COMFORT_HEIGHT) / naturalHeight,
+                (art.width * COMFORT_WIDTH) / naturalWidth,
+              );
+              let least = Infinity;
+              shifts.forEach((offset) => {
+                const score = overlapArea(
+                  (naturalWidth * scale) / 2,
+                  (naturalHeight * scale) / 2,
+                  art.cx + offset,
+                  art,
+                  EDGE_PAD,
+                );
+                if (score < least - 1) {
+                  least = score;
+                  shift = offset;
+                }
+              });
+            }
+
+            productShowcase.style.width = `${Math.round(naturalWidth * scale)}px`;
+            productShowcase.style.height = `${Math.round(
+              naturalHeight * scale,
+            )}px`;
+            productShowcase.style.setProperty(
+              "--shift",
+              `${shift.toFixed(1)}px`,
+            );
+          }
+
+          const cache = new Map();
+          function preload(src) {
+            let entry = cache.get(src);
+            if (!entry) {
+              const image = new Image();
+              image.decoding = "async";
+              image.src = src;
+              const ready =
+                typeof image.decode === "function"
+                  ? image.decode().catch(() => {})
+                  : Promise.resolve();
+              entry = { image, ready };
+              cache.set(src, entry);
+            }
+            return entry;
+          }
+
+          // Draw from a shuffled bag so every pack is shown before any repeats.
+          let bag = [];
+          let lastIndex = -1;
+          function nextIndex() {
+            if (!bag.length) {
+              bag = PRODUCTS.map((_, index) => index);
+              for (let i = bag.length - 1; i > 0; i -= 1) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [bag[i], bag[j]] = [bag[j], bag[i]];
+              }
+              if (bag.length > 1 && bag[bag.length - 1] === lastIndex) {
+                [bag[bag.length - 1], bag[0]] = [bag[0], bag[bag.length - 1]];
+              }
+            }
+            lastIndex = bag.pop();
+            return lastIndex;
+          }
+
+          let timer = 0;
+          let showing = false;
+          let paused = doc.hidden;
+          let prepared = null;
+          const schedule = (callback, delay) => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(callback, delay);
+          };
+
+          // Pick the next pack and start decoding it ahead of its turn.
+          function prepare() {
+            const index = nextIndex();
+            prepared = {
+              src: PRODUCTS[index].src,
+              entry: preload(PRODUCTS[index].src),
+            };
+            return prepared;
+          }
+
+          function show() {
+            const { src, entry } = prepared || prepare();
+            prepared = null;
+            entry.ready.then(() => {
+              if (paused) return;
+              if (!entry.image.naturalWidth) {
+                schedule(show, GAP_MS);
+                return;
+              }
+              sizeStage(entry.image.naturalWidth, entry.image.naturalHeight);
+              productShot.src = src;
+              productShowcase.classList.remove("is-leaving");
+              // Flush layout so the entrance transition restarts even on a cached image.
+              void productShowcase.offsetWidth;
+              productShowcase.classList.add("is-visible");
+              showing = true;
+              schedule(dismiss, HOLD_MS);
+              // Decode the next pack while this one is on screen.
+              prepare();
+            });
+          }
+
+          function dismiss() {
+            productShowcase.classList.remove("is-visible");
+            productShowcase.classList.add("is-leaving");
+            showing = false;
+            schedule(() => {
+              if (paused) return;
+              productShowcase.classList.remove("is-leaving");
+              void productShowcase.offsetWidth;
+              show();
+            }, LEAVE_MS + GAP_MS);
+          }
+
+          // Re-measure when the art resizes so a pack never drifts into a widget.
+          if ("ResizeObserver" in window) {
+            let resizeFrame = 0;
+            new ResizeObserver(() => {
+              if (!showing) return;
+              window.cancelAnimationFrame(resizeFrame);
+              resizeFrame = window.requestAnimationFrame(() =>
+                sizeStage(productShot.naturalWidth, productShot.naturalHeight),
+              );
+            }).observe(hero);
+          } else {
+            window.addEventListener("resize", () => {
+              if (showing)
+                sizeStage(productShot.naturalWidth, productShot.naturalHeight);
+            });
+          }
+
+          // Pause the rotation while the tab is hidden, then resume with a fresh pack.
+          doc.addEventListener("visibilitychange", () => {
+            if (doc.hidden) {
+              paused = true;
+              window.clearTimeout(timer);
+              timer = 0;
+              if (showing) {
+                productShowcase.classList.remove("is-visible");
+                productShowcase.classList.add("is-leaving");
+                showing = false;
+              }
+              return;
+            }
+            if (!paused) return;
+            paused = false;
+            schedule(() => {
+              productShowcase.classList.remove("is-leaving");
+              show();
+            }, GAP_MS);
+          });
+
+          if (!paused) {
+            prepare(); // decode the first pack while the hero settles
+            schedule(show, START_MS);
+          }
         }
 
         // Reveal the mobile action dock only after the hero's primary actions have left the screen.
