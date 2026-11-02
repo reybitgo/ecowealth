@@ -640,6 +640,267 @@
     }
   }
 
+  // Vision rings: broken circles breathe around the leaf, the outermost one
+  // dissolves into smoke, and the surviving rings shift outward to fill the gap.
+  const visionArt = $(".vision-art");
+  const visionRings = $("#visionRings");
+  if (visionArt && visionRings) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const RING_SLOTS = [0.21, 0.265, 0.32, 0.38]; // share of the shorter side
+    const RING_COLORS = [
+      "rgba(41, 107, 64, 0.42)",
+      "rgba(23, 107, 145, 0.38)",
+      "rgba(199, 161, 95, 0.5)",
+      "rgba(41, 107, 64, 0.36)",
+    ];
+    const CYCLE_MS = 10000; // one full breathe of the ring set
+    const DISSOLVE_MS = 900; // outer ring fading into smoke
+    const SHIFT_MS = 1150; // matches the .vision-ring transform transition
+    const SHIFT_STEP_MS = 90;
+    const smoke = document.createElementNS(SVG_NS, "g");
+    smoke.setAttribute("class", "vision-smoke");
+    visionRings.appendChild(smoke);
+
+    const rings = [];
+    const timers = new Set();
+    let metrics = null;
+    let running = false;
+
+    const radiusFor = (slot) => metrics.base * RING_SLOTS[slot];
+
+    // Delay helper whose pending work is cancelled whenever the section leaves.
+    function later(callback, delay) {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        callback();
+      }, delay);
+      timers.add(id);
+      return id;
+    }
+
+    function clearTimers() {
+      timers.forEach((id) => window.clearTimeout(id));
+      timers.clear();
+    }
+
+    function createRing(index) {
+      const wrap = document.createElementNS(SVG_NS, "g");
+      wrap.setAttribute("transform", `translate(${metrics.cx} ${metrics.cy})`);
+      const group = document.createElementNS(SVG_NS, "g");
+      group.setAttribute("class", "vision-ring");
+      const circle = document.createElementNS(SVG_NS, "circle");
+      circle.setAttribute("r", "100");
+      circle.setAttribute("pathLength", "100");
+      circle.setAttribute("stroke", RING_COLORS[index % RING_COLORS.length]);
+      // Each ring gets its own rhythm so the set never pulses in lockstep.
+      const broken = `${(1.6 + Math.random() * 3.4).toFixed(1)} ${(5 + Math.random() * 6).toFixed(1)}`;
+      const closed =
+        Math.random() < 0.5
+          ? `${(28 + Math.random() * 12).toFixed(0)} 0`
+          : `${(16 + Math.random() * 8).toFixed(0)} ${(1 + Math.random() * 3).toFixed(1)}`;
+      group.style.setProperty("--ring-broken", broken);
+      group.style.setProperty("--ring-closed", closed);
+      group.style.setProperty("--ring-dur", `${(5.5 + Math.random() * 4).toFixed(2)}s`);
+      group.style.setProperty("--ring-delay", `${(-Math.random() * 7).toFixed(2)}s`);
+      group.style.setProperty("--ring-drift", `${(Math.random() * 9).toFixed(1)}`);
+      circle.style.strokeDasharray = broken;
+      group.appendChild(circle);
+      wrap.appendChild(group);
+      visionRings.insertBefore(wrap, smoke);
+      return { wrap, group, circle, broken, slot: 0 };
+    }
+
+    function setSlot(ring, slot, instant) {
+      ring.slot = slot;
+      const scale = radiusFor(slot) / 100;
+      if (instant) ring.group.style.transition = "none";
+      ring.group.style.transform = `scale(${scale.toFixed(4)})`;
+      if (instant) {
+        // Flush the instant placement before transitions are re-enabled.
+        void ring.group.getBoundingClientRect();
+        ring.group.style.transition = "";
+      }
+    }
+
+    function build() {
+      const width = visionArt.clientWidth;
+      const height = visionArt.clientHeight;
+      if (!width || !height) return;
+      metrics = {
+        width,
+        height,
+        cx: width / 2,
+        cy: height * 0.44,
+        base: Math.min(width, height),
+      };
+      visionRings.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      rings.forEach((ring) => ring.wrap.remove());
+      rings.length = 0;
+      smoke.replaceChildren();
+      RING_SLOTS.forEach((slot, index) => {
+        const ring = createRing(index);
+        rings.push(ring);
+        setSlot(ring, index, true);
+      });
+    }
+
+    function resetRings() {
+      [...rings]
+        .sort((a, b) => a.slot - b.slot)
+        .forEach((ring, index) => {
+          ring.group.style.opacity = "1";
+          setSlot(ring, index, true);
+        });
+    }
+
+    // A dissolving ring lets go of its line: the dashes thin out as it fades.
+    function dissolveRing(ring) {
+      const { circle, group } = ring;
+      circle.style.animation = "none";
+      circle.style.transition = "stroke-dasharray 0.85s ease";
+      void circle.getBoundingClientRect();
+      circle.style.strokeDasharray = "2 18";
+      group.style.opacity = "0";
+    }
+
+    function restoreRing(ring) {
+      const { circle, group } = ring;
+      circle.style.transition = "none";
+      circle.style.strokeDasharray = ring.broken;
+      circle.style.animation = "";
+      void circle.getBoundingClientRect();
+      circle.style.transition = "";
+      group.style.opacity = "1";
+    }
+
+    function spawnSmoke(radius) {
+      if (!metrics || typeof smoke.animate !== "function") return;
+      const count = 34;
+      for (let index = 0; index < count; index += 1) {
+        const angle = (index / count) * Math.PI * 2 + Math.random() * 0.24;
+        const spread = radius * 0.95 + (Math.random() - 0.5) * 10;
+        const dot = document.createElementNS(SVG_NS, "circle");
+        dot.setAttribute(
+          "cx",
+          (metrics.cx + Math.cos(angle) * spread).toFixed(1),
+        );
+        dot.setAttribute(
+          "cy",
+          (metrics.cy + Math.sin(angle) * spread).toFixed(1),
+        );
+        dot.setAttribute("r", `${(2 + Math.random() * 3.4).toFixed(2)}`);
+        dot.setAttribute(
+          "fill",
+          Math.random() < 0.45
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(41, 107, 64, 0.5)",
+        );
+        smoke.appendChild(dot);
+        const drift = 16 + Math.random() * 42;
+        const dx = Math.cos(angle) * drift;
+        const dy = Math.sin(angle) * drift - 8 - Math.random() * 22;
+        const animation = dot.animate(
+          [
+            { transform: "translate(0px, 0px) scale(1)", opacity: 0.95 },
+            {
+              transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(0.2)`,
+              opacity: 0,
+            },
+          ],
+          {
+            duration: 1600 + Math.random() * 1000,
+            // A short travelling wave around the ring reads as a puff of smoke.
+            delay: (index / count) * 260 + Math.random() * 160,
+            easing: "cubic-bezier(0.22, 0.61, 0.36, 1)",
+            fill: "forwards",
+          },
+        );
+        animation.finished.then(() => dot.remove()).catch(() => dot.remove());
+      }
+    }
+
+    function scheduleCycle(delay) {
+      later(() => {
+        if (running) cycle();
+      }, delay);
+    }
+
+    function cycle() {
+      if (!running || !metrics) return;
+      const outer = rings.reduce((a, b) => (a.slot > b.slot ? a : b));
+      const radius = radiusFor(outer.slot);
+      spawnSmoke(radius);
+      dissolveRing(outer);
+
+      later(() => {
+        if (!running) return;
+        rings
+          .filter((ring) => ring !== outer)
+          .sort((a, b) => a.slot - b.slot)
+          .forEach((ring, index) => {
+            later(() => {
+              if (running) setSlot(ring, ring.slot + 1, false);
+            }, index * SHIFT_STEP_MS);
+          });
+        later(() => {
+          if (!running) return;
+          setSlot(outer, 0, true);
+          restoreRing(outer);
+        }, SHIFT_MS + (rings.length - 2) * SHIFT_STEP_MS + 80);
+      }, DISSOLVE_MS);
+
+      scheduleCycle(CYCLE_MS);
+    }
+
+    function start() {
+      if (running || reducedMotion) return;
+      running = true;
+      visionRings.classList.remove("is-idle");
+      rings.forEach((ring) => restoreRing(ring));
+      resetRings();
+      clearTimers();
+      scheduleCycle(4200);
+    }
+
+    function stop() {
+      running = false;
+      clearTimers();
+      visionRings.classList.add("is-idle");
+    }
+
+    build();
+
+    if (!reducedMotion) {
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(
+          (entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) start();
+            else stop();
+          },
+          { threshold: 0.3 },
+        ).observe(visionArt);
+      } else {
+        start();
+      }
+    }
+
+    if ("ResizeObserver" in window) {
+      let resizeFrame = 0;
+      new ResizeObserver(() => {
+        window.cancelAnimationFrame(resizeFrame);
+        resizeFrame = window.requestAnimationFrame(() => {
+          const previous = metrics ? `${metrics.width}x${metrics.height}` : "";
+          build();
+          const next = metrics ? `${metrics.width}x${metrics.height}` : "";
+          if (next && next !== previous && running) {
+            clearTimers();
+            scheduleCycle(CYCLE_MS);
+          }
+        });
+      }).observe(visionArt);
+    }
+  }
+
   // Reveal the mobile action dock only after the hero's primary actions have left the screen.
   if (mobileCta && heroActions && "IntersectionObserver" in window) {
     const ctaObserver = new IntersectionObserver(
