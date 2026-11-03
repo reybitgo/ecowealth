@@ -186,8 +186,10 @@ You do **not** need to understand the code. You only need to read status codes (
 
 These are deliberate for the current build — do not report them as defects:
 
-- Menu entries for later phases show a small **“Soon”** badge and are not clickable. They appear
-  because this copy runs in development mode; production hides them.
+- Menu entries for later phases are hidden until their phase ships — every visible link is live.
+  The build roadmap is shown on the admin dashboard instead of as “Soon” placeholders.
+- `/dashboard` is role-aware: administrators see the back-office dashboard and sidebar, members see
+  the member “Growth overview”.
 - The shop’s **Add to cart** button is disabled: the cart arrives in Phase 4.
 - The packages page button says **“Activation opens in Phase 9”** and is disabled.
 - **Packages cannot be deleted** — only enabled/disabled. This is by design.

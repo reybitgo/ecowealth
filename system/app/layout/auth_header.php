@@ -40,6 +40,7 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <link rel="stylesheet" href="<?= e(url('assets/vendor/libs/pickr/pickr-themes.css')) ?>" />
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/app.css')) ?>" />
     <!-- Vendors CSS -->
     <link
       rel="stylesheet"

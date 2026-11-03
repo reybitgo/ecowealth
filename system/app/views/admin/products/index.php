@@ -42,7 +42,7 @@ $cards = [
                       <div class="d-flex align-items-center justify-content-between mb-3">
                         <span class="avatar avatar-sm">
                           <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e($card['icon']) ?>"></i>
+                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
                           </span>
                         </span>
                       </div>
@@ -57,12 +57,11 @@ $cards = [
               <div class="card">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <h5 class="mb-0">Catalogue</h5>
-                  <form method="GET" action="<?= e(url('admin/products')) ?>" class="d-flex flex-wrap gap-2">
+                  <form method="GET" action="<?= e(url('admin/products')) ?>" class="catalog-filter d-flex flex-wrap gap-2">
                     <input
                       type="search"
                       name="q"
                       class="form-control"
-                      style="min-width: 14rem"
                       value="<?= e($query) ?>"
                       placeholder="Search name or SKU…"
                       aria-label="Search products"

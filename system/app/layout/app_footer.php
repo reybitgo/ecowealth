@@ -52,6 +52,8 @@
 <?php foreach ($page_js as $js): ?>
     <script src="<?= e(asset_url($js)) ?>"></script>
 <?php endforeach; ?>
+    <!-- App JS -->
+    <script src="<?= e(asset_url('assets/js/app.js')) ?>"></script>
     <!-- Main JS -->
     <script src="<?= e(url('assets/js/main.js')) ?>"></script>
   </body>

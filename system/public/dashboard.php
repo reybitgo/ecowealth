@@ -16,6 +16,14 @@ MaintenanceGate::handle();
 
 $user = auth_user();
 
+/* Admins land on the back-office dashboard: /dashboard and /admin then
+ * render the same operations screen with the admin sidebar, so signing
+ * in as an admin never drops you into the member "Growth overview". */
+if (is_admin($user)) {
+    (new AdminDashboardController())->index();
+    exit;
+}
+
 /* --------------------------------------------------------------
  *  Community data (the only figures this app really tracks)
  * -------------------------------------------------------------- */

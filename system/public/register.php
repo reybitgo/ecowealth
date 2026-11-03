@@ -15,6 +15,7 @@ MaintenanceGate::handle();
 old_clear();
 
 $errors = [];
+$termsChecked = false;
 
 if (is_post()) {
     if (!csrf_verify($_POST['_csrf'] ?? null)) {
@@ -30,14 +31,18 @@ if (is_post()) {
         $confirm  = (string) ($_POST['confirm-password'] ?? '');
         $terms    = !empty($_POST['terms']);
 
+        $termsChecked = $terms;
+
         if (!$terms) {
             $errors[] = 'You must agree to the privacy policy & terms.';
+        } else {
+            /* Never create the account before the terms gate passes: the
+             * disabled button is only the client-side half of the rule. */
+            $errors = array_merge(
+                $errors,
+                auth_register($username, $email, $password, $confirm)
+            );
         }
-
-        $errors = array_merge(
-            $errors,
-            auth_register($username, $email, $password, $confirm)
-        );
 
         if ($errors === []) {
             old_clear();
@@ -149,7 +154,7 @@ require __DIR__ . '/../app/layout/auth_header.php';
                       type="checkbox"
                       id="terms-conditions"
                       name="terms"
-                      value="1"
+                      value="1"<?= $termsChecked ? ' checked' : '' ?>
                     />
                     <label class="form-check-label" for="terms-conditions">
                       I agree to
@@ -157,8 +162,39 @@ require __DIR__ . '/../app/layout/auth_header.php';
                     </label>
                   </div>
                 </div>
-                <button class="btn btn-primary d-grid w-100" type="submit">Sign up</button>
+                <button
+                  class="btn btn-primary d-grid w-100"
+                  type="submit"
+                  id="register-submit"<?= $termsChecked ? '' : ' disabled' ?>
+                >Sign up</button>
               </form>
+              <script>
+                (function () {
+                  var form = document.getElementById('formAuthentication');
+                  var terms = document.getElementById('terms-conditions');
+                  var submit = document.getElementById('register-submit');
+
+                  if (!form || !terms || !submit) {
+                    return;
+                  }
+
+                  var sync = function () {
+                    submit.disabled = !terms.checked;
+                  };
+
+                  terms.addEventListener('change', sync);
+                  sync();
+
+                  /* Enter in a field still triggers implicit submission in
+                   * some browsers; keep the gate consistent there too. */
+                  form.addEventListener('submit', function (event) {
+                    if (!terms.checked) {
+                      event.preventDefault();
+                      terms.focus();
+                    }
+                  });
+                })();
+              </script>
               <p class="text-center">
                 <span>Already have an account?</span>
                 <a href="<?= e(url('login')) ?>">

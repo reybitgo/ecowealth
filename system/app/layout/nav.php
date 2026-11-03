@@ -13,9 +13,8 @@ declare(strict_types=1);
  *    path   app path handed to url()  (never a hard-coded "/…")
  *    icon   Boxicons class
  *    guard  any | member | admin | superadmin — decides visibility
- *    phase  the build phase that ships it. Items from a later phase
- *           render disabled with a "Soon" pill while APP_DEBUG is on
- *           and are hidden entirely in production.
+ *    phase  the build phase that ships it. Items from a later phase are
+ *           hidden until that phase lands, so every visible link is live.
  *    badge  optional key into $nav_badges
  *    type   'post' renders a CSRF-protected form button (sign out)
  * ============================================================== */
@@ -69,6 +68,7 @@ return [
                 'label' => 'Overview',
                 'items' => [
                     ['key' => 'admin.dashboard', 'label' => 'Dashboard', 'path' => 'admin', 'icon' => 'bx-home-smile', 'guard' => 'admin', 'phase' => 1],
+                    ['key' => 'admin.storefront', 'label' => 'Storefront', 'path' => 'shop', 'icon' => 'bx-store', 'guard' => 'admin', 'phase' => 1, 'target' => '_blank'],
                 ],
             ],
             [

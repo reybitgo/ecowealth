@@ -117,6 +117,28 @@ function e(null|string $value): string
 }
 
 /**
+ * Normalise a Boxicons class list for markup.
+ *
+ * Menu config, KPI cards and empty states store the icon without the
+ * base class ("bx-home-smile"), while Boxicons needs both classes on the
+ * element ("bx bx-home-smile") before it paints the glyph. Accepting
+ * both shapes here keeps the call sites short without ever losing the
+ * icons again.
+ */
+function icon_class(string $icon, string $extra = ''): string
+{
+    $icon = trim($icon);
+
+    if ($icon === '') {
+        $icon = 'bx';
+    } elseif (preg_match('/(^|\s)bx(\s|$)/', $icon) !== 1) {
+        $icon = 'bx ' . $icon;
+    }
+
+    return trim($icon . ' ' . $extra);
+}
+
+/**
  * URL for a static asset with a cache-busting version stamp.
  *
  *   asset_url('assets/css/fonts.css')  →  '/assets/css/fonts.css?v=1762…'

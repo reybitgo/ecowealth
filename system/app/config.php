@@ -30,7 +30,7 @@ if (is_file($localConfig)) {
 defined('APP_ENV') || define('APP_ENV', (string) (getenv('APP_ENV') ?: 'production'));
 defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
 
-/* Phase currently under construction — drives the "soon" nav items. */
+/* Phase currently under construction — controls which menu items render. */
 defined('APP_PHASE') || define('APP_PHASE', 3);
 
 /* ---------- Database (MySQL) ---------- */

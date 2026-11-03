@@ -24,7 +24,20 @@ $render = static function (string $layout, string $template, array $data = []): 
     return $html;
 };
 
-$adminStats = ['members' => 1, 'members_active' => 1, 'admins' => 2, 'settings' => 41];
+$adminStats = [
+    'accounts'        => 1,
+    'accounts_active' => 1,
+    'members'         => 0,
+    'admins'          => 2,
+    'new_accounts'    => 1,
+    'products'        => 7,
+    'products_active' => 7,
+    'stock_units'     => 330,
+    'inventory_value' => 128000.0,
+    'packages'        => 2,
+    'packages_active' => 2,
+    'package_value'   => 11496.0,
+];
 
 return [
     'View::capture renders an error template' => function (): void {
@@ -66,6 +79,7 @@ return [
         assert_contains('Dashboard', $html);
         assert_contains('Shop', $html);
         assert_contains('Change password', $html);
+        assert_contains('menu-icon icon-base bx bx-home-smile', $html, 'sidebar icons keep the Boxicons base class');
 
         /* P1-T8: member pages never expose back-office items. */
         assert_not_contains('Registration codes', $html);
@@ -82,9 +96,14 @@ return [
         assert_contains('id="layout-menu"', $html);
         assert_contains('Back office', $html);
         assert_contains('Products', $html);
-        assert_contains('Registration codes', $html);
-        assert_contains('Payouts', $html);
-        assert_contains('Newest accounts', $html);
+        assert_contains('Packages', $html);
+        assert_contains('Recent accounts', $html);
+        assert_contains('menu-icon icon-base bx bx-home-smile', $html, 'sidebar icons keep the Boxicons base class');
+
+        /* Unbuilt screens are left out of the menu entirely. */
+        assert_not_contains('Registration codes', $html);
+        assert_not_contains('Payouts', $html);
+        assert_not_contains('Soon', $html);
     },
 
     'View::page hides later-phase items from the superadmin console for a plain admin' => function () use ($render, $adminStats): void {

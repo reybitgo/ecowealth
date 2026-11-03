@@ -11,7 +11,7 @@ declare(strict_types=1);
  * @var string $action_label Optional call-to-action label
  */
 
-$icon         = $icon ?? 'bx bx-box';
+$icon         = icon_class((string) ($icon ?? 'bx-box'));
 $title        = $title ?? 'Nothing here yet';
 $text         = $text ?? '';
 $action_href  = $action_href ?? '';

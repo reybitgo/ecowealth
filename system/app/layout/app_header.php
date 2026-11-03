@@ -73,6 +73,7 @@ $html_class  = $has_menu
     <!-- Core CSS -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/app.css')) ?>" />
     <!-- Vendors CSS -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css')) ?>" />
 <?php foreach ($page_css as $css): ?>
@@ -98,9 +99,14 @@ $html_class  = $has_menu
       <div class="layout-container">
 <?php if ($has_menu): ?>
         <!-- Menu -->
-        <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+        <aside id="layout-menu" class="layout-menu menu-vertical menu">
           <div class="app-brand demo">
-            <a href="<?= e(url('dashboard')) ?>" class="app-brand-link">
+            <a
+              href="<?= e(url($layout === 'admin' ? 'admin' : 'dashboard')) ?>"
+              class="app-brand-link"
+              aria-label="<?= e(APP_NAME) ?> <?= $layout === 'admin' ? 'back office' : 'dashboard' ?>"
+            >
+              <?php $brand_mark = true; ?>
               <?php require __DIR__ . '/logo.php'; ?>
             </a>
             <a
@@ -153,8 +159,9 @@ $html_class  = $has_menu
                     type="search"
                     id="navbarQuickSearch"
                     class="form-control border-0 bg-transparent shadow-none ps-2"
-                    placeholder="<?= $layout === 'admin' ? 'Search members…' : 'Search the shop…' ?>"
+                    placeholder="<?= $layout === 'admin' ? 'Search products…' : 'Search the shop…' ?>"
                     aria-label="Search"
+                    data-search-url="<?= e(url($layout === 'admin' ? 'admin/products' : 'shop')) ?>"
                   />
                 </div>
               </div>
@@ -195,7 +202,7 @@ $html_class  = $has_menu
                         <li class="list-group-item d-flex align-items-start gap-3 px-4 py-3 border-0">
                           <div class="avatar avatar-sm flex-shrink-0">
                             <span class="avatar-initial rounded bg-label-<?= e($note['tone'] ?? 'primary') ?>">
-                              <i class="icon-base bx <?= e($note['icon'] ?? 'bx-bell') ?>"></i>
+                              <i class="icon-base <?= e(icon_class((string) ($note['icon'] ?? 'bx-bell'))) ?>"></i>
                             </span>
                           </div>
                           <div class="flex-grow-1">
@@ -246,7 +253,7 @@ $html_class  = $has_menu
                       <div class="dropdown-divider my-1"></div>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="<?= e(url('dashboard')) ?>">
+                      <a class="dropdown-item" href="<?= e(url($layout === 'admin' ? 'admin' : 'dashboard')) ?>">
                         <i class="icon-base bx bx-home-smile icon-md me-3"></i
                         ><span>Dashboard</span>
                       </a>

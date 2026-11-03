@@ -349,3 +349,56 @@ catalogue are the inputs; the inventory lists the Phase 4 routes.
 
 
 
+
+---
+
+## Post-Phase 3 — Dashboard and navigation polish
+
+**Date:** 2026-11-03 · **Status:** complete · **Tests:** 141 PHP cases, 42 smoke checks
+
+### Problem
+
+Signing in as `admin` opened `/dashboard`, which rendered the member "Growth overview" with the
+member sidebar. Sidebar icons were invisible because every menu glyph was rendered without the
+Boxicons base class (`bx`), and the menu advertised unbuilt screens as "Soon" placeholders. The
+admin landing page itself was a Phase 1 placeholder with no operational data.
+
+### Changes
+
+- **Role-aware `/dashboard`.** `public/dashboard.php` hands admins to
+  `AdminDashboardController`; the URL stays `/dashboard` and the admin sidebar renders. Members
+  keep the Growth overview unchanged.
+- **Admin dashboard rebuilt** in the Sneat dashboard language: welcome banner, four KPI cards,
+  catalogue-value bar chart, stock-health donut with a needs-attention list, recent accounts and
+  package summary. `AdminDashboardController` now reads accounts, products, stock and packages;
+  each table group is guarded so a missing later-phase table cannot blank the page.
+- **Icons fixed globally.** `icon_class()` in `helpers.php` normalises `bx-…` to `bx bx-…`;
+  sidebar, empty states, admin cards and navbar notifications now use it.
+- **Nav cleaned up.** Items for unbuilt phases are hidden rather than shown disabled; the admin
+  menu now also links to the Storefront. Every rendered link is live.
+- **Registration terms gate.** “Sign up” starts disabled, enables only when the privacy/terms box
+  is ticked, and the server refuses to create the account without it (previously the insert ran
+  before the terms error was rendered).
+- **Collaboration details.** Brand link follows the active layout, the compact leaf mark is reserved
+  for the collapsed desktop rail (the mobile drawer always shows the full wordmark), the navbar
+  search jumps to the catalogue search, and the products/packages list toolbars stay on one line.
+- **New assets:** `assets/css/app.css`, `assets/js/app.js`, `assets/js/admin-dashboard.js`.
+
+### Verification
+
+- `php tests\run.php` — 141/141.
+- `powershell -NoProfile -File tests\smoke.ps1` — 42/42.
+- Visual QA at 1440×900 and 390×844, plus the collapsed sidebar: screenshots in
+  `docs/qa/evidence/dashboard/` (`final-*.png`).
+
+---
+
+## PHP 8.5 compatibility — PDO time zone
+
+**Date:** 2026-11-03 · **Status:** complete · **Tests:** 141 PHP cases
+
+`app/database.php` no longer passes `PDO::MYSQL_ATTR_INIT_COMMAND`, which PHP 8.5 deprecates
+(`Pdo\Mysql::ATTR_INIT_COMMAND` is the 8.4+ replacement). The connection now runs
+`SET time_zone = '<configured offset>'` once immediately after opening, so the session time zone
+stays aligned with `APP_TIMEZONE` on PHP 8.3, 8.4 and 8.5 without a driver-specific constant.
+Verified `@@session.time_zone` returns `+08:00` and the PHP suite stays green.

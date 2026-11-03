@@ -10,6 +10,12 @@
 | **Time** | 45–60 minutes |
 | **Evidence folder** | `docs/qa/evidence/phase-1/` |
 
+> **Layout update (dashboard & menu polish):** `/dashboard` is role-aware. Administrators land on
+> the back-office dashboard, so run the member-dashboard checks (QA1-04, QA1-05) with a member
+> account — register `QA_Member_01` first (QA1-07) if it does not exist yet. Menu entries for
+> screens that have not shipped are hidden completely, not shown with a “Soon” badge; the build
+> roadmap lives on the admin dashboard instead.
+
 ## What this phase is meant to prove
 
 Phase 1 built the frame every later phase plugs into: one front door that routes clean URLs, a
@@ -116,7 +122,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | | |
 |---|---|
 | **Why it matters** | The dashboard is the member’s home; every section must render, including interactive ones. |
-| **Where** | `/dashboard` as admin |
+| **Where** | `/dashboard` as `QA_Member_01` (register it in QA1-07 first) |
 | **Evidence** | `QA1-04-dashboard-sections.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
@@ -139,22 +145,21 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | | |
 |---|---|
 | **Why it matters** | A menu must never advertise pages the current role cannot use. |
-| **Where** | Left sidebar at `/dashboard` |
+| **Where** | Left sidebar at `/dashboard` as `QA_Member_01` |
 | **Evidence** | `QA1-05-member-menu.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
 1. Read the sidebar from top to bottom.
-2. Hover over an item marked **Soon**.
+2. Confirm every visible item opens a page; there should be no greyed-out placeholders.
 
 **Expected**
 
-- Sections and items: **Shopping** → Dashboard, Shop, Cart*, My orders* · **Membership** → Packages,
-  Membership*, Genealogy*, Earnings* · **Money** → E-wallet*, Payouts* · **Account** → Profile*,
-  Change password, Sign out. (* = greyed item with a **Soon** pill.)
-- **Dashboard, Shop, Packages, Change password** are clickable links.
-- “Soon” items cannot be clicked.
+- Sections and items: **Shopping** → Dashboard, Shop · **Membership** → Packages · **Account** →
+  Change password, Sign out.
+- **Dashboard, Shop, Packages, Change password** are clickable links and every icon is visible.
+- Unbuilt screens (cart, orders, wallet, genealogy, …) are **not** listed.
 - The menu contains **no** “Products”, “Registration codes”, “E-wallet monitor”, “Commissions” or
   “S-Login console”.
 
@@ -401,8 +406,8 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 
 **Expected**
 
-- As `admin`: Settings*, Change password, Sign out — **no “S-Login console”**.
-- As `superadmin`: the same plus **“S-Login console”** with a **Soon** pill (Phase 14 feature).
+- As `admin`: Change password, Sign out — **no “S-Login console”**, no unbuilt Settings entry.
+- As `superadmin`: the same live entries; **“S-Login console” stays hidden until Phase 14** ships.
 - Both accounts see the same member-style pages otherwise.
 
 ---

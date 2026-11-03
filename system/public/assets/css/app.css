@@ -1,0 +1,193 @@
+/* ==============================================================
+ *  EcoWealth — application polish
+ *
+ *  Loaded after demo.css on every signed-in page. Only rules that
+ *  smooth out the shared shell and the admin dashboard live here;
+ *  page-specific CSS stays in the view that needs it.
+ * ============================================================== */
+
+/* ---------- Brand ---------- */
+.app-brand-logo .app-brand-img {
+  display: block;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/*
+ * Below the 1200px layout breakpoint the menu becomes an off-canvas
+ * drawer, so there is plenty of room for the wordmark. Always show the
+ * full logo there — the compact leaf mark is only for the collapsed
+ * desktop rail. This also wins over the template's collapsed-state
+ * rules when a desktop collapse has been remembered.
+ */
+@media (max-width: 1199.98px) {
+  /* A remembered desktop collapse must not squeeze the drawer brand. */
+  #layout-menu .app-brand {
+    width: auto !important;
+  }
+
+  #layout-menu .app-brand-link {
+    flex: 0 0 auto !important;
+    margin-inline: 0 !important;
+  }
+
+  #layout-menu .app-brand-img {
+    display: block !important;
+    flex: 0 0 auto !important;
+    max-width: none !important;
+  }
+
+  #layout-menu .app-brand-img-collapsed {
+    display: none !important;
+  }
+}
+
+/* ---------- Menu ---------- */
+/* Long labels must never push the badge out of the sidebar. */
+.layout-menu .menu-link {
+  min-width: 0;
+}
+
+.layout-menu .menu-link > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-menu .menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Dashboard: welcome banner ---------- */
+.welcome-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.12);
+  background:
+    radial-gradient(120% 170% at 100% 0%, rgba(var(--bs-primary-rgb), 0.18) 0%, rgba(var(--bs-primary-rgb), 0) 58%),
+    linear-gradient(115deg, rgba(var(--bs-primary-rgb), 0.11) 0%, rgba(var(--bs-info-rgb), 0.07) 52%, rgba(var(--bs-primary-rgb), 0.02) 100%);
+}
+
+.welcome-card::after {
+  position: absolute;
+  z-index: -1;
+  inset-block-end: -6rem;
+  inset-inline-end: -4rem;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 50%;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  content: "";
+  filter: blur(6px);
+}
+
+.welcome-card .card-body {
+  position: relative;
+  z-index: 1;
+}
+
+.welcome-card .welcome-eyebrow {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------- Dashboard: KPI cards ---------- */
+.stat-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.stat-card:hover {
+  box-shadow: 0 0.5rem 1.25rem rgba(var(--bs-primary-rgb), 0.1);
+  transform: translateY(-2px);
+}
+
+.stat-card .avatar-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card .stat-value {
+  font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- List toolbars (products, packages) ---------- */
+.catalog-filter .form-control {
+  flex: 0 1 16rem;
+  width: 16rem;
+}
+
+.catalog-filter .form-select {
+  flex: 0 1 10rem;
+  width: 10rem;
+}
+
+@media (max-width: 575.98px) {
+  .catalog-filter .form-control,
+  .catalog-filter .form-select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+/* ---------- Dashboard: tables ---------- */
+.dashboard-table > :not(caption) > * > * {
+  padding-block: 0.85rem;
+  vertical-align: middle;
+}
+
+.dashboard-table thead th {
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* ---------- Dashboard: stock meter ---------- */
+.stock-meter {
+  overflow: hidden;
+  height: 0.375rem;
+  border-radius: 999px;
+  background-color: rgba(var(--bs-secondary-rgb), 0.14);
+}
+
+.stock-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--bs-success);
+}
+
+.stock-meter.is-low > span {
+  background-color: var(--bs-warning);
+}
+
+.stock-meter.is-out > span {
+  background-color: var(--bs-danger);
+}
+
+/* ---------- Dashboard: chart shells ---------- */
+.dashboard-chart {
+  min-height: 315px;
+}
+
+.dashboard-chart-sm {
+  min-height: 220px;
+}
+
+@media (max-width: 575.98px) {
+  .dashboard-chart {
+    min-height: 260px;
+  }
+}

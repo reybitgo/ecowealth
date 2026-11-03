@@ -245,7 +245,7 @@ try {
         "GET / as member -> 302 /dashboard (got $($homeAdmin.Status) $($homeAdmin.Location))"
 
     $adminPage = Invoke-App -Path '/admin' -Session 'admin'
-    Assert-That 'P1-T3' ($adminPage.Status -eq 200 -and $adminPage.Body -match 'Back office' -and $adminPage.Body -match 'Registration codes') `
+    Assert-That 'P1-T3' ($adminPage.Status -eq 200 -and $adminPage.Body -match 'Back office' -and $adminPage.Body -match 'Products') `
         "GET /admin as admin -> 200 with the back-office menu (got $($adminPage.Status))"
 
     $memberAsAdmin = Invoke-App -Path '/shop' -Session 'admin'

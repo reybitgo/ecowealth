@@ -40,11 +40,13 @@ $cards = [
                 <div class="col-6 col-xl-3">
                   <div class="card h-100">
                     <div class="card-body">
-                      <span class="avatar avatar-sm mb-3">
-                        <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                          <i class="icon-base <?= e($card['icon']) ?>"></i>
+                      <div class="mb-3">
+                        <span class="avatar avatar-sm">
+                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
+                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
+                          </span>
                         </span>
-                      </span>
+                      </div>
                       <p class="text-body-secondary mb-1"><?= e($card['label']) ?></p>
                       <h4 class="mb-0"><?= (int) $card['value'] ?></h4>
                     </div>
@@ -56,12 +58,11 @@ $cards = [
               <div class="card">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <h5 class="mb-0">Associate packages</h5>
-                  <form method="GET" action="<?= e(url('admin/packages')) ?>" class="d-flex flex-wrap gap-2">
+                  <form method="GET" action="<?= e(url('admin/packages')) ?>" class="catalog-filter d-flex flex-wrap gap-2">
                     <input
                       type="search"
                       name="q"
                       class="form-control"
-                      style="min-width: 14rem"
                       value="<?= e($query) ?>"
                       placeholder="Search name or slug…"
                       aria-label="Search packages"
