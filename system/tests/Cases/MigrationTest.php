@@ -10,16 +10,20 @@ declare(strict_types=1);
  *  (ecowealth_sneat_migtest) so it never disturbs the app schema.
  * ============================================================== */
 
-$migrationFile = dirname(__DIR__, 2) . '/database/migrations/001_settings_roles.sql';
+$migrationDir  = dirname(__DIR__, 2) . '/database/migrations/';
+$migrations    = [$migrationDir . '001_settings_roles.sql', $migrationDir . '002_products.sql'];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
-/** Fresh legacy database with the migration applied. */
-$buildMigrated = static function () use ($migrationFile, $fixtureFile): PDO {
+/** Fresh legacy database with every phase migration applied in order. */
+$buildMigrated = static function () use ($migrations, $fixtureFile): PDO {
     $pdo = test_pdo();
     test_recreate_database($pdo, TEST_MIGRATION_DB);
 
     test_run_sql_file($pdo, $fixtureFile);
-    test_run_sql_file($pdo, $migrationFile);
+
+    foreach ($migrations as $migration) {
+        test_run_sql_file($pdo, $migration);
+    }
 
     return $pdo;
 };
@@ -57,15 +61,22 @@ return [
         assert_same($before, $after, 'accounts must survive the migration untouched');
     },
 
-    'migration creates settings and audit_log' => function () use ($buildMigrated): void {
+    'migration creates settings, audit_log and the product catalogue' => function () use ($buildMigrated): void {
         $pdo    = $buildMigrated();
         $tables = array_column($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_NUM), 0);
 
         assert_true(in_array('settings', $tables, true), 'settings table missing');
         assert_true(in_array('audit_log', $tables, true), 'audit_log table missing');
+        assert_true(in_array('products', $tables, true), 'products table missing');
 
         $pdo->exec("INSERT INTO settings (key_name, value) VALUES ('probe', '1')");
         assert_same('1', $pdo->query("SELECT value FROM settings WHERE key_name = 'probe'")->fetchColumn());
+
+        $pdo->exec(
+            "INSERT INTO products (sku, name, slug, price, stock)
+             VALUES ('MIG-1', 'Migrated product', 'migrated-product', 10.00, 5)"
+        );
+        assert_same('Migrated product', $pdo->query("SELECT name FROM products WHERE sku = 'MIG-1'")->fetchColumn());
     },
 
     'migration adds the role index' => function () use ($buildMigrated): void {
@@ -78,11 +89,13 @@ return [
         assert_true($index !== [], 'idx_users_role missing');
     },
 
-    'migration is idempotent' => function () use ($buildMigrated, $migrationFile): void {
+    'migration is idempotent' => function () use ($buildMigrated, $migrations): void {
         $pdo = $buildMigrated();
 
         /* Re-running must be safe (CREATE ... IF NOT EXISTS, guarded index). */
-        test_run_sql_file($pdo, $migrationFile);
+        foreach ($migrations as $migration) {
+            test_run_sql_file($pdo, $migration);
+        }
 
         assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
         assert_same('member', $pdo->query("SELECT role FROM users WHERE username = 'legacy_user'")->fetchColumn());
@@ -101,16 +114,17 @@ return [
 
         assert_same($tableList($fresh), $tableList($migrated), 'table list differs from schema.sql');
 
-        $columnList = static function (PDO $pdo): array {
+        $columnList = static function (PDO $pdo, string $table): array {
             $columns = [];
-            foreach ($pdo->query('SHOW COLUMNS FROM users')->fetchAll() as $column) {
+            foreach ($pdo->query('SHOW COLUMNS FROM `' . $table . '`')->fetchAll() as $column) {
                 $columns[] = $column['Field'] . ' ' . $column['Type'] . ' ' . $column['Null'] . ' ' . $column['Default'] . ' ' . $column['Extra'];
             }
 
             return $columns;
         };
 
-        assert_same($columnList($fresh), $columnList($migrated), 'users columns differ from schema.sql');
+        assert_same($columnList($fresh, 'users'), $columnList($migrated, 'users'), 'users columns differ from schema.sql');
+        assert_same($columnList($fresh, 'products'), $columnList($migrated, 'products'), 'products columns differ from schema.sql');
     },
 
     'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {

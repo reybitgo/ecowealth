@@ -28,9 +28,10 @@ return [
     /* GET / is a redirect only: dashboard when signed in, login when not (D23). */
     ['GET',  '/',                 [HomeController::class, 'index'],            'any'],
 
-    /* Members-only storefront; Phase 1 ships the guarded placeholder,
-     * the catalogue itself arrives in Phase 2 (reference: shop). */
+    /* Members-only storefront (reference: shop). The catalogue and the
+     * product detail page land in Phase 2; cart/checkout follow. */
     ['GET',  '/shop',             [ShopController::class, 'index'],            'member'],
+    ['GET',  '/shop/{id}',        [ShopController::class, 'show'],             'member'],
 
     /* Back-office placeholder (reference: admin). */
     ['GET',  '/admin',            [AdminDashboardController::class, 'index'],  'admin'],
@@ -39,15 +40,16 @@ return [
     ['GET',  '/profile/password', [ProfileController::class, 'password'],      'member'],
     ['POST', '/profile/password', [ProfileController::class, 'savePassword'],  'member'],
 
-    /* ---------- Phase 2 — products & catalog ------------------------
-    ['GET',  '/shop/{id}',                       [ShopController::class, 'show'],           'member'],       // shop
-    ['GET',  '/admin/products',                  [AdminProductController::class, 'index'],  'admin'],        // admin_shop
-    ['GET',  '/admin/products/new',              [AdminProductController::class, 'create'], 'admin'],        // admin_shop
-    ['GET',  '/admin/products/{id}/edit',        [AdminProductController::class, 'edit'],   'admin'],        // admin_shop
-    ['POST', '/admin/products/save',             [AdminProductController::class, 'save'],   'admin'],        // admin_save_product
-    ['POST', '/admin/products/{id}/status',      [AdminProductController::class, 'status'], 'admin'],        // admin_product_status
-    ['POST', '/admin/products/{id}/delete',      [AdminProductController::class, 'delete'], 'admin'],        // admin_delete_product
-    ----------------------------------------------------------------- */
+    /* ---------- Phase 2 — products & catalogue ----------------------- */
+
+    /* Reference: admin_shop (list + form pages), admin_save_product,
+     * admin_product_status, admin_delete_product. */
+    ['GET',  '/admin/products',                  [AdminProductController::class, 'index'],  'admin'],
+    ['GET',  '/admin/products/new',              [AdminProductController::class, 'create'], 'admin'],
+    ['GET',  '/admin/products/{id}/edit',        [AdminProductController::class, 'edit'],   'admin'],
+    ['POST', '/admin/products/save',             [AdminProductController::class, 'save'],   'admin'],
+    ['POST', '/admin/products/{id}/status',      [AdminProductController::class, 'status'], 'admin'],
+    ['POST', '/admin/products/{id}/delete',      [AdminProductController::class, 'delete'], 'admin'],
 
     /* ---------- Phase 3 — packages -----------------------------------
     ['GET',  '/packages',                        [PackageController::class, 'index'],          'member'],    // packages (public cards)

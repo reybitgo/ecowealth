@@ -54,7 +54,13 @@ return [
     'View::page renders the member layout with member navigation only' => function () use ($render): void {
         test_signed_in_as(test_user('layout_member'));
 
-        $html = $render('member', 'shop/placeholder', ['shop_open' => true]);
+        $html = $render('member', 'shop/catalog', [
+            'products'  => [],
+            'available' => [],
+            'pager'     => new Paginator(0, 12, 1),
+            'filters'   => ['q' => ''],
+            'shop_open' => true,
+        ]);
 
         assert_contains('id="layout-menu"', $html);
         assert_contains('Dashboard', $html);
@@ -113,14 +119,20 @@ return [
         assert_contains(csrf_token(), $html);
     },
 
-    'View::page renders the shop placeholder for members' => function () use ($render): void {
+    'View::page renders the storefront for members' => function () use ($render): void {
         test_signed_in_as(test_user('layout_member'));
 
-        $html = $render('member', 'shop/placeholder', ['shop_open' => false]);
+        $html = $render('member', 'shop/catalog', [
+            'products'  => [],
+            'available' => [],
+            'pager'     => new Paginator(0, 12, 1),
+            'filters'   => ['q' => ''],
+            'shop_open' => false,
+        ]);
 
-        assert_contains('The shop is being prepared', $html);
-        assert_contains('switched off by the administrator', $html);
-        assert_contains('Phase 2', $html);
+        assert_contains('Shop', $html);
+        assert_contains('shop is currently closed', $html);
+        assert_contains('name="q"', $html);
     },
 
     'View refuses unknown and traversing template names' => function (): void {

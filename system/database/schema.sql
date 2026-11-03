@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 1)
+--  EcoWealth — MySQL schema (fresh install, Phase 2)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -7,14 +7,15 @@
 --
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
---  Existing (pre-Phase-1) databases are upgraded with
---  database/migrations/001_settings_roles.sql instead.
+--  Existing databases are upgraded with the per-phase files in
+--  database/migrations/ (apply in order: 001, 002, …).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
+--  Phase 2 owns: products.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
---  Seed data (settings defaults, admin + superadmin) lives in
---  database/seeds/ so a schema import alone creates no accounts.
+--  Seed data lives in database/seeds/ so a schema import alone
+--  creates no accounts and no demo catalogue.
 -- =============================================================
 
 SET NAMES utf8mb4;
@@ -87,4 +88,34 @@ CREATE TABLE IF NOT EXISTS audit_log (
   PRIMARY KEY (id),
   KEY idx_audit_actor (actor_id, created_at),
   KEY idx_audit_subject (subject_type, subject_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Products — sellable catalogue (plan §4.2, §5.1; Phase 2)
+--
+--  stock    physical count on hand. `available` is derived:
+--           stock − quantity reserved by non-terminal orders.
+--  pv       reserved for residual PV (V3.0 later pillars) — never
+--           read or written by the current build.
+--  slug     generated from the name, stable once created.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS products (
+  id                INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  sku               VARCHAR(64)   NULL,
+  name              VARCHAR(160)  NOT NULL,
+  slug              VARCHAR(180)  NOT NULL,
+  price             DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  pv                DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  stock             INT UNSIGNED  NOT NULL DEFAULT 0,
+  image_url         VARCHAR(255)  NULL,
+  short_description VARCHAR(255)  NULL,
+  description       TEXT          NULL,
+  status            ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  sort_order        INT           NOT NULL DEFAULT 0,
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_products_sku (sku),
+  UNIQUE KEY uq_products_slug (slug),
+  KEY idx_products_status (status, sort_order)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

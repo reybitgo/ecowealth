@@ -89,7 +89,7 @@ return [
         );
     },
 
-    'Live route table builds and contains the Phase 1 routes' => function (): void {
+    'Live route table builds and contains the Phase 1 + 2 routes' => function (): void {
         $routes = require dirname(__DIR__, 2) . '/app/routes.php';
         $router = new Router($routes);
 
@@ -98,27 +98,48 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(5, $live);
+        assert_count(12, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
+        assert_same('member', $live['GET /shop/{id}']);
         assert_same('admin', $live['GET /admin']);
+        assert_same('admin', $live['GET /admin/products']);
+        assert_same('admin', $live['GET /admin/products/new']);
+        assert_same('admin', $live['GET /admin/products/{id}/edit']);
+        assert_same('admin', $live['POST /admin/products/save']);
+        assert_same('admin', $live['POST /admin/products/{id}/status']);
+        assert_same('admin', $live['POST /admin/products/{id}/delete']);
         assert_same('member', $live['GET /profile/password']);
         assert_same('member', $live['POST /profile/password']);
     },
 
-    'Live route table resolves the Phase 1 URLs' => function (): void {
+    'Live route table resolves the Phase 1 + 2 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
         assert_same(ShopController::class, $router->match('GET', '/shop')['route']['handler'][0]);
+        assert_same(ShopController::class, $router->match('GET', '/shop/3')['route']['handler'][0]);
         assert_same(
             AdminDashboardController::class,
             $router->match('GET', '/admin')['route']['handler'][0]
+        );
+        assert_same(
+            AdminProductController::class,
+            $router->match('GET', '/admin/products')['route']['handler'][0]
+        );
+        assert_same(
+            AdminProductController::class,
+            $router->match('GET', '/admin/products/9/edit')['route']['handler'][0]
+        );
+        assert_same(
+            AdminProductController::class,
+            $router->match('POST', '/admin/products/9/status')['route']['handler'][0]
         );
         assert_same(
             ProfileController::class,
             $router->match('POST', '/profile/password')['route']['handler'][0]
         );
         assert_null($router->match('GET', '/no-such-page'));
+        assert_null($router->match('GET', '/admin/products/abc/edit'));
     },
 ];

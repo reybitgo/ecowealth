@@ -4,9 +4,12 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 1 — core skeleton** (router, layouts, roles, settings, test harness).
-The shop/checkout modules from Phase 2 onwards are not in this folder yet; menu entries for
-later phases render as disabled "Soon" items while `APP_DEBUG` is on and are hidden in production.
+**Current status: Phase 2 — products & storefront catalogue.** Phase 1 delivered the
+skeleton (router, layouts, roles, settings, test harness); Phase 2 adds the product
+catalogue, its admin CRUD with image uploads, and the member storefront (catalogue,
+search, pagination, product detail). Cart, checkout, wallet, referrals and payouts follow
+in later phases; their menu entries render as disabled "Soon" items while `APP_DEBUG` is
+on and are hidden in production.
 
 | | |
 |---|---|
@@ -105,12 +108,12 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 routes only)
+│   ├── routes.php             the live route table (Phase 1 + 2 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
-│   ├── Controllers/           HomeController, ShopController, AdminDashboardController, ProfileController
-│   ├── Models/                (Phase 2+)
-│   ├── Services/              (Phase 5+)
+│   ├── Controllers/           Home, Shop, AdminDashboard, AdminProduct, Profile
+│   ├── Models/                Product
+│   ├── Services/              StockService, UploadService
 │   ├── views/                 errors/, partials/, shop/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── public/                    docroot
@@ -118,16 +121,16 @@ system/
 │   ├── router.php             PHP built-in server parity
 │   ├── login.php register.php logout.php dashboard.php   (standalone this build)
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
-│   └── assets/                EcoWealth theme (Sneat 3.x)
+│   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            one file per phase (001_settings_roles.sql)
-│   └── seeds/                 settings defaults, demo accounts
+│   ├── migrations/            one file per phase (001_settings_roles, 002_products)
+│   └── seeds/                 settings defaults, demo accounts, demo catalogue
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P1-T11)
-    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P1-T11, P2-T1 … P2-T10)
+    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration, Product, ProductView
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -157,10 +160,22 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | Method | Path | Guard | Purpose |
 |---|---|---|---|
 | GET | `/` | any | Redirect to `/dashboard` (signed in) or `/login` |
-| GET | `/shop` | member | Storefront placeholder (catalogue in Phase 2) |
+| GET | `/shop` | member | Storefront catalogue (Phase 2) |
+| GET | `/shop/{id}` | member | Product detail (404 for inactive products) |
 | GET | `/admin` | admin | Back-office dashboard |
 | GET | `/profile/password` | member | Change password form |
 | POST | `/profile/password` | member | Change password |
+
+### Phase 2 URLs — product catalogue
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/admin/products` | admin | Catalogue table with search, status filter, pagination |
+| GET | `/admin/products/new` | admin | New product form |
+| GET | `/admin/products/{id}/edit` | admin | Edit product form |
+| POST | `/admin/products/save` | admin | Create / update (image upload, remove image) |
+| POST | `/admin/products/{id}/status` | admin | Enable / disable (JSON for XHR) |
+| POST | `/admin/products/{id}/delete` | admin | Delete unless referenced by an order or cart (JSON for XHR) |
 
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`, `/dashboard`.
@@ -183,10 +198,29 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 ---
 
+## Catalogue (Phase 2)
+
+- `products.stock` is the **physical** count on hand. `available` is derived by
+  `StockService`: `stock − reserved`, where reserved comes from non-terminal order lines
+  whose `reservation_state` is `reserved` or `committed`. The order tables arrive in
+  Phase 6, so until then availability equals the physical count — the service starts using
+  them automatically once they exist.
+- The storefront lists **active** products, including sold-out ones (badge logic:
+  `In stock`, `N left` at 5 or fewer, `Sold out`). Deactivating a product hides it from
+  the shop and its detail URL returns 404; existing orders are never edited.
+- Prices are display-only here; checkout re-reads them in Phase 6.
+- Product images are stored under `public/uploads/products/` with random names. Seeded
+  demo products reference photos under `public/assets/img/products/`; two rows
+  deliberately have no image so the placeholder path is exercised.
+- Deleting a product is refused while an order line or cart line references it; the admin
+  list disables the button and names the reason (order history vs. a member's cart).
+
+---
+
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (77 cases in Phase 1)
+php tests/run.php                 # full suite (111 cases in Phase 2)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -195,13 +229,15 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
   the seeds, so a run never touches the development database (the name must end in `_test`).
-- Every case runs inside a transaction that is rolled back.
+- Every case runs inside a transaction that is rolled back. Cases that need later-phase
+  tables (cart/order references) create and drop them locally, because DDL commits.
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql` and verifies migration 001 against `schema.sql`.
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–002 in order and
+  compares the result with `schema.sql`.
 
-The smoke script needs the app running and MySQL access for two temporary changes
-(a throw-away member account and `maintenance_mode`, both restored):
+The smoke script needs the app running and MySQL access for temporary changes (a throw-away
+member account, products with SKU prefix `SMOKE-`, and `maintenance_mode`; all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -211,12 +247,14 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 
 ## Migrations
 
-- Fresh install: `database/schema.sql` (no database name hard-coded).
+- Fresh install: `database/schema.sql` (no database name hard-coded), then `database/seeds/*.sql`.
 - Existing install: apply `database/migrations/NNN_*.sql` in order, then the phase seeds.
 - Before every phase gate: `mysqldump` the database to a backup outside the repo.
 
-Phase 1 migration: `001_settings_roles.sql` — creates `settings` + `audit_log`, renames the
-`user` role to `member` in three steps, adds `idx_users_role`.
+| Migration | Adds |
+|---|---|
+| `001_settings_roles.sql` | `settings`, `audit_log`, `users.role` → `member/admin/superadmin`, `idx_users_role` |
+| `002_products.sql` | `products` (+ unique `sku` / `slug`, status index) |
 
 ---
 

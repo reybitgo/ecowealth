@@ -231,6 +231,7 @@ function test_reset_app_database(): void
     test_run_sql_file($pdo, $databaseDir . 'schema.sql');
     test_run_sql_file($pdo, $databaseDir . 'seeds/001_settings.sql');
     test_run_sql_file($pdo, $databaseDir . 'seeds/002_accounts.sql');
+    test_run_sql_file($pdo, $databaseDir . 'seeds/003_products.sql');
 
     unset($GLOBALS['__settings_cache']);
 }

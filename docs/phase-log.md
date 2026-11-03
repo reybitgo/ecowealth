@@ -180,3 +180,88 @@ Phase 1 — core skeleton: front controller, route table seeded from §2.5, layo
 
 Phase 2 — products and storefront catalogue: `products` table (migration 002), admin product CRUD with image upload, `/shop` catalogue + `/shop/{id}`, stock availability (`StockService`), product seeds. The placeholder controller and inventory notes are the starting point.
 
+---
+
+## Phase 2 — Products and storefront catalogue
+
+**Date:** 2026-11-03 · **Branch:** `feature/shop` · **Gate tag:** `phase-2` · **Status:** complete.
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `products` (unique `sku`/`slug`, status + sort index, reserved `pv` column); migration `002_products.sql`; seed `003_products.sql` (6 demo products, 4 with photos, 2 without) |
+| **Model** | `app/Models/Product.php` — find/by-slug, admin + catalogue lists with search/status filters, batched `referencesMap()`, transactional-safe `save()` with slug generation, `setStatus()`, guarded `delete()`, validation rules |
+| **Services** | `StockService` (`available()`, `availableMap()`, badge `label()`, reservation-aware once Phase 6 tables exist) and `UploadService` (`image()`, `replace()`, `remove()`, URL helper) |
+| **Storefront** | `GET /shop` — card grid, search, 12-per-page pagination, stock badges, quick-view modal; `GET /shop/{id}` — detail page (404 when inactive), disabled add-to-cart until Phase 4 |
+| **Back office** | `GET /admin/products` (stats, search + status filter, server-side pagination, guarded delete), `/new`, `/{id}/edit`, `POST /save` (upload / replace / remove image), `POST /{id}/status`, `POST /{id}/delete` (JSON for XHR, flash + redirect otherwise) |
+| **Views** | `shop/catalog.php`, `shop/product.php`, `partials/product_card.php`, `admin/products/index.php`, `admin/products/form.php`; SweetAlert2 delete confirmation; the Phase 1 `shop/placeholder.php` was removed |
+| **Assets** | four product photos copied from the marketing site into `public/assets/img/products/` |
+| **Tests** | `tests/Cases/ProductTest.php` (24 model/service cases), `tests/Cases/ProductViewTest.php` (10 rendering cases), `smoke.ps1` extended with P2-T1 … P2-T10; suite grew 77 → 111 cases, smoke 21 → 32 checks |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Migration | `002_products.sql` applied to `ecowealth_sneat` |
+| Seed | `003_products.sql` — 6 products (`EW-COFFEE` … `EW-STONE`), prices per plan §4.5, stock 25–100 |
+| Verified | `MigrationTest` now applies 001 + 002 and asserts the migrated schema (tables and columns) matches `schema.sql` |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P2-T1 | Create product with valid data | **PASS** | smoke creates via POST and finds it in the admin list; model cases cover slug generation and validation |
+| P2-T2 | Create with price 0 / empty name | **PASS** | smoke: 302 back to the form, field errors shown, no row written; unit cases cover every rule (name, price, stock, status, SKU, description length) |
+| P2-T3 | 6 MB file / `.php` renamed `.jpg` | **PASS** | smoke posts both with `curl --form`; the form reports "not allowed" / "too large"; `UploadService::replace()` removes the old file only after a successful store |
+| P2-T4 | Edit product price | **PASS** | smoke edits to ₱99.99, the edit form reloads it and `/shop/{id}` shows it; the slug stays stable across a rename |
+| P2-T5 | Deactivate product | **PASS** | smoke: gone from `/shop`, `/shop/{id}` → 404; model case shows the catalogue list filters to 5 rows while the admin list still has 6 |
+| P2-T6 | Delete unreferenced product | **PASS** | unit cases: row removed, missing id reported, uploaded image file deleted |
+| P2-T7 | Delete referenced product | **PASS** | unit cases create `cart_items` / `shop_order_items` locally: refusal with `cart` / `orders` reason and counts; `referencesMap()` batches a page in two queries |
+| P2-T8 | Catalog search/pagination | **PASS** | smoke: 12 cards on page 1, page 2 renders, search links keep `q`; unit cases cover name/SKU/short-description search, LIKE-wildcard escaping and admin pagination |
+| P2-T9 | XSS attempt in name/description | **PASS** | smoke creates a `<script>` name and asserts it is escaped in the storefront; view case covers name + short description |
+| P2-T10 | Member cannot open admin product routes | **PASS** | smoke: `GET /admin/products` and `POST /admin/products/save` both 403 for a member |
+
+### Deviations and decisions
+
+- **No Dropzone / DataTables dependencies.** The plan mentions "theme form + Dropzone" and a
+  DataTable. The reference implementation itself uses a plain `<input type="file">` and
+  server-side lists, and §3.6 makes DataTables optional ("server-side for admin tables").
+  The form ships a native file input with a live preview and the theme's card layout; the
+  list uses server-side search/status filtering with the shared `Paginator`. Noted here so
+  Phase 3 can stay consistent.
+- **`/shop/{id}` is an extension route.** The reference rendered detail in a modal inside the
+  storefront page; the port adds the route (already listed in Appendix A and in the
+  inventory `extensions`) and keeps a quick-view modal on the grid as the lighter path.
+- **Stock availability is forward-compatible.** `StockService` only counts reservations when
+  `shop_orders` + `shop_order_items` exist (Phase 6). The two unit cases that create those
+  tables locally prove the maths now; nothing needs rewriting later.
+- **Seed copy is deliberately neutral.** The official product copy and price list are still
+  open (D10), so descriptions say so instead of inventing product claims.
+- **Product images for seeds** live under `public/assets/img/products/` (not
+  `uploads/`), so `UploadService::remove()` refuses to delete them — same rule as any other
+  static asset. Two seeded rows have no image so the placeholder path is visible.
+- **Stale old input is cleared** when a product form opens without validation errors, and
+  after a successful save — otherwise repopulated values from an earlier failed submit
+  would mask the saved row (found by the smoke test).
+
+### Gate checklist (plan §7 Phase 2)
+
+- [x] All P2 tests pass (111 PHP cases + 32 smoke checks)
+- [x] `php -l` clean (61 files)
+- [x] No 404 asset on the storefront or admin pages (product photos and SweetAlert2 resolve)
+- [x] Migration applied to the dev DB; `schema.sql` regenerated for fresh installs
+- [x] Seed catalogue loads on a fresh install (proven by the harness on every run)
+- [x] Back-office guards unchanged (member → 403 on every admin product route)
+- [x] No new PHP warnings/notices in the Apache error log
+- [ ] Visual sign-off on a real browser (same constraint as Phase 1 — HTTP + markup verified)
+- [x] Tag `phase-2`
+
+### Next
+
+Phase 3 — packages and package contents: `packages`, `package_levels` (2–10) and
+`package_products`, admin package CRUD with the level matrix, and the member `/packages`
+cards. `Product`/`StockService` are the patterns to follow; the inventory lists the Phase 3
+routes already.
+
+

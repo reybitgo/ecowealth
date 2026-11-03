@@ -1,13 +1,14 @@
 <#
 .SYNOPSIS
-    EcoWealth Phase 1 HTTP smoke test (P1-T1 ... P1-T11).
+    EcoWealth HTTP smoke test (Phase 1 + Phase 2: P1-T1 ... P1-T11, P2-T1 ... P2-T10).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
-    codes, redirects, guards, menu visibility, asset base paths and
-    maintenance mode. Two checks change data temporarily and restore it:
-    a throw-away member account is deleted and `maintenance_mode` is put
-    back to its previous value.
+    codes, redirects, guards, menu visibility, asset base paths,
+    maintenance mode and the Phase 2 product catalogue end to end.
+    Three checks change data temporarily and restore it: a throw-away
+    member account, the smoke products (SKU prefix SMOKE-) and
+    `maintenance_mode` are all removed/reset in a finally block.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
 
@@ -71,7 +72,8 @@ function Invoke-App {
         [string]    $Path    = '/',
         [hashtable] $Form    = @{},
         [string]    $Session = 'guest',
-        [string[]]  $Headers = @()
+        [string[]]  $Headers = @(),
+        [hashtable] $Files   = @{}
     )
 
     $id         = [guid]::NewGuid().ToString('N')
@@ -95,8 +97,18 @@ function Invoke-App {
         $curlArgs += @('--header', $header)
     }
 
-    foreach ($key in $Form.Keys) {
-        $curlArgs += @('--data-urlencode', "$key=$($Form[$key])")
+    if ($Files.Count -gt 0) {
+        # Multipart: fields and files travel as form parts.
+        foreach ($key in $Form.Keys) {
+            $curlArgs += @('--form', "$key=$($Form[$key])")
+        }
+        foreach ($key in $Files.Keys) {
+            $curlArgs += @('--form', "$key=@$($Files[$key])")
+        }
+    } else {
+        foreach ($key in $Form.Keys) {
+            $curlArgs += @('--data-urlencode', "$key=$($Form[$key])")
+        }
     }
 
     $status = & curl.exe @curlArgs $url
@@ -179,7 +191,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth Phase 1 smoke test' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phase 1 + phase 2)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -233,7 +245,7 @@ try {
     Assert-That 'P1-T9' ($passwordPage.Status -eq 200 -and $passwordPage.Body -match 'Current password') `
         "GET /profile/password -> 200 (got $($passwordPage.Status))"
 
-    $deep404     = Invoke-App -Path '/admin/products/9/edit' -Session 'admin'
+    $deep404     = Invoke-App -Path '/admin/products/987654/edit' -Session 'admin'
     $assetPathOk = $deep404.Body -match [regex]::Escape("$basePath/assets/")
     $noWrongBase = $deep404.Body -notmatch [regex]::Escape("$basePath/admin/products/assets/")
     Assert-That 'P1-T5' ($deep404.Status -eq 404 -and $assetPathOk -and $noWrongBase) `
@@ -292,6 +304,147 @@ try {
     Assert-That 'P1-T6' ($csrfXhr.Status -eq 422 -and $csrfXhr.Body -match '"code":"csrf"') `
         "XHR with a bad CSRF token -> 422 JSON (got $($csrfXhr.Status))"
 
+    # ---- Phase 2: products & catalogue -----------------------------------
+    $adminToken = Get-Csrf $adminPage.Body
+    $smokeSku   = 'SMOKE-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $smokeName  = 'Smoke Product ' + $smokeSku
+
+    # P2-T1 — create through the admin form
+    $create = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = $smokeName
+        'sku'        = $smokeSku
+        'price'      = '123.45'
+        'stock'      = '7'
+        'sort_order' = '999'
+        'status'     = 'active'
+    }
+    $smokeId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = '$smokeSku' LIMIT 1;" | Out-String).Trim())
+    Assert-That 'P2-T1' ($create.Status -eq 302 -and $smokeId -gt 0) `
+        "POST /admin/products/save creates a product (status=$($create.Status), id=$smokeId)"
+
+    $adminList = Invoke-App -Path "/admin/products?q=$smokeSku" -Session 'admin'
+    Assert-That 'P2-T1' ($adminList.Status -eq 200 -and $adminList.Body.Contains($smokeName)) `
+        "the new product appears in the admin list (status=$($adminList.Status))"
+
+    # P2-T2 — invalid input keeps the form and writes nothing
+    $badCreate = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'  = $adminToken
+        'name'   = ''
+        'sku'    = "$smokeSku-BAD"
+        'price'  = '0'
+        'stock'  = '-1'
+        'status' = 'active'
+    }
+    $badForm = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    Assert-That 'P2-T2' ($badCreate.Status -eq 302 -and $badForm.Body -match 'Please fix the highlighted' -and $badForm.Body -match 'Product name is required') `
+        'invalid input is rejected and the form shows field errors'
+
+    $badRow = (Invoke-MySql "SELECT COUNT(*) FROM products WHERE sku = '$smokeSku-BAD';" | Out-String).Trim()
+    Assert-That 'P2-T2' ($badRow -eq '0') 'no row is written for an invalid product'
+
+    # P2-T3 — a script renamed .jpg, then a 6 MB file
+    $badImage = Join-Path $script:TempDir 'bad.jpg'
+    Set-Content -Path $badImage -Value '<?php echo "pwned";' -Encoding ASCII
+
+    $badUpload = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' `
+        -Files @{ 'image' = $badImage } `
+        -Form @{
+            '_csrf'      = $adminToken
+            'name'       = "$smokeName Upload"
+            'price'      = '10.00'
+            'stock'      = '1'
+            'sort_order' = '999'
+            'status'     = 'active'
+        }
+    $uploadForm = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    Assert-That 'P2-T3' ($badUpload.Status -eq 302 -and $uploadForm.Body -match 'not allowed') `
+        'a PHP file renamed .jpg is rejected'
+
+    $bigImage = Join-Path $script:TempDir 'big.png'
+    [System.IO.File]::WriteAllBytes($bigImage, (New-Object byte[] (6 * 1024 * 1024)))
+
+    $bigUpload = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' `
+        -Files @{ 'image' = $bigImage } `
+        -Form @{
+            '_csrf'      = $adminToken
+            'name'       = "$smokeName Big"
+            'price'      = '10.00'
+            'stock'      = '1'
+            'sort_order' = '999'
+            'status'     = 'active'
+        }
+    $bigForm = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    Assert-That 'P2-T3' ($bigUpload.Status -eq 302 -and $bigForm.Body -match 'too large') `
+        'a file over the 5 MB cap is rejected'
+
+    # P2-T4 — edit the price and see it in the shop
+    $edit = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'product_id' = "$smokeId"
+        'name'       = $smokeName
+        'sku'        = $smokeSku
+        'price'      = '99.99'
+        'stock'      = '7'
+        'sort_order' = '999'
+        'status'     = 'active'
+    }
+    $editForm = Invoke-App -Path "/admin/products/$smokeId/edit" -Session 'admin'
+    $detail   = Invoke-App -Path "/shop/$smokeId" -Session 'admin'
+    Assert-That 'P2-T4' ($edit.Status -eq 302 -and $editForm.Body -match 'value="99.99"' -and $detail.Body -match '99.99') `
+        'editing the price persists and the shop shows it'
+
+    # P2-T9 — XSS in a product name is escaped in the storefront
+    $xssCreate = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = '<script>alert(1)</script> Smoke'
+        'sku'        = "$smokeSku-XSS"
+        'price'      = '1.00'
+        'stock'      = '1'
+        'sort_order' = '999'
+        'status'     = 'active'
+    }
+    $xssShop = Invoke-App -Path "/shop?q=$smokeSku-XSS" -Session 'member'
+    Assert-That 'P2-T9' ($xssCreate.Status -eq 302 `
+            -and $xssShop.Body -notmatch [regex]::Escape('<script>alert(1)</script>') `
+            -and $xssShop.Body -match '&lt;script&gt;alert\(1\)&lt;/script&gt;') `
+        'product names are escaped in the storefront'
+
+    # P2-T8 — pagination and search keep their query
+    $pageRows = (1..12 | ForEach-Object {
+        "('$smokeSku-P$($_)', 'Smoke Page $($_)', '$($smokeSku.ToLower())-p$($_)', 1.00, 5, 'active', 999)"
+    }) -join ','
+    Invoke-MySql "INSERT INTO products (sku, name, slug, price, stock, status, sort_order) VALUES $pageRows;" | Out-Null
+
+    $page1  = Invoke-App -Path '/shop' -Session 'member'
+    $page2  = Invoke-App -Path '/shop?page=2' -Session 'member'
+    $search = Invoke-App -Path "/shop?q=$smokeSku" -Session 'member'
+    $cards1 = [regex]::Matches($page1.Body, 'class="card h-100 product-card"').Count
+
+    Assert-That 'P2-T8' ($page1.Status -eq 200 -and $cards1 -eq 12 -and $page2.Status -eq 200 `
+            -and $page2.Body -match 'Smoke Page' -and $search.Body -match 'page=2' -and $search.Body -match "q=$smokeSku") `
+        "the catalogue paginates at 12 per page and search links keep q (page1 cards=$cards1)"
+
+    # P2-T5 — deactivate: gone from the shop, direct URL 404
+    $deactivate = Invoke-App -Method 'POST' -Path "/admin/products/$smokeId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'inactive' }
+    $hidden = Invoke-App -Path "/shop?q=$smokeSku" -Session 'member'
+    $gone   = Invoke-App -Path "/shop/$smokeId" -Session 'member'
+    Assert-That 'P2-T5' ($deactivate.Status -eq 302 -and -not $hidden.Body.Contains($smokeName) -and $gone.Status -eq 404) `
+        "a deactivated product leaves the shop and its URL 404s (status=$($gone.Status))"
+
+    # P2-T10 — members cannot reach the admin product routes
+    $memberAdmin = Invoke-App -Path '/admin/products' -Session 'member'
+    $memberPost  = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'member' -Form @{
+        '_csrf' = $adminToken
+        'name'  = 'Nope'
+        'price' = '1.00'
+        'stock' = '1'
+        'status' = 'active'
+    }
+    Assert-That 'P2-T10' ($memberAdmin.Status -eq 403 -and $memberPost.Status -eq 403) `
+        "a member cannot use admin product routes (GET=$($memberAdmin.Status), POST=$($memberPost.Status))"
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'
@@ -311,6 +464,7 @@ try {
     # Always put the database back the way we found it.
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 

@@ -239,6 +239,46 @@ function csrf_verify(null|string $token): bool
  *  Formatting helpers
  * ============================================================== */
 
+/**
+ * URL-safe slug from a display name (used by products, packages, …).
+ * Accents are transliterated, everything else collapses to dashes.
+ */
+function slugify(string $text, int $maxLength = 170): string
+{
+    $text = trim($text);
+
+    if ($text === '') {
+        return '';
+    }
+
+    $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+    if (is_string($ascii) && $ascii !== '') {
+        $text = $ascii;
+    }
+
+    /* Windows iconv marks accented letters with ASCII punctuation
+     * ("Café" → "Caf'e", "Crème" → "Cr`eme", "über" → `"uber`), so
+     * drop those markers before anything becomes a dash. */
+    $text = str_replace(["'", '`', '^', '"'], '', $text);
+
+    /* Other iconv builds leave a combining accent behind the base
+     * letter; drop those and anything still non-ASCII. */
+    $text = preg_replace('/[\x{0300}-\x{036F}]/u', '', $text) ?? $text;
+    $text = preg_replace('/[^\x20-\x7E]/', '', $text) ?? $text;
+
+    $text = strtolower($text);
+    $text = preg_replace('/[^a-z0-9]+/', '-', $text) ?? '';
+    $text = trim($text, '-');
+
+    return mb_substr($text, 0, $maxLength);
+}
+
+/** LIKE-pattern escaping for user-supplied search terms (MySQL default escape). */
+function like_escape(string $value): string
+{
+    return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
+}
+
 /** Format a MySQL datetime for display, e.g. "Nov 1, 2026 2:05 PM". */
 function format_datetime(?string $value): string
 {

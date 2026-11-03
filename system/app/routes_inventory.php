@@ -98,7 +98,7 @@ return [
         $port('save_profile', 6, [$route('POST', '/profile')], 'Updates the member profile.'),
 
         /* ---------- Shop, cart, checkout, orders ---------------------- */
-        $port('shop', 1, [$route('GET', '/shop')], 'Phase 1: guarded placeholder. Catalogue and /shop/{id} arrive in Phase 2.'),
+        $port('shop', 1, [$route('GET', '/shop')], 'Catalogue + search live in Phase 2; the product detail route is an extension.'),
         $port('cart', 4, [$route('GET', '/cart')], 'Persistent cart page.'),
         $port('add_to_cart', 4, [$route('POST', '/cart/add')], ''),
         $port('update_cart_item', 4, [$route('POST', '/cart/update')], ''),
