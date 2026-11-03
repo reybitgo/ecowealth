@@ -184,14 +184,24 @@ final class AdminProductController
     {
         $result = Product::delete((int) ($params['id'] ?? 0));
 
+        /* Name every reference that blocks the delete — the remedies differ
+         * (order history is permanent, a cart line can be emptied, a package
+         * can be edited). */
+        $parts = [];
+        if (($result['orders'] ?? 0) > 0) {
+            $parts[] = 'order history';
+        }
+        if (($result['carts'] ?? 0) > 0) {
+            $parts[] = 'a member’s cart';
+        }
+        if (($result['packages'] ?? 0) > 0) {
+            $parts[] = 'a package';
+        }
+
         $message = match (true) {
             $result['ok'] => 'Product deleted.',
             $result['reason'] === 'missing' => 'Product not found.',
-            $result['reason'] === 'orders_and_cart'
-                => 'Cannot delete: this product has been bought and is in a member’s cart.',
-            $result['reason'] === 'orders'
-                => 'Cannot delete: this product has been bought and is part of an order history.',
-            default => 'Cannot delete: this product is in a member’s cart.',
+            default => 'Cannot delete: this product appears in ' . implode(' and ', $parts) . '.',
         };
 
         if (Request::wantsJson()) {

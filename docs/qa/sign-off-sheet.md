@@ -1,0 +1,191 @@
+# EcoWealth — QA sign-off sheet (Phases 1–3)
+
+Fill this sheet while working through the three phase documents. Hand the completed sheet plus the
+`evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
+still open in each phase of `docs/phase-log.md`.
+
+**How to use**
+
+1. Fill the *Environment* block once.
+2. Record the automated results (§1).
+3. For each phase, tick every check in its table. Add the evidence file name; the file lives in
+   `docs/qa/evidence/phase-<n>/`.
+4. Log every failure in the *Defect log* (§5) and keep its status up to date.
+5. Complete the *Final decision* (§6) and sign.
+
+---
+
+## Environment
+
+| Item | Value |
+|---|---|
+| Tester name | |
+| Date(s) of testing | |
+| Repository / branch | `feature/shop` |
+| Tags under test | `phase-1`, `phase-2`, `phase-3` |
+| App URL | `http://localhost/ecowealth/system/` |
+| Database | `ecowealth_sneat` |
+| Operating system | |
+| Browser + version | |
+| Screen size(s) | 1440 × 900 · 390 × 844 (mobile emulation) |
+| Laragon / PHP / MySQL versions (if known) | |
+
+---
+
+## 1. Automated evidence (run before the manual pass)
+
+| Command | Expected | Actual | Result |
+|---|---|---|---|
+| `php tests\run.php` | `Cases: 141  Passed: 141  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 41  Failed: 0` | | ☐ Pass ☐ Fail |
+
+Paste the final lines of each command here:
+
+```text
+
+```
+
+---
+
+## 2. Phase 1 — Core skeleton
+
+Document: [phase-1-core-skeleton.md](phase-1-core-skeleton.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA1-01 | Root URL redirects a guest to login | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-02 | Login page visual integrity (assets, console) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-03 | Administrator can sign in | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-04 | Member dashboard renders completely | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-05 | Member menu shows member items only | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-06 | Guest is redirected from `/shop` with a flash | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-07 | Registration creates a working member | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-08 | Member gets 403 on `/admin` | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-09 | Unknown URL shows branded 404 | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-10 | Deep URL keeps assets on the install prefix | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-11 | Password-change validation messages | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-12 | Password change + restore works | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-13 | Sign out ends the session | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-14 | Maintenance mode: guest 503, admin bypass | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-15 | S-Login entry visible to superadmin only | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-16 | Public front door still serves | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA1-17 | Mobile layout (login, dashboard, shop) | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 1 summary | |
+|---|---|
+| Executed | ____ / 17 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 3. Phase 2 — Products & catalogue
+
+Document: [phase-2-products-and-catalogue.md](phase-2-products-and-catalogue.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA2-01 | Product list and seeded rows render | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-02 | Search filters the list | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-03 | Create product with valid data | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-04 | Invalid product data refused clearly | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-05 | Edit price reaches the shop | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-06 | Image upload works and shows | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-07 | Remove image works | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-08 | `.php` renamed `.jpg` is rejected | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-09 | File over 5 MB is rejected | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-10 | Deactivation hides product and 404s detail | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-11 | Seeded product delete blocked with reason | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-12 | Unreferenced product deletes | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-13 | Storefront catalogue layout | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-14 | Quick-view modal and detail link | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-15 | Product detail page complete | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-16 | Search + pagination (optional data setup) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-17 | Script in a product name is escaped | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-18 | Member gets 403 on product admin | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-19 | Mobile catalogue + admin table | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA2-20 | Phase 1 regression | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 2 summary | |
+|---|---|
+| Executed | ____ / 20 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 4. Phase 3 — Packages
+
+Document: [phase-3-packages.md](phase-3-packages.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA3-01 | Package list and seeded A/B values | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-02 | Create package with ladder + contents | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-03 | Level 1 read-only and mirrors direct bonus | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-04 | Edit level 3 persists and totals update | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-05 | Invalid package data refused clearly | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-06 | No level 1 row in `package_levels` (DB) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-07 | Duplicate contents merge | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-08 | Inactive product handling in contents | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-09 | Deactivation hides the package | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-10 | No delete action exists | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-11 | Member packages page numbers | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-12 | Full ladder shown, level 1 marked | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-13 | Member gets 403 on package admin | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-14 | Mobile packages page | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-15 | Earlier phases regression | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA3-16 | Cleanup leaves the seeded state | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 3 summary | |
+|---|---|
+| Executed | ____ / 16 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 5. Defect log
+
+Add one row per problem found. Keep the status current until the defect is retested and closed.
+
+| ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
+|---|---|---|---|---|---|---|
+| QA-D01 | | blocker / major / minor / cosmetic | | | | Open |
+| QA-D02 | | | | | | |
+| QA-D03 | | | | | | |
+| QA-D04 | | | | | | |
+| QA-D05 | | | | | | |
+
+Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
+problem, flow still works · **cosmetic** = polish only.
+
+For each defect the developer fixes, the tester retests that single check and changes the status to
+**Closed** with a date and the new screenshot name.
+
+---
+
+## 6. Final decision
+
+| Phase | Approved? | Notes / accepted exceptions |
+|---|---|---|
+| Phase 1 | ☐ Yes ☐ No | |
+| Phase 2 | ☐ Yes ☐ No | |
+| Phase 3 | ☐ Yes ☐ No | |
+
+An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
+accepts it. Any blocker or major defect keeps the phase open.
+
+| Role | Name | Signature | Date |
+|---|---|---|---|
+| QA tester | | | |
+| Project lead | | | |
+
+When this sheet is complete and accepted:
+
+1. Add the evidence folder to the project’s review location (attach it to the task or commit it).
+2. The lead records the visual sign-off in `docs/phase-log.md` for each phase.
+3. Archive this sheet next to the phase log so the gate has a single reference.

@@ -306,7 +306,7 @@ return [
             $result = Product::delete($id);
 
             assert_false($result['ok']);
-            assert_same('cart', $result['reason']);
+            assert_same('referenced', $result['reason']);
             assert_same(1, $result['carts']);
             assert_not_null(Product::find($id), 'the product must survive');
         } finally {
@@ -326,12 +326,27 @@ return [
             $result = Product::delete($id);
 
             assert_false($result['ok']);
-            assert_same('orders', $result['reason']);
+            assert_same('referenced', $result['reason']);
             assert_same(1, $result['orders']);
         } finally {
             $dropLateTables();
             Product::delete($id);
         }
+    },
+
+    'P3-T4 delete is refused while a package contains the product' => function (): void {
+        /* Coffee is bundled by Package A and Package B. Deleting it would hit
+         * the package_products foreign key — the guard must refuse first. */
+        $coffee = Product::findBySlug('coffee');
+        assert_not_null($coffee);
+
+        $result = Product::delete((int) $coffee['id']);
+
+        assert_false($result['ok']);
+        assert_same('referenced', $result['reason']);
+        assert_same(2, $result['packages']);
+        assert_same(0, $result['orders']);
+        assert_not_null(Product::find((int) $coffee['id']), 'the product must survive');
     },
 
     'P2-T7 referencesMap batches counts for a page of products' => function () use ($cartTable, $dropLateTables): void {
@@ -347,7 +362,7 @@ return [
 
             assert_same(2, $map[$a]['carts']);
             assert_same(0, $map[$b]['carts']);
-            assert_same(['orders' => 0, 'carts' => 0], $map[999999]);
+            assert_same(['orders' => 0, 'carts' => 0, 'packages' => 0], $map[999999]);
         } finally {
             $dropLateTables();
             Product::delete($a);

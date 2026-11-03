@@ -175,7 +175,10 @@ return [
             'pager'      => new Paginator(2, 20, 1),
             'filters'    => ['q' => '', 'status' => ''],
             'stats'      => ['total' => 2, 'active' => 1, 'inactive' => 1, 'out_of_stock' => 0],
-            'references' => [1 => ['orders' => 0, 'carts' => 2], 2 => ['orders' => 0, 'carts' => 0]],
+            'references' => [
+                1 => ['orders' => 0, 'carts' => 2, 'packages' => 0],
+                2 => ['orders' => 0, 'carts' => 0, 'packages' => 3],
+            ],
             'available'  => [1 => 50, 2 => 0],
         ]);
 
@@ -184,7 +187,8 @@ return [
         assert_contains('Inactive Item', $html);
         assert_contains(url('admin/products/1/edit'), $html);
         assert_contains(url('admin/products/1/status'), $html);
-        assert_contains('This product is in a member’s cart.', $html);
+        assert_contains('This product appears in a member’s cart.', $html);
+        assert_contains('This product appears in a package.', $html);
         assert_contains('Showing 1–2 of 2', $html);
         assert_contains('Inactive', $html);
     },

@@ -112,14 +112,23 @@ $cards = [
 <?php foreach ($products as $product): ?>
 <?php
     $id        = (int) $product['id'];
-    $refs      = $references[$id] ?? ['orders' => 0, 'carts' => 0];
-    $blocked   = $refs['orders'] > 0 || $refs['carts'] > 0;
-    $blockedBy = match (true) {
-        $refs['orders'] > 0 && $refs['carts'] > 0 => 'This product has been bought and is in a cart.',
-        $refs['orders'] > 0 => 'This product has been bought.',
-        $refs['carts'] > 0 => 'This product is in a member’s cart.',
-        default => '',
-    };
+    $refs      = $references[$id] ?? ['orders' => 0, 'carts' => 0, 'packages' => 0];
+    $blockers  = [];
+
+    if (($refs['orders'] ?? 0) > 0) {
+        $blockers[] = 'order history';
+    }
+    if (($refs['carts'] ?? 0) > 0) {
+        $blockers[] = 'a member’s cart';
+    }
+    if (($refs['packages'] ?? 0) > 0) {
+        $blockers[] = 'a package';
+    }
+
+    $blocked   = $blockers !== [];
+    $blockedBy = $blocked
+        ? 'This product appears in ' . implode(' and ', $blockers) . '.'
+        : '';
     $availableUnits = (int) ($available[$id] ?? 0);
     $thumb          = UploadService::url($product['image_url'] ?? null);
     $isActive       = $product['status'] === 'active';
@@ -191,7 +200,6 @@ $cards = [
                                 class="btn btn-sm btn-icon btn-label-danger"
                                 title="<?= $blocked ? e($blockedBy) : 'Delete' ?>"
                                 aria-label="Delete <?= e((string) $product['name']) ?>"
-                                <?= $blocked ? 'disabled' : '' ?>
                               ><i class="icon-base bx bx-trash"></i></button>
                             </form>
                           </div>

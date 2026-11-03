@@ -1,0 +1,289 @@
+# EcoWealth — Manual QA pack (Phases 1–3)
+
+This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2 and 3.
+The automated suites are already green; these documents let a tester who has never seen the
+project walk through every screen, compare it with the expected result, capture evidence and
+sign the phase off.
+
+> **Your job as tester: verify, record, report.** Do not change code, do not edit the database
+> except where a step explicitly tells you to, and never test on anything other than the local
+> development copy described below.
+
+---
+
+## Contents
+
+| Document | Phase | Checks | Time needed |
+|---|---|---|---|
+| [phase-1-core-skeleton.md](phase-1-core-skeleton.md) | 1 — router, layouts, roles, settings, error pages | 17 | 45–60 min |
+| [phase-2-products-and-catalogue.md](phase-2-products-and-catalogue.md) | 2 — product CRUD + storefront | 20 | 60–75 min |
+| [phase-3-packages.md](phase-3-packages.md) | 3 — packages, ladder, contents | 16 | 50–65 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all three | — | 10 min to complete |
+
+Keep `evidence/` for screenshots (create `evidence/phase-1`, `phase-2`, `phase-3` inside it).
+
+---
+
+## 1. What is already proven automatically
+
+These commands exercise the same behaviour as the manual checks, without a browser. Run them
+first: if they fail, stop and report before starting manual testing.
+
+Open **PowerShell**, then:
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+php tests\run.php
+```
+
+Expected last lines:
+
+```
+Cases: 141   Passed: 141   Failed: 0
+All good.
+```
+
+Then, with the app running (Laragon → Start All), run the HTTP smoke test:
+
+```powershell
+powershell -NoProfile -File tests\smoke.ps1
+```
+
+Expected last lines:
+
+```
+Passed: 41   Failed: 0
+```
+
+> If `php` is not recognised, use Laragon's PHP explicitly:
+> `C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe tests\run.php`
+>
+> The PHP suite rebuilds a **separate** test database (`ecowealth_sneat_test`); it never touches
+> the application database (`ecowealth_sneat`). The smoke script changes and restores a handful of
+> rows by itself.
+
+**What the automated tests cover** (so you know what the manual pass is adding):
+
+- Phase 1: route matching, guards, CSRF, settings, layouts/menus, error pages, maintenance mode, route-inventory parity.
+- Phase 2: product validation, slug uniqueness, delete guards, stock maths, upload validation, catalogue rendering, escaping.
+- Phase 3: package validation, the 2–10 ladder, transactional save/rollback, contents merging, public cards.
+
+The manual pass adds what automation cannot: **does the page actually look right in a real browser,
+and does the flow feel right when clicked by a human** — the visual sign-off.
+
+---
+
+## 2. Environment you will use
+
+| Item | Value |
+|---|---|
+| App (the thing you are testing) | `http://localhost/ecowealth/system/` |
+| Marketing front door | `http://localhost/ecowealth/` |
+| Web server + database | Laragon (Apache + MySQL) — use **Start All** |
+| Database | `ecowealth_sneat` |
+| Database admin tool | Laragon → **MySQL → phpMyAdmin** (`http://localhost/phpmyadmin`) |
+| Browser | Current Chrome or Edge, at 100% zoom |
+
+### Accounts
+
+| Account | Password | Use it for |
+|---|---|---|
+| `admin` | `Admin@123` | Every back-office check |
+| `superadmin` | `Super@123` | One Phase 1 check (hidden menu item) |
+| `QA_Member_01` | `QaPass!2345` | You create this in Phase 1; reuse it in Phases 2–3 |
+
+> **Do not change the `admin` or `superadmin` passwords.** Password-change checks use the QA member
+> account and change it back at the end.
+
+### Seeded data you must protect
+
+The demo catalogue is seeded and referenced by tests and by packages:
+
+| Data | Expected state |
+|---|---|
+| 7 products | Coffee, Immune Booster, Spirulina, Serpentina, Kojic Soap, Stone Buster, Colonics Session |
+| 2 packages | Package A (₱4,498), Package B (₱6,998) |
+
+Never rename, deactivate or delete these permanently. Create your own rows with the `QA` prefix and
+remove those instead. If you change a seeded row during a check, the step tells you how to put it back.
+
+---
+
+## 3. How to read a check
+
+Every check has the same shape:
+
+```
+### QA1-05 — Short title
+| Why it matters | plain-language reason |
+| Where | the URL or screen |
+| Evidence | screenshot file name |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+1. exactly what to click / type / open
+2. ...
+
+Expected
+- what you must see (and must not see)
+```
+
+- **Pass** — everything in *Expected* happened.
+- **Fail** — something differed. Capture a screenshot and a defect note (template in §8).
+- **Blocked** — you could not run the check (for example the app would not start). Say why.
+
+Mark the `Result` line by replacing the box, e.g. `☑ Pass`. Add a note under the check if anything
+was unclear.
+
+---
+
+## 4. Rules that protect the project
+
+1. **Work on the local copy only.** URL must start with `http://localhost/`.
+2. **Prefix everything you create with `QA`** — `QA Product…`, `QA Package…`, `QA_Member_01`.
+3. **Never change the `admin` or `superadmin` password.** Only change `QA_Member_01` and restore it.
+4. **Never delete seeded products, packages or accounts.** Delete only `QA…` rows.
+5. **Always switch maintenance mode back off** after QA1-14 (SQL is repeated in that check).
+6. **Guest checks need a clean session** — use Incognito/Private windows (`Ctrl+Shift+N`).
+7. **Do not leave test data behind.** Each phase ends with a cleanup section.
+8. If you see a **500 page** (“Something went wrong”), stop that check, capture it, mark **Fail** and
+   continue with the other checks — do not try to fix it.
+
+---
+
+## 5. Evidence: screenshots and browser tools
+
+### Screenshots
+
+1. Press **Win + Shift + S**, drag over the browser window, then paste into Paint and save.
+2. Save as `docs\qa\evidence\phase-<n>\QA<x>-<yy>-<short-name>.png`, e.g.
+   `docs\qa\evidence\phase-1\QA1-05-member-menu.png`.
+3. Name the file exactly as the check’s *Evidence* line says, so the lead can match it.
+
+### Browser developer tools (used by a few checks)
+
+| What | How |
+|---|---|
+| Open DevTools | `F12` (or `Ctrl+Shift+I`) |
+| See HTTP status codes | DevTools → **Network**, tick **Preserve log**, reload the page, read the **Status** column |
+| See JavaScript errors | DevTools → **Console** — red lines are errors |
+| Mobile preview | DevTools → `Ctrl+Shift+M`, choose **iPhone 12 Pro** (390 × 844) |
+| Hard refresh | `Ctrl+F5` |
+
+You do **not** need to understand the code. You only need to read status codes (`200` = OK,
+`302` = redirect, `403` = not allowed, `404` = not found, `503` = maintenance) and see red errors.
+
+### phpMyAdmin (only where a check asks)
+
+1. Laragon → **MySQL → phpMyAdmin**.
+2. Left side: click database **`ecowealth_sneat`**.
+3. Click the **SQL** tab, paste the query from the check, press **Go**.
+4. Never run `DROP`, `DELETE` or `UPDATE` statements that are not written in this pack.
+
+---
+
+## 6. Known and accepted behaviour (not bugs)
+
+These are deliberate for the current build — do not report them as defects:
+
+- Menu entries for later phases show a small **“Soon”** badge and are not clickable. They appear
+  because this copy runs in development mode; production hides them.
+- The shop’s **Add to cart** button is disabled: the cart arrives in Phase 4.
+- The packages page button says **“Activation opens in Phase 9”** and is disabled.
+- **Packages cannot be deleted** — only enabled/disabled. This is by design.
+- Deleting a **seeded** product is refused with “This product appears in a package.” That is the
+  guard working; delete your own `QA` product to test deletion.
+- The marketing front door (`http://localhost/ecowealth/`) **does not link into the app yet**
+  (decision D23). Type the app URL directly.
+- Product copy and prices are placeholders until the official price list is provided (decision D10).
+- The member dashboard is a presentation-style “Growth overview”, not a live data console yet.
+
+If something looks different from this list, it may be a real defect — report it.
+
+---
+
+## 7. What to do when a check fails
+
+1. Take a screenshot of the full browser window (with the URL visible).
+2. Copy the browser console’s red lines if there are any.
+3. Note the exact URL, what you clicked, and the time.
+4. Add a row to the defect log in [sign-off-sheet.md](sign-off-sheet.md):
+
+```
+| ID | Phase/check | Severity | What happened | Expected | Evidence | Status |
+| QA-P2-D1 | QA2-09 | major | ... | ... | evidence/phase-2/QA2-09-... | Open |
+```
+
+Severity guide:
+
+| Severity | Meaning |
+|---|---|
+| **Blocker** | You cannot continue (app down, login broken, 500 on a core page) |
+| **Major** | A function gives the wrong result (a save does not persist, a guard lets the wrong role in) |
+| **Minor** | A visible problem that does not stop the flow (wrong text, misaligned element) |
+| **Cosmetic** | Purely visual polish |
+
+Do **not** fix anything yourself. The tester reports; the developer fixes; the tester retests the
+failed check afterwards and updates the row to **Closed**.
+
+---
+
+## 8. Sign-off flow
+
+1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
+2. Work through the three phase documents in order (Phase 1 → 2 → 3). Each phase assumes the
+   previous one is done.
+3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
+   decision.
+4. Hand the sheet plus the `evidence/` folder to the project lead.
+5. The lead compares evidence with the phase log and, when satisfied, records the visual sign-off in
+   `docs/phase-log.md`. That is what closes the last open gate item for each phase.
+
+A phase may be signed **Approved with notes** when every failure is *cosmetic* and accepted by the
+lead; any blocker or major defect keeps the phase open.
+
+---
+
+## 9. Troubleshooting
+
+| Symptom | What it means | What to do |
+|---|---|---|
+| “This site can’t be reached” | Apache is not running | Laragon → **Start All**, retry |
+| “Database connection failed” | MySQL is not running or credentials are wrong | Start MySQL; if it persists, report it (do not edit config) |
+| Login says “Too many failed attempts” | The 15-minute login lockout after 5 bad passwords | Wait 15 minutes, or ask the lead to clear the session; never keep retrying |
+| Page shows **503 — Down for maintenance** | Maintenance mode was left on | Run `UPDATE settings SET value='0' WHERE key_name='maintenance_mode';` in phpMyAdmin, then reload |
+| Pages look unstyled / logo missing | Assets did not load | Hard refresh (`Ctrl+F5`); in DevTools → Network look for red `404`s and report them |
+| Raw PHP code appears in the browser | Apache is not executing PHP | Stop and report; do not continue |
+| Your QA row is missing after saving | The save failed | Re-read the form: validation errors appear in a red box; screenshot it and report |
+| Automated test command not found | PHP is not on your PATH | Use the full Laragon PHP path shown in §1 |
+
+---
+
+## 10. Glossary
+
+| Term | Plain meaning |
+|---|---|
+| **App / back office** | The management side at `/admin` — products, packages, members |
+| **Member portal** | The signed-in member side — dashboard, shop, packages, profile |
+| **Route** | A URL the app knows how to handle, e.g. `/admin/products` |
+| **Guard** | The rule that decides who may open a page (member, admin) |
+| **403 / 404 / 500 / 503** | Not allowed / not found / server error / temporarily unavailable |
+| **Flash message** | The green/red notification shown once after an action |
+| **CSRF token** | A hidden security field in every form; prevents forged submissions |
+| **Seed data** | Demo rows loaded on install (products, packages, accounts) |
+| **Maintenance mode** | A settings switch that shows visitors a “back shortly” page |
+| **Migration** | A numbered SQL file that upgrades the database for a phase |
+
+---
+
+## 11. File map
+
+```
+docs/qa/
+├── README.md                          ← this file
+├── phase-1-core-skeleton.md           ← manual checks for Phase 1
+├── phase-2-products-and-catalogue.md  ← manual checks for Phase 2
+├── phase-3-packages.md                ← manual checks for Phase 3
+├── sign-off-sheet.md                  ← fill this in and hand it back
+└── evidence/                          ← your screenshots (phase-1/, phase-2/, phase-3/)
+```

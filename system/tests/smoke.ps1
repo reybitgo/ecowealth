@@ -460,6 +460,14 @@ try {
     $pkgName  = 'Smoke Package ' + $smokeSku
     $coffeeId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = 'EW-COFFEE' LIMIT 1;" | Out-String).Trim())
 
+    # P3-T4 regression — a product bundled by a package cannot be deleted.
+    $blockedDelete = Invoke-App -Method 'POST' -Path "/admin/products/$coffeeId/delete" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken }
+    $coffeeStill = (Invoke-MySql "SELECT COUNT(*) FROM products WHERE id = $coffeeId;" | Out-String).Trim()
+
+    Assert-That 'P3-T4' ($blockedDelete.Status -eq 302 -and $coffeeStill -eq '1') `
+        "a product used by a package cannot be deleted (status=$($blockedDelete.Status), rows=$coffeeStill)"
+
     $pkgFormFields = @{
         'name'                  = $pkgName
         'price'                 = '1234.00'

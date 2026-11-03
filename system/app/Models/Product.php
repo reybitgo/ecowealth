@@ -299,30 +299,29 @@ final class Product
      * Order lines are permanent records; cart lines block too,
      * because silently emptying a member's cart is a side effect
      * nobody asked for (reference behaviour, defect C-series).
+     * Package contents block as well — deleting the product would
+     * otherwise hit the package_products foreign key (Phase 3).
      *
-     * @return array{ok: bool, reason: ?string, orders: int, carts: int}
-     *         reason: null | missing | orders | cart | orders_and_cart
+     * @return array{ok: bool, reason: ?string, orders: int, carts: int, packages: int}
+     *         reason: null | missing | referenced
      */
     public static function delete(int $id): array
     {
         $product = self::find($id);
 
         if ($product === null) {
-            return ['ok' => false, 'reason' => 'missing', 'orders' => 0, 'carts' => 0];
+            return ['ok' => false, 'reason' => 'missing', 'orders' => 0, 'carts' => 0, 'packages' => 0];
         }
 
-        $refs = self::referencesMap([$id])[$id] ?? ['orders' => 0, 'carts' => 0];
+        $refs = self::referencesMap([$id])[$id] ?? ['orders' => 0, 'carts' => 0, 'packages' => 0];
 
-        if ($refs['orders'] > 0 || $refs['carts'] > 0) {
+        if ($refs['orders'] > 0 || $refs['carts'] > 0 || $refs['packages'] > 0) {
             return [
-                'ok'     => false,
-                'reason' => match (true) {
-                    $refs['orders'] > 0 && $refs['carts'] > 0 => 'orders_and_cart',
-                    $refs['orders'] > 0 => 'orders',
-                    default => 'cart',
-                },
-                'orders' => $refs['orders'],
-                'carts'  => $refs['carts'],
+                'ok'       => false,
+                'reason'   => 'referenced',
+                'orders'   => $refs['orders'],
+                'carts'    => $refs['carts'],
+                'packages' => $refs['packages'],
             ];
         }
 
@@ -332,7 +331,7 @@ final class Product
 
         db()->prepare('DELETE FROM products WHERE id = ?')->execute([$id]);
 
-        return ['ok' => true, 'reason' => null, 'orders' => 0, 'carts' => 0];
+        return ['ok' => true, 'reason' => null, 'orders' => 0, 'carts' => 0, 'packages' => 0];
     }
 
     /**
@@ -340,7 +339,7 @@ final class Product
      * Tables that belong to later phases simply count as zero.
      *
      * @param list<int|string> $ids
-     * @return array<int, array{orders: int, carts: int}>
+     * @return array<int, array{orders: int, carts: int, packages: int}>
      */
     public static function referencesMap(array $ids): array
     {
@@ -355,12 +354,13 @@ final class Product
 
         $out = [];
         foreach ($ids as $id) {
-            $out[$id] = ['orders' => 0, 'carts' => 0];
+            $out[$id] = ['orders' => 0, 'carts' => 0, 'packages' => 0];
         }
 
         $tables = [
-            'orders' => 'shop_order_items',
-            'carts'  => 'cart_items',
+            'orders'   => 'shop_order_items',
+            'carts'    => 'cart_items',
+            'packages' => 'package_products',
         ];
 
         foreach ($tables as $key => $table) {
