@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+#  EcoWealth — repository ignore rules
+#  Secrets never enter the repo; runtime artefacts never get committed.
+# ---------------------------------------------------------------------------
+
+# Local configuration (database credentials, payment accounts, flags)
+config.local.php
+
+# Uploaded media (directories are created in Phase 1; keep placeholders)
+system/public/uploads/*
+!system/public/uploads/.gitkeep
+
+# Logs and one-off dumps
+*.log
+backup_*.sql
+backups/
+
+# Test scratch space
+tests/tmp/
+system/tests/tmp/
