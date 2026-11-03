@@ -212,6 +212,39 @@ function old_clear(): void
 }
 
 /* ==============================================================
+ *  Nested form payload (repeaters: level matrices, contents rows)
+ * ============================================================== */
+
+/**
+ * Preserve a whole nested form payload across a redirect.
+ * old()/old_set() only carry scalars; payloads that contain arrays
+ * (package levels, package contents) use this instead.
+ */
+function old_payload_set(array $payload): void
+{
+    $_SESSION['_old_payload'] = $payload;
+    $GLOBALS['__old_payload']  = $payload;
+}
+
+/** Read and consume the preserved payload (empty array when none). */
+function old_payload(): array
+{
+    if (isset($GLOBALS['__old_payload'])) {
+        return $GLOBALS['__old_payload'];
+    }
+
+    $payload = $_SESSION['_old_payload'] ?? [];
+    unset($_SESSION['_old_payload']);
+
+    return $GLOBALS['__old_payload'] = is_array($payload) ? $payload : [];
+}
+
+function old_payload_clear(): void
+{
+    unset($_SESSION['_old_payload'], $GLOBALS['__old_payload']);
+}
+
+/* ==============================================================
  *  CSRF protection
  * ============================================================== */
 

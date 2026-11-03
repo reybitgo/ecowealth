@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 2)
+--  EcoWealth — MySQL schema (fresh install, Phase 3)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -8,14 +8,15 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …).
+--  database/migrations/ (apply in order: 001, 002, 003, …).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
+--  Phase 3 owns: packages, package_levels, package_products.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
---  creates no accounts and no demo catalogue.
+--  creates no accounts, demo catalogue or packages.
 -- =============================================================
 
 SET NAMES utf8mb4;
@@ -118,4 +119,60 @@ CREATE TABLE IF NOT EXISTS products (
   UNIQUE KEY uq_products_sku (sku),
   UNIQUE KEY uq_products_slug (slug),
   KEY idx_products_status (status, sort_order)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Packages — associate packages (plan §4.2, §6; Phase 3)
+--
+--  price                 entry fee paid to activate the package
+--  product_value         display value of the contents
+--  direct_referral_bonus the level-1 amount; stored ONCE here.
+--                        package_levels holds levels 2–10 only.
+--  indirect_enabled      per-package switch for the unilevel ladder
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS packages (
+  id                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  name                  VARCHAR(80)   NOT NULL,
+  slug                  VARCHAR(100)  NOT NULL,
+  image                 VARCHAR(255)  NULL,
+  price                 DECIMAL(12,2) NOT NULL,
+  product_value         DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  direct_referral_bonus DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  indirect_enabled      TINYINT(1)    NOT NULL DEFAULT 1,
+  description           TEXT          NULL,
+  perks                 TEXT          NULL,
+  status                ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  sort_order            INT           NOT NULL DEFAULT 0,
+  created_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_packages_slug (slug),
+  KEY idx_packages_status (status, sort_order)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Indirect referral amounts per package, levels 2–10 only
+-- (level 1 is the package's direct_referral_bonus).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS package_levels (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  package_id INT UNSIGNED NOT NULL,
+  level      TINYINT UNSIGNED NOT NULL,
+  amount     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_pkg_level (package_id, level),
+  CONSTRAINT fk_pkg_levels_pkg FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE CASCADE,
+  CONSTRAINT chk_pkg_level_range CHECK (level BETWEEN 2 AND 10)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Package contents — products bundled with a package
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS package_products (
+  package_id INT UNSIGNED NOT NULL,
+  product_id INT UNSIGNED NOT NULL,
+  quantity   INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (package_id, product_id),
+  CONSTRAINT fk_pkgprod_pkg  FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE CASCADE,
+  CONSTRAINT fk_pkgprod_prod FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

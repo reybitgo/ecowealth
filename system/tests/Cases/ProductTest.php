@@ -55,17 +55,26 @@ $dropLateTables = static function (): void {
 return [
     /* ---------- Seed + reads --------------------------------------- */
 
-    'P2-T1 the demo seed loads six active products' => function (): void {
+    'P2-T1 the demo seed loads the retail products' => function (): void {
         $products = Product::all();
+        $names    = array_column($products, 'name');
 
-        assert_count(6, $products);
+        /* Six retail products (Phase 2) plus the Colonics service product
+         * that Package B bundles (Phase 3). */
+        assert_count(7, $products);
+
+        foreach (['Coffee', 'Immune Booster', 'Spirulina', 'Serpentina', 'Kojic Soap', 'Stone Buster'] as $expected) {
+            assert_true(in_array($expected, $names, true), 'missing seeded product: ' . $expected);
+        }
+
+        assert_true(in_array('Colonics Session', $names, true), 'missing the service product');
         assert_same('Coffee', $products[0]['name']);
         assert_same('active', $products[0]['status']);
         assert_same('assets/img/products/collagen-coffee.webp', $products[0]['image_url']);
 
-        /* Two seed rows intentionally have no image. */
+        /* Three seed rows intentionally have no image. */
         $withoutImage = array_filter($products, static fn (array $p): bool => $p['image_url'] === null);
-        assert_count(2, $withoutImage);
+        assert_count(3, $withoutImage);
     },
 
     'P2-T4 the storefront list is ordered and filtered by status' => function (): void {
@@ -75,13 +84,13 @@ return [
         Product::setStatus((int) $coffee['id'], 'inactive');
 
         $catalog = Product::catalogList([], new Paginator(0, 20, 1));
-        assert_count(5, $catalog);
+        assert_count(6, $catalog, 'seven seeded products, one deactivated');
 
         $names = array_column($catalog, 'name');
         assert_false(in_array('Coffee', $names, true));
 
         $admin = Product::adminList([], new Paginator(0, 20, 1));
-        assert_count(6, $admin);
+        assert_count(7, $admin);
 
         /* The rest of the suite expects the seed untouched. */
         Product::setStatus((int) $coffee['id'], 'active');
@@ -100,13 +109,13 @@ return [
     },
 
     'P2-T8 the admin list paginates and keeps filters' => function (): void {
-        $first = Product::adminList([], new Paginator(6, 4, 1));
-        $second = Product::adminList([], new Paginator(6, 4, 2));
+        $first  = Product::adminList([], new Paginator(7, 4, 1));
+        $second = Product::adminList([], new Paginator(7, 4, 2));
 
         assert_count(4, $first);
-        assert_count(2, $second);
+        assert_count(3, $second);
 
-        $pager = new Paginator(6, 4, 2);
+        $pager = new Paginator(7, 4, 2);
         assert_same(2, $pager->pages);
         assert_contains('page=2', $pager->url(2));
     },

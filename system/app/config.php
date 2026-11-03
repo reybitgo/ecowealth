@@ -31,7 +31,7 @@ defined('APP_ENV') || define('APP_ENV', (string) (getenv('APP_ENV') ?: 'producti
 defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
 
 /* Phase currently under construction — drives the "soon" nav items. */
-defined('APP_PHASE') || define('APP_PHASE', 2);
+defined('APP_PHASE') || define('APP_PHASE', 3);
 
 /* ---------- Database (MySQL) ---------- */
 defined('DB_HOST') || define('DB_HOST', '127.0.0.1');

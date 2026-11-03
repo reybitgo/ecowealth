@@ -4,12 +4,12 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 2 — products & storefront catalogue.** Phase 1 delivered the
-skeleton (router, layouts, roles, settings, test harness); Phase 2 adds the product
-catalogue, its admin CRUD with image uploads, and the member storefront (catalogue,
-search, pagination, product detail). Cart, checkout, wallet, referrals and payouts follow
-in later phases; their menu entries render as disabled "Soon" items while `APP_DEBUG` is
-on and are hidden in production.
+**Current status: Phase 3 — packages & referral ladder.** Phase 1 delivered the skeleton
+(router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and
+storefront; Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel
+matrix, package contents, the admin editor and the member packages page. Cart, checkout,
+wallet, referrals and payouts follow in later phases; their menu entries render as
+disabled "Soon" items while `APP_DEBUG` is on and are hidden in production.
 
 | | |
 |---|---|
@@ -108,12 +108,12 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 + 2 routes)
+│   ├── routes.php             the live route table (Phase 1 + 2 + 3 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
-│   ├── Controllers/           Home, Shop, AdminDashboard, AdminProduct, Profile
-│   ├── Models/                Product
-│   ├── Services/              StockService, UploadService
+│   ├── Controllers/           Home, Shop, Package, AdminDashboard, AdminProduct, AdminPackage, Profile
+│   ├── Models/                Product, Package
+│   ├── Services/              StockService, UploadService, PackageService
 │   ├── views/                 errors/, partials/, shop/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── public/                    docroot
@@ -124,13 +124,13 @@ system/
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            one file per phase (001_settings_roles, 002_products)
-│   └── seeds/                 settings defaults, demo accounts, demo catalogue
+│   ├── migrations/            001_settings_roles, 002_products, 003_packages
+│   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P1-T11, P2-T1 … P2-T10)
-    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration, Product, ProductView
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P3-T8)
+    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration, Product, ProductView, Package, PackageView
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -177,6 +177,17 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/admin/products/{id}/status` | admin | Enable / disable (JSON for XHR) |
 | POST | `/admin/products/{id}/delete` | admin | Delete unless referenced by an order or cart (JSON for XHR) |
 
+### Phase 3 URLs — packages
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/packages` | member | Package cards: price, direct bonus, 10-level ladder, contents |
+| GET | `/admin/packages` | admin | Package table with search, status filter, pagination |
+| GET | `/admin/packages/new` | admin | New package form (ladder matrix + contents repeater) |
+| GET | `/admin/packages/{id}/edit` | admin | Edit package form |
+| POST | `/admin/packages/save` | admin | Create / update package, ladder and contents in one transaction |
+| POST | `/admin/packages/{id}/status` | admin | Enable / disable (JSON for XHR; packages are never deleted) |
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`, `/dashboard`.
 
@@ -217,10 +228,29 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 ---
 
+## Packages (Phase 3)
+
+- A package stores its entry `price`, display `product_value` and `direct_referral_bonus`.
+  **Level 1 of the referral ladder *is* the direct bonus** — it is saved once on the
+  package row and never written to `package_levels`, so the two can't drift apart. The
+  admin form shows it read-only, bound to the direct-bonus field.
+- `package_levels` holds levels **2–10** only (9 rows per package, zero-filled, CHECK
+  constrained to 2–10). `package_products` holds the contents (product + quantity); only
+  active products can be added, an already-linked product that later went inactive may
+  stay, and duplicate rows are merged by adding their quantities.
+- Saving a package rewrites the package row, its ladder and its contents inside a single
+  transaction — a failure leaves nothing half-written.
+- Packages are **never deleted**: the status toggle (active/inactive) is the supported
+  path, so history is preserved. `GET /packages` lists active packages only.
+- The public ladder table shows all ten levels, marks level 1 as "stored on the package"
+  and displays only the amounts configured — nothing is invented in the view.
+
+---
+
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (111 cases in Phase 2)
+php tests/run.php                 # full suite (140 cases in Phase 3)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -230,14 +260,16 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
   the seeds, so a run never touches the development database (the name must end in `_test`).
 - Every case runs inside a transaction that is rolled back. Cases that need later-phase
-  tables (cart/order references) create and drop them locally, because DDL commits.
+  tables (cart/order references) or their own transaction (package rollback) handle that
+  explicitly, because DDL commits.
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–002 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–003 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
-member account, products with SKU prefix `SMOKE-`, and `maintenance_mode`; all restored):
+member account, products with SKU prefix `SMOKE-`, packages named `Smoke Package…`, and
+`maintenance_mode`; all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -255,6 +287,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 |---|---|
 | `001_settings_roles.sql` | `settings`, `audit_log`, `users.role` → `member/admin/superadmin`, `idx_users_role` |
 | `002_products.sql` | `products` (+ unique `sku` / `slug`, status index) |
+| `003_packages.sql` | `packages`, `package_levels` (levels 2–10, CHECK 2–10), `package_products` |
 
 ---
 

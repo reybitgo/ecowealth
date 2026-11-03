@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1 + Phase 2: P1-T1 ... P1-T11, P2-T1 ... P2-T10).
+    EcoWealth HTTP smoke test (Phase 1 + 2 + 3: P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
-    maintenance mode and the Phase 2 product catalogue end to end.
-    Three checks change data temporarily and restore it: a throw-away
-    member account, the smoke products (SKU prefix SMOKE-) and
-    `maintenance_mode` are all removed/reset in a finally block.
+    maintenance mode, the product catalogue and the package matrix end to
+    end. Everything the script changes is restored in a finally block: a
+    throw-away member account, products with SKU prefix SMOKE-, packages
+    named "Smoke Package …" and `maintenance_mode`.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
 
@@ -100,14 +100,25 @@ function Invoke-App {
     if ($Files.Count -gt 0) {
         # Multipart: fields and files travel as form parts.
         foreach ($key in $Form.Keys) {
-            $curlArgs += @('--form', "$key=$($Form[$key])")
+            $value = $Form[$key]
+            if ($value -is [System.Array]) {
+                foreach ($item in $value) { $curlArgs += @('--form', "$key=$item") }
+            } else {
+                $curlArgs += @('--form', "$key=$value")
+            }
         }
         foreach ($key in $Files.Keys) {
             $curlArgs += @('--form', "$key=@$($Files[$key])")
         }
     } else {
         foreach ($key in $Form.Keys) {
-            $curlArgs += @('--data-urlencode', "$key=$($Form[$key])")
+            $value = $Form[$key]
+            if ($value -is [System.Array]) {
+                # Repeated keys: content_product_id[]=1&content_product_id[]=2
+                foreach ($item in $value) { $curlArgs += @('--data-urlencode', "$key=$item") }
+            } else {
+                $curlArgs += @('--data-urlencode', "$key=$value")
+            }
         }
     }
 
@@ -191,7 +202,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phase 1 + phase 2)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -445,6 +456,116 @@ try {
     Assert-That 'P2-T10' ($memberAdmin.Status -eq 403 -and $memberPost.Status -eq 403) `
         "a member cannot use admin product routes (GET=$($memberAdmin.Status), POST=$($memberPost.Status))"
 
+    # ---- Phase 3: packages -----------------------------------------------
+    $pkgName  = 'Smoke Package ' + $smokeSku
+    $coffeeId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = 'EW-COFFEE' LIMIT 1;" | Out-String).Trim())
+
+    $pkgFormFields = @{
+        'name'                  = $pkgName
+        'price'                 = '1234.00'
+        'product_value'         = '1300.00'
+        'direct_referral_bonus' = '150.00'
+        'sort_order'            = '999'
+        'status'                = 'active'
+        'indirect_enabled'      = '1'
+        'levels[2]'             = '100'
+        'levels[3]'             = '50'
+        'levels[4]'             = '40'
+        'levels[5]'             = '30'
+        'levels[6]'             = '20'
+        'levels[7]'             = '10'
+        'levels[8]'             = '5'
+        'levels[9]'             = '5'
+        'levels[10]'            = '5'
+        'content_product_id[]'  = @($coffeeId)
+        'content_quantity[]'    = @('2')
+    }
+
+    # P3-T1 — create with a full level matrix and contents
+    $pkgCreate = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'admin' `
+        -Form ($pkgFormFields + @{ '_csrf' = $adminToken })
+
+    $pkgId      = [int]((Invoke-MySql "SELECT id FROM packages WHERE name = '$pkgName' LIMIT 1;" | Out-String).Trim())
+    $levelCount = (Invoke-MySql "SELECT COUNT(*) FROM package_levels WHERE package_id = $pkgId AND level BETWEEN 2 AND 10;" | Out-String).Trim()
+    $level1Rows = (Invoke-MySql "SELECT COUNT(*) FROM package_levels WHERE package_id = $pkgId AND level = 1;" | Out-String).Trim()
+    $contentRow = (Invoke-MySql "SELECT CONCAT(product_id, ':', quantity) FROM package_products WHERE package_id = $pkgId;" | Out-String).Trim()
+
+    Assert-That 'P3-T1' ($pkgCreate.Status -eq 302 -and $pkgId -gt 0 -and $levelCount -eq '9' -and $contentRow -eq "${coffeeId}:2") `
+        "POST /admin/packages/save writes the package, 9 levels and its contents (status=$($pkgCreate.Status), id=$pkgId, levels=$levelCount)"
+
+    $pkgList = Invoke-App -Path "/admin/packages?q=$smokeSku" -Session 'admin'
+    Assert-That 'P3-T1' ($pkgList.Status -eq 200 -and $pkgList.Body.Contains($pkgName)) `
+        'the new package appears in the admin list'
+
+    # P3-T5 — level 1 is read-only and never stored as a level row
+    $pkgDetail = Invoke-App -Path "/admin/packages/$pkgId/edit" -Session 'admin'
+    Assert-That 'P3-T5' ($pkgDetail.Status -eq 200 `
+            -and $pkgDetail.Body -match 'Level 1 [^<]{1,6}Direct referral' `
+            -and $pkgDetail.Body -notmatch 'name="levels\[1\]"' `
+            -and $level1Rows -eq '0') `
+        'level 1 is read-only and not duplicated into package_levels'
+
+    # P3-T4 — contents show on the public card
+    $publicPackages = Invoke-App -Path '/packages' -Session 'member'
+    Assert-That 'P3-T4' ($publicPackages.Status -eq 200 -and $publicPackages.Body.Contains($pkgName) -and $publicPackages.Body -match 'Coffee') `
+        'the public page lists the package contents'
+
+    # P3-T8 — prices and bonuses formatted
+    Assert-That 'P3-T8' ($publicPackages.Body -match '4,498' -and $publicPackages.Body -match '6,998' `
+            -and $publicPackages.Body -match 'Direct referral \(level 1\)') `
+        'the packages page formats prices and shows the direct bonus'
+
+    # P3-T2 — edit level 3
+    $pkgEditFields = $pkgFormFields.Clone()
+    $pkgEditFields['levels[3]'] = '50.50'
+    $pkgEdit = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'admin' `
+        -Form ($pkgEditFields + @{ '_csrf' = $adminToken; 'package_id' = "$pkgId" })
+
+    $level3      = (Invoke-MySql "SELECT amount FROM package_levels WHERE package_id = $pkgId AND level = 3;" | Out-String).Trim()
+    $pkgEditForm = Invoke-App -Path "/admin/packages/$pkgId/edit" -Session 'admin'
+
+    Assert-That 'P3-T2' ($pkgEdit.Status -eq 302 -and $level3 -eq '50.50' -and $pkgEditForm.Body -match 'value="50.50"') `
+        "editing level 3 persists and reopens in the form (stored=$level3)"
+
+    # P3-T3 — invalid input is rejected without writing
+    $badPackage = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'admin' -Form @{
+        '_csrf'                 = $adminToken
+        'name'                  = ''
+        'price'                 = '0'
+        'direct_referral_bonus' = '-5'
+        'status'                = 'active'
+        'levels[2]'             = '-1'
+        'content_product_id[]'  = @($coffeeId)
+        'content_quantity[]'    = @('1')
+    }
+    $badPackageForm = Invoke-App -Path '/admin/packages/new' -Session 'admin'
+    $badPackageRows = (Invoke-MySql "SELECT COUNT(*) FROM packages WHERE name = '';" | Out-String).Trim()
+
+    Assert-That 'P3-T3' ($badPackage.Status -eq 302 -and $badPackageForm.Body -match 'Please fix the highlighted' `
+            -and $badPackageForm.Body -match 'Package name is required' -and $badPackageRows -eq '0') `
+        'invalid package input is rejected and nothing is written'
+
+    # P3-T6 — deactivate hides the package from members
+    $pkgDeactivate = Invoke-App -Method 'POST' -Path "/admin/packages/$pkgId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'inactive' }
+    $publicAfter = Invoke-App -Path '/packages' -Session 'member'
+
+    Assert-That 'P3-T6' ($pkgDeactivate.Status -eq 302 -and -not $publicAfter.Body.Contains($pkgName)) `
+        'a deactivated package disappears from the packages page'
+
+    # P3-T7 — members cannot reach the admin package routes
+    $memberPackages = Invoke-App -Path '/admin/packages' -Session 'member'
+    $memberPackagePost = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'member' -Form @{
+        '_csrf'                 = $adminToken
+        'name'                  = 'Nope'
+        'price'                 = '1.00'
+        'direct_referral_bonus' = '0'
+        'status'                = 'active'
+    }
+
+    Assert-That 'P3-T7' ($memberPackages.Status -eq 403 -and $memberPackagePost.Status -eq 403) `
+        "a member cannot use admin package routes (GET=$($memberPackages.Status), POST=$($memberPackagePost.Status))"
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'
@@ -465,6 +586,7 @@ try {
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE FROM packages WHERE name LIKE 'Smoke Package%';" | Out-Null } catch { }
     Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 

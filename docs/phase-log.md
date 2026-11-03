@@ -264,4 +264,88 @@ Phase 3 — packages and package contents: `packages`, `package_levels` (2–10)
 cards. `Product`/`StockService` are the patterns to follow; the inventory lists the Phase 3
 routes already.
 
+---
+
+## Phase 3 — Packages and package contents
+
+**Date:** 2026-11-03 · **Branch:** `feature/shop` · **Gate tag:** `phase-3` · **Status:** complete.
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `packages` (price, product value, direct bonus, indirect toggle, status), `package_levels` (levels 2–10, `CHECK 2..10`), `package_products` (contents); migration `003_packages.sql`; seed `004_packages.sql` (Package A/B + Colonics service product) |
+| **Model** | `app/Models/Package.php` — find/by-slug, admin search/status list, cached `levelsMap()` / `contentsMap()`, validation for package fields, the 2–10 matrix and contents, transactional `save()` (package + ladder + contents), `setStatus()`, unique slugs |
+| **Service** | `PackageService` — the single definition of the 10-level ladder (level 1 = direct bonus, read-only), ladder totals/funded counts, `publicCards()`, form parsing (`levelsFromInput`, `contentsFromInput`) and `contentOptions()` (active products + already-linked inactive ones) |
+| **Back office** | `GET /admin/packages` (stats, search + status filter, pagination, ladder/contents summaries), `/new`, `/{id}/edit` (level matrix + contents repeater), `POST /save` (transactional, image upload), `POST /{id}/status` (JSON for XHR) |
+| **Member** | `GET /packages` — package cards with price, product value, direct bonus, totals, expandable 10-level ladder, contents and perks; activation CTA intentionally inert until Phase 9 |
+| **Views** | `admin/packages/index.php`, `admin/packages/form.php`, `shop/packages.php`; contents repeater JS and the level-1 mirror on the form |
+| **Helpers** | `old_payload()` / `old_payload_set()` — a nested (array-carrying) form payload for the matrix and repeater, since `old()` only carries scalars |
+| **Tests** | `PackageTest` (25 model/service cases), `PackageViewTest` (8 rendering cases), smoke P3-T1 … P3-T8; suite 111 → 140 cases, smoke 32 → 41 checks; `MigrationTest` now applies 001–003 |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Migration | `003_packages.sql` applied to `ecowealth_sneat` |
+| Seed | Package A (₱4,498 / value ₱4,750 / direct ₱500) and Package B (₱6,998 / ₱8,300 / ₱500), 9 ladder rows each (100/50/40/30/20/10/5/5/5), 5 contents each |
+| Service product | `Colonics Session` (`EW-COLONICS`, ₱1,500 placeholder, stock 20) seeded because Package B bundles it (plan §4.5) |
+| Verified | `MigrationTest` applies 001–003 and matches `schema.sql` for all tables and columns; seeded state is 2 packages / 18 level rows / 10 content rows / 7 products |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P3-T1 | Create Package A with full level matrix | **PASS** | smoke: POST creates the package and exactly 9 ladder rows; model case covers create + contents; seed case asserts Package A/B values |
+| P3-T2 | Edit level 3 to ₱50 | **PASS** | smoke stores 50.50 and the edit form reopens with `value="50.50"`; model case asserts the edited level and that the rest of the ladder is intact |
+| P3-T3 | Invalid price/decimal/negative | **PASS** | unit cases cover every rule (name, price, negative/3-decimal/over-cap levels, product value); smoke posts an invalid package and asserts the form errors plus no row; a forced FK failure proves `save()` rolls back completely |
+| P3-T4 | Add contents (2× Coffee) | **PASS** | smoke asserts `product_id:2` in `package_products` and the public card listing; unit cases cover merging duplicates, quantities 1–1000 and inactive products |
+| P3-T5 | Direct bonus shown as Level 1 | **PASS** | smoke and view test assert `Level 1 — Direct referral` is read-only and that no `levels[1]` input exists; unit case asserts zero level-1 rows in `package_levels` |
+| P3-T6 | Deactivate package | **PASS** | smoke: gone from `/packages`; unit case: `publicCards()` drops it while the admin list keeps it |
+| P3-T7 | Member cannot edit packages | **PASS** | smoke: `GET /admin/packages` and `POST /admin/packages/save` both 403 for a member |
+| P3-T8 | Public packages page | **PASS** | smoke asserts ₱4,498/₱6,998 and the direct-bonus label; view cases cover ladder, contents, perks, escaping and the empty state |
+
+### Deviations and decisions
+
+- **Packages are never deleted.** The plan says "Package with members cannot be deleted
+  (status toggle instead)"; since `users.package_id` only arrives in Phase 9, the port
+  simply exposes no delete action at all. Phase 9 can add a guarded delete if needed.
+- **Level 1 is stored once.** `package_levels` holds levels 2–10 with a CHECK constraint;
+  the direct bonus lives on the package row and is mirrored read-only in the form. The
+  seed writes 9 rows, never 10.
+- **The Colonics service product is seeded in Phase 3.** Plan §4.5 lists it inside Package
+  B's contents, so the package seed adds it as a normal product row (no `product_type`
+  column exists in the target schema). `ProductTest` now expects the six retail products
+  plus this service product.
+- **Duplicate content rows merge by adding quantities.** "Duplicates merged" is
+  implemented as a sum (2 + 3 Coffee → 5), which is lossless for the admin's intent and
+  tested explicitly.
+- **Nested form payloads have their own helper.** The level matrix and contents repeater
+  post arrays, which `old()`/`old_set()` cannot carry; `old_payload()` stores and clears
+  the whole payload across the failed-POST redirect.
+- **A member "Packages" nav item was added** under Membership, since `/packages` is a live
+  member page; §3.5's menu list did not name it.
+- **Carried over from Phase 2:** no Dropzone/DataTables dependencies; the package form uses
+  a native file input with preview and the same server-side list pattern.
+
+### Gate checklist (plan §7 Phase 3)
+
+- [x] All P3 tests pass (140 PHP cases + 41 smoke checks)
+- [x] `php -l` clean (69 files)
+- [x] No 404 asset on the package pages (shared layout + SweetAlert2 only)
+- [x] Migration applied to the dev DB; `schema.sql` regenerated for fresh installs
+- [x] Package seeds load on a fresh install (harness rebuilds and seeds on every run)
+- [x] Admin guards unchanged (member → 403 on every admin package route)
+- [x] No new PHP warnings/notices in the Apache error log
+- [ ] Visual sign-off on a real browser (same constraint as Phases 1–2 — HTTP + markup verified)
+- [x] Tag `phase-3`
+
+### Next
+
+Phase 4 — cart engine and cart UI: `carts` / `cart_items`, `Cart` model + `CartService`
+(one active cart per member, scoped mutations, availability checks), `/cart`, add/update/
+remove endpoints and the offcanvas badge. `StockService::available()` and the product
+catalogue are the inputs; the inventory lists the Phase 4 routes.
+
+
 

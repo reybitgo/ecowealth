@@ -52,13 +52,14 @@ return [
     ['POST', '/admin/products/{id}/delete',      [AdminProductController::class, 'delete'], 'admin'],
 
     /* ---------- Phase 3 — packages -----------------------------------
-    ['GET',  '/packages',                        [PackageController::class, 'index'],          'member'],    // packages (public cards)
-    ['GET',  '/admin/packages',                  [AdminPackageController::class, 'index'],     'admin'],     // admin_packages
-    ['GET',  '/admin/packages/new',              [AdminPackageController::class, 'create'],    'admin'],     // admin_packages
-    ['GET',  '/admin/packages/{id}/edit',        [AdminPackageController::class, 'edit'],      'admin'],     // admin_packages
-    ['POST', '/admin/packages/save',             [AdminPackageController::class, 'save'],      'admin'],     // admin_save_package
-    ['POST', '/admin/packages/{id}/status',      [AdminPackageController::class, 'status'],    'admin'],     // admin_packages
-    ----------------------------------------------------------------- */
+     * The member catalogue is a new page; the admin pages are the
+     * reference's admin_packages / admin_save_package. */
+    ['GET',  '/packages',                        [PackageController::class, 'index'],           'member'],
+    ['GET',  '/admin/packages',                  [AdminPackageController::class, 'index'],      'admin'],
+    ['GET',  '/admin/packages/new',              [AdminPackageController::class, 'create'],     'admin'],
+    ['GET',  '/admin/packages/{id}/edit',        [AdminPackageController::class, 'edit'],       'admin'],
+    ['POST', '/admin/packages/save',             [AdminPackageController::class, 'save'],       'admin'],
+    ['POST', '/admin/packages/{id}/status',      [AdminPackageController::class, 'status'],     'admin'],
 
     /* ---------- Phase 4 — cart ---------------------------------------
     ['GET',  '/cart',                            [CartController::class, 'index'],       'member'],          // cart

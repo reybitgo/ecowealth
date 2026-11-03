@@ -23,10 +23,10 @@ Then visit `http://localhost:8000`.
 
 `system/` is the EcoWealth application — plain PHP 8 + MySQL, served at
 `http://localhost/ecowealth/system/`. It is being built in phases
-(see `dmp/plan-ecowealth-cart-system.md`); **Phase 1 (core skeleton)** shipped the router,
-member/admin layouts, role guards, settings storage and test suite, and **Phase 2** adds
-the product catalogue: admin CRUD with image uploads and the member storefront (catalogue,
-search, pagination, product detail). Cart, wallet, referral and payout modules follow.
+(see `dmp/plan-ecowealth-cart-system.md`); **Phase 1** shipped the router, layouts, role
+guards, settings and test suite, **Phase 2** added the product catalogue and storefront,
+and **Phase 3** adds associate packages (price, direct bonus, the 2–10 unilevel ladder,
+contents and the member packages page). Cart, wallet, referral and payout modules follow.
 
 - Application notes, setup and tests: [`system/README.md`](system/README.md)
 - Running log of decisions, migrations and test results: [`docs/phase-log.md`](docs/phase-log.md)

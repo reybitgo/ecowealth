@@ -11,7 +11,11 @@ declare(strict_types=1);
  * ============================================================== */
 
 $migrationDir  = dirname(__DIR__, 2) . '/database/migrations/';
-$migrations    = [$migrationDir . '001_settings_roles.sql', $migrationDir . '002_products.sql'];
+$migrations    = [
+    $migrationDir . '001_settings_roles.sql',
+    $migrationDir . '002_products.sql',
+    $migrationDir . '003_packages.sql',
+];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
 /** Fresh legacy database with every phase migration applied in order. */
@@ -44,7 +48,7 @@ return [
         assert_not_contains("'user'", $column['Type'], 'the old role value must be gone');
     },
 
-    'migration keeps every account and its password hash' => function () use ($buildMigrated, $fixtureFile, $migrationFile): void {
+    'migration keeps every account and its password hash' => function () use ($buildMigrated, $fixtureFile): void {
         /* Capture the fixture rows before the upgrade… */
         $legacy = test_pdo();
         test_recreate_database($legacy, TEST_MIGRATION_DB);
@@ -61,13 +65,13 @@ return [
         assert_same($before, $after, 'accounts must survive the migration untouched');
     },
 
-    'migration creates settings, audit_log and the product catalogue' => function () use ($buildMigrated): void {
+    'migration creates settings, audit_log and the catalogue tables' => function () use ($buildMigrated): void {
         $pdo    = $buildMigrated();
         $tables = array_column($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_NUM), 0);
 
-        assert_true(in_array('settings', $tables, true), 'settings table missing');
-        assert_true(in_array('audit_log', $tables, true), 'audit_log table missing');
-        assert_true(in_array('products', $tables, true), 'products table missing');
+        foreach (['settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products'] as $table) {
+            assert_true(in_array($table, $tables, true), $table . ' table missing');
+        }
 
         $pdo->exec("INSERT INTO settings (key_name, value) VALUES ('probe', '1')");
         assert_same('1', $pdo->query("SELECT value FROM settings WHERE key_name = 'probe'")->fetchColumn());
@@ -77,6 +81,21 @@ return [
              VALUES ('MIG-1', 'Migrated product', 'migrated-product', 10.00, 5)"
         );
         assert_same('Migrated product', $pdo->query("SELECT name FROM products WHERE sku = 'MIG-1'")->fetchColumn());
+
+        $pdo->exec(
+            "INSERT INTO packages (name, slug, price, direct_referral_bonus)
+             VALUES ('Migrated package', 'migrated-package', 100.00, 10.00)"
+        );
+        $packageId = (int) $pdo->lastInsertId();
+
+        $pdo->exec("INSERT INTO package_levels (package_id, level, amount) VALUES ({$packageId}, 2, 5.00)");
+        $pdo->exec(
+            "INSERT INTO package_products (package_id, product_id, quantity)
+             VALUES ({$packageId}, (SELECT id FROM products WHERE sku = 'MIG-1'), 2)"
+        );
+
+        assert_same(5.0, (float) $pdo->query("SELECT amount FROM package_levels WHERE package_id = {$packageId}")->fetchColumn());
+        assert_same(2, (int) $pdo->query("SELECT quantity FROM package_products WHERE package_id = {$packageId}")->fetchColumn());
     },
 
     'migration adds the role index' => function () use ($buildMigrated): void {
@@ -125,6 +144,9 @@ return [
 
         assert_same($columnList($fresh, 'users'), $columnList($migrated, 'users'), 'users columns differ from schema.sql');
         assert_same($columnList($fresh, 'products'), $columnList($migrated, 'products'), 'products columns differ from schema.sql');
+        assert_same($columnList($fresh, 'packages'), $columnList($migrated, 'packages'), 'packages columns differ from schema.sql');
+        assert_same($columnList($fresh, 'package_levels'), $columnList($migrated, 'package_levels'), 'package_levels columns differ from schema.sql');
+        assert_same($columnList($fresh, 'package_products'), $columnList($migrated, 'package_products'), 'package_products columns differ from schema.sql');
     },
 
     'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {

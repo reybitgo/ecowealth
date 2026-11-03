@@ -243,6 +243,7 @@ return [
     'extensions' => [
         $extension('GET', '/', 1, 'App entry redirect — the marketing front door is the repo-root index.html (D23).'),
         $extension('GET', '/shop/{id}', 2, 'Product detail page (the reference rendered it inside the shop page).'),
+        $extension('GET', '/packages', 3, 'Member package catalogue (the reference showed packages during activation).'),
         $extension('GET', '/cart/count', 4, 'Cart badge count for the offcanvas.'),
         $extension('GET', '/wallet', 5, 'Member e-wallet statement (no standalone reference page).'),
         $extension('GET', '/admin/activations', 9, 'Activation review queue (reference handled it from the member list).'),

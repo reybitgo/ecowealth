@@ -37,6 +37,7 @@ return [
             [
                 'label' => 'Membership',
                 'items' => [
+                    ['key' => 'packages', 'label' => 'Packages', 'path' => 'packages', 'icon' => 'bx-box', 'guard' => 'member', 'phase' => 3],
                     ['key' => 'membership', 'label' => 'Membership', 'path' => 'membership', 'icon' => 'bx-medal', 'guard' => 'member', 'phase' => 9],
                     ['key' => 'genealogy', 'label' => 'Genealogy', 'path' => 'genealogy', 'icon' => 'bx-git-branch', 'guard' => 'member', 'phase' => 9],
                     ['key' => 'earnings', 'label' => 'Earnings', 'path' => 'earnings', 'icon' => 'bx-line-chart', 'guard' => 'member', 'phase' => 10],

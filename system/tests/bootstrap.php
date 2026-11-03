@@ -232,6 +232,7 @@ function test_reset_app_database(): void
     test_run_sql_file($pdo, $databaseDir . 'seeds/001_settings.sql');
     test_run_sql_file($pdo, $databaseDir . 'seeds/002_accounts.sql');
     test_run_sql_file($pdo, $databaseDir . 'seeds/003_products.sql');
+    test_run_sql_file($pdo, $databaseDir . 'seeds/004_packages.sql');
 
     unset($GLOBALS['__settings_cache']);
 }
@@ -307,7 +308,9 @@ function test_run_isolated(callable $case): void
         $_SESSION['_old'],
         $_SESSION['_errors'],
         $_SESSION['_flash'],
-        $GLOBALS['__form_errors']
+        $_SESSION['_old_payload'],
+        $GLOBALS['__form_errors'],
+        $GLOBALS['__old_payload']
     );
     auth_cache_reset();
 
