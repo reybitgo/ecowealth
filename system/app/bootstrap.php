@@ -2,13 +2,22 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  Sneat Auth — Shared bootstrap (required by every page)
+ *  EcoWealth — Shared bootstrap (required by every page)
+ *
+ *  Order matters: config → helpers → autoload → database → auth
+ *  (plan §3.2). The front controller defines APP_BASE_URL before
+ *  this file runs; standalone pages (login/register/dashboard)
+ *  rely on helpers.php deriving it from the request.
+ *
+ *  require_once so the front controller can pre-load helpers.php to
+ *  compute APP_BASE_URL without redefining its functions.
  * ============================================================== */
 
-require __DIR__ . '/config.php';
-require __DIR__ . '/helpers.php';
-require __DIR__ . '/database.php';
-require __DIR__ . '/auth.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/autoload.php';
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/auth.php';
 
 date_default_timezone_set(APP_TIMEZONE);
 

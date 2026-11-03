@@ -1,30 +1,47 @@
 <?php
-/** Shared header for authenticated (app) pages — Sneat vertical layout. */
+declare(strict_types=1);
 
 /**
- * @var array    $user        Currently authenticated user (set by the page)
- * @var string[] $page_css    Extra stylesheets, paths relative to public/
- * @var string[] $page_js     Extra scripts, paths relative to public/
- * @var string   $page_styles Optional inline CSS for one page
- * @var array    $nav_notes   Optional notification entries:
- *                            [['icon' => 'bx bx-user-plus', 'tone' => 'primary',
- *                              'title' => 'New member', 'text' => 'jane', 'time' => '2 min ago'], …]
+ * Shared header for app pages — EcoWealth vertical layout (plan §3.5).
+ *
+ * Two app layouts share this file; the menu comes from layout/nav.php:
+ *   layout=member  member portal  (Shop, Cart, Orders, Wallet, …)
+ *   layout=admin   back office    (Products, Packages, Orders, …)
+ *   layout=plain   no sidebar — branded pages for 403/404/500/503
+ *
+ * @var array|null $user         Current user row (resolved when absent)
+ * @var string     $layout       member | admin | plain
+ * @var string     $page_title   Document title
+ * @var string[]   $page_css     Extra stylesheets, paths relative to public/
+ * @var string[]   $page_js      Extra scripts, paths relative to public/
+ * @var string     $page_styles  Optional inline CSS for one page
+ * @var string     $current_nav  Active nav item key (derived when absent)
+ * @var array      $nav_notes    Optional notification entries:
+ *                               [['icon' => 'bx bx-user-plus', 'tone' => 'primary',
+ *                                 'title' => 'New member', 'text' => 'jane', 'time' => '2 min ago'], …]
+ * @var array      $nav_badges   Optional menu counters, e.g. ['cart' => 3]
  */
 
-$me          = $user;
+$layout      = in_array($layout ?? 'member', ['member', 'admin', 'plain'], true) ? ($layout ?? 'member') : 'member';
+$me          = $user ?? auth_user();
+$user        = $me;   /* sidebar.php reads $user */
 $page_title  = $page_title ?? APP_NAME;
 $page_css    = $page_css ?? [];
 $page_js     = $page_js ?? [];
 $page_styles = $page_styles ?? '';
 $nav_notes   = $nav_notes ?? [];
 $nav_badges  = $nav_badges ?? [];
-$current_nav = $current_nav ?? 'dashboard';
+$current_nav = $current_nav ?? ($layout === 'plain' ? '' : nav_current_key($layout, $me));
+$has_menu    = $layout !== 'plain';
+$html_class  = $has_menu
+    ? 'layout-navbar-fixed layout-menu-fixed layout-compact customizer-hide'
+    : 'layout-navbar-fixed layout-compact customizer-hide';
 ?>
 <!doctype html>
 <!-- beautify ignore:start -->
 <html
   lang="en"
-  class="layout-navbar-fixed layout-menu-fixed layout-compact customizer-hide"
+  class="<?= e($html_class) ?>"
   dir="ltr"
   data-skin="default"
   data-bs-theme="light"
@@ -79,6 +96,7 @@ $current_nav = $current_nav ?? 'dashboard';
     <!-- Layout wrapper -->
     <div class="layout-wrapper layout-content-navbar">
       <div class="layout-container">
+<?php if ($has_menu): ?>
         <!-- Menu -->
         <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
           <div class="app-brand demo">
@@ -93,96 +111,10 @@ $current_nav = $current_nav ?? 'dashboard';
             </a>
           </div>
           <div class="menu-inner-shadow"></div>
-          <ul class="menu-inner py-1">
-            <!-- Growth overview -->
-            <li class="menu-header mt-7">
-              <span class="menu-header-text" data-i18n="Growth overview">Growth overview</span>
-            </li>
-            <li class="menu-item <?= $current_nav === 'dashboard' ? 'active' : '' ?>">
-              <a href="<?= e(url('dashboard')) ?>" class="menu-link" data-spy-target="overview">
-                <i class="menu-icon icon-base bx bx-home-smile"></i>
-                <div data-i18n="Overview">Overview</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="#community" class="menu-link" data-spy-target="community">
-                <i class="menu-icon icon-base bx bx-group"></i>
-                <div data-i18n="Community">Community</div>
-                <?php if (!empty($nav_badges['members'])): ?>
-                  <span class="badge rounded-pill bg-label-primary ms-auto"><?= (int) $nav_badges['members'] ?></span>
-                <?php endif; ?>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="#growth" class="menu-link" data-spy-target="growth">
-                <i class="menu-icon icon-base bx bx-line-chart"></i>
-                <div data-i18n="Community growth">Community growth</div>
-              </a>
-            </li>
-
-            <!-- The ecosystem -->
-            <li class="menu-header mt-7">
-              <span class="menu-header-text" data-i18n="The ecosystem">The ecosystem</span>
-            </li>
-            <li class="menu-item">
-              <a href="#dimensions" class="menu-link" data-spy-target="dimensions">
-                <i class="menu-icon icon-base bx bx-layer"></i>
-                <div data-i18n="Five dimensions">Five dimensions</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="#leadership" class="menu-link" data-spy-target="leadership">
-                <i class="menu-icon icon-base bx bx-medal"></i>
-                <div data-i18n="Leadership path">Leadership path</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="#participation" class="menu-link" data-spy-target="participation">
-                <i class="menu-icon icon-base bx bx-check-shield"></i>
-                <div data-i18n="Participation">Participation</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="#journey" class="menu-link" data-spy-target="journey">
-                <i class="menu-icon icon-base bx bx-map"></i>
-                <div data-i18n="The journey">The journey</div>
-              </a>
-            </li>
-
-            <!-- Account -->
-            <li class="menu-header mt-7">
-              <span class="menu-header-text" data-i18n="Account">Account</span>
-            </li>
-            <li class="menu-item">
-              <a href="#membership" class="menu-link" data-spy-target="membership">
-                <i class="menu-icon icon-base bx bx-user-circle"></i>
-                <div data-i18n="My membership">My membership</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="#questions" class="menu-link" data-spy-target="questions">
-                <i class="menu-icon icon-base bx bx-help-circle"></i>
-                <div data-i18n="Questions">Questions</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <a href="<?= e(url('register')) ?>" class="menu-link">
-                <i class="menu-icon icon-base bx bx-user-plus"></i>
-                <div data-i18n="Add member">Add member</div>
-              </a>
-            </li>
-            <li class="menu-item">
-              <form method="POST" action="<?= e(url('logout')) ?>" class="w-100">
-                <?= csrf_field() ?>
-                <button type="submit" class="menu-link w-100 border-0 bg-transparent">
-                  <i class="menu-icon icon-base bx bx-power-off"></i>
-                  <div data-i18n="Sign Out">Sign Out</div>
-                </button>
-              </form>
-            </li>
-          </ul>
+<?php require __DIR__ . '/sidebar.php'; ?>
         </aside>
         <!-- / Menu -->
+<?php endif; ?>
 
         <!-- Layout container -->
         <div class="layout-page">
@@ -191,6 +123,7 @@ $current_nav = $current_nav ?? 'dashboard';
             class="layout-navbar container-xxl navbar-detached navbar navbar-expand-xl align-items-center bg-navbar-theme"
             id="layout-navbar"
           >
+<?php if ($has_menu): ?>
             <div
               class="layout-menu-toggle navbar-nav align-items-xl-center me-4 me-xl-0 d-xl-none"
             >
@@ -201,10 +134,17 @@ $current_nav = $current_nav ?? 'dashboard';
                 <i class="icon-base bx bx-menu icon-md"></i>
               </a>
             </div>
+<?php else: ?>
+            <a href="<?= e($me ? url('dashboard') : url('login')) ?>" class="app-brand-link me-4">
+              <?php $brand_logo_height = 32; ?>
+              <?php require __DIR__ . '/logo.php'; ?>
+            </a>
+<?php endif; ?>
             <div
               class="navbar-nav-right d-flex align-items-center justify-content-end"
               id="navbar-collapse"
             >
+<?php if ($has_menu): ?>
               <!-- Quick search -->
               <div class="navbar-nav align-items-center d-none d-md-flex me-xl-4">
                 <div class="nav-item d-flex align-items-center">
@@ -213,14 +153,16 @@ $current_nav = $current_nav ?? 'dashboard';
                     type="search"
                     id="navbarQuickSearch"
                     class="form-control border-0 bg-transparent shadow-none ps-2"
-                    placeholder="Search members…"
-                    aria-label="Search members"
+                    placeholder="<?= $layout === 'admin' ? 'Search members…' : 'Search the shop…' ?>"
+                    aria-label="Search"
                   />
                 </div>
               </div>
               <!-- / Quick search -->
+<?php endif; ?>
 
               <ul class="navbar-nav flex-row align-items-center ms-md-auto">
+<?php if ($has_menu): ?>
                 <!-- Notifications -->
                 <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-2">
                   <a
@@ -265,11 +207,6 @@ $current_nav = $current_nav ?? 'dashboard';
 <?php endforeach; ?>
                       </ul>
                     </li>
-                    <li class="border-top">
-                      <div class="d-grid p-3">
-                        <a class="btn btn-primary btn-sm" href="#community">View the community</a>
-                      </div>
-                    </li>
                   </ul>
                 </li>
                 <!-- / Notifications -->
@@ -289,7 +226,7 @@ $current_nav = $current_nav ?? 'dashboard';
                   </a>
                   <ul class="dropdown-menu dropdown-menu-end">
                     <li>
-                      <a class="dropdown-item" href="#account">
+                      <a class="dropdown-item" href="<?= e(url('dashboard')) ?>">
                         <div class="d-flex">
                           <div class="flex-shrink-0 me-3">
                             <div class="avatar avatar-online">
@@ -309,15 +246,15 @@ $current_nav = $current_nav ?? 'dashboard';
                       <div class="dropdown-divider my-1"></div>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="#membership">
-                        <i class="icon-base bx bx-user icon-md me-3"></i
-                        ><span>My membership</span>
+                      <a class="dropdown-item" href="<?= e(url('dashboard')) ?>">
+                        <i class="icon-base bx bx-home-smile icon-md me-3"></i
+                        ><span>Dashboard</span>
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="#questions">
-                        <i class="icon-base bx bx-help-circle icon-md me-3"></i
-                        ><span>Questions</span>
+                      <a class="dropdown-item" href="<?= e(url('profile/password')) ?>">
+                        <i class="icon-base bx bx-lock-alt icon-md me-3"></i
+                        ><span>Change password</span>
                       </a>
                     </li>
                     <li>
@@ -328,13 +265,20 @@ $current_nav = $current_nav ?? 'dashboard';
                         <?= csrf_field() ?>
                         <button type="submit" class="dropdown-item border-0 bg-transparent w-100">
                           <i class="icon-base bx bx-power-off icon-md me-3"></i
-                          ><span>Log Out</span>
+                          ><span>Sign out</span>
                         </button>
                       </form>
                     </li>
                   </ul>
                 </li>
                 <!--/ User -->
+<?php else: ?>
+                <li class="nav-item">
+                  <a class="btn btn-sm btn-primary" href="<?= e($me ? url('dashboard') : url('login')) ?>">
+                    <?= $me ? 'Dashboard' : 'Sign in' ?>
+                  </a>
+                </li>
+<?php endif; ?>
               </ul>
             </div>
           </nav>
@@ -342,3 +286,4 @@ $current_nav = $current_nav ?? 'dashboard';
 
           <!-- Content wrapper -->
           <div class="content-wrapper">
+<?php require dirname(__DIR__) . '/views/partials/flash.php'; ?>

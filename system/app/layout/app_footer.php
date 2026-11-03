@@ -6,14 +6,15 @@
                 >
                   <div class="mb-2 mb-md-0">
                     &#169;
-                    <?= date('Y') ?> — Eco-wealth login &amp; registration, made with
-                    <span class="text-danger">&#x2764;</span> using
-                    <a href="https://www.php.net" target="_blank" rel="noopener" class="footer-link">PHP <?= PHP_VERSION ?></a>
-                    &amp;
-                    <a href="https://www.mysql.com" target="_blank" rel="noopener" class="footer-link">MySQL</a>.
+                    <?= date('Y') ?> <?= e(APP_NAME) ?> — <?= e(APP_TAGLINE) ?>.
+                    <span class="text-body-secondary">All rights reserved.</span>
                   </div>
                   <div class="d-none d-lg-inline-block">
-                    Template by
+                    Built with
+                    <a href="https://www.php.net" target="_blank" rel="noopener" class="footer-link">PHP <?= PHP_VERSION ?></a>
+                    &amp;
+                    <a href="https://www.mysql.com" target="_blank" rel="noopener" class="footer-link">MySQL</a>
+                    &middot;
                     <a
                       href="https://themeselection.com/item/sneat-bootstrap-html-admin-template/"
                       target="_blank"

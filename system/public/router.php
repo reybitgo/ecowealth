@@ -1,19 +1,23 @@
 <?php
-/**
- * Router for the PHP built-in development server:
- *     php -S 127.0.0.1:8080 -t <public> router.php
- *
- * - Existing static files (assets) are served as-is.
- * - Clean URLs are mapped to their page scripts.
- * - Trailing slashes are tolerated ('/dashboard/' === '/dashboard').
- */
 declare(strict_types=1);
 
-$rawPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-$decoded = rawurldecode($rawPath);   // '%40form-validation' → '@form-validation'
+/**
+ * Router for the PHP built-in development server:
+ *     php -S 127.0.0.1:8080 -t public public/router.php
+ *
+ * Parity with public/.htaccess (plan §3.3):
+ *   - existing static files are streamed as-is,
+ *   - the four standalone pages keep their own scripts,
+ *   - every other path goes through the front controller.
+ */
 
-/* 1) Real, non-PHP files -> let the built-in server stream them */
-if ($decoded !== '/' && is_file(__DIR__ . $decoded) && pathinfo($decoded, PATHINFO_EXTENSION) !== 'php') {
+$rawPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$decoded = rawurldecode($rawPath);
+
+/* 1) Real, non-PHP files (assets, uploads) -> let the built-in server stream them */
+if ($decoded !== '/'
+    && is_file(__DIR__ . $decoded)
+    && strtolower((string) pathinfo($decoded, PATHINFO_EXTENSION)) !== 'php') {
     return false;
 }
 
@@ -23,24 +27,20 @@ if ($path === '') {
     $path = '/';
 }
 
-/*
- * The built-in server always serves this app from the document root,
- * so pin the base URL for every page script — keeps url() stable even
- * when the request arrived with a trailing slash.
- */
+/* The built-in server always serves the app from the document root. */
 define('APP_BASE_URL', '/');
 
-/* 3) Clean URLs */
-$routes = [
-    '/'           => 'index.php',
-    '/login'      => 'login.php',
-    '/register'   => 'register.php',
-    '/dashboard'  => 'dashboard.php',
-    '/logout'     => 'logout.php',
+/* 3) Standalone pages kept outside the router in this build */
+$standalone = [
+    '/'          => 'index.php',
+    '/login'     => 'login.php',
+    '/register'  => 'register.php',
+    '/dashboard' => 'dashboard.php',
+    '/logout'    => 'logout.php',
 ];
 
-if (isset($routes[$path])) {
-    require __DIR__ . '/' . $routes[$path];
+if (isset($standalone[$path])) {
+    require __DIR__ . '/' . $standalone[$path];
     return true;
 }
 
@@ -50,7 +50,6 @@ if (preg_match('#^/([A-Za-z0-9_-]+)\.php$#', $path, $m) && is_file(__DIR__ . '/'
     return true;
 }
 
-/* 5) Everything else -> 404 */
-http_response_code(404);
-require __DIR__ . '/404.php';
+/* 5) Everything else -> the front controller */
+require __DIR__ . '/index.php';
 return true;

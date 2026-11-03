@@ -1,17 +1,24 @@
 # ==============================================================
-#  Eco-wealth — Apache / XAMPP clean URLs
-#  Maps /login → login.php etc. so the app works out of the box,
-#  at the document root OR inside a sub-folder (e.g. /ecowealth/system/public/).
+#  EcoWealth — Apache clean URLs (plan §3.3)
+#  Works at the document root AND inside a sub-folder
+#  (e.g. /ecowealth/system/, forwarded from system/.htaccess).
 # ==============================================================
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
-  # Clean page routes (QSA keeps any extra query parameters)
+  # Standalone pages kept outside the router in this build.
+  # (login/register/logout stay untouched this phase; dashboard is
+  #  re-routed in Phase 9.)
   RewriteRule ^login/?$      login.php      [L,QSA]
   RewriteRule ^register/?$   register.php   [L,QSA]
-  RewriteRule ^dashboard/?$  dashboard.php  [L,QSA]
   RewriteRule ^logout/?$     logout.php     [L,QSA]
+  RewriteRule ^dashboard/?$  dashboard.php  [L,QSA]
+
+  # Everything that is not a real file or directory -> front controller.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [L,QSA]
 </IfModule>
 
 # Default entry point

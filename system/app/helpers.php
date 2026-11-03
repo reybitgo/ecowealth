@@ -18,29 +18,54 @@ declare(strict_types=1);
  */
 function base_url(): string
 {
-    static $base = null;
-    if ($base !== null) {
-        return $base;
+    if (isset($GLOBALS['__base_url_cache'])) {
+        return $GLOBALS['__base_url_cache'];
     }
 
-    /* router.php can pin the base (used for its 404 page) */
+    /* The front controller / router.php pin the base before bootstrap. */
     if (defined('APP_BASE_URL')) {
-        $base = APP_BASE_URL;
-        return $base;
+        return $GLOBALS['__base_url_cache'] = APP_BASE_URL;
     }
 
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
     /* Directory request ('/', '/sneat-auth/public/') → the folder itself */
     if ($path === '' || str_ends_with($path, '/')) {
-        $base = $path === '' ? '/' : $path;
-        return $base;
+        return $GLOBALS['__base_url_cache'] = ($path === '' ? '/' : $path);
     }
 
     /* Page request ('/login', '/sneat-auth/public/login.php') → its folder */
     $dir  = dirname($path);                       // '/' | '/sneat-auth/public'
     $base = ($dir === '/' || $dir === '\\' || $dir === '.') ? '/' : rtrim($dir, '/') . '/';
-    return $base;
+
+    return $GLOBALS['__base_url_cache'] = $base;
+}
+
+/** Forget the cached base URL (tests switch between request shapes). */
+function base_url_reset(): void
+{
+    unset($GLOBALS['__base_url_cache']);
+}
+
+/**
+ * Installation prefix derived from the executing script.
+ *
+ * public/index.php lives one level below the app root, and system/.htaccess
+ * forwards /system/x → public/x, so two dirname() calls give the prefix the
+ * browser sees: "/" at a document root, "/ecowealth/system/" in a sub-folder.
+ */
+function detect_app_base_url(string $scriptName): string
+{
+    $script = str_replace('\\', '/', $scriptName);
+    $dir    = str_replace('\\', '/', dirname($script));
+    $dir    = rtrim($dir, '/');
+    $parent = $dir === '' ? '' : rtrim(str_replace('\\', '/', dirname($dir)), '/');
+
+    if ($parent === '' || $parent === '.') {
+        return '/';
+    }
+
+    return $parent . '/';
 }
 
 /**
@@ -249,4 +274,309 @@ function time_ago(?string $value): string
     if ($diff < 86400)   return floor($diff / 3600) . ' hr ago';
     if ($diff < 604800)  return floor($diff / 86400) . ' day(s) ago';
     return date('M j, Y', $ts);
+}
+
+/* ==============================================================
+ *  Money (plan §3.6)
+ * ============================================================== */
+
+/**
+ * Format an amount as pesos: money(1234.5) → "₱1,234.50".
+ * With $withSign the sign is always shown: "+₱1,234.50" / "-₱10.00".
+ */
+function money(float|int|string|null $amount, bool $withSign = false): string
+{
+    $value = (float) ($amount ?? 0);
+    $sign  = '';
+
+    if ($withSign) {
+        $sign = $value < 0 ? '-' : '+';
+    } elseif ($value < 0) {
+        $sign = '-';
+    }
+
+    return $sign . CURRENCY_SYMBOL . number_format(abs($value), 2, '.', ',');
+}
+
+/**
+ * Status pill for tables and cards.
+ *
+ * $overrides lets a page restyle a status without touching the defaults:
+ *   status_badge('paid', ['paid' => ['Settled', 'info']])
+ *
+ * @param array<string, array{0: string, 1: string}> $overrides label + Bootstrap tone
+ */
+function status_badge(string $status, array $overrides = []): string
+{
+    $map = [
+        /* Orders */
+        'pending'          => ['Pending', 'warning'],
+        'payment_review'   => ['Payment review', 'info'],
+        'payment_failed'   => ['Payment failed', 'danger'],
+        'paid'             => ['Paid', 'primary'],
+        'packing'          => ['Packing', 'info'],
+        'ready_to_ship'    => ['Ready to ship', 'info'],
+        'shipped'          => ['Shipped', 'primary'],
+        'delivered'        => ['Delivered', 'success'],
+        'completed'        => ['Completed', 'success'],
+        'cancelled'        => ['Cancelled', 'secondary'],
+        /* Activations */
+        'pending_payment'  => ['Pending payment', 'warning'],
+        'approved'         => ['Approved', 'success'],
+        'rejected'         => ['Rejected', 'danger'],
+        /* Registration codes */
+        'unused'           => ['Unused', 'success'],
+        'used'             => ['Used', 'secondary'],
+        'expired'          => ['Expired', 'danger'],
+        /* Members / products / packages */
+        'active'           => ['Active', 'success'],
+        'inactive'         => ['Inactive', 'secondary'],
+        'suspended'        => ['Suspended', 'danger'],
+        /* Wallet / commission / proof lifecycles */
+        'credited'         => ['Credited', 'success'],
+        'skipped'          => ['Skipped', 'secondary'],
+        'voided'           => ['Voided', 'secondary'],
+        'failed'           => ['Failed', 'danger'],
+        'verified'         => ['Verified', 'success'],
+        'logged_out'       => ['Logged out', 'secondary'],
+    ];
+
+    $map = $overrides + $map;
+
+    [$label, $tone] = $map[$status] ?? [ucfirst(str_replace('_', ' ', $status)), 'secondary'];
+
+    return '<span class="badge bg-label-' . e($tone) . '">' . e($label) . '</span>';
+}
+
+/* ==============================================================
+ *  Settings (plan §4.2) — key/value rows in `settings`
+ * ============================================================== */
+
+/**
+ * Read a setting. The whole table is loaded once per request.
+ * Missing tables/rows fall back to the caller's default (and are
+ * logged) so the app stays usable during a migration.
+ */
+function setting(string $key, mixed $default = null): mixed
+{
+    if (!isset($GLOBALS['__settings_cache'])) {
+        $GLOBALS['__settings_cache'] = [];
+
+        try {
+            foreach (db()->query('SELECT key_name, value FROM settings') as $row) {
+                $GLOBALS['__settings_cache'][(string) $row['key_name']] = (string) $row['value'];
+            }
+        } catch (PDOException $e) {
+            error_log('[ecowealth] settings unavailable: ' . $e->getMessage());
+            $GLOBALS['__settings_cache'] = [];
+        }
+    }
+
+    return array_key_exists($key, $GLOBALS['__settings_cache'])
+        ? $GLOBALS['__settings_cache'][$key]
+        : $default;
+}
+
+function setting_bool(string $key, bool $default = false): bool
+{
+    $value = setting($key, null);
+    if ($value === null) {
+        return $default;
+    }
+
+    return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+}
+
+function setting_int(string $key, int $default = 0): int
+{
+    $value = setting($key, null);
+
+    return $value === null ? $default : (int) $value;
+}
+
+function setting_float(string $key, float $default = 0.0): float
+{
+    $value = setting($key, null);
+
+    return $value === null ? $default : (float) $value;
+}
+
+/** All settings as key => value (for the admin settings page, Phase 15). */
+function setting_all(): array
+{
+    setting('__warm_cache__');
+
+    return $GLOBALS['__settings_cache'];
+}
+
+/** Drop the per-request cache (call after writing a setting). */
+function setting_cache_clear(): void
+{
+    unset($GLOBALS['__settings_cache']);
+}
+
+/** Persist one setting. Callers are responsible for authorisation + audit. */
+function setting_set(string $key, string $value): void
+{
+    db()->prepare(
+        'INSERT INTO settings (key_name, value) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE value = ?'
+    )->execute([$key, $value, $value]);
+
+    $GLOBALS['__settings_cache'][$key] = $value;
+}
+
+/* ==============================================================
+ *  Form errors (paired with old()/old_set()/old_clear())
+ * ============================================================== */
+
+/** @param array<string, string> $errors field => message */
+function errors_set(array $errors): void
+{
+    $_SESSION['_errors'] = $errors;
+    unset($GLOBALS['__form_errors']);
+}
+
+/** @return array<string, string> */
+function errors_all(): array
+{
+    if (isset($GLOBALS['__form_errors'])) {
+        return $GLOBALS['__form_errors'];
+    }
+
+    $errors = $_SESSION['_errors'] ?? [];
+    unset($_SESSION['_errors']);
+
+    return $GLOBALS['__form_errors'] = is_array($errors) ? $errors : [];
+}
+
+function error_for(string $field): string
+{
+    return (string) (errors_all()[$field] ?? '');
+}
+
+function has_error(string $field): bool
+{
+    return error_for($field) !== '';
+}
+
+/** Bootstrap's is-invalid class for an input. */
+function invalid_class(string $field, string $extra = ''): string
+{
+    return has_error($field) ? trim('is-invalid ' . $extra) : $extra;
+}
+
+/* ==============================================================
+ *  JSON + redirect helpers
+ * ============================================================== */
+
+/** Emit a JSON response and end the request (plan §3.6 AJAX contract). */
+function json_response(array $payload, int $status = 200): never
+{
+    if (!headers_sent()) {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
+    }
+
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/**
+ * Redirect to the same-origin referer (app-relative) or a fallback.
+ * Used after a failed POST so the user lands back on the form.
+ */
+function redirect_back(string $fallback = '/'): never
+{
+    $referer = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+    $host    = (string) ($_SERVER['HTTP_HOST'] ?? '');
+
+    if ($referer !== '' && $host !== '') {
+        $refHost = parse_url($referer, PHP_URL_HOST);
+        $ourHost = parse_url('http://' . $host, PHP_URL_HOST);
+
+        if (is_string($refHost) && is_string($ourHost) && strcasecmp($refHost, $ourHost) === 0) {
+            $path  = (string) (parse_url($referer, PHP_URL_PATH) ?: '/');
+            $query = parse_url($referer, PHP_URL_QUERY);
+
+            $base = base_url();
+            if ($base !== '/' && str_starts_with($path, $base)) {
+                $path = substr($path, strlen($base) - 1);
+            }
+
+            $target = ltrim($path, '/') . ($query ? '?' . $query : '');
+
+            redirect($target === '' ? $fallback : $target);
+        }
+    }
+
+    redirect($fallback);
+}
+
+/* ==============================================================
+ *  Navigation (plan §3.5) — config lives in app/layout/nav.php
+ * ============================================================== */
+
+/** @return array<string, array{title: string, sections: array}> */
+function nav_config(): array
+{
+    static $config = null;
+
+    if ($config === null) {
+        $config = require __DIR__ . '/layout/nav.php';
+    }
+
+    return $config;
+}
+
+/** May the current viewer see this nav item? */
+function nav_can_see(array $item, ?array $user = null): bool
+{
+    return match ($item['guard'] ?? 'member') {
+        'any'        => true,
+        'member'     => $user !== null,
+        'admin'      => is_admin($user),
+        'superadmin' => is_superadmin($user),
+        default      => false,
+    };
+}
+
+/** Has the phase that builds this item already shipped? */
+function nav_item_live(array $item): bool
+{
+    return (int) ($item['phase'] ?? 1) <= (int) APP_PHASE;
+}
+
+/**
+ * Which nav item is active, derived from the current request path.
+ * The longest matching path wins, so /admin/products beats /admin.
+ */
+function nav_current_key(string $layout, ?array $user = null): string
+{
+    $path = Request::path();
+    $best = '';
+    $key  = '';
+
+    foreach (nav_config()[$layout]['sections'] ?? [] as $section) {
+        foreach ($section['items'] ?? [] as $item) {
+            if (!nav_can_see($item, $user)) {
+                continue;
+            }
+
+            $itemPath = '/' . trim((string) ($item['path'] ?? ''), '/');
+            if ($itemPath === '/') {
+                continue;
+            }
+
+            if ($path === $itemPath || str_starts_with($path, $itemPath . '/')) {
+                if (strlen($itemPath) > strlen($best)) {
+                    $best = $itemPath;
+                    $key  = (string) ($item['key'] ?? '');
+                }
+            }
+        }
+    }
+
+    return $key;
 }

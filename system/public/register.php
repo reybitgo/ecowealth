@@ -7,6 +7,11 @@ declare(strict_types=1);
 require __DIR__ . '/../app/bootstrap.php';
 
 require_guest();
+
+/* Registration is part of the public site: it follows maintenance mode
+ * (the reference closed it with a seat-limit gate instead). */
+MaintenanceGate::handle();
+
 old_clear();
 
 $errors = [];

@@ -6,9 +6,10 @@
 # Local configuration (database credentials, payment accounts, flags)
 config.local.php
 
-# Uploaded media (directories are created in Phase 1; keep placeholders)
+# Uploaded media (directories are created at runtime; keep the guards)
 system/public/uploads/*
 !system/public/uploads/.gitkeep
+!system/public/uploads/.htaccess
 
 # Logs and one-off dumps
 *.log

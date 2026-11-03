@@ -76,12 +76,77 @@ function auth_check(): bool
     return auth_user() !== null;
 }
 
+/* --------------------------------------------------------------
+ *  Roles (plan §3.4)
+ *    member     — shopping + membership, no back office
+ *    admin      — back office (products, orders, wallets, …)
+ *    superadmin — admin plus the S-Login console (Phase 14)
+ * -------------------------------------------------------------- */
+
+/** Is the given (or signed-in) user an admin or superadmin? */
+function is_admin(?array $user = null): bool
+{
+    $user ??= auth_user();
+
+    return $user !== null && in_array((string) $user['role'], ['admin', 'superadmin'], true);
+}
+
+/** Is the given (or signed-in) user a superadmin? */
+function is_superadmin(?array $user = null): bool
+{
+    $user ??= auth_user();
+
+    return $user !== null && (string) $user['role'] === 'superadmin';
+}
+
+function is_member(?array $user = null): bool
+{
+    $user ??= auth_user();
+
+    return $user !== null && (string) $user['role'] === 'member';
+}
+
 /** Guard for protected pages. */
 function require_login(): void
 {
     if (!auth_check()) {
         flash_set('warning', 'Please sign in to continue.');
         redirect('login');
+    }
+}
+
+/**
+ * Guard for the member area. Admins may use the member portal too
+ * (reference behaviour, plan §3.4); self-review is guarded separately.
+ */
+function require_member(): void
+{
+    require_login();
+}
+
+/**
+ * Guard for the back office. Signed-in non-admins get the 403 page,
+ * never a redirect loop (plan §3.4).
+ */
+function require_admin(): void
+{
+    if (!auth_check()) {
+        flash_set('warning', 'Please sign in to continue.');
+        redirect('login');
+    }
+
+    if (!is_admin()) {
+        View::error(403);
+    }
+}
+
+/** Guard for the S-Login console. */
+function require_superadmin(): void
+{
+    require_admin();
+
+    if (!is_superadmin()) {
+        View::error(403);
     }
 }
 
@@ -235,7 +300,7 @@ function auth_register(string $username, string $email, string $password, string
         return $errors;
     }
 
-    db()->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, "user")')
+    db()->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, \'member\')')
         ->execute([$username, $email, password_hash($password, PASSWORD_BCRYPT)]);
 
     return [];

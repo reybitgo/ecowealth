@@ -1,225 +1,254 @@
-# Sneat Auth — Login & Registration System (PHP + MySQL)
+# EcoWealth — application (`system/`)
 
-A complete, security-first login & registration system written in **plain PHP 8** with a **MySQL** database, styled with the **Sneat** Bootstrap 5 admin template.
+Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL with no
+framework and no Composer. This folder is the backend application; the public marketing
+front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
----
+**Current status: Phase 1 — core skeleton** (router, layouts, roles, settings, test harness).
+The shop/checkout modules from Phase 2 onwards are not in this folder yet; menu entries for
+later phases render as disabled "Soon" items while `APP_DEBUG` is on and are hidden in production.
 
-## ✨ Features
-
-| Area | What you get |
+| | |
 |---|---|
-| **Registration** | Server-side validation (username 3–50 chars, unique email, password ≥ 8 chars + confirmation, terms checkbox) synced with the template's client-side FormValidation |
-| **Login** | Email **or** username sign-in, brute-force lockout (5 failed attempts → 15-minute cooldown), friendly flash messages |
-| **Remember me** | Secure 30-day cookie using a `selector : validator` token pair — only the SHA-256 hash of the validator is stored in MySQL, tokens rotate on every use |
-| **Password storage** | `password_hash()` / `password_verify()` (bcrypt, cost 10) |
-| **SQL injection** | 100% PDO prepared statements, `ATTR_EMULATE_PREPARES = false` |
-| **CSRF** | Per-session token, `hash_equals()` verification on every POST form |
-| **XSS** | All output escaped through the `e()` helper (`htmlspecialchars`, ENT_QUOTES) |
-| **Sessions** | HttpOnly + SameSite=Lax cookies, strict mode, ID regeneration on login, 30-minute idle timeout |
-| **Accounts** | `role` (user/admin), `is_active` flag, `last_login_at` tracking, unique username & email |
-| **Pages** | Login, Register, protected Dashboard, Logout, 404 |
+| App URL (Laragon) | `http://localhost/ecowealth/system/` |
+| Front door | `http://localhost/ecowealth/` → repo-root `index.html` |
+| Plan | `dmp/plan-ecowealth-cart-system.md` |
+| Running log | `docs/phase-log.md` |
 
-## 📦 What's in this package
+---
 
-```
-sneat-auth/
-├── README.md                 ← this file
-├── app/
-│   ├── .htaccess             ← denies direct web access to this folder
-│   ├── bootstrap.php         ← shared bootstrapper (required by every page)
-│   ├── config.php            ← DB credentials & app settings  ← EDIT ME
-│   ├── database.php          ← lazy PDO/MySQL connection
-│   ├── auth.php              ← all auth logic (login/register/remember/guards)
-│   ├── helpers.php           ← url(), e(), csrf, flash, old(), redirect
-│   └── layout/               ← shared UI partials (headers, footers, logo)
-├── database/
-│   ├── .htaccess             ← denies direct web access to this folder
-│   ├── schema.sql            ← pristine schema + demo account (idempotent)
-│   └── database-export.sql   ← full mysqldump (schema + live data)
-└── public/                   ← docroot
-    ├── .htaccess             ← clean URLs on Apache (/login → login.php)
-    ├── index.php             ← entry point (redirects guest → login)
-    ├── login.php  register.php  logout.php
-    ├── dashboard.php         ← protected page
-    ├── 404.php  router.php   ← pretty URLs for the built-in server
-    ├── cf-fonts/             ← Public Sans webfont (woff2)
-    └── assets/               ← Sneat template assets (CSS/JS/img/vendor)
-```
+## Requirements
 
-## 📋 Requirements
-
-| Component | Minimum | Notes |
+| Component | Version | Notes |
 |---|---|---|
-| **PHP** | **8.1+** | Demo runs 8.3. Needs the `pdo_mysql` extension (bundled in Laragon / XAMPP / WAMP). |
-| **MySQL** | 5.7+ (or MariaDB 10.4+) | Demo runs 8.4. |
-| **Web server** | Apache with `mod_rewrite` — or none at all | Laragon, XAMPP, WAMP ship it pre-enabled. PHP's built-in server works via `public/router.php`. |
+| PHP | **8.1+** (runs on 8.3.16) | `pdo_mysql`, `fileinfo` |
+| MySQL | 8.x (runs on 8.4.3) | `utf8mb4` / `utf8mb4_unicode_ci` |
+| Web server | Apache 2.4 + `mod_rewrite` | or PHP's built-in server via `public/router.php` |
 
 ---
 
-## 🚀 Quick start — Laragon (recommended on Windows)
+## Quick start (Laragon)
 
-[Laragon](https://laragon.org/download) gives you Apache + MySQL + PHP in one portable app,
-with pretty URLs and automatic virtual hosts already configured.
+1. **Start All** in Laragon (Apache + MySQL).
+2. **Create the database and account** (once), then put the credentials in
+   `app/config.local.php` (git-ignored — copy the shape from `config.example` section below):
 
-1. **Install & start**
-   - Download the **Full** edition from <https://laragon.org/download> and install it.
-   - Click **Start All** — Apache and MySQL both light up green.
-   - Need a newer PHP? Laragon Menu → *PHP → Version* — pick **8.1 or newer**.
-
-2. **Unzip the package into Laragon's web root**
+   ```sql
+   CREATE DATABASE ecowealth_sneat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER 'ecowealth'@'localhost' IDENTIFIED BY '<password>';
+   CREATE USER 'ecowealth'@'127.0.0.1' IDENTIFIED BY '<password>';
+   GRANT ALL PRIVILEGES ON ecowealth_sneat.* TO 'ecowealth'@'localhost', 'ecowealth'@'127.0.0.1';
    ```
-   C:\laragon\www\sneat-auth
+
+3. **Import the schema and seeds**
+
+   ```bash
+   mysql -u root ecowealth_sneat < database/schema.sql
+   mysql -u root ecowealth_sneat < database/seeds/001_settings.sql
+   mysql -u root ecowealth_sneat < database/seeds/002_accounts.sql
    ```
-   With Laragon's *Auto Virtual Hosts* (on by default) the app is also reachable at
-   `http://sneat-auth.test` — both URLs work.
 
-3. **Import the database**
-   - Laragon Menu → **MySQL → phpMyAdmin** (<http://localhost/phpmyadmin>)
-     → *Import* → choose `database/schema.sql` → **Go**
-   - Or from Laragon's terminal (Menu → *Terminal*):
-     ```bash
-     mysql -u root < database/schema.sql
-     ```
-   The script creates the `sneat_auth` database, the `sneat_user` MySQL account
-   (password `Sneat#2026Secure`), both tables and the demo admin.
+4. **Open** `http://localhost/ecowealth/system/` and sign in.
 
-4. **Check `app/config.php`** — pick whichever MySQL account you prefer:
-   ```php
-   const DB_HOST = '127.0.0.1';
-   const DB_NAME = 'sneat_auth';
-   const DB_USER = 'sneat_user';        // created by schema.sql …
-   const DB_PASS = 'Sneat#2026Secure';  // … or use Laragon's stock root:
-   // const DB_USER = 'root';           // stock Laragon root has no password
-   // const DB_PASS = '';
-   ```
-   Nothing else to edit — URLs are auto-detected (docroot, sub-folder or vhost).
+### Demo accounts
 
-5. **Open & sign in**
-   ```
-   http://sneat-auth.test/public/        (auto virtual host)
-   http://localhost/sneat-auth/public/   (plain localhost)
-   ```
-   Log in with **admin / Admin@123**, or register a brand-new account.
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `Admin@123` | `admin` |
+| `superadmin` | `Super@123` | `superadmin` (S-Login console, Phase 14) |
 
-### Laragon tips
+These are development credentials. Plan §9.6 requires both to be changed and the demo
+accounts removed before production.
 
-- **Pretty URLs** (`/login`, `/dashboard`) work out of the box — Laragon's Apache has
-  `mod_rewrite` and `AllowOverride All` enabled, and the shipped `public/.htaccess`
-  does the rewriting. Trailing slashes (`/dashboard/`) are handled gracefully too.
-- **Prefer Nginx?** Laragon can switch to Nginx, but you'd need to translate the
-  rewrite rules from `public/htaccess-for-apache.txt` into an Nginx `location` block.
-- **Different MySQL port?** Update `DB_PORT` in `app/config.php` to match.
-
----
-
-## 🚀 Quick start — XAMPP / WAMP / LAMP
-
-1. **Copy** the `sneat-auth` folder into your web root:
-   - XAMPP: `C:\xampp\htdocs\sneat-auth`
-   - WAMP: `C:\wamp64\www\sneat-auth`
-   - LAMP (Linux): `/var/www/html/sneat-auth`
-2. **Start** Apache + MySQL (XAMPP/WAMP control panel, `systemctl start apache2 mysql` on LAMP)
-3. **Import the database** — open <http://localhost/phpmyadmin> → *Import* → choose
-   `database/schema.sql` → Go.
-   The script creates:
-   - database `sneat_auth` (utf8mb4)
-   - MySQL user `sneat_user` with password `Sneat#2026Secure`
-   - tables `users` + `remember_tokens`
-   - demo account **admin / Admin@123**
-4. **Check credentials** in `app/config.php` (defaults already match `schema.sql`;
-   change them if your MySQL root has no password or you use different values)
-5. **Open** <http://localhost/sneat-auth/public/> and log in with `admin` / `Admin@123`
-
----
-
-## 🚀 Quick start — PHP built-in server (no Apache needed)
-
-Works on Windows, macOS and Linux — any folder, no web-server configuration:
+### Built-in PHP server (no Apache)
 
 ```bash
-cd sneat-auth
-mysql -u root -p < database/schema.sql
-php -S localhost:8080 -t public public/router.php
-# open http://localhost:8080
+php -S 127.0.0.1:8080 -t public public/router.php
+# open http://127.0.0.1:8080
 ```
 
-The included `router.php` maps clean URLs (`/login`, `/register`, `/dashboard`)
-to their page scripts and streams static assets untouched.
+`router.php` mirrors `public/.htaccess`: static files stream through, the four standalone
+pages keep their scripts, everything else goes to the front controller.
 
 ---
 
-## ⚙️ Configuration (`app/config.php`)
+## Configuration
 
-| Constant | Default | Notes |
-|---|---|---|
-| `DB_HOST / DB_PORT` | `127.0.0.1` / `3306` | MySQL server |
-| `DB_NAME` | `sneat_auth` | database name |
-| `DB_USER / DB_PASS` | `sneat_user` / `Sneat#2026Secure` | created by `schema.sql` |
-| `APP_TIMEZONE` | `Asia/Manila` | PHP display timezone |
-| `DB_TIMEZONE` | `+08:00` | keep aligned with `APP_TIMEZONE` |
-| `SESSION_IDLE_MAX` | `1800` | auto-logout after 30 min idle |
-| `REMEMBER_LIFETIME` | `2592000` | 30-day remember-me |
-
-### Works anywhere — no URL configuration
-
-The app **auto-detects where it is installed**, so you never have to edit
-path settings:
-
-| Install type | Example URL | What the app generates |
-|---|---|---|
-| Document root (vhost / `php -S`) | `http://localhost:8080/login` | `/login`, `/dashboard`, … |
-| Laragon auto vhost | `http://sneat-auth.test/public/login` | `/sneat-auth/public/login`, … |
-| Sub-folder (XAMPP `htdocs/sneat-auth/`) | `http://localhost/sneat-auth/public/login.php` | `/sneat-auth/public/login`, … |
-| The live demo gateway | `…/?XTransformPort=8080` | links keep the gateway query |
-
-- Clean URLs on Apache/Laragon/XAMPP are handled by the shipped `public/.htaccess`
-  (`/login` → `login.php`). If your host disables `AllowOverride`, the direct
-  `.php` URLs (`login.php`, `register.php`, …) keep working too.
-- `app/` and `database/` ship with deny-all `.htaccess` files so source code
-  and SQL are never web-readable on Apache.
-
----
-
-## 🔧 Troubleshooting
-
-| Symptom | Fix |
+| File | Purpose |
 |---|---|
-| Blank page / HTTP 500 on login | PHP version too old — the code needs **PHP 8.1+** (`never` return type, `str_contains`). Switch version in Laragon/XAMPP or upgrade. |
-| `Access denied for user 'sneat_user'@'localhost'` | `schema.sql` wasn't imported as root, or the grants failed. Re-run `mysql -u root < database/schema.sql`, or switch `app/config.php` to your local root account. |
-| Pretty URLs (`/login`) return 404 | Enable `mod_rewrite` + `AllowOverride All` (already default in Laragon/XAMPP), or use the `.php` URLs directly. |
-| `SQLSTATE[HY000] [2002] Connection refused` | MySQL isn't running or listens on a different port — start it (Laragon: *Start All*) and check `DB_PORT`. |
-| Redirects back to login right after signing in | Cookies blocked — the app needs session cookies; allow cookies for `localhost` / `*.test`. |
-| Wrong timestamps on the dashboard | Align `APP_TIMEZONE` / `DB_TIMEZONE` in `app/config.php`. |
+| `app/config.php` | Defaults and flags, every constant declared with `defined() || define()` |
+| `app/config.local.php` | **Git-ignored.** Local DB credentials; optional `APP_ENV` |
+
+| Constant | Default | Meaning |
+|---|---|---|
+| `APP_ENV` | `production` (local: `development`) | `development` shows debug detail and "Soon" nav items |
+| `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
+| `APP_PHASE` | `1` | Build phase, drives later-phase nav visibility |
+| `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
+| `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
+| `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
+| `UPLOAD_MAX_BYTES` | 5 MB | Upload cap |
+
+`config.local.php` must **not** define `DB_NAME` — `APP_ENV=test` selects the test schema.
 
 ---
 
-## 🔐 Security checklist (already done for you)
+## Directory layout
 
-- ✅ bcrypt password hashing, never plaintext or MD5
-- ✅ PDO prepared statements for every query
-- ✅ CSRF tokens with timing-safe comparison
-- ✅ Output escaping via `e()`
-- ✅ Session cookie hardening + `session_regenerate_id(true)` on privilege change
-- ✅ Brute-force throttling (session-based, 5 attempts / 15 min)
-- ✅ Remember-me tokens stored hashed, rotated on use, expire server-side
-- ✅ Generic login errors (no user-enumeration hints)
+```
+system/
+├── app/
+│   ├── bootstrap.php          config → helpers → autoload → database → auth
+│   ├── config.php             defaults + flags
+│   ├── config.local.php       local overrides (git-ignored)
+│   ├── database.php           lazy PDO singleton, db()
+│   ├── auth.php               login/register/session, guards, roles
+│   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
+│   ├── autoload.php           Core/Models/Services/Controllers by class name
+│   ├── routes.php             the live route table (Phase 1 routes only)
+│   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
+│   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
+│   ├── Controllers/           HomeController, ShopController, AdminDashboardController, ProfileController
+│   ├── Models/                (Phase 2+)
+│   ├── Services/              (Phase 5+)
+│   ├── views/                 errors/, partials/, shop/, admin/, profile/
+│   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
+├── public/                    docroot
+│   ├── index.php              front controller
+│   ├── router.php             PHP built-in server parity
+│   ├── login.php register.php logout.php dashboard.php   (standalone this build)
+│   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
+│   └── assets/                EcoWealth theme (Sneat 3.x)
+├── database/
+│   ├── schema.sql             fresh-install DDL (no database name hard-coded)
+│   ├── migrations/            one file per phase (001_settings_roles.sql)
+│   └── seeds/                 settings defaults, demo accounts
+└── tests/
+    ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
+    ├── run.php                php tests/run.php [filter]
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P1-T11)
+    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration
+    └── fixtures/              legacy schema fixture for the migration test
+```
 
-## 🧪 Demo account
+---
 
-| Field | Value |
+## Routing and guards
+
+Requests enter `public/index.php`, which pins `APP_BASE_URL`, boots the app, runs the
+maintenance gate, matches `app/routes.php`, enforces the guard, verifies the CSRF token on
+POST, and dispatches to a controller.
+
+Route rows: `[METHOD, '/path/{id}', [Controller::class, 'method'], guard]` where `{id}`
+compiles to `([0-9]+)`. Guards:
+
+| Guard | Behaviour |
 |---|---|
-| Username | `admin` |
-| Email | `admin@sneat.dev` |
-| Password | `Admin@123` |
-| Role | `admin` |
+| `any` | Public (only `/` and the register validation endpoints in later phases) |
+| `guest` | Signed-in visitors are sent to `/dashboard` |
+| `member` | Guests are redirected to `/login` with a flash |
+| `admin` | Guests → `/login`; signed-in non-admins → **403 page** (never a redirect loop) |
+| `superadmin` | Like `admin`, plus `role = superadmin` |
 
-## 📄 License
+Roles: `users.role ∈ {member, admin, superadmin}`.
 
-- **Your code** (app logic in `app/`, `public/*.php`, `database/`): free to use, modify, ship.
-- **Sneat template assets** (`public/assets/`, `public/cf-fonts/`): subject to the
-  [Sneat](https://themeselection.com/sneat-bootstrap-html-admin-template/) license — free for
-  personal/open-source use; review ThemeSelection's licensing for commercial projects.
+### Phase 1 URLs
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/` | any | Redirect to `/dashboard` (signed in) or `/login` |
+| GET | `/shop` | member | Storefront placeholder (catalogue in Phase 2) |
+| GET | `/admin` | admin | Back-office dashboard |
+| GET | `/profile/password` | member | Change password form |
+| POST | `/profile/password` | member | Change password |
+
+Standalone pages (outside the router this build, all routed through Apache rewrites):
+`/login`, `/register`, `/logout`, `/dashboard`.
+
+Every route is mirrored in `app/routes_inventory.php`, which maps all 98 reference pages.
+`tests/Cases/ParityTest.php` (P1-T12) fails when a page marked *Port* has no matching
+route or a later-phase route is registered early.
 
 ---
 
-Built with PHP 8.3 · MySQL 8.4 · Sneat (Bootstrap 5) · no framework required.
+## Settings
+
+`settings` is a key/value table read through `setting()` / `setting_bool()` /
+`setting_int()` / `setting_float()` and written with `setting_set()`. The Phase 1 seeds
+cover payment accounts, shop windows, commission toggles, payout fees, USDT rates and
+e-wallet transfer limits; later phases read them without further migrations.
+
+Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
+`Retry-After: 3600`, admin and superadmin sessions pass straight through.
+
+---
+
+## Tests
+
+```bash
+php tests/run.php                 # full suite (77 cases in Phase 1)
+php tests/run.php Router           # cases whose group/label matches "Router"
+php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
+
+powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running app
+```
+
+- `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
+  the seeds, so a run never touches the development database (the name must end in `_test`).
+- Every case runs inside a transaction that is rolled back.
+- Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
+- The migration test builds `ecowealth_sneat_migration_test` from
+  `tests/fixtures/legacy_phase0_schema.sql` and verifies migration 001 against `schema.sql`.
+
+The smoke script needs the app running and MySQL access for two temporary changes
+(a throw-away member account and `maintenance_mode`, both restored):
+
+```powershell
+powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
+```
+
+---
+
+## Migrations
+
+- Fresh install: `database/schema.sql` (no database name hard-coded).
+- Existing install: apply `database/migrations/NNN_*.sql` in order, then the phase seeds.
+- Before every phase gate: `mysqldump` the database to a backup outside the repo.
+
+Phase 1 migration: `001_settings_roles.sql` — creates `settings` + `audit_log`, renames the
+`user` role to `member` in three steps, adds `idx_users_role`.
+
+---
+
+## Conventions
+
+- `declare(strict_types=1)`, 4 spaces, classes in `app/Core|Models|Services|Controllers`.
+- Views escape with `e()`; no SQL and no business rules in views.
+- All POSTs are CSRF protected (central check in the router for routed POSTs).
+- Forms redirect after POST; validation errors go through `errors_set()` / `error_for()`.
+- Money is `DECIMAL` in MySQL and formatted with `money()`; no floats in SQL.
+- Every wallet movement will be a `WalletService` call inside a transaction (Phase 5).
+
+---
+
+## Security baseline
+
+- bcrypt password hashing, `password_verify()` on login, rehash on cost change.
+- PDO prepared statements everywhere (`EMULATE_PREPARES = false`).
+- CSRF token per session, `hash_equals()` comparison; central check for routed POSTs.
+- Output escaping via `e()`.
+- Session hardening: HttpOnly, SameSite=Lax, strict mode, ID regeneration, 30-minute idle.
+- Remember-me tokens stored hashed and rotated; cleared when the password changes.
+- Uploads: MIME sniffing with `finfo`, extension whitelist, size cap, random filename,
+  PHP execution disabled under `public/uploads/`.
+- Admin guards enforced server-side; menus only hide links, never replace the guard.
+- Error pages never leak internals unless `APP_DEBUG` is on.
+
+---
+
+## Licence
+
+- Application code in `app/`, `public/*.php`, `database/`, `tests/`: free to use and modify.
+- Theme assets in `public/assets/` are the Sneat/Bootstrap template — review
+  [ThemeSelection's licence](https://themeselection.com/sneat-bootstrap-html-admin-template/)
+  before commercial use.

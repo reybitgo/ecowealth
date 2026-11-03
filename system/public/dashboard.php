@@ -10,6 +10,10 @@ require __DIR__ . '/../app/bootstrap.php';
 
 require_login();
 
+/* Standalone pages honour maintenance mode too (plan §3.3); this page is
+ * re-routed in Phase 9, at which point the front controller gates it. */
+MaintenanceGate::handle();
+
 $user = auth_user();
 
 /* --------------------------------------------------------------
