@@ -1,15 +1,17 @@
-# EcoWealth on Sneat — Phased Implementation Plan
+# EcoWealth — Phased Implementation Plan
 
 **Scope of this plan: Shop (add-to-cart, checkout, orders, payments, fulfilment) · Product management · Package management · Registration (standard / registration-code / e-wallet / pending, no binary placement) · Registration codes · Complete e-wallet (dual balance, member transfers with fees and limits, admin top-ups, monitoring) · Payouts · Super-login · Direct Referral · Indirect Referral.**
 
 | | |
 |---|---|
-| **Version** | 2.0 — full commerce + wallet + payout + super-login scope |
-| **Date** | 2026-11-01 |
-| **Target application** | `system/` — the new Sneat template app, served at `http://localhost/ecowealth/system/` |
-| **Reference implementation** | `dmp/cart-system/` — partial copy of the Altas Farm MLM + shop system |
+| **Version** | 2.1 — scope unchanged; the reference copy is now complete (front controller + public landing page) |
+| **Date** | 2026-11-03 |
+| **Target application** | `system/` — the new EcoWealth app, served at `http://localhost/ecowealth/system/` |
+| **Reference implementation** | `dmp/cart-system/` — complete copy of the Altas Farm MLM + shop system: `index.php` front controller, 3 controllers, 16 models, 51 view templates, 4 cron scripts, public landing page |
 | **Business rules** | `dmp/ecowealth3.md` (Compensation Plan V3.0), `dmp/workflow.md` (end-to-end scenarios) |
-| **Template source** | `dmp/sneat/` — raw Sneat 3.x HTML pages used as UI reference |
+| **Template source** | `dmp/sneat/` — raw 3.x HTML pages used as UI reference |
+| **Route inventory source** | `dmp/cart-system/index.php` — the 98-page `?page=` table with guards, gates and impersonation bootstrap (§2.5) |
+| **Landing page source** | `dmp/cart-system/frontend/index.php` (+ `og-image.svg`, `og-image.png`) — self-contained marketing front door (§3.5) |
 | **Document supersedes** | the `plan §…` references inside `dmp/cart-system` comments; ported code should be re-pointed to this document's section numbers |
 
 > **How to use this document.** Work top to bottom. Each phase has a *Gate* — a list of automatable and manual checks. Do not start the next phase until the current gate is green (all tests pass, no regression in earlier phases, demo data seeded, commit tagged). Estimates assume one experienced PHP developer; AI-assisted implementation typically compresses them 30–50%.
@@ -20,7 +22,7 @@
 
 ### 1.1 What we are building
 
-We are porting the **commerce, wallet and membership core** of the reference system (`dmp/cart-system`) onto the **new Sneat application** (`system/`), and replacing the reference's binary-MLM compensation engine with the **V3.0 unilevel plan**. The build covers:
+We are porting the **commerce, wallet and membership core** of the reference system (`dmp/cart-system`) onto the **new EcoWealth application** (`system/`), and replacing the reference's binary-MLM compensation engine with the **V3.0 unilevel plan**. The build covers:
 
 1. **Direct Referral Bonus** — paid to a sponsor when a personally-sponsored associate's package purchase is confirmed.
 2. **Indirect Referral (Unilevel) Bonus** — paid up to 10 levels up the sponsor chain, per package purchase.
@@ -40,7 +42,7 @@ The reference system grew complex: 14 order statuses, payment-proof windows, ref
 
 | Status | Item |
 |---|---|
-| **IN (this build)** | Product catalog CRUD (admin) + storefront listing; package CRUD (admin) + package display; package contents; DB-backed cart (add / update / remove / totals); stock availability and reservation; checkout with address book; order creation with snapshots + idempotency; e-wallet payment; manual payment (GCash / Maya / bank) with proof upload and admin review; order lifecycle up to completion; shipment tracking fields; printable invoice; member order history; admin order desk; **registration (standard / code / e-wallet / pending) with sponsor but no binary placement**; **registration codes (generate, validate, redeem, expire, export)**; **package activation**; **complete e-wallet** (dual balance, ledger, statements, admin top-ups, admin monitor); **member-to-member transfers with fee, minimum, daily/weekly limits and reset cron**; **payouts (request, approve, complete, reject, service fees, USDT rails)**; **super-login (superadmin impersonation with URL token, expiry and audit)**; **direct + indirect referral commissions**; member earnings page; admin commission ledger; settings. |
+| **IN (this build)** | Public landing page (rebranded from the reference front door) with login/register CTAs; product catalog CRUD (admin) + storefront listing; package CRUD (admin) + package display; package contents; DB-backed cart (add / update / remove / totals); stock availability and reservation; checkout with address book; order creation with snapshots + idempotency; e-wallet payment; manual payment (GCash / Maya / bank) with proof upload and admin review; order lifecycle up to completion; shipment tracking fields; printable invoice; member order history; admin order desk; **registration (standard / code / e-wallet / pending) with sponsor but no binary placement**; **registration codes (generate, validate, redeem, expire, export)**; **package activation**; **complete e-wallet** (dual balance, ledger, statements, admin top-ups, admin monitor); **member-to-member transfers with fee, minimum, daily/weekly limits and reset cron**; **payouts (request, approve, complete, reject, service fees, USDT rails)**; **super-login (superadmin impersonation with URL token, expiry and audit)**; **direct + indirect referral commissions**; member earnings page; admin commission ledger; settings. |
 | **LATER (designed for, not built)** | QA / retail-customer gate; harvest milestone ladder; residual PV unilevel; royalty ranks; partnership bonus; package upgrades; refunds and credit notes; multi-attempt reshipment / RTS; stockist fulfilment fees; email/SMS notifications; guest checkout; product categories; multi-currency; API; seat limits. |
 | **DROPPED (do not port)** | Binary tree (`binary_parent_id`, left/right legs, pair counters, pairing bonus); binary upline/position at registration and activation; lifetime cap engine; daily fixed income; reactivation; commission-deduct (CD); `product_pv`/`pv_value` inert columns from the reference. |
 
@@ -61,21 +63,34 @@ The reference system grew complex: 14 order statuses, payment-proof windows, ref
 
 ### 2.1 What the reference is
 
-Plain PHP 8 + MySQL, organised as `controllers/ models/ core/ views/ config/ cron/`, Bootstrap 5 admin and member portals, with a single front controller (`/?page=…`) that is **not included in the copy we have**. It implements a full binary-MLM business: packages with pairing bonuses, registration codes, e-wallet, payouts, caps, DFI, reactivation, a shopping module with its own order state machine, and a heavily commented security history.
+Plain PHP 8 + MySQL, organised as `controllers/ models/ core/ views/ config/ cron/`, Bootstrap 5 admin and member portals, plus a standalone public landing page in `frontend/`. Every request enters through `index.php`, which dispatches a `?page=` value through a **98-page route table** to `[Controller, method, guard]`; that table is the system's complete page inventory. It implements a full binary-MLM business: packages with pairing bonuses, registration codes, e-wallet, payouts, caps, DFI, reactivation, a shopping module with its own order state machine, and a heavily commented security history.
 
 Key facts to carry into the port:
 
 - `install.sql` (764 lines) is the authoritative schema; it is self-contained and never hard-codes a database name.
+- **Front controller** (`index.php`, 428 lines) is in the copy and is the authoritative route inventory:
+  - 98 routes — `AuthController` 12, `MemberController` 39, `AdminController` 47; guards `guest` 2 · `any` 9 · `member` 40 · `admin` 45 · `super` 2.
+  - Every controller method the table names exists in the copy (verified), so each page's behaviour can be read end-to-end before porting.
+  - The guard runs before dispatch; `any` means **unguarded at the router** and is checked inside the controller. `ewallet_transfer` and `do_ewallet_transfer` are `any` — the port must guard them as `member`.
+  - `update_usdt_gas` and `update_usdt_bep20_gas` call `AdminController` methods but are guarded `member`, because the reference's payout page pushes a live gas fee into the global setting: any signed-in member can rewrite it. The port drops those routes and keeps rates and gas fees admin-only (§5.9).
+  - A denied guard redirects to `/?page=login` with an "Access denied" flash — never a 403 page; the port deliberately differs (§2.3).
+  - Two gates run before routing: **maintenance mode** (503 + `Retry-After`, admin and superadmin bypass) and the **seat limit** (403 "Registration Closed" for `register`, `do_register`, `validate_code`). Both are inline HTML `die()` blocks inside the router.
+  - The S-Login nonce is read from `?imp=` (64 hex characters) and installed with `session_name()` + `session_id()` **before** `session_start()`; `Auth::validateImpSession()` runs immediately after and destroys the tab on expiry, IP/UA change or a non-member target.
+  - `spl_autoload_register` covers `models/` and `controllers/`; helpers, `Auth`, `Commission`, `CapEngine`, `DailyFixedIncome`, `Reactivation` load eagerly; the CSRF token is seeded once per request.
+  - Unknown pages fall back to `login`, or to `admin` / `dashboard` for signed-in users. Ajax endpoints (`validate_code`, `check_username`, `check_upline`, `auto_select_upline`, `get_packages`) are ordinary `?page=` routes, not a separate API.
+- **Public landing page** (`frontend/index.php`, 7 092 lines) is in the copy: a self-contained marketing page — inline CSS, inline SVG hero scenes, six script blocks, no external images — with an Organization / WebSite / WebPage / FAQPage JSON-LD graph, `og-image.svg` + `og-image.png`, and CTAs to `?page=login` / `?page=register`. It loads only `config/db.php` and `core/helpers.php` (for `APP_URL` and `e()`) and never renders inside the Bootstrap layout.
 - Security fixes are documented inline (cart-item IDOR, checkout idempotency, stock reservation, admin self-review guard). **Keep these behaviours** — they are the value of the reference.
 - Views call controller methods through `?page=` routes and use `link_to()`, `csrf_field()`, `fmt_money()`, `render_flash()`.
-- Static assets live outside the app under `assets/`.
+- Static assets live outside the app under `assets/`; the landing page's artwork is inline.
 - `db-export.sql` (2.5 MB) is production data — **never import**; use `install.sql` + our seeds.
-- The copy is missing: front controller, `tests/`, `uploads/`, and the `views/shop`/admin partials for some pages. Where a file is missing, the plan reconstructs behaviour from models/controllers.
+- The copy is complete except for `tests/`, `uploads/`, and the two landing-page images the maintenance page references (`frontend/hero-bg.jpg`, `frontend/logo.png`). Where a file is missing, the plan reconstructs behaviour from models and controllers.
 
 ### 2.2 Feature inventory and disposition
 
 | Reference module | Reference files | Disposition |
 |---|---|---|
+| Front controller / routing | `index.php` — 98-route `?page=` table, guards, maintenance + seat-limit gates | **Port as explicit routes** (Phase 1, §2.5) |
+| Public landing page | `frontend/index.php`, `frontend/og-image.{svg,png}` | **Port & rebrand** (Phase 1, §3.5) |
 | Products CRUD + image upload | `models/Product.php`, `AdminController::shopProducts/saveShopProduct/productStatus/deleteShopProduct`, `views/admin/shop_products.php` | **Port** (Phase 2) |
 | Storefront catalog | `views/member/shop.php`, `MemberController::shop` | **Port** (Phase 2) |
 | Packages + indirect levels | `models/Package.php`, `AdminController::packages/savePackage`, `views/admin/packages.php`, `package_indirect_levels` | **Port & simplify** (Phase 3) |
@@ -116,7 +131,12 @@ Key facts to carry into the port:
 | Registration | Sponsor + package + binary upline/position + placement mode | **Sponsor + package only**; modes: standard, code, e-wallet, pending | Binary is not implemented |
 | Product PV | inert columns | `pv` column reserved, never read | No residual income yet |
 | URL generation | hard-coded `APP_URL` | `base_url()` + `url()` (already in `app/helpers.php`) | Works in sub-folder (`/ecowealth/system/`) and vhost |
-| Front controller | `?page=` (missing in copy) | Explicit route table (§3.3) | Clean URLs, guards per route |
+| Front controller | `?page=` table, 98 pages, guards plus inline HTML gates | Explicit route table seeded from the reference inventory (§3.3, §2.5) | Clean URLs, one guard layer, no HTML emitted by the router |
+| Guard denial | Redirect to `/?page=login` with an "Access denied" flash | 403 page rendered in the layout | Stable status codes, no redirect loops, easier to test |
+| Unguarded routes | `any` = no check (register, wallet transfer) | Every route declares a guard: wallet transfer is `member`, login is `guest`, logout is `member` | Defence in depth |
+| USDT-rate routes | `update_usdt_gas` / `update_usdt_bep20_gas` call `AdminController` under the `member` guard | Routes removed; USDT rate and gas fees are admin-only settings | No member-writable money configuration |
+| Maintenance / seat gates | Inline `die()` HTML inside the router; the seat limit closes registration | Maintenance mode is a setting handled before routing; seat limit **dropped** | Router stays thin; seat limits are out of scope |
+| Public landing page | Standalone `frontend/index.php` linking `?page=login` and `?page=register` | `GET /` view rendered by the router, links via `url()` (§3.5) | One front door; no dead links when routes change |
 | Tests | `tests/run.php` referenced, not provided | Our own harness (§8) | Every phase must be verifiable |
 
 ### 2.4 Current state of the target app (`system/`)
@@ -124,12 +144,52 @@ Key facts to carry into the port:
 | Area | Status |
 |---|---|
 | Auth | Working: login (email or username), register, logout, remember-me, idle timeout, CSRF, session hardening |
-| Layout | Sneat vertical template (`app/layout/app_header.php`, `app_footer.php`, auth layout) |
+| Layout | EcoWealth vertical template (`app/layout/app_header.php`, `app_footer.php`, auth layout) |
 | Dashboard | 832-line member "growth overview" with live community stats |
 | Routing | `system/.htaccess` → `public/`; `public/.htaccess` maps clean names; `public/router.php` for `php -S` |
+| Public front door | `system/public/index.php` redirects to dashboard or login; the marketing page currently lives at the repo root (`index.html`), outside the app |
 | DB | PDO, but `app/config.php` points at **InfinityFree credentials** — must move to local MySQL in Phase 0 |
 | Roles | `users.role` is `enum('user','admin')`; no admin UI exists yet |
 | Tests | None |
+
+### 2.5 Route inventory and dispositions
+
+The provided front controller turns the reference into a checkable page list. Every one of the **98 pages** is either mapped to a target route or explicitly dropped/deferred:
+
+| Reference page(s) | Count | Target | Disposition |
+|---|---:|---|---|
+| `login`, `do_login`, `logout` | 3 | `login.php`, `logout.php` (kept standalone) | Keep as-is |
+| `register`, `do_register`, `validate_code`, `check_username`, `check_upline`, `auto_select_upline`, `get_packages` | 7 | `/register` plus JSON endpoints `/register/validate-code`, `/register/check-username`, `/register/check-sponsor`, `/register/packages` | Port; binary-upline ajax dropped (Phase 9) |
+| `slogin`, `do_slogin` | 2 | `/slogin` | Port (Phase 14) |
+| `dashboard`, `profile`, `save_profile` | 3 | `/dashboard`, `/profile` | Port (Phases 6, 9) |
+| `shop`, `cart`, `add_to_cart`, `update_cart_item`, `remove_cart_item`, `checkout`, `place_order`, `shop_orders`, `shop_order`, `shop_invoice`, `shop_submit_proof`, `shop_cancel_order`, `shop_confirm_receipt`, `shop_address_save`, `shop_address_delete`, `shop_address_default` | 16 | `/shop`, `/cart…`, `/checkout`, `/orders…`, `/profile/address…` (Appendix A) | Port (Phases 2–8) |
+| `activate`, `do_activate` | 2 | `/membership/activate` | Port (Phase 9) |
+| `earnings` | 1 | `/earnings` | Port (Phase 10) |
+| `genealogy` | 1 | `/genealogy` | Port (Phase 9) — sponsor chain only |
+| `ewallet_transfer`, `do_ewallet_transfer` | 2 | `/wallet/transfer` | Port (Phase 12); guard becomes `member` |
+| `payout`, `request_payout` | 2 | `/payouts…` | Port (Phase 13) |
+| `update_usdt_gas`, `update_usdt_bep20_gas` | 2 | — | **Drop** — USDT rate and gas fees move to admin settings |
+| `cap_status`, `dfi_history`, `reactivate`, `do_reactivate`, `api_cap_status`, `api_dfi_status` | 6 | — | **Drop** — caps, DFI, reactivation |
+| `upgrade`, `do_upgrade`, `api_validate_upgrade_code` | 3 | — | **Defer** — package upgrades are LATER |
+| `api_binary_tree`, `api_binary_uplines` | 2 | — | **Drop** — binary tree |
+| `api_cd_status` | 1 | — | **Drop** — commission-deduct |
+| `admin` | 1 | `/admin` | Port (Phase 1) |
+| `admin_users`, `admin_user_view`, `admin_toggle_user`, `admin_deactivate_user` | 4 | `/admin/members…` | Port (Phase 9) |
+| `admin_packages`, `admin_save_package` | 2 | `/admin/packages…` | Port & simplify (Phase 3) |
+| `admin_codes`, `admin_gen_codes`, `admin_export_codes` | 3 | `/admin/codes…` | Port (Phase 9) |
+| `admin_payouts`, `admin_payout_action` | 2 | `/admin/payouts…` | Port (Phase 13) |
+| `admin_settings`, `admin_save_settings`, `admin_change_password` | 3 | `/admin/settings`, `/profile/password` | Port (settings keys Phases 1/7, full page Phase 15) |
+| `admin_manual_reset` | 1 | — | **Drop** — midnight reset is binary-only |
+| `admin_cap_monitor`, `admin_dfi`, `admin_reactivations`, `admin_reactivation_action`, `admin_toggle_vip`, `admin_toggle_daily_cap` | 6 | — | **Drop** — caps, DFI, reactivation, VIP bypass |
+| `admin_assign_cd`, `admin_complete_cd`, `admin_cancel_cd`, `admin_edit_cd_target` | 4 | — | **Drop** — commission-deduct |
+| `admin_ewallet_topup`, `do_admin_ewallet_topup`, `admin_ewallet_monitor` | 3 | `/admin/wallets…` | Port (Phases 5, 12) |
+| `admin_shop`, `admin_product_status`, `admin_save_product`, `admin_delete_product`, `admin_shop_orders`, `admin_shop_order`, `admin_order_transition`, `admin_order_hold`, `admin_order_resume`, `admin_order_proof`, `admin_order_shipment`, `admin_order_invoice` | 12 | `/admin/products…`, `/admin/orders…`, `/admin/proofs/{id}` (Appendix A) | Port (Phases 2, 6–8); `hold` / `resume` added to Appendix A |
+| `admin_order_reship`, `admin_order_refund`, `admin_order_refund_receipt`, `admin_shop_expire` | 4 | `bin/shop_expire.php` (CLI only) | **Defer** returns/refunds; ship-expiry becomes the Phase 7 cron |
+| **Total** | **98** | | |
+
+- **Orphaned views:** `views/admin/repeat_purchases.php` and `views/member/repeat_purchases.php` have no route and no controller reference; leave them out unless repeat purchases are scoped in.
+- **Unrouted addition:** `views/auth/register_closed.php` is a second seat-limit page (used by `AuthController::showRegister`) on top of the router's inline block; both are dropped with the seat limit.
+- The landing page (`frontend/index.php`) sits outside this table and maps to `GET /` (§3.5).
 
 ---
 
@@ -142,7 +202,7 @@ Key facts to carry into the port:
 | Runtime | PHP 8.1+ (Laragon ships 8.3.16), MySQL 8, Apache 2.4 + `mod_rewrite` |
 | App style | Plain PHP, no framework, no Composer for the app (matches current `system/`) |
 | Persistence | PDO, prepared statements, `ERRMODE_EXCEPTION`, `EMULATE_PREPARES = false` |
-| UI | Sneat 3.x (Bootstrap 5) already under `public/assets`; DataTables, SweetAlert2, Dropzone, Flatpickr, Select2 available |
+| UI | EcoWealth theme (Bootstrap 5-based) already under `public/assets`; DataTables, SweetAlert2, Dropzone, Flatpickr, Select2 available |
 | Routing | Front controller `public/index.php` + route table `app/routes.php` |
 | Views | Plain PHP templates in `app/views/`, rendered inside `app/layout/app_header.php` / `app_footer.php` |
 | Money | `DECIMAL(12,2)` (14,2 for balances), PHP `number_format`, helper `money()` |
@@ -166,12 +226,12 @@ system/
 │   │                           #        CommissionService, ActivationService, InvoiceService
 │   ├── Controllers/            # NEW — Shop, Cart, Checkout, Order, Membership, Earnings,
 │   │                           #        Profile + Admin* controllers
-│   ├── views/                  # NEW — shop/, member/, admin/, errors/, partials/
+│   ├── views/                  # NEW — home/ (landing), shop/, member/, admin/, errors/, partials/
 │   └── layout/                 # exists — header/footer/auth layouts (refactored for nav config)
 ├── public/
 │   ├── index.php               # front controller (replaces the current redirect shim)
 │   ├── login.php register.php logout.php   # kept as-is this build
-│   ├── assets/                 # Sneat assets (exists)
+│   ├── assets/                 # EcoWealth theme assets (exists) + css/landing.css, js/landing.js (NEW)
 │   ├── uploads/                # NEW — products/, packages/, proofs/ (writable, no PHP execution)
 │   └── .htaccess               # explicit auth routes + catch-all → index.php
 ├── database/
@@ -198,6 +258,10 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [L,QSA]
 ```
 
+**Before routing.** If `maintenance_mode` is on and the caller is not an admin/superadmin, respond `503` with a standalone branded page (`Retry-After: 3600`). The reference `die()`s this HTML from inside the router; the port moves it into a small `MaintenanceGate` helper called at the top of the front controller, before any route work.
+
+**Route inventory parity.** `app/routes.php` is seeded from the reference table (§2.5): each of the 98 pages is either mapped or marked dropped/deferred there. The parity test (P1-T12) reads that inventory and fails when a page marked *Port* has no matching route.
+
 **Front controller sequence** (`public/index.php`):
 
 1. `define('APP_BASE_URL', rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/')` — **critical**: fixes `base_url()` for deep URLs such as `/shop/12` (otherwise assets resolve against `/shop/`). `helpers.php` already honours a pre-defined `APP_BASE_URL`.
@@ -214,11 +278,11 @@ RewriteRule ^ index.php [L,QSA]
    ];
    ```
    `{id}` compiles to `([0-9]+)`; parameters are passed as an associative array.
-5. Enforce guard: `guest` | `member` | `admin` | `any` (§3.4).
+5. Enforce guard: `guest` · `member` · `admin` · `superadmin` · `any` (§3.4).
 6. For `POST`: verify CSRF centrally (return 419 JSON for XHR, flash + redirect back for forms).
 7. Dispatch; controllers may return a rendered view or a `json_response()`.
 8. Catch `Throwable` → log, render `errors/500.php` (production) or a debug page (`APP_ENV=development`).
-9. No match → `errors/404.php` with HTTP 404, inside the Sneat layout.
+9. No match → `errors/404.php` with HTTP 404, inside the EcoWealth layout.
 
 **Dev server parity.** Update `public/router.php` so `php -S 127.0.0.1:8080 -t public public/router.php` serves the same routes (delegate everything non-static to `index.php`).
 
@@ -232,27 +296,31 @@ RewriteRule ^ index.php [L,QSA]
   - `member` — logged in, `is_active = 1`, role member or admin (admin may use the member portal; the reference allows it and guards self-review separately).
   - `admin` — logged in plus `role IN ('admin','superadmin')`; otherwise render `errors/403.php` (HTTP 403), never a redirect loop.
   - `superadmin` — `role = 'superadmin'`; gates code generation limits, payout overrides and the S-Login console.
-  - `guest` — only for login/register (existing behaviour).
+  - `guest` — only for login/register (existing behaviour); signed-in callers are redirected to their dashboard.
+  - `any` — public by design: the landing page, the register form, the register validation endpoints and logout. Unlike the reference, `any` never covers a money route.
 - `auth_user()` continues to load the current row per request; add `auth_member()` returning the full member row (package, wallet, sponsor) and `is_admin()` / `is_superadmin()`.
 - **Superadmin acting-as:** finance attribution (`actingAdminId()`, `actingUser()`) resolves to the primary admin account (first `role='admin'`), so a superadmin's own wallet is never debited and records point at the admin — reference behaviour, keep it.
 - **Impersonation:** the super-login session replaces the cookie session with a URL-token session (`?imp=<nonce>`); the member layout shows a banner with an "exit" action, and every link/form must carry the token. Requests with an invalid, expired, IP-mismatched or non-member token are destroyed and bounce to `/slogin` (Phase 14).
 - Admin menu is rendered only for admins; admin URLs are additionally guarded server-side (never by menu visibility alone).
 - Login/registration continue to use the existing pages; Phase 9 replaces the registration page with the full four-mode flow and adds the S-Login page in Phase 14.
 
-### 3.5 UI system and Sneat mapping
+### 3.5 UI system and theme mapping
 
-Two layouts, one template:
+Three surfaces: the public landing page, the member layout and the admin layout.
 
-| Layout | Menu | Used by |
+| Surface | Menu | Used by |
 |---|---|---|
+| Public (`layout=none`) | Landing-page nav only | `GET /` — ported from `frontend/index.php` |
 | Member (`layout=member`) | Dashboard, Shop, Cart, My Orders, Membership, Earnings, Wallet, Payouts, Profile | member pages (plus an impersonation banner during S-Login) |
 | Admin (`layout=admin`) | Dashboard, Products, Packages, Orders, Activations, Registration Codes, Members, Commissions, E-Wallet Monitor, Payouts, Settings, S-Login console | `/admin/*`, `/slogin` |
 
-Both are the existing Sneat vertical layout; the sidebar becomes data-driven from `app/layout/nav.php` (sections → items → route, icon, badge), with `$current_nav` derived from the active route. The current dashboard's anchor-based menu is replaced by this config in Phase 1. The impersonation banner in the member layout is added in Phase 14.
+Both app layouts are the existing EcoWealth vertical theme; the sidebar becomes data-driven from `app/layout/nav.php` (sections → items → route, icon, badge), with `$current_nav` derived from the active route. The current dashboard's anchor-based menu is replaced by this config in Phase 1. The impersonation banner in the member layout is added in Phase 14.
+
+**Public landing page.** The reference's `frontend/index.php` is a self-contained page: inline CSS, inline SVG hero scenes (chickens, sunflower petals), a JSON-LD Organization / WebSite / WebPage / FAQPage graph, OG/Twitter tags backed by `frontend/og-image.svg` and `.png`, and CTAs to `login` / `register`. It is not a theme page: it ships as `app/views/home/landing.php` with its own `assets/css/landing.css` and `assets/js/landing.js` (Phase 1), served at `GET /`, with links generated by `url()`. Rebrand the copy (AltasFarm → EcoWealth), keep the FAQ and contact content, and keep the OG image at 1200×630. The app's `/` currently redirects to login/dashboard (`system/public/index.php`), so this is the one new public surface in the build; decision D23 settles whether the repo-root `index.html` is retired in its favour.
 
 Component sources (copy structure from `dmp/sneat/`):
 
-| Need | Sneat page |
+| Need | Theme page |
 |---|---|
 | Product list table | `app-ecommerce-product-list.html` (`.datatables-products`, DataTables) |
 | Product add/edit form | `app-ecommerce-product-add.html` (Dropzone upload, form rows) |
@@ -720,7 +788,7 @@ Checked by tests and by an admin "health" widget in Phase 15:
 | Phase | Name | Depends on | Effort (dev-days) |
 |---|---|---|---|
 | 0 | Setup, baseline & decisions | — | 1 |
-| 1 | Core skeleton: router, layouts, roles, settings, test harness | 0 | 5 |
+| 1 | Core skeleton: router, layouts, roles, settings, test harness, landing page | 0 | 6 |
 | 2 | Products & storefront catalog | 1 | 4 |
 | 3 | Packages & package contents | 1, 2 | 4 |
 | 4 | Cart engine & cart UI | 2 | 5 |
@@ -774,6 +842,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 6. Confirm the current app still works end-to-end at `http://localhost/ecowealth/system/` (login, register, dashboard, logout).
 7. Resolve the **open decisions** in §12 that block Phase 1–3 (branding, shop visibility, sponsor requirement, price list).
 8. Create `docs/phase-log.md` (running log: decisions, migrations, test results, backups).
+9. Read the completed reference (`index.php`, `frontend/index.php`) and reconcile §2.5: confirm each of the 98 pages is mapped or dropped, and log any page that needs its own decision.
 
 **Test plan**
 
@@ -791,24 +860,25 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 
 ### Phase 1 — Core skeleton: router, layouts, roles, settings, test harness
 
-**Goal.** A foundation every later phase plugs into: front controller, route table, member/admin layouts with real navigation, role guards, settings storage, error pages, and an automated test harness.
+**Goal.** A foundation every later phase plugs into: front controller, route table, public landing page, member/admin layouts with real navigation, role guards, settings storage, error pages, and an automated test harness.
 
 **Depends on.** Phase 0.
 
-**Effort.** 5 dev-days.
+**Effort.** 6 dev-days — the extra day covers the landing-page port and the route-inventory parity test.
 
-**Reference.** `core/helpers.php` (flash/CSRF/redirect/pagination/upload), `controllers/*` structure, `views/partials/{head,sidebar_*,topbar}.php`.
+**Reference.** `index.php` (98-route table, guard dispatch, maintenance gate, impersonation bootstrap), `core/helpers.php` (flash/CSRF/redirect/pagination/upload), `controllers/*` structure, `views/partials/{head,sidebar_*,topbar}.php`, `frontend/index.php` (public landing page).
 
 **Deliverables**
 
 - **DB:** `settings` (+ seeds); `audit_log` may be created now or in Phase 15.
 - **Code:**
-  - `app/routes.php` — initial table (`/`, `/shop` placeholder, `/admin` placeholder).
-  - `app/Core/Router.php`, `Request.php`, `View.php`, `Validator.php`, `Paginator.php`, `Upload.php`.
-  - `app/Controllers/HomeController.php`, `AdminDashboardController.php` (placeholder).
+  - `app/routes.php` — initial table seeded from the §2.5 inventory (`/` landing, `/shop` placeholder, `/admin` placeholder), with a commented name for every dropped or deferred page so the gap is visible in code.
+  - `app/Core/Router.php`, `Request.php`, `View.php`, `Validator.php`, `Paginator.php`, `Upload.php`, `MaintenanceGate.php`.
+  - `app/Controllers/HomeController.php` (renders the landing page), `AdminDashboardController.php` (placeholder).
+  - `app/views/home/landing.php` — public front door ported and rebranded from `frontend/index.php`, with `assets/css/landing.css`, `assets/js/landing.js`, the OG images and the JSON-LD graph; CTAs point at `url('login')` / `url('register')`.
   - `app/views/errors/{403,404,500}.php`, `app/views/partials/{flash,pagination,empty_state}.php`.
   - `app/layout/nav.php` (menu config), refactored `app_header.php`/`app_footer.php`.
-  - `public/index.php` — front controller; `public/router.php` — dev-server parity; `public/.htaccess` — catch-all.
+  - `public/index.php` — front controller (maintenance gate first, then routing); `public/router.php` — dev-server parity; `public/.htaccess` — catch-all.
   - `app/config.php` reworked to `defined(...) || define(...)` so `config.local.php` and the test harness can override constants; `app/config.local.php` is git-ignored.
   - `app/helpers.php` additions: `money()`, `setting()`, `status_badge()`, `old()/errors` helpers, `json_response()`.
   - `tests/bootstrap.php`, `tests/run.php`, `tests/Cases/SkeletonTest.php`.
@@ -822,6 +892,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 - Guard enforcement happens in the router, not inside views.
 - CSRF is checked centrally for POST before dispatch.
 - Views render inside the correct layout; the menu shows only permitted items.
+- The landing page is public (no session), renders no app chrome, and every CTA goes through `url()`.
 - No business logic in `index.php` beyond dispatch.
 
 **Test plan**
@@ -829,7 +900,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 | ID | Test | Expected |
 |---|---|---|
 | P1-T1 | `GET /shop` as guest | 302 → `/login`, warning flash |
-| P1-T2 | `GET /admin` as member | 403 page in Sneat layout |
+| P1-T2 | `GET /admin` as member | 403 page in EcoWealth layout |
 | P1-T3 | `GET /admin` as admin | 200 placeholder page, admin menu visible |
 | P1-T4 | `GET /no-such-page` | 404 page, correct status code |
 | P1-T5 | Asset URLs from `/admin/products/9/edit` | Resolve to `/ecowealth/system/assets/...` (no 404s) |
@@ -837,6 +908,9 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 | P1-T7 | `tests/run.php` | Runs, passes, exits 0; a failing assertion exits non-zero |
 | P1-T8 | Menu on member vs admin | Member never sees admin items |
 | P1-T9 | Baseline auth still works | Login/register/logout unaffected |
+| P1-T10 | `GET /` as guest | Landing page renders with EcoWealth branding and JSON-LD, no app chrome; CTAs resolve to `/login` and `/register` (no `?page=`) |
+| P1-T11 | `maintenance_mode=1` as guest vs admin | Guest gets the branded 503 page with `Retry-After`; admin sees the normal page |
+| P1-T12 | Route inventory parity (§2.5) | Every page marked *Port* has a route; the test fails on a missing or duplicated page |
 
 **Gate.** All P1 tests pass; `php -l` clean; no 404 asset on any page; tag `phase-1`.
 
@@ -860,7 +934,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 - **Admin routes:** `GET /admin/products`, `GET /admin/products/new`, `GET /admin/products/{id}/edit`, `POST /admin/products/save`, `POST /admin/products/{id}/status`, `POST /admin/products/{id}/delete`.
 - **Member routes:** `GET /shop` (catalog), `GET /shop/{id}` (detail; modal fallback).
 - **Services/models:** `Product` model; `UploadService::image()`; `StockService::available()`/`availableMap()`.
-- **Views:** `admin/products/index.php` (DataTable, filters: status, search), `admin/products/form.php` (Sneat form + Dropzone), `shop/catalog.php` (card grid), `shop/product.php`, partial `product_card.php`.
+- **Views:** `admin/products/index.php` (DataTable, filters: status, search), `admin/products/form.php` (theme form + Dropzone), `shop/catalog.php` (card grid), `shop/product.php`, partial `product_card.php`.
 - **Seed:** 6 demo products with images placeholders.
 
 **Rules**
@@ -1193,7 +1267,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 
 - **DB:** `users` new columns (`sponsor_id`, `package_id`, `member_status`, `referral_code`, `phone`, `activated_at`, `reg_payment_method`, `reg_code_id`, `reg_paid_by`); `reg_codes`; `activations`. (Payout account fields — GCash/Maya/USDT — arrive in Phase 13.)
 - **Routes:**
-  - Public/auth: `/register` (rewritten: modes, sponsor, referral link `?ref=<code>` and `?sponsor=<username>`), `/membership`, `POST /membership/activate`.
+  - Public/auth: `/register` (rewritten: modes, sponsor, referral link `?ref=<code>` and `?sponsor=<username>`), its live-validation endpoints (`/register/validate-code`, `/register/check-username`, `/register/check-sponsor`, `/register/packages`), `/membership`, `POST /membership/activate`.
   - Admin: `/admin/codes` (list + filters + stats + CSV export), `POST /admin/codes/generate`, `/admin/activations` + approve/reject, `/admin/members`, `/admin/members/{id}`.
   - Member: `/genealogy` (upline chain + direct downline).
 - **Services:**
@@ -1545,7 +1619,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 - `tests/bootstrap.php`: creates/recreates `ecowealth_sneat_test`, loads `schema.sql` + migrations, seeds fixtures, returns a PDO. `app/config.php` uses `defined() || define()` so tests can point constants at the test schema.
 - `tests/run.php`: scans `tests/Cases/*.php`, runs each case in a transaction that is rolled back, prints `PASS/FAIL`, exits non-zero on failure.
 - `tests/fixtures.php`: builds the sponsor tree `juan → maria → {peter, sarah}` + `david` under maria, a 10-deep chain for unilevel tests, products, packages A/B, unused/used/expired registration codes, wallet balances with both buckets, a pending payout and a completed transfer.
-- `tests/smoke.ps1`: hits `/login`, `/shop`, `/cart`, `/checkout`, `/orders/1`, `/wallet`, `/payouts`, `/slogin`, `/admin/products`, `/admin/codes`, `/admin/payouts` with and without sessions, asserts codes/Locations.
+- `tests/smoke.ps1`: hits `/`, `/login`, `/shop`, `/cart`, `/checkout`, `/orders/1`, `/wallet`, `/payouts`, `/slogin`, `/admin/products`, `/admin/codes`, `/admin/payouts` with and without sessions, asserts codes/Locations and that the landing page needs no session.
 - Naming: `P{phase}-T{n}` maps 1:1 to the tables in §7.
 
 ### 8.3 Phase gate checklist (copy into `docs/phase-log.md`)
@@ -1573,7 +1647,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 2. Admin generates 3 registration codes for Package A (₱4,498) and exports the CSV.
 3. Superadmin opens `/slogin`, impersonates `juan` (seeded, active, Package A), sees the member dashboard with the impersonation banner, then exits; the audit entry shows `logged_out`.
 4. Juan copies his referral link, and admin tops up Juan's wallet by ₱5,000 (audited).
-5. Visitor registers as `maria` through the link (sponsor prefilled) in pending mode; Maria signs in and sees "pending".
+5. Visitor opens `/`, sees the EcoWealth landing page, follows its "join" CTA, registers as `maria` through the referral link (sponsor prefilled) in pending mode; Maria signs in and sees "pending".
 6. Maria activates Package A using a **registration code**: code is marked used, Maria becomes active.
 7. Juan's wallet increases by ₱500 (withdrawable); his earnings page shows the direct referral with source `maria` and the ledger entry.
 8. Maria adds 2× Coffee + 1 Spirulina to the cart, edits quantity, removes one, re-adds; checks out with a saved address, pays by e-wallet; order is `paid`, stock reserved, invoice issued.
@@ -1643,23 +1717,23 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | Phase | Days | Cumulative | Milestone |
 |---|---:|---:|---|
 | 0 | 1 | 1 | Environment + decisions |
-| 1 | 5 | 6 | Skeleton: routes, layouts, roles, tests |
-| 2 | 4 | 10 | Products + catalog |
-| 3 | 4 | 14 | Packages + level matrix |
-| 4 | 5 | 19 | Cart |
-| 5 | 5 | 24 | E-wallet core (dual balance + monitor) |
-| 6 | 5 | 29 | Checkout + orders |
-| 7 | 5 | 34 | Manual payments + lifecycle |
-| 8 | 4 | 38 | Fulfilment + invoices |
-| 9 | 8 | 46 | Registration + codes + activation |
-| 10 | 4 | 50 | Direct referral |
-| 11 | 5 | 55 | Indirect referral |
-| 12 | 4 | 59 | Transfers + limits + monitor |
-| 13 | 5 | 64 | Payouts |
-| 14 | 3 | 67 | Super-login |
-| 15 | 5 | 72 | Hardening + UAT |
+| 1 | 6 | 7 | Skeleton: routes, layouts, roles, tests, landing page |
+| 2 | 4 | 11 | Products + catalog |
+| 3 | 4 | 15 | Packages + level matrix |
+| 4 | 5 | 20 | Cart |
+| 5 | 5 | 25 | E-wallet core (dual balance + monitor) |
+| 6 | 5 | 30 | Checkout + orders |
+| 7 | 5 | 35 | Manual payments + lifecycle |
+| 8 | 4 | 39 | Fulfilment + invoices |
+| 9 | 8 | 47 | Registration + codes + activation |
+| 10 | 4 | 51 | Direct referral |
+| 11 | 5 | 56 | Indirect referral |
+| 12 | 4 | 60 | Transfers + limits + monitor |
+| 13 | 5 | 65 | Payouts |
+| 14 | 3 | 68 | Super-login |
+| 15 | 5 | 73 | Hardening + UAT |
 
-**~72 dev-days** (≈14–15 weeks for one developer; ≈7–8 weeks full-time with AI assistance). Critical path: 1 → 5 → 6 → 7 → 9 → 10 → 11 → 13 → 15; 12 and 14 can run in parallel with 10/11.
+**~73 dev-days** (≈14–15 weeks for one developer; ≈7–8 weeks full-time with AI assistance). Critical path: 1 → 5 → 6 → 7 → 9 → 10 → 11 → 13 → 15; 12 and 14 can run in parallel with 10/11.
 
 ---
 
@@ -1675,7 +1749,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | R6 | Upload abuse (PHP in images, huge files) | High | Medium | MIME sniff, whitelist, size caps, no-exec uploads dir, guarded proof streaming |
 | R7 | Commission disputes / audit gaps | High | Medium | Every award linked to activation + wallet row; skipped rows logged; member statement |
 | R8 | Data loss during migrations | High | Low | Backup before each phase + restore drill |
-| R9 | Reference copy is incomplete (no router/tests) | Medium | High | Reconstruct from models; this plan defines behaviour, not the copy |
+| R9 | Reference copy is still incomplete (no `tests/`, no `uploads/`, two landing images missing) | Medium | Low | Front controller, controllers, all 51 views and the landing page are now present; only the test suite and uploads are reconstructed, and this plan defines behaviour, not the copy |
 | R10 | Timeline slip | Medium | Medium | Phase order protects the shop deliverable first; commissions, wallet extras and super-login follow |
 | R11 | Payout fraud / double-spend of requested funds | High | Medium | Hold-at-request + status guards + reconciliation tests |
 | R12 | Impersonation abuse or session leakage | High | Low | Superadmin-only, hashed nonce, IP/UA binding, TTL, full audit, no cookies |
@@ -1688,7 +1762,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 
 | # | Decision | Options | Recommendation | Needed by |
 |---|---|---|---|---|
-| D1 | App/brand name | EcoWealth / Sneat / other | **EcoWealth** (configurable `APP_NAME`) | Phase 1 |
+| D1 | App/brand name | EcoWealth / other | **EcoWealth** (configurable `APP_NAME`) | Phase 1 |
 | D2 | Can guests browse the shop? | Yes / members-only | **Members-only** (matches reference) | Phase 2 |
 | D3 | Is a sponsor required at registration? | Required / optional | **Required**, except seeded root accounts | Phase 9 |
 | D4 | Must a member have a package to shop? | Yes / no | **No** — shopping open to logged-in members; commissions only when active | Phase 6 |
@@ -1710,6 +1784,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | D20 | Code format | Reference `ABCD-EFGH-JKLM` / workflow's 8-char A/B prefix | **Reference format** (package comes from the DB row) | Phase 9 |
 | D21 | Who may issue codes | Admin only / admin + superadmin / members | **Admin + superadmin**; member self-purchase deferred | Phase 9 |
 | D22 | Transfer password confirmation | Required / optional | **Required** (reference behaviour) | Phase 12 |
+| D23 | Public front door | App `GET /` landing page (ported from `frontend/index.php`) / keep the repo-root `index.html` / both until launch | **App `GET /`** — one deployable, links through `url()`; redirect or retire the root page at launch | Phase 1 |
 
 ---
 
@@ -1721,7 +1796,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 
 | Method | Path | Controller | Guard | Phase |
 |---|---|---|---|---|
-| GET | `/` | HomeController::index | any | 1 |
+| GET | `/` | HomeController::index (landing page) | any | 1 |
 | GET | `/shop` | ShopController::index | member | 2 |
 | GET | `/shop/{id}` | ShopController::show | member | 2 |
 | GET | `/packages` | PackageController::index | member | 3 |
@@ -1742,11 +1817,17 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | GET | `/orders/{id}/invoice` | OrderController::invoice | member | 8 |
 | GET | `/membership` | MembershipController::index | member | 9 |
 | POST | `/membership/activate` | MembershipController::activate | member | 9 |
+| POST | `/register/validate-code` | RegistrationController::validateCode | any | 9 |
+| POST | `/register/check-username` | RegistrationController::checkUsername | any | 9 |
+| POST | `/register/check-sponsor` | RegistrationController::checkSponsor | any | 9 |
+| GET | `/register/packages` | RegistrationController::packages | any | 9 |
+| GET | `/dashboard` | DashboardController::index | member | 9 |
 | GET | `/genealogy` | GenealogyController::index | member | 9 |
 | GET | `/earnings` | EarningsController::index | member | 10 |
 | GET | `/payouts` | PayoutController::index | member | 13 |
 | POST | `/payouts/request` | PayoutController::request | member | 13 |
 | GET | `/profile` | ProfileController::index | member | 6 |
+| POST | `/profile/password` | ProfileController::password | member | 1 |
 | POST | `/profile/address` | ProfileController::saveAddress | member | 6 |
 | POST | `/profile/address/{id}/delete` | ProfileController::deleteAddress | member | 6 |
 | GET | `/slogin` | SLoginController::index | superadmin | 14 |
@@ -1765,6 +1846,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | GET | `/admin/orders` · `/{id}` | 6 |
 | GET | `/admin/wallets` · `/{id}` · POST `/{id}/credit` | 5 |
 | POST | `/admin/orders/{id}/transition` | 7 |
+| POST | `/admin/orders/{id}/hold` · `/resume` | 7 |
 | GET | `/admin/proofs/{id}` | 7 |
 | GET | `/admin/settings` · POST `/admin/settings` | 7 (payment keys), 15 (all) |
 | POST | `/admin/orders/{id}/ship` · `/deliver` | 8 |
@@ -1772,13 +1854,14 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | GET | `/admin/codes/export` | 9 |
 | GET | `/admin/activations` · POST `/{id}/approve` · `/{id}/reject` | 9 |
 | GET | `/admin/members` · `/{id}` | 9 |
+| POST | `/admin/members/{id}/status` (suspend / restore) | 9 |
 | GET | `/admin/commissions` | 10 |
 | GET | `/admin/wallets` transfers/top-ups tabs (monitor) | 12 |
 | GET | `/admin/payouts` · POST `/{id}/approve` · `/reject` · `/complete` | 13 |
 | GET | `/admin/impersonations` | 14 |
 | GET | `/admin/reports` | 15 |
 
-> Auth pages (`/login`, `/register`, `/logout`) remain standalone files outside the router in this build; `/dashboard` is a standalone file until Phase 9, then becomes a routed page. `/slogin` is routed because it needs the superadmin guard and the impersonation console.
+> Auth pages (`/login`, `/register`, `/logout`) remain standalone files outside the router in this build; the register form's live-validation endpoints are new routed paths (`/register/*`, Phase 9) that did not exist in the reference. `/dashboard` is a standalone file until Phase 9, then becomes a routed page. `/slogin` is routed because it needs the superadmin guard and the impersonation console. No reference `?page=` name survives in the target — §2.5 maps every one of them.
 
 ### Appendix B — Consolidated DDL (final state for this scope)
 
@@ -2272,10 +2355,11 @@ Chain: `juan` (Package A) ← `maria` (A) ← `peter` (A), `sarah` (B), `david` 
 | miguel (A) | +₱50 L3 | — | +₱500 direct |
 | **Totals** | **₱900** | **₱1,500** | **₱1,000** |
 
-### Appendix D — Sneat component/page map
+### Appendix D — Theme component/page map
 
 | Screen | Base template | Notes |
 |---|---|---|
+| Public landing page | `frontend/index.php` (reference) | standalone — not a theme page; inline CSS/SVG/JS, JSON-LD, OG images |
 | Member dashboard | `dashboards-analytics.html` | cards + ApexCharts, reuse existing dashboard styling |
 | Shop catalog | `app-ecommerce-product-list.html` card grid variant | card grid, stock badges |
 | Cart | `app-ecommerce-checkout.html` (wizard-ex-checkout) | table + order summary |
@@ -2302,13 +2386,15 @@ Chain: `juan` (Package A) ← `maria` (A) ← `peter` (A), `sarah` (B), `david` 
 
 | Reference | Target | Phase | Parity |
 |---|---|---|---|
+| `index.php` (98-route `?page=` table, guards, gates) | `public/index.php`, `app/routes.php`, `app/Core/Router.php`, `MaintenanceGate` | 1 | Re-specified: clean URLs, 403 page instead of redirect, maintenance gate outside the router |
+| `frontend/index.php` (public landing page) | `app/views/home/landing.php` + `assets/css/landing.css` + `assets/js/landing.js` | 1 | Port & rebrand (AltasFarm → EcoWealth), OG images kept |
 | `models/Product.php` | `app/Models/Product.php`, `ProductService` | 2 | Full + slug |
 | `AdminController::shopProducts/saveShopProduct/productStatus/deleteShopProduct` | `AdminProductController` | 2 | Full |
-| `views/admin/shop_products.php` | `app/views/admin/products/*` | 2 | Sneat |
-| `views/member/shop.php` | `app/views/shop/catalog.php` | 2 | Sneat |
+| `views/admin/shop_products.php` | `app/views/admin/products/*` | 2 | Theme |
+| `views/member/shop.php` | `app/views/shop/catalog.php` | 2 | Theme |
 | `models/Package.php` | `app/Models/Package.php`, `PackageService` | 3 | Simplified (no binary) |
 | `AdminController::packages/savePackage` | `AdminPackageController` | 3 | Simplified |
-| `views/admin/packages.php` | `app/views/admin/packages/*` | 3 | Sneat |
+| `views/admin/packages.php` | `app/views/admin/packages/*` | 3 | Theme |
 | `models/Cart.php` | `app/Models/Cart.php`, `CartService` | 4 | Full |
 | `MemberController::cart/addToCart/updateCartItem/removeCartItem` | `CartController` | 4 | Full |
 | `views/member/cart.php`, `partials/cart_offcanvas.php` | `app/views/shop/cart.php`, `partials/cart_offcanvas.php` | 4 | Full |
@@ -2337,6 +2423,8 @@ Chain: `juan` (Package A) ← `maria` (A) ← `peter` (A), `sarah` (B), `david` 
 
 | Term | Meaning |
 |---|---|
+| **Front door (landing page)** | The public marketing page at `GET /`, ported from `frontend/index.php`; readable without a session |
+| **Route inventory** | The reference's 98-page `?page=` table in `dmp/cart-system/index.php`; the port's coverage checklist (§2.5) |
 | **Associate / Member** | Registered user; earns only after package activation |
 | **Sponsor / Upline** | The member who recruited another member; commissions walk up this chain |
 | **Downline** | Everyone below a member in the sponsor chain |

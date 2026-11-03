@@ -3310,3 +3310,13 @@ footer {
     stroke-dasharray: 3 7;
   }
 }
+
+/* Performance: infinite animations idle while their section is off screen. */
+.is-paused,
+.is-paused *,
+.is-paused::before,
+.is-paused::after,
+.is-paused *::before,
+.is-paused *::after {
+  animation-play-state: paused !important;
+}

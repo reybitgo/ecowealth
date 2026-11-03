@@ -25,10 +25,8 @@
     <link rel="icon" type="image/png" href="assets/img/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Instrument+Sans:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Instrument+Sans:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Instrument+Sans:wght@400;500;600;700&display=swap" /></noscript>
     <script>
       document.documentElement.classList.add("js");
     </script>
@@ -43,7 +41,7 @@
     <header class="site-header" id="siteHeader">
       <div class="nav-wrap">
         <a class="brand" href="#top" aria-label="Eco-wealth home"
-          ><img src="assets/img/logo.png" alt="Eco-wealth logo"
+          ><img src="assets/img/logo.webp" alt="Eco-wealth logo" decoding="async" fetchpriority="high"
         /></a>
         <nav class="nav-links" id="desktopNav" aria-label="Main navigation">
           <a href="#vision">Vision</a><a href="#mission">Mission</a
@@ -86,7 +84,7 @@
     <aside class="mobile-nav" id="mobileNav" aria-hidden="true" inert>
       <div class="mobile-nav-head">
         <div class="mobile-brand">
-          <img src="assets/img/logo.png" alt="" />
+          <img src="assets/img/logo.webp" alt="" loading="lazy" decoding="async" />
           <div>
             <strong>Eco-wealth</strong><span>Health · Wealth · Livelihood</span>
           </div>
@@ -812,7 +810,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/purple-coffee.png"
+                    src="assets/img/products/purple-coffee.webp" width="573" height="960"
                     alt="Organic Purple Corn Herbal Coffee pack"
                     loading="lazy"
                     decoding="async"
@@ -832,7 +830,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/collagen-coffee.png"
+                    src="assets/img/products/collagen-coffee.webp" width="567" height="960"
                     alt="Collagen Premium Coffee pack"
                     loading="lazy"
                     decoding="async"
@@ -852,7 +850,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/insulin-coffee.png"
+                    src="assets/img/products/insulin-coffee.webp" width="572" height="960"
                     alt="Insulin Herbal Coffee pack"
                     loading="lazy"
                     decoding="async"
@@ -872,7 +870,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/immune-booster.png"
+                    src="assets/img/products/immune-booster.webp" width="540" height="960"
                     alt="Immune Booster capsule bottle"
                     loading="lazy"
                     decoding="async"
@@ -892,7 +890,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/spirulina.png"
+                    src="assets/img/products/spirulina.webp" width="519" height="960"
                     alt="Spirulina Capsule bottle"
                     loading="lazy"
                     decoding="async"
@@ -911,7 +909,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/stone-buster.png"
+                    src="assets/img/products/stone-buster.webp" width="541" height="960"
                     alt="Stone Buster capsule bottle"
                     loading="lazy"
                     decoding="async"
@@ -931,7 +929,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/vitamin-c.png"
+                    src="assets/img/products/vitamin-c.webp" width="519" height="960"
                     alt="Vitamin C capsule bottle"
                     loading="lazy"
                     decoding="async"
@@ -951,7 +949,7 @@
                 </div>
                 <div class="product-figure">
                   <img
-                    src="assets/img/products/eye-drops.png"
+                    src="assets/img/products/eye-drops.webp" width="376" height="960"
                     alt="Eye Drops bottle"
                     loading="lazy"
                     decoding="async"
@@ -1393,7 +1391,7 @@
         <div class="footer-top">
           <div class="footer-brand">
             <a href="#top" aria-label="Back to top"
-              ><img src="assets/img/logo.png" alt="Eco-wealth"
+              ><img src="assets/img/logo.webp" alt="Eco-wealth" loading="lazy" decoding="async"
             /></a>
             <div class="footer-tagline">
               Wellness for Life. Opportunity for Everyone.
@@ -1438,6 +1436,6 @@
       </svg>
     </button>
 
-    <script src="assets/js/script.js"></script>
+    <script src="assets/js/script.js" defer></script>
   </body>
 </html>

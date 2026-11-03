@@ -76,25 +76,48 @@
   const mobileCta = $("#mobileCta");
   const heroActions = $(".hero-actions");
   let scrollTicking = false;
-
-  function updateScrollUI() {
+  let maxScroll = 0;
+  let lastAmount = -1;
+  let isScrolled = null;
+  let topShown = null;
+  const measureScroll = () => {
     const root = doc.documentElement;
-    const maxScroll = root.scrollHeight - root.clientHeight;
-    const amount = maxScroll > 0 ? window.scrollY / maxScroll : 0;
-    if (progress) progress.style.transform = `scaleX(${amount})`;
-    header?.classList.toggle("is-scrolled", window.scrollY > 12);
-    toTop?.classList.toggle("visible", window.scrollY > 650);
-    if (!scrollTicking) {
-      scrollTicking = true;
-      requestAnimationFrame(() => {
-        scrollTicking = false;
-        if (progress) progress.style.transform = `scaleX(${amount})`;
-      });
+    maxScroll = root.scrollHeight - root.clientHeight;
+  };
+  function paintScrollUI() {
+    scrollTicking = false;
+    const y = window.scrollY;
+    const amount = maxScroll > 0 ? Math.min(1, y / maxScroll) : 0;
+    if (progress && amount !== lastAmount) {
+      lastAmount = amount;
+      progress.style.transform = `scaleX(${amount})`;
+    }
+    const scrolled = y > 12;
+    if (scrolled !== isScrolled) {
+      isScrolled = scrolled;
+      header?.classList.toggle("is-scrolled", scrolled);
+    }
+    const showTop = y > 650;
+    if (showTop !== topShown) {
+      topShown = showTop;
+      toTop?.classList.toggle("visible", showTop);
     }
   }
+  function updateScrollUI() {
+    if (scrollTicking) return;
+    scrollTicking = true;
+    requestAnimationFrame(paintScrollUI);
+  }
+  const onPageResize = () => {
+    measureScroll();
+    updateScrollUI();
+  };
   window.addEventListener("scroll", updateScrollUI, { passive: true });
-  window.addEventListener("resize", updateScrollUI, { passive: true });
-  updateScrollUI();
+  window.addEventListener("resize", onPageResize, { passive: true });
+  // Page height changes when fonts/images settle, so keep the cached value fresh.
+  if ("ResizeObserver" in window) new ResizeObserver(onPageResize).observe(doc.body);
+  measureScroll();
+  paintScrollUI();
 
   // Accessible off-canvas navigation: Escape, backdrop, focus return and scroll lock.
   const menuToggle = $("#menuToggle");
@@ -210,41 +233,69 @@
     !reducedMotion &&
     window.matchMedia("(pointer:fine)").matches
   ) {
-    let targetX = 0,
-      targetY = 0,
-      currentX = 0,
-      currentY = 0,
-      running = true;
-    const onMove = (event) => {
-      const rect = hero.getBoundingClientRect();
-      targetX = Math.max(
-        -1,
-        Math.min(1, ((event.clientX - rect.left) / rect.width - 0.5) * 2),
-      );
-      targetY = Math.max(
-        -1,
-        Math.min(1, ((event.clientY - rect.top) / rect.height - 0.5) * 2),
-      );
-    };
-    const onLeave = () => {
-      targetX = 0;
-      targetY = 0;
-    };
-    hero.addEventListener("pointermove", onMove);
-    hero.addEventListener("pointerleave", onLeave);
-    const animate = () => {
-      if (!running || doc.hidden) return;
+    let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
+    let rect = null, frame = 0, inView = true;
+    hero.style.setProperty("--mx", "0.00px");
+    hero.style.setProperty("--my", "0.00px");
+    const clamp = (v) => Math.max(-1, Math.min(1, v));
+    const tick = () => {
+      frame = 0;
+      if (doc.hidden || !inView) return;
       currentX += (targetX - currentX) * 0.065;
       currentY += (targetY - currentY) * 0.065;
+      const settled =
+        Math.abs(targetX - currentX) < 0.001 && Math.abs(targetY - currentY) < 0.001;
+      if (settled) {
+        currentX = targetX;
+        currentY = targetY;
+      }
       hero.style.setProperty("--mx", `${(currentX * 10).toFixed(2)}px`);
       hero.style.setProperty("--my", `${(currentY * 8).toFixed(2)}px`);
-      requestAnimationFrame(animate);
+      if (!settled) frame = requestAnimationFrame(tick);
     };
-    requestAnimationFrame(animate);
-    doc.addEventListener("visibilitychange", () => {
-      running = !doc.hidden;
-      if (running) requestAnimationFrame(animate);
+    const wake = () => {
+      if (!frame && inView && !doc.hidden) frame = requestAnimationFrame(tick);
+    };
+    hero.addEventListener(
+      "pointermove",
+      (event) => {
+        if (!rect) rect = hero.getBoundingClientRect();
+        targetX = clamp(((event.clientX - rect.left) / rect.width - 0.5) * 2);
+        targetY = clamp(((event.clientY - rect.top) / rect.height - 0.5) * 2);
+        wake();
+      },
+      { passive: true },
+    );
+    hero.addEventListener("pointerleave", () => {
+      targetX = 0;
+      targetY = 0;
+      rect = null;
+      wake();
     });
+    const dropRect = () => {
+      rect = null;
+    };
+    window.addEventListener("scroll", dropRect, { passive: true });
+    window.addEventListener("resize", dropRect, { passive: true });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(([entry]) => {
+        inView = entry.isIntersecting;
+        if (inView) wake();
+      }).observe(hero);
+    }
+    doc.addEventListener("visibilitychange", wake);
+  }
+
+  // Idle infinite CSS animations while their section is off screen (.is-paused in CSS).
+  if ("IntersectionObserver" in window) {
+    const pauser = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((entry) =>
+          entry.target.classList.toggle("is-paused", !entry.isIntersecting),
+        ),
+      { rootMargin: "120px 0px" },
+    );
+    $$(".hero-eyebrow, #heroArt, #foundationArt, .matrix").forEach((el) => pauser.observe(el));
   }
 
   // Rotating product showcases. One real pack at a time rises in front of an
@@ -252,17 +303,17 @@
   // for another random product. Each pack is measured against the widgets around
   // the hub, so it never crosses them.
   const PRODUCT_SHOTS = [
-    { src: "assets/img/products/purple-coffee.png", name: "Purple Coffee" },
+    { src: "assets/img/products/purple-coffee.webp", name: "Purple Coffee" },
     {
-      src: "assets/img/products/collagen-coffee.png",
+      src: "assets/img/products/collagen-coffee.webp",
       name: "Collagen Coffee",
     },
-    { src: "assets/img/products/insulin-coffee.png", name: "Insulin Coffee" },
-    { src: "assets/img/products/immune-booster.png", name: "Immune Booster" },
-    { src: "assets/img/products/vitamin-c.png", name: "Vitamin C" },
-    { src: "assets/img/products/spirulina.png", name: "Spirulina" },
-    { src: "assets/img/products/eye-drops.png", name: "Eye Drops" },
-    { src: "assets/img/products/stone-buster.png", name: "Stone Buster" },
+    { src: "assets/img/products/insulin-coffee.webp", name: "Insulin Coffee" },
+    { src: "assets/img/products/immune-booster.webp", name: "Immune Booster" },
+    { src: "assets/img/products/vitamin-c.webp", name: "Vitamin C" },
+    { src: "assets/img/products/spirulina.webp", name: "Spirulina" },
+    { src: "assets/img/products/eye-drops.webp", name: "Eye Drops" },
+    { src: "assets/img/products/stone-buster.webp", name: "Stone Buster" },
   ];
   const SHOT_HOLD_MS = 7000; // fully visible: long enough to read the pack
   const SHOT_LEAVE_MS = 620; // matches the .is-leaving transition
@@ -292,6 +343,7 @@
           : Promise.resolve();
       entry = { image, ready };
       shotCache.set(src, entry);
+      if (shotCache.size > 4) shotCache.delete(shotCache.keys().next().value);
     }
     return entry;
   }
@@ -597,7 +649,8 @@
   const heroShowcase = $("#productShowcase");
   const heroShot = $("#productShot");
   if (heroShowcase && heroShot && hero) {
-    createProductShowcase({
+    const heroRotation = createProductShowcase({
+      lazy: true,
       art: hero,
       stage: heroShowcase,
       shot: heroShot,
@@ -607,6 +660,17 @@
       comfortFallback: true,
       widgetLift: SHOT_FLOAT_LIFT,
     });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(
+        (entries) =>
+          entries.some((entry) => entry.isIntersecting)
+            ? heroRotation.start()
+            : heroRotation.stop(),
+        { threshold: 0.1 },
+      ).observe(hero);
+    } else {
+      heroRotation.start();
+    }
   }
 
   // Product participation: packs rise in front of the PRODUCT hub, inside the four
