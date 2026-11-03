@@ -4,14 +4,14 @@
 
 | | |
 |---|---|
-| **Version** | 2.1 — scope unchanged; the reference copy is now complete (front controller + public landing page) |
+| **Version** | 2.2 — backend-first; `index.html` stands in as the public front door, the EcoWealth frontend follows later |
 | **Date** | 2026-11-03 |
 | **Target application** | `system/` — the new EcoWealth app, served at `http://localhost/ecowealth/system/` |
 | **Reference implementation** | `dmp/cart-system/` — complete copy of the Altas Farm MLM + shop system: `index.php` front controller, 3 controllers, 16 models, 51 view templates, 4 cron scripts, public landing page |
 | **Business rules** | `dmp/ecowealth3.md` (Compensation Plan V3.0), `dmp/workflow.md` (end-to-end scenarios) |
 | **Template source** | `dmp/sneat/` — raw 3.x HTML pages used as UI reference |
 | **Route inventory source** | `dmp/cart-system/index.php` — the 98-page `?page=` table with guards, gates and impersonation bootstrap (§2.5) |
-| **Landing page source** | `dmp/cart-system/frontend/index.php` (+ `og-image.svg`, `og-image.png`) — self-contained marketing front door (§3.5) |
+| **Landing page** | The repo-root `index.html` serves as the EcoWealth front door for now; `dmp/cart-system/frontend/index.php` (+ `og-image.svg`, `og-image.png`) is its reference for the later frontend rebuild (§3.5, D23) |
 | **Document supersedes** | the `plan §…` references inside `dmp/cart-system` comments; ported code should be re-pointed to this document's section numbers |
 
 > **How to use this document.** Work top to bottom. Each phase has a *Gate* — a list of automatable and manual checks. Do not start the next phase until the current gate is green (all tests pass, no regression in earlier phases, demo data seeded, commit tagged). Estimates assume one experienced PHP developer; AI-assisted implementation typically compresses them 30–50%.
@@ -32,7 +32,7 @@ We are porting the **commerce, wallet and membership core** of the reference sys
 6. **Payouts** — withdrawal requests with minimum amount, service fees and USDT rails, through an admin approve → complete/reject queue.
 7. **Super-login** — superadmin impersonation of a member through an audited, expiring URL-token session.
 
-Binary pairing, caps, DFI, reactivation, commission-deduct, seat limits and the later V3.0 pillars (QA/retail gate, harvest milestones, residual PV, royalty, partnership) are **out of scope for this build**, but the schema, services and events are designed so they can be added without rewriting what we ship now.
+Binary pairing, caps, DFI, reactivation, commission-deduct, seat limits and the later V3.0 pillars (QA/retail gate, harvest milestones, residual PV, royalty, partnership) are **out of scope for this build**, but the schema, services and events are designed so they can be added without rewriting what we ship now. The build is **backend-first**: the frontend already exists as the repo-root `index.html`, which fills the role the reference landing page had and is sufficient for now; the fuller EcoWealth frontend is dealt with later and is not one of the phases below.
 
 ### 1.2 Why phases
 
@@ -42,8 +42,8 @@ The reference system grew complex: 14 order statuses, payment-proof windows, ref
 
 | Status | Item |
 |---|---|
-| **IN (this build)** | Public landing page (rebranded from the reference front door) with login/register CTAs; product catalog CRUD (admin) + storefront listing; package CRUD (admin) + package display; package contents; DB-backed cart (add / update / remove / totals); stock availability and reservation; checkout with address book; order creation with snapshots + idempotency; e-wallet payment; manual payment (GCash / Maya / bank) with proof upload and admin review; order lifecycle up to completion; shipment tracking fields; printable invoice; member order history; admin order desk; **registration (standard / code / e-wallet / pending) with sponsor but no binary placement**; **registration codes (generate, validate, redeem, expire, export)**; **package activation**; **complete e-wallet** (dual balance, ledger, statements, admin top-ups, admin monitor); **member-to-member transfers with fee, minimum, daily/weekly limits and reset cron**; **payouts (request, approve, complete, reject, service fees, USDT rails)**; **super-login (superadmin impersonation with URL token, expiry and audit)**; **direct + indirect referral commissions**; member earnings page; admin commission ledger; settings. |
-| **LATER (designed for, not built)** | QA / retail-customer gate; harvest milestone ladder; residual PV unilevel; royalty ranks; partnership bonus; package upgrades; refunds and credit notes; multi-attempt reshipment / RTS; stockist fulfilment fees; email/SMS notifications; guest checkout; product categories; multi-currency; API; seat limits. |
+| **IN (this build)** | The repo-root `index.html` as the public front door (it fills the role the reference landing page had); product catalog CRUD (admin) + storefront listing; package CRUD (admin) + package display; package contents; DB-backed cart (add / update / remove / totals); stock availability and reservation; checkout with address book; order creation with snapshots + idempotency; e-wallet payment; manual payment (GCash / Maya / bank) with proof upload and admin review; order lifecycle up to completion; shipment tracking fields; printable invoice; member order history; admin order desk; **registration (standard / code / e-wallet / pending) with sponsor but no binary placement**; **registration codes (generate, validate, redeem, expire, export)**; **package activation**; **complete e-wallet** (dual balance, ledger, statements, admin top-ups, admin monitor); **member-to-member transfers with fee, minimum, daily/weekly limits and reset cron**; **payouts (request, approve, complete, reject, service fees, USDT rails)**; **super-login (superadmin impersonation with URL token, expiry and audit)**; **direct + indirect referral commissions**; member earnings page; admin commission ledger; settings. |
+| **LATER (designed for, not built)** | EcoWealth frontend rebuild (`index.html` → a full marketing site wired into the app, using `frontend/index.php` as the model); QA / retail-customer gate; harvest milestone ladder; residual PV unilevel; royalty ranks; partnership bonus; package upgrades; refunds and credit notes; multi-attempt reshipment / RTS; stockist fulfilment fees; email/SMS notifications; guest checkout; product categories; multi-currency; API; seat limits. |
 | **DROPPED (do not port)** | Binary tree (`binary_parent_id`, left/right legs, pair counters, pairing bonus); binary upline/position at registration and activation; lifetime cap engine; daily fixed income; reactivation; commission-deduct (CD); `product_pv`/`pv_value` inert columns from the reference. |
 
 ### 1.4 Success criteria
@@ -78,7 +78,7 @@ Key facts to carry into the port:
   - The S-Login nonce is read from `?imp=` (64 hex characters) and installed with `session_name()` + `session_id()` **before** `session_start()`; `Auth::validateImpSession()` runs immediately after and destroys the tab on expiry, IP/UA change or a non-member target.
   - `spl_autoload_register` covers `models/` and `controllers/`; helpers, `Auth`, `Commission`, `CapEngine`, `DailyFixedIncome`, `Reactivation` load eagerly; the CSRF token is seeded once per request.
   - Unknown pages fall back to `login`, or to `admin` / `dashboard` for signed-in users. Ajax endpoints (`validate_code`, `check_username`, `check_upline`, `auto_select_upline`, `get_packages`) are ordinary `?page=` routes, not a separate API.
-- **Public landing page** (`frontend/index.php`, 7 092 lines) is in the copy: a self-contained marketing page — inline CSS, inline SVG hero scenes, six script blocks, no external images — with an Organization / WebSite / WebPage / FAQPage JSON-LD graph, `og-image.svg` + `og-image.png`, and CTAs to `?page=login` / `?page=register`. It loads only `config/db.php` and `core/helpers.php` (for `APP_URL` and `e()`) and never renders inside the Bootstrap layout.
+- **Public landing page** (`frontend/index.php`, 7 092 lines) is in the copy: a self-contained marketing page — inline CSS, inline SVG hero scenes, six script blocks, no external images — with an Organization / WebSite / WebPage / FAQPage JSON-LD graph, `og-image.svg` + `og-image.png`, and CTAs to `?page=login` / `?page=register`. It loads only `config/db.php` and `core/helpers.php` (for `APP_URL` and `e()`) and never renders inside the Bootstrap layout. **It is not ported now:** the repo-root `index.html` fills the same role until the EcoWealth frontend is scheduled (§3.5, D23).
 - Security fixes are documented inline (cart-item IDOR, checkout idempotency, stock reservation, admin self-review guard). **Keep these behaviours** — they are the value of the reference.
 - Views call controller methods through `?page=` routes and use `link_to()`, `csrf_field()`, `fmt_money()`, `render_flash()`.
 - Static assets live outside the app under `assets/`; the landing page's artwork is inline.
@@ -90,7 +90,7 @@ Key facts to carry into the port:
 | Reference module | Reference files | Disposition |
 |---|---|---|
 | Front controller / routing | `index.php` — 98-route `?page=` table, guards, maintenance + seat-limit gates | **Port as explicit routes** (Phase 1, §2.5) |
-| Public landing page | `frontend/index.php`, `frontend/og-image.{svg,png}` | **Port & rebrand** (Phase 1, §3.5) |
+| Public landing page | `frontend/index.php`, `frontend/og-image.{svg,png}` | **Defer** — the repo-root `index.html` stands in for now (D23) |
 | Products CRUD + image upload | `models/Product.php`, `AdminController::shopProducts/saveShopProduct/productStatus/deleteShopProduct`, `views/admin/shop_products.php` | **Port** (Phase 2) |
 | Storefront catalog | `views/member/shop.php`, `MemberController::shop` | **Port** (Phase 2) |
 | Packages + indirect levels | `models/Package.php`, `AdminController::packages/savePackage`, `views/admin/packages.php`, `package_indirect_levels` | **Port & simplify** (Phase 3) |
@@ -136,7 +136,7 @@ Key facts to carry into the port:
 | Unguarded routes | `any` = no check (register, wallet transfer) | Every route declares a guard: wallet transfer is `member`, login is `guest`, logout is `member` | Defence in depth |
 | USDT-rate routes | `update_usdt_gas` / `update_usdt_bep20_gas` call `AdminController` under the `member` guard | Routes removed; USDT rate and gas fees are admin-only settings | No member-writable money configuration |
 | Maintenance / seat gates | Inline `die()` HTML inside the router; the seat limit closes registration | Maintenance mode is a setting handled before routing; seat limit **dropped** | Router stays thin; seat limits are out of scope |
-| Public landing page | Standalone `frontend/index.php` linking `?page=login` and `?page=register` | `GET /` view rendered by the router, links via `url()` (§3.5) | One front door; no dead links when routes change |
+| Public landing page | Standalone `frontend/index.php` linking `?page=login` and `?page=register` | Keep the repo-root `index.html` as the front door; the app's `/` redirects to login/dashboard; the EcoWealth rebuild comes later (§3.5, D23) | Backend first — one front door, no landing page to maintain inside the app yet |
 | Tests | `tests/run.php` referenced, not provided | Our own harness (§8) | Every phase must be verifiable |
 
 ### 2.4 Current state of the target app (`system/`)
@@ -147,7 +147,7 @@ Key facts to carry into the port:
 | Layout | EcoWealth vertical template (`app/layout/app_header.php`, `app_footer.php`, auth layout) |
 | Dashboard | 832-line member "growth overview" with live community stats |
 | Routing | `system/.htaccess` → `public/`; `public/.htaccess` maps clean names; `public/router.php` for `php -S` |
-| Public front door | `system/public/index.php` redirects to dashboard or login; the marketing page currently lives at the repo root (`index.html`), outside the app |
+| Public front door | `index.html` at the repo root is the EcoWealth landing page for now — it fills the role the reference `frontend/index.php` had; the app itself (`system/public/index.php`) redirects to dashboard or login |
 | DB | PDO, but `app/config.php` points at **InfinityFree credentials** — must move to local MySQL in Phase 0 |
 | Roles | `users.role` is `enum('user','admin')`; no admin UI exists yet |
 | Tests | None |
@@ -189,7 +189,7 @@ The provided front controller turns the reference into a checkable page list. Ev
 
 - **Orphaned views:** `views/admin/repeat_purchases.php` and `views/member/repeat_purchases.php` have no route and no controller reference; leave them out unless repeat purchases are scoped in.
 - **Unrouted addition:** `views/auth/register_closed.php` is a second seat-limit page (used by `AuthController::showRegister`) on top of the router's inline block; both are dropped with the seat limit.
-- The landing page (`frontend/index.php`) sits outside this table and maps to `GET /` (§3.5).
+- The landing page (`frontend/index.php`) sits outside this table and is **not ported now**: the repo-root `index.html` serves that role until the EcoWealth frontend is scheduled (§3.5, D23).
 
 ---
 
@@ -226,12 +226,12 @@ system/
 │   │                           #        CommissionService, ActivationService, InvoiceService
 │   ├── Controllers/            # NEW — Shop, Cart, Checkout, Order, Membership, Earnings,
 │   │                           #        Profile + Admin* controllers
-│   ├── views/                  # NEW — home/ (landing), shop/, member/, admin/, errors/, partials/
+│   ├── views/                  # NEW — shop/, member/, admin/, errors/, partials/
 │   └── layout/                 # exists — header/footer/auth layouts (refactored for nav config)
 ├── public/
 │   ├── index.php               # front controller (replaces the current redirect shim)
 │   ├── login.php register.php logout.php   # kept as-is this build
-│   ├── assets/                 # EcoWealth theme assets (exists) + css/landing.css, js/landing.js (NEW)
+│   ├── assets/                 # EcoWealth theme assets (exists)
 │   ├── uploads/                # NEW — products/, packages/, proofs/ (writable, no PHP execution)
 │   └── .htaccess               # explicit auth routes + catch-all → index.php
 ├── database/
@@ -297,7 +297,7 @@ RewriteRule ^ index.php [L,QSA]
   - `admin` — logged in plus `role IN ('admin','superadmin')`; otherwise render `errors/403.php` (HTTP 403), never a redirect loop.
   - `superadmin` — `role = 'superadmin'`; gates code generation limits, payout overrides and the S-Login console.
   - `guest` — only for login/register (existing behaviour); signed-in callers are redirected to their dashboard.
-  - `any` — public by design: the landing page, the register form, the register validation endpoints and logout. Unlike the reference, `any` never covers a money route.
+  - `any` — public by design: the app's `/` redirect, the register form, the register validation endpoints and logout. Unlike the reference, `any` never covers a money route.
 - `auth_user()` continues to load the current row per request; add `auth_member()` returning the full member row (package, wallet, sponsor) and `is_admin()` / `is_superadmin()`.
 - **Superadmin acting-as:** finance attribution (`actingAdminId()`, `actingUser()`) resolves to the primary admin account (first `role='admin'`), so a superadmin's own wallet is never debited and records point at the admin — reference behaviour, keep it.
 - **Impersonation:** the super-login session replaces the cookie session with a URL-token session (`?imp=<nonce>`); the member layout shows a banner with an "exit" action, and every link/form must carry the token. Requests with an invalid, expired, IP-mismatched or non-member token are destroyed and bounce to `/slogin` (Phase 14).
@@ -306,17 +306,17 @@ RewriteRule ^ index.php [L,QSA]
 
 ### 3.5 UI system and theme mapping
 
-Three surfaces: the public landing page, the member layout and the admin layout.
+Two app layouts, plus a front door that lives outside the app:
 
 | Surface | Menu | Used by |
 |---|---|---|
-| Public (`layout=none`) | Landing-page nav only | `GET /` — ported from `frontend/index.php` |
+| Front door (outside the app) | the repo-root `index.html` page and its own nav | `/ecowealth/` — visitors land here first; its only app-facing piece is a link into `/ecowealth/system/` |
 | Member (`layout=member`) | Dashboard, Shop, Cart, My Orders, Membership, Earnings, Wallet, Payouts, Profile | member pages (plus an impersonation banner during S-Login) |
 | Admin (`layout=admin`) | Dashboard, Products, Packages, Orders, Activations, Registration Codes, Members, Commissions, E-Wallet Monitor, Payouts, Settings, S-Login console | `/admin/*`, `/slogin` |
 
 Both app layouts are the existing EcoWealth vertical theme; the sidebar becomes data-driven from `app/layout/nav.php` (sections → items → route, icon, badge), with `$current_nav` derived from the active route. The current dashboard's anchor-based menu is replaced by this config in Phase 1. The impersonation banner in the member layout is added in Phase 14.
 
-**Public landing page.** The reference's `frontend/index.php` is a self-contained page: inline CSS, inline SVG hero scenes (chickens, sunflower petals), a JSON-LD Organization / WebSite / WebPage / FAQPage graph, OG/Twitter tags backed by `frontend/og-image.svg` and `.png`, and CTAs to `login` / `register`. It is not a theme page: it ships as `app/views/home/landing.php` with its own `assets/css/landing.css` and `assets/js/landing.js` (Phase 1), served at `GET /`, with links generated by `url()`. Rebrand the copy (AltasFarm → EcoWealth), keep the FAQ and contact content, and keep the OG image at 1200×630. The app's `/` currently redirects to login/dashboard (`system/public/index.php`), so this is the one new public surface in the build; decision D23 settles whether the repo-root `index.html` is retired in its favour.
+**Public front door.** The guest-facing landing page is the repo-root `index.html`, which stands in for the role `frontend/index.php` had in the reference: it is the marketing page visitors see before they enter the app, while the app itself stays login-first (`GET /` in the app redirects to dashboard or login). Decision D23 records this. The reference landing page — inline CSS, inline SVG hero scenes, Organization / WebSite / WebPage / FAQPage JSON-LD, OG images at 1200×630, CTAs to login/register — is kept as the model for the **EcoWealth frontend rebuild, which is out of scope for this build**: the backend is built first and the frontend is dealt with later. While it is deferred, `index.html` only needs one thing to do its job — a visible link into `/ecowealth/system/` (login/register). It does not carry that link yet, so add one when the app is ready to show; no other frontend work belongs to this build.
 
 Component sources (copy structure from `dmp/sneat/`):
 
@@ -788,7 +788,7 @@ Checked by tests and by an admin "health" widget in Phase 15:
 | Phase | Name | Depends on | Effort (dev-days) |
 |---|---|---|---|
 | 0 | Setup, baseline & decisions | — | 1 |
-| 1 | Core skeleton: router, layouts, roles, settings, test harness, landing page | 0 | 6 |
+| 1 | Core skeleton: router, layouts, roles, settings, test harness | 0 | 5 |
 | 2 | Products & storefront catalog | 1 | 4 |
 | 3 | Packages & package contents | 1, 2 | 4 |
 | 4 | Cart engine & cart UI | 2 | 5 |
@@ -860,22 +860,21 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 
 ### Phase 1 — Core skeleton: router, layouts, roles, settings, test harness
 
-**Goal.** A foundation every later phase plugs into: front controller, route table, public landing page, member/admin layouts with real navigation, role guards, settings storage, error pages, and an automated test harness.
+**Goal.** A foundation every later phase plugs into: front controller, route table, member/admin layouts with real navigation, role guards, settings storage, error pages, and an automated test harness.
 
 **Depends on.** Phase 0.
 
-**Effort.** 6 dev-days — the extra day covers the landing-page port and the route-inventory parity test.
+**Effort.** 5 dev-days.
 
-**Reference.** `index.php` (98-route table, guard dispatch, maintenance gate, impersonation bootstrap), `core/helpers.php` (flash/CSRF/redirect/pagination/upload), `controllers/*` structure, `views/partials/{head,sidebar_*,topbar}.php`, `frontend/index.php` (public landing page).
+**Reference.** `index.php` (98-route table, guard dispatch, maintenance gate, impersonation bootstrap), `core/helpers.php` (flash/CSRF/redirect/pagination/upload), `controllers/*` structure, `views/partials/{head,sidebar_*,topbar}.php`. Deferred: `frontend/index.php` (landing page) is not ported in this build — the repo-root `index.html` covers that role (D23).
 
 **Deliverables**
 
 - **DB:** `settings` (+ seeds); `audit_log` may be created now or in Phase 15.
 - **Code:**
-  - `app/routes.php` — initial table seeded from the §2.5 inventory (`/` landing, `/shop` placeholder, `/admin` placeholder), with a commented name for every dropped or deferred page so the gap is visible in code.
+  - `app/routes.php` — initial table seeded from the §2.5 inventory (`/` redirect, `/shop` placeholder, `/admin` placeholder), with a commented name for every dropped or deferred page so the gap is visible in code.
   - `app/Core/Router.php`, `Request.php`, `View.php`, `Validator.php`, `Paginator.php`, `Upload.php`, `MaintenanceGate.php`.
-  - `app/Controllers/HomeController.php` (renders the landing page), `AdminDashboardController.php` (placeholder).
-  - `app/views/home/landing.php` — public front door ported and rebranded from `frontend/index.php`, with `assets/css/landing.css`, `assets/js/landing.js`, the OG images and the JSON-LD graph; CTAs point at `url('login')` / `url('register')`.
+  - `app/Controllers/HomeController.php` (redirects `/` to dashboard or login), `AdminDashboardController.php` (placeholder).
   - `app/views/errors/{403,404,500}.php`, `app/views/partials/{flash,pagination,empty_state}.php`.
   - `app/layout/nav.php` (menu config), refactored `app_header.php`/`app_footer.php`.
   - `public/index.php` — front controller (maintenance gate first, then routing); `public/router.php` — dev-server parity; `public/.htaccess` — catch-all.
@@ -884,7 +883,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
   - `tests/bootstrap.php`, `tests/run.php`, `tests/Cases/SkeletonTest.php`.
 - **Roles:** migrate `users.role` to `enum('member','admin')`; add `require_admin()`; 403 page.
 - **Seed:** settings defaults; keep `admin` account.
-- **Not yet:** `public/dashboard.php` stays a standalone page this phase; it is re-routed in Phase 9 when the member dashboard gains wallet/commission data.
+- **Not yet:** `public/dashboard.php` stays a standalone page this phase; it is re-routed in Phase 9 when the member dashboard gains wallet/commission data. The public front door stays the repo-root `index.html` — no landing page is built in this phase (D23).
 
 **Rules**
 
@@ -892,7 +891,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 - Guard enforcement happens in the router, not inside views.
 - CSRF is checked centrally for POST before dispatch.
 - Views render inside the correct layout; the menu shows only permitted items.
-- The landing page is public (no session), renders no app chrome, and every CTA goes through `url()`.
+- The app's `/` is a redirect only; the guest-facing landing page lives outside the app (`index.html`), so no landing-page view ships this phase.
 - No business logic in `index.php` beyond dispatch.
 
 **Test plan**
@@ -908,7 +907,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 | P1-T7 | `tests/run.php` | Runs, passes, exits 0; a failing assertion exits non-zero |
 | P1-T8 | Menu on member vs admin | Member never sees admin items |
 | P1-T9 | Baseline auth still works | Login/register/logout unaffected |
-| P1-T10 | `GET /` as guest | Landing page renders with EcoWealth branding and JSON-LD, no app chrome; CTAs resolve to `/login` and `/register` (no `?page=`) |
+| P1-T10 | `GET /` in the app as guest and as member | Redirects to `/login` when signed out and `/dashboard` when signed in; no landing page renders inside the app |
 | P1-T11 | `maintenance_mode=1` as guest vs admin | Guest gets the branded 503 page with `Retry-After`; admin sees the normal page |
 | P1-T12 | Route inventory parity (§2.5) | Every page marked *Port* has a route; the test fails on a missing or duplicated page |
 
@@ -1619,7 +1618,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
 - `tests/bootstrap.php`: creates/recreates `ecowealth_sneat_test`, loads `schema.sql` + migrations, seeds fixtures, returns a PDO. `app/config.php` uses `defined() || define()` so tests can point constants at the test schema.
 - `tests/run.php`: scans `tests/Cases/*.php`, runs each case in a transaction that is rolled back, prints `PASS/FAIL`, exits non-zero on failure.
 - `tests/fixtures.php`: builds the sponsor tree `juan → maria → {peter, sarah}` + `david` under maria, a 10-deep chain for unilevel tests, products, packages A/B, unused/used/expired registration codes, wallet balances with both buckets, a pending payout and a completed transfer.
-- `tests/smoke.ps1`: hits `/`, `/login`, `/shop`, `/cart`, `/checkout`, `/orders/1`, `/wallet`, `/payouts`, `/slogin`, `/admin/products`, `/admin/codes`, `/admin/payouts` with and without sessions, asserts codes/Locations and that the landing page needs no session.
+- `tests/smoke.ps1`: hits `/` (expects the redirect into the app), `/login`, `/shop`, `/cart`, `/checkout`, `/orders/1`, `/wallet`, `/payouts`, `/slogin`, `/admin/products`, `/admin/codes`, `/admin/payouts` with and without sessions, asserts codes/Locations.
 - Naming: `P{phase}-T{n}` maps 1:1 to the tables in §7.
 
 ### 8.3 Phase gate checklist (copy into `docs/phase-log.md`)
@@ -1647,7 +1646,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 2. Admin generates 3 registration codes for Package A (₱4,498) and exports the CSV.
 3. Superadmin opens `/slogin`, impersonates `juan` (seeded, active, Package A), sees the member dashboard with the impersonation banner, then exits; the audit entry shows `logged_out`.
 4. Juan copies his referral link, and admin tops up Juan's wallet by ₱5,000 (audited).
-5. Visitor opens `/`, sees the EcoWealth landing page, follows its "join" CTA, registers as `maria` through the referral link (sponsor prefilled) in pending mode; Maria signs in and sees "pending".
+5. Visitor opens the repo-root `index.html` front door (`/ecowealth/`), enters the app through its link into `/ecowealth/system/`, and registers as `maria` through the referral link (sponsor prefilled) in pending mode; Maria signs in and sees "pending".
 6. Maria activates Package A using a **registration code**: code is marked used, Maria becomes active.
 7. Juan's wallet increases by ₱500 (withdrawable); his earnings page shows the direct referral with source `maria` and the ledger entry.
 8. Maria adds 2× Coffee + 1 Spirulina to the cart, edits quantity, removes one, re-adds; checks out with a saved address, pays by e-wallet; order is `paid`, stock reserved, invoice issued.
@@ -1706,6 +1705,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 [ ] backups scheduled + one restore tested
 [ ] admin/superadmin passwords changed, demo accounts removed
 [ ] payment accounts, transfer fees/limits, payout fees and USDT rate verified
+[ ] Front door check: `index.html` serves the landing page and links into `/ecowealth/system/`
 [ ] UAT signed
 [ ] HTTPS enabled (Laragon SSL or host)
 ```
@@ -1717,23 +1717,23 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | Phase | Days | Cumulative | Milestone |
 |---|---:|---:|---|
 | 0 | 1 | 1 | Environment + decisions |
-| 1 | 6 | 7 | Skeleton: routes, layouts, roles, tests, landing page |
-| 2 | 4 | 11 | Products + catalog |
-| 3 | 4 | 15 | Packages + level matrix |
-| 4 | 5 | 20 | Cart |
-| 5 | 5 | 25 | E-wallet core (dual balance + monitor) |
-| 6 | 5 | 30 | Checkout + orders |
-| 7 | 5 | 35 | Manual payments + lifecycle |
-| 8 | 4 | 39 | Fulfilment + invoices |
-| 9 | 8 | 47 | Registration + codes + activation |
-| 10 | 4 | 51 | Direct referral |
-| 11 | 5 | 56 | Indirect referral |
-| 12 | 4 | 60 | Transfers + limits + monitor |
-| 13 | 5 | 65 | Payouts |
-| 14 | 3 | 68 | Super-login |
-| 15 | 5 | 73 | Hardening + UAT |
+| 1 | 5 | 6 | Skeleton: routes, layouts, roles, tests |
+| 2 | 4 | 10 | Products + catalog |
+| 3 | 4 | 14 | Packages + level matrix |
+| 4 | 5 | 19 | Cart |
+| 5 | 5 | 24 | E-wallet core (dual balance + monitor) |
+| 6 | 5 | 29 | Checkout + orders |
+| 7 | 5 | 34 | Manual payments + lifecycle |
+| 8 | 4 | 38 | Fulfilment + invoices |
+| 9 | 8 | 46 | Registration + codes + activation |
+| 10 | 4 | 50 | Direct referral |
+| 11 | 5 | 55 | Indirect referral |
+| 12 | 4 | 59 | Transfers + limits + monitor |
+| 13 | 5 | 64 | Payouts |
+| 14 | 3 | 67 | Super-login |
+| 15 | 5 | 72 | Hardening + UAT |
 
-**~73 dev-days** (≈14–15 weeks for one developer; ≈7–8 weeks full-time with AI assistance). Critical path: 1 → 5 → 6 → 7 → 9 → 10 → 11 → 13 → 15; 12 and 14 can run in parallel with 10/11.
+**~72 dev-days** (≈14–15 weeks for one developer; ≈7–8 weeks full-time with AI assistance). Critical path: 1 → 5 → 6 → 7 → 9 → 10 → 11 → 13 → 15; 12 and 14 can run in parallel with 10/11. The EcoWealth frontend rebuild is not in this schedule — `index.html` covers the front door until it is scheduled (D23).
 
 ---
 
@@ -1784,7 +1784,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 | D20 | Code format | Reference `ABCD-EFGH-JKLM` / workflow's 8-char A/B prefix | **Reference format** (package comes from the DB row) | Phase 9 |
 | D21 | Who may issue codes | Admin only / admin + superadmin / members | **Admin + superadmin**; member self-purchase deferred | Phase 9 |
 | D22 | Transfer password confirmation | Required / optional | **Required** (reference behaviour) | Phase 12 |
-| D23 | Public front door | App `GET /` landing page (ported from `frontend/index.php`) / keep the repo-root `index.html` / both until launch | **App `GET /`** — one deployable, links through `url()`; redirect or retire the root page at launch | Phase 1 |
+| D23 | Public front door | Repo-root `index.html` now and the EcoWealth frontend later / port `frontend/index.php` into the app now | **`index.html` now** — it plays the role the reference landing page had; the backend is built first and the EcoWealth frontend is dealt with later, outside this build's scope | Now (Phase 0) |
 
 ---
 
@@ -1796,7 +1796,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 
 | Method | Path | Controller | Guard | Phase |
 |---|---|---|---|---|
-| GET | `/` | HomeController::index (landing page) | any | 1 |
+| GET | `/` | HomeController::index (redirect: dashboard or login) | any | 1 |
 | GET | `/shop` | ShopController::index | member | 2 |
 | GET | `/shop/{id}` | ShopController::show | member | 2 |
 | GET | `/packages` | PackageController::index | member | 3 |
@@ -2359,7 +2359,7 @@ Chain: `juan` (Package A) ← `maria` (A) ← `peter` (A), `sarah` (B), `david` 
 
 | Screen | Base template | Notes |
 |---|---|---|
-| Public landing page | `frontend/index.php` (reference) | standalone — not a theme page; inline CSS/SVG/JS, JSON-LD, OG images |
+| Public landing page (deferred) | repo-root `index.html` now; `frontend/index.php` is the model for the later rebuild | not a theme page; the EcoWealth frontend is dealt with later (D23) |
 | Member dashboard | `dashboards-analytics.html` | cards + ApexCharts, reuse existing dashboard styling |
 | Shop catalog | `app-ecommerce-product-list.html` card grid variant | card grid, stock badges |
 | Cart | `app-ecommerce-checkout.html` (wizard-ex-checkout) | table + order summary |
@@ -2387,7 +2387,7 @@ Chain: `juan` (Package A) ← `maria` (A) ← `peter` (A), `sarah` (B), `david` 
 | Reference | Target | Phase | Parity |
 |---|---|---|---|
 | `index.php` (98-route `?page=` table, guards, gates) | `public/index.php`, `app/routes.php`, `app/Core/Router.php`, `MaintenanceGate` | 1 | Re-specified: clean URLs, 403 page instead of redirect, maintenance gate outside the router |
-| `frontend/index.php` (public landing page) | `app/views/home/landing.php` + `assets/css/landing.css` + `assets/js/landing.js` | 1 | Port & rebrand (AltasFarm → EcoWealth), OG images kept |
+| `frontend/index.php` (public landing page) | repo-root `index.html` stands in now; later rebuilt (planned `app/views/home/landing.php`) | — (deferred) | Reference only; the EcoWealth frontend rebuild is LATER (D23) |
 | `models/Product.php` | `app/Models/Product.php`, `ProductService` | 2 | Full + slug |
 | `AdminController::shopProducts/saveShopProduct/productStatus/deleteShopProduct` | `AdminProductController` | 2 | Full |
 | `views/admin/shop_products.php` | `app/views/admin/products/*` | 2 | Theme |
@@ -2423,7 +2423,7 @@ Chain: `juan` (Package A) ← `maria` (A) ← `peter` (A), `sarah` (B), `david` 
 
 | Term | Meaning |
 |---|---|
-| **Front door (landing page)** | The public marketing page at `GET /`, ported from `frontend/index.php`; readable without a session |
+| **Front door (landing page)** | The public marketing page visitors hit before the app; served by the repo-root `index.html` for now, modelled on `frontend/index.php` and rebuilt later |
 | **Route inventory** | The reference's 98-page `?page=` table in `dmp/cart-system/index.php`; the port's coverage checklist (§2.5) |
 | **Associate / Member** | Registered user; earns only after package activation |
 | **Sponsor / Upline** | The member who recruited another member; commissions walk up this chain |
