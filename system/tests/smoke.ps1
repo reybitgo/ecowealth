@@ -757,6 +757,13 @@ try {
             -and $cartAfterPrice.Body -match '25\.00' -and $cartAfterPrice.Body -match '12\.50') `
         'the cart follows the live catalogue price (2 x 20.00 becomes 2 x 12.50)'
 
+    # P4-T13 - admins shop too, so their sidebar offers the same cart.
+    $adminCart = Invoke-App -Path '/cart' -Session 'admin'
+    $adminMenu = ($adminCart.Body -match '<div>Cart</div>') -and ($adminCart.Body -match 'menu-item active') `
+        -and ($adminCart.Body -match 'admin/products')
+    Assert-That 'P4-T13' ($adminCart.Status -eq 200 -and $adminMenu) `
+        "GET /cart as admin keeps the back-office sidebar with an active Cart item (status=$($adminCart.Status))"
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'

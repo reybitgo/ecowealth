@@ -23,6 +23,19 @@ $render = static function (string $layout, string $template, array $data = []): 
     return $html;
 };
 
+/** The sidebar block from a rendered page (empty when there is no menu). */
+$sidebar = static function (string $html): string {
+    $start = strpos($html, '<ul class="menu-inner py-1">');
+
+    if ($start === false) {
+        return '';
+    }
+
+    $end = strpos($html, '</ul>', $start);
+
+    return $end === false ? '' : substr($html, $start, $end - $start);
+};
+
 /** Product fixture with a predictable name/price/stock. */
 $makeProduct = static function (array $overrides = []): int {
     return Product::save($overrides + [
@@ -257,6 +270,48 @@ return [
         assert_contains('name="product_id"', $html);
         assert_contains('name="quantity"', $html);
         assert_contains('Add Card Coffee to cart', $html);
+    },
+
+    'P4-T13 the admin sidebar also carries the cart menu with the live badge' => function () use ($render, $makeProduct, $stateFor, $sidebar): void {
+        $admin   = test_user('cart_admin_nav', 'admin');
+        $product = $makeProduct(['name' => 'Admin Cart Item', 'price' => '10.00']);
+
+        (new CartService())->add((int) $admin['id'], $product, 2);
+        test_signed_in_as($admin);
+
+        $html = $render('admin', 'shop/cart', [
+            'state'       => $stateFor((int) $admin['id']),
+            'shop_open'   => true,
+            'current_nav' => 'admin.cart',
+        ]);
+
+        $menu = $sidebar($html);
+
+        assert_contains('admin/products', $menu, 'the cart page keeps the back-office menu');
+        assert_contains('href="' . url('cart') . '"', $menu, 'the sidebar links to the cart');
+        assert_contains('<div>Cart</div>', $menu, 'the sidebar shows the Cart item');
+        assert_contains('badge rounded-pill bg-label-primary ms-auto">2</span>', $menu, 'the badge shows the live count');
+        assert_contains('menu-item active', $menu, 'the active item is the admin cart');
+        assert_contains('aria-current="page"', $menu);
+    },
+
+    'P4-T13 the member sidebar still shows the cart without admin items' => function () use ($render, $makeProduct, $stateFor, $sidebar): void {
+        $member  = test_user('cart_member_nav');
+        $product = $makeProduct(['name' => 'Member Cart Item']);
+
+        (new CartService())->add((int) $member['id'], $product, 1);
+        test_signed_in_as($member);
+
+        $html = $render('member', 'shop/cart', [
+            'state'     => $stateFor((int) $member['id']),
+            'shop_open' => true,
+        ]);
+
+        $menu = $sidebar($html);
+
+        assert_contains('<div>Cart</div>', $menu);
+        assert_contains('badge rounded-pill bg-label-primary ms-auto">1</span>', $menu);
+        assert_not_contains('admin/products', $menu, 'members never see back-office items');
     },
 
     'P4-T5 the cart page never leaks another member’s line' => function () use ($render, $makeProduct, $stateFor): void {

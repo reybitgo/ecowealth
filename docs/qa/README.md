@@ -41,7 +41,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 171   Passed: 171   Failed: 0
+Cases: 173   Passed: 173   Failed: 0
 All good.
 ```
 
@@ -54,7 +54,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 54   Failed: 0
+Passed: 55   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -198,8 +198,9 @@ These are deliberate for the current build — do not report them as defects:
 - The shop’s **Add to cart** buttons work and the cart drawer is on every signed-in page (Phase 4).
   **Checkout is not built yet** — the cart’s checkout button says **“Checkout opens in Phase 6”** and is
   disabled by design.
-- Administrators may open `/cart` too (the member guard admits admins, matching the reference); their
-  back-office sidebar does not gain a Cart item — the cart is reached from the navbar icon.
+- Administrators may open `/cart` too (the member guard admits admins, matching the reference). Their
+  back-office sidebar lists **Cart** under *Overview* with the same live badge, and the cart page keeps
+  the back-office menu with Cart highlighted.
 - Cart totals always come from the current catalogue price; changing a price in the back office changes
   the cart on its next load. This is intended, not a stale-value bug.
 - Removing the last line empties the cart; a cart row itself is kept server-side until it becomes an

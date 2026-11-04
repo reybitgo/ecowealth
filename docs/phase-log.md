@@ -610,3 +610,35 @@ Phase 5 — e-wallet core: `ewallet_ledger` + `ewallet_admin_topups`, the dual-b
 `WalletService` (`credit`, `debit`, `debitInternal`, `balance`, `withdrawable`, `statement`, `adminTopUp`), then the
 member statement page and the admin monitor/top-up screens. `CartService::convert()` is ready for Phase 6’s order
 placement; `Cart::totals()` is the price source checkout should re-read.
+
+---
+
+## Post-Phase 4 — Admin cart menu
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 173 PHP cases, 55 smoke checks
+
+### Problem
+
+The back office gained the navbar cart button and the global drawer in Phase 4 (admins may shop — the
+`member` guard admits them), but its sidebar had no **Cart** entry. The badge and drawer therefore had no
+menu destination, and opening `/cart` as an admin highlighted **Storefront** in the sidebar.
+
+### Changes
+
+- **`app/layout/nav.php`** — added `admin.cart` under **Overview**, right after **Storefront**:
+  `guard => admin`, `phase => 4`, `badge => cart` so it renders with the same live count as the member menu.
+- **`CartController::index()`** — an admin viewing the cart now passes `current_nav = admin.cart` (was
+  `admin.storefront`), so the sidebar marks the right item. Members are unchanged (`cart`).
+- **Tests** — two new `CartViewTest` cases: the admin sidebar carries a linked, active Cart item with the
+  live badge while the back-office catalogue stays intact; the member sidebar still shows Cart without any
+  back-office item. `smoke.ps1` gained a P4-T13 check that `GET /cart` as an admin returns 200 with the
+  active Cart item in the back-office menu.
+- **Evidence** — `docs/qa/evidence/phase-4/final-admin-cart.png`.
+
+### Verification
+
+- `php tests\run.php` — **173 / 173**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **55 / 55**.
+- Headless Chrome: `/cart` signed in as `admin` renders the back-office layout with
+  **OVERVIEW → Dashboard · Storefront · Cart (active, badge 2)**, the catalogue menu below, and the cart
+  line/summary in the content area.

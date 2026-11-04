@@ -38,7 +38,7 @@ final class CartController
 
         View::page($isAdmin ? 'admin' : 'member', 'shop/cart', [
             'page_title'             => 'Cart',
-            'current_nav'            => $isAdmin ? 'admin.storefront' : 'cart',
+            'current_nav'            => $isAdmin ? 'admin.cart' : 'cart',
             'nav_search_placeholder' => 'Search the shop…',
             'nav_search_url'         => url('shop'),
             'page_css'               => ['assets/css/shop.css'],

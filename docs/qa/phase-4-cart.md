@@ -40,6 +40,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | `final-cart-mobile.png` | cart at 390 × 844 |
 | `final-cart-drawer-mobile.png` | drawer at 390 × 844 |
 | `final-shop-add-to-cart.png` | product cards with the new cart button |
+| `final-admin-cart.png` | the admin sidebar's Cart item (active, badge 2) |
 
 > **Before you start:** Phases 1–3 should be signed off. The automated suite must be green
 > (`php tests\run.php` → 171 cases; `powershell -NoProfile -File tests\smoke.ps1` → 54 checks). Create
@@ -441,8 +442,11 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 - The catalogue, detail page and packages page render exactly as in Phase 3, plus the cart button on the
   detail page.
-- The back office pages are unchanged; no cart link appears in the admin sidebar (only the navbar cart
-  icon and the drawer).
+- The back office pages are unchanged. The admin sidebar now lists **Cart** under **Overview**, right
+  after **Storefront**, carrying the same live badge as the navbar icon.
+- Step 3 renders the cart inside the **back-office** layout: Dashboard / Storefront / **Cart** stay in the
+  sidebar, Cart is highlighted, and its badge matches the number of units in the admin's own cart (the
+  admin's cart is separate from any member's).
 - No 404s in DevTools → **Network** for CSS/JS (hard refresh with `Ctrl+F5` first).
 
 ---
