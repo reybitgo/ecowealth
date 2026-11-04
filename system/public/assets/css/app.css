@@ -136,6 +136,68 @@
   }
 }
 
+/* ---------- Label icon buttons ---------- */
+/*
+ * Sneat's generic `.btn-icon` rule overrides the label variant colour, so
+ * the glyph stayed gray even on the dark hover fill. Restore the variant
+ * colour and use a focus ring instead of the hover fill, so a restored
+ * focus after browser Back never leaves the action looking pressed.
+ */
+.btn-icon[class*="btn-label-"]:not(:disabled) {
+  color: var(--bs-btn-color);
+}
+
+.btn-icon[class*="btn-label-"]:not(:disabled):hover,
+.btn-icon[class*="btn-label-"]:not(:disabled):active {
+  color: var(--bs-btn-hover-color);
+}
+
+.btn-icon[class*="btn-label-"]:not(:disabled):focus-visible {
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* ---------- Admin product thumbnails ---------- */
+.admin-product-thumb {
+  display: block;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.admin-product-thumb-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(
+      circle at 50% 38%,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(var(--bs-primary-rgb), 0.05) 55%,
+      rgba(var(--bs-primary-rgb), 0.1) 100%
+    ),
+    var(--bs-gray-100, #f4f6fb);
+}
+
+.admin-product-thumb-empty img {
+  width: 26px;
+  height: auto;
+  opacity: 0.55;
+}
+
+/* Empty product-image preview in the create/edit form. */
+.admin-image-placeholder {
+  width: 4rem;
+  height: auto;
+  opacity: 0.45;
+}
+
 /* ---------- Dashboard: tables ---------- */
 .dashboard-table > :not(caption) > * > * {
   padding-block: 0.85rem;

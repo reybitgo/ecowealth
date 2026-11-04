@@ -14,14 +14,6 @@ declare(strict_types=1);
 $shop_open = $shop_open ?? true;
 $query     = trim((string) ($filters['q'] ?? ''));
 
-$page_styles = <<<CSS
-.product-card-img { height: 180px; object-fit: cover; }
-.product-card-img-empty { background: var(--bs-gray-100, #f4f6fb); }
-.product-card { transition: box-shadow .2s ease, transform .2s ease; }
-.product-card:hover { box-shadow: 0 .5rem 1.25rem rgba(34, 41, 47, .08); transform: translateY(-2px); }
-@media (max-width: 575.98px) { .product-card-img { height: 200px; } }
-CSS;
-
 /* Quick-view payload: encoded once, read by JS from a JSON script block. */
 $quickViewData = [];
 foreach ($products as $product) {
@@ -34,6 +26,7 @@ foreach ($products as $product) {
         'description' => (string) $product['description'],
         'price'       => money((float) $product['price']),
         'stock'       => StockService::label((int) ($available[(int) $product['id']] ?? 0))['label'],
+        'image'       => UploadService::url($product['image_url'] ?? null),
         'url'         => url('shop/' . (int) $product['id']),
     ];
 }
@@ -41,9 +34,16 @@ foreach ($products as $product) {
             <div class="container-xxl flex-grow-1 container-p-y">
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
-                  <h4 class="mb-1">Shop</h4>
+                  <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                    <h4 class="mb-0">Shop</h4>
+<?php if ($pager->total > 0): ?>
+                    <span class="badge rounded-pill bg-label-secondary">
+                      <?= $pager->total ?> <?= $query !== '' ? 'result' : 'product' ?><?= $pager->total === 1 ? '' : 's' ?>
+                    </span>
+<?php endif; ?>
+                  </div>
                   <p class="text-body-secondary mb-0">
-                    Browse the EcoWealth catalogue. Checkout arrives with the cart in a later release.
+                    Explore the EcoWealth range and open any product for the full details.
                   </p>
                 </div>
                 <form method="GET" action="<?= e(url('shop')) ?>" class="d-flex gap-2" role="search">
@@ -89,9 +89,9 @@ foreach ($products as $product) {
                 </div>
               </div>
 <?php else: ?>
-              <div class="row g-6">
+              <div class="row g-3 g-md-6 shop-product-grid">
 <?php foreach ($products as $product): ?>
-                <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
+                <div class="col-6 col-md-4 col-xl-3">
 <?php
     echo View::partial('product_card', [
         'product'    => $product,
@@ -123,11 +123,20 @@ foreach ($products as $product) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                   </div>
                   <div class="modal-body">
-                    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                      <span class="h5 mb-0" id="quickViewPrice"></span>
-                      <span class="badge bg-label-secondary" id="quickViewStock"></span>
+                    <div class="row g-4">
+                      <div class="col-sm-5" id="quickViewMedia" hidden>
+                        <div class="quick-view-media">
+                          <img id="quickViewImage" src="" alt="" />
+                        </div>
+                      </div>
+                      <div class="col" id="quickViewDetails">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                          <span class="h5 mb-0" id="quickViewPrice"></span>
+                          <span class="badge bg-label-secondary" id="quickViewStock"></span>
+                        </div>
+                        <p class="text-body-secondary mb-0" id="quickViewDescription" style="white-space: pre-line"></p>
+                      </div>
                     </div>
-                    <p class="text-body-secondary mb-0" id="quickViewDescription" style="white-space: pre-line"></p>
                   </div>
                   <div class="modal-footer">
                     <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Close</button>
@@ -147,6 +156,9 @@ foreach ($products as $product) {
                 try { data = JSON.parse(dataEl.textContent); } catch (e) { return; }
 
                 var modal = new bootstrap.Modal(modalEl);
+                var media = document.getElementById('quickViewMedia');
+                var image = document.getElementById('quickViewImage');
+                var details = document.getElementById('quickViewDetails');
 
                 document.querySelectorAll('[data-quick-view]').forEach(function (button) {
                   button.addEventListener('click', function () {
@@ -158,6 +170,19 @@ foreach ($products as $product) {
                     document.getElementById('quickViewStock').textContent = item.stock;
                     document.getElementById('quickViewDescription').textContent = item.description;
                     document.getElementById('quickViewLink').setAttribute('href', item.url);
+
+                    if (item.image) {
+                      image.src = item.image;
+                      image.alt = item.name;
+                      media.hidden = false;
+                      details.className = 'col-sm-7';
+                    } else {
+                      image.removeAttribute('src');
+                      image.alt = '';
+                      media.hidden = true;
+                      details.className = 'col';
+                    }
+
                     modal.show();
                   });
                 });

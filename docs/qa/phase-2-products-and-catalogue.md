@@ -344,15 +344,17 @@ P2-T9 escaping · P2-T10 member 403.
 
 **Expected**
 
-- Heading **“Shop”** with the line “Browse the EcoWealth catalogue. Checkout arrives with the cart in
-  a later release.”
+- Heading **“Shop”** with a **7 products** badge and the line “Explore the EcoWealth range and open
+  any product for the full details.”
 - A search box with a **Search** button.
 - Seven product cards in a grid (Coffee, Immune Booster, Spirulina, Serpentina, Kojic Soap,
   Stone Buster, Colonics Session).
-- Four cards show photos; the other three show the grey package placeholder.
-- Every card shows the name, a short line, the price (e.g. **₱300.00**) and a green **In stock**
+- Every card uses the same square product stage, so a tall pack shot cannot push the title or price
+  out of view. Four cards show photos; the other three show the EcoWealth leaf mark placeholder.
+- Every card shows the SKU, name, a short line, the price (e.g. **₱300.00**) and a green **In stock**
   badge.
-- Each card has a **Details** button and an **eye** (quick view) button.
+- Each card has a **Details** button and an **eye** (quick view) button. On a phone the grid is two
+  cards per row and the short description is hidden to keep the cards compact.
 
 ### QA2-14 — Quick view opens and links to the detail page
 
@@ -370,7 +372,7 @@ P2-T9 escaping · P2-T10 member 403.
 
 **Expected**
 
-- A modal opens with the product name, price, stock badge and the product description.
+- A modal opens with the product image, name, price, stock badge and the product description.
 - **Close** dismisses it; **View details** opens `/shop/<id>` for Coffee.
 
 ### QA2-15 — The product detail page is complete
@@ -391,10 +393,9 @@ P2-T9 escaping · P2-T10 member 403.
 
 - Breadcrumb “Shop / Coffee”.
 - Large product photo, name **Coffee**, badge **In stock**, price **₱300.00**, “50 available”.
-- A **disabled** button **“Add to cart”** (hovering explains it arrives in Phase 4) and a
+- A **disabled** button **“Add to cart”** (hovering explains that online checkout opens soon) and a
   **Back to shop** button.
-- An information box: “Checkout is being built. The cart opens in Phase 4 and payments in Phase 6 —
-  this page is the Phase 2 catalogue detail.”
+- A small note: “Online checkout opens soon.”
 - **About this product** text, then **SKU `EW-COFFEE`** and **Availability**.
 
 ### QA2-16 — Search and pagination (optional, adds 14 temporary rows)

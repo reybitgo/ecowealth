@@ -402,3 +402,104 @@ admin landing page itself was a Phase 1 placeholder with no operational data.
 `SET time_zone = '<configured offset>'` once immediately after opening, so the session time zone
 stays aligned with `APP_TIMEZONE` on PHP 8.3, 8.4 and 8.5 without a driver-specific constant.
 Verified `@@session.time_zone` returns `+08:00` and the PHP suite stays green.
+
+---
+
+## Storefront product-card redesign
+
+**Date:** 2026-11-04 · **Status:** complete · **Tests:** 141 PHP cases, 42 smoke checks
+
+### Problem
+
+The product-card CSS in `views/shop/catalog.php` and `views/shop/product.php` was assigned to
+`$page_styles` inside the view, but `View::page()` renders the layout header **before** the view.
+The rules therefore never reached a `<style>` block. Portrait pack shots (540–567 × 960) rendered
+at full card width: on a phone a single card grew to ~740px, hiding the title, price and buttons.
+
+### Changes
+
+- **Storefront stylesheet.** Added `assets/css/shop.css` and pass it through
+  `ShopController::page_css` for both the catalogue and the product detail page, so every rule is
+  in the document head before the cards render.
+- **Fixed media stage.** Each card has a 1:1 media stage with `object-fit: contain`, a soft branded
+  gradient and generous internal padding. A tall bottle or pouch is fully visible without pushing
+  the body out of the card; the stage height is identical across the grid.
+- **Admin thumbnails.** Admin product rows (`/admin/products`) and the create/edit image preview now
+  use the same EcoWealth leaf mark as the storefront when `image_url` is empty, replacing the
+  generic package icon. The thumbnail is a 44px rounded tile with the mark at its centre.
+- **Role-aware storefront shell.** `/shop` and the product detail page render the **admin** layout
+  when an administrator is signed in, with **Storefront** active and Products/Packages still in the
+  sidebar; members keep the shop/member menu. The shared navbar search is pointed at the shop for
+  both roles instead of switching to the admin product search.
+- **Conversion-focused body.** SKU kicker, line-clamped title and short description, prominent
+  price, stock badge over the image, primary **Details** CTA and a quick-view button. Card hover
+  lifts the card and gently scales the image; focus-within gets the same treatment for keyboards.
+- **Responsive grid.** Two cards per row on phones, three from 768px and four from 1200px. The
+  short description is hidden on phones and the price/actions stack below the tablet breakpoint.
+- **Product detail + quick view.** The detail image is absolutely fitted to the 1:1 stage; a grid
+  auto-row sized from the image's 960px intrinsic height was clipping tall bottles such as
+  Spirulina (`/shop/3`). Quick view uses the same fit and shows the whole pack. Missing images use
+  the EcoWealth leaf mark instead of a generic broken-image icon. `bx-cart-plus` (not shipped by
+  the bundled icon set) was replaced with `bx-cart-add`.
+- **Copy.** The shop header no longer advertises a future cart release; the detail page uses
+  “Online checkout opens soon” instead of internal phase text.
+- **Tests.** Smoke counts cards with the new `<article class="card product-card">` markup and also
+  asserts that `shop.css` is present on the catalogue response.
+
+Visual evidence: `docs/qa/evidence/shop/` (`final-shop-desktop.png`,
+`final-shop-tablet.png`, `final-shop-mobile.png`, `final-product-detail.png`).
+
+---
+
+## Product action icons — hover contrast and Back focus
+
+**Date:** 2026-11-04 · **Status:** complete
+
+### Problem
+
+The admin product action icon buttons (Edit, status toggle, Delete) rendered their glyph in the
+table gray because Sneat’s generic `.btn-icon` colour rule won over `.btn-label-*`. On hover the
+label variant switches to a dark filled background, leaving a low-contrast gray icon. After
+navigating to a product edit page and pressing browser **Back**, the restored focus kept the Edit
+button in that pressed/hover appearance.
+
+### Changes
+
+- `app.css` restores the label variant colour for icon-only label buttons, switches the glyph to
+  the variant contrast colour on hover/active, and uses an outline focus ring instead of the hover
+  fill for `:focus-visible`.
+- `app.js` clears restored focus on `.btn-icon[class*="btn-label-"]` during `pageshow`, so the
+  action does not stay shaded after Back. Normal keyboard focus still shows the ring.
+- Verified hover glyph is white on the dark fill, the focused Edit button gets a visible ring, and a
+  dispatched `pageshow` moves focus back to `body`. PHP 141/141 and smoke 42/42 remain green.
+
+Evidence: `docs/qa/evidence/shop/edit-button-hover.png`.
+
+---
+
+## Branded error pages — logo-led, no topbar
+
+**Date:** 2026-11-04 · **Status:** complete · **Tests:** 141 PHP cases, 42 smoke checks
+
+### Problem
+
+Error pages used the shared plain layout, which still rendered the detached topbar with a small
+32px logo. The resulting 403/404 screen had a narrow floating header, a generic avatar/lock icon and
+a mostly empty page.
+
+### Changes
+
+- **Plain layout has no navbar.** Error pages now start directly with the centered error panel; the
+  plain `<html>` class no longer carries `layout-navbar-fixed`, so there is no leftover top padding.
+- **Logo replaces the status icon.** A 48px EcoWealth wordmark sits at the top of every error panel
+  (403, 404, 500 and the standalone 503), replacing the old avatar/pin/map/clock icon.
+- **Shared panel.** New `views/partials/error_panel.php` renders the logo, large status code,
+  heading, message, supporting sentence and recovery actions. `errors.css` handles the full-height
+  gradient background, responsive button layout and footer. The 500 debug detail is preserved.
+- **503 stays standalone.** Maintenance mode still renders without the app layout or database
+  dependencies, but uses the same panel and stylesheet; it keeps the `Retry-After: 3600` response and
+  the “EcoWealth is being updated and will be back shortly.” copy.
+- **Flash bars suppressed on error layouts.** A login success flash no longer appears above a 403.
+
+Visual evidence: `docs/qa/evidence/errors/` (`final-403-desktop.png`, `final-404-desktop.png`,
+`final-503-desktop.png` and their mobile counterparts).

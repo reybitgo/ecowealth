@@ -20,6 +20,8 @@ declare(strict_types=1);
  *                               [['icon' => 'bx bx-user-plus', 'tone' => 'primary',
  *                                 'title' => 'New member', 'text' => 'jane', 'time' => '2 min ago'], …]
  * @var array      $nav_badges   Optional menu counters, e.g. ['cart' => 3]
+ * @var string     $nav_search_placeholder Optional navbar search hint
+ * @var string     $nav_search_url         Optional navbar search target
  */
 
 $layout      = in_array($layout ?? 'member', ['member', 'admin', 'plain'], true) ? ($layout ?? 'member') : 'member';
@@ -33,9 +35,14 @@ $nav_notes   = $nav_notes ?? [];
 $nav_badges  = $nav_badges ?? [];
 $current_nav = $current_nav ?? ($layout === 'plain' ? '' : nav_current_key($layout, $me));
 $has_menu    = $layout !== 'plain';
+
+/* A page can point the shared search at its own catalogue — the shop does
+ * this for admins so their back-office sidebar does not change its target. */
+$nav_search_placeholder = $nav_search_placeholder ?? ($layout === 'admin' ? 'Search products…' : 'Search the shop…');
+$nav_search_url         = $nav_search_url ?? url($layout === 'admin' ? 'admin/products' : 'shop');
 $html_class  = $has_menu
     ? 'layout-navbar-fixed layout-menu-fixed layout-compact customizer-hide'
-    : 'layout-navbar-fixed layout-compact customizer-hide';
+    : 'layout-compact customizer-hide';
 ?>
 <!doctype html>
 <!-- beautify ignore:start -->
@@ -74,6 +81,9 @@ $html_class  = $has_menu
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/app.css')) ?>" />
+<?php if ($layout === 'plain'): ?>
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/errors.css')) ?>" />
+<?php endif; ?>
     <!-- Vendors CSS -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css')) ?>" />
 <?php foreach ($page_css as $css): ?>
@@ -93,7 +103,7 @@ $html_class  = $has_menu
     <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
     <script src="<?= e(url('assets/js/config.js')) ?>"></script>
   </head>
-  <body>
+  <body<?= $has_menu ? '' : ' class="error-page"' ?>>
     <!-- Layout wrapper -->
     <div class="layout-wrapper layout-content-navbar">
       <div class="layout-container">
@@ -124,12 +134,12 @@ $html_class  = $has_menu
 
         <!-- Layout container -->
         <div class="layout-page">
+<?php if ($has_menu): ?>
           <!-- Navbar -->
           <nav
             class="layout-navbar container-xxl navbar-detached navbar navbar-expand-xl align-items-center bg-navbar-theme"
             id="layout-navbar"
           >
-<?php if ($has_menu): ?>
             <div
               class="layout-menu-toggle navbar-nav align-items-xl-center me-4 me-xl-0 d-xl-none"
             >
@@ -140,12 +150,6 @@ $html_class  = $has_menu
                 <i class="icon-base bx bx-menu icon-md"></i>
               </a>
             </div>
-<?php else: ?>
-            <a href="<?= e($me ? url('dashboard') : url('login')) ?>" class="app-brand-link me-4">
-              <?php $brand_logo_height = 32; ?>
-              <?php require __DIR__ . '/logo.php'; ?>
-            </a>
-<?php endif; ?>
             <div
               class="navbar-nav-right d-flex align-items-center justify-content-end"
               id="navbar-collapse"
@@ -159,9 +163,9 @@ $html_class  = $has_menu
                     type="search"
                     id="navbarQuickSearch"
                     class="form-control border-0 bg-transparent shadow-none ps-2"
-                    placeholder="<?= $layout === 'admin' ? 'Search products…' : 'Search the shop…' ?>"
+                    placeholder="<?= e($nav_search_placeholder) ?>"
                     aria-label="Search"
-                    data-search-url="<?= e(url($layout === 'admin' ? 'admin/products' : 'shop')) ?>"
+                    data-search-url="<?= e($nav_search_url) ?>"
                   />
                 </div>
               </div>
@@ -169,7 +173,6 @@ $html_class  = $has_menu
 <?php endif; ?>
 
               <ul class="navbar-nav flex-row align-items-center ms-md-auto">
-<?php if ($has_menu): ?>
                 <!-- Notifications -->
                 <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-2">
                   <a
@@ -279,18 +282,14 @@ $html_class  = $has_menu
                   </ul>
                 </li>
                 <!--/ User -->
-<?php else: ?>
-                <li class="nav-item">
-                  <a class="btn btn-sm btn-primary" href="<?= e($me ? url('dashboard') : url('login')) ?>">
-                    <?= $me ? 'Dashboard' : 'Sign in' ?>
-                  </a>
-                </li>
-<?php endif; ?>
               </ul>
             </div>
           </nav>
           <!-- / Navbar -->
+<?php endif; ?>
 
           <!-- Content wrapper -->
           <div class="content-wrapper">
+<?php if ($has_menu): ?>
 <?php require dirname(__DIR__) . '/views/partials/flash.php'; ?>
+<?php endif; ?>

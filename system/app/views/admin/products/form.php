@@ -215,7 +215,12 @@ $errors  = errors_all();
                           />
                           <div id="imagePreviewEmpty" class="rounded d-flex align-items-center justify-content-center text-body-secondary <?= $image !== null ? 'd-none' : '' ?>" style="height: 160px; background: #f4f6fb">
                             <div class="text-center">
-                              <i class="icon-base bx bx-image-add icon-xl d-block mb-1"></i>
+                              <img
+                                src="<?= e(url('assets/img/ecowealth-mark.png')) ?>"
+                                alt=""
+                                aria-hidden="true"
+                                class="admin-image-placeholder d-block mx-auto mb-2"
+                              />
                               <span class="small">No image yet</span>
                             </div>
                           </div>

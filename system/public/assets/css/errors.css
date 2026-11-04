@@ -1,0 +1,126 @@
+/* ==============================================================
+ *  EcoWealth — branded error pages (403, 404, 500, 503)
+ *
+ *  The plain layout renders no topbar; the brand sits at the top
+ *  of the centred error panel instead, followed by the code, the
+ *  explanation and the recovery actions.
+ * ============================================================== */
+
+body.error-page {
+  min-height: 100dvh;
+  background: var(--bs-body-bg);
+}
+
+.error-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: calc(100dvh - 74px);
+  padding: clamp(2rem, 6vw, 4.5rem) 1.25rem;
+  background:
+    radial-gradient(60% 55% at 50% 18%, rgba(var(--bs-primary-rgb), 0.1) 0%, rgba(var(--bs-primary-rgb), 0) 72%);
+}
+
+.error-panel {
+  width: min(100%, 44rem);
+  margin-inline: auto;
+  text-align: center;
+}
+
+.error-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: clamp(1.5rem, 3vw, 2.25rem);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.error-brand:hover {
+  opacity: 0.82;
+}
+
+.error-brand .app-brand-img {
+  display: block;
+  width: auto;
+}
+
+.error-code {
+  margin-bottom: 0.75rem;
+  color: var(--bs-primary);
+  color: color-mix(in srgb, var(--bs-primary) 38%, var(--bs-heading-color));
+  font-size: clamp(4.5rem, 12vw, 7.5rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.07em;
+  line-height: 0.85;
+}
+
+.error-title {
+  margin-bottom: 0.75rem;
+  color: var(--bs-heading-color);
+  font-size: clamp(1.5rem, 3.5vw, 2.125rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.error-message {
+  max-width: 36rem;
+  margin: 0 auto 1rem;
+  color: var(--bs-secondary-color);
+  font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+  line-height: 1.7;
+}
+
+.error-support {
+  max-width: 34rem;
+  margin: 0 auto;
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: clamp(1.5rem, 3vw, 2rem);
+}
+
+.error-actions .btn {
+  min-width: 9rem;
+}
+
+.error-debug {
+  max-width: 52rem;
+  margin: 2rem auto 0;
+  text-align: start;
+}
+
+.error-footer {
+  padding: 1.25rem;
+  border-top: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+@media (max-width: 575.98px) {
+  .error-shell {
+    min-height: calc(100dvh - 4rem);
+    padding-block: 2.5rem;
+  }
+
+  .error-actions .btn {
+    flex: 1 1 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-brand {
+    transition: none;
+  }
+}

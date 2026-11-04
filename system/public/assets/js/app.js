@@ -8,6 +8,19 @@
 (function () {
   'use strict';
 
+  /*
+   * Browsers can restore the clicked action button's focus when the user
+   * comes Back to a page, which made an Edit/Delete icon look pressed.
+   * Drop that restored focus; normal tab focus still gets the focus ring.
+   */
+  window.addEventListener('pageshow', function () {
+    var active = document.activeElement;
+
+    if (active && active.matches && active.matches('.btn-icon[class*="btn-label-"]')) {
+      active.blur();
+    }
+  });
+
   var input = document.getElementById('navbarQuickSearch');
 
   if (!input) {

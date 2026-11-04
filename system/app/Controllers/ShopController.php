@@ -37,14 +37,19 @@ final class ShopController
             $pager = new Paginator(0, self::PER_PAGE, 1);
         }
 
-        View::page('member', 'shop/catalog', [
-            'page_title'  => 'Shop',
-            'current_nav' => 'shop',
-            'products'    => $products,
-            'available'   => $available,
-            'pager'       => $pager,
-            'filters'     => $filters,
-            'shop_open'   => $shopOpen,
+        $isAdmin = is_admin();
+
+        View::page($isAdmin ? 'admin' : 'member', 'shop/catalog', [
+            'page_title'             => 'Shop',
+            'current_nav'            => $isAdmin ? 'admin.storefront' : 'shop',
+            'nav_search_placeholder' => 'Search the shop…',
+            'nav_search_url'         => url('shop'),
+            'page_css'               => ['assets/css/shop.css'],
+            'products'               => $products,
+            'available'              => $available,
+            'pager'                  => $pager,
+            'filters'                => $filters,
+            'shop_open'              => $shopOpen,
         ]);
     }
 
@@ -61,13 +66,18 @@ final class ShopController
 
         $available = StockService::available((int) $product['id']);
 
-        View::page('member', 'shop/product', [
-            'page_title'  => (string) $product['name'],
-            'current_nav' => 'shop',
-            'product'     => $product,
-            'available'   => $available,
-            'stock'       => StockService::label($available),
-            'shop_open'   => setting_bool('shop_enabled', true),
+        $isAdmin = is_admin();
+
+        View::page($isAdmin ? 'admin' : 'member', 'shop/product', [
+            'page_title'             => (string) $product['name'],
+            'current_nav'            => $isAdmin ? 'admin.storefront' : 'shop',
+            'nav_search_placeholder' => 'Search the shop…',
+            'nav_search_url'         => url('shop'),
+            'page_css'               => ['assets/css/shop.css'],
+            'product'                => $product,
+            'available'              => $available,
+            'stock'                  => StockService::label($available),
+            'shop_open'              => setting_bool('shop_enabled', true),
         ]);
     }
 }

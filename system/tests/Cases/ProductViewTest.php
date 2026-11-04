@@ -170,7 +170,7 @@ return [
         $html = $render('admin', 'admin/products/index', [
             'products'   => [
                 $product(['id' => 1, 'name' => 'Coffee']),
-                $product(['id' => 2, 'name' => 'Inactive Item', 'status' => 'inactive']),
+                $product(['id' => 2, 'name' => 'Inactive Item', 'status' => 'inactive', 'image_url' => null]),
             ],
             'pager'      => new Paginator(2, 20, 1),
             'filters'    => ['q' => '', 'status' => ''],
@@ -191,6 +191,7 @@ return [
         assert_contains('This product appears in a package.', $html);
         assert_contains('Showing 1–2 of 2', $html);
         assert_contains('Inactive', $html);
+        assert_contains(url('assets/img/ecowealth-mark.png'), $html, 'missing image falls back to the leaf mark');
     },
 
     'P2-T1 the admin form renders values, errors and the upload field' => function () use ($render, $product): void {
@@ -214,6 +215,7 @@ return [
         assert_contains('name="image"', $html);
         assert_contains('name="_csrf"', $html);
         assert_contains('Generated from the name', $html);
+        assert_contains(url('assets/img/ecowealth-mark.png'), $html, 'new-product preview uses the leaf mark');
     },
 
     'P2-T4 the edit form shows the current image and a remove option' => function () use ($render, $product): void {

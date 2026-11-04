@@ -230,11 +230,11 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 
 **Expected**
 
-- A **403** page: large “403”, heading **“Access denied”**, text “You do not have permission to open
-  this page.”
+- A **403** page: the EcoWealth logo above a large “403”, heading **“Access denied”**, text
+  “You do not have permission to open this page.”
 - Buttons **“Back to dashboard”** and **“Home”**.
 - The URL stays `/admin` (no redirect loop, no login page).
-- The page keeps the normal header/footer styling.
+- There is **no topbar**; the logo sits at the top of the centred panel and the normal footer remains.
 
 ### QA1-09 — Unknown addresses show the branded 404 page
 
@@ -255,7 +255,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 
 - The page shows “404”, **“Page not found”** and “The page you were looking for could not be found.”
 - The status code is **404**.
-- The EcoWealth header and footer are present and styled.
+- The EcoWealth logo, fonts and footer are present and styled; there is no topbar.
 
 ### QA1-10 — Deep addresses still load styles and images from the right place
 
@@ -273,7 +273,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 
 **Expected**
 
-- The page is the **404 page**, fully styled — styled sidebar, fonts and logo.
+- The page is the **404 page**, fully styled — logo, fonts and footer (no topbar).
 - Asset URLs look like `http://localhost/ecowealth/system/assets/...` and return **200**.
 - No asset URL contains `/admin/products/` before `/assets/`.
 
@@ -380,7 +380,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 **Expected**
 
 - Step 2: the **503** page with “Down for maintenance”, “EcoWealth is being updated and will be back
-  shortly.” and “Please try again in 1 hour.”
+  shortly.” and “Please try again in about an hour.”
 - In DevTools → Network the response status is **503** and its headers include `Retry-After: 3600`.
 - Step 3: the **login page still loads** — administration remains possible.
 - Step 4: the admin dashboard opens normally (200) — administrators bypass maintenance.

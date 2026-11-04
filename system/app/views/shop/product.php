@@ -15,10 +15,6 @@ $shop_open = $shop_open ?? true;
 $image     = UploadService::url($product['image_url'] ?? null);
 $soldOut   = $stock['key'] === 'out';
 $sku       = trim((string) ($product['sku'] ?? ''));
-$page_styles = <<<CSS
-.product-detail-img { max-height: 420px; object-fit: contain; width: 100%; }
-.product-detail-img-empty { height: 320px; background: var(--bs-gray-100, #f4f6fb); }
-CSS;
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
               <nav aria-label="breadcrumb" class="mb-4">
@@ -39,13 +35,18 @@ CSS;
                 <div class="card-body">
                   <div class="row g-6">
                     <div class="col-md-5">
+                      <div class="product-detail-media<?= $image === null ? ' product-detail-media-empty' : '' ?>">
 <?php if ($image !== null): ?>
-                      <img src="<?= e($image) ?>" alt="<?= e((string) $product['name']) ?>" class="rounded product-detail-img" />
+                        <img src="<?= e($image) ?>" alt="<?= e((string) $product['name']) ?>" class="product-detail-img" />
 <?php else: ?>
-                      <div class="rounded product-detail-img-empty d-flex align-items-center justify-content-center">
-                        <i class="icon-base bx bx-package icon-xl text-body-secondary"></i>
-                      </div>
+                        <img
+                          src="<?= e(url('assets/img/ecowealth-mark.png')) ?>"
+                          alt=""
+                          aria-hidden="true"
+                          class="product-detail-placeholder-mark"
+                        />
 <?php endif; ?>
+                      </div>
                     </div>
 
                     <div class="col-md-7">
@@ -63,22 +64,18 @@ CSS;
                         <span class="text-body-secondary small"><?= $available > 0 ? $available . ' available' : 'Out of stock' ?></span>
                       </div>
 
-                      <div class="d-flex flex-wrap gap-2 mb-5">
-                        <button type="button" class="btn btn-primary" disabled title="Arrives with the cart in Phase 4">
-                          <i class="icon-base bx bx-cart-plus me-1"></i> Add to cart
+                      <div class="d-flex flex-wrap gap-2 mb-4">
+                        <button type="button" class="btn btn-primary" disabled title="Online checkout opens soon">
+                          <i class="icon-base bx bx-cart-add me-1"></i> Add to cart
                         </button>
                         <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary">
                           <i class="icon-base bx bx-arrow-back me-1"></i> Back to shop
                         </a>
                       </div>
 
-                      <div class="alert alert-info d-flex align-items-start gap-2 mb-5" role="alert">
-                        <i class="icon-base bx bx-info-circle fs-4"></i>
-                        <div class="small">
-                          Checkout is being built. The cart opens in Phase 4 and payments in Phase 6 —
-                          this page is the Phase 2 catalogue detail.
-                        </div>
-                      </div>
+                      <p class="text-body-secondary small mb-5">
+                        <i class="icon-base bx bx-time-five me-1"></i> Online checkout opens soon.
+                      </p>
 
 <?php if (!empty($product['description'])): ?>
                       <h6 class="mb-2">About this product</h6>

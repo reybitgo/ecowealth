@@ -136,12 +136,10 @@ $cards = [
                         <td>
                           <div class="d-flex align-items-center gap-3">
 <?php if ($thumb !== null): ?>
-                            <img src="<?= e($thumb) ?>" alt="" class="rounded" style="width: 44px; height: 44px; object-fit: cover" />
+                            <img src="<?= e($thumb) ?>" alt="" class="admin-product-thumb" loading="lazy" />
 <?php else: ?>
-                            <span class="avatar avatar-sm">
-                              <span class="avatar-initial rounded bg-label-secondary">
-                                <i class="icon-base bx bx-package"></i>
-                              </span>
+                            <span class="admin-product-thumb admin-product-thumb-empty" aria-hidden="true">
+                              <img src="<?= e(url('assets/img/ecowealth-mark.png')) ?>" alt="" loading="lazy" />
                             </span>
 <?php endif; ?>
                             <div>

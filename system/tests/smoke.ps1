@@ -249,8 +249,10 @@ try {
         "GET /admin as admin -> 200 with the back-office menu (got $($adminPage.Status))"
 
     $memberAsAdmin = Invoke-App -Path '/shop' -Session 'admin'
-    Assert-That 'P1-T8' ($memberAsAdmin.Status -eq 200 -and $memberAsAdmin.Body -notmatch 'E-wallet monitor') `
-        "member portal does not leak admin items (got $($memberAsAdmin.Status))"
+    Assert-That 'P1-T8' ($memberAsAdmin.Status -eq 200 `
+            -and $memberAsAdmin.Body -match 'href="[^"]*/admin/products"' `
+            -and $memberAsAdmin.Body -notmatch 'E-wallet monitor') `
+        "admin /shop keeps the back-office menu (got $($memberAsAdmin.Status))"
 
     $passwordPage = Invoke-App -Path '/profile/password' -Session 'admin'
     Assert-That 'P1-T9' ($passwordPage.Status -eq 200 -and $passwordPage.Body -match 'Current password') `
@@ -430,9 +432,11 @@ try {
     $page1  = Invoke-App -Path '/shop' -Session 'member'
     $page2  = Invoke-App -Path '/shop?page=2' -Session 'member'
     $search = Invoke-App -Path "/shop?q=$smokeSku" -Session 'member'
-    $cards1 = [regex]::Matches($page1.Body, 'class="card h-100 product-card"').Count
+    $cards1 = [regex]::Matches($page1.Body, '<article class="card product-card').Count
 
     Assert-That 'P2-T8' ($page1.Status -eq 200 -and $cards1 -eq 12 -and $page2.Status -eq 200 `
+            -and $page1.Body -match 'assets/css/shop.css' `
+            -and $page1.Body -notmatch 'href="[^"]*/admin/products"' `
             -and $page2.Body -match 'Smoke Page' -and $search.Body -match 'page=2' -and $search.Body -match "q=$smokeSku") `
         "the catalogue paginates at 12 per page and search links keep q (page1 cards=$cards1)"
 
