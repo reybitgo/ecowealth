@@ -40,6 +40,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | `final-cart-mobile.png` | cart at 390 × 844 |
 | `final-cart-drawer-mobile.png` | drawer at 390 × 844 |
 | `final-shop-add-to-cart.png` | product cards with the new cart button |
+| `final-cart-sidebar-badge.png` | sidebar + navbar badges both at 2 after an in-place add |
 | `final-admin-cart.png` | the admin sidebar's Cart item (active, badge 2) |
 
 > **Before you start:** Phases 1–3 should be signed off. The automated suite must be green
@@ -91,7 +92,8 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 - A green toast **“Added to cart.”** appears.
 - The cart drawer slides in from the right, headed **Cart** with badge **1**, listing Coffee with
   **₱300.00 each** and line total **₱300.00**.
-- The navbar cart badge and the sidebar **Cart** badge both show **1**.
+- The navbar cart badge and the sidebar **Cart** badge both show **1** immediately — without a page reload,
+  even when the cart started empty.
 - Close the drawer with the **×**.
 
 ### QA4-03 — Adding the same product again increments one line

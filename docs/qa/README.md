@@ -41,7 +41,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 173   Passed: 173   Failed: 0
+Cases: 174   Passed: 174   Failed: 0
 All good.
 ```
 

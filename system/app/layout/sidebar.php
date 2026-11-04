@@ -62,12 +62,20 @@ $nav_menu   = nav_config()[$nav_layout] ?? ['title' => '', 'sections' => []];
               </form>
             </li>
 <?php else: ?>
+<?php
+    /* Badged items keep their badge element in the DOM even at zero, hidden.
+     * The cart script updates every [data-cart-badge] in place after an AJAX
+     * add/remove; an element that only existed above zero could never be
+     * revealed client-side (the count would jump in the navbar but not here). */
+    $badge_key   = !empty($item['badge']) ? (string) $item['badge'] : '';
+    $badge_count = $badge_key !== '' ? (int) ($nav_badges[$badge_key] ?? 0) : 0;
+?>
             <li class="menu-item <?= $is_active ? 'active' : '' ?>">
               <a href="<?= e(url($item['path'])) ?>" class="menu-link"<?= $link_attrs ?>>
                 <i class="menu-icon icon-base <?= e(icon_class($item['icon'])) ?>"></i>
                 <div><?= e($item['label']) ?></div>
-<?php if (!empty($item['badge']) && !empty($nav_badges[$item['badge']])): ?>
-                <span class="badge rounded-pill bg-label-primary ms-auto"><?= (int) $nav_badges[$item['badge']] ?></span>
+<?php if ($badge_key !== ''): ?>
+                <span class="badge rounded-pill bg-label-primary ms-auto" data-nav-badge="<?= e($badge_key) ?>"<?= $badge_key === 'cart' ? ' data-cart-badge' : '' ?><?= $badge_count > 0 ? '' : ' hidden' ?>><?= $badge_count ?></span>
 <?php endif; ?>
               </a>
             </li>

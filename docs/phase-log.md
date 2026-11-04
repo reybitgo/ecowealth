@@ -642,3 +642,39 @@ menu destination, and opening `/cart` as an admin highlighted **Storefront** in 
 - Headless Chrome: `/cart` signed in as `admin` renders the back-office layout with
   **OVERVIEW → Dashboard · Storefront · Cart (active, badge 2)**, the catalogue menu below, and the cart
   line/summary in the content area.
+
+---
+
+## Post-Phase 4 — Live sidebar cart badge
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 174 PHP cases, 55 smoke checks, 18/18 browser UI checks
+
+### Problem
+
+Adding from `/shop` updated the navbar cart badge but not the badge beside **Cart** in the sidebar.
+Two causes:
+
+1. The sidebar badge had no `data-cart-badge` hook, so `app-cart.js` never touched it.
+2. `sidebar.php` only emitted the badge element when the count was non-zero. On a first add the element
+   did not exist at all, so there was nothing for the script to reveal without a reload.
+
+### Changes
+
+- **`app/layout/sidebar.php`** — every badged menu item now renders its badge element even at zero,
+  carrying `data-nav-badge="<key>"` (and `data-cart-badge` for the cart). A zero count starts `hidden`,
+  so the menu looks unchanged but the AJAX layer can reveal and update it in place.
+- **`app-cart.js`** — unchanged on purpose: it already updates every `[data-cart-badge]`; the sidebar is
+  now one of them, alongside the navbar and (via `[data-cart-count]`) the drawer header.
+- **Tests** — new `CartViewTest` case: an empty cart renders the sidebar badge hidden at `0`; the admin and
+  member sidebar cases now assert the badge hook and live count. The browser harness reports **18/18**
+  (sidebar badge exists hidden at 0, shows 1 after a card add, 2 after the drawer stepper, hides at 0,
+  and follows a cart-page update).
+- **Docs/evidence** — QA4-02 now states the badges update without a reload; new
+  `docs/qa/evidence/phase-4/final-cart-sidebar-badge.png` (sidebar and navbar both at 2 after an
+  in-place add).
+
+### Verification
+
+- `php tests\run.php` — **174 / 174**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **55 / 55**.
+- Headless Chrome interaction run — **18 / 18**, 0 JavaScript exceptions.

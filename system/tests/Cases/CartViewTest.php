@@ -290,7 +290,9 @@ return [
         assert_contains('admin/products', $menu, 'the cart page keeps the back-office menu');
         assert_contains('href="' . url('cart') . '"', $menu, 'the sidebar links to the cart');
         assert_contains('<div>Cart</div>', $menu, 'the sidebar shows the Cart item');
-        assert_contains('badge rounded-pill bg-label-primary ms-auto">2</span>', $menu, 'the badge shows the live count');
+        assert_contains('data-nav-badge="cart"', $menu);
+        assert_contains('data-cart-badge', $menu, 'the sidebar badge is a cart-updatable element');
+        assert_contains('>2</span>', $menu, 'the badge shows the live count');
         assert_contains('menu-item active', $menu, 'the active item is the admin cart');
         assert_contains('aria-current="page"', $menu);
     },
@@ -310,8 +312,33 @@ return [
         $menu = $sidebar($html);
 
         assert_contains('<div>Cart</div>', $menu);
-        assert_contains('badge rounded-pill bg-label-primary ms-auto">1</span>', $menu);
+        assert_contains('data-nav-badge="cart"', $menu);
+        assert_contains('data-cart-badge', $menu);
+        assert_contains('>1</span>', $menu);
         assert_not_contains('admin/products', $menu, 'members never see back-office items');
+    },
+
+    'P4-T13 an empty cart keeps the sidebar badge hidden for the script to reveal' => function () use ($render, $sidebar): void {
+        test_signed_in_as(test_user('cart_nav_empty'));
+
+        $html = $render('member', 'shop/catalog', [
+            'products'  => [],
+            'available' => [],
+            'pager'     => new Paginator(0, 12, 1),
+            'filters'   => ['q' => ''],
+            'shop_open' => true,
+        ]);
+
+        $menu = $sidebar($html);
+
+        /* The element must exist at zero: the AJAX add reveals it client-side
+         * instead of waiting for a page reload. */
+        assert_contains('data-cart-badge', $menu);
+        assert_contains('>0</span>', $menu);
+        assert_true(
+            preg_match('/data-cart-badge[^>]*\shidden/', $menu) === 1,
+            'a zero sidebar badge must start hidden'
+        );
     },
 
     'P4-T5 the cart page never leaks another member’s line' => function () use ($render, $makeProduct, $stateFor): void {
