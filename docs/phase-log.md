@@ -678,3 +678,19 @@ Two causes:
 - `php tests\run.php` — **174 / 174**.
 - `powershell -NoProfile -File tests\smoke.ps1` — **55 / 55**.
 - Headless Chrome interaction run — **18 / 18**, 0 JavaScript exceptions.
+
+---
+
+## Shell footer — vendor credit removed
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 175 PHP cases, 55 smoke checks
+
+The app footer ended with “Built with PHP 8.3.16 & MySQL · ThemeSelection”. The whole right-hand
+credit block is removed from `app/layout/app_footer.php`; the footer now carries only the EcoWealth
+copyright line (“© 2026 EcoWealth — Membership, shop and e-wallet. All rights reserved.”). The layout
+container stays as-is, so the copyright keeps its usual padding on every app page.
+
+A `ViewTest` regression case asserts the footer keeps the brand and the rights line and contains no
+“Built with”, “ThemeSelection” or PHP version string.
+
+Evidence: `docs/qa/evidence/shell/final-footer.png`.

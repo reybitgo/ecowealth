@@ -9,20 +9,6 @@
                     <?= date('Y') ?> <?= e(APP_NAME) ?> — <?= e(APP_TAGLINE) ?>.
                     <span class="text-body-secondary">All rights reserved.</span>
                   </div>
-                  <div class="d-none d-lg-inline-block">
-                    Built with
-                    <a href="https://www.php.net" target="_blank" rel="noopener" class="footer-link">PHP <?= PHP_VERSION ?></a>
-                    &amp;
-                    <a href="https://www.mysql.com" target="_blank" rel="noopener" class="footer-link">MySQL</a>
-                    &middot;
-                    <a
-                      href="https://themeselection.com/item/sneat-bootstrap-html-admin-template/"
-                      target="_blank"
-                      rel="noopener"
-                      class="footer-link"
-                      >ThemeSelection</a
-                    >
-                  </div>
                 </div>
               </div>
             </footer>

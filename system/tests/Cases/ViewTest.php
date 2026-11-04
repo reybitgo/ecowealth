@@ -176,6 +176,18 @@ return [
         assert_contains('page=1', $links);
     },
 
+    'View::page footer carries only the EcoWealth copyright' => function () use ($render): void {
+        test_signed_in_as(test_user('layout_footer'));
+
+        $html = $render('member', 'profile/password');
+
+        assert_contains('All rights reserved', $html);
+        assert_contains(APP_NAME, $html, 'the footer keeps the brand');
+        assert_not_contains('Built with', $html);
+        assert_not_contains('ThemeSelection', $html);
+        assert_not_contains('PHP ' . PHP_VERSION, $html);
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,
