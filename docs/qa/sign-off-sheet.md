@@ -1,6 +1,6 @@
-# EcoWealth — QA sign-off sheet (Phases 1–3)
+# EcoWealth — QA sign-off sheet (Phases 1–4)
 
-Fill this sheet while working through the three phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the four phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
@@ -10,8 +10,8 @@ still open in each phase of `docs/phase-log.md`.
 2. Record the automated results (§1).
 3. For each phase, tick every check in its table. Add the evidence file name; the file lives in
    `docs/qa/evidence/phase-<n>/`.
-4. Log every failure in the *Defect log* (§5) and keep its status up to date.
-5. Complete the *Final decision* (§6) and sign.
+4. Log every failure in the *Defect log* (§6) and keep its status up to date.
+5. Complete the *Final decision* (§7) and sign.
 
 ---
 
@@ -22,7 +22,7 @@ still open in each phase of `docs/phase-log.md`.
 | Tester name | |
 | Date(s) of testing | |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1`, `phase-2`, `phase-3` |
+| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4` |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | |
@@ -36,8 +36,8 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 141  Passed: 141  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 41  Failed: 0` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 171  Passed: 171  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 54  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -148,7 +148,40 @@ Document: [phase-3-packages.md](phase-3-packages.md)
 
 ---
 
-## 5. Defect log
+## 5. Phase 4 — Cart
+
+Document: [phase-4-cart.md](phase-4-cart.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA4-01 | Empty cart invites the member to the shop | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-02 | Add from a product card (toast, drawer, badges) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-03 | Repeat add increments one line | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-04 | Drawer stepper saves quantity and totals | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-05 | Cart page edit and remove | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-06 | Quantity 0 removes the line | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-07 | Adding beyond stock refused with numbers | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-08 | Over-stock line blocks checkout clearly | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-09 | Catalogue price change reaches the cart | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-10 | Inactive product flagged, removable | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-11 | Low-stock and sold-out badges accurate | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-12 | Another member cannot touch the cart (IDOR) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-13 | Cart works with JavaScript disabled | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-14 | Guest is redirected from `/cart` | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-15 | Mobile cart and drawer | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-16 | Toasts visible and console clean | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA4-17 | Earlier phases regression | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 4 summary | |
+|---|---|
+| Executed | ____ / 17 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 6. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -168,13 +201,14 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 6. Final decision
+## 7. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
 | Phase 1 | ☐ Yes ☐ No | |
 | Phase 2 | ☐ Yes ☐ No | |
 | Phase 3 | ☐ Yes ☐ No | |
+| Phase 4 | ☐ Yes ☐ No | |
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

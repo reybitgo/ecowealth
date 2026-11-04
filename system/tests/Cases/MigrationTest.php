@@ -4,10 +4,11 @@ declare(strict_types=1);
 /* ==============================================================
  *  MigrationTest — database/migrations/001_settings_roles.sql
  *
- *  Builds a pre-Phase-1 database from the fixture, applies the
- *  migration, and checks that the result matches a fresh install
- *  of database/schema.sql. Uses its own schema
- *  (ecowealth_sneat_migtest) so it never disturbs the app schema.
+ *  Builds a pre-Phase-1 database from the fixture, applies every
+ *  phase migration in order, and checks that the result matches a
+ *  fresh install of database/schema.sql. Uses its own schema
+ *  (ecowealth_sneat_migration_test) so it never disturbs the app
+ *  schema.
  * ============================================================== */
 
 $migrationDir  = dirname(__DIR__, 2) . '/database/migrations/';
@@ -15,6 +16,7 @@ $migrations    = [
     $migrationDir . '001_settings_roles.sql',
     $migrationDir . '002_products.sql',
     $migrationDir . '003_packages.sql',
+    $migrationDir . '004_carts.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -69,7 +71,10 @@ return [
         $pdo    = $buildMigrated();
         $tables = array_column($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_NUM), 0);
 
-        foreach (['settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products'] as $table) {
+        foreach ([
+            'settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products',
+            'carts', 'cart_items',
+        ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
 
@@ -96,6 +101,17 @@ return [
 
         assert_same(5.0, (float) $pdo->query("SELECT amount FROM package_levels WHERE package_id = {$packageId}")->fetchColumn());
         assert_same(2, (int) $pdo->query("SELECT quantity FROM package_products WHERE package_id = {$packageId}")->fetchColumn());
+
+        /* Phase 4: a migrated cart accepts a line against the migrated product. */
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        $pdo->exec("INSERT INTO carts (user_id, status) VALUES ({$userId}, 'active')");
+        $cartId = (int) $pdo->lastInsertId();
+        $pdo->exec(
+            "INSERT INTO cart_items (cart_id, product_id, quantity, unit_price)
+             VALUES ({$cartId}, (SELECT id FROM products WHERE sku = 'MIG-1'), 3, 10.00)"
+        );
+
+        assert_same(3, (int) $pdo->query("SELECT quantity FROM cart_items WHERE cart_id = {$cartId}")->fetchColumn());
     },
 
     'migration adds the role index' => function () use ($buildMigrated): void {
@@ -147,6 +163,8 @@ return [
         assert_same($columnList($fresh, 'packages'), $columnList($migrated, 'packages'), 'packages columns differ from schema.sql');
         assert_same($columnList($fresh, 'package_levels'), $columnList($migrated, 'package_levels'), 'package_levels columns differ from schema.sql');
         assert_same($columnList($fresh, 'package_products'), $columnList($migrated, 'package_products'), 'package_products columns differ from schema.sql');
+        assert_same($columnList($fresh, 'carts'), $columnList($migrated, 'carts'), 'carts columns differ from schema.sql');
+        assert_same($columnList($fresh, 'cart_items'), $columnList($migrated, 'cart_items'), 'cart_items columns differ from schema.sql');
     },
 
     'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {

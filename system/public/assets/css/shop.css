@@ -305,6 +305,240 @@
   object-fit: contain;
 }
 
+/* ---------- Product detail add-to-cart (Phase 4) ---------- */
+.product-card-add {
+  display: flex;
+  margin: 0;
+}
+
+.product-qty-group {
+  width: 8.5rem;
+  flex: 0 0 auto;
+}
+
+/* The native number spinner fights the three-piece stepper: hide it and give
+ * the value enough room to stay readable in the narrow drawer group. */
+.product-qty-group input[type='number'],
+.cart-qty-group input[type='number'] {
+  flex: 1 1 auto;
+  min-width: 2.4rem;
+  padding-right: 0.25rem;
+  padding-left: 0.25rem;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.product-qty-group input[type='number']::-webkit-outer-spin-button,
+.product-qty-group input[type='number']::-webkit-inner-spin-button,
+.cart-qty-group input[type='number']::-webkit-outer-spin-button,
+.cart-qty-group input[type='number']::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+/* ---------- Cart page (Phase 4) ---------- */
+.cart-page .cart-table-card {
+  overflow: hidden;
+}
+
+.cart-table thead th {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+  background: var(--bs-gray-100, #f4f6fb);
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cart-table tbody td {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  vertical-align: middle;
+}
+
+.cart-row.is-problem td {
+  background: rgba(var(--bs-warning-rgb), 0.06);
+}
+
+.cart-page-media {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.6rem;
+  background: var(--bs-gray-100, #f4f6fb);
+}
+
+.cart-page-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0.25rem;
+  object-fit: contain;
+}
+
+.cart-row-name,
+.cart-drawer-name {
+  display: block;
+  overflow: hidden;
+  max-width: 22rem;
+  color: var(--bs-heading-color);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cart-row-name:hover,
+.cart-drawer-name:hover {
+  color: var(--bs-primary);
+}
+
+.cart-qty-group {
+  width: 7.25rem;
+  flex-wrap: nowrap;
+}
+
+.cart-col-qty {
+  width: 9rem;
+}
+
+.cart-col-remove {
+  width: 4rem;
+}
+
+.cart-update-btn {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.cart-summary {
+  position: sticky;
+  top: 6rem;
+}
+
+/* ---------- Cart drawer (Phase 4) ---------- */
+.cart-drawer {
+  width: min(23rem, 100vw);
+}
+
+.cart-drawer-media {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.6rem;
+  background: var(--bs-gray-100, #f4f6fb);
+}
+
+.cart-drawer-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0.2rem;
+  object-fit: contain;
+}
+
+.cart-drawer-media-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--bs-secondary-color);
+}
+
+.cart-drawer-name {
+  max-width: 12rem;
+  font-size: 0.925rem;
+}
+
+.cart-drawer-line {
+  color: var(--bs-heading-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cart-drawer-empty {
+  min-height: 60vh;
+}
+
+.cart-drawer .cart-qty-group {
+  width: 6.75rem;
+}
+
+.cart-navbar-badge {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.25rem;
+  min-width: 1.1rem;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+/* Phone: two compact cards per row; quick view gives its slot to Add. */
+@media (max-width: 575.98px) {
+  .product-card-quick {
+    display: none;
+  }
+
+  .cart-table thead .cart-col-product {
+    min-width: 10rem;
+  }
+
+  .cart-summary {
+    position: static;
+  }
+
+  /* Keep the line readable at 390px: the unit price and the line total step
+   * aside so the quantity stepper and the remove action stay reachable. */
+  .cart-table thead th:nth-child(2),
+  .cart-table tbody td:nth-child(2),
+  .cart-table thead th:nth-child(4),
+  .cart-table tbody td:nth-child(4) {
+    display: none;
+  }
+
+  .cart-table thead th,
+  .cart-table tbody td {
+    padding-right: 0.5rem;
+    padding-left: 0.5rem;
+  }
+
+  .cart-table thead th {
+    font-size: 0.65rem;
+  }
+
+  .cart-page-media {
+    width: 44px;
+    height: 44px;
+  }
+
+  .cart-row-name {
+    max-width: 7.5rem;
+    line-height: 1.2;
+    white-space: normal;
+  }
+
+  .cart-qty-group {
+    width: 5.9rem;
+  }
+
+  .cart-col-qty {
+    width: auto;
+  }
+
+  .cart-col-remove {
+    width: 2.5rem;
+  }
+}
+
 /* ---------- Motion preferences ---------- */
 @media (prefers-reduced-motion: reduce) {
   .product-card,

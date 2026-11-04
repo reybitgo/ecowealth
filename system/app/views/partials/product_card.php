@@ -79,6 +79,21 @@ $soldOut    = $stock['key'] === 'out';
                         <i class="icon-base bx bx-show"></i>
                       </button>
 <?php endif; ?>
+<?php if (!$soldOut): ?>
+                      <form method="POST" action="<?= e(url('cart/add')) ?>" class="product-card-add" data-cart-add>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>" />
+                        <input type="hidden" name="quantity" value="1" />
+                        <button
+                          type="submit"
+                          class="btn btn-icon btn-sm btn-label-primary"
+                          title="Add to cart"
+                          aria-label="Add <?= e($name) ?> to cart"
+                        >
+                          <i class="icon-base bx bx-cart-add"></i>
+                        </button>
+                      </form>
+<?php endif; ?>
                       <a
                         href="<?= e($href) ?>"
                         class="btn btn-sm <?= $soldOut ? 'btn-label-secondary' : 'btn-primary' ?> product-card-cta"

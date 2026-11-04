@@ -36,6 +36,20 @@ $nav_badges  = $nav_badges ?? [];
 $current_nav = $current_nav ?? ($layout === 'plain' ? '' : nav_current_key($layout, $me));
 $has_menu    = $layout !== 'plain';
 
+/* Cart badge for the sidebar item and the navbar drawer button (Phase 4).
+ * A missing/older cart table must never blank every page, so the read is
+ * defensive — the migration turns this into the live count. */
+$cart_count = 0;
+if ($me !== null) {
+    try {
+        $cart_count = Cart::countFor((int) $me['id']);
+    } catch (Throwable $e) {
+        error_log('[ecowealth] cart badge unavailable: ' . $e->getMessage());
+    }
+}
+
+$nav_badges = array_merge(['cart' => $cart_count], $nav_badges);
+
 /* A page can point the shared search at its own catalogue — the shop does
  * this for admins so their back-office sidebar does not change its target. */
 $nav_search_placeholder = $nav_search_placeholder ?? ($layout === 'admin' ? 'Search products…' : 'Search the shop…');
@@ -173,6 +187,20 @@ $html_class  = $has_menu
 <?php endif; ?>
 
               <ul class="navbar-nav flex-row align-items-center ms-md-auto">
+                <!-- Cart (opens the drawer; the link still works without JS) -->
+                <li class="nav-item me-2 me-xl-1">
+                  <a
+                    class="nav-link btn btn-icon btn-text-secondary rounded-pill position-relative cart-navbar-toggle"
+                    href="<?= e(url('cart')) ?>"
+                    data-cart-open
+                    aria-label="Open cart<?= $cart_count > 0 ? ' (' . $cart_count . ' items)' : '' ?>"
+                  >
+                    <i class="icon-base bx bx-cart icon-md"></i>
+                    <span class="badge rounded-pill bg-primary cart-navbar-badge" data-cart-badge<?= $cart_count > 0 ? '' : ' hidden' ?>><?= $cart_count ?></span>
+                  </a>
+                </li>
+                <!-- / Cart -->
+
                 <!-- Notifications -->
                 <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-2">
                   <a

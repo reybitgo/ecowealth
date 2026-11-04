@@ -5,23 +5,11 @@ declare(strict_types=1);
  *  ProductTest — catalogue model and stock service
  *  (plan §7 Phase 2, tests P2-T1 … P2-T9)
  *
- *  Cases that need tables from later phases (cart_items,
- *  shop_order_items, shop_orders) create and drop them locally:
- *  DDL commits implicitly, so each one cleans up after itself.
+ *  Cases that need tables from later phases (shop_order_items,
+ *  shop_orders) create and drop them locally: DDL commits
+ *  implicitly, so each one cleans up after itself. The Phase 4 cart
+ *  tables are real now, so the cart-reference cases use them.
  * ============================================================== */
-
-/** Minimal Phase 4 table, so the cart-reference guard can be exercised now. */
-$cartTable = static function (): void {
-    db()->exec('DROP TABLE IF EXISTS cart_items');
-    db()->exec(
-        'CREATE TABLE cart_items (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            cart_id INT UNSIGNED NOT NULL,
-            product_id INT UNSIGNED NOT NULL,
-            quantity INT UNSIGNED NOT NULL DEFAULT 1
-        ) ENGINE=InnoDB'
-    );
-};
 
 /** Minimal Phase 6 tables, so reservations and order references can be exercised. */
 $orderTables = static function (): void {
@@ -48,7 +36,6 @@ $orderTables = static function (): void {
 $dropLateTables = static function (): void {
     db()->exec('DROP TABLE IF EXISTS shop_order_items');
     db()->exec('DROP TABLE IF EXISTS shop_orders');
-    db()->exec('DROP TABLE IF EXISTS cart_items');
     StockService::forgetSchemaCache();
 };
 
@@ -296,24 +283,22 @@ return [
         assert_false(is_file($absolute), 'the uploaded image should be removed with the product');
     },
 
-    'P2-T7 delete is refused while a cart references the product' => function () use ($cartTable, $dropLateTables): void {
-        $id = Product::save(['name' => 'In A Cart', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+    'P2-T7 delete is refused while a cart references the product' => function (): void {
+        $id   = Product::save(['name' => 'In A Cart', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+        $user = test_user('cart_ref_member');
 
-        $cartTable();
-        db()->prepare('INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (1, ?, 2)')->execute([$id]);
+        db()->prepare("INSERT INTO carts (user_id, status) VALUES (?, 'active')")->execute([(int) $user['id']]);
+        $cartId = (int) db()->lastInsertId();
 
-        try {
-            $result = Product::delete($id);
+        db()->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, unit_price) VALUES (?, ?, 2, 1.00)')
+            ->execute([$cartId, $id]);
 
-            assert_false($result['ok']);
-            assert_same('referenced', $result['reason']);
-            assert_same(1, $result['carts']);
-            assert_not_null(Product::find($id), 'the product must survive');
-        } finally {
-            $dropLateTables();
-            /* The DDL above committed the transaction — clean up for real. */
-            Product::delete($id);
-        }
+        $result = Product::delete($id);
+
+        assert_false($result['ok']);
+        assert_same('referenced', $result['reason']);
+        assert_same(1, $result['carts']);
+        assert_not_null(Product::find($id), 'the product must survive');
     },
 
     'P2-T7 delete is refused while an order references the product' => function () use ($orderTables, $dropLateTables): void {
@@ -349,25 +334,25 @@ return [
         assert_not_null(Product::find((int) $coffee['id']), 'the product must survive');
     },
 
-    'P2-T7 referencesMap batches counts for a page of products' => function () use ($cartTable, $dropLateTables): void {
-        $a = Product::save(['name' => 'Ref A', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
-        $b = Product::save(['name' => 'Ref B', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+    'P2-T7 referencesMap batches counts for a page of products' => function (): void {
+        $a     = Product::save(['name' => 'Ref A', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+        $b     = Product::save(['name' => 'Ref B', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+        $userA = test_user('ref_member_a');
+        $userB = test_user('ref_member_b');
 
-        $cartTable();
-        db()->prepare('INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (1, ?, 1), (2, ?, 3)')
-            ->execute([$a, $a]);
+        db()->prepare("INSERT INTO carts (user_id, status) VALUES (?, 'active')")->execute([(int) $userA['id']]);
+        $cartA = (int) db()->lastInsertId();
+        db()->prepare("INSERT INTO carts (user_id, status) VALUES (?, 'active')")->execute([(int) $userB['id']]);
+        $cartB = (int) db()->lastInsertId();
 
-        try {
-            $map = Product::referencesMap([$a, $b, 999999]);
+        db()->prepare('INSERT INTO cart_items (cart_id, product_id, quantity, unit_price) VALUES (?, ?, 1, 1.00), (?, ?, 3, 1.00)')
+            ->execute([$cartA, $a, $cartB, $a]);
 
-            assert_same(2, $map[$a]['carts']);
-            assert_same(0, $map[$b]['carts']);
-            assert_same(['orders' => 0, 'carts' => 0, 'packages' => 0], $map[999999]);
-        } finally {
-            $dropLateTables();
-            Product::delete($a);
-            Product::delete($b);
-        }
+        $map = Product::referencesMap([$a, $b, 999999]);
+
+        assert_same(2, $map[$a]['carts']);
+        assert_same(0, $map[$b]['carts']);
+        assert_same(['orders' => 0, 'carts' => 0, 'packages' => 0], $map[999999]);
     },
 
     /* ---------- StockService ---------------------------------------- */

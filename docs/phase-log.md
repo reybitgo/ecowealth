@@ -503,3 +503,110 @@ a mostly empty page.
 
 Visual evidence: `docs/qa/evidence/errors/` (`final-403-desktop.png`, `final-404-desktop.png`,
 `final-503-desktop.png` and their mobile counterparts).
+
+---
+
+## Phase 4 — Cart engine and cart UI
+
+**Date:** 2026-11-04 · **Branch:** `feature/shop` · **Gate tag:** `phase-4` · **Status:** complete.
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `carts` (one active row per member, `status` active/converted/abandoned) and `cart_items` (one line per product, `unit_price` snapshot, `ON DELETE CASCADE` from the cart); migration `004_carts.sql`; fresh-install `schema.sql` extended |
+| **Model** | `app/Models/Cart.php` — active/find/items/item/totals/countFor. Every read is scoped by the cart id resolved from the session user (never a posted item id alone) and totals always use the live `products.price` |
+| **Service** | `app/Services/CartService.php` — `getOrCreate`, `add`, `updateQuantity`, `remove`, `clear`, `convert`, `state`, `validateStock`, `summary`, `refreshPrices`; one transaction per mutation with row locks; `CartException` carries a machine-readable `reason` |
+| **Stock service** | `StockService` now exposes `reserved()` and takes an optional PDO, so the cart reads availability inside its own transaction (`stock − reserved`) |
+| **Routes** | `GET /cart`, `GET /cart/count`, `POST /cart/add`, `POST /cart/update`, `POST /cart/remove` (all `member`); registered in `app/routes.php`, already listed by the inventory — parity test unchanged |
+| **Controller** | `app/Controllers/CartController.php` — JSON for XHR (`ok`, `count`, `items`, `subtotal`, `subtotal_formatted`, `item`, `removed`, `drawer_html`) and flash + redirect-back for plain forms (P4-T12) |
+| **Views** | `shop/cart.php` (table, per-line stock badge, stock-problem alert, summary card), `partials/cart_offcanvas.php` + `partials/cart_offcanvas_body.php` (the body is re-rendered by the endpoints so the drawer always shows server truth), add-to-cart controls on `partials/product_card.php` and `shop/product.php` |
+| **Layout** | Navbar cart button with live badge, sidebar badge from `$nav_badges`, global drawer + `#cartConfig` endpoints/CSRF host + toast host in `app_footer.php`, `APP_PHASE` bumped to 4 (Cart menu item is live) |
+| **JS / CSS** | `public/assets/js/app-cart.js` — fetch wrapper with CSRF, optimistic badge/line preview, per-form busy lock, stepper buttons, drawer + page totals from the server response, toast helper, resync on failure; cart/drawer/stepper styles in `assets/css/shop.css`; toast stacking fix in `assets/css/app.css` |
+| **Tests** | `tests/Cases/CartTest.php` (19 cases incl. IDOR and a two-connection lock test), `tests/Cases/CartViewTest.php` (11 rendering cases), `ProductTest` cart-reference cases moved onto the real tables, `MigrationTest` applies 001–004, smoke `P4-T1 … P4-T13` (12 new checks) |
+| **Evidence** | `docs/qa/evidence/phase-4/` — desktop cart, drawer, AJAX add + toast, updated cart, empty state, mobile cart & drawer, storefront add buttons |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `C:\laragon\www\ecowealth-backups\phase-4\db-pre-phase-4.sql` (17 KB, `mysqldump --routines --triggers --databases ecowealth_sneat`) |
+| Migration | `004_carts.sql` applied to `ecowealth_sneat` (2 tables, FKs to `users`/`products`) |
+| Seeds | none — a cart is created on the member's first add |
+| Verified | `MigrationTest` applies 001–004 and asserts the migrated `carts` / `cart_items` columns match a fresh `schema.sql` import |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P4-T1 | Add product to empty cart | **PASS** | model case creates the cart + line and returns count/line/subtotal; smoke: no-JS add writes one row; view cases render the line |
+| P4-T2 | Add same product again | **PASS** | one line, quantity 1 + 2 = 3; DB line count is 1 |
+| P4-T3 | Add beyond available | **PASS** | `Insufficient stock. Requested 4, only 3 available.`; refused add writes nothing; reservation-held stock case (`shop_order_items`) proves `available = stock − reserved`; smoke: 400 JSON, quantity unchanged |
+| P4-T4 | Update quantity to 0 | **PASS** | line deleted, totals 0; update persists; over-stock update refused with old quantity kept; inactive line can still be removed |
+| P4-T5 | Update someone else's item id | **PASS** | owner line unchanged; other member gets `item_missing`; smoke repeats it over HTTP with a second account |
+| P4-T6 | Remove item from other cart | **PASS** | refused, row intact (model + smoke) |
+| P4-T7 | Price changed in admin after add | **PASS** | totals and line total use the live price immediately; the snapshot is refreshed when the cart page is read; smoke changes a product from 20.00 to 12.50 and sees 25.00 |
+| P4-T8 | Two members' carts | **PASS** | separate carts, lines and totals; view case never renders the other member's line |
+| P4-T9 | Concurrent add to last unit | **PASS** | two PDO connections: A holds the member/cart row locks, B's add waits and times out, then after A commits B is refused with `only 1 available`; final quantity 1, available never negative |
+| P4-T10 | Inactive product add | **PASS** | `product_inactive` refused; smoke deactivates through the admin route and gets a 400 |
+| P4-T11 | AJAX responses | **PASS** | `ok:true` + count/items/subtotal/drawer; domain errors 400 with `code` + message; CSRF errors stay 422 (`code:"csrf"`) |
+| P4-T12 | No-JS add | **PASS** | plain form POST → 302 back + flash; the cart row exists; the cart page renders the line |
+| P4-T13 | Drawer updates after add/remove | **PASS** | the response carries `drawer_html` rendered by the same partial; badge, drawer header count and totals all come from the response; a real-browser run confirmed add → drawer opens (badge 1), “+” → 2, remove → empty state and badge hidden, with 0 JS exceptions |
+
+### Deviations and decisions
+
+- **Totals never use the line snapshot.** `cart_items.unit_price` is written on add/update and refreshed when the cart page
+  is read, but every total joins `products.price`. The badge endpoint therefore performs no writes on ordinary page
+  loads, and a stale snapshot can never become a price (plan §5.2).
+- **The drawer is refreshed from server HTML.** `/cart/count` and the three mutating endpoints return `drawer_html`
+  rendered by `partials/cart_offcanvas_body.php`. That was preferred over adding a sixth `/cart/offcanvas` route: the
+  route inventory stays at the five Appendix A cart routes, and the badge/list can never disagree.
+- **“One active cart” is a lock, not a unique index.** A member legitimately accumulates converted carts, so a
+  `(user_id, status)` unique index would break history. `CartService` locks the member row (`SELECT … FOR UPDATE`) before
+  the cart lookup/insert; the concurrency case exercises that lock.
+- **Cart page quantity input allows 0.** Stepping below 1 removes the line (P4-T4); the drawer keeps min=1 and offers a
+  Remove button, because a 0 in a 3-slot stepper is easy to hit by accident.
+- **Inactive products in a cart are quarantined, not silently deleted.** The line stays visible with “Unavailable”, the
+  cart blocks checkout, quantity increases are refused, and setting the quantity to 0 (or Remove) still works.
+- **Closed shop.** The cart stays readable so a member can review/clear it; add and quantity updates are refused with
+  “The shop is currently closed.”, removal is allowed.
+- **Admins may use the cart.** The `member` guard admits admins (reference behaviour, plan §3.4). The IDOR checks use a
+  second member account rather than an admin, so they prove ownership scoping, not role scoping.
+- **JSON error status is 400, CSRF stays 422.** Domain refusals (stock, inactive, missing item, closed shop) are 400 with
+  `code`; the router’s central CSRF rejection remains 422 (Apache rewrites 419). Clients key off `ok`/`code`.
+- **No Dropzone / DataTables / jQuery cart plugin.** Consistent with Phases 2–3: plain forms, a dependency-free
+  `app-cart.js`, and server-rendered lists.
+- **Toast stacking.** The theme sets `.toast-container` to a low z-index, so the “Added to cart.” toast sat behind the
+  drawer. `app.css` raises it to 1095 with `pointer-events: none` on the host (toasts keep clicks) — confirmed in the
+  browser with `elementFromPoint`.
+- **Mobile cart columns.** At ≤575px the unit price and line total columns are hidden so the product, quantity stepper
+  and remove action fit a 390px viewport; the summary card carries the money. Native number spinners are hidden so the
+  quantity is readable inside the compact stepper.
+- **Concurrency test commits its fixtures.** A row lock can only be observed across connections, so `P4-T9` commits the
+  harness transaction, creates its member/product, drives two PDOs, and deletes both rows in `finally`. The reserved-stock
+  case does the same because its temporary `shop_orders` DDL commits implicitly.
+
+### Gate checklist (plan §7 Phase 4)
+
+- [x] All P4 tests pass (171 PHP cases + 54 smoke checks)
+- [x] `php -l` clean (82 PHP files)
+- [x] Migration applied to the dev DB; `schema.sql` regenerated for fresh installs
+- [x] Seed data unchanged (no cart seed needed; the harness rebuilds and seeds on every run)
+- [x] Full regression suite passes (Phases 1–3 cases unchanged apart from the cart-table fixtures)
+- [x] Smoke script passes (12 new P4 checks)
+- [x] IDOR and concurrency tests included in the gate
+- [x] No new PHP warnings/notices in the Apache error log
+- [x] Money invariants clean (cart totals are read-only; no wallet touched this phase)
+- [x] Docs updated (this log + `docs/qa/phase-4-cart.md`)
+- [x] Visual check in a real browser: desktop/mobile cart, drawer, AJAX add + toast, empty state; 13/13 UI
+      interaction checks with 0 JS exceptions (evidence in `docs/qa/evidence/phase-4/`)
+- [ ] Manual QA sign-off by a human tester (`docs/qa/phase-4-cart.md`) — the automated and headless-browser passes are
+      complete
+- [x] Backup taken; tag `phase-4`
+
+### Next
+
+Phase 5 — e-wallet core: `ewallet_ledger` + `ewallet_admin_topups`, the dual-balance `users` columns and
+`WalletService` (`credit`, `debit`, `debitInternal`, `balance`, `withdrawable`, `statement`, `adminTopUp`), then the
+member statement page and the admin monitor/top-up screens. `CartService::convert()` is ready for Phase 6’s order
+placement; `Cart::totals()` is the price source checkout should re-read.

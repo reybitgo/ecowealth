@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1 + 2 + 3: P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8).
+    EcoWealth HTTP smoke test (Phase 1 + 2 + 3 + 4: P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8,
+    P4-T1 ... P4-T13).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
-    maintenance mode, the product catalogue and the package matrix end to
-    end. Everything the script changes is restored in a finally block: a
-    throw-away member account, products with SKU prefix SMOKE-, packages
-    named "Smoke Package …" and `maintenance_mode`.
+    maintenance mode, the product catalogue, the package matrix and the cart
+    end to end. Everything the script changes is restored in a finally
+    block: a throw-away member account, products with SKU prefix SMOKE-,
+    packages named "Smoke Package …" and `maintenance_mode`.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
 
@@ -40,6 +41,7 @@ $script:Jars = @{
     guest  = Join-Path $script:TempDir 'guest.jar'
     admin  = Join-Path $script:TempDir 'admin.jar'
     member = Join-Path $script:TempDir 'member.jar'
+    other  = Join-Path $script:TempDir 'other.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -202,12 +204,13 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
 
 $memberUsername    = 'smoke_' + (Get-Random -Minimum 100000 -Maximum 999999)
+$otherUsername     = 'smoke_other_' + (Get-Random -Minimum 100000 -Maximum 999999)
 $memberPassword    = 'Smoke@12345'
 $maintenanceBefore = '0'
 
@@ -578,6 +581,182 @@ try {
     Assert-That 'P3-T7' ($memberPackages.Status -eq 403 -and $memberPackagePost.Status -eq 403) `
         "a member cannot use admin package routes (GET=$($memberPackages.Status), POST=$($memberPackagePost.Status))"
 
+    # ---- Phase 4: cart ---------------------------------------------------
+    # A dedicated product keeps every cart check away from the seeded catalogue.
+    $cartSku  = 'SMOKE-CART-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $cartName = 'Smoke Cart ' + $cartSku
+
+    Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = $cartName
+        'sku'        = $cartSku
+        'price'      = '20.00'
+        'stock'      = '3'
+        'sort_order' = '999'
+        'status'     = 'active'
+    } | Out-Null
+
+    $cartProductId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = '$cartSku' LIMIT 1;" | Out-String).Trim())
+    $cartMemberId  = [int]((Invoke-MySql "SELECT id FROM users WHERE username = '$memberUsername' LIMIT 1;" | Out-String).Trim())
+    $xhrHeaders    = @('X-Requested-With: XMLHttpRequest', 'Accept: application/json')
+
+    $cartGuest = Invoke-App -Path '/cart'
+    Assert-That 'P4-T1' ($cartGuest.Status -eq 302 -and $cartGuest.Location -match '/login$') `
+        "GET /cart as guest -> 302 login (got $($cartGuest.Status))"
+
+    $cartEmpty       = Invoke-App -Path '/cart' -Session 'member'
+    $memberCartToken = Get-Csrf $cartEmpty.Body
+    Assert-That 'P4-T1' ($cartEmpty.Status -eq 200 -and $cartEmpty.Body -match 'Your cart is empty' -and $memberCartToken -ne '') `
+        "GET /cart as a member -> 200 with the empty state (got $($cartEmpty.Status))"
+
+    # P4-T12 - a plain form POST (no JavaScript) redirects, flashes and writes.
+    $noJsAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    }
+    $cartAfterNoJs = Invoke-App -Path '/cart' -Session 'member'
+    $lineCount = (Invoke-MySql "SELECT COUNT(*) FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId;" | Out-String).Trim()
+
+    Assert-That 'P4-T12' ($noJsAdd.Status -eq 302 -and $lineCount -eq '1' `
+            -and $cartAfterNoJs.Body -match 'Added to cart' -and $cartAfterNoJs.Body.Contains($cartName)) `
+        "a no-JS add redirects, flashes and writes one line (status=$($noJsAdd.Status), rows=$lineCount)"
+
+    # P4-T13 - the drawer is on every member page and lists the saved line.
+    $shopWithCart = Invoke-App -Path '/shop' -Session 'member'
+    Assert-That 'P4-T13' ($shopWithCart.Status -eq 200 -and $shopWithCart.Body -match 'id="cartOffcanvas"' `
+            -and $shopWithCart.Body -match 'data-cart-badge' -and $shopWithCart.Body.Contains($cartName) `
+            -and $shopWithCart.Body -match 'data-cart-qty-form') `
+        'the storefront carries the cart drawer with the saved line and badge'
+
+    # P4-T11 - AJAX add answers ok + count + the refreshed drawer.
+    $ajaxAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '2'
+    }
+    $ajaxPayload = $ajaxAdd.Body | ConvertFrom-Json
+    Assert-That 'P4-T11' ($ajaxAdd.Status -eq 200 -and $ajaxPayload.ok -eq $true -and $ajaxPayload.count -eq 3 `
+            -and $ajaxPayload.drawer_html.Contains($cartName) -and $ajaxPayload.subtotal -eq 60) `
+        "an AJAX add returns ok, count and the drawer (count=$($ajaxPayload.count), subtotal=$($ajaxPayload.subtotal))"
+
+    $countJson    = Invoke-App -Path '/cart/count' -Session 'member' -Headers $xhrHeaders
+    $countPayload = $countJson.Body | ConvertFrom-Json
+    Assert-That 'P4-T11' ($countJson.Status -eq 200 -and $countPayload.ok -eq $true -and $countPayload.count -eq 3) `
+        "GET /cart/count returns the badge count (count=$($countPayload.count))"
+
+    # P4-T3 - adding beyond available is refused with the exact numbers.
+    $overAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '5'
+    }
+    $overPayload = $overAdd.Body | ConvertFrom-Json
+    $cartQty = (Invoke-MySql "SELECT quantity FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId;" | Out-String).Trim()
+
+    Assert-That 'P4-T3' ($overAdd.Status -eq 400 -and $overPayload.ok -eq $false `
+            -and $overAdd.Body -match 'Requested 8, only 3 available' -and $cartQty -eq '3') `
+        "adding beyond stock is refused and writes nothing (status=$($overAdd.Status), qty=$cartQty)"
+
+    # P4-T10 - a deactivated product cannot be added.
+    Invoke-App -Method 'POST' -Path "/admin/products/$cartProductId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'inactive' } | Out-Null
+    $inactiveAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    }
+    Invoke-App -Method 'POST' -Path "/admin/products/$cartProductId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'active' } | Out-Null
+
+    Assert-That 'P4-T10' ($inactiveAdd.Status -eq 400 -and $inactiveAdd.Body -match 'no longer available') `
+        "an inactive product cannot be added (status=$($inactiveAdd.Status))"
+
+    # P4-T4 - update the quantity, then remove the line with quantity 0.
+    $cartItemId = [int]((Invoke-MySql "SELECT ci.id FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId LIMIT 1;" | Out-String).Trim())
+    $update = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'    = $memberCartToken
+        'item_id'  = "$cartItemId"
+        'quantity' = '2'
+    }
+    $updatePayload = $update.Body | ConvertFrom-Json
+    $removed = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'    = $memberCartToken
+        'item_id'  = "$cartItemId"
+        'quantity' = '0'
+    }
+    $removedPayload = $removed.Body | ConvertFrom-Json
+    $rowAfterRemove = (Invoke-MySql "SELECT COUNT(*) FROM cart_items WHERE id = $cartItemId;" | Out-String).Trim()
+
+    Assert-That 'P4-T4' ($update.Status -eq 200 -and $updatePayload.count -eq 2 `
+            -and $removed.Status -eq 200 -and $removedPayload.removed -eq $true -and $removedPayload.count -eq 0 `
+            -and $rowAfterRemove -eq '0') `
+        "update persists and quantity 0 removes the line (count=$($updatePayload.count), removed=$($removedPayload.removed))"
+
+    # P4-T5 / P4-T6 - a second signed-in account cannot touch the line (IDOR).
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '2'
+    } | Out-Null
+    $foreignItemId = [int]((Invoke-MySql "SELECT ci.id FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId LIMIT 1;" | Out-String).Trim())
+
+    $otherRegPage  = Invoke-App -Path '/register' -Session 'other'
+    $otherRegToken = Get-Csrf $otherRegPage.Body
+    Invoke-App -Method 'POST' -Path '/register' -Session 'other' -Form @{
+        '_csrf'            = $otherRegToken
+        'username'         = $otherUsername
+        'email'            = "$otherUsername@example.com"
+        'password'         = $memberPassword
+        'confirm-password' = $memberPassword
+        'terms'            = '1'
+    } | Out-Null
+    $otherSignedIn = Sign-In -Session 'other' -Username $otherUsername -Password $memberPassword
+
+    $otherCartPage  = Invoke-App -Path '/cart' -Session 'other'
+    $otherCartToken = Get-Csrf $otherCartPage.Body
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'other' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $otherCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    } | Out-Null
+
+    $idorUpdate = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'other' -Headers $xhrHeaders -Form @{
+        '_csrf'    = $otherCartToken
+        'item_id'  = "$foreignItemId"
+        'quantity' = '9'
+    }
+    $idorRemove = Invoke-App -Method 'POST' -Path '/cart/remove' -Session 'other' -Headers $xhrHeaders -Form @{
+        '_csrf'   = $otherCartToken
+        'item_id' = "$foreignItemId"
+    }
+    $foreignQty = (Invoke-MySql "SELECT quantity FROM cart_items WHERE id = $foreignItemId;" | Out-String).Trim()
+
+    Assert-That 'P4-T5' ($otherSignedIn -and $idorUpdate.Status -eq 400 `
+            -and $idorUpdate.Body -match 'no longer in your cart' -and $foreignQty -eq '2') `
+        "another member cannot rewrite the line (status=$($idorUpdate.Status), qty=$foreignQty)"
+    Assert-That 'P4-T6' ($idorRemove.Status -eq 400 -and $foreignQty -eq '2' `
+            -and (Invoke-MySql "SELECT COUNT(*) FROM cart_items WHERE id = $foreignItemId;" | Out-String).Trim() -eq '1') `
+        "another member cannot remove the line (status=$($idorRemove.Status))"
+
+    # P4-T7 - the cart follows a catalogue price change on the next reload.
+    $cartBeforePrice = Invoke-App -Path '/cart' -Session 'member'
+    Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'product_id' = "$cartProductId"
+        'name'       = $cartName
+        'sku'        = $cartSku
+        'price'      = '12.50'
+        'stock'      = '3'
+        'sort_order' = '999'
+        'status'     = 'active'
+    } | Out-Null
+    $cartAfterPrice = Invoke-App -Path '/cart' -Session 'member'
+
+    Assert-That 'P4-T7' ($cartBeforePrice.Body -match '40\.00' `
+            -and $cartAfterPrice.Body -match '25\.00' -and $cartAfterPrice.Body -match '12\.50') `
+        'the cart follows the live catalogue price (2 x 20.00 becomes 2 x 12.50)'
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'
@@ -597,6 +776,7 @@ try {
     # Always put the database back the way we found it.
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM packages WHERE name LIKE 'Smoke Package%';" | Out-Null } catch { }
     Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue

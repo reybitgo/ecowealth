@@ -61,13 +61,14 @@ return [
     ['POST', '/admin/packages/save',             [AdminPackageController::class, 'save'],       'admin'],
     ['POST', '/admin/packages/{id}/status',      [AdminPackageController::class, 'status'],     'admin'],
 
-    /* ---------- Phase 4 — cart ---------------------------------------
-    ['GET',  '/cart',                            [CartController::class, 'index'],       'member'],          // cart
-    ['GET',  '/cart/count',                      [CartController::class, 'count'],       'member'],          // cart
-    ['POST', '/cart/add',                        [CartController::class, 'add'],         'member'],          // add_to_cart
-    ['POST', '/cart/update',                     [CartController::class, 'update'],      'member'],          // update_cart_item
-    ['POST', '/cart/remove',                     [CartController::class, 'remove'],      'member'],          // remove_cart_item
-    ----------------------------------------------------------------- */
+    /* ---------- Phase 4 — cart --------------------------------------- */
+    /* Reference: cart, add_to_cart, update_cart_item, remove_cart_item.
+     * `/cart/count` is the port's JSON badge/drawer endpoint (Appendix A). */
+    ['GET',  '/cart',                            [CartController::class, 'index'],       'member'],
+    ['GET',  '/cart/count',                      [CartController::class, 'count'],       'member'],
+    ['POST', '/cart/add',                        [CartController::class, 'add'],         'member'],
+    ['POST', '/cart/update',                     [CartController::class, 'update'],      'member'],
+    ['POST', '/cart/remove',                     [CartController::class, 'remove'],      'member'],
 
     /* ---------- Phase 5 — e-wallet core ------------------------------
     ['GET',  '/wallet',                          [WalletController::class, 'index'],          'member'],    // e-wallet statement

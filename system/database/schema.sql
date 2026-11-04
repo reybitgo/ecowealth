@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 3)
+--  EcoWealth — MySQL schema (fresh install, Phase 4)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -8,11 +8,12 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, 003, …).
+--  database/migrations/ (apply in order: 001, 002, 003, 004, …).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
 --  Phase 3 owns: packages, package_levels, package_products.
+--  Phase 4 owns: carts, cart_items.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -175,4 +176,45 @@ CREATE TABLE IF NOT EXISTS package_products (
   PRIMARY KEY (package_id, product_id),
   CONSTRAINT fk_pkgprod_pkg  FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE CASCADE,
   CONSTRAINT fk_pkgprod_prod FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Carts — one active cart per member (plan §5.2; Phase 4)
+--
+--  `status` moves active → converted when the cart becomes an
+--  order (Phase 6); a new active cart is created on the next add.
+--  CartService re-checks the single-active-cart rule with a row
+--  lock, so a concurrent first-add cannot create two carts.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS carts (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id    INT UNSIGNED NOT NULL,
+  status     ENUM('active','converted','abandoned') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_carts_user_status (user_id, status),
+  CONSTRAINT fk_carts_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Cart lines — one row per product per cart (plan §5.2)
+--
+--  unit_price is a snapshot; prices are always re-read from
+--  `products` on view and at checkout (Phase 6). Mutations are
+--  always scoped by cart_id (reference defect C3 — IDOR).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS cart_items (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  cart_id    INT UNSIGNED NOT NULL,
+  product_id INT UNSIGNED NOT NULL,
+  quantity   INT UNSIGNED NOT NULL DEFAULT 1,
+  unit_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  added_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cart_product (cart_id, product_id),
+  KEY idx_cart_items_cart (cart_id),
+  CONSTRAINT fk_cart_items_cart    FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE CASCADE,
+  CONSTRAINT fk_cart_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

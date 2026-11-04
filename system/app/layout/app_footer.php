@@ -39,6 +39,37 @@
       <div class="drag-target"></div>
     </div>
     <!-- / Layout wrapper -->
+<?php if (($layout ?? 'member') !== 'plain' && auth_check()): ?>
+<?php
+    /* Global cart drawer (plan §5.2, Phase 4). A page view never writes:
+     * CartService::state() only reads the member's active cart. Guarded so a
+     * deploy that lands before migration 004 cannot blank every page. */
+    $cart_drawer_state = [
+        'cart'   => null,
+        'items'  => [],
+        'totals' => ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0],
+    ];
+
+    try {
+        $cart_drawer_state = (new CartService())->state((int) auth_user()['id']);
+    } catch (Throwable $e) {
+        error_log('[ecowealth] cart drawer unavailable: ' . $e->getMessage());
+    }
+?>
+<?= View::partial('cart_offcanvas', ['state' => $cart_drawer_state]) ?>
+    <div
+      id="cartConfig"
+      hidden
+      data-count-url="<?= e(url('cart/count')) ?>"
+      data-add-url="<?= e(url('cart/add')) ?>"
+      data-update-url="<?= e(url('cart/update')) ?>"
+      data-remove-url="<?= e(url('cart/remove')) ?>"
+      data-cart-url="<?= e(url('cart')) ?>"
+      data-csrf="<?= e(csrf_token()) ?>"
+    ></div>
+<?php endif; ?>
+    <!-- Toast host + cart behaviour (Phase 4) -->
+    <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite" aria-atomic="true"></div>
     <!-- Core JS -->
     <!-- build:js assets/vendor/js/theme.js  -->
     <script src="<?= e(url('assets/vendor/libs/jquery/jquery.js')) ?>"></script>
@@ -54,6 +85,7 @@
 <?php endforeach; ?>
     <!-- App JS -->
     <script src="<?= e(asset_url('assets/js/app.js')) ?>"></script>
+    <script src="<?= e(asset_url('assets/js/app-cart.js')) ?>"></script>
     <!-- Main JS -->
     <script src="<?= e(url('assets/js/main.js')) ?>"></script>
   </body>

@@ -89,7 +89,7 @@ return [
         );
     },
 
-    'Live route table builds and contains the Phase 1 + 2 + 3 routes' => function (): void {
+    'Live route table builds and contains the Phase 1 + 2 + 3 + 4 routes' => function (): void {
         $routes = require dirname(__DIR__, 2) . '/app/routes.php';
         $router = new Router($routes);
 
@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(18, $live);
+        assert_count(23, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -117,15 +117,25 @@ return [
         assert_same('admin', $live['POST /admin/packages/{id}/status']);
         assert_same('member', $live['GET /profile/password']);
         assert_same('member', $live['POST /profile/password']);
+        assert_same('member', $live['GET /cart']);
+        assert_same('member', $live['GET /cart/count']);
+        assert_same('member', $live['POST /cart/add']);
+        assert_same('member', $live['POST /cart/update']);
+        assert_same('member', $live['POST /cart/remove']);
     },
 
-    'Live route table resolves the Phase 1 + 2 + 3 URLs' => function (): void {
+    'Live route table resolves the Phase 1 + 2 + 3 + 4 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
         assert_same(ShopController::class, $router->match('GET', '/shop')['route']['handler'][0]);
         assert_same(ShopController::class, $router->match('GET', '/shop/3')['route']['handler'][0]);
         assert_same(PackageController::class, $router->match('GET', '/packages')['route']['handler'][0]);
+        assert_same(CartController::class, $router->match('GET', '/cart')['route']['handler'][0]);
+        assert_same(CartController::class, $router->match('GET', '/cart/count')['route']['handler'][0]);
+        assert_same(CartController::class, $router->match('POST', '/cart/add')['route']['handler'][0]);
+        assert_same(CartController::class, $router->match('POST', '/cart/update')['route']['handler'][0]);
+        assert_same(CartController::class, $router->match('POST', '/cart/remove')['route']['handler'][0]);
         assert_same(
             AdminDashboardController::class,
             $router->match('GET', '/admin')['route']['handler'][0]

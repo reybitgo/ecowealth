@@ -64,17 +64,55 @@ $sku       = trim((string) ($product['sku'] ?? ''));
                         <span class="text-body-secondary small"><?= $available > 0 ? $available . ' available' : 'Out of stock' ?></span>
                       </div>
 
-                      <div class="d-flex flex-wrap gap-2 mb-4">
-                        <button type="button" class="btn btn-primary" disabled title="Online checkout opens soon">
-                          <i class="icon-base bx bx-cart-add me-1"></i> Add to cart
+                      <div class="d-flex flex-wrap align-items-stretch gap-2 mb-3">
+<?php if (!$shop_open): ?>
+                        <button type="button" class="btn btn-secondary" disabled>
+                          <i class="icon-base bx bx-store-alt me-1"></i> Shop closed
                         </button>
+<?php elseif ($soldOut): ?>
+                        <button type="button" class="btn btn-secondary" disabled>
+                          <i class="icon-base bx bx-x-circle me-1"></i> Sold out
+                        </button>
+<?php else: ?>
+                        <form method="POST" action="<?= e(url('cart/add')) ?>" class="d-flex flex-wrap align-items-stretch gap-2" data-cart-add>
+                          <?= csrf_field() ?>
+                          <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>" />
+                          <div class="input-group product-qty-group">
+                            <button type="button" class="btn btn-outline-secondary" data-cart-step="-1" aria-label="Decrease quantity">&minus;</button>
+                            <input
+                              type="number"
+                              class="form-control text-center"
+                              name="quantity"
+                              value="1"
+                              min="1"
+                              max="<?= max(1, $available) ?>"
+                              data-cart-qty
+                              aria-label="Quantity"
+                            />
+                            <button type="button" class="btn btn-outline-secondary" data-cart-step="1" aria-label="Increase quantity">+</button>
+                          </div>
+                          <button type="submit" class="btn btn-primary">
+                            <i class="icon-base bx bx-cart-add me-1"></i> Add to cart
+                          </button>
+                        </form>
+<?php endif; ?>
+                        <a href="<?= e(url('cart')) ?>" class="btn btn-label-primary">
+                          <i class="icon-base bx bx-cart me-1"></i> View cart
+                        </a>
                         <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary">
                           <i class="icon-base bx bx-arrow-back me-1"></i> Back to shop
                         </a>
                       </div>
 
                       <p class="text-body-secondary small mb-5">
-                        <i class="icon-base bx bx-time-five me-1"></i> Online checkout opens soon.
+                        <i class="icon-base bx bx-check-circle me-1"></i>
+<?php if (!$shop_open): ?>
+                        The shop is closed; your cart is saved.
+<?php elseif ($soldOut): ?>
+                        This product is out of stock. Check back soon.
+<?php else: ?>
+                        Added items stay in your cart — checkout opens in Phase 6.
+<?php endif; ?>
                       </p>
 
 <?php if (!empty($product['description'])): ?>

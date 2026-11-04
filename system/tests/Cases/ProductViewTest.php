@@ -131,7 +131,7 @@ return [
         assert_contains('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
     },
 
-    'P2-T1 the detail page renders the product with a disabled add-to-cart' => function () use ($render, $product): void {
+    'P4-T1 the detail page renders an active add-to-cart form' => function () use ($render, $product): void {
         test_signed_in_as(test_user('catalog_member'));
 
         $html = $render('member', 'shop/product', [
@@ -146,7 +146,9 @@ return [
         assert_contains('First line.', $html);
         assert_contains('EW-COFFEE', $html);
         assert_contains('Add to cart', $html);
-        assert_contains('disabled', $html);
+        assert_contains('action="' . url('cart/add') . '"', $html);
+        assert_contains('name="quantity"', $html);
+        assert_not_contains('Online checkout opens soon', $html);
         assert_contains(url('shop'), $html);
     },
 
@@ -162,6 +164,7 @@ return [
 
         assert_contains('Sold out', $html);
         assert_contains('Out of stock', $html);
+        assert_not_contains('action="' . url('cart/add') . '"', $html, 'no add form when sold out');
     },
 
     'P2-T1 the admin list renders rows, filters and guarded delete buttons' => function () use ($render, $product): void {

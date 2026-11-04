@@ -1,6 +1,6 @@
-# EcoWealth — Manual QA pack (Phases 1–3)
+# EcoWealth — Manual QA pack (Phases 1–4)
 
-This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2 and 3.
+This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3 and 4.
 The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
@@ -18,9 +18,11 @@ sign the phase off.
 | [phase-1-core-skeleton.md](phase-1-core-skeleton.md) | 1 — router, layouts, roles, settings, error pages | 17 | 45–60 min |
 | [phase-2-products-and-catalogue.md](phase-2-products-and-catalogue.md) | 2 — product CRUD + storefront | 20 | 60–75 min |
 | [phase-3-packages.md](phase-3-packages.md) | 3 — packages, ladder, contents | 16 | 50–65 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all three | — | 10 min to complete |
+| [phase-4-cart.md](phase-4-cart.md) | 4 — cart page, drawer, stock rules, IDOR | 17 | 55–70 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all four | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1`, `phase-2`, `phase-3` inside it).
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-4` inside it). Phase 4 also ships
+reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`.
 
 ---
 
@@ -39,7 +41,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 141   Passed: 141   Failed: 0
+Cases: 171   Passed: 171   Failed: 0
 All good.
 ```
 
@@ -52,7 +54,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 41   Failed: 0
+Passed: 54   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -67,6 +69,9 @@ Passed: 41   Failed: 0
 - Phase 1: route matching, guards, CSRF, settings, layouts/menus, error pages, maintenance mode, route-inventory parity.
 - Phase 2: product validation, slug uniqueness, delete guards, stock maths, upload validation, catalogue rendering, escaping.
 - Phase 3: package validation, the 2–10 ladder, transactional save/rollback, contents merging, public cards.
+- Phase 4: cart service rules (add/repeat/stock refusal/update/remove), ownership scoping (IDOR), live pricing,
+  member isolation, a two-connection concurrency lock test, the JSON contract, the no-JS fallback, drawer rendering,
+  and a headless-browser pass over the add/stepper/remove interactions (0 JavaScript exceptions).
 
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
@@ -190,7 +195,15 @@ These are deliberate for the current build — do not report them as defects:
   The build roadmap is shown on the admin dashboard instead of as “Soon” placeholders.
 - `/dashboard` is role-aware: administrators see the back-office dashboard and sidebar, members see
   the member “Growth overview”.
-- The shop’s **Add to cart** button is disabled: the cart arrives in Phase 4.
+- The shop’s **Add to cart** buttons work and the cart drawer is on every signed-in page (Phase 4).
+  **Checkout is not built yet** — the cart’s checkout button says **“Checkout opens in Phase 6”** and is
+  disabled by design.
+- Administrators may open `/cart` too (the member guard admits admins, matching the reference); their
+  back-office sidebar does not gain a Cart item — the cart is reached from the navbar icon.
+- Cart totals always come from the current catalogue price; changing a price in the back office changes
+  the cart on its next load. This is intended, not a stale-value bug.
+- Removing the last line empties the cart; a cart row itself is kept server-side until it becomes an
+  order (Phase 6), which is why the database has a `carts` row with no `cart_items` after the cleanup query.
 - The packages page button says **“Activation opens in Phase 9”** and is disabled.
 - **Packages cannot be deleted** — only enabled/disabled. This is by design.
 - Deleting a **seeded** product is refused with “This product appears in a package.” That is the
@@ -233,7 +246,7 @@ failed check afterwards and updates the row to **Closed**.
 ## 8. Sign-off flow
 
 1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
-2. Work through the three phase documents in order (Phase 1 → 2 → 3). Each phase assumes the
+2. Work through the four phase documents in order (Phase 1 → 2 → 3 → 4). Each phase assumes the
    previous one is done.
 3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
    decision.
@@ -286,6 +299,7 @@ docs/qa/
 ├── phase-1-core-skeleton.md           ← manual checks for Phase 1
 ├── phase-2-products-and-catalogue.md  ← manual checks for Phase 2
 ├── phase-3-packages.md                ← manual checks for Phase 3
+├── phase-4-cart.md                    ← manual checks for Phase 4
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/, phase-2/, phase-3/)
+└── evidence/                          ← your screenshots (phase-1/ … phase-4/)
 ```
