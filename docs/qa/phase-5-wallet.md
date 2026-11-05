@@ -313,18 +313,37 @@ guard and reconciliation paths.
 | | |
 |---|---|
 | **Why it matters** | Success criterion 4/7: the two buckets always equal the ledger. |
-| **Where** | Terminal in `C:\laragon\www\ecowealth\system` |
+| **Where** | Git Bash **or** PowerShell, in `C:\laragon\www\ecowealth\system` |
 | **Evidence** | `QA5-14-reconcile.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
-1. Open PowerShell in `C:\laragon\www\ecowealth\system`.
-2. Run:
+1. Open a terminal in `C:\laragon\www\ecowealth\system` — Git Bash or PowerShell both work.
+2. Run the command for your shell (they print the same report).
+
+   **Git Bash** — use forward slashes. In bash a backslash is an escape character, so
+   `bin\wallet_reconcile.php` becomes `binwallet_reconcile.php` and the script will not run.
+
+   ```bash
+   cd /c/laragon/www/ecowealth/system
+   php bin/wallet_reconcile.php
+   ```
+
+   If `php` is not found on your Git Bash `PATH`, use the absolute PHP path (works from any folder):
+
+   ```bash
+   "/c/laragon/bin/php/php-8.3.16-Win32-vs16-x64/php.exe" "/c/laragon/www/ecowealth/system/bin/wallet_reconcile.php"
+   ```
+
+   **PowerShell** — keep the backslashes, and put `&` in front of a quoted path:
 
    ```powershell
-   C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe bin\wallet_reconcile.php
+   cd C:\laragon\www\ecowealth\system
+   & 'C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe' .\bin\wallet_reconcile.php
    ```
+
+   Add `--json` to either command for machine-readable output.
 
 3. Then run the SQL below in phpMyAdmin.
 
@@ -339,8 +358,24 @@ guard and reconciliation paths.
 
 **Expected**
 
-- The command prints **“OK — every wallet matches its ledger on both buckets.”** and exits 0.
-- `accounts checked` is the number of accounts (4), `accounts with ledger` includes the QA member.
+- The command prints the same report in both shells:
+
+  ```text
+  EcoWealth wallet reconciliation
+    database:          ecowealth_sneat (127.0.0.1)
+    accounts checked:  4
+    accounts with ledger: 1
+
+  OK — every wallet matches its ledger on both buckets.
+  ```
+
+  (`accounts with ledger` is 1 after the top-ups from QA5-02/03; it is the number of accounts that
+  have any ledger row, never the number of rows.)
+- Exit code **0**. A mismatch exits **1** and prints the account and the expected/actual amounts;
+  **2** means the command could not run at all (for example, the database is down).
+- If the shell says **“Could not open input file: bin\wallet_reconcile.php”**, the command was run from
+  the wrong folder (the repo root instead of `system/`) or a backslash was lost in Git Bash — rerun the
+  matching block above from `C:\laragon\www\ecowealth\system`.
 - The SQL query returns **zero rows**.
 - No wallet has `withdrawable_balance > ewallet_balance` or a negative bucket.
 
@@ -435,7 +470,7 @@ guard and reconciliation paths.
 
 - The member balance is ₱0.00 / ₱0.00 / ₱0.00 and the statement is empty again.
 - The admin monitor's float matches the remaining accounts.
-- `php bin\wallet_reconcile.php` still prints **OK**.
+- The reconciliation command from QA5-12 (Git Bash or PowerShell) still prints **OK**.
 - No `QA5-*` rows are left in `products`, `packages` or `users`.
 
 ---
