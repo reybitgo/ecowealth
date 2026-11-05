@@ -17,12 +17,17 @@ $soldOut   = $stock['key'] === 'out';
 $sku       = trim((string) ($product['sku'] ?? ''));
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
-              <nav aria-label="breadcrumb" class="mb-4">
-                <ol class="breadcrumb mb-0">
-                  <li class="breadcrumb-item"><a href="<?= e(url('shop')) ?>">Shop</a></li>
-                  <li class="breadcrumb-item active" aria-current="page"><?= e((string) $product['name']) ?></li>
-                </ol>
-              </nav>
+              <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
+                <nav aria-label="breadcrumb" class="mb-0">
+                  <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="<?= e(url('shop')) ?>">Shop</a></li>
+                    <li class="breadcrumb-item active" aria-current="page"><?= e((string) $product['name']) ?></li>
+                  </ol>
+                </nav>
+                <a href="<?= e(url('shop')) ?>" class="btn btn-sm btn-label-secondary flex-shrink-0">
+                  <i class="icon-base bx bx-arrow-back me-1"></i> Back to shop
+                </a>
+              </div>
 
 <?php if (!$shop_open): ?>
               <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
@@ -98,9 +103,6 @@ $sku       = trim((string) ($product['sku'] ?? ''));
 <?php endif; ?>
                         <a href="<?= e(url('cart')) ?>" class="btn btn-label-primary">
                           <i class="icon-base bx bx-cart me-1"></i> View cart
-                        </a>
-                        <a href="<?= e(url('shop')) ?>" class="btn btn-label-secondary">
-                          <i class="icon-base bx bx-arrow-back me-1"></i> Back to shop
                         </a>
                       </div>
 

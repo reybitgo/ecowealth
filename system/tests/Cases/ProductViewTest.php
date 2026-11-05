@@ -151,6 +151,18 @@ return [
         assert_contains('class="input-group product-qty-group"', $html);
         assert_not_contains('Online checkout opens soon', $html);
         assert_contains(url('shop'), $html);
+
+        /* "Back to shop" lives in the breadcrumb row, above the card, exactly once. */
+        $breadcrumbAt = strpos($html, 'aria-label="breadcrumb"');
+        $backAt       = strpos($html, 'Back to shop');
+        $cardAt       = strpos($html, '<div class="card">');
+
+        assert_same(1, substr_count($html, 'Back to shop'), 'the page has one Back to shop link');
+        assert_true(
+            $breadcrumbAt !== false && $backAt !== false && $cardAt !== false
+                && $breadcrumbAt < $backAt && $backAt < $cardAt,
+            'Back to shop must sit in the breadcrumb row, before the product card'
+        );
     },
 
     'P4-T1 the product stepper is a single-row, content-width group' => function (): void {

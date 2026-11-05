@@ -837,3 +837,30 @@ stretched to the two-row height.
 - `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
 - Headless Chrome: group 112.5 × 39.4px, all three pieces on one row; **Add to cart** 143.8 × 38px
   (was 143.8 × 77.4px); at 360px the stepper and Add share a row and the secondary actions wrap below.
+
+---
+
+## Post-Phase 4 — Product detail: "Back to shop" moves to the header row
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 179 PHP cases, 56 smoke checks
+
+### Change
+
+"Back to shop" was the third tertiary action in the buy row, competing with the stepper, **Add to
+cart** and **View cart**. It now sits at the top right of the page, opposite the **Shop / Coffee**
+breadcrumb, leaving the buy row focused on the purchase actions.
+
+- **`product.php`** — the breadcrumb is wrapped in a flex row with a small label button
+  (`btn-sm btn-label-secondary`) on the right; the link is removed from the action row.
+- Works at desktop width and at 360px (breadcrumb left, button right, no overlap).
+- **`ProductViewTest`** — asserts the page contains exactly one "Back to shop" link, positioned after
+  the breadcrumb and before the product card.
+- **Docs/evidence** — QA2-15's expected result updated; refreshed
+  `docs/qa/evidence/shop/final-product-actions.png` and `final-product-actions-mobile.png`.
+
+### Verification
+
+- `php tests\run.php` — **179 / 179**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
+- Headless Chrome at 1440 × 900 and 360 × 800: the button aligns with the breadcrumb row, the action
+  row keeps the one-line stepper, Add to cart and View cart.
