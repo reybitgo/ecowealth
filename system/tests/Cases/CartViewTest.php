@@ -353,6 +353,22 @@ return [
         );
     },
 
+    'P4-T13 the cart drawer and navbar badge are styled by the global shell sheet' => function (): void {
+        $public = dirname(__DIR__, 2) . '/public/assets/css/';
+        $app    = (string) file_get_contents($public . 'app.css');
+        $shop   = (string) file_get_contents($public . 'shop.css');
+
+        /* Both elements render on every signed-in page, so their rules must be
+         * in app.css; shop.css only loads on the catalogue and cart pages. */
+        foreach (['.cart-navbar-badge', '.cart-drawer', '.cart-drawer-media', '.cart-qty-group'] as $selector) {
+            assert_contains($selector, $app, $selector . ' belongs in app.css');
+        }
+
+        assert_contains('#layout-navbar .cart-navbar-badge', $app, 'the theme .btn .badge rule must be outranked');
+        assert_not_contains('cart-navbar-badge', $shop, 'the navbar badge must not depend on shop.css');
+        assert_not_contains('.cart-drawer {', $shop, 'the drawer must not depend on shop.css');
+    },
+
     'P4-T5 the cart page never leaks another member’s line' => function () use ($render, $makeProduct, $stateFor): void {
         $owner = test_user('cart_view_owner');
         $other = test_user('cart_view_other');

@@ -317,9 +317,8 @@
 }
 
 /* The native number spinner fights the three-piece stepper: hide it and give
- * the value enough room to stay readable in the narrow drawer group. */
-.product-qty-group input[type='number'],
-.cart-qty-group input[type='number'] {
+ * the value enough room to stay readable in the narrow group. */
+.product-qty-group input[type='number'] {
   flex: 1 1 auto;
   min-width: 2.4rem;
   padding-right: 0.25rem;
@@ -329,9 +328,7 @@
 }
 
 .product-qty-group input[type='number']::-webkit-outer-spin-button,
-.product-qty-group input[type='number']::-webkit-inner-spin-button,
-.cart-qty-group input[type='number']::-webkit-outer-spin-button,
-.cart-qty-group input[type='number']::-webkit-inner-spin-button {
+.product-qty-group input[type='number']::-webkit-inner-spin-button {
   margin: 0;
   -webkit-appearance: none;
 }
@@ -381,8 +378,9 @@
   object-fit: contain;
 }
 
-.cart-row-name,
-.cart-drawer-name {
+/* The drawer's line link is styled from app.css: the drawer exists on every
+ * signed-in page, while this stylesheet only loads on catalogue/cart pages. */
+.cart-row-name {
   display: block;
   overflow: hidden;
   max-width: 22rem;
@@ -393,14 +391,8 @@
   white-space: nowrap;
 }
 
-.cart-row-name:hover,
-.cart-drawer-name:hover {
+.cart-row-name:hover {
   color: var(--bs-primary);
-}
-
-.cart-qty-group {
-  width: 7.25rem;
-  flex-wrap: nowrap;
 }
 
 .cart-col-qty {
@@ -421,66 +413,8 @@
   top: 6rem;
 }
 
-/* ---------- Cart drawer (Phase 4) ---------- */
-.cart-drawer {
-  width: min(23rem, 100vw);
-}
-
-.cart-drawer-media {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  width: 64px;
-  height: 64px;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 0.6rem;
-  background: var(--bs-gray-100, #f4f6fb);
-}
-
-.cart-drawer-media img {
-  width: 100%;
-  height: 100%;
-  padding: 0.2rem;
-  object-fit: contain;
-}
-
-.cart-drawer-media-empty {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  color: var(--bs-secondary-color);
-}
-
-.cart-drawer-name {
-  max-width: 12rem;
-  font-size: 0.925rem;
-}
-
-.cart-drawer-line {
-  color: var(--bs-heading-color);
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.cart-drawer-empty {
-  min-height: 60vh;
-}
-
-.cart-drawer .cart-qty-group {
-  width: 6.75rem;
-}
-
-.cart-navbar-badge {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.25rem;
-  min-width: 1.1rem;
-  padding: 0.15rem 0.3rem;
-  font-size: 0.65rem;
-  line-height: 1;
-}
+/* The drawer and the navbar badge are global shell elements; their styles
+ * live in app.css so they also apply on pages that do not load this file. */
 
 /* Phone: two compact cards per row; quick view gives its slot to Add. */
 @media (max-width: 575.98px) {

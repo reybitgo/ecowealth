@@ -732,3 +732,39 @@ number and pressing **Update** (or the trash icon) worked, which made the steppe
 - `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
 - Headless Chrome with **JavaScript disabled**: 4/4 (submit button semantics, reload, persisted
   quantity, flash), and the JavaScript interaction harness still **18 / 18** with 0 exceptions.
+
+---
+
+## Post-Phase 4 — Navbar cart badge sizing (global shell CSS)
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 178 PHP cases, 56 smoke checks
+
+### Problem
+
+On `/dashboard` the navbar cart badge rendered as a large, in-flow pill beside the cart icon instead of a
+compact counter on its corner. Two causes:
+
+1. `.cart-navbar-badge` — and the whole off-canvas drawer styling — lived in `shop.css`, which is only
+   enqueued on the catalogue and cart pages. On the dashboard there was no rule at all, so the theme’s
+   default `.badge` (large pill, in the button flow) won.
+2. Even where `shop.css` loaded, the theme’s `.btn .badge { position: relative; top: -1px }` rule
+   outranked the single-class badge rule, keeping it in the flow.
+
+### Changes
+
+- **Moved the shell-level cart styles** (drawer, drawer media/name, cart quantity group, navbar badge)
+  from `shop.css` to `app.css`, which every signed-in page loads. `shop.css` keeps the catalogue and
+  cart-page-only rules (product cards, cart table, summary).
+- **Re-scoped the badge** to `#layout-navbar .cart-navbar-badge` so it outranks `.btn .badge`; it is now a
+  compact 1.05rem circle (0.625rem type) absolutely positioned on the icon’s top-right corner.
+- **Regression test** — `CartViewTest` asserts the drawer/badge selectors live in `app.css` and that
+  `shop.css` no longer owns them, so the page-specific-sheet mistake cannot return.
+- **Evidence** — `docs/qa/evidence/shell/final-navbar-badge.png` (dashboard: `shop.css` not loaded,
+  badge computed 16.8 × 16.8px, `position: absolute`).
+
+### Verification
+
+- `php tests\run.php` — **178 / 178**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
+- Headless Chrome: dashboard badge measured 16.8 × 16.8px at `position: absolute`; the cart JavaScript
+  harness still **18 / 18** and the no-JS stepper check **4 / 4**.
