@@ -85,11 +85,25 @@ return [
             'the default submit button must come before the stepper buttons'
         );
 
+        /* The steppers are the only visible quantity controls: the old
+         * "Update" button was removed as redundant (a typed value saves on
+         * change, and Enter still posts through the hidden default). */
+        assert_not_contains('cart-update-btn', $html);
+        assert_same(2, substr_count($html, 'name="direction"'), 'only the two steppers submit the quantity');
+
         assert_contains('Proceed to checkout', $html);
         assert_contains('href="' . url('checkout') . '"', $html);
         assert_contains('Choose the delivery address', $html);
         assert_not_contains('Checkout opens in Phase 6', $html);
         assert_contains('Continue shopping', $html);
+    },
+
+    'P4-T4 a typed quantity saves on change, without a separate Update button' => function (): void {
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app-cart.js');
+
+        assert_contains("input.matches('[data-cart-qty]')", $js, 'the change listener targets quantity inputs');
+        assert_contains('updateFrom(form);', $js, 'a change posts the typed value');
+        assert_not_contains('cart-update-btn', $js, 'the script does not depend on the removed button');
     },
 
     'P4-T1 an empty cart shows the browse state and no table' => function () use ($render, $stateFor): void {

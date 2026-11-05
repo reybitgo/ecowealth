@@ -129,7 +129,10 @@ $isEmpty     = $items === [];
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>" />
                                 <!-- First submit button in the form: pressing Enter in the
-                                     quantity field submits the typed value, not a step. -->
+                                     quantity field submits the typed value, not a step.
+                                     There is deliberately no visible "Update" button — the
+                                     steppers are the control, and app-cart.js saves a typed
+                                     quantity as soon as the field changes. -->
                                 <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Update</button>
                                 <div class="input-group input-group-sm cart-qty-group mx-auto">
                                   <button class="btn btn-outline-secondary" type="submit" name="direction" value="down" data-cart-step="-1" aria-label="Decrease quantity of <?= e((string) $item['product_name']) ?>">&minus;</button>
@@ -145,7 +148,6 @@ $isEmpty     = $items === [];
                                   />
                                   <button class="btn btn-outline-secondary" type="submit" name="direction" value="up" data-cart-step="1" aria-label="Increase quantity of <?= e((string) $item['product_name']) ?>">+</button>
                                 </div>
-                                <button type="submit" class="btn btn-sm btn-label-secondary mt-2 cart-update-btn">Update</button>
                               </form>
                             </td>
                             <td class="text-end text-nowrap fw-semibold" data-line-total><?= e(money((float) $item['line_total'])) ?></td>

@@ -1105,4 +1105,36 @@ Phase 7 — manual payments and the order lifecycle: `shop_payment_proofs`, proo
 correction windows, expiry cron. `OrderService` already creates the `pending` order with its deadline and emits the
 first event; Phase 7 adds the document, the review transitions and the `paid`/`payment_failed` side effects.
 
+---
+
+## Post-Phase 6 — Cart quantity saves without an Update button
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 239 PHP cases, 83 smoke checks
+
+### Problem
+
+The cart page rendered a small **Update** button under each quantity stepper. With the **+** / **−** steppers
+and `app-cart.js` already saving a typed quantity on the `change` event (fired when the field loses focus or
+the value is committed), the button had nothing left to do — it read as if a change were still pending.
+
+### Changes
+
+- **`app/views/shop/cart.php`** — removed the visible **Update** button. The visually-hidden first submit
+  stays, so pressing **Enter** in the quantity field still posts the typed value (with and without JavaScript).
+- **`public/assets/css/shop.css`** — removed the now-unused `.cart-update-btn` rule.
+- **`tests/Cases/CartViewTest.php`** — the cart-page case asserts there is no update button and exactly two
+  stepper submits; a new case proves `app-cart.js` still saves a typed quantity on `change`.
+- **QA documentation** — QA4-05, QA4-06, QA4-10 and QA4-13 now say to press **Enter** or use the steppers
+  instead of clicking a button that no longer exists.
+- **Evidence** — refreshed `docs/qa/evidence/phase-4/final-cart-desktop.png` and `final-cart-mobile.png`.
+
+### Verification
+
+- `php tests\run.php` — **239 / 239**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **83 / 83**.
+- Headless Chrome on `/cart` as `QA_Member_01`: 0 `.cart-update-btn` elements, exactly 2 stepper submits;
+  typing **3** and firing `change` saved the line (quantity 3, line total ₱900.00); restoring **2** saved
+  again; no console errors.
+
+
 

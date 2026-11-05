@@ -415,11 +415,6 @@
   width: 4rem;
 }
 
-.cart-update-btn {
-  padding: 0.2rem 0.5rem;
-  font-size: 0.7rem;
-}
-
 .cart-summary {
   position: sticky;
   top: 6rem;

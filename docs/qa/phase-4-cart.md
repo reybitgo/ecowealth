@@ -156,7 +156,9 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 1. Add **Coffee ×1** and **Spirulina ×1** (QA4-02 shows how).
 2. Open `/cart`.
-3. Change the Coffee quantity to **3** and press **Update** (or press Enter).
+3. Change the Coffee quantity to **3** and press **Enter** — the value saves when the field changes, so
+   clicking away also works. There is no separate **Update** button; the **+** / **−** steppers are the
+   control.
 4. Click the red **trash** icon on Spirulina.
 
 **Expected**
@@ -177,7 +179,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 **Steps**
 
-1. With one line in the cart, type **0** in its quantity box and press **Update**.
+1. With one line in the cart, type **0** in its quantity box and press **Enter**.
 
 **Expected**
 
@@ -271,7 +273,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 1. Add **Serpentina** ×1 to the cart.
 2. As `admin`, disable Serpentina (pause icon).
 3. Reload `/cart` as the member.
-4. Try **+** on its quantity, then set the quantity to **0** and press **Update**.
+4. Try **+** on its quantity, then set the quantity to **0** and press **Enter**.
 
 **Expected**
 
@@ -352,7 +354,8 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 1. DevTools → **Settings** (gear) → **Debugger** → tick **Disable JavaScript**. Reload `/shop`.
 2. Open a product (e.g. `/shop/2`), set quantity **2**, click **Add to cart**.
-3. Open `/cart` and change a quantity with **Update**.
+3. Open `/cart`, type a new quantity in the field and press **Enter**. (There is no visible **Update**
+   button: the **+** / **−** buttons are the submit controls, and Enter posts the typed number.)
 4. Click the row's **+** button twice, then its **−** button once.
 5. Press Enter while the quantity field is focused (type a new number first).
 6. Remove a line with the trash button.
