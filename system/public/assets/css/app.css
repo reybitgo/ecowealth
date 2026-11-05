@@ -255,12 +255,22 @@
 }
 
 /* ---------- Toasts (cart feedback, Phase 4) ----------
- * The theme ships .toast-container with a low stacking order, which put the
- * "Added to cart." toast behind the off-canvas cart drawer. Raise the host
- * above the drawer/backdrop and let clicks through everywhere except a toast. */
+ * The host sits in the top-right corner, clear of the navbar and the cart
+ * drawer's Checkout button (bottom-right). The theme ships .toast-container
+ * with a low stacking order, so raise it above the drawer/backdrop and let
+ * clicks through everywhere except a toast. */
 #toastContainer {
   z-index: 1095;
+  top: 5rem;
   pointer-events: none;
+}
+
+/* On wide screens, shift the host clear of the open cart drawer so the
+ * message never covers the drawer's lines, close button or Checkout CTA. */
+@media (min-width: 1200px) {
+  body:has(.offcanvas.show) #toastContainer {
+    right: 27rem !important;
+  }
 }
 
 #toastContainer .toast {

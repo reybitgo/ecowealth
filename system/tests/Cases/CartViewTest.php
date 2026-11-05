@@ -259,6 +259,14 @@ return [
         assert_contains('data-add-url="' . url('cart/add') . '"', $html);
         assert_contains('app-cart.js', $html);
         assert_contains('id="toastContainer"', $html);
+        assert_contains('toast-container position-fixed end-0 p-3', $html);
+        assert_not_contains('toast-container position-fixed bottom-0', $html);
+        assert_contains('top: 5rem;', (string) file_get_contents(
+            dirname(__DIR__, 2) . '/public/assets/css/app.css'
+        ));
+        assert_contains('right: 27rem !important;', (string) file_get_contents(
+            dirname(__DIR__, 2) . '/public/assets/css/app.css'
+        ));
 
         /* The sidebar renders the cart badge from $nav_badges. */
         assert_contains('badge rounded-pill bg-label-primary ms-auto', $html);

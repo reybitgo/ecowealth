@@ -55,7 +55,12 @@
     ></div>
 <?php endif; ?>
     <!-- Toast host + cart behaviour (Phase 4) -->
-    <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite" aria-atomic="true"></div>
+    <div
+      id="toastContainer"
+      class="toast-container position-fixed end-0 p-3"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
     <!-- Core JS -->
     <!-- build:js assets/vendor/js/theme.js  -->
     <script src="<?= e(url('assets/vendor/libs/jquery/jquery.js')) ?>"></script>

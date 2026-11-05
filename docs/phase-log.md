@@ -1295,6 +1295,38 @@ untrustworthy on a page that moves money.
   (**Cancel this order?**, warning text, red **Cancel order**, **Keep order**) without navigating; **Keep order**
   closed it and the order stayed **Pending**; no console errors.
 
+---
+
+## Post-Phase 6 — Cart toasts moved to the top-right
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 249 PHP cases, 85 smoke checks
+
+### Problem
+
+The cart toast host sat at the **bottom-right**, exactly over the cart drawer's **Checkout** button. “Added to
+cart.” therefore hid the next action and read like something had gone wrong — the opposite of what the message
+means.
+
+### Changes
+
+- **`app/layout/app_footer.php`** — the toast host is now right-anchored (`end-0 p-3`) instead of bottom-anchored.
+- **`public/assets/css/app.css`** — the host sits at `top: 5rem` (below the navbar and the drawer's close
+  button) and keeps the raised stacking order. On screens ≥ 1200 px the `body:has(.offcanvas.show)` rule shifts
+  it left of the open cart drawer, so it covers neither the drawer lines, its close button nor **Checkout**.
+- **`tests/Cases/CartViewTest.php`** — asserts the top-right host markup and both positioning rules, and that
+  the old `bottom-0` host is gone.
+- **QA4-02 / QA4-16** now describe the top-right toast and its clearance from the drawer.
+- **Evidence** — `docs/qa/evidence/phase-6/final-toast.png`.
+
+### Verification
+
+- `php tests\run.php` — **249 / 249**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **85 / 85**.
+- Headless Chrome as `QA_Member_01` with the cart drawer open on `/shop`: the toast rendered at
+  **top 92 px** (upper half), its box `left 630 → right 980`; the drawer starts at `x 1024`, its close button
+  ends at `y 56`, and **Checkout** occupies `y 705–743`. No overlap with the drawer, the close button or the
+  checkout button; the console stayed clean.
+
 
 
 

@@ -34,7 +34,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 |---|---|
 | `final-cart-desktop.png` | cart page with two lines (Coffee ×2, Spirulina ×1) |
 | `final-cart-drawer.png` | drawer open over the shop, badge 3 |
-| `final-cart-ajax-add.png` | “Added to cart.” toast over the drawer |
+| `final-cart-ajax-add.png` | “Added to cart.” toast in the top-right, clear of the drawer |
 | `final-cart-updated.png` | quantity changed to 3, totals ₱900.00 |
 | `final-cart-empty.png` | empty-cart state |
 | `final-cart-mobile.png` | cart at 390 × 844 |
@@ -89,11 +89,11 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 1. Open `/shop`.
 2. On **Coffee**, click the small cart icon button between the eye (quick view) and **Details**.
-3. Watch the bottom-right corner and the right edge of the page.
+3. Watch the top-right corner and the right edge of the page.
 
 **Expected**
 
-- A green toast **“Added to cart.”** appears.
+- A green toast **“Added to cart.”** appears in the **top-right**, clear of the drawer and its Checkout button.
 - The cart drawer slides in from the right, headed **Cart** with badge **1**, listing Coffee with
   **₱300.00 each** and line total **₱300.00**.
 - The navbar cart badge and the sidebar **Cart** badge both show **1** immediately — without a page reload,
@@ -429,12 +429,12 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 1. DevTools → **Console** (keep it open).
 2. Add a product, click **+** and **−**, remove a line, and trigger one stock refusal (QA4-07).
-3. Watch the bottom-right corner each time.
+3. Watch the top-right corner each time.
 
 **Expected**
 
-- Every success and every refusal shows a toast **above the drawer** (green for success, red for
-  refusals). Toasts fade on their own after a few seconds.
+- Every success and every refusal shows a toast in the **top-right**, clear of the open drawer (green for
+  success, red for refusals). Toasts fade on their own after a few seconds.
 - The console has **no red errors**.
 - Clicking a toast’s **×** dismisses it.
 
