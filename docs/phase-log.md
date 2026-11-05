@@ -1136,5 +1136,39 @@ the value is committed), the button had nothing left to do — it read as if a c
   typing **3** and firing `change` saved the line (quantity 3, line total ₱900.00); restoring **2** saved
   again; no console errors.
 
+---
+
+## Post-Phase 6 — Top-bar identity opens the profile
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 241 PHP cases, 83 smoke checks
+
+### Problem
+
+The identity row at the top of the user dropdown (avatar, username, email) linked to `/dashboard`. That
+duplicated the **Dashboard** item directly below it and ignored the profile/address book page Phase 6 added —
+the natural “my account” destination.
+
+### Changes
+
+- **`app/layout/app_header.php`** — the identity anchor now points at `url('profile')`, carries
+  `data-user-menu-identity` (a stable hook for tests/scripts) and an “Open your profile” label.
+- **`app/Controllers/ProfileController::index()`** — renders the profile in the back-office layout for an
+  admin (`current_nav = admin.profile`), so the shared top bar lands on a consistent page for both roles.
+- **`app/layout/nav.php`** — new admin **My profile** item under *System* (`phase 6`), beside Change password.
+- **`tests/Cases/ViewTest.php`** — a member case asserts the identity row links to `/profile` (and not the old
+  dashboard row); an admin case asserts the profile page keeps the back-office sidebar with My profile active
+  and no member-only menu items.
+- **Evidence** — `docs/qa/evidence/phase-6/final-topbar-profile.png` and
+  `final-topbar-admin-profile.png`.
+
+### Verification
+
+- `php tests\run.php` — **241 / 241**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **83 / 83**.
+- Headless Chrome: member identity `href = /ecowealth/system/profile` and clicking it landed on
+  `/ecowealth/system/profile`; admin identity behaved the same, kept `#layout-menu` with **My profile** active
+  and never showed **My orders**; no console errors.
+
+
 
 

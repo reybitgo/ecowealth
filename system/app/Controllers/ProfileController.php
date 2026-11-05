@@ -29,15 +29,16 @@ final class ProfileController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $user = $this->member();
+        $user   = $this->member();
         $userId = (int) $user['id'];
+        $isAdmin = is_admin($user);
 
         $editId  = (int) Request::query('edit', 0);
         $editing = $editId > 0 ? $this->addresses->find($editId, $userId) : null;
 
-        View::page('member', 'member/profile', [
+        View::page($isAdmin ? 'admin' : 'member', 'member/profile', [
             'page_title'  => 'Profile',
-            'current_nav' => 'profile',
+            'current_nav' => $isAdmin ? 'admin.profile' : 'profile',
             'page_css'    => ['assets/css/orders.css'],
             'user'        => $user,
             'addresses'   => $this->addresses->forUser($userId),

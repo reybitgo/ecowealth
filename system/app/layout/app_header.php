@@ -264,7 +264,7 @@ $html_class  = $has_menu
                   </a>
                   <ul class="dropdown-menu dropdown-menu-end">
                     <li>
-                      <a class="dropdown-item" href="<?= e(url('dashboard')) ?>">
+                      <a class="dropdown-item" href="<?= e(url('profile')) ?>" data-user-menu-identity aria-label="Open your profile">
                         <div class="d-flex">
                           <div class="flex-shrink-0 me-3">
                             <div class="avatar avatar-online">

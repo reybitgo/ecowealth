@@ -107,6 +107,9 @@ return [
                 'items' => [
                     ['key' => 'admin.settings', 'label' => 'Settings', 'path' => 'admin/settings', 'icon' => 'bx-cog', 'guard' => 'admin', 'phase' => 15],
                     ['key' => 'admin.slogin', 'label' => 'S-Login console', 'path' => 'slogin', 'icon' => 'bx-shield-quarter', 'guard' => 'superadmin', 'phase' => 14],
+                    /* The top-bar identity row opens this page; admins get the
+                     * back-office layout (same pattern as admin.cart / admin.wallet). */
+                    ['key' => 'admin.profile', 'label' => 'My profile', 'path' => 'profile', 'icon' => 'bx-user-circle', 'guard' => 'admin', 'phase' => 6],
                     ['key' => 'admin.password', 'label' => 'Change password', 'path' => 'profile/password', 'icon' => 'bx-lock-alt', 'guard' => 'admin', 'phase' => 1],
                     ['key' => 'logout', 'label' => 'Sign out', 'path' => 'logout', 'icon' => 'bx-power-off', 'guard' => 'member', 'type' => 'post'],
                 ],

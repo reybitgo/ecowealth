@@ -116,6 +116,53 @@ return [
         assert_not_contains('href="' . url('slogin') . '"', $html);
     },
 
+    'View::page links the top-bar identity to the member profile' => function () use ($render): void {
+        $member = test_user('identity_member');
+        test_signed_in_as($member);
+
+        $html = $render('member', 'member/profile', [
+            'page_title'  => 'Profile',
+            'current_nav' => 'profile',
+            'user'        => $member,
+            'addresses'   => [],
+            'editing'     => null,
+            'posted'      => [],
+        ]);
+
+        /* The identity row in the user dropdown is the account shortcut. */
+        assert_contains(
+            'class="dropdown-item" href="' . url('profile') . '" data-user-menu-identity',
+            $html
+        );
+        assert_not_contains(
+            'class="dropdown-item" href="' . url('dashboard') . '"><div class="d-flex">',
+            $html,
+            'the identity row no longer links to the dashboard'
+        );
+        assert_contains('My orders', $html);
+    },
+
+    'View::page renders an admin profile inside the back-office layout' => function () use ($render): void {
+        $admin = test_user('layout_admin', 'admin');
+        test_signed_in_as($admin);
+
+        $html = $render('admin', 'member/profile', [
+            'page_title'  => 'Profile',
+            'current_nav' => 'admin.profile',
+            'user'        => $admin,
+            'addresses'   => [],
+            'editing'     => null,
+            'posted'      => [],
+        ]);
+
+        assert_contains('id="layout-menu"', $html);
+        assert_contains('E-wallet monitor', $html, 'the back-office sidebar is in use');
+        assert_contains('My profile', $html);
+        assert_contains('menu-item active', $html);
+        assert_contains('class="dropdown-item" href="' . url('profile') . '" data-user-menu-identity', $html);
+        assert_not_contains('My orders', $html, 'admin pages never show member-only menu items');
+    },
+
     'View::page marks the active menu item' => function () use ($render): void {
         test_signed_in_as(test_user('layout_member'));
 
