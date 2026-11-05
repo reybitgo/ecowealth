@@ -64,7 +64,7 @@ $sku       = trim((string) ($product['sku'] ?? ''));
                         <span class="text-body-secondary small"><?= $available > 0 ? $available . ' available' : 'Out of stock' ?></span>
                       </div>
 
-                      <div class="d-flex flex-wrap align-items-stretch gap-2 mb-3">
+                      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
 <?php if (!$shop_open): ?>
                         <button type="button" class="btn btn-secondary" disabled>
                           <i class="icon-base bx bx-store-alt me-1"></i> Shop closed
@@ -74,7 +74,7 @@ $sku       = trim((string) ($product['sku'] ?? ''));
                           <i class="icon-base bx bx-x-circle me-1"></i> Sold out
                         </button>
 <?php else: ?>
-                        <form method="POST" action="<?= e(url('cart/add')) ?>" class="d-flex flex-wrap align-items-stretch gap-2" data-cart-add>
+                        <form method="POST" action="<?= e(url('cart/add')) ?>" class="d-flex flex-wrap align-items-center gap-2" data-cart-add>
                           <?= csrf_field() ?>
                           <input type="hidden" name="product_id" value="<?= (int) $product['id'] ?>" />
                           <div class="input-group product-qty-group">

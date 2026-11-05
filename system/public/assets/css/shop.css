@@ -312,15 +312,27 @@
 }
 
 .product-qty-group {
-  width: 8.5rem;
+  /* The theme's .btn padding makes each stepper button ~31px wide; keep the
+   * value at a fixed, readable width so the three pieces always share one row
+   * instead of wrapping and stretching the whole action row. "fit-content"
+   * overrides Bootstrap's .input-group { width: 100% }. */
+  width: fit-content;
   flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.product-qty-group .btn {
+  flex: 0 0 auto;
+  padding-right: 0.65rem;
+  padding-left: 0.65rem;
 }
 
 /* The native number spinner fights the three-piece stepper: hide it and give
  * the value enough room to stay readable in the narrow group. */
 .product-qty-group input[type='number'] {
-  flex: 1 1 auto;
-  min-width: 2.4rem;
+  flex: 0 0 3.25rem;
+  width: 3.25rem;
+  min-width: 0;
   padding-right: 0.25rem;
   padding-left: 0.25rem;
   appearance: textfield;

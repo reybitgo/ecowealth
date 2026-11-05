@@ -393,9 +393,10 @@ P2-T9 escaping · P2-T10 member 403.
 
 - Breadcrumb “Shop / Coffee”.
 - Large product photo, name **Coffee**, badge **In stock**, price **₱300.00**, “50 available”.
-- A **disabled** button **“Add to cart”** (hovering explains that online checkout opens soon) and a
-  **Back to shop** button.
-- A small note: “Online checkout opens soon.”
+- An **enabled** **Add to cart** button with a quantity stepper, a **View cart** button and a
+  **Back to shop** button. (Phase 2 shipped this disabled; from Phase 4 it works — the cart flow is
+  checked in QA4-02. If you are testing the Phase 2 tag itself, expect a disabled button instead.)
+- A small note: “Added items stay in your cart — checkout opens in Phase 6.”
 - **About this product** text, then **SKU `EW-COFFEE`** and **Availability**.
 
 ### QA2-16 — Search and pagination (optional, adds 14 temporary rows)

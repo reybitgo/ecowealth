@@ -797,3 +797,43 @@ across the cart glyph. At 33 units the icon was half hidden.
 - `php tests\run.php` — **178 / 178**.
 - `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
 - Headless Chrome: cart JavaScript harness **18 / 18**, no-JS stepper **4 / 4**.
+
+---
+
+## Post-Phase 4 — Product detail quantity stepper layout
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 179 PHP cases, 56 smoke checks
+
+### Problem
+
+On `/shop/1`, desktop and mobile, the quantity stepper stacked its pieces — `[−][1]` on one row and
+`[+]` on the next — and the **Add to cart** / **View cart** buttons stretched to about 77px tall,
+looking oversized.
+
+### Cause
+
+`.product-qty-group` was fixed at 8.5rem (136px). The theme’s `.btn` padding makes each stepper button
+~50px wide, so two buttons plus the value field needed ~139px: Bootstrap’s wrapping `.input-group`
+pushed `+` onto a second row. The action row used `align-items-stretch`, so the row’s buttons then
+stretched to the two-row height.
+
+### Changes
+
+- **`shop.css`** — the group is `width: fit-content` (overriding Bootstrap’s `.input-group{width:100%}`)
+  with `flex-wrap: nowrap`; the stepper buttons get compact horizontal padding and the value field a
+  fixed 3.25rem, so `[−][n][+]` measures ~112.5px on a single row.
+- **`product.php`** — the action row and the add form use `align-items-center` instead of
+  `align-items-stretch`, so a future wrap cannot stretch the buttons again.
+- **Tests** — `ProductViewTest` asserts the group class in the markup and the `fit-content` /
+  `nowrap` rules in the stylesheet.
+- **Docs** — Phase 2’s QA2-15 expectation now describes the working Phase 4 controls; Phase 4’s
+  evidence table links the new screenshots.
+- **Evidence** — `docs/qa/evidence/shop/final-product-actions.png` (desktop) and
+  `final-product-actions-mobile.png` (360px).
+
+### Verification
+
+- `php tests\run.php` — **179 / 179**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
+- Headless Chrome: group 112.5 × 39.4px, all three pieces on one row; **Add to cart** 143.8 × 38px
+  (was 143.8 × 77.4px); at 360px the stepper and Add share a row and the secondary actions wrap below.

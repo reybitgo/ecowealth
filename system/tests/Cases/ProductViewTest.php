@@ -148,8 +148,26 @@ return [
         assert_contains('Add to cart', $html);
         assert_contains('action="' . url('cart/add') . '"', $html);
         assert_contains('name="quantity"', $html);
+        assert_contains('class="input-group product-qty-group"', $html);
         assert_not_contains('Online checkout opens soon', $html);
         assert_contains(url('shop'), $html);
+    },
+
+    'P4-T1 the product stepper is a single-row, content-width group' => function (): void {
+        /* The theme's .btn padding needs ~115px for [−][n][+] and Bootstrap's
+         * .input-group sets width:100%; without fit-content + nowrap the "+"
+         * wrapped onto a second row and stretched the whole action row. */
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/shop.css');
+
+        assert_contains('.product-qty-group', $css);
+        assert_true(
+            str_contains($css, 'width: fit-content'),
+            'the product quantity group must override .input-group { width: 100% }'
+        );
+        assert_true(
+            str_contains($css, 'flex-wrap: nowrap'),
+            'the product quantity stepper must never wrap onto two rows'
+        );
     },
 
     'P2-T2 a sold-out detail page says so' => function () use ($render, $product): void {

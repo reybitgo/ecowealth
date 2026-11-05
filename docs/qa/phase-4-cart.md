@@ -42,6 +42,8 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | `final-shop-add-to-cart.png` | product cards with the new cart button |
 | `final-cart-sidebar-badge.png` | sidebar + navbar badges both at 2 after an in-place add |
 | `final-cart-nojs-stepper.png` | cart page after clicking **+** with JavaScript disabled |
+| `final-product-actions.png` | product detail: one-row stepper with normal buttons |
+| `final-product-actions-mobile.png` | the same actions at 360px |
 | `final-admin-cart.png` | the admin sidebar's Cart item (active, badge 2) |
 
 > **Before you start:** Phases 1–3 should be signed off. The automated suite must be green
