@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, 003, 004, 005, 006, …).
+--  database/migrations/ (apply in order: 001, 002, 003, 004, 005, 006, 007, …).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -17,7 +17,7 @@
 --  Phase 5 owns: users.ewallet_balance/withdrawable_balance,
 --                ewallet_ledger, ewallet_admin_topups.
 --  Phase 6 owns: addresses, shop_orders, shop_order_items,
---                shop_order_events.
+--                shop_order_events, users payout-account columns.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS users (
   -- writer; withdrawable_balance is always the subset <= ewallet_balance.
   ewallet_balance      DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   withdrawable_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  -- Member payout accounts (Phase 6 profile; Phase 13 pays out to them).
+  gcash_number        VARCHAR(20)  NULL,
+  maya_number         VARCHAR(20)  NULL,
+  usdt_trc20_address  VARCHAR(100) NULL,
+  usdt_bep20_address  VARCHAR(100) NULL,
   last_login_at DATETIME     NULL DEFAULT NULL,
   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

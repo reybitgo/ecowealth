@@ -19,6 +19,7 @@ $migrations    = [
     $migrationDir . '004_carts.sql',
     $migrationDir . '005_wallets.sql',
     $migrationDir . '006_orders.sql',
+    $migrationDir . '007_payout_accounts.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -167,6 +168,26 @@ return [
 
         assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM shop_order_items WHERE order_id = {$orderId}")->fetchColumn());
         assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM shop_order_events WHERE order_id = {$orderId}")->fetchColumn());
+
+        /* Phase 6/13: the migrated users table accepts the payout accounts. */
+        $pdo->exec(
+            "UPDATE users
+                SET gcash_number = '09171234567',
+                    maya_number = '09179876543',
+                    usdt_trc20_address = 'T111111111111111111111111111111111',
+                    usdt_bep20_address = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              WHERE id = {$userId}"
+        );
+
+        $payout = $pdo->query(
+            "SELECT gcash_number, maya_number, usdt_trc20_address, usdt_bep20_address
+               FROM users WHERE id = {$userId}"
+        )->fetch();
+
+        assert_same('09171234567', $payout['gcash_number']);
+        assert_same('09179876543', $payout['maya_number']);
+        assert_same('T111111111111111111111111111111111', $payout['usdt_trc20_address']);
+        assert_same('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', $payout['usdt_bep20_address']);
     },
 
     'migration adds the role index' => function () use ($buildMigrated): void {

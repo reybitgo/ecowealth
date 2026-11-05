@@ -82,13 +82,13 @@ address book, missing-terms and cancellation paths.
   button out, shows **“Tick the terms above to place your order.”**, and ticking it again re-enables it.
 - The page source (DevTools → Elements) contains **`name="idempotency_key"`** with a 32-character value.
 
-### QA6-02 — The address book saves and prefills checkout
+### QA6-02 — The profile saves addresses and payout accounts
 
 | | |
 |---|---|
-| **Why it matters** | Retyping a delivery address on every order is the quickest way to lose a buyer. |
-| **Where** | `/profile` → address form → `/checkout` |
-| **Evidence** | `QA6-02-address-book.png` |
+| **Why it matters** | Retyping a delivery address or a payout account on every order is the quickest way to lose a buyer. |
+| **Where** | `/profile` → address form / payout form → `/checkout` |
+| **Evidence** | `QA6-02-address-book.png`, `QA6-02-payout-accounts.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
@@ -98,12 +98,19 @@ address book, missing-terms and cancellation paths.
    street `12 Mabini Street`, barangay `Poblacion`, city `Makati`, province `Metro Manila`, postal `1200`,
    tick **Use this as my default address**, then **Save address**.
 3. Reload `/profile`.
-4. Put a product in the cart and open `/checkout`.
+4. In **Payout accounts**, enter GCash `0917 555 1234`, Maya `+63 917 555 9876`, a USDT TRC20 address
+   (`T` + 33 characters) and a USDT BEP20 address (`0x` + 40 hex characters), then **Save payout details**.
+5. Put a product in the cart and open `/checkout`.
 
 **Expected**
 
 - Profile shows the address card with a **Default** badge and **Edit / Delete** buttons.
 - The form resets after saving; **Add an address** is ready for the next one.
+- The **Payout accounts** card saves the four fields and explains that the GCash/Maya/bank details on an
+  order are the **company's** receiving accounts, not these.
+- After reloading, the GCash/Maya numbers are stored without spaces or dashes (`09175551234`,
+  `+639175559876`) and the wallet addresses are unchanged.
+- An invalid number shows a field error and does **not** overwrite the saved value.
 - Checkout **Saved addresses** lists the address with **Default** and **Selected**, and the delivery
   fields contain `QA Tester`, `12 Mabini Street`, `Poblacion`, `Makati`, `Metro Manila`, `1200`.
 - Clicking the other address card (if you saved a second one) reloads checkout with that address selected.
@@ -193,9 +200,10 @@ address book, missing-terms and cancellation paths.
 **Expected**
 
 - Green flash **“Order placed. Your payment is pending — the payment window is shown on the order page.”**
-- Status **Pending**, heading **Payment pending**, and “Send ₱… using GCash.”
+- Status **Pending**, heading **Payment pending**, and “Send ₱… to the company's GCash account shown below.”
 - **GCash number** and **Account name** from the settings (`0917 000 0000` / `EcoWealth Trading` until the
-  owner changes them).
+  owner changes them), followed by the note **“These are the company's receiving details. Your own payout
+  accounts are in your profile.”** with a working profile link.
 - **Pay by <date>** roughly 24 hours after placing the order.
 - A note that payment-proof upload arrives in the next phase.
 - **Cancel order** with an optional **Reason** field at the bottom of the status card.

@@ -121,7 +121,7 @@ system/
 │   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, Profile
 │   ├── Models/                Product, Package, Cart, Wallet, AuditLog, Address, Order, OrderEvent
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
-│   │                          OrderService, OrderNumber, AddressService
+│   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       wallet_reconcile.php (CLI only; never web-reachable)
@@ -133,7 +133,7 @@ system/
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 006_orders
+│   ├── migrations/            001_settings_roles … 007_payout_accounts
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
@@ -356,6 +356,10 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   order stores an immutable address snapshot — editing the book never rewrites an order.
 - **Member pages.** `/orders` lists the member's orders with filters; `/orders/{id}` shows the status panel,
   line snapshots, delivery, payment, the event timeline and a cancel form for unpaid orders only.
+- **Profile & payout accounts.** `/profile` holds the full name, the address book and the member's payout
+  accounts (GCash, Maya, USDT TRC20/BEP20). The company pays withdrawals to those accounts in Phase 13; the
+  GCash/Maya/bank details printed on an order are the **company's** receiving accounts (settings), not the
+  member's.
 - **Order desk.** `/admin/orders` shows the stats, filters and every order; `/admin/orders/{id}` shows the
   member's wallet link, items, delivery snapshot and history. Verification and fulfilment actions are next.
 - **Order numbers** are `EW` + `yymmdd` + the 5-digit id; the id is what makes them unique.
@@ -365,7 +369,7 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (238 cases in Phase 6)
+php tests/run.php                 # full suite (248 cases in Phase 6)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -379,7 +383,7 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
   explicitly, because DDL commits.
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–006 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–007 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -406,6 +410,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `004_carts.sql` | `carts`, `cart_items` |
 | `005_wallets.sql` | `users.ewallet_balance` + `withdrawable_balance`, `ewallet_ledger`, `ewallet_admin_topups` |
 | `006_orders.sql` | `addresses`, `shop_orders`, `shop_order_items`, `shop_order_events` |
+| `007_payout_accounts.sql` | `users.gcash_number`, `maya_number`, `usdt_trc20_address`, `usdt_bep20_address` |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

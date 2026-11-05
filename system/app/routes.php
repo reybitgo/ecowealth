@@ -87,6 +87,7 @@ return [
      * admin_shop_order. */
     ['GET',  '/profile',                         [ProfileController::class, 'index'],         'member'],    // profile
     ['POST', '/profile',                         [ProfileController::class, 'save'],          'member'],    // save_profile
+    ['POST', '/profile/payment',                 [ProfileController::class, 'savePayment'],   'member'],    // payout accounts
     ['POST', '/profile/address',                 [ProfileController::class, 'saveAddress'],   'member'],    // shop_address_save
     ['POST', '/profile/address/{id}/delete',     [ProfileController::class, 'deleteAddress'], 'member'],    // shop_address_delete
     ['POST', '/profile/address/{id}/default',    [ProfileController::class, 'defaultAddress'],'member'],    // shop_address_default

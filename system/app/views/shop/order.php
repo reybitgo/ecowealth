@@ -92,8 +92,8 @@ $fullAddress = implode(', ', array_filter([
                         <div class="flex-grow-1">
                           <h5 class="mb-1">Payment pending</h5>
                           <p class="text-body-secondary mb-3">
-                            Send <strong><?= e(money((float) $order['total'])) ?></strong> using
-                            <?= e(payment_method_label((string) $order['payment_method'])) ?>.
+                            Send <strong><?= e(money((float) $order['total'])) ?></strong> to the company's
+                            <?= e(payment_method_label((string) $order['payment_method'])) ?> account shown below.
                           </p>
 <?php if ($instructions !== []): ?>
                           <div class="order-payment-instructions mb-3">
@@ -104,6 +104,10 @@ $fullAddress = implode(', ', array_filter([
                             </div>
 <?php endforeach; ?>
                           </div>
+                          <p class="text-body-secondary small mb-3">
+                            These are the company's receiving details. Your own payout accounts are in
+                            <a href="<?= e(url('profile')) ?>">your profile</a>.
+                          </p>
 <?php endif; ?>
 <?php if ($deadline !== ''): ?>
                           <p class="<?= $overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?> small mb-3">

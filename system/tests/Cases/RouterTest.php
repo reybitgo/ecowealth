@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(39, $live);
+        assert_count(40, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -128,6 +128,7 @@ return [
         assert_same('admin', $live['POST /admin/wallets/{id}/credit']);
         assert_same('member', $live['GET /profile']);
         assert_same('member', $live['POST /profile']);
+        assert_same('member', $live['POST /profile/payment']);
         assert_same('member', $live['POST /profile/address']);
         assert_same('member', $live['POST /profile/address/{id}/delete']);
         assert_same('member', $live['POST /profile/address/{id}/default']);
@@ -157,6 +158,7 @@ return [
         assert_same(AdminWalletController::class, $router->match('GET', '/admin/wallets/12')['route']['handler'][0]);
         assert_same(AdminWalletController::class, $router->match('POST', '/admin/wallets/12/credit')['route']['handler'][0]);
         assert_same(ProfileController::class, $router->match('GET', '/profile')['route']['handler'][0]);
+        assert_same(ProfileController::class, $router->match('POST', '/profile/payment')['route']['handler'][0]);
         assert_same(ProfileController::class, $router->match('POST', '/profile/address')['route']['handler'][0]);
         assert_same(ProfileController::class, $router->match('POST', '/profile/address/4/default')['route']['handler'][0]);
         assert_same(CheckoutController::class, $router->match('GET', '/checkout')['route']['handler'][0]);

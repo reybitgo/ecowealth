@@ -1077,6 +1077,39 @@ try {
             -and $checkoutAddress.Status -eq 200 -and $checkoutAddress.Body.Contains('Smoke Office')) `
         "the address book saves a new default and checkout pre-fills it (profile contains the address)"
 
+    # P6-T7 - payout accounts are member-editable from the profile.
+    $trc20 = 'T' + ('1' * 33)
+    $bep20 = '0x' + ('a' * 40)
+
+    $payoutSave = Invoke-App -Method 'POST' -Path '/profile/payment' -Session 'member' -Form @{
+        '_csrf'              = (Get-Csrf $profileAfter.Body)
+        'gcash_number'       = '0917 555 1234'
+        'maya_number'        = '+63 917 555 9876'
+        'usdt_trc20_address' = $trc20
+        'usdt_bep20_address' = $bep20
+    }
+    $profilePayments = Invoke-App -Path '/profile' -Session 'member'
+    $payoutRow = (Invoke-MySql "SELECT CONCAT(COALESCE(gcash_number,''), '|', COALESCE(maya_number,''), '|', COALESCE(usdt_trc20_address,'')) FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+
+    Assert-That 'P6-T7' ($payoutSave.Status -eq 302 -and $payoutRow -eq "09175551234|+639175559876|$trc20" `
+            -and $profilePayments.Body -match 'Payout accounts' -and $profilePayments.Body.Contains('09175551234')) `
+        "POST /profile/payment saves the payout accounts (status=$($payoutSave.Status), stored=$payoutRow)"
+
+    $payoutBeforeBad = (Invoke-MySql "SELECT COALESCE(gcash_number,'') FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+    $badPayout = Invoke-App -Method 'POST' -Path '/profile/payment' -Session 'member' -Form @{
+        '_csrf'              = (Get-Csrf $profilePayments.Body)
+        'gcash_number'       = 'nope'
+        'maya_number'        = ''
+        'usdt_trc20_address' = ''
+        'usdt_bep20_address' = ''
+    }
+    $badPayoutPage = Invoke-App -Path '/profile' -Session 'member'
+    $payoutAfterBad = (Invoke-MySql "SELECT COALESCE(gcash_number,'') FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+
+    Assert-That 'P6-T7' ($badPayout.Status -eq 302 -and $payoutBeforeBad -eq $payoutAfterBad `
+            -and $badPayoutPage.Body -match 'Enter a GCash number' -and $badPayoutPage.Body.Contains('value="nope"')) `
+        "an invalid payout number is refused and keeps the typed value (stored=$payoutAfterBad)"
+
     # P6-T6 - missing terms is refused and the typed input is kept.
     Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
         -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null

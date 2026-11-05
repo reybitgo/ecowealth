@@ -22,7 +22,7 @@ still open in each phase of `docs/phase-log.md`.
 | Tester name | |
 | Date(s) of testing | |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6` |
+| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6` (+ profile payout-account follow-up) |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | |
@@ -36,8 +36,8 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 238  Passed: 238  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 83  Failed: 0` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 248  Passed: 248  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 85  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -220,7 +220,7 @@ Document: [phase-6-orders.md](phase-6-orders.md)
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
 | QA6-01 | Checkout shows cart, address, payments and balance | ☐ Pass ☐ Fail ☐ Blocked | |
-| QA6-02 | Address book saves and prefills checkout | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-02 | Profile saves addresses and payout accounts | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-03 | Missing address refused; terms gate the button | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-04 | E-wallet order is paid and debited once | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-05 | Manual order stays pending with instructions | ☐ Pass ☐ Fail ☐ Blocked | |

@@ -1211,6 +1211,56 @@ the natural “my account” destination.
 - With page scripts disabled, unticking the terms still applied the CSS fallback (`pointer-events: none`, fading
   opacity), so the button is never presented as clickable while the terms are unticked.
 
+---
+
+## Post-Phase 6 — Member payout accounts on the profile
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 248 PHP cases, 85 smoke checks
+
+### Problem
+
+The pending-order page shows the **company's** GCash/Maya/bank receiving details (from `settings`), but members
+had nowhere to record their **own** payout accounts. The reference member profile and plan §4/§5.9 define four
+member fields — GCash, Maya, USDT TRC20 and USDT BEP20 — which Phase 13's payout form will pre-fill.
+
+### Changes
+
+- **`database/migrations/007_payout_accounts.sql`** — adds `users.gcash_number`, `maya_number`,
+  `usdt_trc20_address`, `usdt_bep20_address` with guarded `ALTER TABLE` statements (Phase 13 can re-run them
+  safely). `schema.sql` carries the same columns.
+- **`app/Services/PaymentDetailsService.php`** — validates PH mobile formats (`09XXXXXXXXX` / `+639XXXXXXXXX`),
+  TRC20 (`T` + 33 base58 characters) and BEP20 (`0x` + 40 hex characters), normalises phone punctuation, allows
+  empty fields to clear a value, and only writes the signed-in member's row.
+- **`app/Controllers/ProfileController.php`** — new `savePayment()` (errors and typed values survive a failed
+  save); `index()` passes the member's saved values.
+- **`app/views/member/profile.php`** — a **Payout accounts** card with the four fields, field-level errors and
+  the explanation that the GCash/Maya/bank details on an order are the company's receiving accounts, not these.
+- **`app/views/shop/order.php`** — the pending panel now says “Send … to the company's … account shown below.”
+  and points to the member's profile payout accounts.
+- **Routes** — `POST /profile/payment` (member), registered and added to the route inventory as an extension.
+- **Tests** — `PaymentDetailsTest` (6 cases: normalisation, format refusal, clearing, owner scoping, profile
+  render, error state/admin layout); `MigrationTest` applies 001–007 and writes the new columns; `RouterTest`
+  covers the new route; smoke gained two checks (valid save + invalid refuses).
+- **Evidence** — `docs/qa/evidence/phase-6/final-profile-payouts.png`, refreshed
+  `final-profile-addresses.png` and `final-order-pending.png`.
+
+### Decisions
+
+- **Member bank details are not part of this build.** Plan §5.9 pays out through GCash, Maya and USDT; the
+  “Bank transfer” on an order is the **company's** receiving account, never a member-editable field. The profile
+  card says so explicitly so the two cannot be confused.
+- **The columns ship early (Phase 6) instead of Phase 13.** Members need a place to enter them now; the Phase 13
+  migration must keep its `ADD COLUMN` statements guarded so re-running them is harmless (documented in 007).
+
+### Verification
+
+- `php tests\run.php` — **248 / 248**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **85 / 85**.
+- Headless Chrome as `QA_Member_01`: saved all four fields through the real form; GCash normalised to
+  `09175551234`, Maya to `+639175559876`, both wallet addresses stored verbatim; the pending-order page showed
+  the company-account note with a working profile link; no console errors.
+
+
 
 
 

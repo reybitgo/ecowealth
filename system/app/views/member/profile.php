@@ -12,11 +12,18 @@ declare(strict_types=1);
  * @var array<string, mixed> $user
  * @var list<array<string, mixed>> $addresses
  * @var array<string, mixed>|null $editing
+ * @var array{gcash_number:string, maya_number:string, usdt_trc20_address:string, usdt_bep20_address:string} $payments
  * @var array<string, mixed> $posted
  */
 
-$posted  = $posted ?? [];
-$editing = $editing ?? null;
+$posted   = $posted ?? [];
+$editing  = $editing ?? null;
+$payments = $payments ?? [
+    'gcash_number'       => '',
+    'maya_number'        => '',
+    'usdt_trc20_address' => '',
+    'usdt_bep20_address' => '',
+];
 
 $addressId = array_key_exists('address_id', $posted)
     ? (int) $posted['address_id']
@@ -40,6 +47,14 @@ $isDefaultChecked = array_key_exists('is_default', $posted)
         ? (int) $editing['is_default'] === 1
         : $addresses === []);
 
+$paymentValue = static function (string $key) use ($posted, $payments): string {
+    if (array_key_exists($key, $posted)) {
+        return e((string) $posted[$key]);
+    }
+
+    return e((string) ($payments[$key] ?? ''));
+};
+
 $fullName = old('full_name') !== ''
     ? old('full_name')
     : e((string) ($user['full_name'] ?? ''));
@@ -49,7 +64,7 @@ $fullName = old('full_name') !== ''
                 <div>
                   <h4 class="mb-1">Profile</h4>
                   <p class="text-body-secondary mb-0">
-                    Your account details and the addresses checkout pre-fills.
+                    Your account details, payout accounts and the addresses checkout pre-fills.
                   </p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
@@ -106,6 +121,96 @@ $fullName = old('full_name') !== ''
                 </div>
 
                 <div class="col-lg-8">
+                  <div class="card mb-6" id="payout-details">
+                    <div class="card-header">
+                      <h5 class="mb-1">Payout accounts</h5>
+                      <p class="text-body-secondary small mb-0">
+                        Where the company sends your withdrawals. The GCash, Maya and bank details shown on an
+                        order are the company's receiving accounts — these are your own payout accounts.
+                      </p>
+                    </div>
+                    <div class="card-body">
+<?php if (has_error('payments')): ?>
+                      <div class="alert alert-danger py-2" role="alert"><?= e(error_for('payments')) ?></div>
+<?php endif; ?>
+                      <form method="POST" action="<?= e(url('profile/payment')) ?>">
+                        <?= csrf_field() ?>
+                        <div class="row g-4">
+                          <div class="col-md-6">
+                            <label class="form-label" for="gcash_number">GCash number</label>
+                            <input
+                              type="tel"
+                              inputmode="tel"
+                              id="gcash_number"
+                              name="gcash_number"
+                              maxlength="20"
+                              class="form-control <?= e(invalid_class('gcash_number')) ?>"
+                              value="<?= $paymentValue('gcash_number') ?>"
+                              placeholder="0917 123 4567"
+                              autocomplete="tel"
+                            />
+<?php if (has_error('gcash_number')): ?>
+                            <div class="invalid-feedback"><?= e(error_for('gcash_number')) ?></div>
+<?php endif; ?>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label" for="maya_number">Maya number</label>
+                            <input
+                              type="tel"
+                              inputmode="tel"
+                              id="maya_number"
+                              name="maya_number"
+                              maxlength="20"
+                              class="form-control <?= e(invalid_class('maya_number')) ?>"
+                              value="<?= $paymentValue('maya_number') ?>"
+                              placeholder="0917 123 4567"
+                              autocomplete="tel"
+                            />
+<?php if (has_error('maya_number')): ?>
+                            <div class="invalid-feedback"><?= e(error_for('maya_number')) ?></div>
+<?php endif; ?>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label" for="usdt_trc20_address">USDT (TRC20) address</label>
+                            <input
+                              type="text"
+                              id="usdt_trc20_address"
+                              name="usdt_trc20_address"
+                              maxlength="100"
+                              class="form-control font-monospace <?= e(invalid_class('usdt_trc20_address')) ?>"
+                              value="<?= $paymentValue('usdt_trc20_address') ?>"
+                              placeholder="T…"
+                              spellcheck="false"
+                            />
+<?php if (has_error('usdt_trc20_address')): ?>
+                            <div class="invalid-feedback"><?= e(error_for('usdt_trc20_address')) ?></div>
+<?php endif; ?>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label" for="usdt_bep20_address">USDT (BEP20) address</label>
+                            <input
+                              type="text"
+                              id="usdt_bep20_address"
+                              name="usdt_bep20_address"
+                              maxlength="100"
+                              class="form-control font-monospace <?= e(invalid_class('usdt_bep20_address')) ?>"
+                              value="<?= $paymentValue('usdt_bep20_address') ?>"
+                              placeholder="0x…"
+                              spellcheck="false"
+                            />
+<?php if (has_error('usdt_bep20_address')): ?>
+                            <div class="invalid-feedback"><?= e(error_for('usdt_bep20_address')) ?></div>
+<?php endif; ?>
+                          </div>
+                        </div>
+                        <p class="text-body-secondary small mt-3 mb-4">
+                          These details are only used for payouts. Leave a field empty to remove it.
+                        </p>
+                        <button type="submit" class="btn btn-primary">Save payout details</button>
+                      </form>
+                    </div>
+                  </div>
+
                   <div class="card mb-6">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <div>

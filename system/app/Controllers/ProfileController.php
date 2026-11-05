@@ -20,10 +20,12 @@ declare(strict_types=1);
 final class ProfileController
 {
     private AddressService $addresses;
+    private PaymentDetailsService $payments;
 
     public function __construct()
     {
         $this->addresses = new AddressService();
+        $this->payments  = new PaymentDetailsService();
     }
 
     /** @param array<string, string> $params */
@@ -43,8 +45,45 @@ final class ProfileController
             'user'        => $user,
             'addresses'   => $this->addresses->forUser($userId),
             'editing'     => $editing,
+            'payments'    => $this->payments->forUser($userId),
             'posted'      => old_payload(),
         ]);
+    }
+
+    /** POST /profile/payment — the member's payout accounts. */
+    public function savePayment(array $params = []): void
+    {
+        $user   = $this->member();
+        $userId = (int) $user['id'];
+
+        $input = [
+            'gcash_number'       => Request::string('gcash_number'),
+            'maya_number'        => Request::string('maya_number'),
+            'usdt_trc20_address' => Request::string('usdt_trc20_address'),
+            'usdt_bep20_address' => Request::string('usdt_bep20_address'),
+        ];
+
+        $errors = $this->payments->validate($input);
+
+        if ($errors !== []) {
+            errors_set($errors);
+            old_payload_set($input);
+            flash_set('danger', 'Please fix the highlighted payout details.');
+            redirect('profile');
+        }
+
+        try {
+            $this->payments->save($userId, $input);
+        } catch (InvalidArgumentException $e) {
+            errors_set(['payments' => $e->getMessage()]);
+            old_payload_set($input);
+            flash_set('danger', $e->getMessage());
+            redirect('profile');
+        }
+
+        old_payload_clear();
+        flash_set('success', 'Payout details saved.');
+        redirect('profile');
     }
 
     /** POST /profile */

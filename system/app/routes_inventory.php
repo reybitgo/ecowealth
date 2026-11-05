@@ -246,6 +246,7 @@ return [
         $extension('GET', '/packages', 3, 'Member package catalogue (the reference showed packages during activation).'),
         $extension('GET', '/cart/count', 4, 'Cart badge count for the offcanvas.'),
         $extension('GET', '/wallet', 5, 'Member e-wallet statement (no standalone reference page).'),
+        $extension('POST', '/profile/payment', 6, 'Member payout accounts on the profile (the reference kept them on its profile page too).'),
         $extension('GET', '/admin/activations', 9, 'Activation review queue (reference handled it from the member list).'),
         $extension('POST', '/admin/activations/{id}/approve', 9, 'Approves an activation and pays commissions.'),
         $extension('POST', '/admin/activations/{id}/reject', 9, 'Rejects an activation.'),

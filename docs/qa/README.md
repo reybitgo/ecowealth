@@ -44,7 +44,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 238   Passed: 238   Failed: 0
+Cases: 248   Passed: 248   Failed: 0
 All good.
 ```
 
@@ -57,7 +57,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 83   Failed: 0
+Passed: 85   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -80,9 +80,10 @@ Passed: 83   Failed: 0
   maths, ledger immutability (schema + source scan), reconciliation (clean and deliberately tampered), plus HTTP
   checks for the member/admin guards, top-up path, tabs and the reconcile command.
 - Phase 6: checkout validation, catalogue re-pricing, stock reservation, e-wallet payment inside the order
-  transaction, idempotent replay, a two-connection last-unit race, address-book rules and ownership, member/admin
-  order scoping and filters, cancellation with stock release, the event trail and the order-number format, plus
-  HTTP checks for the whole placement, replay, guard, cancellation and address-book paths.
+  transaction, idempotent replay, a two-connection last-unit race, address-book rules and ownership, member payout
+  accounts (format validation + normalisation), member/admin order scoping and filters, cancellation with stock
+  release, the event trail and the order-number format, plus HTTP checks for the whole placement, replay, guard,
+  cancellation, address-book and payout-account paths.
 
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
