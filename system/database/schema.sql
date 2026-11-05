@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 4)
+--  EcoWealth — MySQL schema (fresh install, Phase 5)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -8,12 +8,14 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, 003, 004, …).
+--  database/migrations/ (apply in order: 001, 002, 003, 004, 005, …).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
 --  Phase 3 owns: packages, package_levels, package_products.
 --  Phase 4 owns: carts, cart_items.
+--  Phase 5 owns: users.ewallet_balance/withdrawable_balance,
+--                ewallet_ledger, ewallet_admin_topups.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -36,6 +38,10 @@ CREATE TABLE IF NOT EXISTS users (
   full_name     VARCHAR(100) DEFAULT NULL,
   role          ENUM('member','admin','superadmin') NOT NULL DEFAULT 'member',
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  -- Dual wallet bucket (Phase 5, plan §4.4). WalletService is the only
+  -- writer; withdrawable_balance is always the subset <= ewallet_balance.
+  ewallet_balance      DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  withdrawable_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   last_login_at DATETIME     NULL DEFAULT NULL,
   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -218,3 +224,65 @@ CREATE TABLE IF NOT EXISTS cart_items (
   CONSTRAINT fk_cart_items_cart    FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE CASCADE,
   CONSTRAINT fk_cart_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- E-wallet ledger — immutable wallet movements (plan §4.2, §5.8;
+-- Phase 5)
+--
+--  One row per movement, written by WalletService only. There is no
+--  UPDATE/DELETE path and no updated_at column: corrections are new
+--  rows (refund / adjustment).
+--
+--  balance_after       total bucket after the movement
+--  withdrawable_after  withdrawable bucket after the movement
+--                      (Appendix B stores only balance_after; the
+--                      dual-bucket invariant cannot be reconciled
+--                      without this snapshot — see migrations/005)
+--  ref_type            plan §4.4 movement kinds; the PHP list lives
+--                      in WalletService::REF_TYPES and must agree
+--  ref_id              source row id (order, payout, top-up, …)
+--
+--  uq_ewallet_idempotency makes a replayed system movement a no-op.
+--  It is scoped by user because a transfer writes three rows under
+--  one (ref_type, ref_id).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ewallet_ledger (
+  id                INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  user_id           INT UNSIGNED  NOT NULL,
+  type              ENUM('credit','debit') NOT NULL,
+  amount            DECIMAL(12,2) NOT NULL,
+  balance_after     DECIMAL(14,2) NOT NULL,
+  withdrawable_after DECIMAL(14,2) NOT NULL,
+  ref_type          ENUM('commission','payout','transfer','topup','registration',
+                         'shop_order','adjustment','refund') NOT NULL,
+  ref_id            INT UNSIGNED  NULL,
+  note              VARCHAR(255)  NULL,
+  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ewallet_idempotency (user_id, ref_type, ref_id, type),
+  KEY idx_ewallet_user (user_id, created_at),
+  KEY idx_ewallet_ref (ref_type, ref_id),
+  CONSTRAINT fk_ewallet_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Admin top-ups — every admin-created credit, auditable (Phase 5, §5.8)
+--
+--  Top-ups credit the NON-withdrawable bucket (reference behaviour)
+--  so the money can be spent in the shop but not cashed out. One row
+--  per top-up, never edited; the ledger records the money movement.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ewallet_admin_topups (
+  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  admin_id     INT UNSIGNED  NOT NULL,
+  recipient_id INT UNSIGNED  NOT NULL,
+  amount       DECIMAL(12,2) NOT NULL,
+  note         VARCHAR(255)  NULL,
+  created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_topups_admin (admin_id, created_at),
+  KEY idx_topups_recipient (recipient_id, created_at),
+  CONSTRAINT fk_topups_admin     FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_topups_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+

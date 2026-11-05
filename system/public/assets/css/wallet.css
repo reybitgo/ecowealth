@@ -1,0 +1,167 @@
+/* ==============================================================
+ *  EcoWealth — e-wallet (Phase 5)
+ *
+ *  Balance cards, the statement table and the admin monitor.
+ *  Loaded through page_css on /wallet, /admin/wallets and
+ *  /admin/wallets/{id}.
+ * ============================================================== */
+
+/* ---------- Balance cards ---------- */
+.wallet-stat-card .wallet-stat-value,
+.wallet-stat-card h4,
+.wallet-stat-card h3 {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.wallet-stat-card .avatar-initial {
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- Statement ---------- */
+.wallet-ledger-table {
+  font-size: 0.925rem;
+}
+
+.wallet-ledger-table thead th {
+  white-space: nowrap;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.wallet-amount-positive {
+  color: var(--bs-success);
+}
+
+.wallet-amount-negative {
+  color: var(--bs-danger);
+}
+
+.wallet-ref-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: var(--bs-gray-100, #f4f6fb);
+  color: var(--bs-secondary-color);
+}
+
+.wallet-ref-icon .icon-base {
+  font-size: 1.05rem;
+}
+
+/* Long ledger notes stay readable but never stretch the row. */
+.wallet-ref-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.wallet-ledger-totals {
+  padding-block: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.wallet-ledger-totals span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Filters ---------- */
+.wallet-filters .form-label {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.35rem;
+}
+
+/* Flex fields instead of a fixed grid: the statement lives both at full
+ * width (/wallet) and inside an 8-column card (/admin/wallets/{id}), and a
+ * grid of 2-unit columns is too narrow in the second case. */
+.wallet-filters .wallet-filter-field {
+  flex: 1 1 8.5rem;
+  min-width: 8rem;
+  max-width: 16rem;
+}
+
+.wallet-filters .wallet-filter-wide {
+  flex: 1.5 1 11rem;
+  max-width: 20rem;
+}
+
+.wallet-filters .wallet-filter-date {
+  flex: 0 1 9.75rem;
+  min-width: 9.75rem;
+  max-width: 11rem;
+}
+
+.wallet-filters .wallet-filter-actions {
+  flex: 0 0 auto;
+}
+
+/* Search forms in the monitor card headers. */
+.wallet-search {
+  flex: 1 1 22rem;
+  max-width: 40rem;
+}
+
+.wallet-search .form-control {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.wallet-search .form-select {
+  flex: 0 1 11rem;
+}
+
+/* ---------- Monitor tabs ---------- */
+.wallet-tabs .nav-link {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.wallet-tabs .badge {
+  font-size: 0.68rem;
+}
+
+/* Mobile collapses the ledger to three columns: the date and the
+ * credit/debit tag move under the source, and the running balance moves
+ * under the amount. The full table stays available above 576px. */
+.wallet-date-mobile,
+.wallet-balance-mobile {
+  display: none;
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 575.98px) {
+  .wallet-ledger-table .wallet-col-date,
+  .wallet-ledger-table .wallet-col-type,
+  .wallet-ledger-table .wallet-col-balance {
+    display: none;
+  }
+
+  .wallet-date-mobile,
+  .wallet-balance-mobile {
+    display: block;
+  }
+
+  .wallet-ledger-table thead th,
+  .wallet-ledger-table tbody td {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .wallet-ref-icon {
+    display: none;
+  }
+
+  .wallet-ledger-totals {
+    font-size: 0.85rem;
+  }
+}

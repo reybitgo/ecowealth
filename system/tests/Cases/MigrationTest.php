@@ -17,6 +17,7 @@ $migrations    = [
     $migrationDir . '002_products.sql',
     $migrationDir . '003_packages.sql',
     $migrationDir . '004_carts.sql',
+    $migrationDir . '005_wallets.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -73,7 +74,7 @@ return [
 
         foreach ([
             'settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products',
-            'carts', 'cart_items',
+            'carts', 'cart_items', 'ewallet_ledger', 'ewallet_admin_topups',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -112,6 +113,28 @@ return [
         );
 
         assert_same(3, (int) $pdo->query("SELECT quantity FROM cart_items WHERE cart_id = {$cartId}")->fetchColumn());
+
+        /* Phase 5: both buckets start at zero on existing accounts, and the
+         * migrated ledger + top-up tables accept a movement. */
+        $buckets = $pdo->query("SELECT ewallet_balance, withdrawable_balance FROM users WHERE id = {$userId}")->fetch();
+        assert_same('0.00', (string) $buckets['ewallet_balance']);
+        assert_same('0.00', (string) $buckets['withdrawable_balance']);
+
+        $adminId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+
+        $pdo->exec("UPDATE users SET ewallet_balance = 25.00, withdrawable_balance = 10.00 WHERE id = {$userId}");
+        $pdo->exec(
+            "INSERT INTO ewallet_ledger
+               (user_id, type, amount, balance_after, withdrawable_after, ref_type, ref_id, note)
+             VALUES ({$userId}, 'credit', 25.00, 25.00, 10.00, 'topup', 1, 'migration probe')"
+        );
+        $pdo->exec(
+            "INSERT INTO ewallet_admin_topups (admin_id, recipient_id, amount, note)
+             VALUES ({$adminId}, {$userId}, 25.00, 'migration probe')"
+        );
+
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = {$userId}")->fetchColumn());
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = {$userId}")->fetchColumn());
     },
 
     'migration adds the role index' => function () use ($buildMigrated): void {
@@ -165,6 +188,37 @@ return [
         assert_same($columnList($fresh, 'package_products'), $columnList($migrated, 'package_products'), 'package_products columns differ from schema.sql');
         assert_same($columnList($fresh, 'carts'), $columnList($migrated, 'carts'), 'carts columns differ from schema.sql');
         assert_same($columnList($fresh, 'cart_items'), $columnList($migrated, 'cart_items'), 'cart_items columns differ from schema.sql');
+        assert_same($columnList($fresh, 'ewallet_ledger'), $columnList($migrated, 'ewallet_ledger'), 'ewallet_ledger columns differ from schema.sql');
+        assert_same($columnList($fresh, 'ewallet_admin_topups'), $columnList($migrated, 'ewallet_admin_topups'), 'ewallet_admin_topups columns differ from schema.sql');
+    },
+
+    'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {
+        $pdo    = $buildMigrated();
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        $insert = static function (PDO $pdo, int $userId, string $refType, int $refId): void {
+            $pdo->exec(
+                "INSERT INTO ewallet_ledger
+                   (user_id, type, amount, balance_after, withdrawable_after, ref_type, ref_id)
+                 VALUES ({$userId}, 'credit', 1.00, 1.00, 1.00, '{$refType}', {$refId})"
+            );
+        };
+
+        $insert($pdo, $userId, 'commission', 77);
+
+        /* Replaying the same (user, ref_type, ref_id, type) is refused by the
+         * unique key — the database half of the Phase 5 idempotency anchor. */
+        assert_throws(static fn () => $insert($pdo, $userId, 'commission', 77), PDOException::class);
+
+        /* A ref_type outside the DB enum is refused, so a PHP list that drifts
+         * from the schema fails loudly instead of truncating. */
+        assert_throws(static fn () => $insert($pdo, $userId, 'not_a_movement', 78), PDOException::class);
+
+        /* Different reference kinds are independent: a refund under the same
+         * source id and a second commission are both new rows. */
+        $insert($pdo, $userId, 'refund', 77);
+        $insert($pdo, $userId, 'commission', 78);
+        assert_same(3, (int) $pdo->query("SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = {$userId}")->fetchColumn());
     },
 
     'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {

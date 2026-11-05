@@ -894,3 +894,112 @@ page (7.25rem) while the theme’s buttons still took ~50px each, squeezing the 
 - `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
 - Headless Chrome with the QA cart (33 / 99 / 1): every drawer field measures 44px wide with
   `scrollWidth <= clientWidth` (no clipping), and the cart page fields match at 95.9px groups.
+
+---
+
+## Phase 5 — E-wallet core: dual balance, ledger, top-ups, monitor
+
+**Date:** 2026-11-05 · **Branch:** `feature/shop` · **Gate tag:** `phase-5` · **Status:** complete (manual
+sign-off pending, as for Phases 1–4).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `users.ewallet_balance` + `users.withdrawable_balance` (`DECIMAL(14,2)`); `ewallet_ledger` (immutable movements, `balance_after` **and** `withdrawable_after`, idempotency unique key); `ewallet_admin_topups`; migration `005_wallets.sql`; fresh-install `schema.sql` extended to the Phase 5 shape |
+| **Model** | `app/Models/Wallet.php` — account lookup, normalised ledger filters (type / source / date range / note), paginated rows, filtered totals, per-member and cross-member top-up queries, member directory with both buckets + last movement, monitor totals. Read-only by design |
+| **Service** | `app/Services/WalletService.php` — `credit`, `debit` (both buckets, refuses a non-withdrawable shortfall), `debitInternal` (spends non-withdrawable first), `balance`, `withdrawable`, `statement`, `adminTopUp`, `reconcile`. Every mutation locks the account row, writes one ledger row and enforces `ewallet_balance >= withdrawable_balance >= 0`; a savepoint protects a caller's outer transaction |
+| **Exception** | `WalletException` with machine-readable `reason` (`amount`, `insufficient`, `withdrawable`, `ref_type`, `user_missing`, `forbidden`, `invariant`) |
+| **Audit** | `app/Models/AuditLog.php` (`record`, `forSubject`) — append-only; the first entries are Phase 5 admin top-ups (`action = wallet.topup`, amount/top-up id in `meta_json`) |
+| **Routes** | `GET /wallet`, `GET /admin/wallets`, `GET /admin/wallets/{id}`, `POST /admin/wallets/{id}/credit` (member/admin guards); all four were already in `routes_inventory.php` and are now registered, so the parity test is unchanged |
+| **Controllers** | `WalletController` (member statement; admins get it in the back-office layout) and `AdminWalletController` (monitor with Members / Top-ups / All-movements tabs, one member's wallet, audited top-up with `Validator` + CSRF) |
+| **Views** | `member/wallet.php` (three balance cards + bucket explainer + statement), `admin/wallets/index.php` (four float cards + tabbed directory/top-ups/all movements), `admin/wallets/show.php` (member header, top-up form, statement, top-up history), shared `partials/wallet_statement.php` (filters, running balance, filtered totals, mobile collapse) and `assets/css/wallet.css` |
+| **CLI** | `bin/wallet_reconcile.php` — recomputes both buckets from the ledger, prints mismatches, `--json`, exit 0 clean / 1 mismatches / 2 cannot run; never repairs |
+| **Layout** | `APP_PHASE` = 5; member **E-wallet** and admin **E-wallet monitor** items go live; added admin **My e-wallet** (`/wallet`) so an admin's own statement has a highlighted menu destination (same pattern as Phase 4's admin Cart) |
+| **Tests** | `tests/Cases/WalletTest.php` (18 cases: P5-T1 … P5-T11, including a two-connection concurrency test and ledger-immutability source scan), `tests/Cases/WalletViewTest.php` (9 rendering cases), `MigrationTest` applies 001–005 and gained a ledger enum/idempotency case, `RouterTest` covers the four new routes, `smoke.ps1` gained 12 HTTP checks |
+| **Evidence** | `docs/qa/evidence/phase-5/` — member statement, mobile statement, admin monitor, top-ups tab, all-movements tab, member wallet + top-up form, top-up success flash |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `C:\laragon\www\ecowealth-backups\phase-5\db-pre-phase-5.sql` (41,828 bytes, `mysqldump --routines --triggers --databases ecowealth_sneat`) |
+| Migration | `005_wallets.sql` applied to `ecowealth_sneat`: 2 `users` columns (guarded), 2 tables (`ewallet_ledger` 10 columns incl. `withdrawable_after`; `ewallet_admin_topups` 6 columns) |
+| Seeds | none — demo wallet balances wait for the Phase 9 demo tree (`juan`/`maria`/`peter` do not exist yet); tests create their own accounts |
+| Verified | `MigrationTest` applies 001–005 to the legacy fixture and compares `users`, `ewallet_ledger` and `ewallet_admin_topups` columns with a fresh `schema.sql` import; a rollback-free guard test proves the enum and idempotency key reject bad rows |
+| Data check | `bin/wallet_reconcile.php` → 4 accounts checked, 0 ledger accounts, clean; dev DB ends with 0 ledger rows, 0 top-ups, 0 wallet audits |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P5-T1 | Credit ₱1,000 withdrawable | **PASS** | balances 1,000 / 1,000, one `credit` ledger row with `balance_after` + `withdrawable_after`; view case shows both cards |
+| P5-T2 | Credit ₱500 non-withdrawable | **PASS** | balances 1,500 / 1,000; the second row leaves `withdrawable_after` untouched |
+| P5-T3 | Debit internal ₱700 | **PASS** | 500 non-withdrawable spent first, then 200 withdrawable → 800 / 800; ledger row records both snapshots |
+| P5-T4 | Debit more than total | **PASS** | `WalletException` reason `insufficient`, message carries both amounts, buckets and ledger unchanged. A second case proves a withdrawable debit cannot reach locked money (`notWithdrawable`) while `debitInternal` can |
+| P5-T5 | Replay same `(ref_type, ref_id, type)` | **PASS** | second call returns `replayed: true` with the original ledger id; one row, money moved once. A different `ref_type` under the same id is a new row; movements without a ref id never collapse |
+| P5-T6 | Concurrent debits | **PASS** | two PDO connections: A holds the account lock, B times out (1205), then after A commits B is refused; final balance ₱300, exactly one debit, no negative bucket (fixtures committed and deleted in `finally`) |
+| P5-T7 | Admin top-up | **PASS** | credit is non-withdrawable (500.25 / 0.00), one top-up row, one `topup` ledger row, one `audit_log` row (`wallet.topup`) with the amount/top-up id; member statement shows it. Non-admin and zero-amount attempts refuse and write nothing. HTTP smoke repeats the whole path |
+| P5-T8 | Invalid `ref_type` | **PASS** | `WalletException` reason `ref_type`, no row, balance unchanged. `WalletService::REF_TYPES` is asserted equal to the live DB enum in both directions (schema-drift guard) |
+| P5-T9 | Statement filters/pagination | **PASS** | 5 rows over 3 pages at 2/page; type, source, date range and note filters narrow rows; totals always match the filtered ledger; `%` is escaped; invalid filter values/dates are ignored. Monitor tabs and HTTP filters covered too |
+| P5-T10 | Immutability | **PASS** | no `updated_at`, no `ON UPDATE`, no trigger on `ewallet_ledger`; a source scan of every `app/` PHP file finds no `UPDATE ewallet_ledger` / `DELETE FROM ewallet_ledger`; neither model exposes an edit/delete method |
+| P5-T11 | Reconciliation command | **PASS** | clean after the suite (both buckets); `balance_sum`, `balance_snapshot`, `withdrawable_snapshot`, `missing_ledger` and invariant violations are all detected after deliberate tampering; `bin/wallet_reconcile.php` exits 0 on the dev DB and is part of the smoke script |
+
+### Deviations and decisions
+
+- **`ewallet_ledger.withdrawable_after` is an addition to Appendix B.** The plan's DDL snapshots only
+  `balance_after`, which makes it impossible to reconcile the second bucket even though success criterion 4
+  ("`ewallet_balance` and `withdrawable_balance` always equal the ledger sums") demands it. The column records the
+  withdrawable bucket after each movement; reconciliation checks the total **and** both snapshot values.
+- **The idempotency anchor is per user.** Plan §7 says `(ref_type, ref_id, type)`; the unique index is
+  `(user_id, ref_type, ref_id, type)` because Phase 12's transfer writes three rows under one reference (sender
+  debit, recipient credit, fee credit). The service performs the replay lookup under the account row lock, so the
+  index is a safety net rather than the mechanism.
+- **`debit()` enforces the bucket split.** The reference debits both buckets after checking only the total, which
+  can drive `withdrawable_balance` negative. The port refuses with `withdrawable` instead and lets the invariant
+  guard catch any arithmetic that would still break it.
+- **Failed movements are savepointed.** When a caller already owns a transaction (checkout in Phase 6, the test
+  harness), `WalletService` starts a named savepoint; a rejected movement rolls back to it, so the outer work is
+  never poisoned by a half-applied debit.
+- **Top-ups are always a new row and are audited in the same transaction.** The plan defers `audit_log` to Phase 15,
+  but P5-T7 asks for the audit; the top-up row, ledger row and `wallet.topup` audit entry commit or roll back
+  together. The extra `error_log` line when an admin funds their own wallet is deliberate (allowed, but visible).
+- **Immutability is a code-level guarantee, not a trigger.** A `BEFORE UPDATE/DELETE` trigger would also block the
+  `ON DELETE CASCADE` that removes a deleted account's ledger rows; T10 instead proves the schema has no
+  `updated_at`/`ON UPDATE`/trigger and scans the application for an update/delete statement.
+- **A "My e-wallet" admin menu item was added.** Plan §3.5's admin menu lists only the monitor, but admins may use
+  the member portal and need a highlighted destination for `/wallet`; this mirrors the Phase 4 `admin.cart` decision.
+- **Statement filters are normalised in the model.** Unknown `type`/`ref_type`, impossible dates and a hand-edited
+  query string are ignored rather than trusted; the member `q` searches notes only, while the admin all-movements
+  tab also searches usernames.
+- **Tab badges count the whole list.** Computing only the active tab left "Top-ups 0" and "All movements 0" on the
+  Members tab; `AdminWalletController` now passes unfiltered counts for all three.
+- **The statement collapses on phones.** Below 576px the date and credit/debit tag move under the source and the
+  running balance moves under the amount, so the ledger fits a 390px viewport without horizontal scrolling.
+- **No demo-wallet seed yet.** `seeds/` gets no wallet rows: the demo tree (juan/maria/peter) is Phase 9, and seeding
+  balances before accounts exist would make reconciliation flag `missing_ledger` rows. Phase 9 seeds both together.
+- **The reconcile command never repairs.** A mismatch means money was written outside `WalletService`; the command
+  exits non-zero and names the account, leaving the decision to a human.
+- **No new PHP dependencies.** The page is plain forms + the shared layout; no DataTables/SweetAlert is used on the
+  wallet screens, matching Phases 2–4.
+
+### Gate checklist (plan §8.3)
+
+- [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 5 shape)
+- [x] Seeds load on a fresh install (no wallet seed needed until the demo tree ships in Phase 9)
+- [x] All P5 tests pass (27 new cases; 207 total)
+- [x] Full regression suite passes (Phases 1–4 cases unchanged apart from the new routes/migration)
+- [x] Smoke script passes (68 checks, 12 new)
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-5-wallet.md`) — automated and headless-browser passes complete
+- [x] No new PHP warnings/notices in the Apache error log
+- [x] Money invariants clean — `bin/wallet_reconcile.php` exits 0; no negative bucket, no `withdrawable > total`
+- [x] Docs updated (this log, QA pack, system README)
+- [x] Backup taken; tag `phase-5`
+
+### Next
+
+Phase 6 — checkout and order placement: address book, `shop_orders` / `shop_order_items` / `shop_order_events`, stock
+reservation, idempotent placement and the e-wallet payment path. `WalletService::debitInternal()` is ready to take the
+order debit inside the placement transaction, and `Wallet::statement()` already shows the `shop_order` rows it will
+write. `CartService::convert()` closes the cart on success.
+

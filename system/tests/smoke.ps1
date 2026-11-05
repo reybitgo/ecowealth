@@ -1,14 +1,16 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1 + 2 + 3 + 4: P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8,
-    P4-T1 ... P4-T13).
+    EcoWealth HTTP smoke test (Phase 1 + 2 + 3 + 4 + 5:
+    P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8, P4-T1 ... P4-T13,
+    P5-T7 / P5-T9 / P5-T11).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
-    maintenance mode, the product catalogue, the package matrix and the cart
-    end to end. Everything the script changes is restored in a finally
-    block: a throw-away member account, products with SKU prefix SMOKE-,
+    maintenance mode, the product catalogue, the package matrix, the cart
+    and the e-wallet end to end. Everything the script changes is restored
+    in a finally block: a throw-away member account, products with SKU
+    prefix SMOKE-,
     packages named "Smoke Package …" and `maintenance_mode`.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
@@ -22,6 +24,7 @@
 param(
     [string] $BaseUrl   = 'http://localhost/ecowealth/system',
     [string] $MysqlPath = 'C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe',
+    [string] $PhpPath   = 'C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe',
     [string] $DbName    = 'ecowealth_sneat',
     [string] $DbUser    = 'root',
     [string] $DbPass    = ''
@@ -204,7 +207,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4 + 5)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -253,8 +256,9 @@ try {
 
     $memberAsAdmin = Invoke-App -Path '/shop' -Session 'admin'
     Assert-That 'P1-T8' ($memberAsAdmin.Status -eq 200 `
+            -and $memberAsAdmin.Body -match 'Back office' `
             -and $memberAsAdmin.Body -match 'href="[^"]*/admin/products"' `
-            -and $memberAsAdmin.Body -notmatch 'E-wallet monitor') `
+            -and $memberAsAdmin.Body -match 'href="[^"]*/admin/wallets"') `
         "admin /shop keeps the back-office menu (got $($memberAsAdmin.Status))"
 
     $passwordPage = Invoke-App -Path '/profile/password' -Session 'admin'
@@ -800,6 +804,94 @@ try {
     Assert-That 'P4-T13' ($adminCart.Status -eq 200 -and $adminMenu) `
         "GET /cart as admin keeps the back-office sidebar with an active Cart item (status=$($adminCart.Status))"
 
+    # ---- Phase 5: e-wallet -----------------------------------------------
+    $walletGuest = Invoke-App -Path '/wallet'
+    Assert-That 'P5-T7' ($walletGuest.Status -eq 302 -and $walletGuest.Location -match '/login$') `
+        "GET /wallet as guest -> 302 login (got $($walletGuest.Status))"
+
+    $walletPage  = Invoke-App -Path '/wallet' -Session 'member'
+    $walletToken = Get-Csrf $walletPage.Body
+    Assert-That 'P5-T7' ($walletPage.Status -eq 200 -and $walletPage.Body -match 'E-wallet' `
+            -and $walletPage.Body -match 'Total balance' -and $walletPage.Body -match 'Withdrawable' `
+            -and $walletPage.Body -match 'No wallet movements yet' -and $walletToken -ne '') `
+        "GET /wallet as a member -> 200 with both buckets and an empty statement (got $($walletPage.Status))"
+
+    $walletMonitor = Invoke-App -Path '/admin/wallets' -Session 'admin'
+    Assert-That 'P5-T7' ($walletMonitor.Status -eq 200 -and $walletMonitor.Body -match 'E-wallet monitor' `
+            -and $walletMonitor.Body -match 'Total float' -and $walletMonitor.Body -match 'My e-wallet') `
+        "GET /admin/wallets as admin -> 200 with the float and both menu items (got $($walletMonitor.Status))"
+
+    $adminWalletMember = Invoke-App -Path '/admin/wallets' -Session 'member'
+    $adminWalletMemberPost = Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'member' `
+        -Form @{ '_csrf' = $walletToken; 'amount' = '999.00'; 'note' = 'nope' }
+    Assert-That 'P5-T7' ($adminWalletMember.Status -eq 403 -and $adminWalletMemberPost.Status -eq 403) `
+        "a member cannot use the admin wallet routes (GET=$($adminWalletMember.Status), POST=$($adminWalletMemberPost.Status))"
+
+    $topupPage = Invoke-App -Path "/admin/wallets/$cartMemberId" -Session 'admin'
+    Assert-That 'P5-T7' ($topupPage.Status -eq 200 -and $topupPage.Body -match 'Credit this wallet' `
+            -and $topupPage.Body -match 'Top-up history' -and (Get-Csrf $topupPage.Body) -ne '') `
+        "GET /admin/wallets/$cartMemberId -> 200 with the top-up form (got $($topupPage.Status))"
+
+    # P5-T7 - an admin top-up credits the non-withdrawable bucket and writes
+    # the top-up row, the ledger row and the audit entry.
+    $topup = Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' -Form @{
+        '_csrf'  = $adminToken
+        'amount' = '500.25'
+        'note'   = 'Smoke top-up'
+    }
+    $walletBuckets = (Invoke-MySql "SELECT CONCAT(ewallet_balance, '|', withdrawable_balance) FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+    $topupRows     = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = $cartMemberId;" | Out-String).Trim()
+    $ledgerRows    = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'topup';" | Out-String).Trim()
+    $auditRows     = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-String).Trim()
+    Assert-That 'P5-T7' ($topup.Status -eq 302 -and $walletBuckets -eq '500.25|0.00' -and $topupRows -eq '1' `
+            -and $ledgerRows -eq '1' -and $auditRows -eq '1') `
+        "POST /admin/wallets/{id}/credit credits 500.25 non-withdrawable and records top-up + ledger + audit (status=$($topup.Status), buckets=$walletBuckets, topups=$topupRows, ledger=$ledgerRows, audit=$auditRows)"
+
+    $walletAfter = Invoke-App -Path '/wallet' -Session 'member'
+    Assert-That 'P5-T7' ($walletAfter.Status -eq 200 -and $walletAfter.Body.Contains('500.25') `
+            -and $walletAfter.Body -match 'Admin top-up' -and $walletAfter.Body.Contains('Smoke top-up')) `
+        "the member sees the top-up on /wallet (status=$($walletAfter.Status))"
+
+    # P5-T9 - the statement filters narrow the ledger.
+    $creditOnly = Invoke-App -Path '/wallet?type=credit&ref_type=topup' -Session 'member'
+    $debitOnly  = Invoke-App -Path '/wallet?type=debit' -Session 'member'
+    Assert-That 'P5-T9' ($creditOnly.Status -eq 200 -and $creditOnly.Body.Contains('Smoke top-up') `
+            -and $debitOnly.Status -eq 200 -and -not $debitOnly.Body.Contains('Smoke top-up')) `
+        "the statement filters narrow the ledger (credit=$($creditOnly.Status), debit=$($debitOnly.Status))"
+
+    $topupTab  = Invoke-App -Path '/admin/wallets?tab=topups' -Session 'admin'
+    $ledgerTab = Invoke-App -Path '/admin/wallets?tab=ledger' -Session 'admin'
+    Assert-That 'P5-T9' ($topupTab.Status -eq 200 -and $topupTab.Body.Contains('Smoke top-up') `
+            -and $ledgerTab.Status -eq 200 -and $ledgerTab.Body -match 'All wallet movements' `
+            -and $ledgerTab.Body.Contains($memberUsername)) `
+        "the monitor tabs list the top-up and every movement (topups=$($topupTab.Status), ledger=$($ledgerTab.Status))"
+
+    # P5-T7 - an invalid amount is refused and writes nothing.
+    $topupRowsBefore = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = $cartMemberId;" | Out-String).Trim()
+    $badTopup = Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' -Form @{
+        '_csrf'  = $adminToken
+        'amount' = '0'
+        'note'   = 'Nope'
+    }
+    $badTopupPage   = Invoke-App -Path "/admin/wallets/$cartMemberId" -Session 'admin'
+    $topupRowsAfter = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = $cartMemberId;" | Out-String).Trim()
+    Assert-That 'P5-T7' ($badTopup.Status -eq 302 -and $topupRowsBefore -eq $topupRowsAfter `
+            -and $badTopupPage.Body -match 'greater than 0' -and $badTopupPage.Body -match 'is-invalid') `
+        "an invalid top-up is refused and writes nothing (status=$($badTopup.Status), rows=$topupRowsAfter)"
+
+    # P5-T11 - the reconciliation command agrees with the ledger.
+    $reconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $reconcileExit   = $LASTEXITCODE
+    $reconcileJson   = ($reconcileOutput -join "`n") | ConvertFrom-Json
+    Assert-That 'P5-T11' ($reconcileExit -eq 0 -and $reconcileJson.ok -eq $true) `
+        "bin/wallet_reconcile.php reports a clean ledger (exit=$reconcileExit, accounts=$($reconcileJson.checked))"
+
+    # Admins may open their own statement inside the back-office layout.
+    $adminWallet = Invoke-App -Path '/wallet' -Session 'admin'
+    Assert-That 'P5-T7' ($adminWallet.Status -eq 200 -and $adminWallet.Body -match 'My e-wallet' `
+            -and $adminWallet.Body -match 'E-wallet monitor') `
+        "GET /wallet as admin -> 200 in the back-office layout (got $($adminWallet.Status))"
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'
@@ -818,6 +910,7 @@ try {
 } finally {
     # Always put the database back the way we found it.
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
+    try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-Null } } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }

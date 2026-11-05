@@ -71,11 +71,14 @@ return [
     ['POST', '/cart/remove',                     [CartController::class, 'remove'],      'member'],
 
     /* ---------- Phase 5 — e-wallet core ------------------------------
+     * Reference: admin_ewallet_monitor (list), admin_ewallet_topup (the
+     * per-member page + form), do_admin_ewallet_topup (the credit).
+     * `/wallet` is the port's member statement (no standalone reference
+     * page — the reference rendered it inside `dashboard`). */
     ['GET',  '/wallet',                          [WalletController::class, 'index'],          'member'],    // e-wallet statement
     ['GET',  '/admin/wallets',                   [AdminWalletController::class, 'index'],     'admin'],     // admin_ewallet_monitor
     ['GET',  '/admin/wallets/{id}',              [AdminWalletController::class, 'show'],      'admin'],     // admin_ewallet_topup
     ['POST', '/admin/wallets/{id}/credit',       [AdminWalletController::class, 'credit'],    'admin'],     // do_admin_ewallet_topup
-    ----------------------------------------------------------------- */
 
     /* ---------- Phase 6 — checkout & orders --------------------------
     ['GET',  '/profile',                         [ProfileController::class, 'index'],         'member'],    // profile

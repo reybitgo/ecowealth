@@ -1,6 +1,6 @@
-# EcoWealth — QA sign-off sheet (Phases 1–4)
+# EcoWealth — QA sign-off sheet (Phases 1–5)
 
-Fill this sheet while working through the four phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the five phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
@@ -10,8 +10,8 @@ still open in each phase of `docs/phase-log.md`.
 2. Record the automated results (§1).
 3. For each phase, tick every check in its table. Add the evidence file name; the file lives in
    `docs/qa/evidence/phase-<n>/`.
-4. Log every failure in the *Defect log* (§6) and keep its status up to date.
-5. Complete the *Final decision* (§7) and sign.
+4. Log every failure in the *Defect log* (§7) and keep its status up to date.
+5. Complete the *Final decision* (§8) and sign.
 
 ---
 
@@ -22,7 +22,7 @@ still open in each phase of `docs/phase-log.md`.
 | Tester name | |
 | Date(s) of testing | |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4` |
+| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5` |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | |
@@ -36,8 +36,8 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 179  Passed: 179  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 56  Failed: 0` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 207  Passed: 207  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 68  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -181,7 +181,39 @@ Document: [phase-4-cart.md](phase-4-cart.md)
 
 ---
 
-## 6. Defect log
+## 6. Phase 5 — E-wallet
+
+Document: [phase-5-wallet.md](phase-5-wallet.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA5-01 | Empty e-wallet explains the two buckets | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-02 | Admin credit appears on both screens | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-03 | Second top-up keeps the running balance | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-04 | Invalid top-up amounts refused cleanly | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-05 | Statement filters (type/source/note) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-06 | Monitor float, buckets and directory | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-07 | Top-ups and all-movements tabs | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-08 | Member gets 403 on admin wallet pages | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-09 | Guest is redirected from `/wallet` | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-10 | Admin's own statement in back-office layout | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-11 | Top-up is audited (`audit_log`) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-12 | Reconciliation command is clean | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-13 | Mobile statement layout | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-14 | Monitor at mobile width (optional) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-15 | Earlier phases regression | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA5-16 | Cleanup restores zero balances | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 5 summary | |
+|---|---|
+| Executed | ____ / 16 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 7. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -201,7 +233,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 7. Final decision
+## 8. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -209,6 +241,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 2 | ☐ Yes ☐ No | |
 | Phase 3 | ☐ Yes ☐ No | |
 | Phase 4 | ☐ Yes ☐ No | |
+| Phase 5 | ☐ Yes ☐ No | |
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

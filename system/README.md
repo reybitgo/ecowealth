@@ -4,12 +4,13 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 3 — packages & referral ladder.** Phase 1 delivered the skeleton
-(router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and
-storefront; Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel
-matrix, package contents, the admin editor and the member packages page. Cart, checkout,
-wallet, referrals and payouts follow in later phases; their menu entries render as
-disabled "Soon" items while `APP_DEBUG` is on and are hidden in production.
+**Current status: Phase 5 — e-wallet core.** Phase 1 delivered the skeleton (router,
+layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
+Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package
+contents, the admin editor and the member packages page; Phase 4 adds the persistent cart,
+the drawer and the stock rules; Phase 5 adds the dual-bucket e-wallet, the immutable ledger,
+admin top-ups, the member statement and the back-office monitor. Checkout, referrals, payouts
+and super-login follow in later phases; their menu entries stay hidden until their phase lands.
 
 | | |
 |---|---|
@@ -49,7 +50,11 @@ disabled "Soon" items while `APP_DEBUG` is on and are hidden in production.
    mysql -u root ecowealth_sneat < database/schema.sql
    mysql -u root ecowealth_sneat < database/seeds/001_settings.sql
    mysql -u root ecowealth_sneat < database/seeds/002_accounts.sql
+   mysql -u root ecowealth_sneat < database/seeds/003_products.sql
+   mysql -u root ecowealth_sneat < database/seeds/004_packages.sql
    ```
+
+   (The Phase 5 wallet tables need no seed: demo balances arrive with the Phase 9 demo tree.)
 
 4. **Open** `http://localhost/ecowealth/system/` and sign in.
 
@@ -84,9 +89,9 @@ pages keep their scripts, everything else goes to the front controller.
 
 | Constant | Default | Meaning |
 |---|---|---|
-| `APP_ENV` | `production` (local: `development`) | `development` shows debug detail and "Soon" nav items |
+| `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `1` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `5` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
@@ -108,14 +113,16 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 + 2 + 3 routes)
+│   ├── routes.php             the live route table (Phase 1 + 2 + 3 + 4 + 5 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
-│   ├── Controllers/           Home, Shop, Package, AdminDashboard, AdminProduct, AdminPackage, Profile
-│   ├── Models/                Product, Package
-│   ├── Services/              StockService, UploadService, PackageService
-│   ├── views/                 errors/, partials/, shop/, admin/, profile/
+│   ├── Controllers/           Home, Shop, Package, Cart, Wallet, AdminDashboard, AdminProduct,
+│   │                          AdminPackage, AdminWallet, Profile
+│   ├── Models/                Product, Package, Cart, Wallet, AuditLog
+│   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService
+│   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
+├── bin/                       wallet_reconcile.php (CLI only; never web-reachable)
 ├── public/                    docroot
 │   ├── index.php              front controller
 │   ├── router.php             PHP built-in server parity
@@ -124,13 +131,15 @@ system/
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles, 002_products, 003_packages
+│   ├── migrations/            001_settings_roles … 005_wallets
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P3-T8)
-    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration, Product, ProductView, Package, PackageView
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P5-T11)
+    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration,
+    │                          Product, ProductView, Package, PackageView, Cart, CartView,
+    │                          Wallet, WalletView
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -187,6 +196,25 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | GET | `/admin/packages/{id}/edit` | admin | Edit package form |
 | POST | `/admin/packages/save` | admin | Create / update package, ladder and contents in one transaction |
 | POST | `/admin/packages/{id}/status` | admin | Enable / disable (JSON for XHR; packages are never deleted) |
+
+### Phase 4 URLs — cart
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/cart` | member | Cart page: lines, stock problems, summary |
+| GET | `/cart/count` | member | JSON badge count + the refreshed drawer body |
+| POST | `/cart/add` | member | Add units (JSON for XHR, flash + redirect otherwise) |
+| POST | `/cart/update` | member | Set quantity, step `direction=up/down`, or remove at 0 |
+| POST | `/cart/remove` | member | Remove one line |
+
+### Phase 5 URLs — e-wallet
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/wallet` | member | Member statement: both buckets, filters, running balance |
+| GET | `/admin/wallets` | admin | Monitor: float, buckets, member directory, top-ups, all movements |
+| GET | `/admin/wallets/{id}` | admin | One member's wallet, statement and top-up form |
+| POST | `/admin/wallets/{id}/credit` | admin | Audited top-up (non-withdrawable) |
 
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`, `/dashboard`.
@@ -247,10 +275,49 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 ---
 
+## Cart (Phase 4)
+
+- One **active** cart per member, created on the first add. `CartService` locks the account row
+  before the lookup/insert, so two concurrent first-adds cannot create two carts; the cart becomes
+  `converted` when Phase 6 turns it into an order.
+- Every mutation is scoped by the caller's cart id — a posted `item_id` alone never authorises a
+  write (the reference IDOR defect C3). Quantity is capped by `StockService::available()`
+  (`stock − reserved`), not by client input.
+- Totals always join the live `products.price`; `cart_items.unit_price` is only a snapshot refreshed
+  when the page is read. A price change in the back office reaches the cart on its next load.
+- Inactive products stay visible but quarantined: they block checkout, quantity increases are refused
+  and removal/zero still works. The drawer is re-rendered server-side by `partials/cart_offcanvas_body.php`,
+  so the badge, drawer and cart page can never disagree.
+
+---
+
+## E-wallet (Phase 5)
+
+- **Two buckets.** `users.ewallet_balance` is the total spendable money; `users.withdrawable_balance` is
+  the part that may be paid out. Commission earnings raise both; admin top-ups raise the total only;
+  internal purchases/registrations/fees spend the non-withdrawable part first, so earnings stay
+  withdrawable while wallet-funded spending still works.
+- **One ledger.** Every movement is one immutable `ewallet_ledger` row written by `WalletService`,
+  carrying `balance_after` and `withdrawable_after`. There is no update/delete path: corrections are new
+  `refund`/`adjustment` rows.
+- **Safety.** Each mutation runs in a transaction that locks the account row, enforces
+  `ewallet_balance >= withdrawable_balance >= 0` and refuses rather than overdrawing. System movements
+  are idempotent by `(user_id, ref_type, ref_id, type)`, so a retried checkout or cron cannot move money
+  twice. When a caller already owns a transaction the service uses a savepoint.
+- **Top-ups.** `adminTopUp()` writes the top-up row, the ledger row and an `audit_log` entry
+  (`action = wallet.topup`) in one transaction. Top-ups are non-withdrawable by design.
+- **Reconciliation.** `php bin/wallet_reconcile.php` recomputes both buckets from the ledger and reports
+  mismatches (exit 0 clean / 1 mismatched / 2 cannot run, `--json` for tooling). It never repairs.
+- **Presentation.** `/wallet` is the member statement with type/source/date/note filters and page totals;
+  `/admin/wallets` is the monitor (float, withdrawable vs locked, directory, top-up and all-movement tabs)
+  and `/admin/wallets/{id}` is one member's wallet with the top-up form and history.
+
+---
+
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (140 cases in Phase 3)
+php tests/run.php                 # full suite (207 cases in Phase 5)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -264,12 +331,12 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
   explicitly, because DDL commits.
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–003 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–005 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
-member account, products with SKU prefix `SMOKE-`, packages named `Smoke Package…`, and
-`maintenance_mode`; all restored):
+member account with its wallet/top-up/audit rows, products with SKU prefix `SMOKE-`, packages named
+`Smoke Package…`, and `maintenance_mode`; all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -288,6 +355,11 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `001_settings_roles.sql` | `settings`, `audit_log`, `users.role` → `member/admin/superadmin`, `idx_users_role` |
 | `002_products.sql` | `products` (+ unique `sku` / `slug`, status index) |
 | `003_packages.sql` | `packages`, `package_levels` (levels 2–10, CHECK 2–10), `package_products` |
+| `004_carts.sql` | `carts`, `cart_items` |
+| `005_wallets.sql` | `users.ewallet_balance` + `withdrawable_balance`, `ewallet_ledger`, `ewallet_admin_topups` |
+
+The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
+supported way to prove the buckets still match the ledger after a migration or a data import.
 
 ---
 
@@ -298,7 +370,8 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 - All POSTs are CSRF protected (central check in the router for routed POSTs).
 - Forms redirect after POST; validation errors go through `errors_set()` / `error_for()`.
 - Money is `DECIMAL` in MySQL and formatted with `money()`; no floats in SQL.
-- Every wallet movement will be a `WalletService` call inside a transaction (Phase 5).
+- Every wallet movement is a `WalletService` call inside a transaction — never a direct
+  `UPDATE users SET ewallet_balance` from a controller, model or view.
 
 ---
 

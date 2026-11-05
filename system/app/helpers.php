@@ -444,6 +444,44 @@ function status_badge(string $status, array $overrides = []): string
 }
 
 /* ==============================================================
+ *  E-wallet presentation (plan §4.4, §5.8; Phase 5)
+ * ============================================================== */
+
+/** Human label for an `ewallet_ledger.ref_type` value. */
+function wallet_ref_label(string $refType): string
+{
+    $map = [
+        'commission'   => 'Commission',
+        'payout'       => 'Payout',
+        'transfer'     => 'Transfer',
+        'topup'        => 'Admin top-up',
+        'registration' => 'Registration',
+        'shop_order'   => 'Shop order',
+        'adjustment'   => 'Adjustment',
+        'refund'       => 'Refund',
+    ];
+
+    return $map[$refType] ?? ucfirst(str_replace('_', ' ', $refType));
+}
+
+/** Boxicons class for an `ewallet_ledger.ref_type` value. */
+function wallet_ref_icon(string $refType): string
+{
+    $map = [
+        'commission'   => 'bx-line-chart',
+        'payout'       => 'bx-money-withdraw',
+        'transfer'     => 'bx-transfer',
+        'topup'        => 'bx-plus-circle',
+        'registration' => 'bx-id-card',
+        'shop_order'   => 'bx-cart',
+        'adjustment'   => 'bx-slider-alt',
+        'refund'       => 'bx-undo',
+    ];
+
+    return 'bx ' . ($map[$refType] ?? 'bx-wallet');
+}
+
+/* ==============================================================
  *  Settings (plan §4.2) — key/value rows in `settings`
  * ============================================================== */
 

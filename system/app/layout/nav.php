@@ -95,6 +95,10 @@ return [
                 'items' => [
                     ['key' => 'admin.commissions', 'label' => 'Commissions', 'path' => 'admin/commissions', 'icon' => 'bx-line-chart', 'guard' => 'admin', 'phase' => 10],
                     ['key' => 'admin.wallets', 'label' => 'E-wallet monitor', 'path' => 'admin/wallets', 'icon' => 'bx-wallet', 'guard' => 'admin', 'phase' => 5],
+                    /* Admins may open their own statement; the page lives at
+                     * /wallet and renders inside the back-office layout for
+                     * them (same pattern as admin.cart, Phase 4). */
+                    ['key' => 'admin.wallet', 'label' => 'My e-wallet', 'path' => 'wallet', 'icon' => 'bx-credit-card', 'guard' => 'admin', 'phase' => 5],
                     ['key' => 'admin.payouts', 'label' => 'Payouts', 'path' => 'admin/payouts', 'icon' => 'bx-money-withdraw', 'guard' => 'admin', 'phase' => 13],
                 ],
             ],
