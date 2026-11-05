@@ -76,9 +76,10 @@ address book, missing-terms and cancellation paths.
 - **Order summary**: Coffee ×2 with its line total, items count, subtotal, **Shipping Free**, and a bold total
   equal to the subtotal. No shipping or service fee is added.
 - **Delivery details** prefilled from the member's default address (or from the profile name on a first order).
-- **Payment method**: **E-wallet** selected when the balance covers the total; GCash, Maya and Bank
-  transfer are available too.
-- **Terms** checkbox unchecked; **Place order** at the bottom of the summary.
+- **Payment method**: **E-wallet** shows **Balance ₱…** and is selected when the balance covers the total;
+  GCash, Maya and Bank transfer are available too.
+- **Terms** checkbox is **ticked by default** and **Place order** is enabled. Unticking the terms greys the
+  button out, shows **“Tick the terms above to place your order.”**, and ticking it again re-enables it.
 - The page source (DevTools → Elements) contains **`name="idempotency_key"`** with a 32-character value.
 
 ### QA6-02 — The address book saves and prefills checkout
@@ -107,28 +108,31 @@ address book, missing-terms and cancellation paths.
   fields contain `QA Tester`, `12 Mabini Street`, `Poblacion`, `Makati`, `Metro Manila`, `1200`.
 - Clicking the other address card (if you saved a second one) reloads checkout with that address selected.
 
-### QA6-03 — A missing term or address is refused without losing the input
+### QA6-03 — A missing address is refused and the terms gate the button
 
 | | |
 |---|---|
-| **Why it matters** | Validation must be field-level and the typed address must survive the round trip. |
+| **Why it matters** | Validation must be field-level, the typed address must survive the round trip, and an unticked terms box must not look submittable. |
 | **Where** | `/checkout` |
-| **Evidence** | `QA6-03-validation.png` |
+| **Evidence** | `QA6-03-validation.png`, `QA6-03-terms-gate.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
-1. On checkout, clear **Recipient name** and **Street address**, and leave **Terms** unticked.
+1. On checkout, clear **Recipient name** and **Street address** (leave the **Terms** ticked).
 2. Click **Place order**.
 3. Look at the form that comes back.
+4. Untick **Terms**, then tick it again.
 
 **Expected**
 
 - A red flash: **“Please fix the highlighted checkout fields.”**
-- The page returns to checkout with **Recipient name is required.**, **Delivery address is required.** and
-  **Please accept the terms to place your order.** shown at the fields.
-- The fields keep what you typed (for example the billing name), and the idempotency key is unchanged.
+- The page returns to checkout with **Recipient name is required.** and **Delivery address is required.**
+  shown at the fields; the typed values (for example the billing name) and the idempotency key are kept.
 - No order appears in `/orders`; the cart still has its lines.
+- Unticking the terms disables **Place order** and shows **“Tick the terms above to place your order.”**;
+  ticking it again re-enables the button. (The server also refuses a missing-terms submit; the automated
+  suite covers that rule.)
 
 ---
 
@@ -257,7 +261,8 @@ address book, missing-terms and cancellation paths.
 
 **Expected**
 
-- **E-wallet** is greyed out/disabled, with the hint **“Your balance is ₱0.00 — not enough for ₱…”**.
+- **E-wallet** is greyed out/disabled, shows **Balance ₱0.00** in red, with the hint
+  **“Not enough for this order — choose another method or top up.”**
 - A manual method (GCash/Maya/Bank) is preselected.
 - Placing the order manually works and leaves the wallet at ₱0.00.
 

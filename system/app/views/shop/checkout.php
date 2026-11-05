@@ -44,7 +44,9 @@ if (!isset($payment_methods[$selectedMethod]) || !$payment_methods[$selectedMeth
     }
 }
 
-$termsChecked = array_key_exists('terms', $posted) && (string) $posted['terms'] === '1';
+/* Terms are accepted by default; a failed submit keeps the unticked state
+ * so the member sees exactly what they need to fix. */
+$termsChecked = array_key_exists('terms', $posted) ? (string) $posted['terms'] === '1' : true;
 $saveAddressDefault = array_key_exists('save_address', $posted)
     ? (bool) $posted['save_address']
     : $addresses === [];
@@ -259,6 +261,11 @@ $subtotal   = (float) ($state['totals']['subtotal'] ?? 0);
                               <span class="checkout-payment-icon"><i class="icon-base <?= e(icon_class($method['icon'])) ?>"></i></span>
                               <span class="checkout-payment-text">
                                 <span class="d-block fw-medium"><?= e($method['label']) ?></span>
+<?php if (isset($method['balance'])): ?>
+                                <span class="checkout-payment-balance<?= $method['available'] ? '' : ' is-short' ?>" data-wallet-balance>
+                                  Balance <?= e(money((float) $method['balance'])) ?>
+                                </span>
+<?php endif; ?>
                                 <span class="d-block small text-body-secondary"><?= e($method['hint']) ?></span>
                               </span>
                             </label>
@@ -332,9 +339,18 @@ $subtotal   = (float) ($state['totals']['subtotal'] ?? 0);
                           </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100 mt-4" data-checkout-submit>
+                        <button
+                          type="submit"
+                          class="btn btn-primary w-100 mt-4"
+                          id="placeOrder"
+                          data-checkout-submit
+                          <?= $termsChecked ? '' : 'disabled' ?>
+                        >
                           <i class="icon-base bx bx-check-shield me-1"></i> Place order
                         </button>
+                        <p class="checkout-terms-hint small text-center mt-2 mb-0<?= $termsChecked ? ' d-none' : '' ?>" data-terms-hint>
+                          Tick the terms above to place your order.
+                        </p>
                         <p class="text-body-secondary small text-center mt-3 mb-0">
                           Manual payments (GCash / Maya / bank) keep the order pending until the company verifies it.
                         </p>

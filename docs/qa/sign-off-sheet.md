@@ -219,9 +219,9 @@ Document: [phase-6-orders.md](phase-6-orders.md)
 
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
-| QA6-01 | Checkout shows cart, address and payments | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-01 | Checkout shows cart, address, payments and balance | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-02 | Address book saves and prefills checkout | ☐ Pass ☐ Fail ☐ Blocked | |
-| QA6-03 | Missing term/address refused, input kept | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-03 | Missing address refused; terms gate the button | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-04 | E-wallet order is paid and debited once | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-05 | Manual order stays pending with instructions | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-06 | Cancelling an unpaid order releases stock | ☐ Pass ☐ Fail ☐ Blocked | |

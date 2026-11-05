@@ -39,6 +39,13 @@ $sidebar = static function (string $html): string {
     return $end === false ? '' : substr($html, $start, $end - $start);
 };
 
+/** The opening tag of an element with the given id (for attribute checks). */
+$tag = static function (string $html, string $id, string $element = 'input'): string {
+    $pattern = '/<' . $element . '\b[^>]*\bid="' . preg_quote($id, '/') . '"[^>]*>/';
+
+    return preg_match($pattern, $html, $matches) === 1 ? $matches[0] : '';
+};
+
 $makeProduct = static function (array $overrides = []): int {
     return Product::save($overrides + [
         'name'   => 'Checkout Product ' . bin2hex(random_bytes(3)),
@@ -84,7 +91,7 @@ $placeOrder = static function (array $member, int $productId, int $quantity, arr
 };
 
 return [
-    'P6-T1 the checkout page carries items, payments, terms and the key' => function () use ($render, $makeProduct, $makeMember, $input): void {
+    'P6-T1 the checkout page carries items, payments, terms and the key' => function () use ($render, $tag, $makeProduct, $makeMember, $input): void {
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['name' => 'Checkout Coffee', 'price' => '300.00']);
@@ -107,6 +114,8 @@ return [
         $html  = $render('member', 'shop/checkout', [
             'page_title'      => 'Checkout',
             'current_nav'     => 'cart',
+            'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'page_js'         => ['assets/js/app-checkout.js'],
             'state'           => $state,
             'addresses'       => $book->forUser($userId),
             'selected'        => $book->defaultFor($userId),
@@ -124,7 +133,7 @@ return [
             ],
             'wallet'          => ['balance' => 1000.0, 'withdrawable' => 1000.0],
             'payment_methods' => [
-                'ewallet' => ['label' => 'E-wallet', 'icon' => 'bx-wallet', 'hint' => 'Pay immediately from your wallet balance.', 'available' => true],
+                'ewallet' => ['label' => 'E-wallet', 'icon' => 'bx-wallet', 'balance' => 1000.0, 'hint' => 'Pay immediately from your wallet balance.', 'available' => true],
                 'gcash'   => ['label' => 'GCash', 'icon' => 'bx-mobile-alt', 'hint' => 'Send the payment, then upload the proof (Phase 7).', 'available' => true],
                 'maya'    => ['label' => 'Maya', 'icon' => 'bx-mobile', 'hint' => 'Send the payment, then upload the proof (Phase 7).', 'available' => true],
                 'bank'    => ['label' => 'Bank transfer', 'icon' => 'bx-building-bank', 'hint' => 'Transfer to the company account.', 'available' => true],
@@ -154,6 +163,16 @@ return [
         assert_contains('name="idempotency_key"', $html);
         assert_contains('value="checkout-key-123"', $html);
         assert_contains('name="save_address"', $html);
+        assert_contains('data-wallet-balance', $html, 'the e-wallet option shows the balance');
+        assert_contains(money(1000), $html);
+        assert_contains('app-checkout.js', $html);
+        assert_contains('checked', $tag($html, 'terms'), 'the terms start ticked');
+
+        $placeOrder = $tag($html, 'placeOrder', 'button');
+        assert_true($placeOrder !== '', 'the Place order button must render');
+        assert_not_contains('disabled', $placeOrder, 'the button starts enabled');
+
+        assert_contains('data-terms-hint', $html);
         assert_contains('Place order', $html);
         assert_contains('action="' . url('checkout') . '"', $html);
     },
@@ -170,6 +189,8 @@ return [
         $html  = $render('member', 'shop/checkout', [
             'page_title'      => 'Checkout',
             'current_nav'     => 'cart',
+            'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'page_js'         => ['assets/js/app-checkout.js'],
             'state'           => $state,
             'addresses'       => [],
             'selected'        => null,
@@ -181,7 +202,7 @@ return [
             ],
             'wallet'          => ['balance' => 50.0, 'withdrawable' => 0.0],
             'payment_methods' => [
-                'ewallet' => ['label' => 'E-wallet', 'icon' => 'bx-wallet', 'hint' => 'Your balance is ' . money(50) . ' — not enough for ' . money(300) . '.', 'available' => false],
+                'ewallet' => ['label' => 'E-wallet', 'icon' => 'bx-wallet', 'balance' => 50.0, 'hint' => 'Not enough for this order — choose another method or top up.', 'available' => false],
                 'gcash'   => ['label' => 'GCash', 'icon' => 'bx-mobile-alt', 'hint' => 'Send the payment.', 'available' => true],
                 'maya'    => ['label' => 'Maya', 'icon' => 'bx-mobile', 'hint' => 'Send the payment.', 'available' => true],
                 'bank'    => ['label' => 'Bank transfer', 'icon' => 'bx-building-bank', 'hint' => 'Transfer.', 'available' => true],
@@ -190,14 +211,17 @@ return [
             'idempotency_key' => 'key-short',
         ]);
 
-        assert_contains('not enough for', $html);
+        assert_contains('data-wallet-balance', $html);
+        assert_contains('Balance ' . money(50), $html);
+        assert_contains('is-short', $html);
+        assert_contains('Not enough for this order', $html);
         assert_contains('disabled', $html);
         assert_contains('value="gcash"', $html);
         assert_contains('checked', $html, 'a manual method is preselected');
         assert_contains('Save this address to my address book', $html);
     },
 
-    'P6-T6 checkout errors render inline and keep the typed input' => function () use ($render, $makeProduct, $makeMember): void {
+    'P6-T6 checkout errors render inline and keep the typed input' => function () use ($render, $tag, $makeProduct, $makeMember): void {
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct();
@@ -224,6 +248,8 @@ return [
         $html  = $render('member', 'shop/checkout', [
             'page_title'      => 'Checkout',
             'current_nav'     => 'cart',
+            'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'page_js'         => ['assets/js/app-checkout.js'],
             'state'           => $state,
             'addresses'       => [],
             'selected'        => null,
@@ -235,7 +261,7 @@ return [
             ],
             'wallet'          => ['balance' => 0.0, 'withdrawable' => 0.0],
             'payment_methods' => [
-                'ewallet' => ['label' => 'E-wallet', 'icon' => 'bx-wallet', 'hint' => 'Not enough.', 'available' => false],
+                'ewallet' => ['label' => 'E-wallet', 'icon' => 'bx-wallet', 'balance' => 0.0, 'hint' => 'Not enough for this order.', 'available' => false],
                 'gcash'   => ['label' => 'GCash', 'icon' => 'bx-mobile-alt', 'hint' => 'Send the payment.', 'available' => true],
             ],
             'terms_version'   => OrderService::TERMS_VERSION,
@@ -251,6 +277,22 @@ return [
         assert_contains('value="gcash"', $html);
         assert_contains('is-invalid', $html);
         assert_not_contains('value="Prefill"', $html, 'posted values beat the prefill');
+
+        /* The unticked terms survive the failed submit and gate the button. */
+        assert_not_contains('checked', $tag($html, 'terms'));
+        $placeOrder = $tag($html, 'placeOrder', 'button');
+        assert_true($placeOrder !== '', 'the Place order button must render');
+        assert_contains('disabled', $placeOrder);
+        assert_contains('Tick the terms above to place your order.', $html);
+    },
+
+    'P6-T6 the checkout script gates Place order on the terms checkbox' => function (): void {
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app-checkout.js');
+
+        assert_contains('terms.checked', $js);
+        assert_contains('button.disabled = !accepted;', $js);
+        assert_contains("terms.addEventListener('change', sync);", $js);
+        assert_contains("hint.classList.toggle('d-none', accepted);", $js);
     },
 
     'P6-T9 the orders list renders rows, filters and the empty state' => function () use ($render, $makeProduct, $makeMember, $placeOrder): void {

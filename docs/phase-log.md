@@ -1169,6 +1169,42 @@ the natural “my account” destination.
   `/ecowealth/system/profile`; admin identity behaved the same, kept `#layout-menu` with **My profile** active
   and never showed **My orders**; no console errors.
 
+---
+
+## Post-Phase 6 — Checkout: terms pre-ticked, gated Place order, e-wallet balance
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 242 PHP cases, 83 smoke checks
+
+### Changes
+
+- **`app/views/shop/checkout.php`**
+  - The terms checkbox is **ticked by default**. A failed submit keeps it unticked so the member sees exactly
+    what needs fixing.
+  - **Place order** now has `id="placeOrder"` and is rendered `disabled` when the terms are unticked; a red hint
+    **“Tick the terms above to place your order.”** appears until they are accepted.
+  - The e-wallet payment option shows **Balance ₱…** (red when it cannot cover the order) from the balance the
+    controller already read.
+- **`public/assets/js/app-checkout.js`** (new, loaded through `page_js`) — toggles the button and hint on the
+  terms `change` event. The server still validates the terms, so this is only the immediate gate.
+- **`app/Controllers/CheckoutController.php`** — passes the e-wallet `balance` and loads the new script.
+- **`public/assets/css/orders.css`** — balance and hint styles.
+- **`tests/Cases/OrderViewTest.php`** — asserts the terms start checked, the button starts enabled, the balance
+  renders, and the unticked state disables the button and shows the hint; a script-source case covers the
+  toggle.
+- **QA documentation** — QA6-01, QA6-03 and the sign-off row describe the pre-ticked terms, the disabled button
+  and the balance line.
+- **Evidence** — refreshed `docs/qa/evidence/phase-6/final-checkout.png` and `final-checkout-mobile.png`; new
+  `final-checkout-terms-gate.png`.
+
+### Verification
+
+- `php tests\run.php` — **242 / 242**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **83 / 83**.
+- Headless Chrome as `QA_Member_01` (`/checkout`): terms ticked, button enabled, **Balance ₱750.25** shown in the
+  e-wallet option; unticking the terms disabled the button and revealed the hint; ticking them again enabled it;
+  no console errors.
+
+
 
 
 

@@ -339,6 +339,9 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   re-checks `stock − reserved`, snapshots each line, writes the order and its events, debits the e-wallet
   inside the same unit and converts the cart. Any failure rolls the whole attempt back — no order, no
   reservation, no debit, cart intact.
+- **The checkout page** pre-selects the e-wallet only when its balance covers the total and always shows that
+  balance inside the e-wallet option. The terms are ticked by default; unticking them disables **Place order**
+  (`app-checkout.js`), and the server still validates the checkbox.
 - **The server owns the money.** Posted prices and totals are never read; the order total is the catalogue
   subtotal (plus the stored shipping fee, currently 0.00 until Phase 8).
 - **Idempotent placement.** The checkout form carries a hidden key; `shop_orders.idempotency_key` is UNIQUE

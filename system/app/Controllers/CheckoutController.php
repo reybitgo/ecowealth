@@ -60,12 +60,13 @@ final class CheckoutController
 
         $methods = [
             'ewallet' => [
-                'label'       => 'E-wallet',
-                'icon'        => 'bx-wallet',
-                'hint'        => $balance >= $total
+                'label'     => 'E-wallet',
+                'icon'      => 'bx-wallet',
+                'balance'   => $balance,
+                'hint'      => $balance >= $total
                     ? 'Pay immediately from your wallet balance.'
-                    : 'Your balance is ' . money($balance) . ' — not enough for ' . money($total) . '.',
-                'available'   => $balance >= $total,
+                    : 'Not enough for this order — choose another method or top up.',
+                'available' => $balance >= $total,
             ],
             'gcash' => [
                 'label'     => 'GCash',
@@ -93,6 +94,7 @@ final class CheckoutController
             'page_title'      => 'Checkout',
             'current_nav'     => $isAdmin ? 'admin.storefront' : 'cart',
             'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'page_js'         => ['assets/js/app-checkout.js'],
             'state'           => $state,
             'addresses'       => $addresses,
             'selected'        => $selected,
