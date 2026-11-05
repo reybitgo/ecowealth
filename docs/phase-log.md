@@ -1260,6 +1260,41 @@ member fields — GCash, Maya, USDT TRC20 and USDT BEP20 — which Phase 13's pa
   `09175551234`, Maya to `+639175559876`, both wallet addresses stored verbatim; the pending-order page showed
   the company-account note with a working profile link; no console errors.
 
+---
+
+## Post-Phase 6 — Themed confirmation modal for order cancellation
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 249 PHP cases, 85 smoke checks
+
+### Problem
+
+Cancelling an order used the browser's `confirm()` dialog, which ignores the theme, cannot be styled and looks
+untrustworthy on a page that moves money.
+
+### Changes
+
+- **`public/assets/js/app-confirm.js`** (new) — one handler for every `form[data-confirm]`: shows a SweetAlert2
+  modal with the form's title/text/button labels, applies a red confirm button for `data-confirm-tone="danger"`,
+  and submits only after **Cancel order** is chosen. **Keep order** closes the modal without posting. If
+  SweetAlert2 is unavailable it falls back to the native dialog; without JavaScript the form still posts.
+- **`app/views/shop/order.php`** — the cancel form now carries the modal copy instead of `onsubmit="return
+  confirm(...)"`.
+- **`app/views/member/profile.php`** — the address **Delete** form uses the same modal (no more native confirm).
+- **`app/Controllers/OrderController.php` / `ProfileController.php`** — load SweetAlert2 and the handler on the
+  order-detail and profile pages only.
+- **`tests/Cases/OrderViewTest.php`** — the pending-order page has the modal data, never an inline `confirm`;
+  a source case covers the SweetAlert2 call, the danger styling, the fallback and the draft-preserving cancel.
+- **QA6-06** and the sign-off row now describe the modal and the Keep order path.
+- **Evidence** — `docs/qa/evidence/phase-6/final-cancel-modal.png`.
+
+### Verification
+
+- `php tests\run.php` — **249 / 249**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **85 / 85** (the POST cancellation path is unchanged).
+- Headless Chrome as `QA_Member_01` on the pending order: clicking **Cancel order** opened the modal
+  (**Cancel this order?**, warning text, red **Cancel order**, **Keep order**) without navigating; **Keep order**
+  closed it and the order stayed **Pending**; no console errors.
+
 
 
 

@@ -175,7 +175,17 @@ $fullAddress = implode(', ', array_filter([
 
 <?php if ($can_cancel): ?>
                     <div class="card-footer">
-                      <form method="POST" action="<?= e(url('orders/' . (int) $order['id'] . '/cancel')) ?>" class="d-flex flex-wrap align-items-end gap-2" onsubmit="return confirm('Cancel this order? Any reserved stock will be released.');">
+                      <form
+                        method="POST"
+                        action="<?= e(url('orders/' . (int) $order['id'] . '/cancel')) ?>"
+                        class="d-flex flex-wrap align-items-end gap-2"
+                        data-confirm
+                        data-confirm-title="Cancel this order?"
+                        data-confirm-text="Any reserved stock will be released. This cannot be undone."
+                        data-confirm-button="Cancel order"
+                        data-confirm-cancel="Keep order"
+                        data-confirm-tone="danger"
+                      >
                         <?= csrf_field() ?>
                         <div class="flex-grow-1" style="min-width: 14rem">
                           <label class="form-label small mb-1" for="cancel-reason">Reason <span class="text-body-secondary">(optional)</span></label>

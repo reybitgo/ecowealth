@@ -411,6 +411,15 @@ return [
         $html = $render('member', 'shop/order', [
             'page_title'  => 'Order ' . $order['order_no'],
             'current_nav' => 'orders',
+            'page_css'    => [
+                'assets/css/shop.css',
+                'assets/css/orders.css',
+                'assets/vendor/libs/sweetalert2/sweetalert2.css',
+            ],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
             'order'       => $order,
             'lines'       => $items,
             'events'      => $events,
@@ -426,6 +435,27 @@ return [
         assert_contains('action="' . url('orders/' . (int) $order['id'] . '/cancel') . '"', $html);
         assert_contains('name="_csrf"', $html);
         assert_contains('Payment-proof upload arrives with the', $html);
+
+        /* Cancellation asks through the shared SweetAlert2 modal, not confirm(). */
+        assert_contains('data-confirm', $html);
+        assert_contains('data-confirm-title="Cancel this order?"', $html);
+        assert_contains('data-confirm-button="Cancel order"', $html);
+        assert_contains('data-confirm-tone="danger"', $html);
+        assert_not_contains('onsubmit="return confirm', $html);
+        assert_contains('sweetalert2.js', $html);
+        assert_contains('app-confirm.js', $html);
+    },
+
+    'P6-T11 the confirmation script uses SweetAlert2 with a native fallback' => function (): void {
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app-confirm.js');
+
+        assert_contains("'form[data-confirm]'", $js);
+        assert_contains('window.Swal.fire', $js);
+        assert_contains('form.submit()', $js);
+        assert_contains('window.confirm', $js);
+        assert_contains('result.isConfirmed', $js);
+        assert_contains('didOpen', $js);
+        assert_contains("button.style.setProperty('background-color', '#d33', 'important');", $js);
     },
 
     'P6-T11 a cancelled order shows its reason and no cancel form' => function () use ($render, $makeProduct, $makeMember, $placeOrder): void {
@@ -539,6 +569,8 @@ return [
         $html = $render('member', 'member/profile', [
             'page_title'  => 'Profile',
             'current_nav' => 'profile',
+            'page_css'    => ['assets/css/orders.css', 'assets/vendor/libs/sweetalert2/sweetalert2.css'],
+            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js', 'assets/js/app-confirm.js'],
             'user'        => $member,
             'addresses'   => $book->forUser((int) $member['id']),
             'editing'     => null,
@@ -551,6 +583,9 @@ return [
         assert_contains('Juan Dela Cruz', $html);
         assert_contains('12 Mabini Street', $html);
         assert_contains('Default', $html);
+        assert_contains('data-confirm-title="Delete this address?"', $html);
+        assert_not_contains('onsubmit="return confirm', $html);
+        assert_contains('app-confirm.js', $html);
         assert_contains('Add an address', $html);
         assert_contains('name="recipient_name"', $html);
         assert_contains('name="address_line"', $html);

@@ -215,19 +215,23 @@ address book, missing-terms and cancellation paths.
 |---|---|
 | **Why it matters** | A member who changes their mind must not leave stock held forever. |
 | **Where** | Pending order page → cancel |
-| **Evidence** | `QA6-07-cancelled-order.png` |
+| **Evidence** | `QA6-06-cancel-modal.png`, `QA6-07-cancelled-order.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
 1. Open the pending order from QA6-05.
 2. Type `Ordered by mistake` in **Reason** and click **Cancel order**.
-3. Confirm the browser prompt.
-4. Look at the page and `/orders`.
+3. Read the **Cancel this order?** modal and click **Keep order**.
+4. Click **Cancel order** again and confirm with the red **Cancel order** button.
+5. Look at the page and `/orders`.
 
 **Expected**
 
-- Success flash **“Order cancelled. Any reserved stock has been released.”**
+- A themed modal (not the browser confirm) titled **Cancel this order?**, explaining “Any reserved stock will be
+  released. This cannot be undone.”, with a red **Cancel order** and a **Keep order** button.
+- **Keep order** closes the modal and leaves the order **Pending** with the reason still typed.
+- Confirming shows the success flash **“Order cancelled. Any reserved stock has been released.”**
 - Status **Cancelled**, heading **Order cancelled**, with the cancellation date and reason.
 - No **Cancel order** form remains.
 - **History** gains a **Pending → Cancelled** row (“Cancelled by the member: Ordered by mistake”).

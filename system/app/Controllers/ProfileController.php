@@ -41,7 +41,14 @@ final class ProfileController
         View::page($isAdmin ? 'admin' : 'member', 'member/profile', [
             'page_title'  => 'Profile',
             'current_nav' => $isAdmin ? 'admin.profile' : 'profile',
-            'page_css'    => ['assets/css/orders.css'],
+            'page_css'    => [
+                'assets/css/orders.css',
+                'assets/vendor/libs/sweetalert2/sweetalert2.css',
+            ],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
             'user'        => $user,
             'addresses'   => $this->addresses->forUser($userId),
             'editing'     => $editing,

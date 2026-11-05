@@ -66,7 +66,15 @@ final class OrderController
         View::page($isAdmin ? 'admin' : 'member', 'shop/order', [
             'page_title'  => 'Order ' . (string) $order['order_no'],
             'current_nav' => $isAdmin ? 'admin.storefront' : 'orders',
-            'page_css'    => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'page_css'    => [
+                'assets/css/shop.css',
+                'assets/css/orders.css',
+                'assets/vendor/libs/sweetalert2/sweetalert2.css',
+            ],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
             'order'       => $order,
             'lines'       => Order::items((int) $order['id']),
             'events'      => Order::events((int) $order['id']),

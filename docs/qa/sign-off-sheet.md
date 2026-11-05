@@ -36,7 +36,7 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 248  Passed: 248  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 249  Passed: 249  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
 | `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 85  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
@@ -224,7 +224,7 @@ Document: [phase-6-orders.md](phase-6-orders.md)
 | QA6-03 | Missing address refused; terms gate the button | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-04 | E-wallet order is paid and debited once | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-05 | Manual order stays pending with instructions | ☐ Pass ☐ Fail ☐ Blocked | |
-| QA6-06 | Cancelling an unpaid order releases stock | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-06 | Cancel asks in a themed modal and releases stock | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-07 | Paid order cannot be cancelled online | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-08 | E-wallet disabled when the balance is short | ☐ Pass ☐ Fail ☐ Blocked | |
 | QA6-09 | My orders lists and filters correctly | ☐ Pass ☐ Fail ☐ Blocked | |

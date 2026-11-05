@@ -369,7 +369,7 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (248 cases in Phase 6)
+php tests/run.php                 # full suite (249 cases in Phase 6)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

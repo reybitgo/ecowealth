@@ -266,7 +266,16 @@ $fullName = old('full_name') !== ''
                                 <button type="submit" class="btn btn-sm btn-label-secondary">Make default</button>
                               </form>
 <?php endif; ?>
-                              <form method="POST" action="<?= e(url('profile/address/' . (int) $address['id'] . '/delete')) ?>" onsubmit="return confirm('Delete this address?');">
+                              <form
+                                method="POST"
+                                action="<?= e(url('profile/address/' . (int) $address['id'] . '/delete')) ?>"
+                                data-confirm
+                                data-confirm-title="Delete this address?"
+                                data-confirm-text="It will be removed from your address book."
+                                data-confirm-button="Delete address"
+                                data-confirm-cancel="Keep it"
+                                data-confirm-tone="danger"
+                              >
                                 <?= csrf_field() ?>
                                 <button type="submit" class="btn btn-sm btn-label-danger">Delete</button>
                               </form>
