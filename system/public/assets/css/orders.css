@@ -112,6 +112,14 @@
   color: var(--bs-danger);
 }
 
+/* Terms gate fallback: the button looks and behaves disabled as soon as
+ * the terms are unticked, even before app-checkout.js runs (or if the
+ * script is blocked). The server still validates the checkbox. */
+#checkoutForm:has(#terms:not(:checked)) [data-checkout-submit] {
+  pointer-events: none;
+  opacity: 0.65 !important;
+}
+
 /* ---------- Checkout summary ---------- */
 .checkout-summary {
   position: sticky;

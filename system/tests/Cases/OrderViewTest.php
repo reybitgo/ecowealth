@@ -292,7 +292,15 @@ return [
         assert_contains('terms.checked', $js);
         assert_contains('button.disabled = !accepted;', $js);
         assert_contains("terms.addEventListener('change', sync);", $js);
+        assert_contains("terms.addEventListener('input', sync);", $js);
+        assert_contains("window.addEventListener('pageshow', sync);", $js);
         assert_contains("hint.classList.toggle('d-none', accepted);", $js);
+
+        /* A CSS fallback keeps the button inert before the script runs. */
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/orders.css');
+
+        assert_contains(':has(#terms:not(:checked)) [data-checkout-submit]', $css);
+        assert_contains('pointer-events: none;', $css);
     },
 
     'P6-T9 the orders list renders rows, filters and the empty state' => function () use ($render, $makeProduct, $makeMember, $placeOrder): void {

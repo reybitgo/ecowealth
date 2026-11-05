@@ -1184,13 +1184,16 @@ the natural “my account” destination.
     **“Tick the terms above to place your order.”** appears until they are accepted.
   - The e-wallet payment option shows **Balance ₱…** (red when it cannot cover the order) from the balance the
     controller already read.
-- **`public/assets/js/app-checkout.js`** (new, loaded through `page_js`) — toggles the button and hint on the
-  terms `change` event. The server still validates the terms, so this is only the immediate gate.
+- **`public/assets/js/app-checkout.js`** (new, loaded through `page_js`) — gates the button and hint on the
+  terms state. It binds `change` **and** `input`, re-applies on `load` and `pageshow` (so a bfcache restore or
+  a failed submit cannot leave the button enabled) and finds the button through `[data-checkout-submit]`.
+  The server still validates the terms, so this is only the immediate gate.
 - **`app/Controllers/CheckoutController.php`** — passes the e-wallet `balance` and loads the new script.
-- **`public/assets/css/orders.css`** — balance and hint styles.
+- **`public/assets/css/orders.css`** — balance and hint styles, plus a `:has(#terms:not(:checked))` fallback
+  that fades the button and makes it mouse-inert even before the script runs (or if scripts are blocked).
 - **`tests/Cases/OrderViewTest.php`** — asserts the terms start checked, the button starts enabled, the balance
-  renders, and the unticked state disables the button and shows the hint; a script-source case covers the
-  toggle.
+  renders, and the unticked state disables the button and shows the hint; a script/CSS source case covers the
+  change/input/pageshow listeners and the `:has()` fallback.
 - **QA documentation** — QA6-01, QA6-03 and the sign-off row describe the pre-ticked terms, the disabled button
   and the balance line.
 - **Evidence** — refreshed `docs/qa/evidence/phase-6/final-checkout.png` and `final-checkout-mobile.png`; new
@@ -1201,8 +1204,12 @@ the natural “my account” destination.
 - `php tests\run.php` — **242 / 242**.
 - `powershell -NoProfile -File tests\smoke.ps1` — **83 / 83**.
 - Headless Chrome as `QA_Member_01` (`/checkout`): terms ticked, button enabled, **Balance ₱750.25** shown in the
-  e-wallet option; unticking the terms disabled the button and revealed the hint; ticking them again enabled it;
-  no console errors.
+  e-wallet option; unticking the terms disabled the button and revealed the hint; ticking them again enabled it.
+- The same flow was replayed **after a validation-error submit** (empty recipient/address): the error page kept
+  the terms ticked, and unticking them with a real click disabled the button and showed the hint; no console
+  errors.
+- With page scripts disabled, unticking the terms still applied the CSS fallback (`pointer-events: none`, fading
+  opacity), so the button is never presented as clickable while the terms are unticked.
 
 
 
