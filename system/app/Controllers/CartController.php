@@ -83,13 +83,24 @@ final class CartController
     /** POST /cart/update */
     public function update(array $params = []): void
     {
-        $userId  = $this->userId();
-        $itemId  = (int) Request::post('item_id', 0);
-        $quantity = (int) Request::post('quantity', 0);
+        $userId    = $this->userId();
+        $itemId    = (int) Request::post('item_id', 0);
+        $quantity  = (int) Request::post('quantity', 0);
+        $direction = strtolower(Request::string('direction'));
 
-        $this->run(function () use ($userId, $itemId, $quantity): array {
-            if (!setting_bool('shop_enabled', true) && $quantity > 0) {
+        $this->run(function () use ($userId, $itemId, $quantity, $direction): array {
+            $stepping   = $direction === 'up' || $direction === 'down';
+            $increasing = $direction === 'up' || (!$stepping && $quantity > 0);
+
+            if (!setting_bool('shop_enabled', true) && $increasing) {
                 throw new CartException('The shop is currently closed. Please try again later.', 'shop_closed');
+            }
+
+            /* The cart page's +/− buttons submit `direction` so they work with
+             * JavaScript disabled; the script intercepts them and posts the
+             * input value instead. */
+            if ($stepping) {
+                return $this->carts->adjustQuantity($userId, $itemId, $direction === 'up' ? 1 : -1);
             }
 
             return $this->carts->updateQuantity($userId, $itemId, $quantity);

@@ -693,6 +693,42 @@ try {
             -and $rowAfterRemove -eq '0') `
         "update persists and quantity 0 removes the line (count=$($updatePayload.count), removed=$($removedPayload.removed))"
 
+    # P4-T12 - the +/- steppers are submit buttons, so they work with JS off.
+    # The stale quantity posted alongside 'direction' must be ignored.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    } | Out-Null
+    $stepItemId = [int]((Invoke-MySql "SELECT ci.id FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId LIMIT 1;" | Out-String).Trim())
+
+    $stepUp = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Form @{
+        '_csrf'     = $memberCartToken
+        'item_id'   = "$stepItemId"
+        'direction' = 'up'
+        'quantity'  = '99'
+    }
+    $stepQtyUp = (Invoke-MySql "SELECT quantity FROM cart_items WHERE id = $stepItemId;" | Out-String).Trim()
+
+    $stepDown = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Form @{
+        '_csrf'     = $memberCartToken
+        'item_id'   = "$stepItemId"
+        'direction' = 'down'
+    }
+    $stepQtyDown = (Invoke-MySql "SELECT quantity FROM cart_items WHERE id = $stepItemId;" | Out-String).Trim()
+
+    $stepRemove = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Form @{
+        '_csrf'     = $memberCartToken
+        'item_id'   = "$stepItemId"
+        'direction' = 'down'
+    }
+    $stepRows = (Invoke-MySql "SELECT COUNT(*) FROM cart_items WHERE id = $stepItemId;" | Out-String).Trim()
+
+    Assert-That 'P4-T12' ($stepUp.Status -eq 302 -and $stepQtyUp -eq '2' `
+            -and $stepDown.Status -eq 302 -and $stepQtyDown -eq '1' `
+            -and $stepRemove.Status -eq 302 -and $stepRows -eq '0') `
+        "the +/- steppers post a direction with JS off (up=$stepQtyUp, down=$stepQtyDown, removed rows=$stepRows)"
+
     # P4-T5 / P4-T6 - a second signed-in account cannot touch the line (IDOR).
     Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
         '_csrf'      = $memberCartToken

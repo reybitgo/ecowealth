@@ -41,7 +41,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 175   Passed: 175   Failed: 0
+Cases: 177   Passed: 177   Failed: 0
 All good.
 ```
 
@@ -54,7 +54,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 55   Failed: 0
+Passed: 56   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:

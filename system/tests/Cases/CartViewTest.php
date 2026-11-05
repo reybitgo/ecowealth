@@ -73,6 +73,18 @@ return [
         assert_contains('action="' . url('cart/remove') . '"', $html);
         assert_contains('name="item_id"', $html);
         assert_contains('name="_csrf"', $html);
+
+        /* The steppers are real submit buttons (no-JS fallback), with a hidden
+         * default submit button first so Enter posts the typed value. */
+        assert_contains('name="direction" value="down"', $html);
+        assert_contains('name="direction" value="up"', $html);
+        $defaultSubmit = strpos($html, 'class="visually-hidden" tabindex="-1"');
+        $firstStep     = strpos($html, 'name="direction" value="down"');
+        assert_true(
+            $defaultSubmit !== false && $firstStep !== false && $defaultSubmit < $firstStep,
+            'the default submit button must come before the stepper buttons'
+        );
+
         assert_contains('Proceed to checkout', $html);
         assert_contains('disabled', $html);
         assert_contains('Checkout opens in Phase 6', $html);

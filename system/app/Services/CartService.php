@@ -235,34 +235,73 @@ final class CartService
             $cart   = $this->lockCart($userId, false);
             $cartId = (int) $cart['id'];
 
-            $item = $this->lockItem($cartId, $itemId);
-
-            /* A zero quantity is the remove gesture — allowed even when the
-             * product has since been deactivated (the member must be able to
-             * clear it). */
-            if ($quantity === 0) {
-                $this->pdo->prepare('DELETE FROM cart_items WHERE id = ? AND cart_id = ?')
-                    ->execute([$itemId, $cartId]);
-
-                return $this->mutationResult($userId, $cartId, null, true);
-            }
-
-            if ((string) ($item['product_status'] ?? '') !== 'active') {
-                throw CartException::productInactive((string) $item['product_name']);
-            }
-
-            $available = StockService::available((int) $item['product_id'], $this->pdo);
-
-            if ($quantity > $available) {
-                throw CartException::stock($quantity, $available);
-            }
-
-            $this->pdo->prepare(
-                'UPDATE cart_items SET quantity = ?, unit_price = ? WHERE id = ? AND cart_id = ?'
-            )->execute([$quantity, $this->currentPrice((int) $item['product_id']), $itemId, $cartId]);
-
-            return $this->mutationResult($userId, $cartId, $itemId, false);
+            return $this->applyQuantity($userId, $cartId, $this->lockItem($cartId, $itemId), $quantity);
         });
+    }
+
+    /**
+     * Step a line's quantity by a delta (+1 / −1), reading the current
+     * quantity under the same lock. This is what the cart page's +/−
+     * buttons post when JavaScript is unavailable; the JS path keeps
+     * using updateQuantity() with the input's value.
+     *
+     * @return array<string, mixed>
+     */
+    public function adjustQuantity(int $userId, int $itemId, int $delta): array
+    {
+        $delta = (int) $delta;
+
+        if ($delta === 0) {
+            throw CartException::quantity();
+        }
+
+        return $this->withTransaction(function () use ($userId, $itemId, $delta): array {
+            $cart   = $this->lockCart($userId, false);
+            $cartId = (int) $cart['id'];
+            $item   = $this->lockItem($cartId, $itemId);
+
+            $quantity = max(0, min(self::MAX_QUANTITY, (int) $item['quantity'] + $delta));
+
+            return $this->applyQuantity($userId, $cartId, $item, $quantity);
+        });
+    }
+
+    /**
+     * Apply an already-decided quantity to a locked line.
+     *
+     * A zero quantity is the remove gesture — allowed even when the product
+     * has since been deactivated (the member must be able to clear it).
+     * Raising a quantity still enforces the catalogue status and stock.
+     *
+     * @param array<string, mixed> $item row from lockItem()
+     * @return array<string, mixed>
+     */
+    private function applyQuantity(int $userId, int $cartId, array $item, int $quantity): array
+    {
+        $itemId = (int) $item['id'];
+
+        if ($quantity === 0) {
+            $this->pdo->prepare('DELETE FROM cart_items WHERE id = ? AND cart_id = ?')
+                ->execute([$itemId, $cartId]);
+
+            return $this->mutationResult($userId, $cartId, null, true);
+        }
+
+        if ((string) ($item['product_status'] ?? '') !== 'active') {
+            throw CartException::productInactive((string) $item['product_name']);
+        }
+
+        $available = StockService::available((int) $item['product_id'], $this->pdo);
+
+        if ($quantity > $available) {
+            throw CartException::stock($quantity, $available);
+        }
+
+        $this->pdo->prepare(
+            'UPDATE cart_items SET quantity = ?, unit_price = ? WHERE id = ? AND cart_id = ?'
+        )->execute([$quantity, $this->currentPrice((int) $item['product_id']), $itemId, $cartId]);
+
+        return $this->mutationResult($userId, $cartId, $itemId, false);
     }
 
     /**

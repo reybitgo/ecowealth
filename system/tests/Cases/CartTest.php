@@ -257,6 +257,73 @@ return [
         assert_true($removed['removed']);
     },
 
+    'P4-T4 the no-JS stepper adjusts the quantity by ±1' => function () use ($service, $makeProduct): void {
+        $member = test_user('cart_adjust');
+        $id     = $makeProduct(['stock' => '5']);
+
+        $added  = $service()->add((int) $member['id'], $id, 1);
+        $itemId = (int) $added['item']['id'];
+
+        $up = $service()->adjustQuantity((int) $member['id'], $itemId, 1);
+        assert_same(2, $up['count']);
+        assert_same(2, (int) $up['item']['quantity']);
+        assert_same(20.0, $up['subtotal']);
+
+        $down = $service()->adjustQuantity((int) $member['id'], $itemId, -1);
+        assert_same(1, $down['count']);
+
+        /* Stepping below 1 removes the line, exactly like the JS path. */
+        $removed = $service()->adjustQuantity((int) $member['id'], $itemId, -1);
+        assert_true($removed['removed']);
+        assert_same(0, $removed['count']);
+        assert_same(0, (int) Cart::totals((int) $removed['cart_id'])['items']);
+
+        assert_throws(
+            static fn () => $service()->adjustQuantity((int) $member['id'], $itemId, 1),
+            CartException::class
+        );
+    },
+
+    'P4-T4 the no-JS stepper cannot oversell, raise an inactive line or cross carts' => function () use ($service, $makeProduct): void {
+        $owner = test_user('cart_adjust_owner');
+        $other = test_user('cart_adjust_other');
+        $id    = $makeProduct(['name' => 'Step Product', 'stock' => '1']);
+
+        $added  = $service()->add((int) $owner['id'], $id, 1);
+        $itemId = (int) $added['item']['id'];
+
+        $stock = assert_throws(
+            static fn () => $service()->adjustQuantity((int) $owner['id'], $itemId, 1),
+            CartException::class
+        );
+        assert_same('stock', $stock->reason);
+        assert_same('Insufficient stock. Requested 2, only 1 available.', $stock->getMessage());
+
+        $service()->add((int) $other['id'], $makeProduct(), 1);
+        $idor = assert_throws(
+            static fn () => $service()->adjustQuantity((int) $other['id'], $itemId, 1),
+            CartException::class
+        );
+        assert_same('item_missing', $idor->reason);
+
+        Product::setStatus($id, 'inactive');
+
+        $inactive = assert_throws(
+            static fn () => $service()->adjustQuantity((int) $owner['id'], $itemId, 1),
+            CartException::class
+        );
+        assert_same('product_inactive', $inactive->reason);
+
+        /* Stepping down still clears an unavailable line. */
+        $down = $service()->adjustQuantity((int) $owner['id'], $itemId, -1);
+        assert_true($down['removed']);
+
+        assert_throws(
+            static fn () => $service()->adjustQuantity((int) $owner['id'], $itemId, 0),
+            CartException::class
+        );
+    },
+
     /* ---------- P4-T5 / P4-T6: IDOR ------------------------------ */
 
     'P4-T5 updating another member’s item is refused (IDOR)' => function () use ($service, $makeProduct): void {

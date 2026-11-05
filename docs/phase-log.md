@@ -694,3 +694,41 @@ A `ViewTest` regression case asserts the footer keeps the brand and the rights l
 “Built with”, “ThemeSelection” or PHP version string.
 
 Evidence: `docs/qa/evidence/shell/final-footer.png`.
+
+---
+
+## Post-Phase 4 — Cart steppers work without JavaScript
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 177 PHP cases, 56 smoke checks, 18/18 JS + 4/4 no-JS browser checks
+
+### Problem
+
+On `/cart` with JavaScript disabled, the row's **+** / **−** buttons did nothing: they were
+`type="button"` controls owned by `app-cart.js`, so with the script off they were dead. Only typing a
+number and pressing **Update** (or the trash icon) worked, which made the stepper look broken.
+
+### Changes
+
+- **`app/views/shop/cart.php`** — the steppers are now real submit buttons carrying
+  `name="direction" value="up|down"`. With JavaScript they are intercepted exactly as before; without
+  it they post the form, the server steps the quantity and the page reloads with the flash.
+  A `visually-hidden` **Update** submit is placed first in the form so pressing Enter in the quantity
+  field still submits the typed value rather than a step.
+- **`app/Controllers/CartController::update()`** — reads `direction`; `up`/`down` go to the new step
+  service call (the posted quantity is ignored), anything else keeps the typed-quantity path. The
+  closed-shop guard now blocks only increases, so a member can always step down or clear a line.
+- **`app/Services/CartService`** — `updateQuantity()` and the new `adjustQuantity($userId, $itemId, ±1)`
+  share one locked `applyQuantity()` path, so stock caps, inactive-product refusal, zero-means-remove,
+  ownership scoping and the unit-price snapshot all behave identically for both input modes.
+- **Tests** — two `CartTest` cases (step up/down/remove; stock, inactive and IDOR refusals), a
+  `CartViewTest` assertion for the submit semantics and the hidden default button, and a `smoke.ps1`
+  P4-T12 check that posts `direction` with a deliberately stale quantity and watches the stored quantity.
+- **Evidence** — `docs/qa/evidence/phase-4/final-cart-nojs-stepper.png` (JavaScript disabled in Chrome,
+  real mouse click on **+**, page reloaded, quantity 2, “Cart updated.” flash).
+
+### Verification
+
+- `php tests\run.php` — **177 / 177**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
+- Headless Chrome with **JavaScript disabled**: 4/4 (submit button semantics, reload, persisted
+  quantity, flash), and the JavaScript interaction harness still **18 / 18** with 0 exceptions.

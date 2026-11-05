@@ -41,6 +41,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | `final-cart-drawer-mobile.png` | drawer at 390 × 844 |
 | `final-shop-add-to-cart.png` | product cards with the new cart button |
 | `final-cart-sidebar-badge.png` | sidebar + navbar badges both at 2 after an in-place add |
+| `final-cart-nojs-stepper.png` | cart page after clicking **+** with JavaScript disabled |
 | `final-admin-cart.png` | the admin sidebar's Cart item (active, badge 2) |
 
 > **Before you start:** Phases 1–3 should be signed off. The automated suite must be green
@@ -348,12 +349,18 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 1. DevTools → **Settings** (gear) → **Debugger** → tick **Disable JavaScript**. Reload `/shop`.
 2. Open a product (e.g. `/shop/2`), set quantity **2**, click **Add to cart**.
-3. Open `/cart` and change a quantity with **Update**; remove a line with the trash button.
+3. Open `/cart` and change a quantity with **Update**.
+4. Click the row's **+** button twice, then its **−** button once.
+5. Press Enter while the quantity field is focused (type a new number first).
+6. Remove a line with the trash button.
 
 **Expected**
 
-- Each action performs a normal page submit, returns to the page with the green flash
-  **“Added to cart.”** (or **“Item removed from your cart.”**) and the cart is correct.
+- Each action performs a normal page submit, the page reloads and shows the green flash
+  **“Added to cart.”** / **“Cart updated.”** / **“Item removed from your cart.”**
+- The **+/−** buttons act as submit buttons: the quantity and all totals change after the reload
+  (step 4 ends on quantity 2), so no control is dead without JavaScript.
+- Pressing Enter in the quantity field submits the typed number (not a step).
 - No dead buttons and no console errors about missing scripts.
 - Re-enable JavaScript afterwards.
 

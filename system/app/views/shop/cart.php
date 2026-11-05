@@ -128,8 +128,11 @@ $isEmpty     = $items === [];
                               <form method="POST" action="<?= e(url('cart/update')) ?>" data-cart-qty-form class="cart-qty-form">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>" />
+                                <!-- First submit button in the form: pressing Enter in the
+                                     quantity field submits the typed value, not a step. -->
+                                <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Update</button>
                                 <div class="input-group input-group-sm cart-qty-group mx-auto">
-                                  <button class="btn btn-outline-secondary" type="button" data-cart-step="-1" aria-label="Decrease quantity of <?= e((string) $item['product_name']) ?>">&minus;</button>
+                                  <button class="btn btn-outline-secondary" type="submit" name="direction" value="down" data-cart-step="-1" aria-label="Decrease quantity of <?= e((string) $item['product_name']) ?>">&minus;</button>
                                   <input
                                     type="number"
                                     class="form-control text-center"
@@ -140,7 +143,7 @@ $isEmpty     = $items === [];
                                     data-cart-qty
                                     aria-label="Quantity of <?= e((string) $item['product_name']) ?>"
                                   />
-                                  <button class="btn btn-outline-secondary" type="button" data-cart-step="1" aria-label="Increase quantity of <?= e((string) $item['product_name']) ?>">+</button>
+                                  <button class="btn btn-outline-secondary" type="submit" name="direction" value="up" data-cart-step="1" aria-label="Increase quantity of <?= e((string) $item['product_name']) ?>">+</button>
                                 </div>
                                 <button type="submit" class="btn btn-sm btn-label-secondary mt-2 cart-update-btn">Update</button>
                               </form>
