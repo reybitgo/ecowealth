@@ -768,3 +768,32 @@ compact counter on its corner. Two causes:
 - `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
 - Headless Chrome: dashboard badge measured 16.8 × 16.8px at `position: absolute`; the cart JavaScript
   harness still **18 / 18** and the no-JS stepper check **4 / 4**.
+
+---
+
+## Post-Phase 4 — Navbar cart badge grows rightward
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 178 PHP cases, 56 smoke checks, 18/18 JS + 4/4 no-JS browser checks
+
+### Problem
+
+The navbar badge was pinned by its right edge (`right: 0.2rem`), so a rising count expanded leftward
+across the cart glyph. At 33 units the icon was half hidden.
+
+### Changes
+
+- **`app.css`** — `#layout-navbar .cart-navbar-badge` is now anchored by its **left** edge at
+  `calc(100% - 0.7rem)` with `right: auto`. The count starts 3px inside the icon's right edge and grows
+  into the navbar gap, so the cart glyph stays visible at every width.
+- **`app_header.php`** — the cart nav item gained `me-4 me-xl-3` (was `me-2 me-xl-1`), giving a
+  two- or three-digit badge room before the notification bell.
+- **Evidence** — `docs/qa/evidence/shell/final-navbar-badge.png` (33 units at 1440px) and
+  `final-navbar-badge-mobile.png` (33 units at 390px). Browser measurement: badge left = 1267px,
+  icon 1248–1270px; the icon centre still hit-tests as the cart glyph, and the badge ends 12px before
+  the bell.
+
+### Verification
+
+- `php tests\run.php` — **178 / 178**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
+- Headless Chrome: cart JavaScript harness **18 / 18**, no-JS stepper **4 / 4**.

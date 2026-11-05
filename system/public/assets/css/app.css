@@ -273,12 +273,15 @@
  * shop.css (which only loads on the catalogue and cart pages) — on other
  * pages the badge used to fall back to the theme's oversized default pill. */
 /* The theme's `.btn .badge` rule (the trigger is a btn-icon link) forces the
- * badge back into the flow, so target it with enough specificity to sit on the
- * icon's corner as a compact counter. */
+ * badge back into the flow, so target it with enough specificity to keep it on
+ * the icon's corner as a compact counter. It is anchored by its LEFT edge just
+ * inside the icon's right edge: a growing count then extends into the navbar
+ * gap instead of sliding across (and hiding) the cart glyph. */
 #layout-navbar .cart-navbar-badge {
   position: absolute;
-  top: 0.2rem;
-  right: 0.2rem;
+  top: 0.1rem;
+  right: auto;
+  left: calc(100% - 0.7rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;

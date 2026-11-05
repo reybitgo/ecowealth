@@ -188,7 +188,7 @@ $html_class  = $has_menu
 
               <ul class="navbar-nav flex-row align-items-center ms-md-auto">
                 <!-- Cart (opens the drawer; the link still works without JS) -->
-                <li class="nav-item me-2 me-xl-1">
+                <li class="nav-item me-4 me-xl-3">
                   <a
                     class="nav-link btn btn-icon btn-text-secondary rounded-pill position-relative cart-navbar-toggle"
                     href="<?= e(url('cart')) ?>"
