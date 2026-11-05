@@ -1,0 +1,198 @@
+/* ==============================================================
+ *  EcoWealth — checkout, orders and address book (Phase 6)
+ *
+ *  Loaded through page_css on /checkout, /orders, /orders/{id},
+ *  /profile and /admin/orders.
+ * ============================================================== */
+
+/* ---------- Filter rows (orders list + admin desk) ---------- */
+.order-filters .form-label {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.35rem;
+}
+
+.order-filters .order-filter-field {
+  flex: 1 1 9rem;
+  min-width: 9rem;
+  max-width: 16rem;
+}
+
+.order-filters .order-filter-wide {
+  flex: 1.6 1 12rem;
+  max-width: 22rem;
+}
+
+.order-filters .order-filter-date {
+  flex: 0 1 9.75rem;
+  min-width: 9.75rem;
+}
+
+/* ---------- Checkout: saved addresses ---------- */
+.checkout-address-card {
+  display: block;
+  height: 100%;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.checkout-address-card:hover,
+.checkout-address-card:focus {
+  border-color: rgba(var(--bs-primary-rgb), 0.45);
+  box-shadow: 0 0.25rem 0.75rem rgba(var(--bs-primary-rgb), 0.12);
+  color: inherit;
+}
+
+.checkout-address-card.is-selected {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 1px var(--bs-primary) inset;
+  background: rgba(var(--bs-primary-rgb), 0.03);
+}
+
+/* ---------- Checkout: payment options ---------- */
+.checkout-payment-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  height: 100%;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.checkout-payment-option:hover {
+  border-color: rgba(var(--bs-primary-rgb), 0.45);
+}
+
+.checkout-payment-option.is-selected {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 1px var(--bs-primary) inset;
+  background: rgba(var(--bs-primary-rgb), 0.03);
+}
+
+.checkout-payment-option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.checkout-payment-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  background: var(--bs-gray-100, #f4f6fb);
+  color: var(--bs-primary);
+}
+
+.checkout-payment-text {
+  min-width: 0;
+}
+
+/* ---------- Checkout summary ---------- */
+.checkout-summary {
+  position: sticky;
+  top: 6rem;
+}
+
+.checkout-summary-items {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.checkout-wallet-note {
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.6rem;
+  background: var(--bs-gray-100, #f4f6fb);
+}
+
+/* ---------- Order items + totals ---------- */
+.order-items-table thead th {
+  white-space: nowrap;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.order-totals {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+/* ---------- Status history ---------- */
+.order-timeline {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.order-timeline::before {
+  content: "";
+  position: absolute;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  left: 0.45rem;
+  width: 1px;
+  background: var(--bs-border-color);
+}
+
+.order-timeline-item {
+  position: relative;
+  padding: 0 0 1.1rem 0.25rem;
+}
+
+.order-timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.order-timeline-dot {
+  position: absolute;
+  top: 0.35rem;
+  left: -1.32rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--bs-primary);
+  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.15);
+}
+
+.order-timeline-body {
+  min-width: 0;
+}
+
+/* ---------- Address book ---------- */
+.address-card {
+  height: 100%;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+}
+
+.address-card.is-default {
+  border-color: rgba(var(--bs-primary-rgb), 0.45);
+  background: rgba(var(--bs-primary-rgb), 0.02);
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 991.98px) {
+  .checkout-summary {
+    position: static;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .order-list-table thead th,
+  .order-list-table tbody td {
+    font-size: 0.82rem;
+  }
+
+  .order-totals {
+    padding-inline: 1rem;
+  }
+}

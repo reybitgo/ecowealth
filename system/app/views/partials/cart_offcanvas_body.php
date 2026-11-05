@@ -14,6 +14,14 @@ declare(strict_types=1);
 $items  = $state['items'] ?? [];
 $totals = $state['totals'] ?? ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0];
 $total  = (float) ($totals['subtotal'] ?? 0);
+$hasProblems = false;
+
+foreach ($items as $item) {
+    if (($item['over_available'] ?? false) === true || ($item['is_inactive'] ?? false) === true) {
+        $hasProblems = true;
+        break;
+    }
+}
 ?>
 <?php if ($items === []): ?>
               <div class="cart-drawer-empty d-flex flex-column align-items-center justify-content-center flex-grow-1 text-center p-6">
@@ -109,7 +117,12 @@ $total  = (float) ($totals['subtotal'] ?? 0);
                   <span data-cart-total><?= e(money($total)) ?></span>
                 </div>
                 <p class="text-body-secondary small mt-2 mb-3">No shipping or service fee.</p>
-                <button type="button" class="btn btn-primary w-100" disabled>Checkout opens in Phase 6</button>
+<?php if ($hasProblems): ?>
+                <button type="button" class="btn btn-primary w-100" disabled>Fix your cart to check out</button>
+                <a href="<?= e(url('cart')) ?>" class="btn btn-label-primary w-100 mt-2">Review your cart</a>
+<?php else: ?>
+                <a href="<?= e(url('checkout')) ?>" class="btn btn-primary w-100">Checkout</a>
                 <a href="<?= e(url('cart')) ?>" class="btn btn-label-secondary w-100 mt-2" data-cart-open-cart>View full cart</a>
+<?php endif; ?>
               </div>
 <?php endif; ?>

@@ -1,6 +1,6 @@
-# EcoWealth — Manual QA pack (Phases 1–5)
+# EcoWealth — Manual QA pack (Phases 1–6)
 
-This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4 and 5.
+This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5 and 6.
 The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
@@ -20,11 +20,12 @@ sign the phase off.
 | [phase-3-packages.md](phase-3-packages.md) | 3 — packages, ladder, contents | 16 | 50–65 min |
 | [phase-4-cart.md](phase-4-cart.md) | 4 — cart page, drawer, stock rules, IDOR | 17 | 55–70 min |
 | [phase-5-wallet.md](phase-5-wallet.md) | 5 — dual balance, ledger, admin top-ups, monitor | 16 | 50–65 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all five | — | 10 min to complete |
+| [phase-6-orders.md](phase-6-orders.md) | 6 — checkout, address book, orders, admin order desk | 17 | 55–70 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all six | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-5` inside it). Phases 4 and 5 also ship
-reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png` and
-`evidence/phase-5/final-*.png`.
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-6` inside it). Phases 4, 5 and 6 also ship
+reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
+`evidence/phase-5/final-*.png` and `evidence/phase-6/final-*.png`.
 
 ---
 
@@ -43,7 +44,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 207   Passed: 207   Failed: 0
+Cases: 238   Passed: 238   Failed: 0
 All good.
 ```
 
@@ -56,7 +57,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 68   Failed: 0
+Passed: 83   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -78,6 +79,10 @@ Passed: 68   Failed: 0
   replay, a two-connection concurrency test, audited admin top-ups, invalid `ref_type`, filter/pagination/total
   maths, ledger immutability (schema + source scan), reconciliation (clean and deliberately tampered), plus HTTP
   checks for the member/admin guards, top-up path, tabs and the reconcile command.
+- Phase 6: checkout validation, catalogue re-pricing, stock reservation, e-wallet payment inside the order
+  transaction, idempotent replay, a two-connection last-unit race, address-book rules and ownership, member/admin
+  order scoping and filters, cancellation with stock release, the event trail and the order-number format, plus
+  HTTP checks for the whole placement, replay, guard, cancellation and address-book paths.
 
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
@@ -208,6 +213,12 @@ These are deliberate for the current build — do not report them as defects:
   commissions yet shows **Withdrawable ₱0.00** — that is the reference rule, not a bug. The statement is
   append-only: there is no edit or delete button anywhere, and corrections are new rows. There are no debit rows
   in manual QA yet because purchases start in Phase 6.
+- **Checkout and orders are live** (Phase 6). E-wallet orders become **Paid** immediately; GCash/Maya/bank
+  orders stay **Pending** and their payment-proof upload arrives with Phase 7. Only unpaid orders can be
+  cancelled online. Shipping is free until the fulfilment phase adds courier pricing.
+- **The cart is converted into an order**, so the cart badge resets after a successful checkout. A failed
+  checkout keeps the cart exactly as it was.
+- **Order numbers** look like `EW26110500042` (`EW` + yymmdd + the order id).
 - Administrators may open `/cart` too (the member guard admits admins, matching the reference). Their
   back-office sidebar lists **Cart** under *Overview* with the same live badge, and the cart page keeps
   the back-office menu with Cart highlighted.
@@ -257,7 +268,7 @@ failed check afterwards and updates the row to **Closed**.
 ## 8. Sign-off flow
 
 1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
-2. Work through the five phase documents in order (Phase 1 → 2 → 3 → 4 → 5). Each phase assumes the
+2. Work through the six phase documents in order (Phase 1 → 2 → 3 → 4 → 5 → 6). Each phase assumes the
    previous one is done.
 3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
    decision.
@@ -312,6 +323,7 @@ docs/qa/
 ├── phase-3-packages.md                ← manual checks for Phase 3
 ├── phase-4-cart.md                    ← manual checks for Phase 4
 ├── phase-5-wallet.md                  ← manual checks for Phase 5
+├── phase-6-orders.md                  ← manual checks for Phase 6
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/ … phase-5/)
+└── evidence/                          ← your screenshots (phase-1/ … phase-6/)
 ```

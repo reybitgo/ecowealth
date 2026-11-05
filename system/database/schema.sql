@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 5)
+--  EcoWealth — MySQL schema (fresh install, Phase 6)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, 003, 004, 005, …).
+--  database/migrations/ (apply in order: 001, 002, 003, 004, 005, 006, …).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -16,6 +16,8 @@
 --  Phase 4 owns: carts, cart_items.
 --  Phase 5 owns: users.ewallet_balance/withdrawable_balance,
 --                ewallet_ledger, ewallet_admin_topups.
+--  Phase 6 owns: addresses, shop_orders, shop_order_items,
+--                shop_order_events.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -285,4 +287,128 @@ CREATE TABLE IF NOT EXISTS ewallet_admin_topups (
   CONSTRAINT fk_topups_admin     FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE RESTRICT,
   CONSTRAINT fk_topups_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Addresses — the member's address book (plan §5.3; Phase 6)
+--
+--  is_default marks the address checkout pre-fills. At most one
+--  default per member is enforced by AddressService (which clears
+--  the others inside the same transaction), not by an index.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS addresses (
+  id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id        INT UNSIGNED NOT NULL,
+  label          VARCHAR(40)  NULL,
+  recipient_name VARCHAR(120) NOT NULL,
+  phone          VARCHAR(40)  NULL,
+  address_line   VARCHAR(255) NOT NULL,
+  barangay       VARCHAR(120) NULL,
+  city           VARCHAR(80)  NULL,
+  province       VARCHAR(80)  NULL,
+  postal         VARCHAR(20)  NULL,
+  country        CHAR(2)      NOT NULL DEFAULT 'PH',
+  billing_name   VARCHAR(120) NULL,
+  billing_phone  VARCHAR(40)  NULL,
+  notes          VARCHAR(500) NULL,
+  is_default     TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_addr_user (user_id, is_default),
+  CONSTRAINT fk_addr_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Orders — one row per placed order (plan §4.4, §5.3; Phase 6)
+--
+--  Address columns are a snapshot, never a live address-book link.
+--  order_no = EW + yymmdd + 5-digit id (written after insert).
+--  idempotency_key is the unique anchor for double-submit replay.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop_orders (
+  id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_no            VARCHAR(20)  NOT NULL,
+  user_id             INT UNSIGNED NOT NULL,
+  status              ENUM('pending','payment_review','payment_failed','paid','packing',
+                           'ready_to_ship','shipped','delivered','completed','cancelled')
+                      NOT NULL DEFAULT 'pending',
+  payment_method      ENUM('ewallet','gcash','maya','bank') NOT NULL DEFAULT 'ewallet',
+  payment_reference   VARCHAR(40)  NULL,
+  idempotency_key     VARCHAR(64)  NULL,
+  subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  shipping_fee        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  total               DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  billing_name        VARCHAR(120) NOT NULL,
+  billing_phone       VARCHAR(40)  NULL,
+  shipping_name       VARCHAR(120) NOT NULL,
+  shipping_phone      VARCHAR(40)  NULL,
+  shipping_address    VARCHAR(255) NOT NULL,
+  shipping_barangay   VARCHAR(120) NULL,
+  shipping_city       VARCHAR(80)  NULL,
+  shipping_province   VARCHAR(80)  NULL,
+  shipping_postal     VARCHAR(20)  NULL,
+  shipping_country    CHAR(2)      NOT NULL DEFAULT 'PH',
+  notes_member        VARCHAR(500) NULL,
+  notes_admin         VARCHAR(500) NULL,
+  terms_version       VARCHAR(16)  NOT NULL DEFAULT 'v1',
+  terms_accepted_at   DATETIME     NULL,
+  payment_deadline    DATETIME     NULL,
+  correction_deadline DATETIME     NULL,
+  paid_at             DATETIME     NULL,
+  packed_at           DATETIME     NULL,
+  shipped_at          DATETIME     NULL,
+  delivered_at        DATETIME     NULL,
+  completed_at        DATETIME     NULL,
+  cancelled_at        DATETIME     NULL,
+  cancelled_reason    VARCHAR(160) NULL,
+  created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_shop_orders_no (order_no),
+  UNIQUE KEY uq_shop_orders_idem (idempotency_key),
+  KEY idx_orders_user_status (user_id, status, created_at),
+  KEY idx_orders_status (status, payment_deadline),
+  CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Order lines — priced snapshots + the stock reservation state
+--  reserved → committed at payment → deducted at ship → or released
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop_order_items (
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id          INT UNSIGNED NOT NULL,
+  product_id        INT UNSIGNED NOT NULL,
+  product_name      VARCHAR(160) NOT NULL,
+  product_sku       VARCHAR(64)  NULL,
+  quantity          INT UNSIGNED NOT NULL DEFAULT 1,
+  unit_price        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  line_total        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  reservation_state ENUM('reserved','committed','deducted','released') NOT NULL DEFAULT 'reserved',
+  created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_order_items_order (order_id),
+  KEY idx_order_items_product (product_id, reservation_state),
+  CONSTRAINT fk_order_items_order   FOREIGN KEY (order_id) REFERENCES shop_orders (id) ON DELETE CASCADE,
+  CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Order events — append-only status audit trail (plan §4.4)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop_order_events (
+  id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id    INT UNSIGNED NOT NULL,
+  from_status VARCHAR(20)  NULL,
+  to_status   VARCHAR(20)  NOT NULL,
+  actor_type  ENUM('member','admin','system') NOT NULL,
+  actor_id    INT UNSIGNED NULL,
+  reason_code VARCHAR(40)  NULL,
+  note        VARCHAR(500) NULL,
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_order_events_order (order_id, created_at),
+  CONSTRAINT fk_order_events_order FOREIGN KEY (order_id) REFERENCES shop_orders (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 

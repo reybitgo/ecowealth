@@ -5,39 +5,10 @@ declare(strict_types=1);
  *  ProductTest — catalogue model and stock service
  *  (plan §7 Phase 2, tests P2-T1 … P2-T9)
  *
- *  Cases that need tables from later phases (shop_order_items,
- *  shop_orders) create and drop them locally: DDL commits
- *  implicitly, so each one cleans up after itself. The Phase 4 cart
- *  tables are real now, so the cart-reference cases use them.
+ *  The Phase 4 cart and Phase 6 order tables exist in the schema, so
+ *  the reservation and delete-reference cases use real rows instead of
+ *  local DDL (which would commit the harness transaction).
  * ============================================================== */
-
-/** Minimal Phase 6 tables, so reservations and order references can be exercised. */
-$orderTables = static function (): void {
-    db()->exec('DROP TABLE IF EXISTS shop_order_items');
-    db()->exec('DROP TABLE IF EXISTS shop_orders');
-    db()->exec(
-        'CREATE TABLE shop_orders (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            status VARCHAR(20) NOT NULL DEFAULT \'pending\'
-        ) ENGINE=InnoDB'
-    );
-    db()->exec(
-        'CREATE TABLE shop_order_items (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            order_id INT UNSIGNED NOT NULL,
-            product_id INT UNSIGNED NOT NULL,
-            quantity INT UNSIGNED NOT NULL DEFAULT 1,
-            reservation_state VARCHAR(20) NOT NULL DEFAULT \'reserved\'
-        ) ENGINE=InnoDB'
-    );
-    StockService::forgetSchemaCache();
-};
-
-$dropLateTables = static function (): void {
-    db()->exec('DROP TABLE IF EXISTS shop_order_items');
-    db()->exec('DROP TABLE IF EXISTS shop_orders');
-    StockService::forgetSchemaCache();
-};
 
 return [
     /* ---------- Seed + reads --------------------------------------- */
@@ -301,22 +272,26 @@ return [
         assert_not_null(Product::find($id), 'the product must survive');
     },
 
-    'P2-T7 delete is refused while an order references the product' => function () use ($orderTables, $dropLateTables): void {
-        $id = Product::save(['name' => 'In An Order', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+    'P2-T7 delete is refused while an order references the product' => function (): void {
+        $id     = Product::save(['name' => 'In An Order', 'price' => '1.00', 'stock' => '1', 'status' => 'active']);
+        $member = test_user('order_ref_member');
 
-        $orderTables();
-        db()->prepare('INSERT INTO shop_order_items (order_id, product_id, quantity) VALUES (1, ?, 1)')->execute([$id]);
+        $orderId = test_order((int) $member['id'], [
+            ['product_id' => $id, 'quantity' => 1],
+        ]);
 
-        try {
-            $result = Product::delete($id);
+        $result = Product::delete($id);
 
-            assert_false($result['ok']);
-            assert_same('referenced', $result['reason']);
-            assert_same(1, $result['orders']);
-        } finally {
-            $dropLateTables();
-            Product::delete($id);
-        }
+        assert_false($result['ok']);
+        assert_same('referenced', $result['reason']);
+        assert_same(1, $result['orders']);
+
+        /* Once the order is gone, the product is deletable again. */
+        test_delete_order($orderId);
+
+        $deleted = Product::delete($id);
+        assert_true($deleted['ok']);
+        assert_null(Product::find($id));
     },
 
     'P3-T4 delete is refused while a package contains the product' => function (): void {
@@ -379,52 +354,36 @@ return [
         assert_false(array_key_exists(999999, $map), 'missing products are omitted');
     },
 
-    'P2-T2 reservations from non-terminal orders reduce availability' => function () use ($orderTables, $dropLateTables): void {
+    'P2-T2 reservations from non-terminal orders reduce availability' => function (): void {
         $coffee = Product::findBySlug('coffee');
         assert_not_null($coffee);
-        $id  = (int) $coffee['id'];
+        $id    = (int) $coffee['id'];
         $stock = (int) $coffee['stock'];
+        $member = test_user('reservation_member');
 
-        $orderTables();
+        $pending   = test_order((int) $member['id'], [['product_id' => $id, 'quantity' => 3]], 'pending');
+        test_order((int) $member['id'], [['product_id' => $id, 'quantity' => 4]], 'cancelled');
+        test_order((int) $member['id'], [['product_id' => $id, 'quantity' => 5]], 'completed');
 
-        try {
-            db()->exec("INSERT INTO shop_orders (id, status) VALUES (1, 'pending'), (2, 'cancelled'), (3, 'completed')");
-            db()->exec(
-                "INSERT INTO shop_order_items (order_id, product_id, quantity, reservation_state) VALUES
-                 (1, {$id}, 3, 'reserved'),
-                 (2, {$id}, 4, 'reserved'),
-                 (3, {$id}, 5, 'reserved')"
-            );
+        /* Only the pending order holds stock. */
+        assert_same($stock - 3, StockService::available($id));
+        assert_same($stock - 3, StockService::availableMap([$id])[$id]);
 
-            /* Only the pending order holds stock. */
-            assert_same($stock - 3, StockService::available($id));
-            assert_same($stock - 3, StockService::availableMap([$id])[$id]);
+        db()->prepare("UPDATE shop_orders SET status = 'cancelled' WHERE id = ?")->execute([$pending]);
+        assert_same($stock, StockService::available($id), 'cancelling releases the reservation');
 
-            db()->exec("UPDATE shop_orders SET status = 'cancelled' WHERE id = 1");
-            assert_same($stock, StockService::available($id), 'cancelling releases the reservation');
-
-            db()->exec("UPDATE shop_orders SET status = 'pending' WHERE id = 1");
-            db()->exec("UPDATE shop_order_items SET reservation_state = 'deducted' WHERE order_id = 1");
-            assert_same($stock, StockService::available($id), 'shipped stock is deducted, not reserved');
-        } finally {
-            $dropLateTables();
-        }
+        db()->prepare("UPDATE shop_orders SET status = 'pending' WHERE id = ?")->execute([$pending]);
+        db()->prepare("UPDATE shop_order_items SET reservation_state = 'deducted' WHERE order_id = ?")->execute([$pending]);
+        assert_same($stock, StockService::available($id), 'shipped stock is deducted, not reserved');
     },
 
-    'P2-T2 availability never drops below zero' => function () use ($orderTables, $dropLateTables): void {
-        $id = Product::save(['name' => 'Zero Stock', 'price' => '1.00', 'stock' => '2', 'status' => 'active']);
+    'P2-T2 availability never drops below zero' => function (): void {
+        $id     = Product::save(['name' => 'Zero Stock', 'price' => '1.00', 'stock' => '2', 'status' => 'active']);
+        $member = test_user('zero_stock_member');
 
-        $orderTables();
+        test_order((int) $member['id'], [['product_id' => $id, 'quantity' => 9]], 'paid');
 
-        try {
-            db()->exec("INSERT INTO shop_orders (id, status) VALUES (10, 'paid')");
-            db()->prepare('INSERT INTO shop_order_items (order_id, product_id, quantity) VALUES (10, ?, 9)')->execute([$id]);
-
-            assert_same(0, StockService::available($id));
-        } finally {
-            $dropLateTables();
-            Product::delete($id);
-        }
+        assert_same(0, StockService::available($id));
     },
 
     /* ---------- Upload service (P2-T3) ------------------------------- */

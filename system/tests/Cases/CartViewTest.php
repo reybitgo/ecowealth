@@ -86,8 +86,9 @@ return [
         );
 
         assert_contains('Proceed to checkout', $html);
-        assert_contains('disabled', $html);
-        assert_contains('Checkout opens in Phase 6', $html);
+        assert_contains('href="' . url('checkout') . '"', $html);
+        assert_contains('Choose the delivery address', $html);
+        assert_not_contains('Checkout opens in Phase 6', $html);
         assert_contains('Continue shopping', $html);
     },
 
@@ -131,10 +132,10 @@ return [
         assert_contains('Only 1 left', $html);
         assert_contains('Fix the quantities marked above to continue.', $html);
 
-        /* The page-level summary switches its hint; the drawer still carries
-         * its own generic "Checkout opens in Phase 6" button, so assert on
-         * the page copy rather than the shared drawer. */
+        /* The page-level summary switches its hint and the checkout link
+         * stays disabled while a line is over stock. */
         assert_not_contains('Total is what you pay — no shipping or service fee.', $html);
+        assert_not_contains('href="' . url('checkout') . '"', $html);
     },
 
     'P4-T10 an inactive product line is flagged as unavailable' => function () use ($render, $makeProduct, $stateFor): void {
@@ -204,7 +205,7 @@ return [
         assert_contains('action="' . url('cart/update') . '"', $html);
         assert_contains('action="' . url('cart/remove') . '"', $html);
         assert_contains('View full cart', $html);
-        assert_contains('Checkout opens in Phase 6', $html);
+        assert_contains('href="' . url('checkout') . '"', $html);
     },
 
     'P4-T1 the empty drawer invites the member to the shop' => function (): void {

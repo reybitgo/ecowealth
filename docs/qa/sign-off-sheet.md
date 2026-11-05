@@ -1,6 +1,6 @@
-# EcoWealth — QA sign-off sheet (Phases 1–5)
+# EcoWealth — QA sign-off sheet (Phases 1–6)
 
-Fill this sheet while working through the five phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the six phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
@@ -10,8 +10,8 @@ still open in each phase of `docs/phase-log.md`.
 2. Record the automated results (§1).
 3. For each phase, tick every check in its table. Add the evidence file name; the file lives in
    `docs/qa/evidence/phase-<n>/`.
-4. Log every failure in the *Defect log* (§7) and keep its status up to date.
-5. Complete the *Final decision* (§8) and sign.
+4. Log every failure in the *Defect log* (§8) and keep its status up to date.
+5. Complete the *Final decision* (§9) and sign.
 
 ---
 
@@ -22,7 +22,7 @@ still open in each phase of `docs/phase-log.md`.
 | Tester name | |
 | Date(s) of testing | |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5` |
+| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6` |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | |
@@ -36,8 +36,8 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 207  Passed: 207  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 68  Failed: 0` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 238  Passed: 238  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 83  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -213,7 +213,40 @@ Document: [phase-5-wallet.md](phase-5-wallet.md)
 
 ---
 
-## 7. Defect log
+## 7. Phase 6 — Checkout & orders
+
+Document: [phase-6-orders.md](phase-6-orders.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA6-01 | Checkout shows cart, address and payments | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-02 | Address book saves and prefills checkout | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-03 | Missing term/address refused, input kept | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-04 | E-wallet order is paid and debited once | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-05 | Manual order stays pending with instructions | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-06 | Cancelling an unpaid order releases stock | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-07 | Paid order cannot be cancelled online | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-08 | E-wallet disabled when the balance is short | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-09 | My orders lists and filters correctly | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-10 | Another member cannot open the order (404) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-11 | Order numbers are well formed and unique | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-12 | Admin order desk stats, filters, table | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-13 | Admin order detail shows member + history | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-14 | Mobile checkout | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-15 | Stock, wallet and orders reconcile | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-16 | Earlier phases regression | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA6-17 | Cleanup restores the starting state | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 6 summary | |
+|---|---|
+| Executed | ____ / 17 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 8. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -233,7 +266,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 8. Final decision
+## 9. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -242,6 +275,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 3 | ☐ Yes ☐ No | |
 | Phase 4 | ☐ Yes ☐ No | |
 | Phase 5 | ☐ Yes ☐ No | |
+| Phase 6 | ☐ Yes ☐ No | |
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

@@ -272,9 +272,64 @@ function test_user(string $username = 'member', string $role = 'member', string 
     return (array) $stmt->fetch();
 }
 
-/** Sign the harness in as the given user row (for layout/guard tests). */
-function test_signed_in_as(?array $user): void
+/**
+ * Create a real order fixture for reservation / reference tests.
+ *
+ * The order tables exist from Phase 6 onward, so cases no longer need
+ * local DDL (which would commit the harness transaction).
+ *
+ * @param list<array{product_id:int, quantity?:int, reservation_state?:string}> $lines
+ * @param array<string, mixed> $overrides optional column => value overrides
+ * @return int the order id
+ */
+function test_order(int $userId, array $lines = [], string $status = 'pending', array $overrides = []): int
 {
+    $orderNo = 'TEST-' . strtoupper(bin2hex(random_bytes(5)));
+    $values  = [
+        'order_no'         => $orderNo,
+        'user_id'          => $userId,
+        'status'           => $status,
+        'payment_method'   => 'ewallet',
+        'billing_name'     => 'Test Buyer',
+        'shipping_name'    => 'Test Buyer',
+        'shipping_address' => 'Test address',
+        'terms_accepted_at' => date('Y-m-d H:i:s'),
+    ] + $overrides;
+
+    $columns = array_keys($values);
+    $marks   = implode(', ', array_fill(0, count($columns), '?'));
+
+    db()->prepare(
+        'INSERT INTO shop_orders (' . implode(', ', $columns) . ') VALUES (' . $marks . ')'
+    )->execute(array_values($values));
+
+    $orderId = (int) db()->lastInsertId();
+    $stmt    = db()->prepare(
+        "INSERT INTO shop_order_items
+           (order_id, product_id, product_name, product_sku, quantity, unit_price, line_total, reservation_state)
+         VALUES (?, ?, 'Test product', NULL, ?, 0.00, 0.00, ?)"
+    );
+
+    foreach ($lines as $line) {
+        $stmt->execute([
+            $orderId,
+            (int) $line['product_id'],
+            (int) ($line['quantity'] ?? 1),
+            (string) ($line['reservation_state'] ?? 'reserved'),
+        ]);
+    }
+
+    return $orderId;
+}
+
+/** Remove one fixture order (items and events cascade). */
+function test_delete_order(int $orderId): void
+{
+    db()->prepare('DELETE FROM shop_orders WHERE id = ?')->execute([$orderId]);
+}
+
+/** Sign the harness in as the given user row (for layout/guard tests). */
+function test_signed_in_as(?array $user): void{
     if ($user === null) {
         unset($_SESSION['user_id'], $_SESSION['logged_in_at']);
 

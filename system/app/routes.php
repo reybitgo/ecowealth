@@ -81,6 +81,10 @@ return [
     ['POST', '/admin/wallets/{id}/credit',       [AdminWalletController::class, 'credit'],    'admin'],     // do_admin_ewallet_topup
 
     /* ---------- Phase 6 — checkout & orders --------------------------
+     * Reference: checkout, place_order, shop_orders, shop_order,
+     * shop_cancel_order, profile, save_profile, shop_address_save,
+     * shop_address_delete, shop_address_default, admin_shop_orders,
+     * admin_shop_order. */
     ['GET',  '/profile',                         [ProfileController::class, 'index'],         'member'],    // profile
     ['POST', '/profile',                         [ProfileController::class, 'save'],          'member'],    // save_profile
     ['POST', '/profile/address',                 [ProfileController::class, 'saveAddress'],   'member'],    // shop_address_save
@@ -93,7 +97,6 @@ return [
     ['POST', '/orders/{id}/cancel',              [OrderController::class, 'cancel'],          'member'],    // shop_cancel_order
     ['GET',  '/admin/orders',                    [AdminOrderController::class, 'index'],      'admin'],     // admin_shop_orders
     ['GET',  '/admin/orders/{id}',               [AdminOrderController::class, 'show'],       'admin'],     // admin_shop_order
-    ----------------------------------------------------------------- */
 
     /* ---------- Phase 7 — manual payments ---------------------------
     ['POST', '/orders/{id}/proof',               [OrderController::class, 'proof'],            'member'],   // shop_submit_proof

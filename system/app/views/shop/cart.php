@@ -205,12 +205,19 @@ $isEmpty     = $items === [];
                       </p>
                     </div>
                     <div class="card-footer">
+<?php if ($stockErrors === [] && $shop_open): ?>
+                      <a href="<?= e(url('checkout')) ?>" class="btn btn-primary w-100">
+                        <i class="icon-base bx bx-credit-card me-1"></i> Proceed to checkout
+                      </a>
+                      <p class="text-body-secondary small text-center mt-3 mb-0">
+                        Choose the delivery address and payment method on the next step.
+                      </p>
+<?php else: ?>
                       <button type="button" class="btn btn-primary w-100" disabled>
                         <i class="icon-base bx bx-credit-card me-1"></i> Proceed to checkout
                       </button>
-<?php if ($stockErrors === []): ?>
                       <p class="text-body-secondary small text-center mt-3 mb-0">
-                        Checkout opens in Phase 6 — your cart is saved.
+                        <?= $stockErrors !== [] ? 'Fix the quantities marked above to continue.' : 'The shop is currently closed.' ?>
                       </p>
 <?php endif; ?>
                     </div>

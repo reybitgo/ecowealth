@@ -89,7 +89,7 @@ return [
         );
     },
 
-    'Live route table builds and contains the Phase 1 + 2 + 3 + 4 + 5 routes' => function (): void {
+    'Live route table builds and contains the Phase 1 + 2 + 3 + 4 + 5 + 6 routes' => function (): void {
         $routes = require dirname(__DIR__, 2) . '/app/routes.php';
         $router = new Router($routes);
 
@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(27, $live);
+        assert_count(39, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -126,9 +126,21 @@ return [
         assert_same('admin', $live['GET /admin/wallets']);
         assert_same('admin', $live['GET /admin/wallets/{id}']);
         assert_same('admin', $live['POST /admin/wallets/{id}/credit']);
+        assert_same('member', $live['GET /profile']);
+        assert_same('member', $live['POST /profile']);
+        assert_same('member', $live['POST /profile/address']);
+        assert_same('member', $live['POST /profile/address/{id}/delete']);
+        assert_same('member', $live['POST /profile/address/{id}/default']);
+        assert_same('member', $live['GET /checkout']);
+        assert_same('member', $live['POST /checkout']);
+        assert_same('member', $live['GET /orders']);
+        assert_same('member', $live['GET /orders/{id}']);
+        assert_same('member', $live['POST /orders/{id}/cancel']);
+        assert_same('admin', $live['GET /admin/orders']);
+        assert_same('admin', $live['GET /admin/orders/{id}']);
     },
 
-    'Live route table resolves the Phase 1 + 2 + 3 + 4 + 5 URLs' => function (): void {
+    'Live route table resolves the Phase 1 + 2 + 3 + 4 + 5 + 6 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
@@ -144,6 +156,16 @@ return [
         assert_same(AdminWalletController::class, $router->match('GET', '/admin/wallets')['route']['handler'][0]);
         assert_same(AdminWalletController::class, $router->match('GET', '/admin/wallets/12')['route']['handler'][0]);
         assert_same(AdminWalletController::class, $router->match('POST', '/admin/wallets/12/credit')['route']['handler'][0]);
+        assert_same(ProfileController::class, $router->match('GET', '/profile')['route']['handler'][0]);
+        assert_same(ProfileController::class, $router->match('POST', '/profile/address')['route']['handler'][0]);
+        assert_same(ProfileController::class, $router->match('POST', '/profile/address/4/default')['route']['handler'][0]);
+        assert_same(CheckoutController::class, $router->match('GET', '/checkout')['route']['handler'][0]);
+        assert_same(CheckoutController::class, $router->match('POST', '/checkout')['route']['handler'][0]);
+        assert_same(OrderController::class, $router->match('GET', '/orders')['route']['handler'][0]);
+        assert_same(OrderController::class, $router->match('GET', '/orders/8')['route']['handler'][0]);
+        assert_same(OrderController::class, $router->match('POST', '/orders/8/cancel')['route']['handler'][0]);
+        assert_same(AdminOrderController::class, $router->match('GET', '/admin/orders')['route']['handler'][0]);
+        assert_same(AdminOrderController::class, $router->match('GET', '/admin/orders/8')['route']['handler'][0]);
         assert_same(
             AdminDashboardController::class,
             $router->match('GET', '/admin')['route']['handler'][0]

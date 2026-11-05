@@ -482,6 +482,41 @@ function wallet_ref_icon(string $refType): string
 }
 
 /* ==============================================================
+ *  Orders & payments (plan §5.3–5.6; Phase 6)
+ * ============================================================== */
+
+/** Human label for `shop_orders.payment_method`. */
+function payment_method_label(string $method): string
+{
+    return [
+        'ewallet' => 'E-wallet',
+        'gcash'   => 'GCash',
+        'maya'    => 'Maya',
+        'bank'    => 'Bank transfer',
+    ][$method] ?? ucfirst(str_replace('_', ' ', $method));
+}
+
+/** Boxicons class for a payment method. */
+function payment_method_icon(string $method): string
+{
+    return 'bx ' . [
+        'ewallet' => 'bx-wallet',
+        'gcash'   => 'bx-mobile-alt',
+        'maya'    => 'bx-mobile',
+        'bank'    => 'bx-credit-card',
+    ][$method] ?? 'bx-credit-card';
+}
+
+/**
+ * Is the payment method settled when the order is placed (no proof)?
+ * Only the e-wallet is immediate in this build.
+ */
+function payment_method_is_instant(string $method): bool
+{
+    return $method === 'ewallet';
+}
+
+/* ==============================================================
  *  Settings (plan §4.2) — key/value rows in `settings`
  * ============================================================== */
 

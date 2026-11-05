@@ -2,16 +2,152 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  ProfileController — the member's own account
+ *  ProfileController — the member's own account (plan §5.3, Phase 6)
  *
- *  Phase 1 ships the password change only (reference:
- *  admin_change_password); profile editing and the address book
- *  arrive with the member profile in Phase 6. Every action is
- *  scoped to the signed-in user.
+ *  Phase 1 shipped the password change. Phase 6 adds the profile
+ *  page and the address book used by checkout:
+ *
+ *      GET  /profile                          profile + addresses
+ *      POST /profile                          full name
+ *      POST /profile/address                  create / update one address
+ *      POST /profile/address/{id}/delete      remove one address
+ *      POST /profile/address/{id}/default     make one address the default
+ *
+ *  Every action is scoped to the signed-in user; address writes go
+ *  through AddressService (one-default rule, ownership checks).
  * ============================================================== */
 
 final class ProfileController
 {
+    private AddressService $addresses;
+
+    public function __construct()
+    {
+        $this->addresses = new AddressService();
+    }
+
+    /** @param array<string, string> $params */
+    public function index(array $params = []): void
+    {
+        $user = $this->member();
+        $userId = (int) $user['id'];
+
+        $editId  = (int) Request::query('edit', 0);
+        $editing = $editId > 0 ? $this->addresses->find($editId, $userId) : null;
+
+        View::page('member', 'member/profile', [
+            'page_title'  => 'Profile',
+            'current_nav' => 'profile',
+            'page_css'    => ['assets/css/orders.css'],
+            'user'        => $user,
+            'addresses'   => $this->addresses->forUser($userId),
+            'editing'     => $editing,
+            'posted'      => old_payload(),
+        ]);
+    }
+
+    /** POST /profile */
+    public function save(array $params = []): void
+    {
+        $user = $this->member();
+
+        $input  = ['full_name' => Request::string('full_name')];
+        $errors = Validator::check($input, [
+            'full_name' => 'required|string|min:2|max:100',
+        ], [
+            'full_name' => 'Full name',
+        ]);
+
+        if ($errors !== []) {
+            errors_set($errors);
+            old_set($input);
+            flash_set('danger', 'Please fix the highlighted profile fields.');
+            redirect('profile');
+        }
+
+        db()->prepare('UPDATE users SET full_name = ? WHERE id = ?')
+            ->execute([mb_substr($input['full_name'], 0, 100), (int) $user['id']]);
+
+        old_clear();
+        flash_set('success', 'Profile updated.');
+        redirect('profile');
+    }
+
+    /** POST /profile/address */
+    public function saveAddress(array $params = []): void
+    {
+        $user   = $this->member();
+        $userId = (int) $user['id'];
+        $id     = (int) Request::post('address_id', 0);
+
+        $input = [
+            'label'          => Request::string('label'),
+            'recipient_name' => Request::string('recipient_name'),
+            'phone'          => Request::string('phone'),
+            'address_line'   => Request::string('address_line'),
+            'barangay'       => Request::string('barangay'),
+            'city'           => Request::string('city'),
+            'province'       => Request::string('province'),
+            'postal'         => Request::string('postal'),
+            'billing_name'   => Request::string('billing_name'),
+            'billing_phone'  => Request::string('billing_phone'),
+            'notes'          => Request::string('notes'),
+            'is_default'     => Request::post('is_default') === '1' ? 1 : 0,
+        ];
+
+        $errors = $this->addresses->validate($input);
+
+        if ($errors !== []) {
+            errors_set($errors);
+            old_payload_set($input + ['address_id' => $id]);
+            flash_set('danger', 'Please fix the highlighted address fields.');
+            redirect($id > 0 ? 'profile?edit=' . $id : 'profile');
+        }
+
+        try {
+            $this->addresses->save($userId, $input, $id > 0 ? $id : null);
+        } catch (InvalidArgumentException $e) {
+            errors_set(['address' => $e->getMessage()]);
+            old_payload_set($input + ['address_id' => $id]);
+            flash_set('danger', $e->getMessage());
+            redirect($id > 0 ? 'profile?edit=' . $id : 'profile');
+        }
+
+        old_payload_clear();
+        flash_set('success', $id > 0 ? 'Address updated.' : 'Address saved.');
+        redirect('profile');
+    }
+
+    /** POST /profile/address/{id}/delete */
+    public function deleteAddress(array $params = []): void
+    {
+        $user = $this->member();
+
+        $removed = $this->addresses->remove((int) ($params['id'] ?? 0), (int) $user['id']);
+
+        flash_set(
+            $removed ? 'success' : 'danger',
+            $removed ? 'Address removed.' : 'That address could not be found.'
+        );
+
+        redirect('profile');
+    }
+
+    /** POST /profile/address/{id}/default */
+    public function defaultAddress(array $params = []): void
+    {
+        $user = $this->member();
+
+        $ok = $this->addresses->setDefault((int) ($params['id'] ?? 0), (int) $user['id']);
+
+        flash_set(
+            $ok ? 'success' : 'danger',
+            $ok ? 'Default address updated.' : 'That address could not be found.'
+        );
+
+        redirect('profile');
+    }
+
     /** @param array<string, string> $params */
     public function password(array $params = []): void
     {
@@ -24,11 +160,7 @@ final class ProfileController
     /** @param array<string, string> $params */
     public function savePassword(array $params = []): void
     {
-        $user = auth_user();
-
-        if ($user === null) {
-            redirect('login');
-        }
+        $user = $this->member();
 
         $current = (string) Request::post('current_password', '');
         $new     = (string) Request::post('new_password', '');
@@ -78,5 +210,18 @@ final class ProfileController
         session_regenerate_id(true);
         flash_set('success', 'Your password has been updated. Use it the next time you sign in.');
         redirect('profile/password');
+    }
+
+    /** @return array<string, mixed> */
+    private function member(): array
+    {
+        $user = auth_user();
+
+        if ($user === null) {
+            flash_set('warning', 'Please sign in to continue.');
+            redirect('login');
+        }
+
+        return $user;
     }
 }

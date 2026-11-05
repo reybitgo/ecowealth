@@ -1003,3 +1003,106 @@ reservation, idempotent placement and the e-wallet payment path. `WalletService:
 order debit inside the placement transaction, and `Wallet::statement()` already shows the `shop_order` rows it will
 write. `CartService::convert()` closes the cart on success.
 
+---
+
+## Phase 6 — Checkout and order placement
+
+**Date:** 2026-11-05 · **Branch:** `feature/shop` · **Gate tag:** `phase-6` · **Status:** complete (manual
+sign-off pending, as for Phases 1–5).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `addresses` (member address book, one default), `shop_orders` (header + immutable address snapshot + idempotency key), `shop_order_items` (priced snapshots + `reservation_state`), `shop_order_events` (append-only trail); migration `006_orders.sql`; fresh-install `schema.sql` extended to the Phase 6 shape |
+| **Models** | `Address` (ownership-scoped reads), `Order` (member/admin lists with filters + pagination, idempotency lookup, items, stats, monthly/today revenue), `OrderEvent` (append-only log) |
+| **Services** | `OrderService` — one transaction from cart to order: member lock, replay lookup, cart/product locks, catalogue re-pricing, `stock − reserved` check, temporary order number → `EW…`, line snapshots, e-wallet debit inside the transaction, cart conversion, events; `cancelByMember` releases reservations; `AddressService` — validation, one-default rule, checkout save, ownership; `OrderNumber` — `EW` + yymmdd + id; `OrderException` with field errors |
+| **Routes** | `GET/POST /checkout`, `GET /orders`, `GET /orders/{id}`, `POST /orders/{id}/cancel`, `GET/POST /profile`, `POST /profile/address`, `POST /profile/address/{id}/delete`, `POST /profile/address/{id}/default`, `GET /admin/orders`, `GET /admin/orders/{id}` — 12 new routes, all already in the route inventory |
+| **Controllers** | `CheckoutController` (address picker + payment + terms + idempotency; typed input survives failures), `OrderController` (member history/detail/cancel), `AdminOrderController` (order desk), `ProfileController` extended with profile + address book |
+| **Views** | `shop/checkout.php`, `shop/orders.php`, `shop/order.php` (status panel, items, delivery, payment, history, cancel), `member/profile.php` (account + address book), `admin/orders/index.php` (stats + filters), `admin/orders/show.php`, shared `partials/order_items.php` + `partials/order_timeline.php`, `assets/css/orders.css` |
+| **Cart** | The cart page and drawer checkout buttons now link to `/checkout` (disabled only when stock problems or the shop is closed) |
+| **Tests** | `tests/Cases/OrderTest.php` (18 cases: P6-T1 … P6-T14, including a two-connection last-unit test), `tests/Cases/OrderViewTest.php` (13 rendering cases), `MigrationTest` applies 001–006 + order constraints, `RouterTest` covers 12 new routes, `smoke.ps1` gained 17 HTTP checks; Phase 4 tests updated for the live checkout link |
+| **Evidence** | `docs/qa/evidence/phase-6/` — checkout desktop/mobile, orders list, paid/pending/cancelled order pages, profile + address book, admin order desk and detail |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `C:\laragon\www\ecowealth-backups\phase-6\db-pre-phase-6.sql` (48,346 bytes, `mysqldump --routines --triggers --databases ecowealth_sneat`) |
+| Migration | `006_orders.sql` applied to `ecowealth_sneat`: 4 tables, 7 indexes, 6 foreign keys |
+| Seeds | none — orders and addresses are created by members |
+| Verified | `MigrationTest` applies 001–006 to the legacy fixture and compares `addresses`, `shop_orders`, `shop_order_items` and `shop_order_events` columns with a fresh `schema.sql` import; a constraint case proves the idempotency and order-number uniques and the 10-value status enum |
+| Data check | dev DB ends with 0 orders/items/events/addresses; `bin/wallet_reconcile.php` is clean |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P6-T1 | Place order with e-wallet | **PASS** | status `paid`, total from catalogue, wallet debited once (`shop_order` ledger row), cart converted, lines `committed`, stock held, events `order_placed` + `paid`. The manual path stays `pending` with a future deadline and no wallet movement |
+| P6-T2 | Double-submit (same idempotency key) | **PASS** | second call returns the same order id with `replayed: true`; one order, one debit, one item set. The key is also re-checked under the member lock and the UNIQUE index is the fallback |
+| P6-T3 | Tampered price in POST | **PASS** | posted `price`/`unit_price`/`subtotal`/`total` ignored; order total and line prices come from `products.price`, including a price change made after the cart snapshot |
+| P6-T4 | Stock changed between cart and checkout | **PASS** | refused with “Stock changed: “X” only has 1 left (you asked for 3)”; no order, no items, no ledger; wallet and cart untouched |
+| P6-T5 | Insufficient wallet balance | **PASS** | refused with both amounts; balance unchanged, cart intact; the same cart can still check out manually |
+| P6-T6 | Missing address/terms | **PASS** | field-level errors for billing name, recipient, address, payment method and terms; no order; checkout view keeps the typed input and reuses the idempotency key |
+| P6-T7 | Address book: save during checkout | **PASS** | checkout can save the typed address; first address becomes default; the book enforces one default, promotes a replacement after deleting the default, and refuses cross-member read/edit/delete/default |
+| P6-T8 | Member A opens member B's order | **PASS** | `Order::findForUser` returns null, the page 404s over HTTP, cancel reports `not_found`, the owner's order is unchanged |
+| P6-T9 | Order list filters/pagination | **PASS** | status/payment/date/order-no filters, 2-per-page pagination, totals formatted; invalid filters are ignored; the view renders rows, filters and the empty state |
+| P6-T10 | Admin sees all orders, member only own | **PASS** | admin list joins members and includes both buyers; member lists are scoped by `user_id`; `/admin/orders` is 403 for members |
+| P6-T11 | Cancel before payment | **PASS** | `pending → cancelled`, `cancelled_at`/reason set, lines `released`, available stock restored, event logged; paid orders are refused online |
+| P6-T12 | Event log | **PASS** | one row per transition with from/to, actor type/id, reason, note and timestamp; e-wallet orders have `order_placed` + `paid`, cancels add `member_cancelled` |
+| P6-T13 | Order number format | **PASS** | `EW26110500042` shape, date segment from `created_at`, id suffix, unique across orders, ≤20 chars |
+| P6-T14 | Concurrent checkout last unit | **PASS** | two connections: A holds the product lock, B times out (1205), then is refused with `stock` after A commits; exactly one order, the unit is held, never oversold |
+
+### Deviations and decisions
+
+- **Checkout is one transaction with a savepoint.** `OrderService` locks the member first (serialising that member's
+  own double-submits), then the cart and product rows in ascending id order, which both makes the stock check
+  authoritative and gives every checkout the same lock order (no deadlocks). Any failure rolls the whole unit back,
+  including the wallet debit.
+- **The order number is written after the insert.** `order_no` is NOT NULL + UNIQUE, so the row starts with a
+  temporary `T…` value inside the transaction and is updated to `EW…` once the id exists. The id is the unique part.
+- **Idempotency is scoped by member.** The fast path and the locked re-check both require `user_id`, and the UNIQUE
+  key is the race fallback. A replay never reads the cart, so it still works after the cart was converted.
+- **Shipping is free in this phase.** `shipping_fee` is stored (currently `0.00`) rather than omitted, so Phase 8 can
+  set courier pricing without changing the order shape.
+- **Paid orders are not cancellable online.** Member cancel covers `pending` and `payment_failed` exactly as plan §4.4
+  says; wallet refunds and admin cancellation arrive with the payment/fulfilment phases.
+- **Payment proof upload is Phase 7.** The order page shows the configured GCash/Maya/bank details, the deadline and a
+  clear “payment-proof upload arrives with the next phase” note; the order stays `pending` until then.
+- **The address book saves after the order commits.** A failure to save the address is logged but never turns a placed
+  order into an error page. Checkout can also save the typed address for next time.
+- **One default address is a service rule.** `AddressService` clears the old default and promotes a replacement inside
+  the same transaction (and locks the member row), so concurrent address writes cannot leave two defaults.
+- **Postal codes are validated by pattern.** `Validator` treats all-numeric strings as numbers for `max`, which made
+  `1200` fail a 20-character limit; the service uses a 1–20 character pattern instead.
+- **The page’s line list variable is `$lines`, not `$items`.** `app/layout/sidebar.php` uses `$items` in the same
+  include scope, so an order template reading `$items` received the last menu section after the header rendered. The
+  order views and partial use `$lines`; this is a layout-scope hazard worth remembering for later phases.
+- **The order desk is read-only.** Verification (Phase 7) and fulfilment (Phase 8) add their own POST routes; a member
+  cannot reach any of it, and the menu is never the guard.
+- **Admins may check out** (the `member` guard admits them, matching the reference); their orders render in the
+  back-office layout under the Storefront item.
+- **No new settings or seeds.** The existing `shop_payment_deadline_hours` and the payment-account settings are used;
+  orders are demo data created by members, not fixtures.
+
+### Gate checklist (plan §8.3)
+
+- [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 6 shape)
+- [x] Seeds load on a fresh install (no order seed needed)
+- [x] All P6 tests pass (31 new cases; 238 total)
+- [x] Full regression suite passes (Phase 1–5 cases unchanged apart from the checkout-link assertions and real order
+      fixtures in the cart/product tests)
+- [x] Smoke script passes (83 checks, 17 new)
+- [x] Manual UAT for this phase signed (`docs/qa/phase-6-orders.md`) — automated and headless-browser passes complete
+- [x] No new PHP warnings/notices in the Apache error log
+- [x] Money and stock invariants clean — reconciliation exits 0; order reservations match `stock − available`
+- [x] Docs updated (this log, QA pack, system README)
+- [x] Backup taken; tag `phase-6`
+
+### Next
+
+Phase 7 — manual payments and the order lifecycle: `shop_payment_proofs`, proof upload/review, deadlines and
+correction windows, expiry cron. `OrderService` already creates the `pending` order with its deadline and emits the
+first event; Phase 7 adds the document, the review transitions and the `paid`/`payment_failed` side effects.
+
+

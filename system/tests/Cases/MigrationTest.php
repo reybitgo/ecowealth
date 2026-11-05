@@ -18,6 +18,7 @@ $migrations    = [
     $migrationDir . '003_packages.sql',
     $migrationDir . '004_carts.sql',
     $migrationDir . '005_wallets.sql',
+    $migrationDir . '006_orders.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -75,6 +76,7 @@ return [
         foreach ([
             'settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products',
             'carts', 'cart_items', 'ewallet_ledger', 'ewallet_admin_topups',
+            'addresses', 'shop_orders', 'shop_order_items', 'shop_order_events',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -135,6 +137,36 @@ return [
 
         assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = {$userId}")->fetchColumn());
         assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = {$userId}")->fetchColumn());
+
+        /* Phase 6: the migrated order tables accept an address, an order,
+         * a line and its event. */
+        $pdo->exec(
+            "INSERT INTO addresses (user_id, recipient_name, address_line)
+             VALUES ({$userId}, 'Legacy Member', '1 Migration Street')"
+        );
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM addresses WHERE user_id = {$userId}")->fetchColumn());
+
+        $pdo->exec(
+            "INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                subtotal, total, terms_accepted_at)
+             VALUES ('EWT-MIG-1', {$userId}, 'pending', 'gcash', 'Legacy Member', 'Legacy Member',
+                     '1 Migration Street', 10.00, 10.00, NOW())"
+        );
+        $orderId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO shop_order_items
+               (order_id, product_id, product_name, quantity, unit_price, line_total, reservation_state)
+             VALUES ({$orderId}, (SELECT id FROM products WHERE sku = 'MIG-1'), 'Migrated product', 2, 5.00, 10.00, 'reserved')"
+        );
+        $pdo->exec(
+            "INSERT INTO shop_order_events (order_id, from_status, to_status, actor_type, actor_id, reason_code)
+             VALUES ({$orderId}, NULL, 'pending', 'member', {$userId}, 'order_placed')"
+        );
+
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM shop_order_items WHERE order_id = {$orderId}")->fetchColumn());
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM shop_order_events WHERE order_id = {$orderId}")->fetchColumn());
     },
 
     'migration adds the role index' => function () use ($buildMigrated): void {
@@ -190,6 +222,10 @@ return [
         assert_same($columnList($fresh, 'cart_items'), $columnList($migrated, 'cart_items'), 'cart_items columns differ from schema.sql');
         assert_same($columnList($fresh, 'ewallet_ledger'), $columnList($migrated, 'ewallet_ledger'), 'ewallet_ledger columns differ from schema.sql');
         assert_same($columnList($fresh, 'ewallet_admin_topups'), $columnList($migrated, 'ewallet_admin_topups'), 'ewallet_admin_topups columns differ from schema.sql');
+        assert_same($columnList($fresh, 'addresses'), $columnList($migrated, 'addresses'), 'addresses columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_orders'), $columnList($migrated, 'shop_orders'), 'shop_orders columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_order_items'), $columnList($migrated, 'shop_order_items'), 'shop_order_items columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_order_events'), $columnList($migrated, 'shop_order_events'), 'shop_order_events columns differ from schema.sql');
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {
@@ -219,6 +255,42 @@ return [
         $insert($pdo, $userId, 'refund', 77);
         $insert($pdo, $userId, 'commission', 78);
         assert_same(3, (int) $pdo->query("SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = {$userId}")->fetchColumn());
+    },
+
+    'migration guards the order idempotency key and status enum' => function () use ($buildMigrated): void {
+        $pdo    = $buildMigrated();
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        $insert = static function (PDO $pdo, int $userId, string $orderNo, string $key, string $status): void {
+            $pdo->exec(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                    idempotency_key, subtotal, total, terms_accepted_at)
+                 VALUES ('{$orderNo}', {$userId}, '{$status}', 'ewallet', 'Buyer', 'Buyer', 'Address',
+                         '{$key}', 10.00, 10.00, NOW())"
+            );
+        };
+
+        $insert($pdo, $userId, 'EWT-MIG-2', 'idem-key-1', 'paid');
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM shop_orders WHERE idempotency_key = 'idem-key-1'")->fetchColumn());
+
+        /* A second order may not reuse the idempotency key. */
+        assert_throws(
+            static fn () => $insert($pdo, $userId, 'EWT-MIG-3', 'idem-key-1', 'pending'),
+            PDOException::class
+        );
+
+        /* The 10-status lifecycle is enforced by the column. */
+        assert_throws(
+            static fn () => $insert($pdo, $userId, 'EWT-MIG-4', 'idem-key-2', 'delivery_failed'),
+            PDOException::class
+        );
+
+        /* The order number is unique. */
+        assert_throws(
+            static fn () => $insert($pdo, $userId, 'EWT-MIG-2', 'idem-key-3', 'pending'),
+            PDOException::class
+        );
     },
 
     'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {

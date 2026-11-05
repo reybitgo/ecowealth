@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1 + 2 + 3 + 4 + 5:
+    EcoWealth HTTP smoke test (Phase 1 + 2 + 3 + 4 + 5 + 6:
     P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8, P4-T1 ... P4-T13,
-    P5-T7 / P5-T9 / P5-T11).
+    P5-T7 / P5-T9 / P5-T11, P6-T1 ... P6-T11).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -207,7 +207,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4 + 5)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4 + 5 + 6)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -892,6 +892,220 @@ try {
             -and $adminWallet.Body -match 'E-wallet monitor') `
         "GET /wallet as admin -> 200 in the back-office layout (got $($adminWallet.Status))"
 
+    # ---- Phase 6: checkout & orders ---------------------------------------
+    $orderSku  = 'SMOKE-ORDER-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $orderName = 'Smoke Order Product ' + $orderSku
+
+    Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = $orderName
+        'sku'        = $orderSku
+        'price'      = '40.00'
+        'stock'      = '10'
+        'sort_order' = '999'
+        'status'     = 'active'
+    } | Out-Null
+
+    $orderProductId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = '$orderSku' LIMIT 1;" | Out-String).Trim())
+
+    # Start from an empty cart so the order totals are deterministic.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+
+    $checkoutGuest = Invoke-App -Path '/checkout'
+    Assert-That 'P6-T1' ($checkoutGuest.Status -eq 302 -and $checkoutGuest.Location -match '/login$') `
+        "GET /checkout as guest -> 302 login (got $($checkoutGuest.Status))"
+
+    $emptyCheckout = Invoke-App -Path '/checkout' -Session 'member'
+    Assert-That 'P6-T1' ($emptyCheckout.Status -eq 302 -and $emptyCheckout.Location -match '/shop$') `
+        "GET /checkout with an empty cart -> 302 shop (got $($emptyCheckout.Status))"
+
+    # Fund the member's e-wallet through the audited admin route.
+    Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'amount' = '1000.00'; 'note' = 'Smoke order funds' } | Out-Null
+    $walletBeforeOrder = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '2' } | Out-Null
+
+    $checkoutPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $checkoutToken = Get-Csrf $checkoutPage.Body
+    $idem          = ''
+    if ($checkoutPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $idem = $matches[1] }
+
+    Assert-That 'P6-T1' ($checkoutPage.Status -eq 200 -and $checkoutPage.Body -match 'Checkout' `
+            -and $checkoutPage.Body -match 'E-wallet' -and $checkoutPage.Body -match 'Place order' `
+            -and $checkoutPage.Body -match 'name="terms"' -and $idem -ne '') `
+        "GET /checkout -> 200 with items, payment, terms and an idempotency key (status=$($checkoutPage.Status), key=$idem)"
+
+    $checkoutForm = @{
+        '_csrf'             = $checkoutToken
+        'billing_name'      = 'Smoke Buyer'
+        'billing_phone'     = '0917 000 0000'
+        'shipping_name'     = 'Smoke Buyer'
+        'shipping_phone'    = '0917 000 0000'
+        'shipping_address'  = '12 Smoke Street'
+        'shipping_barangay' = 'Poblacion'
+        'shipping_city'     = 'Makati'
+        'shipping_province' = 'Metro Manila'
+        'shipping_postal'   = '1200'
+        'notes_member'      = 'Smoke checkout'
+        'payment_method'    = 'ewallet'
+        'terms'             = '1'
+        'idempotency_key'   = $idem
+        'save_address'      = '1'
+    }
+
+    $placed  = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $checkoutForm
+    $orderId = 0
+    if ($placed.Location -match '/orders/(\d+)$') { $orderId = [int]$matches[1] }
+
+    $orderStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $orderTotal  = (Invoke-MySql "SELECT total FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $orderNo     = (Invoke-MySql "SELECT order_no FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $orderNoOk   = $orderNo -match '^EW\d{6}\d{5,}$'
+    $orderLine   = (Invoke-MySql "SELECT CONCAT(quantity, '|', reservation_state) FROM shop_order_items WHERE order_id = $orderId;" | Out-String).Trim()
+    $walletAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+    $orderLedger = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'shop_order';" | Out-String).Trim()
+    $orderEvents = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $orderId;" | Out-String).Trim()
+
+    Assert-That 'P6-T1' ($placed.Status -eq 302 -and $orderId -gt 0 -and $orderStatus -eq 'paid' `
+            -and $orderTotal -eq '80.00' -and $orderNoOk -and $orderLine -eq '2|committed' `
+            -and [math]::Abs($walletAfter - ($walletBeforeOrder - 80)) -lt 0.001 `
+            -and $orderLedger -eq '1' -and $orderEvents -eq '2') `
+        "POST /checkout (e-wallet) -> paid order, wallet debited once, stock held (id=$orderId, no=$orderNo, total=$orderTotal, wallet=$walletAfter, ledger=$orderLedger, events=$orderEvents)"
+
+    # P6-T2 - the same idempotency key returns the same order.
+    $repeatForm = $checkoutForm.Clone()
+    $repeatForm.Remove('save_address')
+    $repeated = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $repeatForm
+    $orderCount = (Invoke-MySql "SELECT COUNT(*) FROM shop_orders WHERE user_id = $cartMemberId;" | Out-String).Trim()
+    $walletRepeat = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+    Assert-That 'P6-T2' ($repeated.Status -eq 302 -and $repeated.Location -match "/orders/$orderId$" `
+            -and $orderCount -eq '1' -and [math]::Abs($walletRepeat - $walletAfter) -lt 0.001) `
+        "a replayed checkout returns the same order without charging twice (orders=$orderCount, wallet=$walletRepeat)"
+
+    $ordersPage     = Invoke-App -Path '/orders' -Session 'member'
+    $ordersFiltered = Invoke-App -Path '/orders?status=paid' -Session 'member'
+    Assert-That 'P6-T9' ($ordersPage.Status -eq 200 -and $ordersPage.Body.Contains($orderNo) `
+            -and $ordersFiltered.Status -eq 200 -and $ordersFiltered.Body.Contains($orderNo)) `
+        "GET /orders lists the order and filters by status (all=$($ordersPage.Status), paid=$($ordersFiltered.Status))"
+
+    $orderPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    Assert-That 'P6-T1' ($orderPage.Status -eq 200 -and $orderPage.Body.Contains($orderNo) `
+            -and $orderPage.Body -match 'Payment received' -and $orderPage.Body.Contains($orderName)) `
+        "GET /orders/$orderId -> 200 with the paid order (got $($orderPage.Status))"
+
+    $foreignOrder = Invoke-App -Path "/orders/$orderId" -Session 'other'
+    Assert-That 'P6-T8' ($foreignOrder.Status -eq 404) `
+        "another member opening the order gets 404 (got $($foreignOrder.Status))"
+
+    $adminOrders = Invoke-App -Path '/admin/orders' -Session 'admin'
+    $adminOrder  = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P6-T10' ($adminOrders.Status -eq 200 -and $adminOrders.Body.Contains($orderNo) `
+            -and $adminOrders.Body -match 'Paid revenue' `
+            -and $adminOrder.Status -eq 200 -and $adminOrder.Body.Contains($memberUsername)) `
+        "the admin desk lists and opens every order (list=$($adminOrders.Status), detail=$($adminOrder.Status))"
+
+    $memberAdminOrders = Invoke-App -Path '/admin/orders' -Session 'member'
+    Assert-That 'P6-T10' ($memberAdminOrders.Status -eq 403) `
+        "a member cannot open /admin/orders (got $($memberAdminOrders.Status))"
+
+    # P6-T11 - a manual order can be cancelled before payment.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+
+    $manualPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $manualToken = Get-Csrf $manualPage.Body
+    $manualIdem  = ''
+    if ($manualPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $manualIdem = $matches[1] }
+
+    $manualForm = $checkoutForm.Clone()
+    $manualForm['_csrf']           = $manualToken
+    $manualForm['payment_method']  = 'gcash'
+    $manualForm['idempotency_key'] = $manualIdem
+    $manualForm.Remove('save_address')
+
+    $manualPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $manualForm
+    $manualId = 0
+    if ($manualPlaced.Location -match '/orders/(\d+)$') { $manualId = [int]$matches[1] }
+
+    $manualStatus   = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $manualId;" | Out-String).Trim()
+    $manualDeadline = (Invoke-MySql "SELECT payment_deadline FROM shop_orders WHERE id = $manualId;" | Out-String).Trim()
+    $manualWallet   = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+    $manualLedger   = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'shop_order';" | Out-String).Trim()
+
+    $manualPageView = Invoke-App -Path "/orders/$manualId" -Session 'member'
+    $orderPageToken = Get-Csrf $manualPageView.Body
+
+    Assert-That 'P6-T1' ($manualPlaced.Status -eq 302 -and $manualId -gt 0 -and $manualStatus -eq 'pending' `
+            -and $manualDeadline -ne '' -and $manualDeadline -ne 'NULL' `
+            -and [math]::Abs($manualWallet - $walletAfter) -lt 0.001 -and $manualLedger -eq '1' `
+            -and $manualPageView.Body -match 'Payment pending' -and $manualPageView.Body -match 'GCash' `
+            -and $manualPageView.Body -match 'Cancel order') `
+        "POST /checkout (GCash) -> pending order with a deadline, wallet untouched (id=$manualId, status=$manualStatus, wallet=$manualWallet)"
+
+    $cancelled = Invoke-App -Method 'POST' -Path "/orders/$manualId/cancel" -Session 'member' `
+        -Form @{ '_csrf' = $orderPageToken; 'reason' = 'Smoke cancel' }
+    $cancelStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $manualId;" | Out-String).Trim()
+    $cancelLine   = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $manualId;" | Out-String).Trim()
+    $cancelPage   = Invoke-App -Path "/orders/$manualId" -Session 'member'
+
+    Assert-That 'P6-T11' ($cancelled.Status -eq 302 -and $cancelStatus -eq 'cancelled' -and $cancelLine -eq 'released' `
+            -and $cancelPage.Body -match 'Order cancelled' -and $cancelPage.Body -match 'Smoke cancel') `
+        "POST /orders/{id}/cancel releases the reservation and cancels the order (status=$cancelStatus, line=$cancelLine)"
+
+    # P6-T7 - the checkout address was saved and the address book works.
+    $profilePage = Invoke-App -Path '/profile' -Session 'member'
+    Assert-That 'P6-T7' ($profilePage.Status -eq 200 -and $profilePage.Body.Contains('12 Smoke Street') `
+            -and $profilePage.Body.Contains('Smoke Buyer')) `
+        "GET /profile shows the address saved during checkout (got $($profilePage.Status))"
+
+    Invoke-App -Method 'POST' -Path '/profile/address' -Session 'member' -Form @{
+        '_csrf'          = (Get-Csrf $profilePage.Body)
+        'recipient_name' = 'Smoke Office'
+        'address_line'   = '99 Office Road'
+        'city'           = 'Pasig'
+        'is_default'     = '1'
+    } | Out-Null
+    $profileAfter = Invoke-App -Path '/profile' -Session 'member'
+
+    # Checkout needs a non-empty cart; put one unit back before reading it.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $checkoutAddress = Invoke-App -Path '/checkout' -Session 'member'
+    Assert-That 'P6-T7' ($profileAfter.Body.Contains('99 Office Road') `
+            -and $checkoutAddress.Status -eq 200 -and $checkoutAddress.Body.Contains('Smoke Office')) `
+        "the address book saves a new default and checkout pre-fills it (profile contains the address)"
+
+    # P6-T6 - missing terms is refused and the typed input is kept.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $termsPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $termsToken = Get-Csrf $termsPage.Body
+    $termsIdem  = ''
+    if ($termsPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $termsIdem = $matches[1] }
+
+    $badTermsForm = @{
+        '_csrf'            = $termsToken
+        'billing_name'     = 'No Terms Buyer'
+        'shipping_name'    = 'No Terms Buyer'
+        'shipping_address' = '12 Smoke Street'
+        'payment_method'   = 'gcash'
+        'idempotency_key'  = $termsIdem
+    }
+    $ordersBeforeBadTerms = (Invoke-MySql "SELECT COUNT(*) FROM shop_orders WHERE user_id = $cartMemberId;" | Out-String).Trim()
+    $badTerms = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $badTermsForm
+    $ordersAfterBadTerms = (Invoke-MySql "SELECT COUNT(*) FROM shop_orders WHERE user_id = $cartMemberId;" | Out-String).Trim()
+    $termsErrorPage = Invoke-App -Path '/checkout' -Session 'member'
+
+    Assert-That 'P6-T6' ($badTerms.Status -eq 302 -and $ordersBeforeBadTerms -eq $ordersAfterBadTerms `
+            -and $termsErrorPage.Body -match 'Please accept the terms' `
+            -and $termsErrorPage.Body.Contains('No Terms Buyer')) `
+        "a checkout without terms is refused, writes no order and keeps the input (orders=$ordersAfterBadTerms)"
+
+    # Leave the cart clean for the maintenance checks.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'
@@ -910,6 +1124,7 @@ try {
 } finally {
     # Always put the database back the way we found it.
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
+    try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-Null } } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }

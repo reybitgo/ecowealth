@@ -4,13 +4,14 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 5 — e-wallet core.** Phase 1 delivered the skeleton (router,
-layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
-Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package
-contents, the admin editor and the member packages page; Phase 4 adds the persistent cart,
-the drawer and the stock rules; Phase 5 adds the dual-bucket e-wallet, the immutable ledger,
-admin top-ups, the member statement and the back-office monitor. Checkout, referrals, payouts
-and super-login follow in later phases; their menu entries stay hidden until their phase lands.
+**Current status: Phase 6 — checkout, orders and the order desk.** Phase 1 delivered the skeleton
+(router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
+Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
+the admin editor and the member packages page; Phase 4 adds the persistent cart, the drawer and the
+stock rules; Phase 5 adds the dual-bucket e-wallet, the immutable ledger, admin top-ups, the member
+statement and the back-office monitor; Phase 6 adds the address book, checkout, order placement with
+stock reservation and e-wallet payment, the member order history and the admin order desk. Referrals,
+payouts and super-login follow in later phases; their menu entries stay hidden until their phase lands.
 
 | | |
 |---|---|
@@ -91,7 +92,7 @@ pages keep their scripts, everything else goes to the front controller.
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `5` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `6` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
@@ -113,13 +114,14 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 + 2 + 3 + 4 + 5 routes)
+│   ├── routes.php             the live route table (Phase 1 … 6 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
-│   ├── Controllers/           Home, Shop, Package, Cart, Wallet, AdminDashboard, AdminProduct,
-│   │                          AdminPackage, AdminWallet, Profile
-│   ├── Models/                Product, Package, Cart, Wallet, AuditLog
-│   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService
+│   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, AdminDashboard,
+│   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, Profile
+│   ├── Models/                Product, Package, Cart, Wallet, AuditLog, Address, Order, OrderEvent
+│   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
+│   │                          OrderService, OrderNumber, AddressService
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       wallet_reconcile.php (CLI only; never web-reachable)
@@ -131,15 +133,15 @@ system/
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 005_wallets
+│   ├── migrations/            001_settings_roles … 006_orders
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P5-T11)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P6-T14)
     ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration,
     │                          Product, ProductView, Package, PackageView, Cart, CartView,
-    │                          Wallet, WalletView
+    │                          Wallet, WalletView, Order, OrderView
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -216,6 +218,23 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | GET | `/admin/wallets/{id}` | admin | One member's wallet, statement and top-up form |
 | POST | `/admin/wallets/{id}/credit` | admin | Audited top-up (non-withdrawable) |
 
+### Phase 6 URLs — checkout and orders
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/profile` | member | Profile + address book |
+| POST | `/profile` | member | Save the full name |
+| POST | `/profile/address` | member | Create / update an address |
+| POST | `/profile/address/{id}/delete` | member | Delete an address |
+| POST | `/profile/address/{id}/default` | member | Make an address the default |
+| GET | `/checkout` | member | Address picker, payment, terms, idempotency key |
+| POST | `/checkout` | member | Place the order (one transaction) |
+| GET | `/orders` | member | Order history with status/payment/date/search filters |
+| GET | `/orders/{id}` | member | Order page: status, items, delivery, payment, history |
+| POST | `/orders/{id}/cancel` | member | Cancel an unpaid order and release its reservation |
+| GET | `/admin/orders` | admin | Order desk: stats, filters, every order |
+| GET | `/admin/orders/{id}` | admin | One order: member, items, delivery, payment, history |
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`, `/dashboard`.
 
@@ -241,13 +260,12 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 - `products.stock` is the **physical** count on hand. `available` is derived by
   `StockService`: `stock − reserved`, where reserved comes from non-terminal order lines
-  whose `reservation_state` is `reserved` or `committed`. The order tables arrive in
-  Phase 6, so until then availability equals the physical count — the service starts using
-  them automatically once they exist.
+  whose `reservation_state` is `reserved` or `committed`. Placement reserves, payment
+  commits, shipping deducts and cancellation releases (Phase 6/8).
 - The storefront lists **active** products, including sold-out ones (badge logic:
   `In stock`, `N left` at 5 or fewer, `Sold out`). Deactivating a product hides it from
   the shop and its detail URL returns 404; existing orders are never edited.
-- Prices are display-only here; checkout re-reads them in Phase 6.
+- Prices are display-only here; checkout re-reads them from the catalogue.
 - Product images are stored under `public/uploads/products/` with random names. Seeded
   demo products reference photos under `public/assets/img/products/`; two rows
   deliberately have no image so the placeholder path is exercised.
@@ -279,7 +297,7 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 - One **active** cart per member, created on the first add. `CartService` locks the account row
   before the lookup/insert, so two concurrent first-adds cannot create two carts; the cart becomes
-  `converted` when Phase 6 turns it into an order.
+  `converted` when checkout turns it into an order.
 - Every mutation is scoped by the caller's cart id — a posted `item_id` alone never authorises a
   write (the reference IDOR defect C3). Quantity is capped by `StockService::available()`
   (`stock − reserved`), not by client input.
@@ -314,10 +332,37 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 ---
 
+## Checkout and orders (Phase 6)
+
+- **Checkout is one transaction.** `OrderService::placeFromCart()` locks the member (serialising their own
+  double submits), the cart and every product row in ascending id order, re-prices from `products.price`,
+  re-checks `stock − reserved`, snapshots each line, writes the order and its events, debits the e-wallet
+  inside the same unit and converts the cart. Any failure rolls the whole attempt back — no order, no
+  reservation, no debit, cart intact.
+- **The server owns the money.** Posted prices and totals are never read; the order total is the catalogue
+  subtotal (plus the stored shipping fee, currently 0.00 until Phase 8).
+- **Idempotent placement.** The checkout form carries a hidden key; `shop_orders.idempotency_key` is UNIQUE
+  and the replay lookup runs again under the member lock, so a double submit returns the same order.
+- **Payments.** E-wallet pays immediately (`paid`, items `committed`) and debits the wallet
+  (`debitInternal`, so non-withdrawable funds are spent first). GCash/Maya/bank leave the order `pending`
+  with `shop_payment_deadline_hours`; proof upload/review arrives in Phase 7.
+- **Stock lifecycle.** Placement reserves (`reserved`), payment commits (`committed`), fulfilment will deduct
+  at ship (Phase 8), and cancellation releases. The cart, `StockService` and checkout all read the same
+  `stock − reserved` number.
+- **Addresses.** The address book keeps one default per member (a service rule, not an index) and every
+  order stores an immutable address snapshot — editing the book never rewrites an order.
+- **Member pages.** `/orders` lists the member's orders with filters; `/orders/{id}` shows the status panel,
+  line snapshots, delivery, payment, the event timeline and a cancel form for unpaid orders only.
+- **Order desk.** `/admin/orders` shows the stats, filters and every order; `/admin/orders/{id}` shows the
+  member's wallet link, items, delivery snapshot and history. Verification and fulfilment actions are next.
+- **Order numbers** are `EW` + `yymmdd` + the 5-digit id; the id is what makes them unique.
+
+---
+
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (207 cases in Phase 5)
+php tests/run.php                 # full suite (238 cases in Phase 6)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -331,12 +376,12 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
   explicitly, because DDL commits.
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–005 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–006 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
-member account with its wallet/top-up/audit rows, products with SKU prefix `SMOKE-`, packages named
-`Smoke Package…`, and `maintenance_mode`; all restored):
+member account with its wallet, orders, addresses and audit rows, products with SKU prefix `SMOKE-`,
+packages named `Smoke Package…`, and `maintenance_mode`; all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -357,9 +402,12 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `003_packages.sql` | `packages`, `package_levels` (levels 2–10, CHECK 2–10), `package_products` |
 | `004_carts.sql` | `carts`, `cart_items` |
 | `005_wallets.sql` | `users.ewallet_balance` + `withdrawable_balance`, `ewallet_ledger`, `ewallet_admin_topups` |
+| `006_orders.sql` | `addresses`, `shop_orders`, `shop_order_items`, `shop_order_events` |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
+Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
+`stock − reserved` number, and `OrderService` is the only writer of reservations.
 
 ---
 

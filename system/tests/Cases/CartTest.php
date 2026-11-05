@@ -23,34 +23,6 @@ $makeProduct = static function (array $overrides = []): int {
 
 $service = static fn (): CartService => new CartService();
 
-/* Minimal Phase 6 tables so a reservation can hold stock (P4-T3). */
-$orderTables = static function (): void {
-    db()->exec('DROP TABLE IF EXISTS shop_order_items');
-    db()->exec('DROP TABLE IF EXISTS shop_orders');
-    db()->exec(
-        "CREATE TABLE shop_orders (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            status VARCHAR(20) NOT NULL DEFAULT 'pending'
-        ) ENGINE=InnoDB"
-    );
-    db()->exec(
-        "CREATE TABLE shop_order_items (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            order_id INT UNSIGNED NOT NULL,
-            product_id INT UNSIGNED NOT NULL,
-            quantity INT UNSIGNED NOT NULL DEFAULT 1,
-            reservation_state VARCHAR(20) NOT NULL DEFAULT 'reserved'
-        ) ENGINE=InnoDB"
-    );
-    StockService::forgetSchemaCache();
-};
-
-$dropOrderTables = static function (): void {
-    db()->exec('DROP TABLE IF EXISTS shop_order_items');
-    db()->exec('DROP TABLE IF EXISTS shop_orders');
-    StockService::forgetSchemaCache();
-};
-
 return [
     /* ---------- P4-T1: create / add ------------------------------- */
 
@@ -154,43 +126,32 @@ return [
         assert_same('product_missing', $missing->reason);
     },
 
-    'P4-T3 reserved stock reduces what the cart will accept' => function () use ($service, $makeProduct, $orderTables, $dropOrderTables): void {
+    'P4-T3 reserved stock reduces what the cart will accept' => function () use ($service, $makeProduct): void {
         $member = test_user('cart_reserved');
         $id     = $makeProduct(['stock' => '3']);
 
-        $orderTables();
+        /* A real pending order holds two units (Phase 6 tables now exist). */
+        $orderId = test_order((int) $member['id'], [
+            ['product_id' => $id, 'quantity' => 2, 'reservation_state' => 'reserved'],
+        ]);
 
-        try {
-            db()->exec("INSERT INTO shop_orders (id, status) VALUES (1, 'pending')");
-            db()->prepare(
-                "INSERT INTO shop_order_items (order_id, product_id, quantity, reservation_state)
-                 VALUES (1, ?, 2, 'reserved')"
-            )->execute([$id]);
+        assert_same(1, StockService::available($id));
 
-            assert_same(1, StockService::available($id));
+        $error = assert_throws(
+            static fn () => $service()->add((int) $member['id'], $id, 2),
+            CartException::class
+        );
 
-            $error = assert_throws(
-                static fn () => $service()->add((int) $member['id'], $id, 2),
-                CartException::class
-            );
+        assert_same('Insufficient stock. Requested 2, only 1 available.', $error->getMessage());
 
-            assert_same('Insufficient stock. Requested 2, only 1 available.', $error->getMessage());
+        /* One unit is still purchasable. */
+        $ok = $service()->add((int) $member['id'], $id, 1);
+        assert_same(1, $ok['count']);
 
-            /* One unit is still purchasable. */
-            $ok = $service()->add((int) $member['id'], $id, 1);
-            assert_same(1, $ok['count']);
-        } finally {
-            $dropOrderTables();
-
-            /* The DDL above committed the case's transaction, so the rows
-             * created for it are cleaned up explicitly (deleting the member
-             * cascades their cart). */
-            db()->prepare('DELETE FROM users WHERE id = ?')->execute([(int) $member['id']]);
-
-            if (Product::find($id) !== null) {
-                Product::delete($id);
-            }
-        }
+        /* Cancelling the order releases the hold again. */
+        db()->prepare("UPDATE shop_orders SET status = 'cancelled' WHERE id = ?")->execute([$orderId]);
+        db()->prepare("UPDATE shop_order_items SET reservation_state = 'released' WHERE order_id = ?")->execute([$orderId]);
+        assert_same(3, StockService::available($id));
     },
 
     /* ---------- P4-T4: update / remove --------------------------- */
