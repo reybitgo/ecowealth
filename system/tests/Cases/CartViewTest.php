@@ -367,6 +367,22 @@ return [
         assert_contains('#layout-navbar .cart-navbar-badge', $app, 'the theme .btn .badge rule must be outranked');
         assert_not_contains('cart-navbar-badge', $shop, 'the navbar badge must not depend on shop.css');
         assert_not_contains('.cart-drawer {', $shop, 'the drawer must not depend on shop.css');
+
+        /* The shared stepper sizes to its content with a fixed, readable value
+         * field, so two/three-digit quantities never clip in the drawer. */
+        assert_true(
+            str_contains($app, '.cart-qty-group input[type=\'number\']'),
+            'the cart quantity input needs a fixed width rule'
+        );
+        assert_true(
+            str_contains($app, 'flex: 0 0 2.75rem'),
+            'the cart quantity input must not shrink below its digit width'
+        );
+        assert_not_contains(
+            '.cart-drawer .cart-qty-group',
+            $app,
+            'the drawer must not override the shared stepper width'
+        );
     },
 
     'P4-T5 the cart page never leaks another member’s line' => function () use ($render, $makeProduct, $stateFor): void {

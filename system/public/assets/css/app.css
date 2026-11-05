@@ -295,13 +295,25 @@
 }
 
 .cart-qty-group {
-  width: 7.25rem;
+  /* Size to the three pieces instead of a fixed rem width: a fixed group left
+   * the value field too narrow for two- and three-digit quantities, so the
+   * drawer clipped them. fit-content overrides Bootstrap's .input-group 100%. */
+  width: fit-content;
   flex-wrap: nowrap;
 }
 
+.cart-qty-group .btn {
+  flex: 0 0 auto;
+  padding-right: 0.55rem;
+  padding-left: 0.55rem;
+}
+
 .cart-qty-group input[type='number'] {
-  flex: 1 1 auto;
-  min-width: 2.4rem;
+  /* Fixed, readable field: fits 4 digits without the native spinner eating the
+   * value. The buttons keep their size, so the group grows with the digits. */
+  flex: 0 0 2.75rem;
+  width: 2.75rem;
+  min-width: 0;
   padding-right: 0.25rem;
   padding-left: 0.25rem;
   appearance: textfield;
@@ -371,6 +383,5 @@
   min-height: 60vh;
 }
 
-.cart-drawer .cart-qty-group {
-  width: 6.75rem;
-}
+/* The drawer uses the shared .cart-qty-group sizing (fit-content); no narrower
+ * override here, otherwise a two-digit quantity gets clipped again. */

@@ -864,3 +864,33 @@ breadcrumb, leaving the buy row focused on the purchase actions.
 - `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
 - Headless Chrome at 1440 × 900 and 360 × 800: the button aligns with the breadcrumb row, the action
   row keeps the one-line stepper, Add to cart and View cart.
+
+---
+
+## Post-Phase 4 — Drawer quantity fields hold large counts
+
+**Date:** 2026-11-05 · **Status:** complete · **Tests:** 179 PHP cases, 56 smoke checks
+
+### Problem
+
+The cart page displayed two-digit quantities correctly, but the off-canvas drawer clipped them —
+`33` and `99` showed only their first digit. The drawer group was narrower (6.75rem) than the cart
+page (7.25rem) while the theme’s buttons still took ~50px each, squeezing the value field to ~28px.
+
+### Changes
+
+- **`app.css`** — the shared `.cart-qty-group` now sizes to its content (`width: fit-content`,
+  `flex-wrap: nowrap`), with compact stepper buttons (`padding-inline: 0.55rem`) and a fixed
+  **2.75rem (44px)** value field that fits four digits without the native spinner.
+- Removed the drawer-only `6.75rem` width override and the cart page’s phone-only `5.9rem` override, so
+  the drawer, the cart page and mobile all use the same sizing.
+- **`CartViewTest`** — the stylesheet guard now asserts the fixed input width, the absence of the
+  drawer override, and the shared selector in `app.css`.
+- **Evidence** — `docs/qa/evidence/phase-4/final-cart-drawer-quantities.png`.
+
+### Verification
+
+- `php tests\run.php` — **179 / 179**.
+- `powershell -NoProfile -File tests\smoke.ps1` — **56 / 56**.
+- Headless Chrome with the QA cart (33 / 99 / 1): every drawer field measures 44px wide with
+  `scrollWidth <= clientWidth` (no clipping), and the cart page fields match at 95.9px groups.
