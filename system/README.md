@@ -388,14 +388,14 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   balance inside the e-wallet option. The terms are ticked by default; unticking them disables **Place order**
   (`app-checkout.js`), and the server still validates the checkbox.
 - **The server owns the money.** Posted prices and totals are never read; the order total is the catalogue
-  subtotal (plus the stored shipping fee, currently 0.00 until Phase 8).
+  subtotal plus the stored shipping fee (`0.00` for now — decision D8 keeps shipping free in this build).
 - **Idempotent placement.** The checkout form carries a hidden key; `shop_orders.idempotency_key` is UNIQUE
   and the replay lookup runs again under the member lock, so a double submit returns the same order.
 - **Payments.** E-wallet pays immediately (`paid`, items `committed`) and debits the wallet
   (`debitInternal`, so non-withdrawable funds are spent first). GCash/Maya/bank leave the order `pending`
   with `shop_payment_deadline_hours`; the proof upload and review loop is Phase 7 (below).
-- **Stock lifecycle.** Placement reserves (`reserved`), payment commits (`committed`), fulfilment will deduct
-  at ship (Phase 8), and cancellation releases. The cart, `StockService` and checkout all read the same
+- **Stock lifecycle.** Placement reserves (`reserved`), payment commits (`committed`), shipping deducts
+  (`deducted`, Phase 8) and cancellation releases. The cart, `StockService` and checkout all read the same
   `stock − reserved` number.
 - **Addresses.** The address book keeps one default per member (a service rule, not an index) and every
   order stores an immutable address snapshot — editing the book never rewrites an order.
@@ -428,14 +428,14 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   `/admin/proofs/{id}` stream — never linked directly.
 - **Verification.** The amount must equal the order total exactly and the reference must be unused on any
   other order (paid reference or a non-rejected proof). Verification commits the reservation
-  (`reserved` → `committed`; stock is deducted when the order ships in Phase 8).
+  (`reserved` → `committed`; the stock is deducted when the order ships — Phase 8).
 - **Rejection.** Marks the proof rejected, releases the hold, sets `payment_failed` and opens the
   correction window. A re-upload re-reserves the stock — and is refused if it sold out meanwhile, so the
   `stock − reserved` invariant can never go negative.
 - **Expiry.** The expiry job cancels `pending`/`payment_failed` orders past their applicable deadline,
   releases the stock and logs `payment_expired` (actor `system`). It is idempotent. It runs from the
   CLI (`php bin/shop_expire.php`), a guarded URL (`/system/cron/shop_expire.php`, handy locally and for
-  URL-only hosts) or `bin/shop_expire.cmd` on Windows; see [Cron](#cron-expiry-job) below and
+  URL-only hosts) or `bin/shop_expire.cmd` on Windows; see [Cron](#cron-jobs) below and
   `docs/cron.md`.
 - **Admin cancellation & refunds.** An administrator may cancel any order before it ships. A wallet-paid
   order is refunded through `WalletService::refund()`, which restores the withdrawable share the purchase
