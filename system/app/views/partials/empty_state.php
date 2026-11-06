@@ -18,7 +18,7 @@ $action_href  = $action_href ?? '';
 $action_label = $action_label ?? '';
 ?>
 <div class="text-center py-8 px-4">
-  <div class="avatar avatar-lg mb-4">
+  <div class="avatar avatar-lg mb-4 mx-auto empty-state-avatar">
     <span class="avatar-initial rounded-circle bg-label-secondary">
       <i class="icon-base <?= e($icon) ?> icon-lg"></i>
     </span>

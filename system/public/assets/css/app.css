@@ -393,5 +393,14 @@
   min-height: 60vh;
 }
 
+/* ---------- Empty states ----------
+ * The theme's .avatar is a block-level, fixed-size box with a pointer
+ * cursor. Inside a centered empty state it needs mx-auto to centre the
+ * circle, and a normal cursor because it is decorative, not an action. */
+.empty-state-avatar,
+.empty-state-avatar .avatar-initial {
+  cursor: default;
+}
+
 /* The drawer uses the shared .cart-qty-group sizing (fit-content); no narrower
  * override here, otherwise a two-digit quantity gets clipped again. */

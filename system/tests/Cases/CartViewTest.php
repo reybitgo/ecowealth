@@ -119,6 +119,29 @@ return [
         assert_contains('Browse the shop', $html);
         assert_not_contains('Proceed to checkout', $html);
         assert_not_contains('data-cart-page-items', $html);
+
+        /* The empty-state icon is a block-level avatar; mx-auto centres the
+         * circle instead of leaving it against the left edge. */
+        assert_contains('avatar avatar-lg mb-4 mx-auto empty-state-avatar', $html);
+    },
+
+    'P4-T1 the empty-state icon is centred and not pointer-cursored' => function (): void {
+        $html = View::partial('empty_state', [
+            'icon'         => 'bx bx-cart',
+            'title'        => 'Your cart is empty',
+            'text'         => 'Nothing here yet.',
+            'action_href'  => 'shop',
+            'action_label' => 'Browse the shop',
+        ]);
+
+        assert_contains('text-center', $html);
+        assert_contains('mx-auto empty-state-avatar', $html);
+        assert_contains('avatar-initial rounded-circle', $html);
+
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/app.css');
+
+        assert_contains('.empty-state-avatar', $css);
+        assert_contains('cursor: default;', $css);
     },
 
     'P4-T13 an over-stock line blocks checkout and explains why' => function () use ($render, $makeProduct, $stateFor): void {
