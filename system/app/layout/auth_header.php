@@ -21,16 +21,16 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     />
     <meta name="robots" content="noindex, nofollow" />
     <title><?= e($page_title) ?> | <?= e(APP_NAME) ?></title>
-    <!-- Favicon (SVG: no binary asset, no /favicon.ico round trip) -->
+    <!-- Favicon -->
     <link
       rel="icon"
-      type="image/svg+xml"
-      href="<?= e(asset_url('assets/img/favicon/favicon.svg')) ?>"
+      type="image/png"
+      href="<?= e(url('assets/img/favicon/favicon.png')) ?>"
     />
     <link
-      rel="mask-icon"
-      href="<?= e(url('assets/img/favicon/favicon.svg')) ?>"
-      color="#12a06a"
+      rel="alternate icon"
+      type="image/x-icon"
+      href="<?= e(url('assets/img/favicon/favicon.ico')) ?>"
     />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/fonts/iconify-icons.css')) ?>">

@@ -1345,7 +1345,7 @@ sign-off pending, as for Phases 1–6).
 | **Controllers** | `OrderController::proof` and the proof data on `show`; `AdminOrderController` review data, `proof` stream and `transition`; new `AdminSettingsController` (index/save, audited) |
 | **Views** | Proof panel, attempts card and correction copy in `shop/order.php`; review pane (attempts, verify/reject panels), self-review banner and refunding cancel card in `admin/orders/show.php`; new `admin/settings/index.php`; review-counter link on the order desk; `orders.css` additions |
 | **CLI** | `bin/shop_expire.php` — the expiry sweep with `--limit`, `--dry-run`, `--json`, exit 0/1 |
-| **Layout / UI** | `APP_PHASE` = 7; admin **Settings** item live under *System*; an SVG favicon replaces the two missing PNG/ICO links (they 404'd on every page and made browsers ask the docroot for `/favicon.ico`); `money_amount()` helper for editable money fields |
+| **Layout / UI** | `APP_PHASE` = 7; admin **Settings** item live under *System*; `money_amount()` helper for editable money fields |
 | **Tests** | `PaymentTest` (21 cases, including a bucket-accurate refund and self-review), `PaymentViewTest` (15), `MigrationTest` applies 001–008 + a proof-table constraint case, `RouterTest` covers the 5 new routes, `OrderViewTest` updated for the proof panel; `smoke.ps1` +15 P7 checks |
 | **Evidence** | `docs/qa/evidence/phase-7/` — 12 screenshots (member pending/review/rejected/paid, mobile; admin review/rejected/self/refund/settings/orders; the proof stream) plus the generated sample receipt |
 
@@ -1410,13 +1410,12 @@ sign-off pending, as for Phases 1–6).
 - **Two defects were caught in-phase and fixed:** the first `submitProof` did not re-reserve released lines
   (P7-T6 failed: availability stayed restored), and an invalid claim stored the file before validating it
   (orphan file). Both fixes are covered by the tests.
-- **The favicon was missing.** Both layouts linked `assets/img/favicon/favicon.{png,ico}`, which never
-  existed, so every page 404'd its icon and browsers asked the docroot for `/favicon.ico`. A small SVG
-  icon now ships at `assets/img/favicon/favicon.svg` and the layouts link it (verified 200 +
-  `image/svg+xml`).
+- **The favicon links are the theme's own.** Both layouts and the 503 page link
+  `assets/img/favicon/favicon.png` (with `favicon.ico` as the alternate); those files were already in
+  `public/assets/img/favicon/`. The `/favicon.ico` console entry the capture harness saw came from the
+  raw proof-image tab, which has no `<head>` — not from an app page.
 - **Browser capture needed wider one-off access**, as in Phase 0: headless Chrome needs named pipes the
-  sandbox blocks. The only browser error it reported, a `/favicon.ico` 404, came from the raw proof-image
-  tab (no `<head>`), not from an app page; the capture harness now ignores that one URL.
+  sandbox blocks. The capture harness ignores the raw image tab's `/favicon.ico` request.
 - **Shell deletes under `system/` were blocked in this session** (the sandbox denied them even after the
   bundled ACL diagnostic verified the path). The smoke script's proof-file sweep is therefore best-effort
   here; the database rows and settings are still restored by its `finally` block, and the leftover
