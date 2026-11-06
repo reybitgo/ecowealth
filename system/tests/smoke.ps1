@@ -1,19 +1,20 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1-7: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    EcoWealth HTTP smoke test (Phase 1-8: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
-    P6-T1 ... P6-T11, P7-T1 ... P7-T12).
+    P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
     maintenance mode, the product catalogue, the package matrix, the cart,
-    the e-wallet, checkout/orders and the manual payment loop end to end,
-    including the expiry job from both the CLI and its web entry.
+    the e-wallet, checkout/orders, the manual payment loop, fulfilment
+    (pack, ship, deliver, confirm, invoices) and the auto-complete job end
+    to end, including the expiry job from both the CLI and its web entry.
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
-    packages named "Smoke Package …", `maintenance_mode`, the payment
-    settings it edits, the smoke proof files and its orders.
+    packages named "Smoke Package …", `maintenance_mode`, the payment and
+    fulfilment settings it edits, the smoke proof files and its orders.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
 
@@ -1447,11 +1448,13 @@ try {
     $settingsToken  = Get-Csrf $settingsPage.Body
 
     foreach ($key in @(
-            'shop_enabled', 'shop_expiry_enabled', 'payment_gcash_number', 'payment_gcash_name',
+            'shop_enabled', 'shop_expiry_enabled', 'shop_autocomplete_enabled',
+            'payment_gcash_number', 'payment_gcash_name',
             'payment_maya_number', 'payment_maya_name', 'payment_bank_name',
             'payment_bank_account_name', 'payment_bank_account_number',
             'shop_payment_deadline_hours', 'shop_correction_window_hours',
-            'shop_max_proof_attempts')) {
+            'shop_max_proof_attempts', 'shop_autocomplete_days',
+            'seller_name', 'seller_address', 'seller_tin', 'seller_phone')) {
         $settingsSnapshot[$key] = Get-SettingValue $key
     }
 
@@ -1459,6 +1462,7 @@ try {
         '_csrf'                         = $settingsToken
         'shop_enabled'                  = '1'
         'shop_expiry_enabled'           = '1'
+        'shop_autocomplete_enabled'     = '1'
         'payment_gcash_number'          = '0917 123 4567'
         'payment_gcash_name'            = 'EcoWealth Smoke'
         'payment_maya_number'           = '0917 765 4321'
@@ -1469,27 +1473,42 @@ try {
         'shop_payment_deadline_hours'   = '30'
         'shop_correction_window_hours'  = '12'
         'shop_max_proof_attempts'       = '4'
+        'shop_autocomplete_days'        = '9'
+        'seller_name'                   = 'EcoWealth Smoke Trading'
+        'seller_address'                = '1 Smoke Plaza, Makati'
+        'seller_tin'                    = '000-111-222-000'
+        'seller_phone'                  = '0917 999 0000'
     }
     $settingsSaved = (Invoke-MySql "SELECT CONCAT(value, '|') FROM settings WHERE key_name = 'shop_payment_deadline_hours';" | Out-String).Trim()
     $attemptsSaved = Get-SettingValue 'shop_max_proof_attempts'
     $gcashSaved    = Get-SettingValue 'payment_gcash_number'
     $expirySaved   = Get-SettingValue 'shop_expiry_enabled'
+    $daysSaved     = Get-SettingValue 'shop_autocomplete_days'
+    $sellerSaved   = Get-SettingValue 'seller_name'
+    $autoSaved     = Get-SettingValue 'shop_autocomplete_enabled'
 
     Assert-That 'P7-T4' ($settingsPage.Status -eq 200 -and $settingsPage.Body -match 'Receiving accounts' `
             -and $settingsPage.Body -match 'name="shop_payment_deadline_hours"' `
             -and $settingsPage.Body -match 'name="shop_expiry_enabled"' `
+            -and $settingsPage.Body -match 'name="seller_name"' `
+            -and $settingsPage.Body -match 'name="shop_autocomplete_days"' `
+            -and $settingsPage.Body -match 'Fulfilment &amp; invoices' `
             -and $saveSettings.Status -eq 302 -and $settingsSaved -eq '30|' `
-            -and $attemptsSaved -eq '4' -and $gcashSaved -eq '0917 123 4567' -and $expirySaved -eq '1') `
-        "POST /admin/settings saves the accounts, windows and expiry switch (deadline=$settingsSaved, attempts=$attemptsSaved, expiry=$expirySaved)"
+            -and $attemptsSaved -eq '4' -and $gcashSaved -eq '0917 123 4567' -and $expirySaved -eq '1' `
+            -and $daysSaved -eq '9' -and $sellerSaved -eq 'EcoWealth Smoke Trading' -and $autoSaved -eq '1') `
+        "POST /admin/settings saves the accounts, windows, seller block and switches (deadline=$settingsSaved, attempts=$attemptsSaved, days=$daysSaved, seller=$sellerSaved)"
 
     $settingsAfter   = Invoke-App -Path '/admin/settings' -Session 'admin'
     $badSettings     = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
         '_csrf'                       = (Get-Csrf $settingsAfter.Body)
         'shop_enabled'                = '1'
         'shop_expiry_enabled'         = '1'
+        'shop_autocomplete_enabled'   = '1'
         'shop_payment_deadline_hours' = '0'
         'shop_correction_window_hours' = '12'
         'shop_max_proof_attempts'     = '4'
+        'shop_autocomplete_days'      = '9'
+        'seller_name'                 = 'EcoWealth Smoke Trading'
     }
     $settingsKept = Get-SettingValue 'shop_payment_deadline_hours'
     $settingsErrorPage = Invoke-App -Path '/admin/settings' -Session 'admin'
@@ -1501,6 +1520,167 @@ try {
     $memberSettings = Invoke-App -Path '/admin/settings' -Session 'member'
     Assert-That 'P7-T4' ($memberSettings.Status -eq 403) `
         "a member cannot open /admin/settings (got $($memberSettings.Status))"
+
+    # ---- Phase 8: fulfilment and invoices ---------------------------------
+    $invoiceCount = (Invoke-MySql "SELECT COUNT(*) FROM shop_invoices WHERE order_id = $orderId;" | Out-String).Trim()
+    $invoiceRow   = (Invoke-MySql "SELECT CONCAT(invoice_no, '|', subtotal, '|', total, '|', CASE WHEN voided_at IS NULL THEN 'live' ELSE 'void' END) FROM shop_invoices WHERE order_id = $orderId;" | Out-String).Trim()
+    $invoiceNo    = ''
+    if ($invoiceRow -match '^([^|]+)\|') { $invoiceNo = $matches[1] }
+
+    $invoiceMember = Invoke-App -Path "/orders/$orderId/invoice" -Session 'member'
+    $invoiceAdmin  = Invoke-App -Path "/admin/orders/$orderId/invoice" -Session 'admin'
+    $invoiceOther  = Invoke-App -Path "/orders/$orderId/invoice" -Session 'other'
+    $invoiceGuest  = Invoke-App -Path "/orders/$orderId/invoice"
+
+    Assert-That 'P8-T5' ($invoiceCount -eq '1' -and $invoiceRow -match '^INV-\d{6}-\d{5,}\|80\.00\|80\.00\|live$' `
+            -and $invoiceMember.Status -eq 200 -and $invoiceMember.Body -match 'SALES INVOICE' `
+            -and $invoiceMember.Body.Contains($invoiceNo) -and $invoiceMember.Body -match '@page \{ size: A4; margin: 14mm; \}' `
+            -and $invoiceMember.Body -notmatch 'layout-menu' `
+            -and $invoiceAdmin.Status -eq 200 -and $invoiceAdmin.Body.Contains($invoiceNo) `
+            -and $invoiceOther.Status -eq 404 -and $invoiceGuest.Status -eq 302) `
+        "an e-wallet payment freezes one A4 invoice; only its owner and an admin can read it (no=$invoiceNo, member=$($invoiceMember.Status), other=$($invoiceOther.Status), guest=$($invoiceGuest.Status))"
+
+    # P8-T6 - a reprint returns the same number and one row.
+    $invoiceAgain = Invoke-App -Path "/orders/$orderId/invoice" -Session 'member'
+    $invoiceCountAgain = (Invoke-MySql "SELECT COUNT(*) FROM shop_invoices WHERE order_id = $orderId;" | Out-String).Trim()
+    Assert-That 'P8-T6' ($invoiceAgain.Status -eq 200 -and $invoiceAgain.Body.Contains($invoiceNo) `
+            -and $invoiceAgain.Body -match 'SALES INVOICE' -and $invoiceCountAgain -eq '1') `
+        "re-printing the invoice returns the same snapshot (no=$invoiceNo, rows=$invoiceCountAgain)"
+
+    # P8-T1 - pack, ready to ship.
+    $stockBeforeShip = [int]((Invoke-MySql "SELECT stock FROM products WHERE id = $orderProductId;" | Out-String).Trim())
+    $adminOrderPage  = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    $pack = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/transition" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $adminOrderPage.Body); 'to' = 'packing'; 'note' = 'Smoke packing' }
+    $packStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $packPage   = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    $ready = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/transition" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $packPage.Body); 'to' = 'ready_to_ship' }
+    $readyStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $readyPage   = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T1' ($pack.Status -eq 302 -and $packStatus -eq 'packing' `
+            -and $packPage.Body -match 'Mark ready to ship' `
+            -and $ready.Status -eq 302 -and $readyStatus -eq 'ready_to_ship' `
+            -and $readyPage.Body -match 'name="tracking_number"' `
+            -and $readyPage.Body -match 'Ship order') `
+        "POST transition pack -> ready_to_ship (packed=$packStatus, ready=$readyStatus)"
+
+    # P8-T2 - shipping without tracking is refused.
+    $badShip = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $readyPage.Body); 'courier' = 'J&T Express'; 'tracking_number' = '' }
+    $afterBadShip      = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentAfterBad  = (Invoke-MySql "SELECT COUNT(*) FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $badShipPage       = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T2' ($badShip.Status -eq 302 -and $afterBadShip -eq 'ready_to_ship' `
+            -and $shipmentAfterBad -eq '0' -and $badShipPage.Body -match 'Tracking number is required') `
+        "shipping without tracking is refused with no write (status=$afterBadShip, shipments=$shipmentAfterBad)"
+
+    # P8-T1 / P8-T3 - ship: tracking saved, stock deducted exactly once.
+    $ship = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
+        -Form @{
+            '_csrf'           = (Get-Csrf $badShipPage.Body)
+            'courier'         = 'J&T Express'
+            'tracking_number' = 'JT-SMOKE-0001'
+            'notes'           = 'Smoke shipment'
+        }
+    $shipStatus    = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN shipped_at IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentRow   = (Invoke-MySql "SELECT CONCAT(courier, '|', tracking_number) FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $stockAfter    = [int]((Invoke-MySql "SELECT stock FROM products WHERE id = $orderProductId;" | Out-String).Trim())
+    $lineAfterShip = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $orderId;" | Out-String).Trim()
+    $shippedMemberPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    Assert-That 'P8-T1' ($ship.Status -eq 302 -and $shipStatus -eq 'shipped|yes' `
+            -and $shipmentRow -eq 'J&T Express|JT-SMOKE-0001' `
+            -and $shippedMemberPage.Body -match 'On the way' `
+            -and $shippedMemberPage.Body.Contains('JT-SMOKE-0001')) `
+        "shipping saves the courier + tracking and the member sees it (status=$shipStatus, shipment=$shipmentRow)"
+    Assert-That 'P8-T3' ($stockAfter -eq ($stockBeforeShip - 2) -and $lineAfterShip -eq 'deducted') `
+        "shipping deducts the stock once (before=$stockBeforeShip, after=$stockAfter, line=$lineAfterShip)"
+
+    # P8-T8 - an order that has shipped cannot be cancelled.
+    $shippedAdminPage = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    $cancelAfterShip  = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/transition" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $shippedAdminPage.Body); 'to' = 'cancelled'; 'reason_code' = 'customer_request' }
+    $afterCancelShip = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $cancelPage      = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T8' ($cancelAfterShip.Status -eq 302 -and $afterCancelShip -eq 'shipped' `
+            -and $cancelPage.Body -match 'cannot be cancelled') `
+        "cancelling a shipped order is refused (status=$afterCancelShip)"
+
+    # P8-T4 - deliver, then the member confirms receipt.
+    $deliver = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/deliver" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $cancelPage.Body); 'note' = 'Left at the reception' }
+    $deliveredRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN delivered_at IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentDelivered = (Invoke-MySql "SELECT CASE WHEN delivered_at IS NULL THEN 'no' ELSE 'yes' END FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $deliveredMemberPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    $confirm = Invoke-App -Method 'POST' -Path "/orders/$orderId/confirm" -Session 'member' `
+        -Form @{ '_csrf' = (Get-Csrf $deliveredMemberPage.Body); 'note' = 'Received in good order' }
+    $completedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN completed_at IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $confirmEvent = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $orderId AND reason_code = 'receipt_confirmed';" | Out-String).Trim()
+    $completedPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    Assert-That 'P8-T4' ($deliver.Status -eq 302 -and $deliveredRow -eq 'delivered|yes' -and $shipmentDelivered -eq 'yes' `
+            -and $deliveredMemberPage.Body -match 'Confirm your receipt' `
+            -and $confirm.Status -eq 302 -and $completedRow -eq 'completed|yes' -and $confirmEvent -eq '1' `
+            -and $completedPage.Body -match 'Order complete' -and $completedPage.Body -match 'View / print invoice') `
+        "deliver + member confirm -> completed with timestamps and one event (delivered=$deliveredRow, completed=$completedRow)"
+
+    # P8-T9 - the auto-complete job runs from its web entry and is idempotent.
+    # Use a second delivered order, backdated far beyond the window so a real
+    # dev database's young orders are never touched.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $autoPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $autoToken = Get-Csrf $autoPage.Body
+    $autoIdem  = ''
+    if ($autoPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $autoIdem = $matches[1] }
+    $autoForm  = $checkoutForm.Clone()
+    $autoForm['_csrf']           = $autoToken
+    $autoForm['idempotency_key'] = $autoIdem
+    $autoForm.Remove('save_address')
+    $autoPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $autoForm
+    $autoOrderId = 0
+    if ($autoPlaced.Location -match '/orders/(\d+)$') { $autoOrderId = [int]$matches[1] }
+
+    if ($autoOrderId -gt 0) {
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/transition" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'to' = 'packing' } | Out-Null
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/transition" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'to' = 'ready_to_ship' } | Out-Null
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/ship" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'courier' = 'LBC Express'; 'tracking_number' = 'LBC-SMOKE-1' } | Out-Null
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/deliver" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body) } | Out-Null
+
+        $autoDaysBefore = Get-SettingValue 'shop_autocomplete_days'
+        Set-SettingValue 'shop_autocomplete_days' '365'
+        Invoke-MySql "UPDATE shop_orders SET delivered_at = DATE_SUB(NOW(), INTERVAL 400 DAY) WHERE id = $autoOrderId;" | Out-Null
+        Invoke-MySql "UPDATE shop_shipments SET delivered_at = DATE_SUB(NOW(), INTERVAL 400 DAY) WHERE order_id = $autoOrderId;" | Out-Null
+
+        $autoDoctor = Invoke-App -Path '/cron/order_autocomplete.php?doctor=1'
+        $autoDry    = Invoke-App -Path '/cron/order_autocomplete.php?dry-run=1'
+        $autoFirstRaw  = Invoke-App -Path '/cron/order_autocomplete.php?json=1'
+        $autoSecondRaw = Invoke-App -Path '/cron/order_autocomplete.php?json=1'
+        $autoFirst  = $null
+        $autoSecond = $null
+        try { $autoFirst = $autoFirstRaw.Body | ConvertFrom-Json } catch { }
+        try { $autoSecond = $autoSecondRaw.Body | ConvertFrom-Json } catch { }
+        $autoStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $autoOrderId;" | Out-String).Trim()
+        $autoEvent  = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $autoOrderId AND reason_code = 'auto_completed';" | Out-String).Trim()
+
+        Set-SettingValue 'shop_autocomplete_days' $autoDaysBefore
+
+        Assert-That 'P8-T9' ($autoDoctor.Status -eq 200 -and $autoDoctor.Body -match 'enabled' `
+                -and $autoDry.Status -eq 200 -and $autoDry.Body -match 'candidates:' `
+                -and $autoFirst.ok -eq $true -and @($autoFirst.ids) -contains $autoOrderId `
+                -and $autoSecond.completed -eq 0 -and $autoStatus -eq 'completed' -and $autoEvent -eq '1') `
+            "order_autocomplete.php completes the old delivery once and is idempotent (first=$($autoFirst.completed), second=$($autoSecond.completed), status=$autoStatus)"
+    } else {
+        Assert-That 'P8-T9' $false "the second checkout for the auto-complete check did not create an order"
+    }
 
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null

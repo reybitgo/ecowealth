@@ -89,7 +89,7 @@ return [
         );
     },
 
-    'Live route table builds and contains the Phase 1 + 2 + 3 + 4 + 5 + 6 routes' => function (): void {
+    'Live route table builds and contains the Phase 1–8 routes' => function (): void {
         $routes = require dirname(__DIR__, 2) . '/app/routes.php';
         $router = new Router($routes);
 
@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(45, $live);
+        assert_count(50, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -144,9 +144,14 @@ return [
         assert_same('admin', $live['POST /admin/orders/{id}/transition']);
         assert_same('admin', $live['GET /admin/settings']);
         assert_same('admin', $live['POST /admin/settings']);
+        assert_same('member', $live['GET /orders/{id}/invoice']);
+        assert_same('member', $live['POST /orders/{id}/confirm']);
+        assert_same('admin', $live['POST /admin/orders/{id}/ship']);
+        assert_same('admin', $live['POST /admin/orders/{id}/deliver']);
+        assert_same('admin', $live['GET /admin/orders/{id}/invoice']);
     },
 
-    'Live route table resolves the Phase 1 + 2 + 3 + 4 + 5 + 6 + 7 URLs' => function (): void {
+    'Live route table resolves the Phase 1–8 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
@@ -225,10 +230,32 @@ return [
             AdminSettingsController::class,
             $router->match('POST', '/admin/settings')['route']['handler'][0]
         );
+        assert_same(
+            OrderController::class,
+            $router->match('POST', '/orders/8/confirm')['route']['handler'][0]
+        );
+        assert_same(
+            OrderController::class,
+            $router->match('GET', '/orders/8/invoice')['route']['handler'][0]
+        );
+        assert_same(
+            AdminOrderController::class,
+            $router->match('POST', '/admin/orders/8/ship')['route']['handler'][0]
+        );
+        assert_same(
+            AdminOrderController::class,
+            $router->match('POST', '/admin/orders/8/deliver')['route']['handler'][0]
+        );
+        assert_same(
+            AdminOrderController::class,
+            $router->match('GET', '/admin/orders/8/invoice')['route']['handler'][0]
+        );
         assert_null($router->match('GET', '/no-such-page'));
         assert_null($router->match('GET', '/admin/products/abc/edit'));
         assert_null($router->match('GET', '/admin/packages/abc/edit'));
-        assert_null($router->match('GET', '/admin/orders/8/hold'), 'hold is deferred to Phase 8');
+        assert_null($router->match('GET', '/admin/orders/8/hold'), 'hold is deferred (no on_hold status)');
+        assert_null($router->match('GET', '/admin/orders/8/resume'), 'resume is deferred with hold');
         assert_null($router->match('GET', '/admin/proofs/abc'));
+        assert_null($router->match('GET', '/orders/8/invoice/extra'));
     },
 ];

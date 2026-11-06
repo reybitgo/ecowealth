@@ -1,6 +1,6 @@
-# EcoWealth — QA sign-off sheet (Phases 1–7)
+# EcoWealth — QA sign-off sheet (Phases 1–8)
 
-Fill this sheet while working through the seven phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the eight phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
@@ -22,7 +22,7 @@ still open in each phase of `docs/phase-log.md`.
 | Tester name | |
 | Date(s) of testing | |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6`, `phase-7` (+ profile payout-account follow-up) |
+| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6`, `phase-7`, `phase-8` (+ profile payout-account follow-up) |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | |
@@ -36,8 +36,8 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 295  Passed: 295  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 102  Failed: 0` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 329  Passed: 329  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 111  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -280,7 +280,42 @@ Document: [phase-7-payments.md](phase-7-payments.md)
 
 ---
 
-## 9. Defect log
+## 9. Phase 8 — Fulfilment, completion & invoices
+
+Document: [phase-8-fulfilment.md](phase-8-fulfilment.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA8-01 | Paid order shows invoice + next-step copy | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-02 | Ready-to-ship state on the member side | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-03 | Shipped order shows courier + tracking | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-04 | Delivered order asks for confirmation | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-05 | Confirm receipt completes the order | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-06 | Printable A4 invoice with frozen facts | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-07 | Reprinting returns the same invoice | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-08 | Another member cannot open the invoice | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-09 | Start packing | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-10 | Mark ready to ship | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-11 | Shipping validation + stock deduction | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-12 | Mark delivered | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-13 | Shipped order cannot be cancelled | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-14 | Admin invoice + void after cancellation | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-15 | Auto-complete job (URL, idempotent) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-16 | Seller block + completion settings | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-17 | Stock, ledger and invoice invariants | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-18 | Mobile layout + earlier phases | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA8-19 | Cleanup restores the starting state | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 8 summary | |
+|---|---|
+| Executed | ____ / 19 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 10. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -300,7 +335,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 10. Final decision
+## 11. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -311,6 +346,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 5 | ☐ Yes ☐ No | |
 | Phase 6 | ☐ Yes ☐ No | |
 | Phase 7 | ☐ Yes ☐ No | |
+| Phase 8 | ☐ Yes ☐ No | |
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

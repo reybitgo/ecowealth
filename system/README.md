@@ -4,7 +4,7 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 7 — manual payments and the order lifecycle.** Phase 1 delivered the skeleton
+**Current status: Phase 8 — fulfilment, completion and invoices.** Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
 the admin editor and the member packages page; Phase 4 adds the persistent cart, the drawer and the
@@ -13,16 +13,19 @@ statement and the back-office monitor; Phase 6 adds the address book, checkout, 
 stock reservation and e-wallet payment, the member order history and the admin order desk; Phase 7
 adds the manual payment loop (proof upload, admin verify/reject, deadlines, correction windows, stock
 release/re-reserve), admin cancellation with a wallet refund, the expiry command and the admin
-settings page for payment accounts and windows. The expiry job runs from the CLI **and** from a
-guarded URL (`/system/cron/shop_expire.php`), has a kill switch on the settings page and logs to
-`system/storage/`. Registration and commissions follow in later phases; their menu entries stay
-hidden until their phase lands.
+settings page; Phase 8 adds the paid side of the order machine — pack, ready to ship, ship with
+courier + tracking (stock deducted at that point), deliver, member receipt confirmation, the
+auto-complete job, and the immutable printable invoice issued when an order is paid. The expiry job
+runs from the CLI **and** from a guarded URL (`/system/cron/shop_expire.php`); the auto-complete job
+does the same at `/system/cron/order_autocomplete.php`. Both have kill switches on the settings page
+and log to `system/storage/`. Registration and commissions follow in later phases; their menu entries
+stay hidden until their phase lands.
 
 | | |
 |---|---|
 | App URL (Laragon) | `http://localhost/ecowealth/system/` |
 | Front door | `http://localhost/ecowealth/` → repo-root `index.html` |
-| Expiry cron | `docs/cron.md` (CLI, URL, Windows launcher, Hostinger) |
+| Scheduled jobs | `docs/cron.md` (expiry + auto-complete: CLI, URL, Windows launcher, Hostinger) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
 
@@ -98,7 +101,7 @@ pages keep their scripts, everything else goes to the front controller.
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `7` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `8` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
@@ -120,40 +123,43 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 … 7 routes)
+│   ├── routes.php             the live route table (Phase 1 … 8 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate,
-│   │                          CronAccess, CronLock, CronLog
+│   │                          CronAccess, CronLock, CronLog, InvoicePage
 │   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, AdminDashboard,
 │   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, AdminSettings,
 │   │                          Profile
 │   ├── Models/                Product, Package, Cart, Wallet, AuditLog, Address, Order, OrderEvent,
-│   │                          PaymentProof
+│   │                          PaymentProof, Shipment, Invoice
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
 │   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService,
-│   │                          PaymentService
+│   │                          PaymentService, FulfilmentService, FulfilmentException, InvoiceService,
+│   │                          InvoiceNumber
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
-├── bin/                       shop_expire.php + shop_expire.cmd (expiry job), wallet_reconcile.php
+├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd, wallet_reconcile.php
 ├── storage/                   cron logs/ and locks/ (outside public/, ignored, deny-all .htaccess)
 ├── public/                    docroot
 │   ├── index.php              front controller
 │   ├── router.php             PHP built-in server parity
 │   ├── cron/shop_expire.php   guarded web entry for the expiry job (local/URL cron)
+│   ├── cron/order_autocomplete.php  guarded web entry for the auto-complete job
 │   ├── login.php register.php logout.php dashboard.php   (standalone this build)
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 009_shop_expiry
+│   ├── migrations/            001_settings_roles … 010_fulfilment
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P7-T12)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P8-T10)
     ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration,
     │                          Product, ProductView, Package, PackageView, Cart, CartView,
-    │                          Wallet, WalletView, Order, OrderView, Payment, PaymentView, Cron
+    │                          Wallet, WalletView, Order, OrderView, Payment, PaymentView,
+    │                          Fulfilment, FulfilmentView, Invoice, Cron
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -253,14 +259,24 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 |---|---|---|---|
 | POST | `/orders/{id}/proof` | member | Upload a payment proof (JPG/PNG/WebP/PDF ≤ 5 MB) |
 | GET | `/admin/proofs/{id}` | admin | Stream one stored proof (never a public URL) |
-| POST | `/admin/orders/{id}/transition` | admin | Verify (`paid`), reject (`payment_failed`) or cancel |
-| GET | `/admin/settings` | admin | Payment accounts, payment/correction windows, expiry switch |
+| POST | `/admin/orders/{id}/transition` | admin | Verify (`paid`), reject (`payment_failed`) or cancel; Phase 8 also pack (`packing`) and ready (`ready_to_ship`) |
+| GET | `/admin/settings` | admin | Payment accounts, payment/correction windows, seller block, expiry/auto-complete switches |
 | POST | `/admin/settings` | admin | Validated, audited save (`settings.update`) |
 
+### Phase 8 URLs — fulfilment and invoices
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| POST | `/admin/orders/{id}/ship` | admin | Courier + tracking required; deducts the stock and writes the shipment |
+| POST | `/admin/orders/{id}/deliver` | admin | Shipped → delivered, optional proof-of-delivery note |
+| POST | `/orders/{id}/confirm` | member | Delivered → completed (own order only) |
+| GET | `/orders/{id}/invoice` | member | Printable A4 snapshot; own paid orders only |
+| GET | `/admin/orders/{id}/invoice` | admin | The same snapshot from the back office |
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
-`/login`, `/register`, `/logout`, `/dashboard`. The expiry job's web entry
-(`/cron/shop_expire.php` → `public/cron/shop_expire.php`) is a standalone, guarded file too; see
-[Cron](#cron-expiry-job).
+`/login`, `/register`, `/logout`, `/dashboard`. The two job entries
+(`/cron/shop_expire.php`, `/cron/order_autocomplete.php` → `public/cron/`) are standalone, guarded
+files too; see [Cron](#cron-jobs).
 
 Every route is mirrored in `app/routes_inventory.php`, which maps all 98 reference pages.
 `tests/Cases/ParityTest.php` (P1-T12) fails when a page marked *Port* has no matching
@@ -275,8 +291,10 @@ route or a later-phase route is registered early.
 cover payment accounts, shop windows, commission toggles, payout fees, USDT rates and
 e-wallet transfer limits; later phases read them without further migrations. Since Phase 7 the
 payment accounts and the three payment windows (`shop_payment_deadline_hours`,
-`shop_correction_window_hours`, `shop_max_proof_attempts`) are editable at `/admin/settings`
-(Phase 15 expands that page).
+`shop_correction_window_hours`, `shop_max_proof_attempts`) are editable at `/admin/settings`; since
+Phase 8 the same page edits the invoice seller block (`seller_name/address/tin/phone`) and the
+auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The full
+settings page expands in Phase 15.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.
@@ -432,29 +450,72 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 ---
 
-## Cron (expiry job)
+## Fulfilment, completion and invoices (Phase 8)
 
-| Entry | Path | Use |
-|---|---|---|
-| CLI | `bin/shop_expire.php` | Hostinger/SSH cron, CI |
-| Web | `/system/cron/shop_expire.php` (`public/cron/shop_expire.php`) | Local browser testing, URL-only cron |
-| Windows | `bin/shop_expire.cmd` | Task Scheduler, Laragon terminal |
+- **The paid half of the order machine.** `paid → packing → ready_to_ship → shipped → delivered
+  → completed`. `FulfilmentService` owns every step: each call locks the order row, re-checks the
+  status and writes the status, timestamps, shipment facts and event in one transaction. Pack and
+  ready-to-ship reuse the Phase 7 `POST /admin/orders/{id}/transition` endpoint (`to=packing` /
+  `to=ready_to_ship`); ship and deliver have their own routes.
+- **Shipping needs courier + tracking.** A missing or malformed value is a field error and nothing is
+  written. Saving a shipment **deducts `products.stock`** and marks the lines `deducted` in the same
+  transaction, so `stock − reserved` is continuous across the shipment (`FulfilmentService` locks the
+  products in ascending id order, the same order checkout uses). If the physical count was corrected
+  below the order quantity, the ship is refused with a clear message instead of overselling.
+- **Delivery and confirmation.** An admin marks a shipped order delivered (optional POD note, appended
+  to the shipment notes). The member then confirms receipt from the order page; the order becomes
+  `completed` with `completed_at` and a `receipt_confirmed` event. Confirming is scoped to the buyer.
+- **No cancellation after shipment.** `PaymentService::cancelByAdmin` and the order page both refuse
+  it; a returns/RTS flow is deferred.
+- **Invoices are immutable snapshots.** `InvoiceService` writes one `shop_invoices` row plus its
+  `shop_invoice_items` inside the transaction that marks an order paid (e-wallet at placement, manual
+  payment at verification). Numbering is `INV-yymmdd-#####`. Seller identity
+  (`seller_name/address/tin/phone`), buyer, delivery address, lines and totals are frozen; editing
+  the settings or the catalogue later never rewrites an issued invoice. Re-printing reads the same
+  row, so the number and content never drift.
+- **Voiding.** Cancelling a paid order marks its invoice `voided_at` / `void_reason`; the document is
+  kept and printed with a **VOID** stamp (content unchanged). Nothing is deleted.
+- **Backfill.** A paid order from before this phase has no snapshot; opening its invoice page issues
+  one once, under the order row lock (two tabs produce one invoice).
+- **Auto-complete.** `FulfilmentService::autoComplete()` completes `delivered` orders older than
+  `shop_autocomplete_days` (default 7) with an `auto_completed` event (actor `system`). Idempotent;
+  `shop_autocomplete_enabled=0` skips every run.
+- **Settings.** `/admin/settings` gains **Fulfilment & invoices**: the seller block printed on every
+  invoice and the auto-complete days + switch. Saves are validated and audited.
 
-- Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `from-settings`, `json`, `doctor`,
-  `log-dir` (CLI only), `quiet` (CLI only), `help`.
-- `--from-settings` recomputes deadlines from the **current** settings instead of the stored stamps
-  (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction window). The
-  cron itself uses the stamps, so changing a window never retroactively cancels old orders.
-- The web entry is trusted on loopback (local testing needs no setup); any other caller needs `?key=`
-  matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
-- One run at a time (`CronLock`), monthly log at `storage/logs/shop_expire-YYYY-MM.log`, and
-  `--doctor` reports PHP/DB time, settings, candidates, lock and log state.
-- The kill switch `shop_expiry_enabled` (settings page) makes every run exit 0 without cancelling.
+---
+
+## Cron jobs
+
+Two scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
+
+| Job | CLI | Web | Windows |
+|---|---|---|---|
+| Shop expiry (cancel unpaid orders) | `bin/shop_expire.php` | `/system/cron/shop_expire.php` | `bin/shop_expire.cmd` |
+| Order auto-complete (close old deliveries) | `bin/order_autocomplete.php` | `/system/cron/order_autocomplete.php` | `bin/order_autocomplete.cmd` |
+
+- Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `json`, `doctor`, `log-dir` (CLI only),
+  `quiet` (CLI only), `help`; the expiry job also has `from-settings`.
+- `--from-settings` recomputes expiry deadlines from the **current** settings instead of the stored
+  stamps (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction
+  window). The cron itself uses the stamps, so changing a window never retroactively cancels old
+  orders.
+- The web entries are trusted on loopback (local testing needs no setup); any other caller needs
+  `?key=` matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
+- One run at a time (`CronLock`); monthly logs at `storage/logs/shop_expire-YYYY-MM.log` and
+  `storage/logs/order_autocomplete-YYYY-MM.log`; `--doctor` reports PHP/DB time, settings,
+  candidates, lock and log state.
+- Kill switches: `shop_expiry_enabled` and `shop_autocomplete_enabled` (settings page). Each makes
+  every run of its job exit 0 without changing anything.
 
 ```bash
 php bin/shop_expire.php --doctor
 php bin/shop_expire.php --dry-run
 php bin/shop_expire.php
+
+php bin/order_autocomplete.php --doctor
+php bin/order_autocomplete.php --dry-run
+php bin/order_autocomplete.php
 ```
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
@@ -464,7 +525,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (295 cases in Phase 7)
+php tests/run.php                 # full suite (329 cases in Phase 8)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -479,13 +540,13 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–009 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–010 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
-member account with its wallet, orders, addresses, proofs and audit rows, products with SKU prefix
-`SMOKE-`, packages named `Smoke Package…`, the payment settings it edits, and `maintenance_mode`;
-all restored):
+member account with its wallet, orders, addresses, proofs, shipments and invoices, products with SKU
+prefix `SMOKE-`, packages named `Smoke Package…`, the payment/fulfilment settings it edits, and
+`maintenance_mode`; all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -509,15 +570,20 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `006_orders.sql` | `addresses`, `shop_orders`, `shop_order_items`, `shop_order_events` |
 | `007_payout_accounts.sql` | `users.gcash_number`, `maya_number`, `usdt_trc20_address`, `usdt_bep20_address` |
 | `008_payment_proofs.sql` | `shop_payment_proofs` (attempts, decision, reviewer, reference index) |
-| `009_shop_expiry.sql` | `settings.shop_expiry_enabled` (the cron kill switch) |
+| `009_shop_expiry.sql` | `settings.shop_expiry_enabled` (the expiry kill switch) |
+| `010_fulfilment.sql` | `shop_shipments`, `shop_invoices`, `shop_invoice_items`, `settings.shop_autocomplete_enabled` |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
 Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
-`stock − reserved` number, and `OrderService` (placement, member cancel) plus `PaymentService`
-(review, admin cancel, expiry) are its only writers.
+`stock − reserved` number, and `OrderService` (placement, member cancel), `PaymentService`
+(review, admin cancel, expiry) and `FulfilmentService` (ship deducts, completion has no stock effect)
+are its only writers. Invoices and shipments are written only by `InvoiceService` and
+`FulfilmentService`; their rows are append-only (`shop_invoices` gains only `voided_at`/`void_reason`).
 `bin/shop_expire.php` / `/system/cron/shop_expire.php` is the supported way to expire unpaid orders; it
-never touches an order whose proof is under review (see `docs/cron.md`).
+never touches an order whose proof is under review. `bin/order_autocomplete.php` /
+`/system/cron/order_autocomplete.php` completes delivered orders after the configured window; neither
+job touches a cancelled or completed order (see `docs/cron.md`).
 
 ---
 

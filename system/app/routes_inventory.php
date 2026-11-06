@@ -26,16 +26,17 @@ declare(strict_types=1);
  *  when a not-yet-due route is registered, or when the inventory
  *  loses/gains a page or a duplicate.
  *
- *  Counts: 98 reference pages = 69 port · 6 defer · 23 drop.
+ *  Counts: 98 reference pages = 67 port · 8 defer · 23 drop.
  *  Two per-page refinements against §2.5's group tally:
  *    • auto_select_upline is dropped (binary placement); the rest
  *      of the register group is ported — §2.5 notes the binary
  *      upline AJAX is not ported.
  *    • admin_shop_expire is ported as bin/shop_expire.php (CLI),
  *      so the returns/refund group leaves 3 deferred pages, not 4.
- *    • admin_order_hold / admin_order_resume are inventoried in the
- *      build but deferred to Phase 8: the 10-status order machine in
- *      §4.4 has no `on_hold` state. See docs/phase-log.md (Phase 7).
+ *    • admin_order_hold / admin_order_resume are deferred (with the
+ *      refunds group): the 10-status order machine in §4.4 has no
+ *      `on_hold` state, and no phase in this build adds one. See
+ *      docs/phase-log.md (Phases 7–8).
  * ============================================================== */
 
 $route = static fn (string $method, string $path): array => ['ROUTE', strtoupper($method), $path];
@@ -221,8 +222,8 @@ return [
         $port('admin_shop_orders', 6, [$route('GET', '/admin/orders')], ''),
         $port('admin_shop_order', 6, [$route('GET', '/admin/orders/{id}')], ''),
         $port('admin_order_transition', 7, [$route('POST', '/admin/orders/{id}/transition')], ''),
-        $port('admin_order_hold', 8, [$route('POST', '/admin/orders/{id}/hold')], 'Deferred to Phase 8: §4.4 has no on_hold status in this build (phase log).'),
-        $port('admin_order_resume', 8, [$route('POST', '/admin/orders/{id}/resume')], 'Deferred to Phase 8 with hold.'),
+        $defer('admin_order_hold', 'Deferred with the returns group: §4.4 has no on_hold status in this build (phase log).'),
+        $defer('admin_order_resume', 'Deferred with hold: no on_hold status in this build.'),
         $port('admin_order_proof', 7, [$route('GET', '/admin/proofs/{id}')], 'Streams the proof file — never a public URL.'),
         $port('admin_order_shipment', 8, [
             $route('POST', '/admin/orders/{id}/ship'),

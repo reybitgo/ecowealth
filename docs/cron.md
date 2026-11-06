@@ -1,4 +1,18 @@
-# Shop expiry cron
+# Shop cron jobs
+
+Two scheduled jobs keep the shop moving without an administrator watching it:
+
+| Job | What it does | Command | Guide |
+|---|---|---|---|
+| **Shop expiry** | cancels unpaid orders when their payment/correction window closes and releases the stock | `bin/shop_expire.php` | this page, §1 |
+| **Order auto-complete** | completes delivered orders after *n* days when the member never confirms receipt | `bin/order_autocomplete.php` | this page, §2 |
+
+Both are idempotent, safe to run twice, log one line per run and have a kill switch on
+**Admin → Settings**.
+
+---
+
+# 1. Shop expiry
 
 The job that cancels unpaid shop orders once their payment (or correction) window closes, releases
 their reserved stock and records a `payment_expired` event. One implementation, three entry points.
@@ -162,16 +176,14 @@ the lock state, whether the log folder is writable and whether `CRON_KEY` is set
 
 ---
 
-## Exit codes
+## Exit codes (both jobs)
 
 | Code | Meaning |
 |---|---|
 | `0` | run completed, skipped (locked) or disabled |
 | `1` | the job could not run (database, configuration, unwritable storage) |
 
----
-
-## Troubleshooting
+## Troubleshooting (both jobs)
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -179,6 +191,7 @@ the lock state, whether the log folder is writable and whether `CRON_KEY` is set
 | “another run is already in progress” on every run | a crashed run left the process, or two crons overlap | check `--doctor`; reduce overlap by running every 15 min |
 | `--doctor` says `log … (NOT writable)` | the account cannot write `system/storage/logs` | create the folder, `chmod 775`, or run as the account owner |
 | Orders are not expiring | kill switch off, no overdue orders, or deadlines in the future | `--doctor`, then `--dry-run` |
+| Delivered orders are not completing | auto-complete switch off, days not reached, or no delivered orders | `--doctor`, then `--dry-run` |
 | `db now` differs from `timezone` | MySQL session time zone drifted | check `DB_TIMEZONE` in `app/config.php` (default `+08:00`) |
 | 500 on the URL entry | a PHP fatal — the response hides details by design | run the CLI version, or check the Apache error log |
 
@@ -189,3 +202,102 @@ the lock state, whether the log folder is writable and whether `CRON_KEY` is set
 QA7-13 in [`docs/qa/phase-7-payments.md`](qa/phase-7-payments.md) walks through: forcing an order
 overdue with SQL, `--doctor`, `--dry-run`, the real URL run, a second idempotent run, the log line,
 the event trail, the released stock, and the kill switch.
+
+---
+
+# 2. Order auto-complete
+
+Delivered orders complete themselves after **`shop_autocomplete_days`** (default 7) when the member
+never presses **Confirm receipt**. The order gets `completed_at` and an `auto_completed` event with
+actor `system`; the member can still confirm earlier, and a manual confirmation always wins.
+
+| Entry | Path | Use |
+|---|---|---|
+| **CLI** | `system/bin/order_autocomplete.php` | Hostinger cron, SSH, CI |
+| **Web** | `/system/cron/order_autocomplete.php` → `system/public/cron/order_autocomplete.php` | Local testing in a browser, or a URL-only host |
+| **Windows** | `system/bin/order_autocomplete.cmd` | Task Scheduler, double-click, Laragon terminal |
+
+The logic lives in `FulfilmentService::autoComplete()`; both entries call it, so they cannot
+disagree.
+
+### What it does
+
+- Candidates are orders in `delivered` whose `delivered_at` is at least `shop_autocomplete_days` old.
+- Each completion runs in one transaction: it locks the order, re-checks `delivered` and the
+  delivered_at stamp, then sets `completed`, stamps `completed_at` and writes the event. A member
+  confirming at the same moment has exactly one winner.
+- Running it twice in a row is harmless.
+- `shipped` and younger `delivered` orders are never touched.
+
+| Setting | Default | Role |
+|---|---|---|
+| `shop_autocomplete_days` | 7 | days after delivery before the order completes itself (1–365) |
+| `shop_autocomplete_enabled` | 1 | **kill switch** — when `0`, every run is skipped |
+
+### Running it locally
+
+**In a browser:**
+
+```
+http://localhost/ecowealth/system/cron/order_autocomplete.php
+```
+
+| URL | What it shows |
+|---|---|
+| `?doctor=1` | PHP/DB time, days, kill switch, candidates, lock and log state |
+| `?dry-run=1` | the orders that would be completed, changes nothing |
+| `?json=1` | the machine-readable payload |
+| `?limit=50` | smaller batch |
+
+**In a terminal:**
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+php bin\order_autocomplete.php --doctor
+php bin\order_autocomplete.php --dry-run
+php bin\order_autocomplete.php
+bin\order_autocomplete.cmd --dry-run
+```
+
+### Running it on a live server
+
+Hourly is plenty; the job only acts on orders that are days old.
+
+```cron
+5 * * * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/order_autocomplete.php --limit=200 >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+```
+
+URL form (same access rules and `CRON_KEY` as the expiry job):
+
+```cron
+5 * * * * curl -s "https://example.com/ecowealth/system/cron/order_autocomplete.php?key=a-long-random-string" > /dev/null
+```
+
+### Logs, locks and evidence
+
+| What | Where |
+|---|---|
+| Monthly log | `system/storage/logs/order_autocomplete-YYYY-MM.log` |
+| Lock | `system/storage/locks/order_autocomplete.lock` (advisory; released automatically) |
+
+One line per run:
+
+```
+[2026-11-06 13:05:00 +08:00] [OK   ] trigger=http limit=200 days=7 candidates=1 completed=1 duration=12ms ids=93
+```
+
+The member's order timeline shows **Completed automatically 7 days after delivery** (actor
+`system`), and the admin order page shows the same event. `--doctor` is the first thing to run on a
+new server: it reports PHP/MySQL time, the day count, the kill switch, the candidate count, the lock
+and whether the log folder is writable.
+
+> **A note on backfilling:** invoices for paid orders from before Phase 8 are issued the first time
+> their invoice page is opened (`InvoiceService::ensureForOrder()`). No cron is needed for that.
+
+### QA
+
+QA8-11 in [`docs/qa/phase-8-fulfilment.md`](qa/phase-8-fulfilment.md) walks through the auto-complete
+job from the URL entry: doctor, dry run, the real run, the second idempotent run, the log line, the
+event trail and the kill switch.
+

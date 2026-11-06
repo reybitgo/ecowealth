@@ -1514,6 +1514,128 @@ reference system's cron files.
 
 Phase 8 — fulfilment, completion and invoices, as planned.
 
+---
+
+## Phase 8 — Fulfilment, completion and invoices
+
+**Date:** 2026-11-06 · **Branch:** `feature/shop` · **Gate tag:** `phase-8` · **Status:** complete
+(manual sign-off pending, as for Phases 1–7).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `shop_shipments` (courier, tracking, delivered_at, notes); `shop_invoices` (frozen header + seller/buyer/address/payment/totals + void fields); `shop_invoice_items` (frozen lines); `settings.shop_autocomplete_enabled`; migration `010_fulfilment.sql`; fresh-install `schema.sql` extended |
+| **Models** | `Shipment` (`create`, `find`, `latestFor`, `forOrder`, `markDelivered`); `Invoice` (`create`, `setNumber`, `addItem`, `latestFor`, `liveFor`, `find`, `items`, `countFor`, `void`); `Order` gained `PAID_STATUSES`, `MEMBER_CONFIRMABLE`, `isPaid()`, `canMemberConfirm()` |
+| **Services** | `FulfilmentService` — `pack`, `ready`, `ship` (validation, stock deduction, shipment row), `deliver`, `confirmByMember`, `autoComplete`, `dueOrderIds`, the kill switch/day helpers, `validateShipment`/`validateDelivery`; `FulfilmentException` with machine-readable reasons; `InvoiceService` — `issueForPaidOrder`, `voidForOrder`, `document`, `ensureForOrder` (lazy backfill), `composeAddress`; `InvoiceNumber` (`INV-yymmdd-#####`) |
+| **Money/document wiring** | `OrderService` issues the invoice inside the e-wallet payment transaction; `PaymentService::verify` does the same for a manual payment; `PaymentService::cancelByAdmin` now voids the live invoice (content frozen) |
+| **Routes** | `POST /admin/orders/{id}/ship`, `POST /admin/orders/{id}/deliver`, `POST /orders/{id}/confirm`, `GET /orders/{id}/invoice`, `GET /admin/orders/{id}/invoice`; `POST /admin/orders/{id}/transition` also accepts `to=packing` and `to=ready_to_ship` |
+| **Controllers** | `OrderController::confirm` + `invoice` and the shipment/invoice/confirm data on `show`; `AdminOrderController::ship`/`deliver`/`invoice`, `packing`/`ready_to_ship` transitions, fulfilment data on `show`; `AdminSettingsController` seller block + completion fields |
+| **Views** | Member order page: paid/packing/ready/shipped/delivered/completed status panels, shipment card, tracking, confirm-receipt form (themed modal), invoice links; admin order page: fulfilment panel with pack/ready/ship/deliver forms, shipment card, invoice link/footer, delivered/auto-complete copy; new standalone **`shop/invoice.php`** (A4 print CSS, VOID stamp, no app chrome); settings page **Fulfilment & invoices** card; new `Core/InvoicePage.php` for the document headers |
+| **CLI** | `bin/order_autocomplete.php` (`--limit`, `--dry-run`, `--json`, `--doctor`, `--log-dir`, `--quiet`, `--help`), `bin/order_autocomplete.cmd`, `public/cron/order_autocomplete.php` (loopback or `CRON_KEY`, lock, monthly log) |
+| **Layout / flags** | `APP_PHASE` = 8 |
+| **Tests** | `FulfilmentTest` (10), `InvoiceTest` (9), `FulfilmentViewTest` (14), one new `MigrationTest` case, the new routes in `RouterTest`, the parity counts, the payment-view assertion for the new panel; `smoke.ps1` +9 P8 checks and the new settings fields |
+| **Evidence** | `docs/qa/evidence/phase-8/` — 16 screenshots (member paid/ready/shipped/delivered/completed, mobile shipped; admin paid/ready/shipped/delivered/completed/orders/settings; issued, voided and print-media invoice) |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-8/db-pre-phase-8.sql` (112,420 bytes) in the repo's git-ignored `backups/` (the session sandbox cannot write outside the workspace) |
+| Migration | `010_fulfilment.sql` applied to `ecowealth_sneat`: 3 tables, 3 foreign keys (all `ON DELETE CASCADE` from the order), 3 secondary indexes + 1 unique key, the `shop_autocomplete_enabled=1` setting |
+| Seeds | `database/seeds/001_settings.sql` now carries `shop_autocomplete_days=7` and `shop_autocomplete_enabled=1`; no data seed needed (shipments/invoices are created by the app) |
+| Verified | `MigrationTest` applies 001–010 to the legacy fixture, compares the three new tables' columns with a fresh `schema.sql` import, proves the invoice number is unique, that deleting an order cascades its shipment/invoice/lines, and that the new setting lands |
+| Data check | Dev DB after the suite: `bin/wallet_reconcile.php` clean; `bin/order_autocomplete.php --dry-run` reports 0 candidates; the only new rows are the QA evidence fixture (`QA_Fulfil_01`, six orders) |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P8-T1 | Pack → ready → ship | **PASS** | `paid → packing → ready_to_ship → shipped` with `packed_at`/`shipped_at`, the courier/tracking row, and one event per step; every skip/repeat (ready before pack, ship before ready, deliver before ship, pack twice) is refused with `status` and changes nothing |
+| P8-T2 | Ship without tracking | **PASS** | `validateShipment` refuses an empty courier/tracking, a one-character courier and an invalid tracking; the order stays `ready_to_ship`, no shipment is written and the stock is untouched; the page shows the field error |
+| P8-T3 | Stock deduction on ship | **PASS** | 10 on hand / 2 held (8 available) → ship → 8 on hand / lines `deducted` (still 8 available); a second ship cannot deduct again. A physical count corrected below the order quantity refuses the ship with a clear message and leaves the order ready |
+| P8-T4 | Deliver + member confirm | **PASS** | `delivered` with `delivered_at`, the shipment stamped and the POD appended; the buyer confirms → `completed` with `completed_at`, a `receipt_confirmed` event (member) and no further confirmation; another member gets `not_found`, and a non-delivered order is refused |
+| P8-T5 | Invoice on paid order | **PASS** | One snapshot issued inside the e-wallet placement and inside manual verification, with the seller block from settings, buyer username, composed delivery address, payment method, paid date, subtotal/shipping/total and one frozen line per item; `INV-yymmdd-#####`, unique; no invoice for an unpaid order; a pre-Phase-8 paid order is backfilled once |
+| P8-T6 | Invoice reprint | **PASS** | `ensureForOrder` twice returns the same row, number and content; changing `seller_name` or the product price afterwards does not alter the snapshot; the HTTP smoke re-requests it and finds one row |
+| P8-T7 | Member invoice access control | **PASS** | The owner gets **200**, an admin gets **200**, another member gets **404**, a guest is redirected to **login**; the member route is ownership-scoped and the document carries no order-list/menu chrome |
+| P8-T8 | Cancel after ship | **PASS** | `PaymentService::cancelByAdmin` refuses a shipped order (`status`), `Order::canAdminCancel` is false and the page no longer offers the cancel card; the smoke repeats it over HTTP |
+| P8-T9 | Auto-complete cron | **PASS** | `FulfilmentService::autoComplete()` completes `delivered` orders older than `shop_autocomplete_days`, stamps `completed_at` and writes a system `auto_completed` event; a fresh delivery is untouched; a second run completes nothing; the kill switch and `days=0` skip the run; the URL entry serves doctor/dry-run/JSON and the CLI runs the same code |
+| P8-T10 | Print layout | **PASS** | The template is a standalone document: `@page { size: A4; margin: 14mm; }`, the toolbar is hidden in `@media print`, there is no sidebar/navbar, the totals column is right-aligned and the sheet fits A4; an emulated print-media capture (`final-invoice-print.png`) shows the toolbar gone and the document laid out cleanly |
+
+### Deviations and decisions
+
+- **`hold` / `resume` are now formally deferred, not postponed again.** Appendix A lists them under
+  Phase 7; Phase 7 moved them to Phase 8 because the 10-status machine in §4.4 has no `on_hold`
+  state. Phase 8 adds no 11th status, so the two inventory rows changed from *port* to *defer* with
+  that reason, the parity counts became 67 port · 8 defer · 23 drop, and `RouterTest` keeps proving
+  `/admin/orders/{id}/hold|resume` are absent. A future phase that adds an on-hold state can pick them
+  up without touching today's machine.
+- **Pack and ready reuse the Phase 7 transition route.** Appendix A only lists `ship` and `deliver`,
+  but P8-T1 requires the sequential walk. Rather than add two routes outside the appendix, the existing
+  `POST /admin/orders/{id}/transition` accepts `to=packing` and `to=ready_to_ship`; the service still
+  owns the rule, so a typo cannot reach a status it should not.
+- **Invoice numbering follows the plan, not the reference.** The plan's `INV-yymmdd-#####` wins over
+  the reference's `INV-<order_no>`; the id is what makes it unique, and `InvoiceNumber::isValid()`
+  pins the shape.
+- **The invoice stores the composed delivery address.** Appendix B gives the snapshot one
+  `shipping_address` column, so `InvoiceService::composeAddress()` joins the order's line, barangay,
+  city, province and postal into it at issue time. The member's own view still shows the parts.
+- **Invoices are voided when a paid order is cancelled.** The plan calls voiding "future" because
+  refunds are deferred, but Phase 7 already lets an admin cancel a paid order and refund the wallet.
+  Leaving a live invoice for a reversed sale would misrepresent it, so `cancelByAdmin` flips
+  `voided_at`/`void_reason`, the template prints **VOID**, and the content stays frozen. A true
+  refund/credit-note flow remains later work.
+- **Lazy backfill on first view.** Paid orders created before this phase have no snapshot. The invoice
+  route calls `InvoiceService::ensureForOrder()`, which issues it once under the order row lock. That
+  keeps the Phase 6/7 data coherent without a one-off data script; the payment paths still issue
+  eagerly for every new order.
+- **A short physical stock refuses the shipment.** The plan says shipping deducts; it does not say what
+  happens when an admin corrected the count down after the sale. The service checks `stock >= qty`
+  under the product locks and refuses with the product name rather than driving stock negative.
+- **Fulfilment is not a segregation-of-duties surface.** An admin may ship and deliver their own order
+  — only the money decisions (verify, reject, cancel) are guarded, matching Phase 7.
+- **The completion job has its own kill switch and URL entry.** Unlike the reference (no such job), the
+  port mirrors the expiry job's shape: `shop_autocomplete_enabled`, `shop_autocomplete_days`, a CLI, a
+  guarded web entry, a Windows launcher, a lock and a monthly log. That is what makes it schedulable on
+  both Laragon and Hostinger.
+- **The invoice is not a BIR document yet.** D12 says store the seller fields now and print a simple
+  invoice; the footer says it is not a VAT official receipt. TIN/VAT fields are printed, VAT maths is
+  later.
+- **`shop_invoices`/`shop_invoice_items` match Appendix B exactly** (no extra columns); the void flag
+  and the number were enough for this scope.
+- **The smoke test's auto-complete leg uses a deliberately old delivery.** It sets the window to 365
+  days and backdates its own order by 400 days before running the job, so a real dev database's recent
+  orders can never be completed as a side effect; the setting is restored immediately.
+- **The evidence fixture lives on in the dev DB.** `QA_Fulfil_01 / QaFulfil!2345` with six orders backs
+  the screenshots; `docs/qa/phase-8-fulfilment.md` (QA8-19) removes it. The seller block was filled with
+  demo values for the invoice shots; replace it with the real company details before go-live (the
+  go-live checklist already requires this).
+- **Browser capture needed wider one-off access**, as in earlier phases: headless Chrome needs a
+  writable profile and named pipes the workspace-write sandbox blocks. The capture harness is
+  git-ignored under `system/tests/tmp/`.
+
+### Gate checklist (plan §8.3)
+
+- [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 8 shape)
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run; new settings rows included)
+- [x] All P8 tests pass (34 new cases — 10 `FulfilmentTest` + 9 `InvoiceTest` + 14 `FulfilmentViewTest` + 1 migration case — for 329 total)
+- [x] Full regression suite passes (Phases 1–7 cases unchanged apart from the new routes/migration and the paid-order assertion)
+- [x] Smoke script passes (111 checks, 9 new)
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-8-fulfilment.md`) — automated and headless-browser passes complete
+- [x] No new PHP warnings/notices in the Apache error log
+- [x] Money and stock invariants clean — `bin/wallet_reconcile.php` exits 0; shipping deducts once; invoices are frozen
+- [x] `bin/order_autocomplete.php` is idempotent (smoke runs it twice); the expiry job still is
+- [x] Visual check in a real browser: member paid/ready/shipped/delivered/completed, mobile shipped; admin paid/ready/shipped/delivered/completed, settings; issued, voided and print-media invoice — 16 screenshots in `docs/qa/evidence/phase-8/`, no console errors
+- [x] Docs updated (this log, QA pack, README, system README, cron guide)
+- [x] Backup taken; tag `phase-8`
+
+### Next
+
+Phase 9 — registration, registration codes, membership and activation: the four registration modes,
+sponsor capture, `reg_codes` (generate/validate/redeem/expire/export), the activation service and its
+commission hook, members admin, genealogy, and the dashboard replacement.
+
+
 
 
 

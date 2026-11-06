@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–7)
+# EcoWealth — Manual QA pack (Phases 1–8)
 
-This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6
-and 7. The automated suites are already green; these documents let a tester who has never seen the
+This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
+7 and 8. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -22,11 +22,13 @@ sign the phase off.
 | [phase-5-wallet.md](phase-5-wallet.md) | 5 — dual balance, ledger, admin top-ups, monitor | 16 | 50–65 min |
 | [phase-6-orders.md](phase-6-orders.md) | 6 — checkout, address book, orders, admin order desk | 17 | 55–70 min |
 | [phase-7-payments.md](phase-7-payments.md) | 7 — proof upload, verification, rejection, expiry, refunds, settings | 18 | 60–75 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all seven | — | 10 min to complete |
+| [phase-8-fulfilment.md](phase-8-fulfilment.md) | 8 — packing, shipping + tracking, delivery, confirmation, invoices, auto-complete | 19 | 60–75 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all eight | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-7` inside it). Phases 4, 5, 6 and 7 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-8` inside it). Phases 4–8 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
-`evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png` and `evidence/phase-7/final-*.png`.
+`evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png` and
+`evidence/phase-8/final-*.png`.
 
 ---
 
@@ -45,7 +47,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 295   Passed: 295   Failed: 0
+Cases: 329   Passed: 329   Failed: 0
 All good.
 ```
 
@@ -58,7 +60,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 102   Failed: 0
+Passed: 111   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -94,6 +96,15 @@ Passed: 102   Failed: 0
   decision, the one-run lock, the monthly log, the kill switch and the `--from-settings` recomputation; the
   smoke script runs it from both the CLI and the URL. The HTTP smoke script also repeats the upload, guards,
   proof streaming, verify, reject, re-upload, cancel, settings and kill-switch paths.
+- Phase 8: the strict `paid → packing → ready_to_ship → shipped → delivered → completed` walk and its
+  refusals, courier/tracking validation, the stock deducted exactly once at ship (including the
+  short-stock refusal), delivery + member confirmation and ownership, the no-cancel-after-ship rule,
+  the invoice snapshot written at e-wallet payment and at manual verification, its frozen seller/buyer/
+  line/totals content, reprint identity, void-on-refund, order/invoice scoping, the seller + completion
+  settings (save + validation), and the auto-complete sweep with its kill switch and idempotency. The
+  smoke script walks the whole flow over HTTP (pack, a refused ship, a real ship + stock change, a
+  refused cancel after ship, deliver, member confirm, the invoice guards, and the auto-complete job
+  from its URL).
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
@@ -116,7 +127,8 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
 |---|---|---|
 | `admin` | `Admin@123` | Every back-office check |
 | `superadmin` | `Super@123` | One Phase 1 check (hidden menu item) |
-| `QA_Member_01` | `QaPass!2345` | You create this in Phase 1; reuse it in Phases 2–3 |
+| `QA_Member_01` | `QaPass!2345` | You create this in Phase 1; reuse it in Phases 2–8 |
+| `QA_Fulfil_01` | `QaFulfil!2345` | Phase 8 evidence fixture: one order in every fulfilment state (optional — see the Phase 8 doc) |
 
 > **Do not change the `admin` or `superadmin` passwords.** Password-change checks use the QA member
 > account and change it back at the end.
@@ -223,15 +235,22 @@ These are deliberate for the current build — do not report them as defects:
   append-only: there is no edit or delete button anywhere, and corrections are new rows.
 - **Checkout and orders are live** (Phase 6). E-wallet orders become **Paid** immediately; GCash/Maya/bank
   orders stay **Pending** until a proof is uploaded and verified (Phase 7). Only unpaid orders can be
-  cancelled online; an administrator cancels a paid order. Shipping is free until the fulfilment phase adds
-  courier pricing.
+  cancelled online; an administrator cancels a paid order. Shipping is free for now (decision D8); the
+  fulfilment phase adds no courier pricing.
 - **Manual payments are live** (Phase 7). A pending order shows the proof upload (3 attempts, JPG/PNG/WebP/
   PDF ≤ 5 MB); an admin verifies or rejects it; a rejection releases the stock and opens the correction
   window, and a corrected proof takes the hold again. An administrator cannot review an order they placed
   themselves. `php bin\shop_expire.php` cancels overdue unpaid orders; a proof already under review never
   expires.
+- **Fulfilment and invoices are live** (Phase 8). Once paid, an order is packed and shipped with a courier
+  and a tracking number (the stock is deducted at that moment), marked delivered, then confirmed by the
+  member or completed automatically after `shop_autocomplete_days`. A paid order can still be cancelled by
+  an admin until it ships; after that a returns/RTS flow is needed (deferred). Every paid order has a
+  printable, immutable `INV-yymmdd-#####` invoice; cancelling a paid order marks it **VOID** but keeps it.
+  The admin settings page owns the seller block and the completion rules.
 - **The admin settings page** (System → Settings) edits the receiving accounts and the payment/correction
-  windows and the proof-attempt cap. Changes are audited.
+  windows, the proof-attempt cap, the invoice seller block and the auto-complete switch/days. Changes are
+  audited.
 - **The cart is converted into an order**, so the cart badge resets after a successful checkout. A failed
   checkout keeps the cart exactly as it was.
 - **Order numbers** look like `EW26110500042` (`EW` + yymmdd + the order id).
@@ -284,7 +303,7 @@ failed check afterwards and updates the row to **Closed**.
 ## 8. Sign-off flow
 
 1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
-2. Work through the seven phase documents in order (Phase 1 → 2 → 3 → 4 → 5 → 6 → 7). Each phase assumes the
+2. Work through the eight phase documents in order (Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8). Each phase assumes the
    previous one is done.
 3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
    decision.
@@ -341,6 +360,7 @@ docs/qa/
 ├── phase-5-wallet.md                  ← manual checks for Phase 5
 ├── phase-6-orders.md                  ← manual checks for Phase 6
 ├── phase-7-payments.md                ← manual checks for Phase 7
+├── phase-8-fulfilment.md              ← manual checks for Phase 8
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/ … phase-7/)
+└── evidence/                          ← your screenshots (phase-1/ … phase-8/)
 ```

@@ -68,7 +68,7 @@ return [
         assert_same([], $duplicates, 'duplicated reference pages');
     },
 
-    'P1-T12 dispositions total 69 port · 6 defer · 23 drop' => function () use ($pages): void {
+    'P1-T12 dispositions total 67 port · 8 defer · 23 drop' => function () use ($pages): void {
         $counts = ['port' => 0, 'defer' => 0, 'drop' => 0];
 
         foreach ($pages as $row) {
@@ -77,7 +77,7 @@ return [
             $counts[$disposition]++;
         }
 
-        assert_same(['port' => 69, 'defer' => 6, 'drop' => 23], $counts);
+        assert_same(['port' => 67, 'defer' => 8, 'drop' => 23], $counts);
     },
 
     'P1-T12 port rows carry targets and a valid phase' => function () use ($pages): void {

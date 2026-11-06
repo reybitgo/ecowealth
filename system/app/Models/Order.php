@@ -33,6 +33,12 @@ final class Order
 
     public const PAYMENT_METHODS = ['ewallet', 'gcash', 'maya', 'bank'];
 
+    /** Statuses that mean "payment received" (plan §5.7, Phase 8). */
+    public const PAID_STATUSES = ['paid', 'packing', 'ready_to_ship', 'shipped', 'delivered', 'completed'];
+
+    /** The only status from which a member may confirm receipt (Phase 8). */
+    public const MEMBER_CONFIRMABLE = ['delivered'];
+
     /** Statuses a member may cancel themselves (plan §4.4). */
     public const MEMBER_CANCELLABLE = ['pending', 'payment_failed'];
 
@@ -149,6 +155,18 @@ final class Order
     public static function canMemberCancel(array $order): bool
     {
         return in_array((string) ($order['status'] ?? ''), self::MEMBER_CANCELLABLE, true);
+    }
+
+    /** Has the payment been received (so an invoice may exist)? */
+    public static function isPaid(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), self::PAID_STATUSES, true);
+    }
+
+    /** May the member confirm receipt (delivered only)? */
+    public static function canMemberConfirm(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), self::MEMBER_CONFIRMABLE, true);
     }
 
     /** May an administrator cancel this order (before it ships)? */

@@ -36,12 +36,14 @@ final class OrderService
     private PDO $pdo;
     private WalletService $wallet;
     private CartService $carts;
+    private InvoiceService $invoices;
 
     public function __construct(?PDO $pdo = null)
     {
-        $this->pdo    = $pdo ?? db();
-        $this->wallet = new WalletService($this->pdo);
-        $this->carts  = new CartService($this->pdo);
+        $this->pdo      = $pdo ?? db();
+        $this->wallet   = new WalletService($this->pdo);
+        $this->carts    = new CartService($this->pdo);
+        $this->invoices = new InvoiceService($this->pdo);
     }
 
     /* ----------------------------------------------------------
@@ -284,6 +286,11 @@ final class OrderService
                         'Paid from the e-wallet',
                         $this->pdo
                     );
+
+                    /* The invoice is frozen inside the same transaction as
+                     * the payment, so "paid" and "invoiced" cannot drift
+                     * (plan §5.7, Phase 8). */
+                    $this->invoices->issueForPaidOrder($orderId, $this->pdo);
 
                     $status = 'paid';
                 }

@@ -25,8 +25,12 @@ Then visit `http://localhost:8000`.
 `http://localhost/ecowealth/system/`. It is being built in phases
 (see `dmp/plan-ecowealth-cart-system.md`); **Phase 1** shipped the router, layouts, role
 guards, settings and test suite, **Phase 2** added the product catalogue and storefront,
-and **Phase 3** adds associate packages (price, direct bonus, the 2–10 unilevel ladder,
-contents and the member packages page). Cart, wallet, referral and payout modules follow.
+**Phase 3** added associate packages (price, direct bonus, the 2–10 unilevel ladder,
+contents and the member packages page), **Phase 4** the cart, **Phase 5** the dual-bucket
+e-wallet and ledger, **Phase 6** checkout and orders, **Phase 7** manual payments and the
+order lifecycle, and **Phase 8** fulfilment (pack, ship with tracking, deliver, confirm)
+and printable invoices. Registration, referral commissions, transfers, payouts and
+super-login follow in later phases.
 
 - Application notes, setup and tests: [`system/README.md`](system/README.md)
 - Running log of decisions, migrations and test results: [`docs/phase-log.md`](docs/phase-log.md)

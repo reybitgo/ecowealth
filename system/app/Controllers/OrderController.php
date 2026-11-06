@@ -2,30 +2,38 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  OrderController — the member's orders (plan §5.3–5.4, §7
- *  Phases 6–7; reference MemberController::shopOrders/shopOrder/
- *  submitShopProof/cancelShopOrder)
+ *  OrderController — the member's orders (plan §5.3–5.5, §7
+ *  Phases 6–8; reference MemberController::shopOrders/shopOrder/
+ *  submitShopProof/cancelShopOrder/confirmReceipt/shopInvoice)
  *
  *  Routes:
  *      GET  /orders                 history with status/search filters
  *      GET  /orders/{id}            order page: items, totals, timeline,
- *                                   payment instructions + proof panel
+ *                                   payment instructions + proof panel,
+ *                                   shipment tracking + receipt confirm
  *      POST /orders/{id}/proof      upload a manual payment proof
  *      POST /orders/{id}/cancel     unpaid orders only (P6-T11)
+ *      POST /orders/{id}/confirm    delivered → completed (P8-T4)
+ *      GET  /orders/{id}/invoice    printable snapshot, own orders only
+ *                                   (P8-T5/T6/T7/T10)
  *
  *  Every read is scoped by the signed-in member; another member's id
- *  resolves to the 404 page, never to a data leak (P6-T8/P7-T9).
+ *  resolves to the 404 page, never to a data leak (P6-T8/P7-T9/P8-T7).
  * ============================================================== */
 
 final class OrderController
 {
     private OrderService $orders;
     private PaymentService $payments;
+    private FulfilmentService $fulfilment;
+    private InvoiceService $invoices;
 
     public function __construct()
     {
-        $this->orders   = new OrderService();
-        $this->payments = new PaymentService();
+        $this->orders     = new OrderService();
+        $this->payments   = new PaymentService();
+        $this->fulfilment = new FulfilmentService();
+        $this->invoices   = new InvoiceService();
     }
 
     /** @param array<string, string> $params */
@@ -91,6 +99,10 @@ final class OrderController
             'proofs'      => $proofs,
             'latest_proof' => $latest,
             'window'      => $window,
+            'shipment'    => Shipment::latestFor($orderId),
+            'invoice'     => Invoice::latestFor($orderId),
+            'can_confirm' => Order::canMemberConfirm($order),
+            'auto_days'   => FulfilmentService::autoCompleteDays(),
         ]);
     }
 
@@ -179,6 +191,72 @@ final class OrderController
 
         flash_set('success', 'Order cancelled. Any reserved stock has been released.');
         redirect('orders/' . $orderId);
+    }
+
+    /**
+     * POST /orders/{id}/confirm — delivered → completed (P8-T4).
+     *
+     * The service scopes the order to the caller, so another member's
+     * id is a 404 and a wrong status is refused with a clear message.
+     *
+     * @param array<string, string> $params
+     */
+    public function confirm(array $params = []): void
+    {
+        $user    = $this->member();
+        $orderId = (int) ($params['id'] ?? 0);
+
+        try {
+            $this->fulfilment->confirmByMember((int) $user['id'], $orderId, Request::string('note'));
+        } catch (FulfilmentException $e) {
+            if ($e->reason === 'not_found') {
+                View::error(404);
+            }
+
+            if ($e->fieldErrors !== []) {
+                errors_set($e->fieldErrors);
+                old_set(['note' => Request::string('note')]);
+            }
+
+            flash_set('danger', $e->getMessage());
+            redirect('orders/' . $orderId);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] order confirm failed: ' . $e->getMessage());
+            flash_set('danger', 'The receipt could not be confirmed. Please try again.');
+            redirect('orders/' . $orderId);
+        }
+
+        flash_set('success', 'Receipt confirmed — thank you! This order is now complete.');
+        redirect('orders/' . $orderId);
+    }
+
+    /**
+     * GET /orders/{id}/invoice — the printable snapshot (P8-T5/T6/T10).
+     *
+     * Only the member's own order is readable (P8-T7), and only once
+     * the payment has been received. `ensureForOrder()` also backfills
+     * an invoice for orders paid before Phase 8 shipped.
+     *
+     * @param array<string, string> $params
+     */
+    public function invoice(array $params = []): void
+    {
+        $user  = $this->member();
+        $order = Order::findForUser((int) ($params['id'] ?? 0), (int) $user['id']);
+
+        if ($order === null) {
+            View::error(404);
+        }
+
+        $orderId  = (int) $order['id'];
+        $document = $this->invoices->ensureForOrder($orderId);
+
+        if ($document === null) {
+            flash_set('warning', 'The invoice is available once this order has been paid.');
+            redirect('orders/' . $orderId);
+        }
+
+        InvoicePage::send($document, $order, url('orders/' . $orderId));
     }
 
     /** @return array<string, mixed> */

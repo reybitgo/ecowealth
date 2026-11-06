@@ -2,17 +2,19 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  AdminSettingsController — payment accounts and payment windows
- *  (plan §7 Phase 7; expanded into the full settings page in
- *  Phase 15; reference AdminController::settings/saveSettings)
+ *  AdminSettingsController — payment accounts, payment windows,
+ *  fulfilment and invoices (plan §7 Phases 7–8; expanded into the
+ *  full settings page in Phase 15; reference
+ *  AdminController::settings/saveSettings)
  *
  *  Routes:
- *      GET  /admin/settings   the payment surface used so far
+ *      GET  /admin/settings   the surfaces used so far
  *      POST /admin/settings   validated save + audit entry
  *
  *  Every write is audited (`settings.update`, with the before/after
  *  value per key) because these values decide where buyers send
- *  money and how long they have to send it.
+ *  money, how long they have to send it, and what the printed
+ *  invoice says.
  * ============================================================== */
 
 final class AdminSettingsController
@@ -75,6 +77,29 @@ final class AdminSettingsController
         ],
     ];
 
+    /**
+     * The company identity frozen onto every issued invoice (D12: store
+     * the seller fields now, print a simple invoice; VAT later).
+     */
+    private const SELLER_FIELDS = [
+        ['key' => 'seller_name', 'label' => 'Registered business name', 'placeholder' => 'EcoWealth Trading Inc.', 'type' => 'text', 'max' => 160],
+        ['key' => 'seller_tin', 'label' => 'TIN', 'placeholder' => '000-000-000-000', 'type' => 'text', 'max' => 40],
+        ['key' => 'seller_phone', 'label' => 'Contact number', 'placeholder' => '09XX XXX XXXX', 'type' => 'text', 'max' => 40],
+        ['key' => 'seller_address', 'label' => 'Business address', 'placeholder' => 'Unit, street, city, province, postal code', 'type' => 'textarea', 'max' => 500],
+    ];
+
+    /**
+     * Fulfilment timing (plan §5.5). `shop_autocomplete_days` is exposed
+     * as a number; the kill switch travels beside it.
+     */
+    private const FULFILMENT_FIELDS = [
+        'shop_autocomplete_days' => [
+            'label' => 'Auto-complete delivered orders after (days)',
+            'rule'  => 'required|integer|gte:1|lte:365',
+            'hint'  => 'A delivered order completes itself after this many days unless the member confirms earlier.',
+        ],
+    ];
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -85,8 +110,11 @@ final class AdminSettingsController
             'settings'        => setting_all(),
             'account_groups'  => self::ACCOUNT_GROUPS,
             'window_fields'   => self::WINDOW_FIELDS,
+            'seller_fields'   => self::SELLER_FIELDS,
+            'fulfilment_fields' => self::FULFILMENT_FIELDS,
             'shop_enabled'    => setting_bool('shop_enabled', true),
             'expiry_enabled'  => setting_bool('shop_expiry_enabled', true),
+            'autocomplete_enabled' => FulfilmentService::autoCompleteEnabled(),
             'manual_open'     => $this->manualMethodsConfigured(),
         ]);
     }
@@ -101,8 +129,9 @@ final class AdminSettingsController
         }
 
         /* An unticked checkbox posts nothing at all. */
-        $input['shop_enabled']        = Request::post('shop_enabled') === '1' ? '1' : '0';
-        $input['shop_expiry_enabled'] = Request::post('shop_expiry_enabled') === '1' ? '1' : '0';
+        $input['shop_enabled']             = Request::post('shop_enabled') === '1' ? '1' : '0';
+        $input['shop_expiry_enabled']      = Request::post('shop_expiry_enabled') === '1' ? '1' : '0';
+        $input['shop_autocomplete_enabled'] = Request::post('shop_autocomplete_enabled') === '1' ? '1' : '0';
 
         $errors = Validator::check($input, self::fieldRules(), self::fieldLabels());
 
@@ -172,6 +201,14 @@ final class AdminSettingsController
             $keys[] = (string) $key;
         }
 
+        foreach (self::SELLER_FIELDS as $field) {
+            $keys[] = (string) $field['key'];
+        }
+
+        foreach (array_keys(self::FULFILMENT_FIELDS) as $key) {
+            $keys[] = (string) $key;
+        }
+
         return $keys;
     }
 
@@ -179,8 +216,9 @@ final class AdminSettingsController
     private static function fieldRules(): array
     {
         $rules = [
-            'shop_enabled'        => 'required|in:0,1',
-            'shop_expiry_enabled' => 'required|in:0,1',
+            'shop_enabled'              => 'required|in:0,1',
+            'shop_expiry_enabled'       => 'required|in:0,1',
+            'shop_autocomplete_enabled' => 'required|in:0,1',
         ];
 
         foreach (self::ACCOUNT_GROUPS as $group) {
@@ -193,6 +231,17 @@ final class AdminSettingsController
             $rules[(string) $key] = (string) $field['rule'];
         }
 
+        foreach (self::SELLER_FIELDS as $field) {
+            $max = (int) ($field['max'] ?? 160);
+            $rules[(string) $field['key']] = (string) $field['key'] === 'seller_name'
+                ? 'required|string|max:' . $max
+                : 'nullable|string|max:' . $max;
+        }
+
+        foreach (self::FULFILMENT_FIELDS as $key => $field) {
+            $rules[(string) $key] = (string) $field['rule'];
+        }
+
         return $rules;
     }
 
@@ -200,8 +249,9 @@ final class AdminSettingsController
     private static function fieldLabels(): array
     {
         $labels = [
-            'shop_enabled'        => 'Shop',
-            'shop_expiry_enabled' => 'Automatic expiry',
+            'shop_enabled'              => 'Shop',
+            'shop_expiry_enabled'       => 'Automatic expiry',
+            'shop_autocomplete_enabled' => 'Automatic completion',
         ];
 
         foreach (self::ACCOUNT_GROUPS as $group) {
@@ -211,6 +261,14 @@ final class AdminSettingsController
         }
 
         foreach (self::WINDOW_FIELDS as $key => $field) {
+            $labels[(string) $key] = (string) $field['label'];
+        }
+
+        foreach (self::SELLER_FIELDS as $field) {
+            $labels[(string) $field['key']] = 'Invoice ' . (string) $field['label'];
+        }
+
+        foreach (self::FULFILMENT_FIELDS as $key => $field) {
             $labels[(string) $key] = (string) $field['label'];
         }
 

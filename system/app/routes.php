@@ -103,10 +103,9 @@ return [
      * Reference: shop_submit_proof, admin_order_proof (the guarded
      * stream), admin_order_transition, admin_settings/admin_save_settings.
      *
-     * `hold` / `resume` are deliberately deferred to Phase 8: the
-     * 10-status order machine in plan §4.4 has no `on_hold` state, and the
-     * Phase 7 deliverables and test plan do not include them (see the
-     * phase log).
+     * `hold` / `resume` stay out of the build: the 10-status order
+     * machine in plan §4.4 has no `on_hold` state, so the two reference
+     * pages are inventoried as deferred (see the phase log).
      */
     ['POST', '/orders/{id}/proof',               [OrderController::class, 'proof'],            'member'],   // shop_submit_proof
     ['GET',  '/admin/proofs/{id}',               [AdminOrderController::class, 'proof'],       'admin'],    // admin_order_proof
@@ -115,12 +114,15 @@ return [
     ['POST', '/admin/settings',                  [AdminSettingsController::class, 'save'],     'admin'],    // admin_save_settings
 
     /* ---------- Phase 8 — fulfilment & invoices ---------------------
+     * Reference: shop_confirm_receipt, shop_invoice, admin_order_shipment,
+     * admin_order_invoice. Pack / ready-to-ship reuse the Phase 7
+     * transition endpoint (`to=packing` / `to=ready_to_ship`), so the
+     * order desk keeps one guarded action route. */
     ['GET',  '/orders/{id}/invoice',             [OrderController::class, 'invoice'],          'member'],   // shop_invoice
     ['POST', '/orders/{id}/confirm',             [OrderController::class, 'confirm'],          'member'],   // shop_confirm_receipt
     ['POST', '/admin/orders/{id}/ship',          [AdminOrderController::class, 'ship'],        'admin'],    // admin_order_shipment
     ['POST', '/admin/orders/{id}/deliver',       [AdminOrderController::class, 'deliver'],     'admin'],    // admin_order_shipment
     ['GET',  '/admin/orders/{id}/invoice',       [AdminOrderController::class, 'invoice'],     'admin'],    // admin_order_invoice
-    ----------------------------------------------------------------- */
 
     /* ---------- Phase 9 — registration, codes, membership -----------
     ['POST', '/register/validate-code',          [RegistrationController::class, 'validateCode'],  'any'],  // validate_code

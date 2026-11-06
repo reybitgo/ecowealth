@@ -2,27 +2,38 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  AdminOrderController — the order desk (plan §7 Phases 6–7;
+ *  AdminOrderController — the order desk (plan §7 Phases 6–8;
  *  reference AdminController::shopOrders/shopOrder/orderTransition/
- *  orderProofView)
+ *  orderProofView/orderShipment/orderInvoice)
  *
  *  Routes:
  *      GET  /admin/orders                 all orders, filters + stats
- *      GET  /admin/orders/{id}            one order + the payment review pane
+ *      GET  /admin/orders/{id}            one order + payment review
+ *                                         + fulfilment panel
  *      POST /admin/orders/{id}/transition verify / reject / cancel
+ *                                         + pack / ready to ship
+ *      POST /admin/orders/{id}/ship       courier + tracking, stock deducted
+ *      POST /admin/orders/{id}/deliver    POD note, shipment stamped
+ *      GET  /admin/orders/{id}/invoice    printable snapshot
  *      GET  /admin/proofs/{id}            stream one proof (guarded)
  *
- *  The admin guard is enforced by the router; the service additionally
- *  refuses any review of an order the signed-in admin placed (P7-T10).
+ *  The admin guard is enforced by the router; the payment service
+ *  additionally refuses any review of an order the signed-in admin
+ *  placed (P7-T10). Fulfilment is not a money decision, so an admin
+ *  may ship and deliver their own order.
  * ============================================================== */
 
 final class AdminOrderController
 {
     private PaymentService $payments;
+    private FulfilmentService $fulfilment;
+    private InvoiceService $invoices;
 
     public function __construct()
     {
-        $this->payments = new PaymentService();
+        $this->payments   = new PaymentService();
+        $this->fulfilment = new FulfilmentService();
+        $this->invoices   = new InvoiceService();
     }
 
     /** @param array<string, string> $params */
@@ -95,6 +106,14 @@ final class AdminOrderController
             'refund_on_cancel' => !$isSelf && Order::isRefundable($order),
             'reject_reasons' => PaymentService::REJECT_REASONS,
             'cancel_reasons' => PaymentService::CANCEL_REASONS,
+            'shipment'       => Shipment::latestFor($orderId),
+            'invoice'        => Invoice::latestFor($orderId),
+            'can_pack'       => (string) $order['status'] === 'paid',
+            'can_ready'      => (string) $order['status'] === 'packing',
+            'can_ship'       => (string) $order['status'] === 'ready_to_ship',
+            'can_deliver'    => (string) $order['status'] === 'shipped',
+            'can_confirm'    => Order::canMemberConfirm($order),
+            'auto_days'      => FulfilmentService::autoCompleteDays(),
         ]);
     }
 
@@ -139,6 +158,16 @@ final class AdminOrderController
                     flash_set('success', 'Proof rejected. The order is now payment failed and the member can re-upload within the correction window.');
                     break;
 
+                case 'packing':
+                    $this->fulfilment->pack($adminId, $orderId, Request::string('note'));
+                    flash_set('success', 'Packing started. The order is now Packing.');
+                    break;
+
+                case 'ready_to_ship':
+                    $this->fulfilment->ready($adminId, $orderId, Request::string('note'));
+                    flash_set('success', 'The order is packed and ready to ship.');
+                    break;
+
                 case 'cancelled':
                     $result = $this->payments->cancelByAdmin(
                         $adminId,
@@ -175,6 +204,13 @@ final class AdminOrderController
 
             flash_set('danger', $e->getMessage());
             redirect($back);
+        } catch (FulfilmentException $e) {
+            if ($e->reason === 'not_found') {
+                View::error(404);
+            }
+
+            flash_set('danger', $e->getMessage());
+            redirect($back);
         } catch (Throwable $e) {
             error_log('[ecowealth] admin order transition failed: ' . $e->getMessage());
             flash_set('danger', 'The order could not be updated. Please try again.');
@@ -182,6 +218,119 @@ final class AdminOrderController
         }
 
         redirect($back);
+    }
+
+    /**
+     * POST /admin/orders/{id}/ship — courier + tracking, stock deducted
+     * (P8-T1/T2/T3).
+     *
+     * @param array<string, string> $params
+     */
+    public function ship(array $params = []): void
+    {
+        $admin   = $this->admin();
+        $adminId = (int) $admin['id'];
+        $orderId = (int) ($params['id'] ?? 0);
+        $back    = 'admin/orders/' . $orderId;
+        $input   = [
+            'courier'         => Request::string('courier'),
+            'tracking_number' => Request::string('tracking_number'),
+            'notes'           => Request::string('notes'),
+        ];
+
+        try {
+            $result = $this->fulfilment->ship($adminId, $orderId, $input);
+        } catch (FulfilmentException $e) {
+            if ($e->reason === 'not_found') {
+                View::error(404);
+            }
+
+            if ($e->fieldErrors !== []) {
+                errors_set($e->fieldErrors);
+                old_set($input);
+            }
+
+            flash_set('danger', $e->getMessage());
+            redirect($back);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] order ship failed: ' . $e->getMessage());
+            flash_set('danger', 'The order could not be shipped. Please try again.');
+            redirect($back);
+        }
+
+        flash_set('success', sprintf(
+            'Order shipped via %s — tracking %s. The stock has been deducted.',
+            (string) $result['courier'],
+            (string) $result['tracking_number']
+        ));
+        redirect($back);
+    }
+
+    /**
+     * POST /admin/orders/{id}/deliver — shipped → delivered with an
+     * optional proof-of-delivery note (P8-T4).
+     *
+     * @param array<string, string> $params
+     */
+    public function deliver(array $params = []): void
+    {
+        $admin   = $this->admin();
+        $adminId = (int) $admin['id'];
+        $orderId = (int) ($params['id'] ?? 0);
+        $back    = 'admin/orders/' . $orderId;
+        $note    = Request::string('note');
+
+        $errors = FulfilmentService::validateDelivery(['note' => $note]);
+
+        if ($errors !== []) {
+            errors_set($errors);
+            old_set(['note' => $note]);
+            flash_set('danger', (string) reset($errors));
+            redirect($back);
+        }
+
+        try {
+            $this->fulfilment->deliver($adminId, $orderId, $note);
+        } catch (FulfilmentException $e) {
+            if ($e->reason === 'not_found') {
+                View::error(404);
+            }
+
+            flash_set('danger', $e->getMessage());
+            redirect($back);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] order deliver failed: ' . $e->getMessage());
+            flash_set('danger', 'The delivery could not be recorded. Please try again.');
+            redirect($back);
+        }
+
+        flash_set('success', 'Order marked delivered. The member can now confirm receipt.');
+        redirect($back);
+    }
+
+    /**
+     * GET /admin/orders/{id}/invoice — the same immutable snapshot the
+     * member sees, with a back link to the order desk (P8-T5/T6).
+     *
+     * @param array<string, string> $params
+     */
+    public function invoice(array $params = []): void
+    {
+        $order = Order::find((int) ($params['id'] ?? 0));
+
+        if ($order === null) {
+            View::error(404);
+        }
+
+        $orderId  = (int) $order['id'];
+        $document = $this->invoices->ensureForOrder($orderId);
+
+        if ($document === null) {
+            flash_set('warning', 'The invoice is available once this order has been paid.');
+            redirect('admin/orders/' . $orderId);
+        }
+
+        InvoicePage::send($document, $order, url('admin/orders/' . $orderId));
     }
 
     /**

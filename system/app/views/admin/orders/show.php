@@ -2,14 +2,15 @@
 declare(strict_types=1);
 
 /**
- * Admin — one order: member, payment review, items, delivery and history
- * (plan §7 Phases 6–7; reference views/admin/shop_order.php).
+ * Admin — one order: member, payment review, fulfilment, items, delivery
+ * and history (plan §7 Phases 6–8; reference views/admin/shop_order.php).
  *
- * Phase 7 adds the review pane: every proof attempt, the verify and reject
- * actions (exact amount + reference, both confirmed through the shared
- * SweetAlert2 modal) and an admin cancellation that refunds a wallet-paid
- * order. An administrator never acts on an order they placed themselves
- * (P7-T10); the service refuses it and the page says so up front.
+ * Phase 7 adds the payment-review pane. Phase 8 adds the fulfilment panel:
+ * pack → ready to ship → ship (courier + tracking, stock deducted) →
+ * deliver (POD note), with the invoice link and the shipment summary.
+ * An administrator never reviews an order they placed themselves
+ * (P7-T10); fulfilment is not a money decision, so shipping and delivering
+ * one's own order is allowed.
  *
  * @var array<string, mixed> $order
  * @var list<array<string, mixed>> $lines
@@ -24,6 +25,14 @@ declare(strict_types=1);
  * @var bool $refund_on_cancel
  * @var array<string, string> $reject_reasons
  * @var array<string, string> $cancel_reasons
+ * @var array<string, mixed>|null $shipment
+ * @var array<string, mixed>|null $invoice
+ * @var bool $can_pack
+ * @var bool $can_ready
+ * @var bool $can_ship
+ * @var bool $can_deliver
+ * @var bool $can_confirm
+ * @var int $auto_days
  */
 
 $status  = (string) $order['status'];
@@ -38,6 +47,19 @@ $canCancel      = (bool) ($can_cancel ?? false);
 $refundOnCancel = (bool) ($refund_on_cancel ?? false);
 $rejectReasons  = $reject_reasons ?? PaymentService::REJECT_REASONS;
 $cancelReasons  = $cancel_reasons ?? PaymentService::CANCEL_REASONS;
+
+$shipment    = $shipment ?? null;
+$invoice     = $invoice ?? null;
+$canPack     = (bool) ($can_pack ?? $status === 'paid');
+$canReady    = (bool) ($can_ready ?? $status === 'packing');
+$canShip     = (bool) ($can_ship ?? $status === 'ready_to_ship');
+$canDeliver  = (bool) ($can_deliver ?? $status === 'shipped');
+$canConfirm  = (bool) ($can_confirm ?? false);
+$autoDays    = (int) ($auto_days ?? FulfilmentService::autoCompleteDays());
+$hasInvoice  = $invoice !== null || Order::isPaid($order);
+$invoiceUrl  = url('admin/orders/' . $orderId . '/invoice');
+$courier     = $shipment === null ? '' : trim((string) ($shipment['courier'] ?? ''));
+$tracking    = $shipment === null ? '' : trim((string) ($shipment['tracking_number'] ?? ''));
 
 $proofBadge = static fn (string $proofStatus): string => status_badge($proofStatus, [
     'pending'  => ['Awaiting review', 'info'],
@@ -265,13 +287,175 @@ $fullAddress = implode(', ', array_filter([
 <?php elseif ($status === 'paid' || $status === 'packing' || $status === 'ready_to_ship'): ?>
                       <p class="text-body-secondary small mb-0">
                         Payment verified<?= trim((string) ($order['payment_reference'] ?? '')) !== '' ? ' · ref ' . e((string) $order['payment_reference']) : '' ?><?= $order['paid_at'] !== null ? ' · ' . e(format_datetime((string) $order['paid_at'])) : '' ?>.
-                        Fulfilment actions (pack, ship, deliver) arrive with the next phase.
+                        Use the fulfilment panel below to pack and ship it.
+                      </p>
+<?php elseif (in_array($status, ['shipped', 'delivered', 'completed'], true)): ?>
+                      <p class="text-body-secondary small mb-0">
+                        Payment verified<?= trim((string) ($order['payment_reference'] ?? '')) !== '' ? ' · ref ' . e((string) $order['payment_reference']) : '' ?><?= $order['paid_at'] !== null ? ' · ' . e(format_datetime((string) $order['paid_at'])) : '' ?>.
+                        Fulfilment is complete for this order; its history is below.
                       </p>
 <?php else: ?>
                       <p class="text-body-secondary small mb-0">No payment action is available for this order.</p>
 <?php endif; ?>
                     </div>
                   </div>
+
+                  <div class="card mb-6 order-fulfilment-card">
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <h5 class="mb-0">Fulfilment</h5>
+                      <?= status_badge($status) ?>
+                    </div>
+                    <div class="card-body">
+<?php if ($canPack): ?>
+                      <p class="text-body-secondary small mb-3">
+                        Payment is verified. Start packing, then mark the parcel ready for the courier.
+                      </p>
+                      <form method="POST" action="<?= e(url('admin/orders/' . $orderId . '/transition')) ?>" class="row g-3"
+                            data-confirm
+                            data-confirm-title="Start packing this order?"
+                            data-confirm-text="The order moves to Packing. Nothing else changes yet."
+                            data-confirm-button="Start packing"
+                            data-confirm-cancel="Not yet">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="to" value="packing" />
+                        <div class="col-12">
+                          <label class="form-label" for="pack-note">Note <span class="text-body-secondary">(optional)</span></label>
+                          <input type="text" name="note" id="pack-note" maxlength="200" class="form-control"
+                                 value="<?= old('note') ?>" placeholder="Anything the packer should know" />
+                        </div>
+                        <div class="col-12">
+                          <button type="submit" class="btn btn-primary">
+                            <i class="icon-base bx bx-box me-1"></i> Start packing
+                          </button>
+                        </div>
+                      </form>
+<?php elseif ($canReady): ?>
+                      <p class="text-body-secondary small mb-3">
+                        The order is being packed. Mark it ready when the parcel is sealed and waiting for pickup.
+                      </p>
+                      <form method="POST" action="<?= e(url('admin/orders/' . $orderId . '/transition')) ?>" class="row g-3"
+                            data-confirm
+                            data-confirm-title="Mark this order ready to ship?"
+                            data-confirm-text="The next step is recording the courier and the tracking number."
+                            data-confirm-button="Ready to ship"
+                            data-confirm-cancel="Not yet">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="to" value="ready_to_ship" />
+                        <div class="col-12">
+                          <label class="form-label" for="ready-note">Note <span class="text-body-secondary">(optional)</span></label>
+                          <input type="text" name="note" id="ready-note" maxlength="200" class="form-control"
+                                 value="<?= old('note') ?>" placeholder="Parcel count, courier instructions…" />
+                        </div>
+                        <div class="col-12">
+                          <button type="submit" class="btn btn-primary">
+                            <i class="icon-base bx bx-check-circle me-1"></i> Mark ready to ship
+                          </button>
+                        </div>
+                      </form>
+<?php elseif ($canShip): ?>
+                      <p class="text-body-secondary small mb-3">
+                        Record the courier and the tracking number. Saving this <strong>deducts the stock</strong>
+                        from the catalogue and moves the order to Shipped.
+                      </p>
+                      <form method="POST" action="<?= e(url('admin/orders/' . $orderId . '/ship')) ?>" class="row g-3"
+                            data-confirm
+                            data-confirm-title="Ship this order?"
+                            data-confirm-text="The stock will be deducted and the order marked Shipped. This cannot be undone here."
+                            data-confirm-button="Ship order"
+                            data-confirm-cancel="Not yet">
+                        <?= csrf_field() ?>
+                        <div class="col-sm-6">
+                          <label class="form-label" for="ship-courier">Courier</label>
+                          <input type="text" name="courier" id="ship-courier" maxlength="40" list="courier-options"
+                                 class="form-control <?= invalid_class('courier') ?>"
+                                 value="<?= old('courier') ?>" placeholder="J&T Express" required />
+                          <datalist id="courier-options">
+<?php foreach (FulfilmentService::COURIERS as $option): ?>
+                            <option value="<?= e($option) ?>"></option>
+<?php endforeach; ?>
+                          </datalist>
+<?php if (has_error('courier')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('courier')) ?></div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-sm-6">
+                          <label class="form-label" for="ship-tracking">Tracking number</label>
+                          <input type="text" name="tracking_number" id="ship-tracking" maxlength="80"
+                                 class="form-control <?= invalid_class('tracking_number') ?>"
+                                 value="<?= old('tracking_number') ?>" placeholder="e.g. JT1234567890" required />
+<?php if (has_error('tracking_number')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('tracking_number')) ?></div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label" for="ship-notes">Shipping note <span class="text-body-secondary">(optional)</span></label>
+                          <input type="text" name="notes" id="ship-notes" maxlength="255" class="form-control"
+                                 value="<?= old('notes') ?>" placeholder="Box count, fragile, pickup time…" />
+                        </div>
+                        <div class="col-12">
+                          <button type="submit" class="btn btn-primary">
+                            <i class="icon-base bx bxs-truck me-1"></i> Ship order
+                          </button>
+                        </div>
+                      </form>
+<?php elseif ($canDeliver): ?>
+                      <p class="text-body-secondary small mb-3">
+                        The parcel is with <?= e($courier !== '' ? $courier : 'the courier') ?>
+<?= $tracking !== '' ? ' (tracking ' . e($tracking) . ')' : '' ?>.
+                        Mark it delivered when it arrives; the member confirms afterwards.
+                      </p>
+                      <form method="POST" action="<?= e(url('admin/orders/' . $orderId . '/deliver')) ?>" class="row g-3"
+                            data-confirm
+                            data-confirm-title="Mark this order delivered?"
+                            data-confirm-text="The order moves to Delivered and the member can confirm receipt."
+                            data-confirm-button="Mark delivered"
+                            data-confirm-cancel="Not yet">
+                        <?= csrf_field() ?>
+                        <div class="col-12">
+                          <label class="form-label" for="deliver-note">Proof of delivery <span class="text-body-secondary">(optional)</span></label>
+                          <input type="text" name="note" id="deliver-note" maxlength="200" class="form-control"
+                                 value="<?= old('note') ?>" placeholder="Received by, date/time, remarks" />
+                        </div>
+                        <div class="col-12">
+                          <button type="submit" class="btn btn-success">
+                            <i class="icon-base bx bx-home-smile me-1"></i> Mark delivered
+                          </button>
+                        </div>
+                      </form>
+<?php elseif ($canConfirm): ?>
+                      <p class="text-body-secondary small mb-0">
+                        Delivered<?= $order['delivered_at'] !== null ? ' on ' . e(format_datetime((string) $order['delivered_at'])) : '' ?>.
+                        Waiting for the member to confirm receipt; the auto-complete job closes it
+                        <?= $autoDays >= 1 ? (int) $autoDays . ' day' . ($autoDays === 1 ? '' : 's') . ' after delivery' : 'when scheduled' ?>.
+                      </p>
+<?php elseif ($status === 'completed'): ?>
+                      <p class="text-body-secondary small mb-0">
+                        Completed<?= $order['completed_at'] !== null ? ' on ' . e(format_datetime((string) $order['completed_at'])) : '' ?>.
+                        The invoice is the frozen document for this sale.
+                      </p>
+<?php elseif ($status === 'cancelled'): ?>
+                      <p class="text-body-secondary small mb-0">
+                        Cancelled — no fulfilment action is available. Any reserved stock has been released.
+                      </p>
+<?php else: ?>
+                      <p class="text-body-secondary small mb-0">
+                        Fulfilment starts once the payment is verified. Verify the payment above first.
+                      </p>
+<?php endif; ?>
+                    </div>
+<?php if ($hasInvoice): ?>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-receipt me-1"></i>
+                        <?= $invoice !== null && $invoice['voided_at'] !== null ? 'Invoice voided (payment reversed)' : 'Invoice issued' ?>
+                      </span>
+                      <a href="<?= e($invoiceUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-label-primary">
+                        View / print invoice
+                      </a>
+                    </div>
+<?php endif; ?>
+                  </div>
+
 
                   <div class="card mb-6">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -336,6 +520,35 @@ $fullAddress = implode(', ', array_filter([
                     </div>
                   </div>
 
+<?php if ($shipment !== null): ?>
+                  <div class="card mb-6 order-shipment-card">
+                    <div class="card-header"><h5 class="mb-0">Shipment</h5></div>
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between py-1 small">
+                        <span class="text-body-secondary">Courier</span>
+                        <span class="fw-medium"><?= e($courier !== '' ? $courier : '—') ?></span>
+                      </div>
+                      <div class="d-flex justify-content-between gap-2 py-1 small">
+                        <span class="text-body-secondary">Tracking</span>
+                        <span class="fw-medium user-select-all text-end"><?= e($tracking !== '' ? $tracking : '—') ?></span>
+                      </div>
+                      <div class="d-flex justify-content-between py-1 small">
+                        <span class="text-body-secondary">Shipped</span>
+                        <span><?= e(format_datetime((string) ($order['shipped_at'] ?? ''))) ?></span>
+                      </div>
+                      <div class="d-flex justify-content-between py-1 small">
+                        <span class="text-body-secondary">Delivered</span>
+                        <span><?= e(format_datetime(($shipment['delivered_at'] ?? null) === null ? null : (string) $shipment['delivered_at'])) ?></span>
+                      </div>
+<?php if (trim((string) ($shipment['notes'] ?? '')) !== ''): ?>
+                      <div class="small text-body-secondary border-top mt-2 pt-2">
+                        <span class="fw-medium">Notes:</span> <?= e((string) $shipment['notes']) ?>
+                      </div>
+<?php endif; ?>
+                    </div>
+                  </div>
+<?php endif; ?>
+
                   <div class="card<?= $canCancel ? ' mb-6' : '' ?>">
                     <div class="card-header"><h5 class="mb-0">Payment</h5></div>
                     <div class="card-body">
@@ -369,6 +582,11 @@ $fullAddress = implode(', ', array_filter([
 <?php endif; ?>
 <?php if ($order['correction_deadline'] !== null && $status === 'payment_failed'): ?>
                       <div class="small text-body-secondary mt-1">Correction by <?= e(format_datetime((string) $order['correction_deadline'])) ?></div>
+<?php endif; ?>
+<?php if ($hasInvoice): ?>
+                      <a href="<?= e($invoiceUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-label-primary w-100 mt-3">
+                        <i class="icon-base bx bx-receipt me-1"></i> View / print invoice
+                      </a>
 <?php endif; ?>
                     </div>
                   </div>

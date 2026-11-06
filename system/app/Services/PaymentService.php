@@ -55,11 +55,13 @@ final class PaymentService
 
     private PDO $pdo;
     private WalletService $wallet;
+    private InvoiceService $invoices;
 
     public function __construct(?PDO $pdo = null)
     {
-        $this->pdo    = $pdo ?? db();
-        $this->wallet = new WalletService($this->pdo);
+        $this->pdo      = $pdo ?? db();
+        $this->wallet   = new WalletService($this->pdo);
+        $this->invoices = new InvoiceService($this->pdo);
     }
 
     /* ----------------------------------------------------------
@@ -435,6 +437,9 @@ final class PaymentService
                 $this->pdo
             );
 
+            /* The invoice is frozen with the verification (plan §5.7). */
+            $this->invoices->issueForPaidOrder($orderId, $this->pdo);
+
             return ['order_id' => $orderId, 'status' => 'paid', 'total' => $total];
         });
     }
@@ -573,6 +578,10 @@ final class PaymentService
             $refunded = in_array($status, Order::REFUNDABLE, true)
                 ? $this->refundWalletDebit($order)
                 : 0.0;
+
+            /* A paid order had an invoice; cancelling reverses the sale,
+             * so the document is voided (its content stays frozen). */
+            $this->invoices->voidForOrder($orderId, 'Order cancelled — ' . $reasonText, $this->pdo);
 
             $this->pdo->prepare(
                 "UPDATE shop_orders

@@ -2,13 +2,12 @@
 declare(strict_types=1);
 
 /**
- * One order — status, items, delivery, payment, proof attempts and history
- * (plan §5.3–5.6, Phases 6–7; reference views/member/shop_order.php).
+ * One order — status, items, delivery, payment, proof attempts, shipment
+ * and history (plan §5.3–5.7, Phases 6–8; reference views/member/shop_order.php).
  *
- * Phase 7 adds the manual-payment loop: the member uploads a proof while
- * the window is open (attempt cap enforced), sees every attempt and the
- * admin's decision, and can re-upload after a rejection until the
- * correction window closes.
+ * Phase 7 adds the manual-payment loop. Phase 8 adds the fulfilment half:
+ * packing/shipped/delivered/completed states, the courier + tracking card,
+ * the "confirm receipt" action and the printable invoice link.
  *
  * @var array<string, mixed> $order
  * @var list<array<string, mixed>> $lines
@@ -17,9 +16,14 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $proofs
  * @var array<string, mixed>|null $latest_proof
  * @var array{open:bool, reason:string, deadline:?string, used:int, left:int, max:int} $window
+ * @var array<string, mixed>|null $shipment
+ * @var array<string, mixed>|null $invoice
+ * @var bool $can_confirm
+ * @var int $auto_days
  */
 
 $status   = (string) $order['status'];
+$orderId  = (int) $order['id'];
 $deadline = $order['payment_deadline'] !== null ? (string) $order['payment_deadline'] : '';
 $overdue  = $deadline !== '' && strtotime($deadline) !== false && strtotime($deadline) < time();
 
@@ -37,6 +41,15 @@ $windowOpen   = (bool) ($window['open'] ?? false);
 $windowDeadline = $window['deadline'] ?? null;
 $isManual     = (string) $order['payment_method'] !== 'ewallet';
 $attemptsLeft = (int) ($window['left'] ?? 0);
+
+$shipment    = $shipment ?? null;
+$invoice     = $invoice ?? null;
+$canConfirm  = (bool) ($can_confirm ?? false);
+$autoDays    = (int) ($auto_days ?? FulfilmentService::autoCompleteDays());
+$hasInvoice  = $invoice !== null || Order::isPaid($order);
+$invoiceUrl  = url('orders/' . $orderId . '/invoice');
+$tracking    = $shipment === null ? '' : trim((string) ($shipment['tracking_number'] ?? ''));
+$courier     = $shipment === null ? '' : trim((string) ($shipment['courier'] ?? ''));
 
 /* Proof status labels read better in this context than the global map. */
 $proofBadge = static fn (string $proofStatus): string => status_badge($proofStatus, [
@@ -90,6 +103,11 @@ $fullAddress = implode(', ', array_filter([
                 <div class="text-md-end">
                   <?= status_badge($status) ?>
                   <div class="fs-4 fw-semibold mt-1"><?= e(money((float) $order['total'])) ?></div>
+<?php if ($hasInvoice): ?>
+                  <a href="<?= e($invoiceUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-label-primary mt-3">
+                    <i class="icon-base bx bx-receipt me-1"></i> View / print invoice
+                  </a>
+<?php endif; ?>
                 </div>
               </div>
 
@@ -103,10 +121,84 @@ $fullAddress = implode(', ', array_filter([
                           <span class="avatar-initial rounded-circle bg-label-success"><i class="icon-base bx bx-check-circle"></i></span>
                         </span>
                         <div>
-                          <h5 class="mb-1">Payment received</h5>
-                          <p class="text-body-secondary mb-1">Thank you! We are preparing your order for delivery.</p>
+                          <h5 class="mb-1">
+<?php if ($status === 'paid'): ?>
+                            Payment received
+<?php elseif ($status === 'packing'): ?>
+                            Packing your order
+<?php else: ?>
+                            Ready to ship
+<?php endif; ?>
+                          </h5>
+                          <p class="text-body-secondary mb-1">
+<?php if ($status === 'paid'): ?>
+                            Thank you! We are preparing your order for delivery.
+<?php elseif ($status === 'packing'): ?>
+                            We are picking and packing your items.
+<?php else: ?>
+                            Your order is packed and waiting for the courier to collect it.
+<?php endif; ?>
+                          </p>
                           <p class="text-body-secondary small mb-0">
-                            Courier tracking and the printable invoice arrive with the fulfilment phase.
+                            The courier and the tracking number appear here as soon as the order ships.
+                          </p>
+                        </div>
+                      </div>
+<?php elseif ($status === 'shipped'): ?>
+                      <div class="d-flex align-items-start gap-3">
+                        <span class="avatar avatar-sm flex-shrink-0">
+                          <span class="avatar-initial rounded-circle bg-label-primary"><i class="icon-base bx bx-package"></i></span>
+                        </span>
+                        <div>
+                          <h5 class="mb-1">On the way</h5>
+                          <p class="text-body-secondary mb-2">
+                            Your order has been handed to
+                            <strong><?= e($courier !== '' ? $courier : 'the courier') ?></strong>
+                            <?= $order['shipped_at'] !== null ? 'on ' . e(format_datetime((string) $order['shipped_at'])) : '' ?>.
+                          </p>
+<?php if ($tracking !== ''): ?>
+                          <p class="mb-1 small">
+                            <span class="text-body-secondary">Tracking number:</span>
+                            <span class="fw-semibold user-select-all"><?= e($tracking) ?></span>
+                          </p>
+<?php endif; ?>
+                          <p class="text-body-secondary small mb-0">
+                            We will mark the order delivered when it arrives; you confirm receipt afterwards.
+                          </p>
+                        </div>
+                      </div>
+<?php elseif ($status === 'delivered'): ?>
+                      <div class="d-flex align-items-start gap-3">
+                        <span class="avatar avatar-sm flex-shrink-0">
+                          <span class="avatar-initial rounded-circle bg-label-success"><i class="icon-base bx bx-home-smile"></i></span>
+                        </span>
+                        <div>
+                          <h5 class="mb-1">Delivered</h5>
+                          <p class="text-body-secondary mb-1">
+                            Delivered
+                            <?= $order['delivered_at'] !== null ? 'on ' . e(format_datetime((string) $order['delivered_at'])) : '' ?>.
+                            Please confirm you received the order so we can close it.
+                          </p>
+                          <p class="text-body-secondary small mb-0">
+                            If you do nothing, the order completes automatically
+                            <?= $autoDays >= 1 ? (int) $autoDays . ' day' . ($autoDays === 1 ? '' : 's') . ' after delivery' : 'once the shop completes it' ?>.
+                          </p>
+                        </div>
+                      </div>
+<?php elseif ($status === 'completed'): ?>
+                      <div class="d-flex align-items-start gap-3">
+                        <span class="avatar avatar-sm flex-shrink-0">
+                          <span class="avatar-initial rounded-circle bg-label-success"><i class="icon-base bx bx-check-double"></i></span>
+                        </span>
+                        <div>
+                          <h5 class="mb-1">Order complete</h5>
+                          <p class="text-body-secondary mb-1">
+                            Completed
+                            <?= $order['completed_at'] !== null ? 'on ' . e(format_datetime((string) $order['completed_at'])) : '' ?>.
+                            Thank you for shopping with <?= e(APP_NAME) ?>.
+                          </p>
+                          <p class="text-body-secondary small mb-0">
+                            Your invoice is available above and from the payment panel.
                           </p>
                         </div>
                       </div>
@@ -230,6 +322,35 @@ $fullAddress = implode(', ', array_filter([
                       </div>
 <?php endif; ?>
                     </div>
+
+<?php if ($canConfirm): ?>
+                    <div class="card-footer order-confirm-receipt">
+                      <h6 class="mb-1">Confirm your receipt</h6>
+                      <p class="text-body-secondary small mb-3">
+                        Confirm the order arrived and it is closed. The confirmation cannot be undone.
+                      </p>
+                      <form
+                        method="POST"
+                        action="<?= e(url('orders/' . $orderId . '/confirm')) ?>"
+                        class="d-flex flex-wrap align-items-end gap-2"
+                        data-confirm
+                        data-confirm-title="Confirm you received this order?"
+                        data-confirm-text="The order will be marked complete. This cannot be undone."
+                        data-confirm-button="Confirm receipt"
+                        data-confirm-cancel="Not yet"
+                      >
+                        <?= csrf_field() ?>
+                        <div class="flex-grow-1" style="min-width: 14rem">
+                          <label class="form-label small mb-1" for="confirm-note">Note <span class="text-body-secondary">(optional)</span></label>
+                          <input type="text" name="note" id="confirm-note" maxlength="200" class="form-control form-control-sm"
+                                 placeholder="Anything we should know?" />
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-success">
+                          <i class="icon-base bx bx-check-double me-1"></i> Confirm receipt
+                        </button>
+                      </form>
+                    </div>
+<?php endif; ?>
 
 <?php if ($isManual && $windowOpen): ?>
                     <div class="card-footer order-proof-upload">
@@ -388,6 +509,35 @@ $fullAddress = implode(', ', array_filter([
                         <span class="fw-medium">Notes:</span> <?= e((string) $order['notes_member']) ?>
                       </div>
 <?php endif; ?>
+<?php if ($shipment !== null): ?>
+                      <div class="border-top mt-3 pt-3 small">
+                        <div class="fw-medium mb-2">Shipment</div>
+<?php if ($courier !== ''): ?>
+                        <div class="d-flex justify-content-between py-1">
+                          <span class="text-body-secondary">Courier</span>
+                          <span class="fw-medium"><?= e($courier) ?></span>
+                        </div>
+<?php endif; ?>
+<?php if ($tracking !== ''): ?>
+                        <div class="d-flex justify-content-between gap-2 py-1">
+                          <span class="text-body-secondary">Tracking</span>
+                          <span class="fw-medium user-select-all text-end"><?= e($tracking) ?></span>
+                        </div>
+<?php endif; ?>
+<?php if ($order['shipped_at'] !== null): ?>
+                        <div class="d-flex justify-content-between py-1">
+                          <span class="text-body-secondary">Shipped</span>
+                          <span><?= e(format_datetime((string) $order['shipped_at'])) ?></span>
+                        </div>
+<?php endif; ?>
+<?php if (($shipment['delivered_at'] ?? null) !== null): ?>
+                        <div class="d-flex justify-content-between py-1">
+                          <span class="text-body-secondary">Delivered</span>
+                          <span><?= e(format_datetime((string) $shipment['delivered_at'])) ?></span>
+                        </div>
+<?php endif; ?>
+                      </div>
+<?php endif; ?>
                     </div>
                   </div>
 
@@ -418,6 +568,11 @@ $fullAddress = implode(', ', array_filter([
 <?php endif; ?>
 <?php if ($order['paid_at'] !== null): ?>
                       <div class="small text-body-secondary mt-2">Paid <?= e(format_datetime((string) $order['paid_at'])) ?></div>
+<?php endif; ?>
+<?php if ($hasInvoice): ?>
+                      <a href="<?= e($invoiceUrl) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-label-primary w-100 mt-3">
+                        <i class="icon-base bx bx-receipt me-1"></i> View / print invoice
+                      </a>
 <?php endif; ?>
                     </div>
                   </div>

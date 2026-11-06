@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 6)
+--  EcoWealth — MySQL schema (fresh install, Phase 8)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, 003, 004, 005, 006, 007, …).
+--  database/migrations/ (apply in order: 001, 002, …, 010).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -18,6 +18,9 @@
 --                ewallet_ledger, ewallet_admin_topups.
 --  Phase 6 owns: addresses, shop_orders, shop_order_items,
 --                shop_order_events, users payout-account columns.
+--  Phase 7 owns: shop_payment_proofs, settings.shop_expiry_enabled.
+--  Phase 8 owns: shop_shipments, shop_invoices, shop_invoice_items,
+--                settings.shop_autocomplete_enabled.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -441,6 +444,78 @@ CREATE TABLE IF NOT EXISTS shop_payment_proofs (
   KEY idx_proofs_reference (reference_no),
   CONSTRAINT fk_proofs_order    FOREIGN KEY (order_id)    REFERENCES shop_orders (id) ON DELETE CASCADE,
   CONSTRAINT fk_proofs_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Shipments — courier + tracking (plan §5.5; Phase 8). One row is
+-- written when an order leaves `ready_to_ship`; the stock is
+-- deducted in the same transaction, so a shipment always has its
+-- physical movement.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop_shipments (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id        INT UNSIGNED NOT NULL,
+  courier         VARCHAR(40)  NULL,
+  tracking_number VARCHAR(80)  NULL,
+  delivered_at    DATETIME     NULL,
+  notes           VARCHAR(255) NULL,
+  created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_shipments_order (order_id),
+  CONSTRAINT fk_shipments_order FOREIGN KEY (order_id) REFERENCES shop_orders (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Invoices — one frozen snapshot per paid order (plan §5.7;
+-- Phase 8). The printed columns are never updated; only voided_at /
+-- void_reason change when the payment is reversed. Numbering is
+-- INV + yymmdd + the 5-digit id.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop_invoices (
+  id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id         INT UNSIGNED NOT NULL,
+  invoice_no       VARCHAR(32)  NOT NULL,
+  issued_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status_at_issue  VARCHAR(20)  NOT NULL,
+  seller_name      VARCHAR(160) NOT NULL,
+  seller_address   VARCHAR(500) NULL,
+  seller_tin       VARCHAR(40)  NULL,
+  seller_phone     VARCHAR(40)  NULL,
+  buyer_username   VARCHAR(60)  NULL,
+  billing_name     VARCHAR(120) NOT NULL,
+  billing_phone    VARCHAR(40)  NULL,
+  shipping_name    VARCHAR(120) NOT NULL,
+  shipping_address VARCHAR(255) NOT NULL,
+  payment_method   VARCHAR(20)  NOT NULL,
+  paid_at          DATETIME     NULL,
+  subtotal         DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  shipping_fee     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  total            DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  voided_at        DATETIME     NULL,
+  void_reason      VARCHAR(80)  NULL,
+  created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_invoices_no (invoice_no),
+  KEY idx_invoices_order (order_id),
+  CONSTRAINT fk_invoices_order FOREIGN KEY (order_id) REFERENCES shop_orders (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Invoice lines — the frozen description / price snapshots
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shop_invoice_items (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  invoice_id  INT UNSIGNED NOT NULL,
+  line_no     SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  description VARCHAR(160) NOT NULL,
+  sku         VARCHAR(64)  NULL,
+  quantity    INT UNSIGNED NOT NULL DEFAULT 1,
+  unit_price  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  amount      DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (id),
+  KEY idx_invoice_items_invoice (invoice_id),
+  CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (invoice_id) REFERENCES shop_invoices (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 

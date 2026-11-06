@@ -446,7 +446,9 @@ return [
         assert_contains('name="to" value="cancelled"', $html);
         assert_contains('The member asked to cancel', $html);
         assert_contains('Payment verified', $html);
-        assert_contains('Fulfilment actions', $html);
+        assert_contains('Fulfilment', $html);
+        assert_contains('Start packing', $html);
+        assert_contains('View / print invoice', $html);
         assert_not_contains('Verify and mark paid', $html);
     },
 

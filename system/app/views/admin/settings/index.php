@@ -2,24 +2,31 @@
 declare(strict_types=1);
 
 /**
- * Admin — settings: payment accounts and payment windows (plan §7 Phase 7;
- * the full settings page expands in Phase 15).
+ * Admin — settings: payment accounts, payment windows, fulfilment and the
+ * invoice seller block (plan §7 Phases 7–8; the full settings page expands
+ * in Phase 15).
  *
  * The values here are what buyers see at checkout and on the order page,
- * plus the timing rules the payment lifecycle reads. Every save is audited
+ * the timing rules the payment/expiry lifecycle reads, and the company
+ * identity frozen onto every issued invoice. Every save is audited
  * (`settings.update`).
  *
  * @var array<string, mixed> $settings
  * @var list<array{title:string, icon:string, method:string, fields:list<array{key:string,label:string,placeholder:string}>}> $account_groups
  * @var array<string, array{label:string, rule:string, hint:string}> $window_fields
+ * @var list<array{key:string,label:string,placeholder:string,type:string}> $seller_fields
+ * @var array<string, array{label:string, rule:string, hint:string}> $fulfilment_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
+ * @var bool $autocomplete_enabled
  * @var bool $manual_open
  */
 
 $settings   = $settings ?? [];
 $accountGroups = $account_groups ?? [];
 $windowFields  = $window_fields ?? [];
+$sellerFields  = $seller_fields ?? [];
+$fulfilmentFields = $fulfilment_fields ?? [];
 $manualOpen    = (bool) ($manual_open ?? true);
 $expiryChecked = old('shop_expiry_enabled', ($expiry_enabled ?? true) ? '1' : '0') === '1';
 
@@ -32,10 +39,11 @@ $value = static function (string $key) use ($settings): string {
                 <div>
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
-                    Where buyers send manual payments, and how long they have to pay. Changes are recorded in the audit log.
+                    Where buyers send manual payments, how long they have to pay, and what appears on the
+                    printed invoice. Changes are recorded in the audit log.
                   </p>
                 </div>
-                <span class="badge bg-label-primary">Payment &amp; windows</span>
+                <span class="badge bg-label-primary">Payments, fulfilment &amp; invoices</span>
               </div>
 
 <?php if (!$manualOpen): ?>
@@ -157,6 +165,84 @@ $value = static function (string $key) use ($settings): string {
                       </button>
                     </div>
                   </div>
+
+                  <div class="card mt-6">
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <h5 class="mb-0">Fulfilment &amp; invoices</h5>
+                      <span class="small text-body-secondary">Printed on every issued invoice</span>
+                    </div>
+                    <div class="card-body">
+                      <h6 class="mb-3">
+                        <i class="icon-base bx bx-buildings me-1 text-body-secondary"></i> Seller identity
+                      </h6>
+                      <div class="row g-6">
+<?php foreach ($sellerFields as $field): ?>
+                        <?php $key = (string) $field['key']; ?>
+                        <div class="col-md-6">
+                          <label class="form-label" for="setting-<?= e($key) ?>"><?= e((string) $field['label']) ?></label>
+<?php if (($field['type'] ?? 'text') === 'textarea'): ?>
+                          <textarea name="<?= e($key) ?>" id="setting-<?= e($key) ?>" rows="3" maxlength="500"
+                                    class="form-control <?= invalid_class($key) ?>"
+                                    placeholder="<?= e((string) $field['placeholder']) ?>"><?= $value($key) ?></textarea>
+<?php else: ?>
+                          <input type="text" name="<?= e($key) ?>" id="setting-<?= e($key) ?>" maxlength="160"
+                                 class="form-control <?= invalid_class($key) ?>"
+                                 value="<?= $value($key) ?>"
+                                 placeholder="<?= e((string) $field['placeholder']) ?>" />
+<?php endif; ?>
+<?php if (has_error($key)): ?>
+                          <div class="invalid-feedback"><?= e(error_for($key)) ?></div>
+<?php endif; ?>
+                        </div>
+<?php endforeach; ?>
+                      </div>
+
+                      <hr class="my-5" />
+
+                      <h6 class="mb-3">
+                        <i class="icon-base bx bx-package me-1 text-body-secondary"></i> Completion
+                      </h6>
+                      <div class="row g-6">
+<?php foreach ($fulfilmentFields as $key => $field): ?>
+                        <?php $key = (string) $key; ?>
+                        <div class="col-md-6">
+                          <label class="form-label" for="setting-<?= e($key) ?>"><?= e((string) $field['label']) ?></label>
+                          <input type="number" min="1" max="365" step="1" name="<?= e($key) ?>" id="setting-<?= e($key) ?>"
+                                 class="form-control <?= invalid_class($key) ?>"
+                                 value="<?= $value($key) ?>" />
+<?php if (has_error($key)): ?>
+                          <div class="invalid-feedback"><?= e(error_for($key)) ?></div>
+<?php else: ?>
+                          <div class="form-text"><?= e((string) $field['hint']) ?></div>
+<?php endif; ?>
+                        </div>
+<?php endforeach; ?>
+                      </div>
+
+                      <div class="form-check form-switch mt-4">
+                        <input class="form-check-input <?= invalid_class('shop_autocomplete_enabled') ?>" type="checkbox"
+                               role="switch" name="shop_autocomplete_enabled" value="1" id="shop-autocomplete-enabled"
+                               <?= (old('shop_autocomplete_enabled', ($autocomplete_enabled ?? true) ? '1' : '0') === '1') ? 'checked' : '' ?> />
+                        <label class="form-check-label" for="shop-autocomplete-enabled">
+                          Complete delivered orders automatically
+                        </label>
+                      </div>
+                      <p class="text-body-secondary small mb-0 mt-2">
+                        When this is off, every auto-complete run is skipped and a delivered order waits for the
+                        member to confirm. The shipped → delivered steps are unaffected.
+                      </p>
+<?php if (has_error('shop_autocomplete_enabled')): ?>
+                      <div class="text-danger small mt-1"><?= e(error_for('shop_autocomplete_enabled')) ?></div>
+<?php endif; ?>
+                    </div>
+                    <div class="card-footer">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-receipt me-1"></i>
+                        An invoice is frozen when an order is paid; editing these fields never rewrites one that
+                        was already issued. The completion job is <code>bin/order_autocomplete.php</code>.
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="col-xl-4">
@@ -198,14 +284,26 @@ $value = static function (string $key) use ($settings): string {
                           </div>
                         </div>
                       </div>
-                      <div class="settings-note mb-0">
+                      <div class="settings-note">
                         <div class="d-flex gap-2">
                           <i class="icon-base bx bx-error text-warning mt-1"></i>
                           <div>
-                            <div class="fw-medium">Expiry</div>
+                            <div class="fw-medium">Expiry &amp; completion</div>
                             <p class="text-body-secondary small mb-0">
-                              Unpaid orders are cancelled when their window closes; a proof already under review
-                              is never expired.
+                              Unpaid orders are cancelled when their window closes; delivered orders complete
+                              themselves when the auto-complete window passes.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="settings-note mb-0">
+                        <div class="d-flex gap-2">
+                          <i class="icon-base bx bx-receipt text-primary mt-1"></i>
+                          <div>
+                            <div class="fw-medium">Invoice</div>
+                            <p class="text-body-secondary small mb-0">
+                              The seller block below is frozen onto each invoice when an order is paid. Editing
+                              it later never rewrites a document that was already issued.
                             </p>
                           </div>
                         </div>

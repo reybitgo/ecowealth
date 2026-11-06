@@ -22,6 +22,7 @@ $migrations    = [
     $migrationDir . '007_payout_accounts.sql',
     $migrationDir . '008_payment_proofs.sql',
     $migrationDir . '009_shop_expiry.sql',
+    $migrationDir . '010_fulfilment.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -80,7 +81,7 @@ return [
             'settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products',
             'carts', 'cart_items', 'ewallet_ledger', 'ewallet_admin_topups',
             'addresses', 'shop_orders', 'shop_order_items', 'shop_order_events',
-            'shop_payment_proofs',
+            'shop_payment_proofs', 'shop_shipments', 'shop_invoices', 'shop_invoice_items',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -251,6 +252,9 @@ return [
         assert_same($columnList($fresh, 'shop_order_items'), $columnList($migrated, 'shop_order_items'), 'shop_order_items columns differ from schema.sql');
         assert_same($columnList($fresh, 'shop_order_events'), $columnList($migrated, 'shop_order_events'), 'shop_order_events columns differ from schema.sql');
         assert_same($columnList($fresh, 'shop_payment_proofs'), $columnList($migrated, 'shop_payment_proofs'), 'shop_payment_proofs columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_shipments'), $columnList($migrated, 'shop_shipments'), 'shop_shipments columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_invoices'), $columnList($migrated, 'shop_invoices'), 'shop_invoices columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_invoice_items'), $columnList($migrated, 'shop_invoice_items'), 'shop_invoice_items columns differ from schema.sql');
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {
@@ -358,6 +362,87 @@ return [
         assert_same(
             0,
             (int) $pdo->query("SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = {$orderId}")->fetchColumn()
+        );
+    },
+
+    'migration guards the shipment and invoice snapshots' => function () use ($buildMigrated): void {
+        $pdo    = $buildMigrated();
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        $pdo->exec(
+            "INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                subtotal, total, terms_accepted_at, paid_at)
+             VALUES ('EWT-MIG-10', {$userId}, 'shipped', 'gcash', 'Buyer', 'Buyer', 'Address',
+                     10.00, 10.00, NOW(), NOW())"
+        );
+        $orderId = (int) $pdo->lastInsertId();
+
+        /* The shipment is one row per order, with the courier/tracking facts. */
+        $pdo->exec(
+            "INSERT INTO shop_shipments (order_id, courier, tracking_number, notes)
+             VALUES ({$orderId}, 'J&T Express', 'JT-0001', 'Two boxes')"
+        );
+        assert_same(
+            1,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_shipments WHERE order_id = {$orderId}")->fetchColumn()
+        );
+        assert_same(
+            'J&T Express|JT-0001',
+            $pdo->query("SELECT CONCAT(courier, '|', tracking_number) FROM shop_shipments WHERE order_id = {$orderId}")->fetchColumn()
+        );
+
+        /* The invoice header + its frozen lines. */
+        $pdo->exec(
+            "INSERT INTO shop_invoices
+               (order_id, invoice_no, status_at_issue, seller_name, billing_name, shipping_name,
+                shipping_address, payment_method, subtotal, shipping_fee, total)
+             VALUES ({$orderId}, 'INV-260101-00001', 'paid', 'EcoWealth', 'Buyer', 'Buyer',
+                     'Address', 'gcash', 10.00, 0.00, 10.00)"
+        );
+        $invoiceId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO shop_invoice_items (invoice_id, line_no, description, quantity, unit_price, amount)
+             VALUES ({$invoiceId}, 1, 'Migrated product', 2, 5.00, 10.00)"
+        );
+
+        assert_same(
+            1,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_invoice_items WHERE invoice_id = {$invoiceId}")->fetchColumn()
+        );
+
+        /* The invoice number is unique. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO shop_invoices
+                   (order_id, invoice_no, status_at_issue, seller_name, billing_name, shipping_name,
+                    shipping_address, payment_method, subtotal, shipping_fee, total)
+                 VALUES ({$orderId}, 'INV-260101-00001', 'paid', 'EcoWealth', 'Buyer', 'Buyer',
+                         'Address', 'gcash', 10.00, 0.00, 10.00)"
+            ),
+            PDOException::class
+        );
+
+        /* Deleting the order cascades both documents. */
+        $pdo->exec("DELETE FROM shop_orders WHERE id = {$orderId}");
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_shipments WHERE order_id = {$orderId}")->fetchColumn()
+        );
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_invoices WHERE order_id = {$orderId}")->fetchColumn()
+        );
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_invoice_items WHERE invoice_id = {$invoiceId}")->fetchColumn()
+        );
+
+        /* The auto-complete kill switch arrives with its default. */
+        assert_same(
+            '1',
+            $pdo->query("SELECT value FROM settings WHERE key_name = 'shop_autocomplete_enabled'")->fetchColumn()
         );
     },
 
