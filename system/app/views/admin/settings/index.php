@@ -2,14 +2,14 @@
 declare(strict_types=1);
 
 /**
- * Admin — settings: payment accounts, payment windows, fulfilment and the
- * invoice seller block (plan §7 Phases 7–8; the full settings page expands
- * in Phase 15).
+ * Admin — settings: shop, payment accounts, payment windows, fulfilment and
+ * the invoice seller block (plan §7 Phases 7–8; the full settings page
+ * expands in Phase 15).
  *
- * The values here are what buyers see at checkout and on the order page,
- * the timing rules the payment/expiry lifecycle reads, and the company
- * identity frozen onto every issued invoice. Every save is audited
- * (`settings.update`).
+ * Each card is its own form and saves on its own. The hidden `section`
+ * field tells AdminSettingsController::save() which card's keys to
+ * validate, write and audit, so pressing one card's **Save settings**
+ * never touches another card's values.
  *
  * @var array<string, mixed> $settings
  * @var list<array{title:string, icon:string, method:string, fields:list<array{key:string,label:string,placeholder:string}>}> $account_groups
@@ -29,10 +29,13 @@ $sellerFields  = $seller_fields ?? [];
 $fulfilmentFields = $fulfilment_fields ?? [];
 $manualOpen    = (bool) ($manual_open ?? true);
 $expiryChecked = old('shop_expiry_enabled', ($expiry_enabled ?? true) ? '1' : '0') === '1';
+$autocompleteChecked = old('shop_autocomplete_enabled', ($autocomplete_enabled ?? true) ? '1' : '0') === '1';
 
 $value = static function (string $key) use ($settings): string {
     return old($key, (string) ($settings[$key] ?? ''));
 };
+
+$action = url('admin/settings');
 ?>
             <div class="container-xxl flex-grow-1 container-p-y settings-page">
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
@@ -40,7 +43,7 @@ $value = static function (string $key) use ($settings): string {
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
                     Where buyers send manual payments, how long they have to pay, and what appears on the
-                    printed invoice. Changes are recorded in the audit log.
+                    printed invoice. Each card saves on its own and every change is recorded in the audit log.
                   </p>
                 </div>
                 <span class="badge bg-label-primary">Payments, fulfilment &amp; invoices</span>
@@ -57,11 +60,12 @@ $value = static function (string $key) use ($settings): string {
               </div>
 <?php endif; ?>
 
-              <form method="POST" action="<?= e(url('admin/settings')) ?>" class="row g-6 settings-form">
-                <?= csrf_field() ?>
-
+              <div class="row g-6">
                 <div class="col-xl-8">
-                  <div class="card mb-6">
+                  <!-- Shop -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-shop" class="card mb-6 settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="shop" />
                     <div class="card-header"><h5 class="mb-0">Shop</h5></div>
                     <div class="card-body">
                       <div class="form-check form-switch">
@@ -80,9 +84,21 @@ $value = static function (string $key) use ($settings): string {
                       <div class="text-danger small mt-1"><?= e(error_for('shop_enabled')) ?></div>
 <?php endif; ?>
                     </div>
-                  </div>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-store me-1"></i>
+                        Applies to the storefront and the checkout immediately.
+                      </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save shop settings">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
+                    </div>
+                  </form>
 
-                  <div class="card mb-6">
+                  <!-- Receiving accounts -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-accounts" class="card mb-6 settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="accounts" />
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <h5 class="mb-0">Receiving accounts</h5>
                       <span class="small text-body-secondary">Shown at checkout and on the order page</span>
@@ -114,9 +130,21 @@ $value = static function (string $key) use ($settings): string {
 <?php endforeach; ?>
                       </div>
                     </div>
-                  </div>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-receipt me-1"></i>
+                        Buyers copy these details on the checkout and order pages.
+                      </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save receiving accounts">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
+                    </div>
+                  </form>
 
-                  <div class="card">
+                  <!-- Payment windows -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-windows" class="card mb-6 settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="windows" />
                     <div class="card-header"><h5 class="mb-0">Payment windows</h5></div>
                     <div class="card-body">
                       <div class="row g-6">
@@ -160,13 +188,16 @@ $value = static function (string $key) use ($settings): string {
                         <i class="icon-base bx bx-time-five me-1"></i>
                         The expiry job reads these windows; see <code>bin/shop_expire.php</code>.
                       </span>
-                      <button type="submit" class="btn btn-primary">
+                      <button type="submit" class="btn btn-primary" aria-label="Save payment windows">
                         <i class="icon-base bx bx-save me-1"></i> Save settings
                       </button>
                     </div>
-                  </div>
+                  </form>
 
-                  <div class="card mt-6">
+                  <!-- Fulfilment & invoices -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-fulfilment" class="card settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="fulfilment" />
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <h5 class="mb-0">Fulfilment &amp; invoices</h5>
                       <span class="small text-body-secondary">Printed on every issued invoice</span>
@@ -222,7 +253,7 @@ $value = static function (string $key) use ($settings): string {
                       <div class="form-check form-switch mt-4">
                         <input class="form-check-input <?= invalid_class('shop_autocomplete_enabled') ?>" type="checkbox"
                                role="switch" name="shop_autocomplete_enabled" value="1" id="shop-autocomplete-enabled"
-                               <?= (old('shop_autocomplete_enabled', ($autocomplete_enabled ?? true) ? '1' : '0') === '1') ? 'checked' : '' ?> />
+                               <?= $autocompleteChecked ? 'checked' : '' ?> />
                         <label class="form-check-label" for="shop-autocomplete-enabled">
                           Complete delivered orders automatically
                         </label>
@@ -235,14 +266,16 @@ $value = static function (string $key) use ($settings): string {
                       <div class="text-danger small mt-1"><?= e(error_for('shop_autocomplete_enabled')) ?></div>
 <?php endif; ?>
                     </div>
-                    <div class="card-footer">
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">
                         <i class="icon-base bx bx-receipt me-1"></i>
-                        An invoice is frozen when an order is paid; editing these fields never rewrites one that
-                        was already issued. The completion job is <code>bin/order_autocomplete.php</code>.
+                        Frozen at payment · completion runs from <code>bin/order_autocomplete.php</code>.
                       </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save fulfilment and invoice settings">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
                     </div>
-                  </div>
+                  </form>
                 </div>
 
                 <div class="col-xl-4">
@@ -311,5 +344,5 @@ $value = static function (string $key) use ($settings): string {
                     </div>
                   </div>
                 </div>
-              </form>
+              </div>
             </div>

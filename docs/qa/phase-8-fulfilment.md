@@ -36,9 +36,9 @@ delivery, member confirmation and ownership · P8-T5 the invoice issued at e-wal
 manual verification, with a frozen seller/buyer/line snapshot · P8-T6 reprint identity · P8-T7
 order/invoice scoping · P8-T8 the no-cancel-after-ship rule · P8-T9 the auto-complete sweep, its
 kill switch and idempotency. `FulfilmentTest`, `InvoiceTest` and `FulfilmentViewTest` cover these
-(37 new cases; 332 in total). The HTTP smoke script walks the whole flow — pack, a refused ship
+(43 new cases; 338 in total). The HTTP smoke script walks the whole flow — pack, a refused ship
 without tracking, ship with tracking + the stock change, a refused cancel after ship, deliver, member
-confirm, the invoice guards and the auto-complete job from its URL — 113 checks in total.
+confirm, the invoice guards and the auto-complete job from its URL — 115 checks in total.
 
 **Already captured headlessly** (reference screenshots — still run the checks; refresh them during
 your pass):
@@ -61,7 +61,8 @@ your pass):
 | `final-admin-delivered.png` | the waiting-for-confirmation state and the auto-complete copy |
 | `final-admin-completed.png` | a completed order with the frozen invoice |
 | `final-admin-orders.png` | the order desk with the mixed fulfilment statuses |
-| `final-admin-settings.png` | the **Fulfilment & invoices** card (seller block + completion rules) |
+| `final-admin-settings.png` | the settings page: one independent card and Save settings button per section |
+| `final-admin-settings-mobile.png` | the same page at 390 × 844, each card's button under its content |
 
 > The reference screenshots were produced from the evidence fixture account **`QA_Fulfil_01 /
 > QaFulfil!2345`**, which owns one order in each state: paid, ready to ship, shipped, delivered,
@@ -470,18 +471,27 @@ your pass):
 
 1. Open **Admin → Settings** and scroll to **Fulfilment & invoices**.
 2. Change the **Registered business name**, **TIN**, **Contact number** and **Business address**.
-3. Change **Auto-complete delivered orders after (days)** to `10` and save.
+3. Change **Auto-complete delivered orders after (days)** to `10` and click the card's
+   **Save settings** button (not any other card's).
 4. Reopen the page and check the values persisted.
-5. Try to save **0 days** or an empty business name.
+5. Switch to **Receiving accounts** and **Payment windows** and confirm their values were untouched.
+6. Try to save **0 days** or an empty business name on this card.
 
 **Expected**
 
-- The card carries **Seller identity** (business name, TIN, contact number, address) and
-  **Completion** (days + **Complete delivered orders automatically** switch).
-- Saving shows *"N settings saved."*; the values persist after a reload.
-- Every save is recorded in the audit log (`settings.update`) with the before/after values.
-- Zero days or an empty business name is refused with an inline message, and the previously saved
-  values stay untouched.
+- The page is a stack of independent cards — **Shop**, **Receiving accounts**, **Payment windows** and
+  **Fulfilment & invoices** — and **each card has its own Save settings button**; the button is not
+  stuck in one card.
+- The **Fulfilment & invoices** card carries **Seller identity** (business name, TIN, contact number,
+  address) and **Completion** (days + **Complete delivered orders automatically** switch).
+- Saving shows a section-scoped confirmation such as *"Fulfilment & invoices: 5 settings saved."*,
+  returns to this card, and the values persist after a reload.
+- The accounts and windows values are unchanged by this save (and vice versa when those cards are
+  saved).
+- Every save is recorded in the audit log (`settings.update`) with the section and the before/after
+  values.
+- Zero days or an empty business name is refused with an inline message on this card, and the
+  previously saved values stay untouched.
 - A member opening `/admin/settings` gets the branded **403** page.
 
 ---

@@ -1693,6 +1693,62 @@ and inconsistent elsewhere, so “pick a courier” was really “type one”.
 
 Phase 9, as planned.
 
+---
+
+## Post-Phase 8 — Settings: one independent form and Save button per card
+
+**Date:** 2026-11-06 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 338 PHP cases,
+115 smoke checks.
+
+### Problem
+
+`/admin/settings` was one page-wide `<form>` with a single **Save settings** button sitting in the
+**Payment windows** card — the legacy of the Phase 7 page, when that card was the whole form. The
+Shop, Receiving accounts and Fulfilment & invoices cards had no button of their own, and every save
+submitted (and re-validated) every card's fields, so editing one card's value could silently write
+another card at the same time. The button's position also implied the windows card was the only one
+that could be saved.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Controller** | [`AdminSettingsController`](../system/app/Controllers/AdminSettingsController.php) — a `SECTIONS` map (`shop`, `accounts`, `windows`, `fulfilment`); `sectionKeys()`, `sectionToggles()`, `sectionRules()` and `sectionLabels()` derive each card's fields from the existing catalogue. `save()` reads the posted `section`, validates/writes/audits only that card, normalises only its switches, returns to the card (`#settings-<section>`) and refuses an unknown section. The old all-cards `fieldKeys()` helper is gone |
+| **View** | [`admin/settings/index.php`](../system/app/views/admin/settings/index.php) — four independent `<form class="card">` blocks, each with `name="section"`, its own CSRF field and its own **Save settings** button in the card footer (shop, accounts and windows were missing one; fulfilment had none). Distinct `aria-label`s keep the four buttons distinguishable for screen readers. The header copy says each card saves on its own |
+| **Flash / audit** | Saves are section-scoped: *"Receiving accounts: 1 setting saved."*, *"Payment windows: 3 settings saved."*, etc.; `audit_log.meta` now carries `section` plus the before/after changes |
+| **Tests** | New [`SettingsPageTest`](../system/tests/Cases/SettingsPageTest.php) — six cases: one form/button per card, each card contains only its fields, errors/typed values stay in their card, the legacy wrapper is gone, and the section catalogue partitions keys/rules/labels exactly |
+| **Smoke** | The settings block saves each card separately, asserts four forms/four buttons and that a save leaves the other cards untouched, checks the invalid-window and empty-seller refusals on their own cards, and an unknown section is refused |
+| **Evidence** | `final-admin-settings.png` refreshed; new `final-admin-settings-mobile.png` (390 × 844) shows every card's button under its content |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **338 / 338** (6 new `SettingsPageTest` cases) |
+| `powershell -NoProfile -File tests/smoke.ps1` | **115 / 115** (2 new: per-card save + isolation; fulfilment-card validation + unknown section) |
+| Browser, 1440 × 900 | Four cards, four **Save settings** buttons (one per card); saving accounts then windows then fulfilment each flashes a section message and keeps the other cards' values; no console errors |
+| Browser, 390 × 844 | Each button renders under its card's content and is reachable without horizontal scrolling |
+| Audit | `settings.update` rows carry the section and only that card's changed keys |
+
+### Decisions
+
+- **The visible label stays “Save settings” on every card**, matching the requested wording; each
+  button carries a distinct `aria-label` (shop / receiving accounts / payment windows / fulfilment and
+  invoice settings) so assistive technology can tell them apart.
+- **The section is declared by the form, not inferred from which fields arrived.** That makes a
+  crafted POST that includes another card's fields harmless: the controller never reads keys outside
+  the posted section.
+- **Old input and errors are per section in practice.** The session maps are global, but only the
+  failed card's keys are stored, so other cards keep rendering their saved values; the redirect returns
+  to the failing card's anchor.
+- **Unknown or missing sections are refused** with a flash rather than defaulting to a full save,
+  which would reintroduce the original all-cards write.
+- **No migration.** `settings` is unchanged; only how the page and controller group the keys moved.
+
+### Next
+
+Phase 9, as planned.
+
 
 
 

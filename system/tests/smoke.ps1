@@ -1442,7 +1442,7 @@ try {
             -and $selfAfter.Body -match 'cannot verify, reject or cancel their own order') `
         "an admin cannot verify their own order (status=$selfStatus)"
 
-    # P7-T4 - the settings page saves the payment windows and validates them.
+    # P7-T4 / P8-T16 - each settings card saves on its own.
     $settingsBefore = Get-SettingValue 'shop_payment_deadline_hours'
     $settingsPage   = Invoke-App -Path '/admin/settings' -Session 'admin'
     $settingsToken  = Get-Csrf $settingsPage.Body
@@ -1458,34 +1458,68 @@ try {
         $settingsSnapshot[$key] = Get-SettingValue $key
     }
 
-    $saveSettings = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
-        '_csrf'                         = $settingsToken
-        'shop_enabled'                  = '1'
-        'shop_expiry_enabled'           = '1'
-        'shop_autocomplete_enabled'     = '1'
-        'payment_gcash_number'          = '0917 123 4567'
-        'payment_gcash_name'            = 'EcoWealth Smoke'
-        'payment_maya_number'           = '0917 765 4321'
-        'payment_maya_name'             = 'EcoWealth Smoke'
-        'payment_bank_name'             = 'BDO'
-        'payment_bank_account_name'     = 'EcoWealth Smoke Inc.'
-        'payment_bank_account_number'   = '1234 5678 9012'
-        'shop_payment_deadline_hours'   = '30'
-        'shop_correction_window_hours'  = '12'
-        'shop_max_proof_attempts'       = '4'
-        'shop_autocomplete_days'        = '9'
-        'seller_name'                   = 'EcoWealth Smoke Trading'
-        'seller_address'                = '1 Smoke Plaza, Makati'
-        'seller_tin'                    = '000-111-222-000'
-        'seller_phone'                  = '0917 999 0000'
+    $sectionForms = ([regex]::Matches($settingsPage.Body, 'name="section" value="(shop|accounts|windows|fulfilment)"')).Count
+    $saveButtons  = ([regex]::Matches($settingsPage.Body, 'Save settings')).Count
+
+    # 1. Receiving accounts.
+    $saveAccounts = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = $settingsToken
+        'section'                     = 'accounts'
+        'payment_gcash_number'        = '0917 123 4567'
+        'payment_gcash_name'          = 'EcoWealth Smoke'
+        'payment_maya_number'         = '0917 765 4321'
+        'payment_maya_name'           = 'EcoWealth Smoke'
+        'payment_bank_name'           = 'BDO'
+        'payment_bank_account_name'   = 'EcoWealth Smoke Inc.'
+        'payment_bank_account_number' = '1234 5678 9012'
+    }
+    $gcashSaved = Get-SettingValue 'payment_gcash_number'
+
+    # 2. Fulfilment & invoices, without touching the accounts card.
+    $saveFulfilment = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = $settingsToken
+        'section'                     = 'fulfilment'
+        'seller_name'                 = 'EcoWealth Smoke Trading'
+        'seller_address'              = '1 Smoke Plaza, Makati'
+        'seller_tin'                  = '000-111-222-000'
+        'seller_phone'                = '0917 999 0000'
+        'shop_autocomplete_days'      = '9'
+        'shop_autocomplete_enabled'   = '1'
+    }
+    $sellerSaved = Get-SettingValue 'seller_name'
+    $daysSaved   = Get-SettingValue 'shop_autocomplete_days'
+    $autoSaved   = Get-SettingValue 'shop_autocomplete_enabled'
+    $gcashAfterFulfilment = Get-SettingValue 'payment_gcash_number'
+
+    # 3. Payment windows, without touching the seller block.
+    $saveWindows = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = $settingsToken
+        'section'                     = 'windows'
+        'shop_payment_deadline_hours' = '30'
+        'shop_correction_window_hours' = '12'
+        'shop_max_proof_attempts'     = '4'
+        'shop_expiry_enabled'         = '1'
     }
     $settingsSaved = (Invoke-MySql "SELECT CONCAT(value, '|') FROM settings WHERE key_name = 'shop_payment_deadline_hours';" | Out-String).Trim()
     $attemptsSaved = Get-SettingValue 'shop_max_proof_attempts'
-    $gcashSaved    = Get-SettingValue 'payment_gcash_number'
     $expirySaved   = Get-SettingValue 'shop_expiry_enabled'
-    $daysSaved     = Get-SettingValue 'shop_autocomplete_days'
-    $sellerSaved   = Get-SettingValue 'seller_name'
-    $autoSaved     = Get-SettingValue 'shop_autocomplete_enabled'
+    $sellerAfterWindows = Get-SettingValue 'seller_name'
+
+    # 4. Shop switch, on then off, without touching the windows.
+    $shopOff = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'        = $settingsToken
+        'section'      = 'shop'
+        'shop_enabled' = '0'
+    }
+    $shopOffValue = Get-SettingValue 'shop_enabled'
+    $deadlineAfterShop = Get-SettingValue 'shop_payment_deadline_hours'
+
+    $shopOn = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'        = $settingsToken
+        'section'      = 'shop'
+        'shop_enabled' = '1'
+    }
+    $shopOnValue = Get-SettingValue 'shop_enabled'
 
     Assert-That 'P7-T4' ($settingsPage.Status -eq 200 -and $settingsPage.Body -match 'Receiving accounts' `
             -and $settingsPage.Body -match 'name="shop_payment_deadline_hours"' `
@@ -1493,22 +1527,29 @@ try {
             -and $settingsPage.Body -match 'name="seller_name"' `
             -and $settingsPage.Body -match 'name="shop_autocomplete_days"' `
             -and $settingsPage.Body -match 'Fulfilment &amp; invoices' `
-            -and $saveSettings.Status -eq 302 -and $settingsSaved -eq '30|' `
-            -and $attemptsSaved -eq '4' -and $gcashSaved -eq '0917 123 4567' -and $expirySaved -eq '1' `
-            -and $daysSaved -eq '9' -and $sellerSaved -eq 'EcoWealth Smoke Trading' -and $autoSaved -eq '1') `
-        "POST /admin/settings saves the accounts, windows, seller block and switches (deadline=$settingsSaved, attempts=$attemptsSaved, days=$daysSaved, seller=$sellerSaved)"
+            -and $sectionForms -eq 4 -and $saveButtons -eq 4 `
+            -and $saveAccounts.Status -eq 302 -and $gcashSaved -eq '0917 123 4567' `
+            -and $saveFulfilment.Status -eq 302 -and $sellerSaved -eq 'EcoWealth Smoke Trading' `
+            -and $daysSaved -eq '9' -and $autoSaved -eq '1' `
+            -and $saveWindows.Status -eq 302 -and $settingsSaved -eq '30|' `
+            -and $attemptsSaved -eq '4' -and $expirySaved -eq '1' `
+            -and $shopOff.Status -eq 302 -and $shopOffValue -eq '0' `
+            -and $shopOn.Status -eq 302 -and $shopOnValue -eq '1') `
+        "each settings card has its own form + Save settings (forms=$sectionForms, buttons=$saveButtons, accounts=$gcashSaved, seller=$sellerSaved, deadline=$settingsSaved)"
+
+    Assert-That 'P7-T4' ($gcashAfterFulfilment -eq '0917 123 4567' `
+            -and $sellerAfterWindows -eq 'EcoWealth Smoke Trading' `
+            -and $deadlineAfterShop -eq '30') `
+        "saving one card leaves the other cards untouched (accounts=$gcashAfterFulfilment, seller=$sellerAfterWindows, deadline=$deadlineAfterShop)"
 
     $settingsAfter   = Invoke-App -Path '/admin/settings' -Session 'admin'
     $badSettings     = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
-        '_csrf'                       = (Get-Csrf $settingsAfter.Body)
-        'shop_enabled'                = '1'
-        'shop_expiry_enabled'         = '1'
-        'shop_autocomplete_enabled'   = '1'
-        'shop_payment_deadline_hours' = '0'
+        '_csrf'                        = (Get-Csrf $settingsAfter.Body)
+        'section'                      = 'windows'
+        'shop_payment_deadline_hours'  = '0'
         'shop_correction_window_hours' = '12'
-        'shop_max_proof_attempts'     = '4'
-        'shop_autocomplete_days'      = '9'
-        'seller_name'                 = 'EcoWealth Smoke Trading'
+        'shop_max_proof_attempts'      = '4'
+        'shop_expiry_enabled'          = '1'
     }
     $settingsKept = Get-SettingValue 'shop_payment_deadline_hours'
     $settingsErrorPage = Invoke-App -Path '/admin/settings' -Session 'admin'
@@ -1516,6 +1557,31 @@ try {
     Assert-That 'P7-T4' ($badSettings.Status -eq 302 -and $settingsKept -eq '30' `
             -and $settingsErrorPage.Body -match 'must be at least 1') `
         "an invalid window is refused and keeps the saved value (deadline=$settingsKept)"
+
+    # P8-T16 - the fulfilment card validates and saves independently too.
+    $badFulfilment = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                      = (Get-Csrf $settingsErrorPage.Body)
+        'section'                    = 'fulfilment'
+        'seller_name'                = ''
+        'seller_address'             = '1 Smoke Plaza, Makati'
+        'seller_tin'                 = '000-111-222-000'
+        'seller_phone'               = '0917 999 0000'
+        'shop_autocomplete_days'     = '9'
+        'shop_autocomplete_enabled'  = '1'
+    }
+    $sellerKept = Get-SettingValue 'seller_name'
+    $fulfilmentErrorPage = Invoke-App -Path '/admin/settings' -Session 'admin'
+
+    $unknownSection = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'   = (Get-Csrf $fulfilmentErrorPage.Body)
+        'section' = 'nope'
+    }
+    $unknownPage = Invoke-App -Path '/admin/settings' -Session 'admin'
+
+    Assert-That 'P8-T16' ($badFulfilment.Status -eq 302 -and $sellerKept -eq 'EcoWealth Smoke Trading' `
+            -and $fulfilmentErrorPage.Body -match 'Registered business name is required' `
+            -and $unknownSection.Status -eq 302 -and $unknownPage.Body -match 'Unknown settings section') `
+        "the fulfilment card validates on its own and an unknown section is refused (seller=$sellerKept)"
 
     $memberSettings = Invoke-App -Path '/admin/settings' -Session 'member'
     Assert-That 'P7-T4' ($memberSettings.Status -eq 403) `

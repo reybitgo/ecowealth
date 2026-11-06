@@ -100,6 +100,19 @@ final class AdminSettingsController
         ],
     ];
 
+    /**
+     * The independently saveable cards on /admin/settings. Every card
+     * has its own form and its own **Save settings** button, and only
+     * the submitted section is validated, written and audited — so a
+     * save in one card can never overwrite another card's values.
+     */
+    private const SECTIONS = [
+        'shop'       => 'Shop',
+        'accounts'   => 'Receiving accounts',
+        'windows'    => 'Payment windows',
+        'fulfilment' => 'Fulfilment & invoices',
+    ];
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -119,27 +132,44 @@ final class AdminSettingsController
         ]);
     }
 
-    /** @param array<string, string> $params */
+    /**
+     * POST /admin/settings — save exactly one card.
+     *
+     * The form posts its `section` key; the controller only reads,
+     * validates and writes that section's fields. The response returns
+     * to the same card (and section) with a flash and any field errors.
+     *
+     * @param array<string, string> $params
+     */
     public function save(array $params = []): void
     {
+        $section = strtolower(trim(Request::string('section')));
+
+        if (!isset(self::SECTIONS[$section])) {
+            flash_set('danger', 'Unknown settings section.');
+            redirect('admin/settings');
+        }
+
+        $back  = 'admin/settings#settings-' . $section;
         $input = [];
 
-        foreach (self::fieldKeys() as $key) {
+        foreach (self::sectionKeys($section) as $key) {
             $input[$key] = Request::string($key);
         }
 
-        /* An unticked checkbox posts nothing at all. */
-        $input['shop_enabled']             = Request::post('shop_enabled') === '1' ? '1' : '0';
-        $input['shop_expiry_enabled']      = Request::post('shop_expiry_enabled') === '1' ? '1' : '0';
-        $input['shop_autocomplete_enabled'] = Request::post('shop_autocomplete_enabled') === '1' ? '1' : '0';
+        /* An unticked checkbox posts nothing at all. Normalise only this
+         * card's switches; other cards' switches are never in $input. */
+        foreach (self::sectionToggles($section) as $key) {
+            $input[$key] = Request::post($key) === '1' ? '1' : '0';
+        }
 
-        $errors = Validator::check($input, self::fieldRules(), self::fieldLabels());
+        $errors = Validator::check($input, self::sectionRules($section), self::sectionLabels($section));
 
         if ($errors !== []) {
             errors_set($errors);
             old_set($input);
             flash_set('danger', 'Please fix the highlighted settings.');
-            redirect('admin/settings');
+            redirect($back);
         }
 
         $changes = [];
@@ -167,11 +197,15 @@ final class AdminSettingsController
                 'actor_role'   => $admin === null ? null : (string) $admin['role'],
                 'subject_type' => 'settings',
                 'subject_id'   => null,
-                'meta'         => ['changes' => $changes],
+                'meta'         => [
+                    'section' => $section,
+                    'changes' => $changes,
+                ],
             ]);
 
             flash_set('success', sprintf(
-                '%d setting%s saved.',
+                '%s: %d setting%s saved.',
+                self::SECTIONS[$section],
                 count($changes),
                 count($changes) === 1 ? '' : 's'
             ));
@@ -179,37 +213,74 @@ final class AdminSettingsController
             flash_set('info', 'No changes to save.');
         }
 
-        redirect('admin/settings');
+        redirect($back);
     }
 
     /* ----------------------------------------------------------
      *  Field catalogue (drives save + validation)
      * ---------------------------------------------------------- */
 
-    /** @return list<string> */
-    private static function fieldKeys(): array
+    /**
+     * The non-toggle field keys a card saves.
+     *
+     * @return list<string>
+     */
+    private static function sectionKeys(string $section): array
     {
         $keys = [];
 
-        foreach (self::ACCOUNT_GROUPS as $group) {
-            foreach ($group['fields'] as $field) {
-                $keys[] = (string) $field['key'];
+        if ($section === 'accounts') {
+            foreach (self::ACCOUNT_GROUPS as $group) {
+                foreach ($group['fields'] as $field) {
+                    $keys[] = (string) $field['key'];
+                }
             }
         }
 
-        foreach (array_keys(self::WINDOW_FIELDS) as $key) {
-            $keys[] = (string) $key;
+        if ($section === 'windows') {
+            foreach (array_keys(self::WINDOW_FIELDS) as $key) {
+                $keys[] = (string) $key;
+            }
         }
 
-        foreach (self::SELLER_FIELDS as $field) {
-            $keys[] = (string) $field['key'];
-        }
+        if ($section === 'fulfilment') {
+            foreach (self::SELLER_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
 
-        foreach (array_keys(self::FULFILMENT_FIELDS) as $key) {
-            $keys[] = (string) $key;
+            foreach (array_keys(self::FULFILMENT_FIELDS) as $key) {
+                $keys[] = (string) $key;
+            }
         }
 
         return $keys;
+    }
+
+    /** @return list<string> */
+    private static function sectionToggles(string $section): array
+    {
+        return match ($section) {
+            'shop'       => ['shop_enabled'],
+            'windows'    => ['shop_expiry_enabled'],
+            'fulfilment' => ['shop_autocomplete_enabled'],
+            default      => [],
+        };
+    }
+
+    /** @return array<string, string> */
+    private static function sectionRules(string $section): array
+    {
+        $keys = array_merge(self::sectionKeys($section), self::sectionToggles($section));
+
+        return array_intersect_key(self::fieldRules(), array_flip($keys));
+    }
+
+    /** @return array<string, string> */
+    private static function sectionLabels(string $section): array
+    {
+        $keys = array_merge(self::sectionKeys($section), self::sectionToggles($section));
+
+        return array_intersect_key(self::fieldLabels(), array_flip($keys));
     }
 
     /** @return array<string, string> */

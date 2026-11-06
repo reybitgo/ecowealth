@@ -293,8 +293,11 @@ e-wallet transfer limits; later phases read them without further migrations. Sin
 payment accounts and the three payment windows (`shop_payment_deadline_hours`,
 `shop_correction_window_hours`, `shop_max_proof_attempts`) are editable at `/admin/settings`; since
 Phase 8 the same page edits the invoice seller block (`seller_name/address/tin/phone`) and the
-auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The full
-settings page expands in Phase 15.
+auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The page is four
+independent cards — **Shop**, **Receiving accounts**, **Payment windows**, **Fulfilment & invoices** —
+each with its own form and **Save settings** button; the controller only validates, writes and audits
+the submitted card's keys, so one save can never overwrite another card. The full settings page
+expands in Phase 15.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.

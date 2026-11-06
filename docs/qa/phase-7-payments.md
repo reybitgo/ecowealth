@@ -476,19 +476,29 @@ your pass):
 **Steps**
 
 1. Open **Settings** in the back-office sidebar (System → Settings).
-2. Change **Payment window** to `30`, **Correction window** to `12`, **Proof attempts** to `4`, change the
-   GCash number to `0917 123 4567`, and **Save settings**.
-3. Reload the page, then change **Payment window** to `0` and save.
-4. Before leaving, restore the original values (24 / 24 / 3 and the original GCash number).
+2. In **Receiving accounts**, change the GCash number to `0917 123 4567` and click that card's
+   **Save settings**.
+3. In **Payment windows**, change **Payment window** to `30`, **Correction window** to `12` and
+   **Proof attempts** to `4`, then click that card's **Save settings**.
+4. Reload the page, then change **Payment window** to `0` and save the windows card.
+5. Before leaving, restore the original values (24 / 24 / 3 and the original GCash number), each on
+   its own card.
 
 **Expected**
 
-- The page has the **Shop** switch, **Receiving accounts** (GCash, Maya, bank), **Payment windows**
-  (three numbers with hints), the **Expire unpaid orders automatically** switch and **Save settings**.
-- Saving shows **“4 settings saved.”** and the changed values survive a reload; a `settings.update` row is
-  written to `audit_log`.
+- The page is a stack of independent cards: **Shop**, **Receiving accounts** (GCash, Maya, bank),
+  **Payment windows** (three numbers with hints + **Expire unpaid orders automatically**) and
+  **Fulfilment & invoices**. **Each card has its own Save settings button**; there is no single
+  page-wide save stuck in one card.
+- Saving a card shows a section-scoped flash such as **“Receiving accounts: 1 setting saved.”** or
+  **“Payment windows: 3 settings saved.”**, returns to that card (the URL ends in `#settings-…`), and
+  the values survive a reload.
+- Saving one card **does not alter another**: after step 3 the GCash number is still `0917 123 4567`,
+  and the Shop switch keeps the value it had.
 - `0` is refused: red flash **“Please fix the highlighted settings.”**, **“Payment window (hours) must be
-  at least 1.”** at the field, and the stored value stays `30`.
+  at least 1.”** at the field, and the stored value stays `30`. The other cards' fields are not
+  flagged.
+- Each save writes a `settings.update` row to `audit_log` with the section and the before/after values.
 - A member opening `/admin/settings` gets the branded **403** page.
 
 ---

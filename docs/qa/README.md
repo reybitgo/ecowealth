@@ -47,7 +47,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 332   Passed: 332   Failed: 0
+Cases: 338   Passed: 338   Failed: 0
 All good.
 ```
 
@@ -60,7 +60,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 113   Failed: 0
+Passed: 115   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -105,7 +105,9 @@ Passed: 113   Failed: 0
   smoke script walks the whole flow over HTTP (pack, a refused ship, a real ship + stock change, a
   refused cancel after ship, deliver, member confirm, the invoice guards, and the auto-complete job
   from its URL). The courier picker is covered too: a real `<select>` with a typed **Others** path,
-  server-side resolution, and a no-JS baseline that keeps the free-text field visible.
+  server-side resolution, and a no-JS baseline that keeps the free-text field visible. The settings
+  page is now four independent cards, each with its own form and Save settings button; the tests and
+  smoke checks prove a save in one card leaves the other cards' values untouched.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
