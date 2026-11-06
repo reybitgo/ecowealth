@@ -1635,6 +1635,65 @@ Phase 9 — registration, registration codes, membership and activation: the fou
 sponsor capture, `reg_codes` (generate/validate/redeem/expire/export), the activation service and its
 commission hook, members admin, genealogy, and the dashboard replacement.
 
+---
+
+## Post-Phase 8 — The courier field is a real select, with an "Others" free-text path
+
+**Date:** 2026-11-06 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 332 PHP cases,
+113 smoke checks.
+
+### Problem
+
+The ship form used an `<input type="text" list="courier-options">` + `<datalist>`. Chrome merged its
+**“Saved data”** autofill entries into the datalist popup — a floating panel positioned over the
+next field, with a ✕ to forget a saved value — which looks like app data and cannot be styled. The
+control was a text input with hints rather than a dropdown, and datalist support is absent in Safari
+and inconsistent elsewhere, so “pick a courier” was really “type one”.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **View** | [`app/views/admin/orders/show.php`](../system/app/views/admin/orders/show.php) — the courier is now `<select name="courier" required>` starting on **Choose a courier…**, listing J&T Express, LBC Express, Ninja Van, Lalamove, Grab Express, 2GO, DHL and **Others (type below)**; a sibling **Other courier** text field (`courier_other`) is rendered **visible by default** with the hint *Only needed when “Others” is selected above.*; `autocomplete="off"` on the form and its text fields; the shipping note moved beside the new field |
+| **Service** | [`FulfilmentService`](../system/app/Services/FulfilmentService.php) — `OTHER_COURIER = 'Others'`, `courierChoices()` (the list without the sentinel) and `resolveCourier()` (listed value → itself; `Others` → the trimmed typed name, required 2–40 characters; empty/tampered values → field errors). `ship()` keeps its single-`courier` contract |
+| **Controller** | [`AdminOrderController::ship`](../system/app/Controllers/AdminOrderController.php) — resolves the pair before the service call, maps refusals to `courier` / `courier_other`, and preserves both raw fields as old input |
+| **JS** | `public/assets/js/app-ship.js` (new, loaded on the admin order page) — progressive enhancement only: hides the Other field while a listed courier is chosen and requires the name for **Others**; the field stays visible on the placeholder and without JavaScript |
+| **Tests** | `FulfilmentTest` — a `resolveCourier` matrix (listed, typed/trimmed, blank, too short, too long, empty, tampered); `FulfilmentViewTest` — select/options/no datalist/`autocomplete="off"`/script assertions, the visible-by-default wrapper, old-choice + error echo, and the script's toggle; `smoke.ps1` — the select markup, a blank **Others** refusal, and a typed courier stored on the auto-complete order |
+| **Docs / evidence** | QA8-11 rewritten for the dropdown and **Others**; `final-admin-ready.png` refreshed and `final-admin-ready-others.png` added; counts updated to 332/113 |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **332 / 332** (3 new: the resolver matrix, the old-choice/error view, the script source) |
+| `powershell -NoProfile -File tests/smoke.ps1` | **113 / 113** (2 new: blank **Others** refused, typed courier stored) |
+| Headless Chrome, real ready-to-ship order | **10 / 10** checks: the field is a `SELECT`; placeholder default; the 8 choices are present; no `<datalist>`; the Other field is visible by default (`hidden=false`, `required=false`); a listed courier hides it; **Others** shows and requires it; returning to the placeholder shows it again; no console errors |
+| No-JS baseline | The wrapper is server-rendered without a `hidden` attribute (asserted in `FulfilmentViewTest`), so the free-text field is usable with scripts blocked; the server ignores it unless **Others** was chosen |
+| Evidence | `docs/qa/evidence/phase-8/final-admin-ready.png` and `final-admin-ready-others.png` |
+
+### Decisions
+
+- **The current courier set is kept, and “Others” is the escape hatch.** `COURIERS` still carries the
+  same eight entries; `OTHERS` remains the sentinel so no data or constant had to migrate. A courier
+  outside the list is typed into the adjacent field and stored verbatim (max 40 characters).
+- **The placeholder is the default.** No courier is preselected, so an admin must make a conscious
+  choice rather than accept the first entry.
+- **The “Other courier” field is visible by default.** That is the no-JS-safe layout; `app-ship.js`
+  hides it only while a listed courier is selected, so nothing about the form depends on scripts.
+- **The server is authoritative.** A tampered select value is refused, **Others** requires a name, and
+  the free text is ignored whenever a listed courier is chosen — the hidden/visible state is only a
+  convenience.
+- **No migration and no API break.** Shipments store one `courier` string as before; the resolver lives
+  in the controller layer and `FulfilmentService::ship()` is unchanged for programmatic callers and
+  the existing tests.
+- **`autocomplete="off"` complements the select.** It keeps Chrome's saved-value overlay away from the
+  remaining text fields; the select itself no longer produces the datalist popup.
+
+### Next
+
+Phase 9, as planned.
+
+
 
 
 

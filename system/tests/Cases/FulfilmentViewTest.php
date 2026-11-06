@@ -124,7 +124,7 @@ $adminOrderHtml = static function (int $orderId) use ($render): string {
         'page_title'  => 'Order ' . (string) $order['order_no'],
         'current_nav' => 'admin.orders',
         'page_css'    => ['assets/css/shop.css', 'assets/css/orders.css'],
-        'page_js'     => ['assets/js/app-confirm.js'],
+        'page_js'     => ['assets/js/app-confirm.js', 'assets/js/app-ship.js'],
         'order'           => $order,
         'lines'           => Order::items($orderId),
         'events'          => Order::events($orderId),
@@ -335,14 +335,97 @@ return [
 
         assert_contains('Ship order', $html);
         assert_contains('action="' . url('admin/orders/' . $orderId . '/ship') . '"', $html);
-        assert_contains('name="courier"', $html);
+
+        /* The courier is a real select (no datalist / autocomplete popup). */
+        assert_contains('<select name="courier"', $html);
+        assert_contains('class="form-select', $html);
+        assert_contains('Choose a courier', $html);
+        assert_contains('<option value="J&amp;T Express"', $html);
+        assert_contains('<option value="LBC Express"', $html);
+        assert_contains('<option value="Ninja Van"', $html);
+        assert_contains('<option value="Others"', $html);
+        assert_contains('Others (type below)', $html);
+        assert_not_contains('<datalist', $html);
+        assert_not_contains('list="courier-options"', $html);
+
+        /* The free-text escape hatch is present and usable without JS. */
+        assert_contains('name="courier_other"', $html);
+        assert_contains('Only needed when', $html);
+        assert_contains('data-courier-other', $html);
+        assert_contains('autocomplete="off"', $html);
+        assert_contains('app-ship.js', $html);
+
+        /* No-JS baseline: the wrapper is server-rendered visible, never
+         * hidden in the HTML — only the script may hide it. */
+        $wrapper = preg_match('/<div[^>]*data-courier-other[^>]*>/', $html, $m) === 1 ? $m[0] : '';
+        assert_true($wrapper !== '', 'the Other courier wrapper must render');
+        assert_not_contains('hidden', $wrapper, 'the field starts visible without JavaScript');
+
         assert_contains('name="tracking_number"', $html);
         assert_contains('name="notes"', $html);
-        assert_contains('datalist id="courier-options"', $html);
-        assert_contains('J&amp;T Express', $html);
         assert_contains('deducts the stock', $html);
         assert_contains('data-confirm-title="Ship this order?"', $html);
         assert_contains('name="_csrf"', $html);
+    },
+
+    'P8-T2 the courier picker keeps the old choice and shows field errors' => function () use ($makeProduct, $makeMember, $paidOrder, $advance, $adminOrderHtml): void {
+        $member  = $makeMember();
+        $product = $makeProduct();
+        $order   = $paidOrder($member, $product, 1);
+        $orderId = (int) $order['id'];
+
+        $advance($orderId, 'ready_to_ship');
+        test_signed_in_as(test_user('fv_admin', 'admin'));
+
+        /* "Others" chosen but no name: the select keeps the sentinel,
+         * the text field is flagged and the typed tracking is kept. */
+        errors_set([
+            'courier_other' => 'Enter the courier name.',
+        ]);
+        old_set([
+            'courier'         => 'Others',
+            'courier_other'   => '',
+            'tracking_number' => 'JT-ERR-1',
+            'notes'           => 'Keep the boxes upright',
+        ]);
+
+        $html = $adminOrderHtml($orderId);
+
+        assert_contains('<option value="Others" selected>', $html);
+        assert_contains('Enter the courier name.', $html);
+        assert_contains('is-invalid', $html);
+        assert_contains('value="JT-ERR-1"', $html);
+        assert_contains('value="Keep the boxes upright"', $html);
+        assert_not_contains('Only needed when', $html, 'the hint gives way to the error');
+
+        /* A listed choice is re-selected after another field failed. */
+        errors_set(['tracking_number' => 'Tracking number is required.']);
+        old_set([
+            'courier'         => 'J&T Express',
+            'courier_other'   => '',
+            'tracking_number' => '',
+            'notes'           => '',
+        ]);
+
+        $listed = $adminOrderHtml($orderId);
+
+        assert_contains('value="J&amp;T Express" selected', $listed);
+        assert_contains('Tracking number is required.', $listed);
+        assert_not_contains('<option value="Others" selected>', $listed);
+    },
+
+    'P8-T2 the ship script toggles the Other courier field progressively' => function (): void {
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app-ship.js');
+
+        assert_contains("document.getElementById('ship-courier')", $js);
+        assert_contains("document.querySelector('[data-courier-other]')", $js);
+        assert_contains("wrap.getAttribute('data-courier-other-value')", $js);
+        assert_contains("select.addEventListener('change', sync)", $js);
+        assert_contains('wrap.hidden = chosen !== \'\' && !isOther;', $js);
+        assert_contains('input.required = isOther;', $js);
+
+        /* No-JS baseline: the field is in the HTML, not created by script. */
+        assert_not_contains('createElement', $js);
     },
 
     'P8-T4 the shipped admin page carries the delivery form and the shipment' => function () use ($makeProduct, $makeMember, $paidOrder, $advance, $adminOrderHtml): void {

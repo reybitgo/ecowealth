@@ -36,8 +36,8 @@ still open in each phase of `docs/phase-log.md`.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 329  Passed: 329  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 111  Failed: 0` | | ☐ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 332  Passed: 332  Failed: 0` / `All good.` | | ☐ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 113  Failed: 0` | | ☐ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 

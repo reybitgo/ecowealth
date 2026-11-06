@@ -36,9 +36,9 @@ delivery, member confirmation and ownership · P8-T5 the invoice issued at e-wal
 manual verification, with a frozen seller/buyer/line snapshot · P8-T6 reprint identity · P8-T7
 order/invoice scoping · P8-T8 the no-cancel-after-ship rule · P8-T9 the auto-complete sweep, its
 kill switch and idempotency. `FulfilmentTest`, `InvoiceTest` and `FulfilmentViewTest` cover these
-(34 new cases; 329 in total). The HTTP smoke script walks the whole flow — pack, a refused ship
+(37 new cases; 332 in total). The HTTP smoke script walks the whole flow — pack, a refused ship
 without tracking, ship with tracking + the stock change, a refused cancel after ship, deliver, member
-confirm, the invoice guards and the auto-complete job from its URL — 111 checks in total.
+confirm, the invoice guards and the auto-complete job from its URL — 113 checks in total.
 
 **Already captured headlessly** (reference screenshots — still run the checks; refresh them during
 your pass):
@@ -55,7 +55,8 @@ your pass):
 | `final-invoice-void.png` | the same invoice after a cancellation: **VOID** stamp and reason |
 | `final-invoice-print.png` | the invoice with print media emulated: toolbar hidden and the sheet laid out for A4 |
 | `final-admin-paid.png` | the fulfilment panel offering **Start packing** |
-| `final-admin-ready.png` | the shipping form (courier, tracking, note) on a ready-to-ship order |
+| `final-admin-ready.png` | the shipping form (courier dropdown, tracking, Other courier, note) on a ready-to-ship order |
+| `final-admin-ready-others.png` | the same form with **Others** selected, revealing the typed courier field |
 | `final-admin-shipped.png` | the delivery form and the shipment summary |
 | `final-admin-delivered.png` | the waiting-for-confirmation state and the auto-complete copy |
 | `final-admin-completed.png` | a completed order with the frozen invoice |
@@ -69,7 +70,7 @@ your pass):
 
 > **Before you start:** Phases 1–7 should be signed off, `QA_Member_01` should have a paid e-wallet
 > order to walk through (QA6-04 leaves one), and the automated suites must be green
-> (`php tests\run.php` → **329 cases**; `powershell -NoProfile -File tests\smoke.ps1` → **111 checks**).
+> (`php tests\run.php` → **332 cases**; `powershell -NoProfile -File tests\smoke.ps1` → **113 checks**).
 > Create `docs\qa\evidence\phase-8\` for your own screenshots.
 
 ---
@@ -312,19 +313,31 @@ your pass):
 
 **Steps**
 
-1. On the ready-to-ship order, leave **Tracking number** empty, pick a courier and click
-   **Ship order**. Confirm the modal.
+1. On the ready-to-ship order, leave **Tracking number** empty, choose a courier from the
+   **Courier** dropdown and click **Ship order**. Confirm the modal.
 2. Note the error and the unchanged status.
-3. Fill **Courier** `J&T Express`, **Tracking number** `JT1234567890`, an optional note, and click
+3. Choose **Others (type below)** in the dropdown and leave **Other courier** empty; click
    **Ship order**.
-4. Open **Products**, find the ordered product, and compare its stock with the value you noted
+4. Choose **J&T Express**, enter **Tracking number** `JT1234567890`, an optional note, and click
+   **Ship order**.
+5. Open **Products**, find the ordered product, and compare its stock with the value you noted
    before step 1 (or with the member's order quantity).
+6. Optional: repeat on another order choosing **Others (type below)** and typing a courier that is
+   not in the list (e.g. `Flash Express`).
 
 **Expected**
 
+- The **Courier** field is a real dropdown starting on **Choose a courier…**, offering J&T Express,
+  LBC Express, Ninja Van, Lalamove, Grab Express, 2GO, DHL and **Others (type below)**. The
+  **Other courier** field is visible beside it, with the note *Only needed when “Others” is selected
+  above.* (With JavaScript on, the field hides while a listed courier is chosen and reappears for
+  **Others**; with JavaScript off it simply stays visible.)
 - Step 1 is refused: flash **"Tracking number is required."**, the field is highlighted, the order
   stays **Ready to ship**, and no shipment appears.
-- Step 3 succeeds: flash with the courier and tracking, status **Shipped**, shipment date shown.
+- Step 3 is refused: flash **"Enter the courier name."**, **Other courier** is highlighted, the
+  dropdown stays on **Others**, and the order stays **Ready to ship**.
+- Step 4 succeeds: flash with the courier and tracking, status **Shipped**, shipment date shown.
+- Step 6 stores the typed name as the courier (the shipment card and the member page show it).
 - The **Fulfilment** card becomes the delivery form, and the right column shows the **Shipment**
   card with the courier, tracking and shipment note.
 - The product stock is **lower by exactly the ordered quantity**; the order line is no longer held.

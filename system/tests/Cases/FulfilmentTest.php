@@ -279,6 +279,54 @@ return [
         assert_true(isset($errors['tracking_number']));
     },
 
+    'P8-T2 the courier picker resolves a listed courier or a typed "Others" name' => function (): void {
+        /* The select's own list, without the "type it yourself" entry. */
+        $choices = FulfilmentService::courierChoices();
+
+        assert_same('Others', FulfilmentService::OTHER_COURIER);
+        assert_true(in_array('J&T Express', $choices, true));
+        assert_false(in_array('Others', $choices, true), 'the sentinel is rendered separately');
+
+        /* A listed courier wins; the free-text field is ignored. */
+        $listed = FulfilmentService::resolveCourier([
+            'courier'       => 'J&T Express',
+            'courier_other' => 'ignored text',
+        ]);
+        assert_same('J&T Express', $listed['value']);
+        assert_same([], $listed['errors']);
+
+        /* "Others" uses the typed name, trimmed. */
+        $typed = FulfilmentService::resolveCourier([
+            'courier'       => 'Others',
+            'courier_other' => '  Flash Express  ',
+        ]);
+        assert_same('Flash Express', $typed['value']);
+        assert_same([], $typed['errors']);
+
+        /* "Others" without a name, or with an unusable one, is refused. */
+        $blank = FulfilmentService::resolveCourier(['courier' => 'Others', 'courier_other' => '   ']);
+        assert_same('', $blank['value']);
+        assert_same('Enter the courier name.', $blank['errors']['courier_other'] ?? '');
+
+        $short = FulfilmentService::resolveCourier(['courier' => 'Others', 'courier_other' => 'X']);
+        assert_contains('at least 2', $short['errors']['courier_other'] ?? '');
+
+        $long = FulfilmentService::resolveCourier([
+            'courier'       => 'Others',
+            'courier_other' => str_repeat('a', 41),
+        ]);
+        assert_contains('at most 40', $long['errors']['courier_other'] ?? '');
+
+        /* A missing or tampered select value never reaches the shipment. */
+        $empty = FulfilmentService::resolveCourier(['courier' => '']);
+        assert_same('Choose a courier.', $empty['errors']['courier'] ?? '');
+        assert_same('', $empty['value']);
+
+        $tampered = FulfilmentService::resolveCourier(['courier' => 'Free Courier Ltd']);
+        assert_same('Choose a courier from the list.', $tampered['errors']['courier'] ?? '');
+        assert_same('', $tampered['value']);
+    },
+
     /* ---------- P8-T3: stock deduction at ship --------------------- */
 
     'P8-T3 shipping deducts the physical stock exactly once' => function () use ($makeProduct, $makeMember, $paidOrder, $toStatus): void {

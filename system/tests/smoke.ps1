@@ -1561,9 +1561,14 @@ try {
     Assert-That 'P8-T1' ($pack.Status -eq 302 -and $packStatus -eq 'packing' `
             -and $packPage.Body -match 'Mark ready to ship' `
             -and $ready.Status -eq 302 -and $readyStatus -eq 'ready_to_ship' `
+            -and $readyPage.Body -match '<select name="courier"' `
+            -and $readyPage.Body -match 'name="courier_other"' `
+            -and $readyPage.Body -match 'Others \(type below\)' `
+            -and $readyPage.Body -match 'app-ship.js' `
+            -and $readyPage.Body -notmatch '<datalist' `
             -and $readyPage.Body -match 'name="tracking_number"' `
             -and $readyPage.Body -match 'Ship order') `
-        "POST transition pack -> ready_to_ship (packed=$packStatus, ready=$readyStatus)"
+        "POST transition pack -> ready_to_ship; the ship form has a courier select + Others field (packed=$packStatus, ready=$readyStatus)"
 
     # P8-T2 - shipping without tracking is refused.
     $badShip = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
@@ -1575,10 +1580,27 @@ try {
             -and $shipmentAfterBad -eq '0' -and $badShipPage.Body -match 'Tracking number is required') `
         "shipping without tracking is refused with no write (status=$afterBadShip, shipments=$shipmentAfterBad)"
 
+    # P8-T2 - "Others" without a typed name is refused too (and nothing is written).
+    $badOther = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
+        -Form @{
+            '_csrf'           = (Get-Csrf $badShipPage.Body)
+            'courier'         = 'Others'
+            'courier_other'   = ''
+            'tracking_number' = 'JT-SMOKE-OTHER'
+        }
+    $afterBadOther     = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentAfterBadOther = (Invoke-MySql "SELECT COUNT(*) FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $badOtherPage      = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T2' ($badOther.Status -eq 302 -and $afterBadOther -eq 'ready_to_ship' `
+            -and $shipmentAfterBadOther -eq '0' `
+            -and $badOtherPage.Body -match 'Enter the courier name' `
+            -and $badOtherPage.Body -match 'value="Others" selected') `
+        "choosing Others without a name is refused and keeps the choice (status=$afterBadOther, shipments=$shipmentAfterBadOther)"
+
     # P8-T1 / P8-T3 - ship: tracking saved, stock deducted exactly once.
     $ship = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
         -Form @{
-            '_csrf'           = (Get-Csrf $badShipPage.Body)
+            '_csrf'           = (Get-Csrf $badOtherPage.Body)
             'courier'         = 'J&T Express'
             'tracking_number' = 'JT-SMOKE-0001'
             'notes'           = 'Smoke shipment'
@@ -1650,7 +1672,15 @@ try {
             -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'to' = 'ready_to_ship' } | Out-Null
         $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
         Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/ship" -Session 'admin' `
-            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'courier' = 'LBC Express'; 'tracking_number' = 'LBC-SMOKE-1' } | Out-Null
+            -Form @{
+                '_csrf'         = (Get-Csrf $autoAdminPage.Body)
+                'courier'       = 'Others'
+                'courier_other' = 'Flash Express'
+                'tracking_number' = 'LBC-SMOKE-1'
+            } | Out-Null
+        $autoCourier = (Invoke-MySql "SELECT courier FROM shop_shipments WHERE order_id = $autoOrderId;" | Out-String).Trim()
+        Assert-That 'P8-T2' ($autoCourier -eq 'Flash Express') `
+            "the Others picker stores the typed courier (courier=$autoCourier)"
         $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
         Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/deliver" -Session 'admin' `
             -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body) } | Out-Null

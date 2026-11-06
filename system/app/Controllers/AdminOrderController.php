@@ -89,6 +89,7 @@ final class AdminOrderController
             'page_js'     => [
                 'assets/vendor/libs/sweetalert2/sweetalert2.js',
                 'assets/js/app-confirm.js',
+                'assets/js/app-ship.js',
             ],
             'order'          => $order,
             'lines'          => Order::items($orderId),
@@ -224,6 +225,11 @@ final class AdminOrderController
      * POST /admin/orders/{id}/ship — courier + tracking, stock deducted
      * (P8-T1/T2/T3).
      *
+     * The courier comes from a real `<select>` plus an optional
+     * "Others" free-text field. `FulfilmentService::resolveCourier()`
+     * turns that pair into the single stored value; a listed courier
+     * ignores the text field, and "Others" requires it.
+     *
      * @param array<string, string> $params
      */
     public function ship(array $params = []): void
@@ -232,10 +238,28 @@ final class AdminOrderController
         $adminId = (int) $admin['id'];
         $orderId = (int) ($params['id'] ?? 0);
         $back    = 'admin/orders/' . $orderId;
-        $input   = [
+
+        /* The raw form values, preserved for old input on any refusal. */
+        $form = [
             'courier'         => Request::string('courier'),
+            'courier_other'   => Request::string('courier_other'),
             'tracking_number' => Request::string('tracking_number'),
             'notes'           => Request::string('notes'),
+        ];
+
+        $courier = FulfilmentService::resolveCourier($form);
+
+        if ($courier['errors'] !== []) {
+            errors_set($courier['errors']);
+            old_set($form);
+            flash_set('danger', (string) reset($courier['errors']));
+            redirect($back);
+        }
+
+        $input = [
+            'courier'         => $courier['value'],
+            'tracking_number' => $form['tracking_number'],
+            'notes'           => $form['notes'],
         ];
 
         try {
@@ -247,7 +271,7 @@ final class AdminOrderController
 
             if ($e->fieldErrors !== []) {
                 errors_set($e->fieldErrors);
-                old_set($input);
+                old_set($form);
             }
 
             flash_set('danger', $e->getMessage());

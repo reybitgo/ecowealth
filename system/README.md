@@ -457,11 +457,16 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   status and writes the status, timestamps, shipment facts and event in one transaction. Pack and
   ready-to-ship reuse the Phase 7 `POST /admin/orders/{id}/transition` endpoint (`to=packing` /
   `to=ready_to_ship`); ship and deliver have their own routes.
-- **Shipping needs courier + tracking.** A missing or malformed value is a field error and nothing is
-  written. Saving a shipment **deducts `products.stock`** and marks the lines `deducted` in the same
-  transaction, so `stock − reserved` is continuous across the shipment (`FulfilmentService` locks the
-  products in ascending id order, the same order checkout uses). If the physical count was corrected
-  below the order quantity, the ship is refused with a clear message instead of overselling.
+- **Shipping needs courier + tracking.** The courier is a real `<select>` (J&T Express, LBC Express,
+  Ninja Van, Lalamove, Grab Express, 2GO, DHL) with an **Others (type below)** option and a free-text
+  field beside it, so a local courier can be recorded without a code change. The field is rendered
+  visible by default (works with JavaScript disabled) and `app-ship.js` hides it while a listed
+  courier is chosen; the server resolves the pair and ignores the text unless **Others** is picked.
+  A missing or malformed value is a field error and nothing is written. Saving a shipment **deducts
+  `products.stock`** and marks the lines `deducted` in the same transaction, so `stock − reserved` is
+  continuous across the shipment (`FulfilmentService` locks the products in ascending id order, the
+  same order checkout uses). If the physical count was corrected below the order quantity, the ship is
+  refused with a clear message instead of overselling.
 - **Delivery and confirmation.** An admin marks a shipped order delivered (optional POD note, appended
   to the shipment notes). The member then confirms receipt from the order page; the order becomes
   `completed` with `completed_at` and a `receipt_confirmed` event. Confirming is scoped to the buyer.

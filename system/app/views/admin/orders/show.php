@@ -61,6 +61,11 @@ $invoiceUrl  = url('admin/orders/' . $orderId . '/invoice');
 $courier     = $shipment === null ? '' : trim((string) ($shipment['courier'] ?? ''));
 $tracking    = $shipment === null ? '' : trim((string) ($shipment['tracking_number'] ?? ''));
 
+/* Ship form: a real select over the courier list plus an "Others"
+ * free-text name. old() escapes, so compare it with e($option). */
+$courierChoice = old('courier');
+$courierOther  = e(FulfilmentService::OTHER_COURIER);
+
 $proofBadge = static fn (string $proofStatus): string => status_badge($proofStatus, [
     'pending'  => ['Awaiting review', 'info'],
     'verified' => ['Verified', 'success'],
@@ -358,6 +363,7 @@ $fullAddress = implode(', ', array_filter([
                         from the catalogue and moves the order to Shipped.
                       </p>
                       <form method="POST" action="<?= e(url('admin/orders/' . $orderId . '/ship')) ?>" class="row g-3"
+                            autocomplete="off"
                             data-confirm
                             data-confirm-title="Ship this order?"
                             data-confirm-text="The stock will be deducted and the order marked Shipped. This cannot be undone here."
@@ -366,30 +372,41 @@ $fullAddress = implode(', ', array_filter([
                         <?= csrf_field() ?>
                         <div class="col-sm-6">
                           <label class="form-label" for="ship-courier">Courier</label>
-                          <input type="text" name="courier" id="ship-courier" maxlength="40" list="courier-options"
-                                 class="form-control <?= invalid_class('courier') ?>"
-                                 value="<?= old('courier') ?>" placeholder="J&T Express" required />
-                          <datalist id="courier-options">
-<?php foreach (FulfilmentService::COURIERS as $option): ?>
-                            <option value="<?= e($option) ?>"></option>
+                          <select name="courier" id="ship-courier" autocomplete="off"
+                                  class="form-select <?= invalid_class('courier') ?>" required>
+                            <option value="">Choose a courier…</option>
+<?php foreach (FulfilmentService::courierChoices() as $option): ?>
+                            <option value="<?= e($option) ?>" <?= $courierChoice === e($option) ? 'selected' : '' ?>><?= e($option) ?></option>
 <?php endforeach; ?>
-                          </datalist>
+                            <option value="<?= e($courierOther) ?>" <?= $courierChoice === $courierOther ? 'selected' : '' ?>>Others (type below)</option>
+                          </select>
 <?php if (has_error('courier')): ?>
                           <div class="invalid-feedback"><?= e(error_for('courier')) ?></div>
 <?php endif; ?>
                         </div>
                         <div class="col-sm-6">
                           <label class="form-label" for="ship-tracking">Tracking number</label>
-                          <input type="text" name="tracking_number" id="ship-tracking" maxlength="80"
+                          <input type="text" name="tracking_number" id="ship-tracking" maxlength="80" autocomplete="off"
                                  class="form-control <?= invalid_class('tracking_number') ?>"
                                  value="<?= old('tracking_number') ?>" placeholder="e.g. JT1234567890" required />
 <?php if (has_error('tracking_number')): ?>
                           <div class="invalid-feedback"><?= e(error_for('tracking_number')) ?></div>
 <?php endif; ?>
                         </div>
-                        <div class="col-12">
+                        <div class="col-sm-6" id="ship-other-wrap" data-courier-other data-courier-other-value="<?= e($courierOther) ?>">
+                          <label class="form-label" for="ship-courier-other">Other courier</label>
+                          <input type="text" name="courier_other" id="ship-courier-other" maxlength="40" autocomplete="off"
+                                 class="form-control <?= invalid_class('courier_other') ?>"
+                                 value="<?= old('courier_other') ?>" placeholder="e.g. Flash Express" />
+<?php if (has_error('courier_other')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('courier_other')) ?></div>
+<?php else: ?>
+                          <div class="form-text">Only needed when “Others” is selected above.</div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-sm-6">
                           <label class="form-label" for="ship-notes">Shipping note <span class="text-body-secondary">(optional)</span></label>
-                          <input type="text" name="notes" id="ship-notes" maxlength="255" class="form-control"
+                          <input type="text" name="notes" id="ship-notes" maxlength="255" class="form-control" autocomplete="off"
                                  value="<?= old('notes') ?>" placeholder="Box count, fragile, pickup time…" />
                         </div>
                         <div class="col-12">

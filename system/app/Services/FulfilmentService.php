@@ -26,7 +26,11 @@ declare(strict_types=1);
 
 final class FulfilmentService
 {
-    /** Courier suggestions for the ship form (free text is allowed too). */
+    /**
+     * Couriers offered by the ship form. The last entry is the
+     * "type it yourself" choice, not a courier: picking it reveals
+     * the free-text name beside the dropdown (see resolveCourier()).
+     */
     public const COURIERS = [
         'J&T Express',
         'LBC Express',
@@ -37,6 +41,9 @@ final class FulfilmentService
         'DHL',
         'Others',
     ];
+
+    /** The select value that means "a courier not in the list". */
+    public const OTHER_COURIER = 'Others';
 
     private static int $savepointSeq = 0;
 
@@ -50,6 +57,82 @@ final class FulfilmentService
     /* ----------------------------------------------------------
      *  Configuration
      * ---------------------------------------------------------- */
+
+    /**
+     * The real courier choices for the dropdown (the "Others"
+     * sentinel is rendered separately, after the list).
+     *
+     * @return list<string>
+     */
+    public static function courierChoices(): array
+    {
+        return array_values(array_filter(
+            self::COURIERS,
+            static fn (string $courier): bool => $courier !== self::OTHER_COURIER
+        ));
+    }
+
+    /**
+     * Turn the ship form's courier fields into the value stored on the
+     * shipment.
+     *
+     * The form posts two fields:
+     *   courier        a listed courier, or the "Others" sentinel
+     *   courier_other  the typed name, used only with the sentinel
+     *
+     * The server is authoritative: a tampered value is refused, the
+     * typed name is required and length-checked, and the free text is
+     * ignored whenever a listed courier is chosen. That keeps the form
+     * usable with JavaScript disabled.
+     *
+     * @param array<string, mixed> $input
+     * @return array{value:string, errors:array<string, string>}
+     */
+    public static function resolveCourier(array $input): array
+    {
+        $choice = trim((string) ($input['courier'] ?? ''));
+
+        if ($choice === self::OTHER_COURIER) {
+            $value  = trim((string) ($input['courier_other'] ?? ''));
+            $length = mb_strlen($value);
+
+            if ($value === '') {
+                return [
+                    'value'  => '',
+                    'errors' => ['courier_other' => 'Enter the courier name.'],
+                ];
+            }
+
+            if ($length < 2) {
+                return [
+                    'value'  => $value,
+                    'errors' => ['courier_other' => 'The courier name must be at least 2 characters.'],
+                ];
+            }
+
+            if ($length > 40) {
+                return [
+                    'value'  => $value,
+                    'errors' => ['courier_other' => 'The courier name must be at most 40 characters.'],
+                ];
+            }
+
+            return ['value' => $value, 'errors' => []];
+        }
+
+        if (!in_array($choice, self::COURIERS, true)) {
+            return [
+                'value'  => '',
+                'errors' => [
+                    'courier' => $choice === ''
+                        ? 'Choose a courier.'
+                        : 'Choose a courier from the list.',
+                ],
+            ];
+        }
+
+        return ['value' => $choice, 'errors' => []];
+    }
 
     /** `shop_autocomplete_enabled` — the auto-complete kill switch. */
     public static function autoCompleteEnabled(): bool
