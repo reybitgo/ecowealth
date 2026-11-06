@@ -1429,7 +1429,7 @@ sign-off pending, as for Phases 1–6).
 
 - [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 7 shape)
 - [x] Seeds load on a fresh install (no proof seed needed; the harness rebuilds and seeds on every run)
-- [x] All P7 tests pass (36 new cases; 286 total)
+- [x] All P7 tests pass (37 new cases — 21 `PaymentTest` + 15 `PaymentViewTest` + 1 migration case — for 286 total)
 - [x] Full regression suite passes (Phases 1–6 cases unchanged apart from the new routes/migration and the
       pending-order copy assertion)
 - [x] Smoke script passes (100 checks, 15 new)
