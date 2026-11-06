@@ -33,8 +33,11 @@ validation · P7-T3 attempt cap · P7-T4 verification (and its amount/reference/
 P7-T5 rejection · P7-T6 re-upload re-reservation · P7-T7 expiry (payment + correction deadlines,
 idempotent) · P7-T8 closed window · P7-T9 ownership · P7-T10 self-review · P7-T11 timeline ·
 P7-T12 admin cancellation, wallet refund bucket restore, proof-paid no-refund, no double cancel,
-shipped refusal. The HTTP smoke script repeats the upload, guards, streaming, verify, reject,
-re-upload, cancel, expiry-CLI and settings paths (100 checks in total).
+shipped refusal. The expiry job itself is additionally covered by `CronTest`: the web entry's access
+decision (loopback vs. key), the one-run-at-a-time lock, the monthly log, the kill switch and the
+`--from-settings` recomputation. The HTTP smoke script repeats the upload, guards, streaming, verify,
+reject, re-upload, cancel, expiry (CLI **and** URL), doctor, dry-run, kill switch and settings paths
+(102 checks in total).
 
 **Already captured headlessly** (reference screenshots — still run the checks; refresh them during
 your pass):
@@ -381,44 +384,85 @@ your pass):
 
 ## C. Operations
 
-### QA7-13 — The expiry command cancels an overdue order once
+### QA7-13 — The expiry job (URL + CLI) cancels an overdue order once
 
 | | |
 |---|---|
-| **Why it matters** | Unpaid orders must not hold stock forever, and the job must be safe to run repeatedly. |
-| **Where** | Terminal: `bin/shop_expire.php` |
-| **Evidence** | `QA7-13-expiry.png` |
+| **Why it matters** | Unpaid orders must not hold stock forever, and the job must be safe to run repeatedly — from a browser or from cron. |
+| **Where** | `http://localhost/ecowealth/system/cron/shop_expire.php` · `bin\shop_expire.php` |
+| **Evidence** | `QA7-13-expiry-url.png`, `QA7-13-expiry-cli.png`, `QA7-13-cron-log.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
-1. Place a GCash order and note the id.
+1. Place a GCash order and note its id (the URL `/orders/12`).
 2. In phpMyAdmin push its deadline into the past:
 
    ```sql
    UPDATE shop_orders SET payment_deadline = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = 12;
    ```
 
-3. In PowerShell:
+3. Open the job's environment report in the browser:
+
+   ```
+   http://localhost/ecowealth/system/cron/shop_expire.php?doctor=1
+   ```
+
+4. Open the preview and the live-setting preview:
+
+   ```
+   …/cron/shop_expire.php?dry-run=1
+   …/cron/shop_expire.php?from-settings=1&dry-run=1
+   ```
+
+5. Run it for real, then run it a second time:
+
+   ```
+   …/cron/shop_expire.php
+   …/cron/shop_expire.php
+   ```
+
+6. In PowerShell, run the same job from the CLI (create another overdue order first if you want it to
+   expire something):
 
    ```powershell
    cd C:\laragon\www\ecowealth\system
+   php bin\shop_expire.php --doctor
    php bin\shop_expire.php --dry-run
-   php bin\shop_expire.php
    php bin\shop_expire.php
    ```
 
-4. Look at the order and its history; check the product's available quantity.
+7. Open `system\storage\logs\shop_expire-<YYYY-MM>.log`.
+
+8. Look at the order, its history and the product's available quantity.
+
+9. **Kill switch:** open **Settings**, untick **Expire unpaid orders automatically** and save. Force
+   another order overdue (step 2), reload `…/cron/shop_expire.php`, then tick the switch back on and
+   save.
 
 **Expected**
 
-- `--dry-run` lists the order and says nothing was changed.
-- The first real run prints **“1 order(s) cancelled and their stock released: 12”**.
-- The second run prints **“No order is past its payment window.”** — the job is idempotent.
-- The order is **Cancelled** with reason **Payment window expired** and history **System → Cancelled**
-  (“Cancelled automatically: the payment window closed on …”).
-- The stock is back to its full available quantity.
+- **Doctor:** PHP version and `apache2handler`, `timezone Asia/Manila`, `db_now` equal to the PHP time
+  (session `+08:00`), the three windows (`24 / 24 / 3`), `expiry enabled yes`, `candidates 1`, the lock
+  `free`, the log `(writable)`.
+- **Dry run:** `candidates: 1 → 12`, and the order is untouched. The response says *nothing is changed*.
+- **From-settings dry run:** `mode: settings`; a just-placed order is usually **0 candidates** because
+  the current 24-hour window has not elapsed — that is the difference between the stored stamp and the
+  live setting, not a bug.
+- **First real run:** `candidates: 1`, `expired: 1`, `ids: 12`, a duration and the log path.
+- **Second run:** `candidates: 0`, `expired: 0`, `ids: —` — the job is idempotent.
+- **Order:** **Cancelled**, reason **Payment window expired**; history **System → Cancelled**
+  (“Cancelled automatically: the payment window closed on …”); the stock is available again.
+- **Log:** one line per run, e.g.
+  `[2026-11-06 11:20:00 +08:00] [OK   ] mode=stamps trigger=http limit=200 candidates=1 expired=1 duration=45ms ids=12`
+  (the CLI run logs `trigger=cli`; dry runs log `[INFO ] dry-run …`).
+- **CLI:** the same block with `trigger: cli`; `--doctor` and `--dry-run` exit `0`.
+- **Kill switch:** the run prints **“skipped: expiry is disabled in the admin settings
+  (shop_expiry_enabled = 0).”**, the overdue order stays **Pending**, and a `[WARN ] skipped: disabled
+  by settings` line is logged. After switching it back on, the next run cancels it.
 - An order whose proof is **under review** is **never** cancelled by this job, even with an old deadline.
+- A second caller while a run is in progress gets **“skipped: another run is already in progress.”**
+  (exit 0), never a duplicate cancellation.
 
 ### QA7-14 — The settings page saves and validates
 
@@ -440,8 +484,8 @@ your pass):
 **Expected**
 
 - The page has the **Shop** switch, **Receiving accounts** (GCash, Maya, bank), **Payment windows**
-  (three numbers with hints) and **Save settings**.
-- Saving shows **“5 settings saved.”** and the changed values survive a reload; a `settings.update` row is
+  (three numbers with hints), the **Expire unpaid orders automatically** switch and **Save settings**.
+- Saving shows **“4 settings saved.”** and the changed values survive a reload; a `settings.update` row is
   written to `audit_log`.
 - `0` is refused: red flash **“Please fix the highlighted settings.”**, **“Payment window (hours) must be
   at least 1.”** at the field, and the stored value stays `30`.

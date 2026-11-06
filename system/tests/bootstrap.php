@@ -35,6 +35,12 @@ if (!defined('UPLOAD_ROOT')) {
     define('UPLOAD_ROOT', sys_get_temp_dir() . '/ecowealth-test-uploads/');
 }
 
+/* Cron logs and locks also go to scratch space: a test run must not
+ * write into system/storage (the harness stays read-only). */
+if (!defined('STORAGE_PATH')) {
+    define('STORAGE_PATH', sys_get_temp_dir() . '/ecowealth-test-storage/');
+}
+
 /* config.php only declares constants; the rest of the app is loaded
  * after the test schema exists, so db() never touches a dropped schema. */
 require_once dirname(__DIR__) . '/app/config.php';
@@ -407,3 +413,7 @@ if (!is_dir((string) UPLOAD_ROOT)) {
     @mkdir((string) UPLOAD_ROOT . 'packages', 0775, true);
     @mkdir((string) UPLOAD_ROOT . 'proofs', 0775, true);
 }
+
+/* Cron scratch folders (logs + locks). */
+@mkdir(rtrim((string) STORAGE_PATH, '/\\') . '/logs', 0775, true);
+@mkdir(rtrim((string) STORAGE_PATH, '/\\') . '/locks', 0775, true);

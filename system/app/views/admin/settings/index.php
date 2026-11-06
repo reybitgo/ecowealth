@@ -13,6 +13,7 @@ declare(strict_types=1);
  * @var list<array{title:string, icon:string, method:string, fields:list<array{key:string,label:string,placeholder:string}>}> $account_groups
  * @var array<string, array{label:string, rule:string, hint:string}> $window_fields
  * @var bool $shop_enabled
+ * @var bool $expiry_enabled
  * @var bool $manual_open
  */
 
@@ -20,6 +21,7 @@ $settings   = $settings ?? [];
 $accountGroups = $account_groups ?? [];
 $windowFields  = $window_fields ?? [];
 $manualOpen    = (bool) ($manual_open ?? true);
+$expiryChecked = old('shop_expiry_enabled', ($expiry_enabled ?? true) ? '1' : '0') === '1';
 
 $value = static function (string $key) use ($settings): string {
     return old($key, (string) ($settings[$key] ?? ''));
@@ -125,6 +127,25 @@ $value = static function (string $key) use ($settings): string {
                         </div>
 <?php endforeach; ?>
                       </div>
+
+                      <hr class="my-5" />
+
+                      <div class="form-check form-switch">
+                        <input class="form-check-input <?= invalid_class('shop_expiry_enabled') ?>" type="checkbox"
+                               role="switch" name="shop_expiry_enabled" value="1" id="shop-expiry-enabled"
+                               <?= $expiryChecked ? 'checked' : '' ?> />
+                        <label class="form-check-label" for="shop-expiry-enabled">
+                          Expire unpaid orders automatically
+                        </label>
+                      </div>
+                      <p class="text-body-secondary small mb-0 mt-2">
+                        When this is off, every shop-expiry run is skipped — no order is cancelled by the
+                        timer. Payment proofs and the admin review keep working, so nothing is lost; the
+                        windows above still apply when you switch it back on.
+                      </p>
+<?php if (has_error('shop_expiry_enabled')): ?>
+                      <div class="text-danger small mt-1"><?= e(error_for('shop_expiry_enabled')) ?></div>
+<?php endif; ?>
                     </div>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

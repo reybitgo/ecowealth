@@ -69,6 +69,11 @@ defined('COMMISSIONS_ENABLED') || define('COMMISSIONS_ENABLED', true);
 /* ---------- Uploads ---------- */
 defined('UPLOAD_MAX_BYTES') || define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);   // 5 MB
 
+/* ---------- Runtime storage (cron logs + locks) -------------------------------
+ * Outside public/, so nothing stored here is web-readable. The test harness
+ * pins its own temp folder before this file is loaded (tests/bootstrap.php). */
+defined('STORAGE_PATH') || define('STORAGE_PATH', dirname(__DIR__) . '/storage');
+
 /* ---------- URL routing -------------------------------------------------------
  * The app auto-detects where it is installed:
  *

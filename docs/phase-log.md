@@ -1452,6 +1452,68 @@ Phase 8 — fulfilment, completion and invoices: `shop_shipments` and `shop_invo
 `/orders/{id}/invoice`, stock deduction at ship, the auto-complete cron leg, and the invoice snapshot
 written when an order first reaches `paid` (including the manual-verification path Phase 7 ships).
 
+---
+
+## Post-Phase 7 — Expiry cron: URL entry, lock, log, doctor, kill switch
+
+**Date:** 2026-11-06 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 295 PHP cases,
+102 smoke checks.
+
+### What changed
+
+The expiry job already existed (`bin/shop_expire.php`); this follow-up makes it something you can
+actually schedule on both Laragon and Hostinger, and lets you open it in a browser like the
+reference system's cron files.
+
+| Area | Change |
+|---|---|
+| **Web entry** | `public/cron/shop_expire.php` → `/ecowealth/system/cron/shop_expire.php`, a thin require of the CLI runner. Loopback requests are trusted (local testing needs no setup); anything else needs `?key=` matching `CRON_KEY` in `app/config.local.php` (constant, never in the DB or a page). CLI is always allowed. |
+| **Runner** | `bin/shop_expire.php` is now SAPI-aware: CLI and HTTP share one implementation, options map from `--flag` or `?flag=1`, responses are plain text or JSON, never cached or indexed, errors never printed. |
+| **Modes** | Default = the stored stamps (unchanged). `--from-settings` recomputes from the *current* admin settings: `pending` = `created_at` + payment window, `payment_failed` = last rejection + correction window (per-order re-check under the lock). |
+| **Kill switch** | `shop_expiry_enabled` (migration `009_shop_expiry.sql`, seed updated) on `/admin/settings`, read by `PaymentService::expireOverdue()` itself; off ⇒ every run exits 0 with `skipped=disabled`. |
+| **Safety** | `CronLock` (non-blocking `flock`, overlap exits 0), `CronLog` (monthly `storage/logs/shop_expire-YYYY-MM.log`, one line per run), `CronAccess` (pure, testable access decision). |
+| **Doctor** | `--doctor` / `?doctor=1`: PHP/DB time and time zone, settings, candidates, lock state, log writability, whether `CRON_KEY` is set. |
+| **Windows** | `bin/shop_expire.cmd` (uses `PHP_EXE` when set, otherwise `php`), with a Task Scheduler snippet in `docs/cron.md`. |
+| **Storage** | `system/storage/{logs,locks}/` (git-ignored, outside `public/`, deny-all `.htaccess`). |
+| **Docs / QA** | New `docs/cron.md`; QA7-13 rewritten around the URL + CLI entries, doctor, dry-run, idempotency, log and kill switch; README and system README updated. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **295 / 295** (8 new `CronTest` cases: access matrix, lock conflict, monthly log, kill switch, settings-mode pending/rejected/fresh, return shape) |
+| `powershell -NoProfile -File tests/smoke.ps1` | **102 / 102** (2 new: the web entry serves doctor/dry-run/JSON; the kill switch pauses it) |
+| URL, in a real browser | `?doctor=1` → `200`, PHP/DB time aligned, lock free, log writable; `?dry-run=1` → 1 candidate; real run → expired 1 (order 81); second run → 0; `?json=1` → `ok:true, trigger:http`; kill switch → `skipped: disabled` |
+| CLI | `--help`, `--doctor`, `--dry-run`, `--from-settings --dry-run --json`, normal run, `--json` — exit 0 |
+| Windows launcher | `bin\shop_expire.cmd --dry-run` with `PHP_EXE` set → same output |
+| Database after a real run | order `cancelled` + reason **Payment window expired**, event `payment_expired` (system), item `released`, stock restored |
+| Log | one line per run with `mode`, `trigger`, `candidates`, `expired`, `duration`, `ids`; disabled runs log `WARN` |
+| Admin UI | `/admin/settings` renders the toggle; saving it off writes `0` and audits the change; `shop_expiry_enabled` restored to `1` |
+
+### Deviations and decisions
+
+- **The web entry is standalone, not a route.** It mirrors the reference `cron/*.php` files (the user
+  tests them by URL) and keeps the router free of side-effecting GET routes. It is registered in the
+  route inventory as a second `admin_shop_expire` target so the parity test still proves it exists.
+- **Loopback bypasses the key.** That is what makes `http://localhost/…/cron/shop_expire.php` work with
+  no setup; a remote caller without the key gets `403`. On Hostinger the CLI cron needs no key at all.
+- **`--from-settings` does not add up the window twice.** For a `payment_failed` order it measures from
+  the last `payment_rejected` event; if no event exists (older data) it falls back to the stored
+  correction deadline as-is.
+- **Lock files are not deleted on release.** Deleting them would let two processes lock different
+  inodes of the same path; the stale file only holds the last holder's diagnostics.
+- **The test harness redirects `STORAGE_PATH` to a scratch folder**, like `UPLOAD_ROOT`, so a test run
+  never writes into the repo.
+- **In this session the sandbox blocks CLI writes under `system/`.** The CLI run therefore cannot create
+  its lock/log here (the web entry, running as Apache, can); the smoke and launcher checks were run with
+  one-off wider access, as in Phase 0. In a normal terminal or Hostinger cron nothing special is needed.
+- **Smoke proof-file cleanup fixed:** the orphan sweep ran *before* the orders were deleted, so its own
+  uploads survived. It now deletes the orders first, then sweeps.
+
+### Next
+
+Phase 8 — fulfilment, completion and invoices, as planned.
+
 
 
 

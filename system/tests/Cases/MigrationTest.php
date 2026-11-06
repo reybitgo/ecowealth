@@ -21,6 +21,7 @@ $migrations    = [
     $migrationDir . '006_orders.sql',
     $migrationDir . '007_payout_accounts.sql',
     $migrationDir . '008_payment_proofs.sql',
+    $migrationDir . '009_shop_expiry.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 

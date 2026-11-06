@@ -236,7 +236,10 @@ return [
         $defer('admin_order_refund_receipt', 'Refunds and credit notes are LATER.'),
 
         /* ---------- Cron: shop expiry --------------------------------- */
-        $port('admin_shop_expire', 7, [$cli('bin/shop_expire.php')], 'Becomes the Phase 7 cron job, not an admin route.'),
+        $port('admin_shop_expire', 7, [
+            $cli('bin/shop_expire.php'),
+            ['PAGE', 'GET', 'cron/shop_expire'],
+        ], 'The Phase 7 cron job: CLI runner + the guarded web entry (local/URL testing).'),
     ],
 
     /* ------------------------------------------------------------------

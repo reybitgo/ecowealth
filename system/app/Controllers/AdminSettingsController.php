@@ -86,6 +86,7 @@ final class AdminSettingsController
             'account_groups'  => self::ACCOUNT_GROUPS,
             'window_fields'   => self::WINDOW_FIELDS,
             'shop_enabled'    => setting_bool('shop_enabled', true),
+            'expiry_enabled'  => setting_bool('shop_expiry_enabled', true),
             'manual_open'     => $this->manualMethodsConfigured(),
         ]);
     }
@@ -100,7 +101,8 @@ final class AdminSettingsController
         }
 
         /* An unticked checkbox posts nothing at all. */
-        $input['shop_enabled'] = Request::post('shop_enabled') === '1' ? '1' : '0';
+        $input['shop_enabled']        = Request::post('shop_enabled') === '1' ? '1' : '0';
+        $input['shop_expiry_enabled'] = Request::post('shop_expiry_enabled') === '1' ? '1' : '0';
 
         $errors = Validator::check($input, self::fieldRules(), self::fieldLabels());
 
@@ -177,7 +179,8 @@ final class AdminSettingsController
     private static function fieldRules(): array
     {
         $rules = [
-            'shop_enabled' => 'required|in:0,1',
+            'shop_enabled'        => 'required|in:0,1',
+            'shop_expiry_enabled' => 'required|in:0,1',
         ];
 
         foreach (self::ACCOUNT_GROUPS as $group) {
@@ -197,7 +200,8 @@ final class AdminSettingsController
     private static function fieldLabels(): array
     {
         $labels = [
-            'shop_enabled' => 'Shop',
+            'shop_enabled'        => 'Shop',
+            'shop_expiry_enabled' => 'Automatic expiry',
         ];
 
         foreach (self::ACCOUNT_GROUPS as $group) {

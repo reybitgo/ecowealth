@@ -45,7 +45,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 286   Passed: 286   Failed: 0
+Cases: 295   Passed: 295   Failed: 0
 All good.
 ```
 
@@ -58,7 +58,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 100   Failed: 0
+Passed: 102   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -90,8 +90,10 @@ Passed: 100   Failed: 0
   window, reason), a corrected re-upload re-reserving the stock, the expiry sweep (payment and correction deadlines,
   idempotent, review exempt), the closed window, ownership and self-review refusals, the event timeline, admin
   cancellation with a bucket-accurate wallet refund, no refund for a proof-paid order, and the settings page
-  (save + validation + audit). The HTTP smoke script repeats the upload, guards, proof streaming, verify, reject,
-  re-upload, cancel, expiry-CLI and settings paths.
+  (save + validation + audit). The expiry cron has its own coverage (`CronTest`): the web entry's access
+  decision, the one-run lock, the monthly log, the kill switch and the `--from-settings` recomputation; the
+  smoke script runs it from both the CLI and the URL. The HTTP smoke script also repeats the upload, guards,
+  proof streaming, verify, reject, re-upload, cancel, settings and kill-switch paths.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 

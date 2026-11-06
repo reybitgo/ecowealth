@@ -11,6 +11,12 @@ system/public/uploads/*
 !system/public/uploads/.gitkeep
 !system/public/uploads/.htaccess
 
+# Cron runtime storage (logs are also covered by *.log; locks are not)
+system/storage/logs/*
+!system/storage/logs/.gitkeep
+system/storage/locks/*
+!system/storage/locks/.gitkeep
+
 # Logs and one-off dumps
 *.log
 backup_*.sql

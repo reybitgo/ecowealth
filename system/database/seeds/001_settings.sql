@@ -31,6 +31,7 @@ INSERT INTO settings (key_name, value) VALUES
   ('shop_correction_window_hours',     '24'),
   ('shop_max_proof_attempts',          '3'),
   ('shop_autocomplete_days',           '7'),
+  ('shop_expiry_enabled',              '1'),
 
   -- Invoice seller block (D12 — filled in again before go-live)
   ('seller_name',                      'EcoWealth Trading Inc.'),

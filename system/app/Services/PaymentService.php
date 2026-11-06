@@ -602,14 +602,59 @@ final class PaymentService
      * ---------------------------------------------------------- */
 
     /**
+     * Is automatic expiry switched on? (`shop_expiry_enabled`, default on)
+     *
+     * The admin settings page exposes the switch; the sweep itself
+     * checks it, so every caller (CLI, the web cron entry, a future
+     * admin button) obeys it without repeating the rule.
+     */
+    public static function expiryEnabled(): bool
+    {
+        return setting_bool('shop_expiry_enabled', true);
+    }
+
+    /**
      * The order ids whose payment / correction window has closed.
      * Read-only: the CLI's `--dry-run` and the tests use it too.
      *
+     * `$fromSettings` recomputes the window from the *current* admin
+     * settings instead of the stamp stored on the order:
+     *   pending        → created_at        + shop_payment_deadline_hours
+     *   payment_failed → last rejection at + shop_correction_window_hours
+     * and falls back to the stored correction/payment deadline when a
+     * rejected order has no event row. The default (stamps) is what the
+     * cron uses; the settings mode exists for QA and "what-if" checks.
+     *
      * @return list<int>
      */
-    public function overdueOrderIds(int $limit = 200): array
+    public function overdueOrderIds(int $limit = 200, bool $fromSettings = false): array
     {
         $limit = max(1, min(1000, $limit));
+
+        if ($fromSettings) {
+            $deadlineHours   = self::paymentDeadlineHours();
+            $correctionHours = self::correctionWindowHours();
+
+            $sql = "SELECT o.id
+                      FROM shop_orders o
+                     WHERE (
+                             (o.status = 'pending'
+                               AND o.created_at < DATE_SUB(NOW(), INTERVAL {$deadlineHours} HOUR))
+                          OR (o.status = 'payment_failed'
+                               AND COALESCE(
+                                     (SELECT MAX(e.created_at)
+                                        FROM shop_order_events e
+                                       WHERE e.order_id = o.id
+                                         AND e.reason_code = 'payment_rejected'),
+                                     o.correction_deadline,
+                                     o.payment_deadline
+                                   ) < DATE_SUB(NOW(), INTERVAL {$correctionHours} HOUR))
+                           )
+                     ORDER BY o.id ASC
+                     LIMIT {$limit}";
+
+            return array_map('intval', $this->pdo->query($sql)->fetchAll(PDO::FETCH_COLUMN));
+        }
 
         $deadline = "COALESCE(CASE WHEN status = 'payment_failed' THEN correction_deadline END, payment_deadline)";
 
@@ -631,17 +676,32 @@ final class PaymentService
      * it twice changes nothing the second time. A candidate that races a
      * proof upload simply loses that round; the next pass re-reads it.
      *
-     * @return array{expired:int, ids:list<int>}
+     * `$fromSettings` recomputes each candidate's deadline under the row
+     * lock (see overdueOrderIds()); the default enforces the stored stamp.
+     *
+     * @return array{expired:int, ids:list<int>, candidates:int, skipped:?string, mode:string}
      */
-    public function expireOverdue(int $limit = 200): array
+    public function expireOverdue(int $limit = 200, bool $fromSettings = false): array
     {
-        $ids = $this->overdueOrderIds($limit);
+        $mode = $fromSettings ? 'settings' : 'stamps';
+
+        if (!self::expiryEnabled()) {
+            return [
+                'expired'    => 0,
+                'ids'        => [],
+                'candidates' => 0,
+                'skipped'    => 'disabled',
+                'mode'       => $mode,
+            ];
+        }
+
+        $ids = $this->overdueOrderIds($limit, $fromSettings);
 
         $expired = [];
 
         foreach ($ids as $orderId) {
             try {
-                $done = $this->withTransaction(function () use ($orderId): ?int {
+                $done = $this->withTransaction(function () use ($orderId, $fromSettings): ?int {
                     /* The lock + status re-check is the race guard: if the
                      * member just uploaded a proof, this order is skipped. */
                     $order = $this->lockOrder($orderId);
@@ -656,7 +716,9 @@ final class PaymentService
                         return null;
                     }
 
-                    $deadline = $this->applicableDeadline($order);
+                    $deadline = $fromSettings
+                        ? $this->recomputedDeadline($order)
+                        : $this->applicableDeadline($order);
 
                     if ($deadline === null || strtotime($deadline) === false || strtotime($deadline) >= time()) {
                         return null;
@@ -694,7 +756,56 @@ final class PaymentService
             }
         }
 
-        return ['expired' => count($expired), 'ids' => $expired];
+        return [
+            'expired'    => count($expired),
+            'ids'        => $expired,
+            'candidates' => count($ids),
+            'skipped'    => null,
+            'mode'       => $mode,
+        ];
+    }
+
+    /**
+     * The deadline the *current* settings imply for this order
+     * (`--from-settings` only). Null when the order has nothing to
+     * measure from.
+     */
+    private function recomputedDeadline(array $order): ?string
+    {
+        $status = (string) ($order['status'] ?? '');
+
+        if ($status === 'pending') {
+            $createdAt = strtotime((string) ($order['created_at'] ?? ''));
+
+            if ($createdAt === false) {
+                return null;
+            }
+
+            return date('Y-m-d H:i:s', $createdAt + self::paymentDeadlineHours() * 3600);
+        }
+
+        if ($status === 'payment_failed') {
+            $stmt = $this->pdo->prepare(
+                "SELECT MAX(created_at) FROM shop_order_events
+                  WHERE order_id = ? AND reason_code = 'payment_rejected'"
+            );
+            $stmt->execute([(int) ($order['id'] ?? 0)]);
+            $rejectedAt = $stmt->fetchColumn();
+
+            if ($rejectedAt !== false && $rejectedAt !== null && $rejectedAt !== '') {
+                $base = strtotime((string) $rejectedAt);
+
+                if ($base !== false) {
+                    return date('Y-m-d H:i:s', $base + self::correctionWindowHours() * 3600);
+                }
+            }
+
+            /* No event row (older data): the stored correction stamp is
+             * already a deadline, so do not add the window twice. */
+            return $this->applicableDeadline($order);
+        }
+
+        return null;
     }
 
     /* ----------------------------------------------------------

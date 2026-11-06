@@ -13,13 +13,16 @@ statement and the back-office monitor; Phase 6 adds the address book, checkout, 
 stock reservation and e-wallet payment, the member order history and the admin order desk; Phase 7
 adds the manual payment loop (proof upload, admin verify/reject, deadlines, correction windows, stock
 release/re-reserve), admin cancellation with a wallet refund, the expiry command and the admin
-settings page for payment accounts and windows. Registration and commissions follow in later phases;
-their menu entries stay hidden until their phase lands.
+settings page for payment accounts and windows. The expiry job runs from the CLI **and** from a
+guarded URL (`/system/cron/shop_expire.php`), has a kill switch on the settings page and logs to
+`system/storage/`. Registration and commissions follow in later phases; their menu entries stay
+hidden until their phase lands.
 
 | | |
 |---|---|
 | App URL (Laragon) | `http://localhost/ecowealth/system/` |
 | Front door | `http://localhost/ecowealth/` → repo-root `index.html` |
+| Expiry cron | `docs/cron.md` (CLI, URL, Windows launcher, Hostinger) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
 
@@ -119,7 +122,8 @@ system/
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
 │   ├── routes.php             the live route table (Phase 1 … 7 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
-│   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
+│   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate,
+│   │                          CronAccess, CronLock, CronLog
 │   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, AdminDashboard,
 │   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, AdminSettings,
 │   │                          Profile
@@ -130,16 +134,18 @@ system/
 │   │                          PaymentService
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
-├── bin/                       wallet_reconcile.php, shop_expire.php (CLI only; never web-reachable)
+├── bin/                       shop_expire.php + shop_expire.cmd (expiry job), wallet_reconcile.php
+├── storage/                   cron logs/ and locks/ (outside public/, ignored, deny-all .htaccess)
 ├── public/                    docroot
 │   ├── index.php              front controller
 │   ├── router.php             PHP built-in server parity
+│   ├── cron/shop_expire.php   guarded web entry for the expiry job (local/URL cron)
 │   ├── login.php register.php logout.php dashboard.php   (standalone this build)
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 008_payment_proofs
+│   ├── migrations/            001_settings_roles … 009_shop_expiry
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
@@ -147,7 +153,7 @@ system/
     ├── smoke.ps1              HTTP smoke test (P1-T1 … P7-T12)
     ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration,
     │                          Product, ProductView, Package, PackageView, Cart, CartView,
-    │                          Wallet, WalletView, Order, OrderView, Payment, PaymentView
+    │                          Wallet, WalletView, Order, OrderView, Payment, PaymentView, Cron
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -248,11 +254,13 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/orders/{id}/proof` | member | Upload a payment proof (JPG/PNG/WebP/PDF ≤ 5 MB) |
 | GET | `/admin/proofs/{id}` | admin | Stream one stored proof (never a public URL) |
 | POST | `/admin/orders/{id}/transition` | admin | Verify (`paid`), reject (`payment_failed`) or cancel |
-| GET | `/admin/settings` | admin | Payment accounts + payment/correction windows |
+| GET | `/admin/settings` | admin | Payment accounts, payment/correction windows, expiry switch |
 | POST | `/admin/settings` | admin | Validated, audited save (`settings.update`) |
 
 Standalone pages (outside the router this build, all routed through Apache rewrites):
-`/login`, `/register`, `/logout`, `/dashboard`.
+`/login`, `/register`, `/logout`, `/dashboard`. The expiry job's web entry
+(`/cron/shop_expire.php` → `public/cron/shop_expire.php`) is a standalone, guarded file too; see
+[Cron](#cron-expiry-job).
 
 Every route is mirrored in `app/routes_inventory.php`, which maps all 98 reference pages.
 `tests/Cases/ParityTest.php` (P1-T12) fails when a page marked *Port* has no matching
@@ -406,9 +414,11 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 - **Rejection.** Marks the proof rejected, releases the hold, sets `payment_failed` and opens the
   correction window. A re-upload re-reserves the stock — and is refused if it sold out meanwhile, so the
   `stock − reserved` invariant can never go negative.
-- **Expiry.** `php bin/shop_expire.php [--dry-run|--json]` cancels `pending`/`payment_failed` orders past
-  their applicable deadline, releases the stock and logs `payment_expired` (actor `system`). It is
-  idempotent; run it every 15 minutes from cron.
+- **Expiry.** The expiry job cancels `pending`/`payment_failed` orders past their applicable deadline,
+  releases the stock and logs `payment_expired` (actor `system`). It is idempotent. It runs from the
+  CLI (`php bin/shop_expire.php`), a guarded URL (`/system/cron/shop_expire.php`, handy locally and for
+  URL-only hosts) or `bin/shop_expire.cmd` on Windows; see [Cron](#cron-expiry-job) below and
+  `docs/cron.md`.
 - **Admin cancellation & refunds.** An administrator may cancel any order before it ships. A wallet-paid
   order is refunded through `WalletService::refund()`, which restores the withdrawable share the purchase
   actually spent (derived from the ledger snapshots) so a top-up cannot be washed into withdrawable money.
@@ -416,16 +426,45 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   nothing stays “awaiting review”.
 - **Segregation of duties.** An administrator cannot verify, reject or cancel an order they placed
   themselves — the service refuses (`self_review`) and the page says so before any button is offered.
-- **Settings.** `/admin/settings` edits the receiving GCash/Maya/bank accounts and the three timing rules;
-  every save is validated and audited (`settings.update` with the before/after values). The full settings
-  page expands in Phase 15.
+- **Settings.** `/admin/settings` edits the receiving GCash/Maya/bank accounts, the three timing rules and
+  the **Expire unpaid orders automatically** kill switch; every save is validated and audited
+  (`settings.update` with the before/after values). The full settings page expands in Phase 15.
+
+---
+
+## Cron (expiry job)
+
+| Entry | Path | Use |
+|---|---|---|
+| CLI | `bin/shop_expire.php` | Hostinger/SSH cron, CI |
+| Web | `/system/cron/shop_expire.php` (`public/cron/shop_expire.php`) | Local browser testing, URL-only cron |
+| Windows | `bin/shop_expire.cmd` | Task Scheduler, Laragon terminal |
+
+- Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `from-settings`, `json`, `doctor`,
+  `log-dir` (CLI only), `quiet` (CLI only), `help`.
+- `--from-settings` recomputes deadlines from the **current** settings instead of the stored stamps
+  (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction window). The
+  cron itself uses the stamps, so changing a window never retroactively cancels old orders.
+- The web entry is trusted on loopback (local testing needs no setup); any other caller needs `?key=`
+  matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
+- One run at a time (`CronLock`), monthly log at `storage/logs/shop_expire-YYYY-MM.log`, and
+  `--doctor` reports PHP/DB time, settings, candidates, lock and log state.
+- The kill switch `shop_expiry_enabled` (settings page) makes every run exit 0 without cancelling.
+
+```bash
+php bin/shop_expire.php --doctor
+php bin/shop_expire.php --dry-run
+php bin/shop_expire.php
+```
+
+Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
 
 ---
 
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (286 cases in Phase 7)
+php tests/run.php                 # full suite (295 cases in Phase 7)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -437,9 +476,10 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Every case runs inside a transaction that is rolled back. Cases that need later-phase
   tables (cart/order references) or their own transaction (package rollback) handle that
   explicitly, because DDL commits.
-- Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
+- Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
+  (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–008 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–009 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -469,14 +509,15 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `006_orders.sql` | `addresses`, `shop_orders`, `shop_order_items`, `shop_order_events` |
 | `007_payout_accounts.sql` | `users.gcash_number`, `maya_number`, `usdt_trc20_address`, `usdt_bep20_address` |
 | `008_payment_proofs.sql` | `shop_payment_proofs` (attempts, decision, reviewer, reference index) |
+| `009_shop_expiry.sql` | `settings.shop_expiry_enabled` (the cron kill switch) |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
 Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
 `stock − reserved` number, and `OrderService` (placement, member cancel) plus `PaymentService`
 (review, admin cancel, expiry) are its only writers.
-`bin/shop_expire.php` is the supported way to expire unpaid orders; it never touches an order whose
-proof is under review.
+`bin/shop_expire.php` / `/system/cron/shop_expire.php` is the supported way to expire unpaid orders; it
+never touches an order whose proof is under review (see `docs/cron.md`).
 
 ---
 

@@ -8,7 +8,8 @@
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
     maintenance mode, the product catalogue, the package matrix, the cart,
-    the e-wallet, checkout/orders and the manual payment loop end to end.
+    the e-wallet, checkout/orders and the manual payment loop end to end,
+    including the expiry job from both the CLI and its web entry.
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", `maintenance_mode`, the payment
@@ -1372,6 +1373,34 @@ try {
             -and $expiredLine -eq 'released' -and $expiredEvent -eq '1') `
         "bin/shop_expire.php cancels the overdue order and is idempotent (first=$($expiryFirst.expired), second=$($expirySecond.expired), status=$expiredStatus)"
 
+    # P7-T7 - the guarded web entry (doctor, dry-run, JSON), used for local testing.
+    $cronDoctor = Invoke-App -Path '/cron/shop_expire.php?doctor=1'
+    $cronDry    = Invoke-App -Path '/cron/shop_expire.php?dry-run=1&from-settings=1'
+    $cronJson   = Invoke-App -Path '/cron/shop_expire.php?json=1'
+    $cronPayload = $null
+    try { $cronPayload = $cronJson.Body | ConvertFrom-Json } catch { }
+    $cronJsonOk = $cronPayload -ne $null -and $cronPayload.ok -eq $true `
+        -and $cronPayload.trigger -eq 'http' -and $cronPayload.mode -eq 'stamps'
+
+    Assert-That 'P7-T7' ($cronDoctor.Status -eq 200 -and $cronDoctor.Body -match 'expiry enabled' `
+            -and $cronDoctor.Body -match 'timezone' -and $cronDoctor.Body -match 'log' `
+            -and $cronDry.Status -eq 200 -and $cronDry.Body -match 'dry run' `
+            -and $cronDry.Body -match 'mode:\s+settings' `
+            -and $cronJson.Status -eq 200 -and $cronJsonOk) `
+        "the web cron entry serves doctor, dry-run and JSON (doctor=$($cronDoctor.Status), dry=$($cronDry.Status), json=$($cronJson.Status))"
+
+    # P7-T7 - the admin kill switch pauses the web entry too.
+    $expiryBefore = Get-SettingValue 'shop_expiry_enabled'
+    Set-SettingValue 'shop_expiry_enabled' '0'
+    $cronDisabled = Invoke-App -Path '/cron/shop_expire.php'
+    Set-SettingValue 'shop_expiry_enabled' '1'
+    $cronEnabled = Invoke-App -Path '/cron/shop_expire.php?dry-run=1'
+    Set-SettingValue 'shop_expiry_enabled' $expiryBefore
+
+    Assert-That 'P7-T7' ($cronDisabled.Status -eq 200 -and $cronDisabled.Body -match 'disabled in the admin settings' `
+            -and $cronEnabled.Status -eq 200 -and $cronEnabled.Body -match 'enabled:\s+yes') `
+        "the expiry kill switch pauses the web cron entry (status=$($cronDisabled.Status))"
+
     # P7-T10 - an admin cannot verify their own order.
     $adminCart      = Invoke-App -Path '/cart' -Session 'admin'
     $adminCartToken = Get-Csrf $adminCart.Body
@@ -1418,7 +1447,7 @@ try {
     $settingsToken  = Get-Csrf $settingsPage.Body
 
     foreach ($key in @(
-            'shop_enabled', 'payment_gcash_number', 'payment_gcash_name',
+            'shop_enabled', 'shop_expiry_enabled', 'payment_gcash_number', 'payment_gcash_name',
             'payment_maya_number', 'payment_maya_name', 'payment_bank_name',
             'payment_bank_account_name', 'payment_bank_account_number',
             'shop_payment_deadline_hours', 'shop_correction_window_hours',
@@ -1429,6 +1458,7 @@ try {
     $saveSettings = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
         '_csrf'                         = $settingsToken
         'shop_enabled'                  = '1'
+        'shop_expiry_enabled'           = '1'
         'payment_gcash_number'          = '0917 123 4567'
         'payment_gcash_name'            = 'EcoWealth Smoke'
         'payment_maya_number'           = '0917 765 4321'
@@ -1443,17 +1473,20 @@ try {
     $settingsSaved = (Invoke-MySql "SELECT CONCAT(value, '|') FROM settings WHERE key_name = 'shop_payment_deadline_hours';" | Out-String).Trim()
     $attemptsSaved = Get-SettingValue 'shop_max_proof_attempts'
     $gcashSaved    = Get-SettingValue 'payment_gcash_number'
+    $expirySaved   = Get-SettingValue 'shop_expiry_enabled'
 
     Assert-That 'P7-T4' ($settingsPage.Status -eq 200 -and $settingsPage.Body -match 'Receiving accounts' `
             -and $settingsPage.Body -match 'name="shop_payment_deadline_hours"' `
+            -and $settingsPage.Body -match 'name="shop_expiry_enabled"' `
             -and $saveSettings.Status -eq 302 -and $settingsSaved -eq '30|' `
-            -and $attemptsSaved -eq '4' -and $gcashSaved -eq '0917 123 4567') `
-        "POST /admin/settings saves the accounts and windows (deadline=$settingsSaved, attempts=$attemptsSaved)"
+            -and $attemptsSaved -eq '4' -and $gcashSaved -eq '0917 123 4567' -and $expirySaved -eq '1') `
+        "POST /admin/settings saves the accounts, windows and expiry switch (deadline=$settingsSaved, attempts=$attemptsSaved, expiry=$expirySaved)"
 
     $settingsAfter   = Invoke-App -Path '/admin/settings' -Session 'admin'
     $badSettings     = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
         '_csrf'                       = (Get-Csrf $settingsAfter.Body)
         'shop_enabled'                = '1'
+        'shop_expiry_enabled'         = '1'
         'shop_payment_deadline_hours' = '0'
         'shop_correction_window_hours' = '12'
         'shop_max_proof_attempts'     = '4'
@@ -1493,22 +1526,22 @@ try {
     foreach ($key in $settingsSnapshot.Keys) {
         try { Set-SettingValue $key ([string] $settingsSnapshot[$key]) } catch { }
     }
+    try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
+    try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }
     try {
-        # Remove proof files this run (or an earlier aborted run) left behind:
-        # any file under uploads/proofs with no row is an orphan.
+        # The orders are gone, so any proof file without a row is an orphan
+        # this run (or an earlier aborted run) left behind.
         $knownProofs = @{}
         foreach ($relative in @(Invoke-MySql "SELECT file_path FROM shop_payment_proofs;")) {
             $knownProofs[([string] $relative).Trim()] = $true
         }
-        $proofDir = Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs')
+        $proofDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs'
         Get-ChildItem -Path $proofDir -File -ErrorAction SilentlyContinue | ForEach-Object {
             if ($_.Name -ne '.gitkeep' -and -not $knownProofs.ContainsKey('uploads/proofs/' + $_.Name)) {
                 Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
             }
         }
     } catch { }
-    try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
-    try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-Null } } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }

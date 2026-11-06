@@ -1,0 +1,15 @@
+# ==============================================================
+#  Runtime storage — cron logs and locks.
+#
+#  This folder is normally outside the document root (system/ maps
+#  to public/), so it is not reachable at all. This file is a second
+#  lock in case a host ever points the domain straight at system/.
+# ==============================================================
+
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

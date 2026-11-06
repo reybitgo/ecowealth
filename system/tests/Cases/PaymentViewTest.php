@@ -483,6 +483,7 @@ return [
             'account_groups' => (new ReflectionClass(AdminSettingsController::class))->getConstant('ACCOUNT_GROUPS'),
             'window_fields'  => (new ReflectionClass(AdminSettingsController::class))->getConstant('WINDOW_FIELDS'),
             'shop_enabled'   => true,
+            'expiry_enabled' => true,
             'manual_open'    => false,
         ]);
 
@@ -498,6 +499,9 @@ return [
         assert_contains('name="shop_max_proof_attempts"', $html);
         assert_contains('value="' . (string) setting('shop_payment_deadline_hours', '24') . '"', $html);
         assert_contains('name="shop_enabled"', $html);
+        assert_contains('name="shop_expiry_enabled"', $html);
+        assert_contains('Expire unpaid orders automatically', $html);
+        assert_contains('every shop-expiry run is skipped', $html);
         assert_contains('name="_csrf"', $html);
         assert_contains('action="' . url('admin/settings') . '"', $html);
         assert_contains('Save settings', $html);
