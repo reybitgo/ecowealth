@@ -99,13 +99,20 @@ return [
     ['GET',  '/admin/orders',                    [AdminOrderController::class, 'index'],      'admin'],     // admin_shop_orders
     ['GET',  '/admin/orders/{id}',               [AdminOrderController::class, 'show'],       'admin'],     // admin_shop_order
 
-    /* ---------- Phase 7 — manual payments ---------------------------
+    /* ---------- Phase 7 — manual payments and the order lifecycle ----
+     * Reference: shop_submit_proof, admin_order_proof (the guarded
+     * stream), admin_order_transition, admin_settings/admin_save_settings.
+     *
+     * `hold` / `resume` are deliberately deferred to Phase 8: the
+     * 10-status order machine in plan §4.4 has no `on_hold` state, and the
+     * Phase 7 deliverables and test plan do not include them (see the
+     * phase log).
+     */
     ['POST', '/orders/{id}/proof',               [OrderController::class, 'proof'],            'member'],   // shop_submit_proof
     ['GET',  '/admin/proofs/{id}',               [AdminOrderController::class, 'proof'],       'admin'],    // admin_order_proof
     ['POST', '/admin/orders/{id}/transition',    [AdminOrderController::class, 'transition'],  'admin'],    // admin_order_transition
-    ['POST', '/admin/orders/{id}/hold',          [AdminOrderController::class, 'hold'],        'admin'],    // admin_order_hold
-    ['POST', '/admin/orders/{id}/resume',        [AdminOrderController::class, 'resume'],      'admin'],    // admin_order_resume
-    ----------------------------------------------------------------- */
+    ['GET',  '/admin/settings',                  [AdminSettingsController::class, 'index'],    'admin'],    // admin_settings
+    ['POST', '/admin/settings',                  [AdminSettingsController::class, 'save'],     'admin'],    // admin_save_settings
 
     /* ---------- Phase 8 — fulfilment & invoices ---------------------
     ['GET',  '/orders/{id}/invoice',             [OrderController::class, 'invoice'],          'member'],   // shop_invoice

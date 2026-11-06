@@ -1327,6 +1327,132 @@ means.
   ends at `y 56`, and **Checkout** occupies `y 705–743`. No overlap with the drawer, the close button or the
   checkout button; the console stayed clean.
 
+---
+
+## Phase 7 — Manual payments and the order lifecycle
+
+**Date:** 2026-11-06 · **Branch:** `feature/shop` · **Gate tag:** `phase-7` · **Status:** complete (manual
+sign-off pending, as for Phases 1–6).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `shop_payment_proofs` — one row per upload attempt (file path, MIME, size, amount claimed, reference, transfer date, decision, reviewer, reviewed_at); migration `008_payment_proofs.sql`; fresh-install `schema.sql` extended; a reference index for the uniqueness check |
+| **Models** | `PaymentProof` (`create`, `nextAttempt`, `countFor`, `forOrder`, `latestFor`, `findWithOrder`, `markVerified`, `markRejected`, `referenceTakenByAnotherOrder`); `Order` gained `PROOF_SUBMITTABLE`, `ADMIN_CANCELLABLE`, `REFUNDABLE`, `canAdminCancel()`, `isRefundable()` |
+| **Services** | `PaymentService` — `windowFor`, `applicableDeadline`, `validateClaim`, `validateVerification`, `submitProof`, `verify`, `reject`, `cancelByAdmin`, `overdueOrderIds`, `expireOverdue`, `reserveAgain`, `refundWalletDebit`; `PaymentException` with machine-readable reasons; `WalletService::refund()` (a credit with an explicit withdrawable portion) |
+| **Routes** | `POST /orders/{id}/proof`, `GET /admin/proofs/{id}`, `POST /admin/orders/{id}/transition`, `GET/POST /admin/settings` (5 rows, all in the inventory) |
+| **Controllers** | `OrderController::proof` and the proof data on `show`; `AdminOrderController` review data, `proof` stream and `transition`; new `AdminSettingsController` (index/save, audited) |
+| **Views** | Proof panel, attempts card and correction copy in `shop/order.php`; review pane (attempts, verify/reject panels), self-review banner and refunding cancel card in `admin/orders/show.php`; new `admin/settings/index.php`; review-counter link on the order desk; `orders.css` additions |
+| **CLI** | `bin/shop_expire.php` — the expiry sweep with `--limit`, `--dry-run`, `--json`, exit 0/1 |
+| **Layout / UI** | `APP_PHASE` = 7; admin **Settings** item live under *System*; an SVG favicon replaces the two missing PNG/ICO links (they 404'd on every page and made browsers ask the docroot for `/favicon.ico`); `money_amount()` helper for editable money fields |
+| **Tests** | `PaymentTest` (21 cases, including a bucket-accurate refund and self-review), `PaymentViewTest` (15), `MigrationTest` applies 001–008 + a proof-table constraint case, `RouterTest` covers the 5 new routes, `OrderViewTest` updated for the proof panel; `smoke.ps1` +15 P7 checks |
+| **Evidence** | `docs/qa/evidence/phase-7/` — 12 screenshots (member pending/review/rejected/paid, mobile; admin review/rejected/self/refund/settings/orders; the proof stream) plus the generated sample receipt |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-7/db-pre-phase-7.sql` (35,345 bytes). It sits in the repo's git-ignored `backups/` because this session's sandbox blocked the usual `C:\laragon\www\ecowealth-backups` folder |
+| Migration | `008_payment_proofs.sql` applied to `ecowealth_sneat`: 1 table, 3 indexes, 2 foreign keys |
+| Seeds | none — proofs are uploaded by members |
+| Verified | `MigrationTest` applies 001–008 to the legacy fixture, compares the `shop_payment_proofs` columns with a fresh `schema.sql` import, proves the three-value status enum rejects anything else, and that deleting an order cascades its proofs |
+| Data check | dev DB: `bin/wallet_reconcile.php` clean; `bin/shop_expire.php --dry-run` reports nothing overdue; only the QA evidence fixture (`QA_Pay_01`, six orders) is left behind |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P7-T1 | Upload a valid proof | **PASS** | `payment_review`, one `pending` row with the claimed amount/reference/MIME/size read from the stored file, the deadline stamp kept, the hold unchanged, `proof_submitted` event; PNG and PDF both covered; the pending page renders the form and the review page renders the attempts card |
+| P7-T2 | Wrong MIME / oversized file | **PASS** | A PHP script renamed `.png` and a 5 MB+ file are both refused with a `proof_image` field error, the order stays `pending` and no orphan file is written; claim rules (amount, reference shape, future date) are field errors and a malformed claim never stores the file |
+| P7-T3 | Fourth attempt | **PASS** | Three uploads + rejections are allowed; the fourth is refused with “used all 3 payment-proof attempts”, the window reports `attempts`, and no fourth row exists; the member page hides the form and says to contact support |
+| P7-T4 | Admin verifies | **PASS** | `paid`, `paid_at`, `payment_reference`, lines `committed`, proof `verified` with reviewer/time, `payment_verified` event; wrong amount, reused reference, no pending proof and a non-review status each refuse with their own reason and change nothing. Invoice issuance is deferred to Phase 8 (see deviations) |
+| P7-T5 | Admin rejects with a reason | **PASS** | `payment_failed`, proof `rejected` with the reason text, hold released back to the shelf, correction deadline ≈ now + window, `payment_rejected` event; an unusable rejection (missing reason for “other”, no pending proof, wrong status) changes nothing |
+| P7-T6 | Re-upload after reject | **PASS** | Back to `payment_review`, attempt 2, the hold taken again, correction window cleared, both attempts listed; the re-reserve is refused when the stock sold out meanwhile |
+| P7-T7 | Deadline passes | **PASS** | `expireOverdue()` cancels `pending`/`payment_failed` orders past their applicable deadline, releases the stock and logs `payment_expired` (actor `system`); a second run changes nothing; `payment_review` is exempt; a `payment_failed` order is governed by its correction deadline, not the original payment deadline |
+| P7-T8 | Upload past deadline | **PASS** | Refused with reason `expired` and clear copy; the page hides the form and explains; a second upload while under review is refused as `status` |
+| P7-T9 | Proof access by another member | **PASS** | Another member cannot upload on the order (`not_found`); HTTP smoke: `/admin/proofs/{id}` streams `image/png` for an admin, 403 for a member, 302 to login for a guest; the stored path is never rendered in a page |
+| P7-T10 | Admin reviews own order | **PASS** | `self_review` from verify, reject and cancel; nothing changes; the page shows the banner and no action forms (HTTP smoke repeats it) |
+| P7-T11 | Timeline | **PASS** | One ordered row per step with actor and timestamp: `order_placed` → `proof_submitted` → `payment_rejected` → `proof_submitted` → `payment_verified` |
+| P7-T12 | Manual cancel after paid (admin) | **PASS** | Admin cancel releases the stock; a wallet-paid order is refunded through `WalletService::refund()` and both buckets return to their pre-purchase values (100/50 spend split restored exactly); a proof-paid order refunds nothing; a pending proof is rejected; a second cancel and a shipped order are refused |
+
+### Deviations and decisions
+
+- **`hold` / `resume` are deferred to Phase 8.** Appendix A lists them under Phase 7, but the 10-status
+  order machine in §4.4 has no `on_hold` state and the Phase 7 deliverables/test plan never mention them.
+  Adding an 11th status now would contradict “10 statuses now” and ripple through filters, stats and views,
+  so the two inventory rows moved to Phase 8 (the routes stay unregistered; `RouterTest` asserts they are
+  absent) and the routes.php comment records why.
+- **The admin settings page moved from Phase 15 to Phase 7.** Phase 7's deliverables explicitly include
+  `GET/POST /admin/settings` for the payment accounts and deadlines, so the inventory rows moved to phase 7
+  (the full settings page still expands in Phase 15) and the nav item went live.
+- **A repaired proof re-reserves the stock.** Plan §7 says “re-upload re-reserves”; the port also re-reads
+  `stock − reserved` under product locks and refuses the upload when the stock went to another buyer,
+  because otherwise the `available ≥ 0` invariant could break. A dedicated exception message tells the
+  member to cancel and contact support.
+- **Refunds restore the original buckets.** A cancellation credits the wallet through a new
+  `WalletService::refund()` that takes the withdrawable portion derived from the original debit's ledger
+  snapshots. Refunding everything as withdrawable would let a top-up purchase be washed into withdrawable
+  money; refunding everything as spend-only would strip withdrawability from commission-funded orders.
+- **The reference is checked at verification, not at upload.** The decision (and the money) belongs to the
+  admin step; checking earlier would also let anyone probe whether a reference exists on another order.
+- **A rejected proof at the attempt cap stays `payment_failed`.** The reference moves the order to `on_hold`;
+  without that status the cap simply blocks further uploads and the expiry job cancels the order when the
+  correction deadline passes. No dead end: the member can still cancel.
+- **Invoice issuance is Phase 8.** P7-T4's expectation mentions an invoice; the Phase 7 rules say
+  “issues invoice (Phase 8)”, and `shop_invoices` ships with fulfilment. Verification therefore stops at
+  `paid` + committed reservation.
+- **Proof views are not order events.** The reference logged a `proof_viewed` row on every stream; the port
+  keeps the timeline to status transitions so the member-facing history stays readable.
+- **`shop_payment_proofs` adds a reviewer FK and a reference index** beyond Appendix B: the FK is
+  `ON DELETE SET NULL` so deleting an admin account keeps the evidence, and the index makes the
+  “reference already used” check cheap.
+- **Two defects were caught in-phase and fixed:** the first `submitProof` did not re-reserve released lines
+  (P7-T6 failed: availability stayed restored), and an invalid claim stored the file before validating it
+  (orphan file). Both fixes are covered by the tests.
+- **The favicon was missing.** Both layouts linked `assets/img/favicon/favicon.{png,ico}`, which never
+  existed, so every page 404'd its icon and browsers asked the docroot for `/favicon.ico`. A small SVG
+  icon now ships at `assets/img/favicon/favicon.svg` and the layouts link it (verified 200 +
+  `image/svg+xml`).
+- **Browser capture needed wider one-off access**, as in Phase 0: headless Chrome needs named pipes the
+  sandbox blocks. The only browser error it reported, a `/favicon.ico` 404, came from the raw proof-image
+  tab (no `<head>`), not from an app page; the capture harness now ignores that one URL.
+- **Shell deletes under `system/` were blocked in this session** (the sandbox denied them even after the
+  bundled ACL diagnostic verified the path). The smoke script's proof-file sweep is therefore best-effort
+  here; the database rows and settings are still restored by its `finally` block, and the leftover
+  git-ignored PNGs were removed with one escalated cleanup command. Running the script from a normal
+  terminal deletes them itself.
+- **Evidence fixtures stay in the dev DB.** `QA_Pay_01 / QaPay!2345` and six orders back the screenshots;
+  the QA pack's cleanup SQL removes them. All are demo data, not seeds.
+
+### Gate checklist (plan §8.3)
+
+- [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 7 shape)
+- [x] Seeds load on a fresh install (no proof seed needed; the harness rebuilds and seeds on every run)
+- [x] All P7 tests pass (36 new cases; 286 total)
+- [x] Full regression suite passes (Phases 1–6 cases unchanged apart from the new routes/migration and the
+      pending-order copy assertion)
+- [x] Smoke script passes (100 checks, 15 new)
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-7-payments.md`) — automated and headless-browser
+      passes complete
+- [x] No new PHP warnings/notices in the Apache error log
+- [x] Money and stock invariants clean — `bin/wallet_reconcile.php` exits 0; a re-upload cannot
+      over-reserve; refunds restore the buckets
+- [x] `bin/shop_expire.php` is idempotent (the smoke script runs it twice)
+- [x] Segregation of duties holds — self-review refused by the service and absent from the UI
+- [x] Visual check in a real browser: pending/review/rejected/paid member pages, admin review pane,
+      self-review banner, refund card, settings page, proof stream and a 390 px member page; screenshots
+      in `docs/qa/evidence/phase-7/`
+- [x] Docs updated (this log, QA pack, README, sign-off sheet)
+- [x] Backup taken; tag `phase-7`
+
+### Next
+
+Phase 8 — fulfilment, completion and invoices: `shop_shipments` and `shop_invoices`/`shop_invoice_items`,
+`POST /admin/orders/{id}/ship` and `/deliver`, `POST /orders/{id}/confirm`, the printable
+`/orders/{id}/invoice`, stock deduction at ship, the auto-complete cron leg, and the invoice snapshot
+written when an order first reaches `paid` (including the manual-verification path Phase 7 ships).
+
 
 
 

@@ -394,6 +394,15 @@ function money(float|int|string|null $amount, bool $withSign = false): string
 }
 
 /**
+ * Plain decimal string for form inputs: money_amount(1234.5) → "1234.50".
+ * Money is displayed with money(); this is the editable shape.
+ */
+function money_amount(float|int|string|null $amount): string
+{
+    return number_format((float) ($amount ?? 0), 2, '.', '');
+}
+
+/**
  * Status pill for tables and cards.
  *
  * $overrides lets a page restyle a status without touching the defaults:

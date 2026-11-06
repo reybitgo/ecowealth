@@ -71,19 +71,19 @@ final class CheckoutController
             'gcash' => [
                 'label'     => 'GCash',
                 'icon'      => 'bx-mobile-alt',
-                'hint'      => 'Send the payment, then upload the proof (Phase 7).',
+                'hint'      => 'Send the payment, then upload the proof from the order page.',
                 'available' => true,
             ],
             'maya' => [
                 'label'     => 'Maya',
                 'icon'      => 'bx-mobile',
-                'hint'      => 'Send the payment, then upload the proof (Phase 7).',
+                'hint'      => 'Send the payment, then upload the proof from the order page.',
                 'available' => true,
             ],
             'bank' => [
                 'label'     => 'Bank transfer',
                 'icon'      => 'bx-credit-card',
-                'hint'      => 'Transfer to the company account, then upload the proof (Phase 7).',
+                'hint'      => 'Transfer to the company account, then upload the proof from the order page.',
                 'available' => true,
             ],
         ];

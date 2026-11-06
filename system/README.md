@@ -4,14 +4,17 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 6 — checkout, orders and the order desk.** Phase 1 delivered the skeleton
+**Current status: Phase 7 — manual payments and the order lifecycle.** Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
 the admin editor and the member packages page; Phase 4 adds the persistent cart, the drawer and the
 stock rules; Phase 5 adds the dual-bucket e-wallet, the immutable ledger, admin top-ups, the member
 statement and the back-office monitor; Phase 6 adds the address book, checkout, order placement with
-stock reservation and e-wallet payment, the member order history and the admin order desk. Referrals,
-payouts and super-login follow in later phases; their menu entries stay hidden until their phase lands.
+stock reservation and e-wallet payment, the member order history and the admin order desk; Phase 7
+adds the manual payment loop (proof upload, admin verify/reject, deadlines, correction windows, stock
+release/re-reserve), admin cancellation with a wallet refund, the expiry command and the admin
+settings page for payment accounts and windows. Registration and commissions follow in later phases;
+their menu entries stay hidden until their phase lands.
 
 | | |
 |---|---|
@@ -92,7 +95,7 @@ pages keep their scripts, everything else goes to the front controller.
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `6` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `7` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
@@ -114,17 +117,20 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 … 6 routes)
+│   ├── routes.php             the live route table (Phase 1 … 7 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate
 │   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, AdminDashboard,
-│   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, Profile
-│   ├── Models/                Product, Package, Cart, Wallet, AuditLog, Address, Order, OrderEvent
+│   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, AdminSettings,
+│   │                          Profile
+│   ├── Models/                Product, Package, Cart, Wallet, AuditLog, Address, Order, OrderEvent,
+│   │                          PaymentProof
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
-│   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService
+│   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService,
+│   │                          PaymentService
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
-├── bin/                       wallet_reconcile.php (CLI only; never web-reachable)
+├── bin/                       wallet_reconcile.php, shop_expire.php (CLI only; never web-reachable)
 ├── public/                    docroot
 │   ├── index.php              front controller
 │   ├── router.php             PHP built-in server parity
@@ -133,15 +139,15 @@ system/
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 007_payout_accounts
+│   ├── migrations/            001_settings_roles … 008_payment_proofs
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P6-T14)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P7-T12)
     ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration,
     │                          Product, ProductView, Package, PackageView, Cart, CartView,
-    │                          Wallet, WalletView, Order, OrderView
+    │                          Wallet, WalletView, Order, OrderView, Payment, PaymentView
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -233,7 +239,17 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | GET | `/orders/{id}` | member | Order page: status, items, delivery, payment, history |
 | POST | `/orders/{id}/cancel` | member | Cancel an unpaid order and release its reservation |
 | GET | `/admin/orders` | admin | Order desk: stats, filters, every order |
-| GET | `/admin/orders/{id}` | admin | One order: member, items, delivery, payment, history |
+| GET | `/admin/orders/{id}` | admin | One order: member, payment review, items, delivery, history |
+
+### Phase 7 URLs — manual payments
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| POST | `/orders/{id}/proof` | member | Upload a payment proof (JPG/PNG/WebP/PDF ≤ 5 MB) |
+| GET | `/admin/proofs/{id}` | admin | Stream one stored proof (never a public URL) |
+| POST | `/admin/orders/{id}/transition` | admin | Verify (`paid`), reject (`payment_failed`) or cancel |
+| GET | `/admin/settings` | admin | Payment accounts + payment/correction windows |
+| POST | `/admin/settings` | admin | Validated, audited save (`settings.update`) |
 
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`, `/dashboard`.
@@ -249,7 +265,10 @@ route or a later-phase route is registered early.
 `settings` is a key/value table read through `setting()` / `setting_bool()` /
 `setting_int()` / `setting_float()` and written with `setting_set()`. The Phase 1 seeds
 cover payment accounts, shop windows, commission toggles, payout fees, USDT rates and
-e-wallet transfer limits; later phases read them without further migrations.
+e-wallet transfer limits; later phases read them without further migrations. Since Phase 7 the
+payment accounts and the three payment windows (`shop_payment_deadline_hours`,
+`shop_correction_window_hours`, `shop_max_proof_attempts`) are editable at `/admin/settings`
+(Phase 15 expands that page).
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.
@@ -348,7 +367,7 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   and the replay lookup runs again under the member lock, so a double submit returns the same order.
 - **Payments.** E-wallet pays immediately (`paid`, items `committed`) and debits the wallet
   (`debitInternal`, so non-withdrawable funds are spent first). GCash/Maya/bank leave the order `pending`
-  with `shop_payment_deadline_hours`; proof upload/review arrives in Phase 7.
+  with `shop_payment_deadline_hours`; the proof upload and review loop is Phase 7 (below).
 - **Stock lifecycle.** Placement reserves (`reserved`), payment commits (`committed`), fulfilment will deduct
   at ship (Phase 8), and cancellation releases. The cart, `StockService` and checkout all read the same
   `stock − reserved` number.
@@ -361,15 +380,52 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
   GCash/Maya/bank details printed on an order are the **company's** receiving accounts (settings), not the
   member's.
 - **Order desk.** `/admin/orders` shows the stats, filters and every order; `/admin/orders/{id}` shows the
-  member's wallet link, items, delivery snapshot and history. Verification and fulfilment actions are next.
+  member's wallet link, items, delivery snapshot, history and the Phase 7 payment-review pane.
 - **Order numbers** are `EW` + `yymmdd` + the 5-digit id; the id is what makes them unique.
+
+---
+
+## Manual payments and the order lifecycle (Phase 7)
+
+- **The loop.** `pending` → (member uploads a proof) → `payment_review` → (admin verifies) → `paid`, or
+  → (admin rejects) → `payment_failed` → (member re-uploads within the correction window) → …
+  `PaymentService` owns every transition; nothing writes `shop_orders.status` outside the services.
+- **One transaction per action.** Each call locks the order row, re-reads the status, the applicable
+  deadline and the attempt count, and writes the proof, the status, the reservation state and the event
+  together. A proof uploaded at the same moment as the expiry sweep has exactly one winner.
+- **The proof window.** `pending` reads `payment_deadline`; `payment_failed` reads `correction_deadline`
+  (both from settings). The attempt cap (`shop_max_proof_attempts`, default 3) is enforced in the service,
+  never by hiding the form. `payment_review` is exempt from expiry: submitted evidence is never timed out.
+- **Evidence.** `shop_payment_proofs` keeps one row per attempt (file path, MIME, size, amount claimed,
+  reference, transfer date, decision). Files are JPG/PNG/WebP/PDF ≤ 5 MB, stored under
+  `public/uploads/proofs/` with random names and served **only** through the admin-guarded
+  `/admin/proofs/{id}` stream — never linked directly.
+- **Verification.** The amount must equal the order total exactly and the reference must be unused on any
+  other order (paid reference or a non-rejected proof). Verification commits the reservation
+  (`reserved` → `committed`; stock is deducted when the order ships in Phase 8).
+- **Rejection.** Marks the proof rejected, releases the hold, sets `payment_failed` and opens the
+  correction window. A re-upload re-reserves the stock — and is refused if it sold out meanwhile, so the
+  `stock − reserved` invariant can never go negative.
+- **Expiry.** `php bin/shop_expire.php [--dry-run|--json]` cancels `pending`/`payment_failed` orders past
+  their applicable deadline, releases the stock and logs `payment_expired` (actor `system`). It is
+  idempotent; run it every 15 minutes from cron.
+- **Admin cancellation & refunds.** An administrator may cancel any order before it ships. A wallet-paid
+  order is refunded through `WalletService::refund()`, which restores the withdrawable share the purchase
+  actually spent (derived from the ledger snapshots) so a top-up cannot be washed into withdrawable money.
+  A proof-paid order has no wallet movement, so nothing is refunded; a pending proof is rejected so
+  nothing stays “awaiting review”.
+- **Segregation of duties.** An administrator cannot verify, reject or cancel an order they placed
+  themselves — the service refuses (`self_review`) and the page says so before any button is offered.
+- **Settings.** `/admin/settings` edits the receiving GCash/Maya/bank accounts and the three timing rules;
+  every save is validated and audited (`settings.update` with the before/after values). The full settings
+  page expands in Phase 15.
 
 ---
 
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (249 cases in Phase 6)
+php tests/run.php                 # full suite (286 cases in Phase 7)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -383,12 +439,13 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
   explicitly, because DDL commits.
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–007 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–008 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
-member account with its wallet, orders, addresses and audit rows, products with SKU prefix `SMOKE-`,
-packages named `Smoke Package…`, and `maintenance_mode`; all restored):
+member account with its wallet, orders, addresses, proofs and audit rows, products with SKU prefix
+`SMOKE-`, packages named `Smoke Package…`, the payment settings it edits, and `maintenance_mode`;
+all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -411,11 +468,15 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `005_wallets.sql` | `users.ewallet_balance` + `withdrawable_balance`, `ewallet_ledger`, `ewallet_admin_topups` |
 | `006_orders.sql` | `addresses`, `shop_orders`, `shop_order_items`, `shop_order_events` |
 | `007_payout_accounts.sql` | `users.gcash_number`, `maya_number`, `usdt_trc20_address`, `usdt_bep20_address` |
+| `008_payment_proofs.sql` | `shop_payment_proofs` (attempts, decision, reviewer, reference index) |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
 Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
-`stock − reserved` number, and `OrderService` is the only writer of reservations.
+`stock − reserved` number, and `OrderService` (placement, member cancel) plus `PaymentService`
+(review, admin cancel, expiry) are its only writers.
+`bin/shop_expire.php` is the supported way to expire unpaid orders; it never touches an order whose
+proof is under review.
 
 ---
 

@@ -105,7 +105,7 @@ return [
             [
                 'label' => 'System',
                 'items' => [
-                    ['key' => 'admin.settings', 'label' => 'Settings', 'path' => 'admin/settings', 'icon' => 'bx-cog', 'guard' => 'admin', 'phase' => 15],
+                    ['key' => 'admin.settings', 'label' => 'Settings', 'path' => 'admin/settings', 'icon' => 'bx-cog', 'guard' => 'admin', 'phase' => 7],
                     ['key' => 'admin.slogin', 'label' => 'S-Login console', 'path' => 'slogin', 'icon' => 'bx-shield-quarter', 'guard' => 'superadmin', 'phase' => 14],
                     /* The top-bar identity row opens this page; admins get the
                      * back-office layout (same pattern as admin.cart / admin.wallet). */

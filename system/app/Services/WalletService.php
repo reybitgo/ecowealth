@@ -12,6 +12,9 @@ declare(strict_types=1);
  *
  *  credit()          adds to the total; adds to withdrawable only
  *                    when the movement is earnings (default).
+ *  refund()          returns spent money; the withdrawable portion is
+ *                    restored only as far as it was originally spent
+ *                    (Phase 7 order refunds).
  *  debit()           removes from both buckets; refuses unless the
  *                    withdrawable bucket covers the amount (payout
  *                    holds, Phase 13).
@@ -147,6 +150,34 @@ final class WalletService
 
         return $this->withTransaction(
             fn (): array => $this->apply('credit', $userId, $amount, $refType, $refId, $note, $withdrawable)
+        );
+    }
+
+    /**
+     * Return spent money to the wallet (order refund, Phase 7).
+     *
+     * A refund restores the purchase's original split: the caller passes
+     * how much of the amount came out of the withdrawable bucket (derived
+     * from the original debit's ledger snapshots), and only that portion
+     * raises the withdrawable bucket again. Without it a top-up purchase
+     * could be washed into withdrawable money by buying and cancelling.
+     *
+     * @param float $withdrawablePortion 0 … amount
+     * @return array<string, mixed> movement payload
+     */
+    public function refund(
+        int $userId,
+        float|int|string $amount,
+        ?int $refId = null,
+        string $note = '',
+        float $withdrawablePortion = 0.0
+    ): array {
+        $amount  = $this->amount($amount);
+        $note    = $this->note($note);
+        $portion = round(max(0.0, min($amount, $withdrawablePortion)), 2);
+
+        return $this->withTransaction(
+            fn (): array => $this->apply('credit', $userId, $amount, 'refund', $refId, $note, true, false, $portion)
         );
     }
 
@@ -441,7 +472,8 @@ final class WalletService
         ?int $refId,
         string $note,
         bool $withdrawable,
-        bool $spendNonWithdrawableFirst = false
+        bool $spendNonWithdrawableFirst = false,
+        ?float $withdrawablePortion = null
     ): array {
         $this->assertRefType($refType);
 
@@ -484,10 +516,18 @@ final class WalletService
         $withdrawableBalance = round((float) $locked['withdrawable_balance'], 2);
 
         if ($type === 'credit') {
-            $newTotal      = round($total + $amount, 2);
-            $newWithdrawable = $withdrawable
-                ? round($withdrawableBalance + $amount, 2)
-                : $withdrawableBalance;
+            $newTotal = round($total + $amount, 2);
+
+            if ($withdrawablePortion !== null) {
+                /* An explicit split (refund): only the part that was
+                 * originally withdrawable raises the bucket again. */
+                $portion         = round(max(0.0, min($amount, $withdrawablePortion)), 2);
+                $newWithdrawable = round($withdrawableBalance + $portion, 2);
+            } else {
+                $newWithdrawable = $withdrawable
+                    ? round($withdrawableBalance + $amount, 2)
+                    : $withdrawableBalance;
+            }
         } else {
             if ($total < $amount) {
                 throw WalletException::insufficient($amount, $total);

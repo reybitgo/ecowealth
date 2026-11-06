@@ -6,7 +6,9 @@ declare(strict_types=1);
  *
  *  Reads are always scoped: member queries include `user_id = ?`
  *  and a posted order id alone never authorises access (P6-T8).
- *  Writes live in OrderService; the event rows live in OrderEvent.
+ *  Writes live in OrderService (placement, member cancel) and
+ *  PaymentService (proof review, admin cancel — Phase 7); the event
+ *  rows live in OrderEvent.
  *
  *  Statuses (plan §4.4):
  *      pending → payment_review → paid → packing → ready_to_ship
@@ -33,6 +35,22 @@ final class Order
 
     /** Statuses a member may cancel themselves (plan §4.4). */
     public const MEMBER_CANCELLABLE = ['pending', 'payment_failed'];
+
+    /** Statuses that accept a payment proof (plan §4.4, §5.4; Phase 7). */
+    public const PROOF_SUBMITTABLE = ['pending', 'payment_failed'];
+
+    /** Statuses an administrator may cancel — everything before shipment. */
+    public const ADMIN_CANCELLABLE = [
+        'pending',
+        'payment_review',
+        'payment_failed',
+        'paid',
+        'packing',
+        'ready_to_ship',
+    ];
+
+    /** Statuses whose cancellation refunds a wallet-paid order. */
+    public const REFUNDABLE = ['paid', 'packing', 'ready_to_ship'];
 
     /** @var array{type:string, q:string, status:string, method:string, from:string, to:string} */
     public const FILTER_DEFAULTS = [
@@ -131,6 +149,18 @@ final class Order
     public static function canMemberCancel(array $order): bool
     {
         return in_array((string) ($order['status'] ?? ''), self::MEMBER_CANCELLABLE, true);
+    }
+
+    /** May an administrator cancel this order (before it ships)? */
+    public static function canAdminCancel(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), self::ADMIN_CANCELLABLE, true);
+    }
+
+    /** Does cancelling this order owe the member a wallet refund? */
+    public static function isRefundable(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), self::REFUNDABLE, true);
     }
 
     /* ----------------------------------------------------------

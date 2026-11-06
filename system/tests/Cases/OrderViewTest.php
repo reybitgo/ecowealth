@@ -424,6 +424,16 @@ return [
             'lines'       => $items,
             'events'      => $events,
             'can_cancel'  => true,
+            'proofs'      => [],
+            'latest_proof' => null,
+            'window'      => [
+                'open'     => true,
+                'reason'   => 'open',
+                'deadline' => (string) $order['payment_deadline'],
+                'used'     => 0,
+                'left'     => 3,
+                'max'      => 3,
+            ],
         ]);
 
         assert_contains('Payment pending', $html);
@@ -434,7 +444,18 @@ return [
         assert_contains('name="reason"', $html);
         assert_contains('action="' . url('orders/' . (int) $order['id'] . '/cancel') . '"', $html);
         assert_contains('name="_csrf"', $html);
-        assert_contains('Payment-proof upload arrives with the', $html);
+
+        /* Phase 7: the proof panel replaces the old "arrives later" note. */
+        assert_contains('Upload your payment proof', $html);
+        assert_contains('enctype="multipart/form-data"', $html);
+        assert_contains('action="' . url('orders/' . (int) $order['id'] . '/proof') . '"', $html);
+        assert_contains('name="amount_sent"', $html);
+        assert_contains('name="reference_no"', $html);
+        assert_contains('name="transfer_date"', $html);
+        assert_contains('name="proof_image"', $html);
+        assert_contains('Submit payment proof', $html);
+        assert_contains('attempt', strtolower($html));
+        assert_not_contains('arrives with the', $html);
 
         /* Cancellation asks through the shared SweetAlert2 modal, not confirm(). */
         assert_contains('data-confirm', $html);

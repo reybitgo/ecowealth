@@ -316,9 +316,10 @@ final class OrderService
     /**
      * Member cancellation of an unpaid order (P6-T11).
      *
-     * Releases the reserved units and logs the transition. Paid orders
-     * are deliberately not cancellable online in this phase: refunds
-     * arrive with the payments/fulfilment phases.
+     * Releases the reserved units and logs the transition. A paid order
+     * is deliberately not cancellable online: an administrator cancels
+     * it through PaymentService::cancelByAdmin(), which refunds a
+     * wallet-paid order and releases the stock (Phase 7, P7-T12).
      *
      * @return array{order_id:int, status:string, reason:string}
      */

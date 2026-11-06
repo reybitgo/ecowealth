@@ -33,6 +33,9 @@ declare(strict_types=1);
  *      upline AJAX is not ported.
  *    • admin_shop_expire is ported as bin/shop_expire.php (CLI),
  *      so the returns/refund group leaves 3 deferred pages, not 4.
+ *    • admin_order_hold / admin_order_resume are inventoried in the
+ *      build but deferred to Phase 8: the 10-status order machine in
+ *      §4.4 has no `on_hold` state. See docs/phase-log.md (Phase 7).
  * ============================================================== */
 
 $route = static fn (string $method, string $path): array => ['ROUTE', strtoupper($method), $path];
@@ -179,8 +182,8 @@ return [
         ], 'Reference had one action endpoint; the port splits it per state.'),
 
         /* ---------- Admin: settings & password ------------------------ */
-        $port('admin_settings', 15, [$route('GET', '/admin/settings')], 'Full settings page in Phase 15.'),
-        $port('admin_save_settings', 15, [$route('POST', '/admin/settings')], ''),
+        $port('admin_settings', 7, [$route('GET', '/admin/settings')], 'Payment accounts + windows in Phase 7; the full settings page expands in Phase 15.'),
+        $port('admin_save_settings', 7, [$route('POST', '/admin/settings')], 'Audited save (settings.update).'),
         $port('admin_change_password', 1, [
             $route('GET', '/profile/password'),
             $route('POST', '/profile/password'),
@@ -218,8 +221,8 @@ return [
         $port('admin_shop_orders', 6, [$route('GET', '/admin/orders')], ''),
         $port('admin_shop_order', 6, [$route('GET', '/admin/orders/{id}')], ''),
         $port('admin_order_transition', 7, [$route('POST', '/admin/orders/{id}/transition')], ''),
-        $port('admin_order_hold', 7, [$route('POST', '/admin/orders/{id}/hold')], 'Added in the port (§2.5).'),
-        $port('admin_order_resume', 7, [$route('POST', '/admin/orders/{id}/resume')], 'Added in the port (§2.5).'),
+        $port('admin_order_hold', 8, [$route('POST', '/admin/orders/{id}/hold')], 'Deferred to Phase 8: §4.4 has no on_hold status in this build (phase log).'),
+        $port('admin_order_resume', 8, [$route('POST', '/admin/orders/{id}/resume')], 'Deferred to Phase 8 with hold.'),
         $port('admin_order_proof', 7, [$route('GET', '/admin/proofs/{id}')], 'Streams the proof file — never a public URL.'),
         $port('admin_order_shipment', 8, [
             $route('POST', '/admin/orders/{id}/ship'),

@@ -1,8 +1,8 @@
 /* ==============================================================
- *  EcoWealth — checkout, orders and address book (Phase 6)
+ *  EcoWealth — checkout, orders and address book (Phases 6–7)
  *
  *  Loaded through page_css on /checkout, /orders, /orders/{id},
- *  /profile and /admin/orders.
+ *  /profile, /admin/orders, /admin/orders/{id} and /admin/settings.
  * ============================================================== */
 
 /* ---------- Filter rows (orders list + admin desk) ---------- */
@@ -201,6 +201,89 @@
 .address-card.is-default {
   border-color: rgba(var(--bs-primary-rgb), 0.45);
   background: rgba(var(--bs-primary-rgb), 0.02);
+}
+
+/* ---------- Payment proofs (Phase 7) ---------- */
+.order-proof-upload {
+  background: var(--bs-gray-100, #f4f6fb);
+}
+
+.order-proof-form .form-label {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.35rem;
+}
+
+.order-proofs-card .card-header .badge,
+.order-review-card .card-header .badge {
+  font-size: 0.72rem;
+}
+
+.order-proofs-table thead th {
+  white-space: nowrap;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.order-proofs-table th,
+.order-proofs-table td {
+  padding: 0.6rem 0.75rem;
+}
+
+.order-proofs-table td {
+  vertical-align: top;
+}
+
+.order-proofs-table .badge {
+  font-size: 0.7rem;
+}
+
+/* ---------- Admin payment review ---------- */
+.order-review-panel {
+  height: 100%;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+}
+
+.order-review-verify {
+  border-color: rgba(var(--bs-success-rgb, 40, 199, 111), 0.45);
+  background: rgba(var(--bs-success-rgb, 40, 199, 111), 0.03);
+}
+
+.order-review-reject {
+  border-color: rgba(var(--bs-danger-rgb, 234, 84, 85), 0.4);
+  background: rgba(var(--bs-danger-rgb, 234, 84, 85), 0.02);
+}
+
+.order-cancel-card {
+  border-color: rgba(var(--bs-danger-rgb, 234, 84, 85), 0.35);
+}
+
+/* ---------- Admin settings (Phase 7) ---------- */
+.settings-account-block {
+  height: 100%;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+}
+
+.settings-note {
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.settings-note:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.settings-page code {
+  font-size: 0.78rem;
 }
 
 /* ---------- Small screens ---------- */

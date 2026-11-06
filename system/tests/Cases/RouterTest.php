@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(40, $live);
+        assert_count(45, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -139,9 +139,14 @@ return [
         assert_same('member', $live['POST /orders/{id}/cancel']);
         assert_same('admin', $live['GET /admin/orders']);
         assert_same('admin', $live['GET /admin/orders/{id}']);
+        assert_same('member', $live['POST /orders/{id}/proof']);
+        assert_same('admin', $live['GET /admin/proofs/{id}']);
+        assert_same('admin', $live['POST /admin/orders/{id}/transition']);
+        assert_same('admin', $live['GET /admin/settings']);
+        assert_same('admin', $live['POST /admin/settings']);
     },
 
-    'Live route table resolves the Phase 1 + 2 + 3 + 4 + 5 + 6 URLs' => function (): void {
+    'Live route table resolves the Phase 1 + 2 + 3 + 4 + 5 + 6 + 7 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
@@ -200,8 +205,30 @@ return [
             ProfileController::class,
             $router->match('POST', '/profile/password')['route']['handler'][0]
         );
+        assert_same(
+            OrderController::class,
+            $router->match('POST', '/orders/8/proof')['route']['handler'][0]
+        );
+        assert_same(
+            AdminOrderController::class,
+            $router->match('GET', '/admin/proofs/3')['route']['handler'][0]
+        );
+        assert_same(
+            AdminOrderController::class,
+            $router->match('POST', '/admin/orders/8/transition')['route']['handler'][0]
+        );
+        assert_same(
+            AdminSettingsController::class,
+            $router->match('GET', '/admin/settings')['route']['handler'][0]
+        );
+        assert_same(
+            AdminSettingsController::class,
+            $router->match('POST', '/admin/settings')['route']['handler'][0]
+        );
         assert_null($router->match('GET', '/no-such-page'));
         assert_null($router->match('GET', '/admin/products/abc/edit'));
         assert_null($router->match('GET', '/admin/packages/abc/edit'));
+        assert_null($router->match('GET', '/admin/orders/8/hold'), 'hold is deferred to Phase 8');
+        assert_null($router->match('GET', '/admin/proofs/abc'));
     },
 ];

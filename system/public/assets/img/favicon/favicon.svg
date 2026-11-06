@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="EcoWealth">
+  <defs>
+    <linearGradient id="eco" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12a06a"/>
+      <stop offset="1" stop-color="#0a7f8f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#eco)"/>
+  <path d="M47 14c3 16-7 28-22 29-4 .3-6-.4-7-1.4 0-15 10-27 25-27 1.5 0 2.8.1 4 .4Z" fill="#ffffff" opacity="0.96"/>
+  <path d="M17 50c4.8-13 13.4-21.2 25.5-25" fill="none" stroke="#0a7f8f" stroke-width="3.4" stroke-linecap="round" opacity="0.55"/>
+</svg>

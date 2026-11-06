@@ -77,16 +77,16 @@ $html_class  = $has_menu
     />
     <meta name="robots" content="noindex, nofollow" />
     <title><?= e($page_title) ?> | <?= e(APP_NAME) ?></title>
-    <!-- Favicon -->
+    <!-- Favicon (SVG: no binary asset, no /favicon.ico round trip) -->
     <link
       rel="icon"
-      type="image/png"
-      href="<?= e(url('assets/img/favicon/favicon.png')) ?>"
+      type="image/svg+xml"
+      href="<?= e(asset_url('assets/img/favicon/favicon.svg')) ?>"
     />
     <link
-      rel="alternate icon"
-      type="image/x-icon"
-      href="<?= e(url('assets/img/favicon/favicon.ico')) ?>"
+      rel="mask-icon"
+      href="<?= e(url('assets/img/favicon/favicon.svg')) ?>"
+      color="#12a06a"
     />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/fonts/iconify-icons.css')) ?>">

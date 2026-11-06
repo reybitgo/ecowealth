@@ -20,6 +20,7 @@ $migrations    = [
     $migrationDir . '005_wallets.sql',
     $migrationDir . '006_orders.sql',
     $migrationDir . '007_payout_accounts.sql',
+    $migrationDir . '008_payment_proofs.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -78,6 +79,7 @@ return [
             'settings', 'audit_log', 'products', 'packages', 'package_levels', 'package_products',
             'carts', 'cart_items', 'ewallet_ledger', 'ewallet_admin_topups',
             'addresses', 'shop_orders', 'shop_order_items', 'shop_order_events',
+            'shop_payment_proofs',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -247,6 +249,7 @@ return [
         assert_same($columnList($fresh, 'shop_orders'), $columnList($migrated, 'shop_orders'), 'shop_orders columns differ from schema.sql');
         assert_same($columnList($fresh, 'shop_order_items'), $columnList($migrated, 'shop_order_items'), 'shop_order_items columns differ from schema.sql');
         assert_same($columnList($fresh, 'shop_order_events'), $columnList($migrated, 'shop_order_events'), 'shop_order_events columns differ from schema.sql');
+        assert_same($columnList($fresh, 'shop_payment_proofs'), $columnList($migrated, 'shop_payment_proofs'), 'shop_payment_proofs columns differ from schema.sql');
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {
@@ -311,6 +314,49 @@ return [
         assert_throws(
             static fn () => $insert($pdo, $userId, 'EWT-MIG-2', 'idem-key-3', 'pending'),
             PDOException::class
+        );
+    },
+
+    'migration guards the payment-proof attempt and status enum' => function () use ($buildMigrated): void {
+        $pdo    = $buildMigrated();
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        $pdo->exec(
+            "INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                subtotal, total, terms_accepted_at)
+             VALUES ('EWT-MIG-9', {$userId}, 'pending', 'gcash', 'Buyer', 'Buyer', 'Address',
+                     10.00, 10.00, NOW())"
+        );
+
+        $orderId = (int) $pdo->lastInsertId();
+
+        $insert = static function (PDO $pdo, int $orderId, int $attempt, string $status): void {
+            $pdo->exec(
+                "INSERT INTO shop_payment_proofs (order_id, attempt_no, file_path, status)
+                 VALUES ({$orderId}, {$attempt}, 'uploads/proofs/proof.png', '{$status}')"
+            );
+        };
+
+        $insert($pdo, $orderId, 1, 'pending');
+        $insert($pdo, $orderId, 2, 'rejected');
+
+        assert_same(
+            2,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = {$orderId}")->fetchColumn()
+        );
+
+        /* Only the three review states exist in this build. */
+        assert_throws(
+            static fn () => $insert($pdo, $orderId, 3, 'reviewing'),
+            PDOException::class
+        );
+
+        /* A deleted order takes its proof rows with it (no orphan evidence). */
+        $pdo->exec("DELETE FROM shop_orders WHERE id = {$orderId}");
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = {$orderId}")->fetchColumn()
         );
     },
 

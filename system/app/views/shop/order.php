@@ -2,22 +2,48 @@
 declare(strict_types=1);
 
 /**
- * One order — status, items, delivery, payment and history
- * (plan §5.3–5.6, Phase 6; reference views/member/shop_order.php).
+ * One order — status, items, delivery, payment, proof attempts and history
+ * (plan §5.3–5.6, Phases 6–7; reference views/member/shop_order.php).
  *
- * Phase 6 shows the order and lets the member cancel an unpaid one.
- * Payment proofs (Phase 7) and shipment tracking (Phase 8) hook into
- * the same page without changing this layout.
+ * Phase 7 adds the manual-payment loop: the member uploads a proof while
+ * the window is open (attempt cap enforced), sees every attempt and the
+ * admin's decision, and can re-upload after a rejection until the
+ * correction window closes.
  *
  * @var array<string, mixed> $order
  * @var list<array<string, mixed>> $lines
  * @var list<array<string, mixed>> $events
  * @var bool $can_cancel
+ * @var list<array<string, mixed>> $proofs
+ * @var array<string, mixed>|null $latest_proof
+ * @var array{open:bool, reason:string, deadline:?string, used:int, left:int, max:int} $window
  */
 
 $status   = (string) $order['status'];
 $deadline = $order['payment_deadline'] !== null ? (string) $order['payment_deadline'] : '';
 $overdue  = $deadline !== '' && strtotime($deadline) !== false && strtotime($deadline) < time();
+
+$proofs       = $proofs ?? [];
+$latestProof  = $latest_proof ?? ($proofs === [] ? null : $proofs[count($proofs) - 1]);
+$window       = $window ?? [
+    'open'     => false,
+    'reason'   => 'status',
+    'deadline' => null,
+    'used'     => count($proofs),
+    'left'     => 0,
+    'max'      => 3,
+];
+$windowOpen   = (bool) ($window['open'] ?? false);
+$windowDeadline = $window['deadline'] ?? null;
+$isManual     = (string) $order['payment_method'] !== 'ewallet';
+$attemptsLeft = (int) ($window['left'] ?? 0);
+
+/* Proof status labels read better in this context than the global map. */
+$proofBadge = static fn (string $proofStatus): string => status_badge($proofStatus, [
+    'pending'  => ['Awaiting review', 'info'],
+    'verified' => ['Verified', 'success'],
+    'rejected' => ['Rejected', 'danger'],
+]);
 
 $instructions = [];
 if ($status === 'pending') {
@@ -109,19 +135,15 @@ $fullAddress = implode(', ', array_filter([
                             <a href="<?= e(url('profile')) ?>">your profile</a>.
                           </p>
 <?php endif; ?>
-<?php if ($deadline !== ''): ?>
+<?php if ($windowDeadline !== null && $windowDeadline !== ''): ?>
                           <p class="<?= $overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?> small mb-3">
 <?php if ($overdue): ?>
-                            <i class="icon-base bx bx-error me-1"></i> The payment window closed on <?= e(format_datetime($deadline)) ?>.
+                            <i class="icon-base bx bx-error me-1"></i> The payment window closed on <?= e(format_datetime((string) $windowDeadline)) ?>.
 <?php else: ?>
-                            <i class="icon-base bx bx-calendar me-1"></i> Pay by <?= e(format_datetime($deadline)) ?>.
+                            <i class="icon-base bx bx-calendar me-1"></i> Pay by <?= e(format_datetime((string) $windowDeadline)) ?>.
 <?php endif; ?>
                           </p>
 <?php endif; ?>
-                          <p class="text-body-secondary small mb-0">
-                            Once you have paid, keep your reference number. Payment-proof upload arrives with the
-                            next phase; you will be able to attach it here.
-                          </p>
                         </div>
                       </div>
 <?php elseif ($status === 'payment_review'): ?>
@@ -131,7 +153,16 @@ $fullAddress = implode(', ', array_filter([
                         </span>
                         <div>
                           <h5 class="mb-1">We are verifying your payment</h5>
-                          <p class="text-body-secondary mb-0">The result appears on this page. You do not need to do anything yet.</p>
+                          <p class="text-body-secondary mb-1">The result appears on this page. You do not need to do anything yet.</p>
+<?php if ($latestProof !== null): ?>
+                          <p class="text-body-secondary small mb-0">
+                            Attempt <?= (int) $latestProof['attempt_no'] ?> of <?= (int) $window['max'] ?>
+                            · <?= e(money((float) ($latestProof['amount_claimed'] ?? 0))) ?>
+<?php if (trim((string) ($latestProof['reference_no'] ?? '')) !== ''): ?>
+                            · ref <?= e((string) $latestProof['reference_no']) ?>
+<?php endif; ?>
+                          </p>
+<?php endif; ?>
                         </div>
                       </div>
 <?php elseif ($status === 'payment_failed'): ?>
@@ -139,9 +170,29 @@ $fullAddress = implode(', ', array_filter([
                         <span class="avatar avatar-sm flex-shrink-0">
                           <span class="avatar-initial rounded-circle bg-label-danger"><i class="icon-base bx bx-error-circle"></i></span>
                         </span>
-                        <div>
+                        <div class="flex-grow-1">
                           <h5 class="mb-1">Payment needs correction</h5>
-                          <p class="text-body-secondary mb-0">Please check the payment details and contact support. Re-uploading proof arrives with the next phase.</p>
+<?php if ($latestProof !== null && trim((string) ($latestProof['reject_reason'] ?? '')) !== ''): ?>
+                          <p class="text-body-secondary mb-2">
+                            <span class="fw-medium">Reason:</span> <?= e((string) $latestProof['reject_reason']) ?>
+                          </p>
+<?php else: ?>
+                          <p class="text-body-secondary mb-2">Please check the payment details and upload a corrected proof.</p>
+<?php endif; ?>
+<?php if ($windowDeadline !== null && $windowDeadline !== ''): ?>
+                          <p class="<?= $overdue ? 'text-danger fw-semibold' : 'text-body-secondary' ?> small mb-3">
+<?php if ($overdue): ?>
+                            <i class="icon-base bx bx-error me-1"></i> The correction window closed on <?= e(format_datetime((string) $windowDeadline)) ?>.
+<?php else: ?>
+                            <i class="icon-base bx bx-calendar-edit me-1"></i> Correct and re-upload by <?= e(format_datetime((string) $windowDeadline)) ?>.
+<?php endif; ?>
+                          </p>
+<?php endif; ?>
+<?php if (!$windowOpen && ($window['reason'] ?? '') === 'attempts'): ?>
+                          <p class="text-body-secondary small mb-0">
+                            You have used all <?= (int) $window['max'] ?> payment-proof attempts for this order. Please contact support.
+                          </p>
+<?php endif; ?>
                         </div>
                       </div>
 <?php elseif ($status === 'cancelled'): ?>
@@ -157,7 +208,14 @@ $fullAddress = implode(', ', array_filter([
                             — <?= e((string) $order['cancelled_reason']) ?>
 <?php endif; ?>
                           </p>
-                          <p class="text-body-secondary small mb-0">Any reserved stock has been released. Nothing was charged for a cancelled unpaid order.</p>
+                          <p class="text-body-secondary small mb-0">
+                            Any reserved stock has been released.
+<?php if ((string) $order['payment_method'] === 'ewallet' && $order['paid_at'] !== null): ?>
+                            A wallet refund, if owed, appears in your e-wallet statement.
+<?php else: ?>
+                            Nothing was charged for a cancelled unpaid order.
+<?php endif; ?>
+                          </p>
                         </div>
                       </div>
 <?php else: ?>
@@ -172,6 +230,76 @@ $fullAddress = implode(', ', array_filter([
                       </div>
 <?php endif; ?>
                     </div>
+
+<?php if ($isManual && $windowOpen): ?>
+                    <div class="card-footer order-proof-upload">
+                      <h6 class="mb-1">Upload your payment proof</h6>
+                      <p class="text-body-secondary small mb-3">
+                        Attach a screenshot or PDF of the transfer, then enter the amount and the reference number.
+                        Use a JPG, PNG, WebP or PDF up to 5&nbsp;MB. Attempt <strong><?= (int) $window['used'] + 1 ?></strong>
+                        of <?= (int) $window['max'] ?>.
+                      </p>
+                      <form method="POST" action="<?= e(url('orders/' . (int) $order['id'] . '/proof')) ?>" enctype="multipart/form-data" class="row g-3 order-proof-form">
+                        <?= csrf_field() ?>
+                        <div class="col-sm-6">
+                          <label class="form-label" for="proof-amount">Amount sent</label>
+                          <input type="text" inputmode="decimal" name="amount_sent" id="proof-amount"
+                                 class="form-control <?= invalid_class('amount_sent') ?>"
+                                 value="<?= old('amount_sent', money_amount((float) $order['total'])) ?>"
+                                 placeholder="0.00" required />
+<?php if (has_error('amount_sent')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('amount_sent')) ?></div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-sm-6">
+                          <label class="form-label" for="proof-reference">Reference number</label>
+                          <input type="text" name="reference_no" id="proof-reference" maxlength="40"
+                                 class="form-control <?= invalid_class('reference_no') ?>"
+                                 value="<?= old('reference_no') ?>" placeholder="GCash / bank reference" required />
+<?php if (has_error('reference_no')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('reference_no')) ?></div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-sm-6">
+                          <label class="form-label" for="proof-date">Transfer date <span class="text-body-secondary">(optional)</span></label>
+                          <input type="date" name="transfer_date" id="proof-date" max="<?= e(date('Y-m-d')) ?>"
+                                 class="form-control <?= invalid_class('transfer_date') ?>"
+                                 value="<?= old('transfer_date') ?>" />
+<?php if (has_error('transfer_date')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('transfer_date')) ?></div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-sm-6">
+                          <label class="form-label" for="proof-file">Proof file</label>
+                          <input type="file" name="proof_image" id="proof-file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                                 class="form-control <?= invalid_class('proof_image') ?>" required />
+<?php if (has_error('proof_image')): ?>
+                          <div class="invalid-feedback"><?= e(error_for('proof_image')) ?></div>
+<?php endif; ?>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                          <span class="small text-body-secondary">
+                            <i class="icon-base bx bx-lock-alt me-1"></i> Only the review team can open the file.
+                          </span>
+                          <button type="submit" class="btn btn-primary">
+                            <i class="icon-base bx bx-upload me-1"></i> Submit payment proof
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+<?php elseif ($isManual && $windowOpen === false && in_array($status, ['pending', 'payment_failed'], true)): ?>
+                    <div class="card-footer">
+                      <p class="text-body-secondary small mb-0">
+<?php if (($window['reason'] ?? '') === 'attempts'): ?>
+                        <i class="icon-base bx bx-info-circle me-1"></i> No proof attempts left. Please contact support with your reference number.
+<?php elseif ($overdue): ?>
+                        <i class="icon-base bx bx-time me-1"></i> The payment window has closed, so a proof can no longer be uploaded. You can cancel this order below and place a new one.
+<?php else: ?>
+                        <i class="icon-base bx bx-info-circle me-1"></i> A payment proof cannot be uploaded for this order right now.
+<?php endif; ?>
+                      </p>
+                    </div>
+<?php endif; ?>
 
 <?php if ($can_cancel): ?>
                     <div class="card-footer">
@@ -198,6 +326,44 @@ $fullAddress = implode(', ', array_filter([
                     </div>
 <?php endif; ?>
                   </div>
+
+<?php if ($proofs !== []): ?>
+                  <div class="card mb-6 order-proofs-card">
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <h5 class="mb-0">Payment attempts</h5>
+                      <span class="badge bg-label-secondary"><?= count($proofs) ?> of <?= (int) $window['max'] ?></span>
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table align-middle mb-0 order-proofs-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Submitted</th>
+                            <th scope="col" class="text-end">Amount</th>
+                            <th scope="col">Reference</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+<?php foreach ($proofs as $proof): ?>
+                          <tr>
+                            <td class="fw-semibold"><?= (int) $proof['attempt_no'] ?></td>
+                            <td class="small text-body-secondary text-nowrap"><?= e(format_datetime((string) $proof['created_at'])) ?></td>
+                            <td class="text-end text-nowrap"><?= e(money((float) ($proof['amount_claimed'] ?? 0))) ?></td>
+                            <td class="small"><?= e(trim((string) ($proof['reference_no'] ?? '')) !== '' ? (string) $proof['reference_no'] : '—') ?></td>
+                            <td>
+                              <?= $proofBadge((string) $proof['status']) ?>
+<?php if (trim((string) ($proof['reject_reason'] ?? '')) !== ''): ?>
+                              <div class="small text-body-secondary mt-1"><?= e((string) $proof['reject_reason']) ?></div>
+<?php endif; ?>
+                            </td>
+                          </tr>
+<?php endforeach; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+<?php endif; ?>
 
                   <div class="card">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -244,6 +410,12 @@ $fullAddress = implode(', ', array_filter([
                         <span>Total</span>
                         <span><?= e(money((float) $order['total'])) ?></span>
                       </div>
+<?php if (trim((string) ($order['payment_reference'] ?? '')) !== ''): ?>
+                      <div class="d-flex justify-content-between py-1 mt-2 small">
+                        <span class="text-body-secondary">Reference</span>
+                        <span class="fw-medium"><?= e((string) $order['payment_reference']) ?></span>
+                      </div>
+<?php endif; ?>
 <?php if ($order['paid_at'] !== null): ?>
                       <div class="small text-body-secondary mt-2">Paid <?= e(format_datetime((string) $order['paid_at'])) ?></div>
 <?php endif; ?>

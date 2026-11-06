@@ -32,8 +32,7 @@ $secondary_label = '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>Back shortly | <?= e(APP_NAME) ?></title>
-    <link rel="icon" type="image/png" href="<?= e(url('assets/img/favicon/favicon.png')) ?>" />
-    <link rel="alternate icon" type="image/x-icon" href="<?= e(url('assets/img/favicon/favicon.ico')) ?>" />
+    <link rel="icon" type="image/svg+xml" href="<?= e(asset_url('assets/img/favicon/favicon.svg')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/fonts.css')) ?>">
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />

@@ -1,17 +1,18 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1 + 2 + 3 + 4 + 5 + 6:
-    P1-T1 ... P1-T11, P2-T1 ... P2-T10, P3-T1 ... P3-T8, P4-T1 ... P4-T13,
-    P5-T7 / P5-T9 / P5-T11, P6-T1 ... P6-T11).
+    EcoWealth HTTP smoke test (Phase 1-7: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
+    P6-T1 ... P6-T11, P7-T1 ... P7-T12).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
-    maintenance mode, the product catalogue, the package matrix, the cart
-    and the e-wallet end to end. Everything the script changes is restored
-    in a finally block: a throw-away member account, products with SKU
-    prefix SMOKE-,
-    packages named "Smoke Package …" and `maintenance_mode`.
+    maintenance mode, the product catalogue, the package matrix, the cart,
+    the e-wallet, checkout/orders and the manual payment loop end to end.
+    Everything the script changes is restored in a finally block: a
+    throw-away member account, products with SKU prefix SMOKE-,
+    packages named "Smoke Package …", `maintenance_mode`, the payment
+    settings it edits, the smoke proof files and its orders.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
 
@@ -207,7 +208,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4 + 5 + 6)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4 + 5 + 6 + 7)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -216,6 +217,8 @@ $memberUsername    = 'smoke_' + (Get-Random -Minimum 100000 -Maximum 999999)
 $otherUsername     = 'smoke_other_' + (Get-Random -Minimum 100000 -Maximum 999999)
 $memberPassword    = 'Smoke@12345'
 $maintenanceBefore = '0'
+$selfOrderId       = 0
+$settingsSnapshot  = @{}
 
 try {
     # ---- Guest surface ---------------------------------------------------
@@ -1136,8 +1139,338 @@ try {
             -and $termsErrorPage.Body.Contains('No Terms Buyer')) `
         "a checkout without terms is refused, writes no order and keeps the input (orders=$ordersAfterBadTerms)"
 
-    # Leave the cart clean for the maintenance checks.
+    # ---- Phase 7: manual payments and the order lifecycle ------------------
+    $proofPng = Join-Path $script:TempDir 'proof.png'
+    [System.IO.File]::WriteAllBytes($proofPng, [Convert]::FromBase64String(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))
+
+    # A new manual order starts in pending with an open proof window.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+
+    $payPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $payToken = Get-Csrf $payPage.Body
+    $payIdem  = ''
+    if ($payPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $payIdem = $matches[1] }
+
+    $payForm = $checkoutForm.Clone()
+    $payForm['_csrf']           = $payToken
+    $payForm['payment_method']  = 'gcash'
+    $payForm['idempotency_key'] = $payIdem
+    $payForm.Remove('save_address')
+
+    $payPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $payForm
+    $payOrderId = 0
+    if ($payPlaced.Location -match '/orders/(\d+)$') { $payOrderId = [int]$matches[1] }
+
+    $payOrderPage = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+    $payOrderToken = Get-Csrf $payOrderPage.Body
+
+    Assert-That 'P7-T1' ($payOrderId -gt 0 -and $payOrderPage.Status -eq 200 `
+            -and $payOrderPage.Body -match 'Upload your payment proof' `
+            -and $payOrderPage.Body -match 'name="proof_image"' `
+            -and $payOrderPage.Body -match 'enctype="multipart/form-data"') `
+        "GET /orders/$payOrderId -> the proof panel is offered (id=$payOrderId)"
+
+    # P7-T2 - a script renamed .png is refused while the window is open.
+    $badProof = Join-Path $script:TempDir 'bad-proof.png'
+    Set-Content -Path $badProof -Value '<?php echo "pwned";' -Encoding ASCII
+
+    $badProofPost = Invoke-App -Method 'POST' -Path "/orders/$payOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $badProof } `
+        -Form @{
+            '_csrf'        = $payOrderToken
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-BAD-1'
+        }
+
+    $badProofCount = (Invoke-MySql "SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = $payOrderId;" | Out-String).Trim()
+    $badProofPage  = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+    $badProofState = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $payOrderId;" | Out-String).Trim()
+
+    Assert-That 'P7-T2' ($badProofPost.Status -eq 302 -and $badProofCount -eq '0' `
+            -and $badProofState -eq 'pending' -and $badProofPage.Body -match 'not allowed') `
+        "a PHP file renamed .png is refused with no attempt written (attempts=$badProofCount, status=$badProofState)"
+
+    # P7-T1 - upload a valid PNG proof.
+    $proofUpload = Invoke-App -Method 'POST' -Path "/orders/$payOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'         = (Get-Csrf $badProofPage.Body)
+            'amount_sent'   = '40.00'
+            'reference_no'  = 'SMOKE-REF-1'
+            'transfer_date' = (Get-Date -Format 'yyyy-MM-dd')
+        }
+
+    $payStatus  = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $payOrderId;" | Out-String).Trim()
+    $proofRow   = (Invoke-MySql "SELECT CONCAT(attempt_no, '|', status, '|', amount_claimed, '|', reference_no) FROM shop_payment_proofs WHERE order_id = $payOrderId;" | Out-String).Trim()
+    $proofId    = [int]((Invoke-MySql "SELECT id FROM shop_payment_proofs WHERE order_id = $payOrderId LIMIT 1;" | Out-String).Trim())
+    $proofEvent = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $payOrderId AND reason_code = 'proof_submitted';" | Out-String).Trim()
+    $proofPage  = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+
+    Assert-That 'P7-T1' ($proofUpload.Status -eq 302 -and $payStatus -eq 'payment_review' `
+            -and $proofRow -eq '1|pending|40.00|SMOKE-REF-1' -and $proofEvent -eq '1' `
+            -and $proofPage.Body -match 'We are verifying your payment') `
+        "POST /orders/{id}/proof stores attempt 1 and moves the order to review (status=$payStatus, proof=$proofRow)"
+
+    # P7-T9 - the proof streams only through the guarded admin route.
+    $adminProof   = Invoke-App -Path "/admin/proofs/$proofId" -Session 'admin'
+    $memberProof  = Invoke-App -Path "/admin/proofs/$proofId" -Session 'member'
+    $guestProof   = Invoke-App -Path "/admin/proofs/$proofId"
+    $proofMime    = ''
+    if ($adminProof.Headers.ContainsKey('content-type')) { $proofMime = [string] $adminProof.Headers['content-type'] }
+
+    Assert-That 'P7-T9' ($adminProof.Status -eq 200 -and $proofMime -match 'image/png' `
+            -and $memberProof.Status -eq 403 -and $guestProof.Status -eq 302) `
+        "GET /admin/proofs/{id} streams for an admin only (admin=$($adminProof.Status)/$proofMime, member=$($memberProof.Status), guest=$($guestProof.Status))"
+
+    # The review pane opens for an admin.
+    $reviewPage = Invoke-App -Path "/admin/orders/$payOrderId" -Session 'admin'
+    Assert-That 'P7-T4' ($reviewPage.Status -eq 200 -and $reviewPage.Body -match 'Payment review' `
+            -and $reviewPage.Body -match 'Verify payment' -and $reviewPage.Body -match 'Reject proof' `
+            -and $reviewPage.Body -match "admin/proofs/$proofId") `
+        "the admin order page shows the review pane (status=$($reviewPage.Status))"
+
+    # P7-T4 - a wrong amount is refused and changes nothing.
+    $reviewToken = Get-Csrf $reviewPage.Body
+    $wrongAmount = Invoke-App -Method 'POST' -Path "/admin/orders/$payOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'             = $reviewToken
+        'to'                = 'paid'
+        'amount_received'   = '39.99'
+        'payment_reference' = 'SMOKE-REF-1'
+    }
+    $statusAfterWrong = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $payOrderId;" | Out-String).Trim()
+    $wrongPage        = Invoke-App -Path "/admin/orders/$payOrderId" -Session 'admin'
+
+    Assert-That 'P7-T4' ($wrongAmount.Status -eq 302 -and $statusAfterWrong -eq 'payment_review' `
+            -and $wrongPage.Body -match 'does not match the order total') `
+        "a wrong amount is refused and the order stays in review (status=$statusAfterWrong)"
+
+    # P7-T4 - verify with the correct amount.
+    $verified = Invoke-App -Method 'POST' -Path "/admin/orders/$payOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'             = (Get-Csrf $wrongPage.Body)
+        'to'                = 'paid'
+        'amount_received'   = '40.00'
+        'payment_reference' = 'SMOKE-REF-1'
+        'note'              = 'Smoke verification'
+    }
+
+    $paidStatus  = (Invoke-MySql "SELECT CONCAT(o.status, '|', CASE WHEN o.paid_at IS NULL THEN 'no' ELSE 'yes' END, '|', COALESCE(o.payment_reference, '')) FROM shop_orders o WHERE o.id = $payOrderId;" | Out-String).Trim()
+    $paidLine    = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $payOrderId;" | Out-String).Trim()
+    $paidProof   = (Invoke-MySql "SELECT status FROM shop_payment_proofs WHERE id = $proofId;" | Out-String).Trim()
+    $paidEvent   = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $payOrderId AND reason_code = 'payment_verified';" | Out-String).Trim()
+    $paidPage    = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+
+    Assert-That 'P7-T4' ($verified.Status -eq 302 -and $paidStatus -eq 'paid|yes|SMOKE-REF-1' `
+            -and $paidLine -eq 'committed' -and $paidProof -eq 'verified' -and $paidEvent -eq '1' `
+            -and $paidPage.Body -match 'Payment received') `
+        "verifying pays the order, commits the stock and marks the proof (status=$paidStatus, line=$paidLine, proof=$paidProof)"
+
+    # P7-T5 / P7-T6 - reject, then re-upload within the correction window.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $retryPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $retryToken = Get-Csrf $retryPage.Body
+    $retryIdem  = ''
+    if ($retryPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $retryIdem = $matches[1] }
+    $retryForm = $payForm.Clone()
+    $retryForm['_csrf']           = $retryToken
+    $retryForm['idempotency_key'] = $retryIdem
+    $retryPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $retryForm
+    $retryOrderId = 0
+    if ($retryPlaced.Location -match '/orders/(\d+)$') { $retryOrderId = [int]$matches[1] }
+
+    $retryOrderPage = Invoke-App -Path "/orders/$retryOrderId" -Session 'member'
+    $retryOrderToken = Get-Csrf $retryOrderPage.Body
+    Invoke-App -Method 'POST' -Path "/orders/$retryOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'        = $retryOrderToken
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-REF-2'
+        } | Out-Null
+
+    $retryProofId = [int]((Invoke-MySql "SELECT id FROM shop_payment_proofs WHERE order_id = $retryOrderId ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $retryAdmin   = Invoke-App -Path "/admin/orders/$retryOrderId" -Session 'admin'
+    $rejected     = Invoke-App -Method 'POST' -Path "/admin/orders/$retryOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'       = (Get-Csrf $retryAdmin.Body)
+        'to'          = 'payment_failed'
+        'reason_code' = 'wrong_amount'
+        'note'        = 'Smoke rejection'
+    }
+
+    $failedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN correction_deadline IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $retryOrderId;" | Out-String).Trim()
+    $failedLine = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $retryOrderId;" | Out-String).Trim()
+    $failedProof = (Invoke-MySql "SELECT CONCAT(status, '|', COALESCE(reject_reason, '')) FROM shop_payment_proofs WHERE id = $retryProofId;" | Out-String).Trim()
+    $failedPage = Invoke-App -Path "/orders/$retryOrderId" -Session 'member'
+
+    Assert-That 'P7-T5' ($rejected.Status -eq 302 -and $failedRow -eq 'payment_failed|yes' `
+            -and $failedLine -eq 'released' -and $failedProof -match '^rejected\|The amount received' `
+            -and $failedPage.Body -match 'Payment needs correction') `
+        "a rejection releases the stock and opens the correction window (status=$failedRow, line=$failedLine)"
+
+    $retryUpload = Invoke-App -Method 'POST' -Path "/orders/$retryOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'        = (Get-Csrf $failedPage.Body)
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-REF-2R'
+        }
+
+    $retryStatus  = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $retryOrderId;" | Out-String).Trim()
+    $retryLine    = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $retryOrderId;" | Out-String).Trim()
+    $retryAttempt = (Invoke-MySql "SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = $retryOrderId;" | Out-String).Trim()
+
+    Assert-That 'P7-T6' ($retryUpload.Status -eq 302 -and $retryStatus -eq 'payment_review' `
+            -and $retryLine -eq 'reserved' -and $retryAttempt -eq '2') `
+        "a corrected proof re-reserves the stock (status=$retryStatus, line=$retryLine, attempts=$retryAttempt)"
+
+    # P7-T12 - an admin cancels the manual order; nothing is refunded.
+    $retryReview = Invoke-App -Path "/admin/orders/$retryOrderId" -Session 'admin'
+    $cancelledByAdmin = Invoke-App -Method 'POST' -Path "/admin/orders/$retryOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'       = (Get-Csrf $retryReview.Body)
+        'to'          = 'cancelled'
+        'reason_code' = 'out_of_stock'
+        'note'        = 'Smoke cancel'
+    }
+    $cancelRow    = (Invoke-MySql "SELECT CONCAT(status, '|', reservation_state) FROM shop_orders o JOIN shop_order_items oi ON oi.order_id = o.id WHERE o.id = $retryOrderId LIMIT 1;" | Out-String).Trim()
+    $refundRows   = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'refund';" | Out-String).Trim()
+    $cancelProof  = (Invoke-MySql "SELECT status FROM shop_payment_proofs WHERE order_id = $retryOrderId AND status = 'pending';" | Out-String).Trim()
+
+    Assert-That 'P7-T12' ($cancelledByAdmin.Status -eq 302 -and $cancelRow -eq 'cancelled|released' `
+            -and $refundRows -eq '0' -and $cancelProof -eq '') `
+        "an admin cancellation releases the stock and refunds no manual payment (row=$cancelRow, refunds=$refundRows)"
+
+    # P7-T7 - the expiry CLI cancels an overdue order once and only once.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $expirePage  = Invoke-App -Path '/checkout' -Session 'member'
+    $expireToken = Get-Csrf $expirePage.Body
+    $expireIdem  = ''
+    if ($expirePage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $expireIdem = $matches[1] }
+    $expireForm = $payForm.Clone()
+    $expireForm['_csrf']           = $expireToken
+    $expireForm['idempotency_key'] = $expireIdem
+    $expirePlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $expireForm
+    $expireOrderId = 0
+    if ($expirePlaced.Location -match '/orders/(\d+)$') { $expireOrderId = [int]$matches[1] }
+
+    Invoke-MySql "UPDATE shop_orders SET payment_deadline = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = $expireOrderId;" | Out-Null
+
+    $expiryScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\shop_expire.php'
+    $expiryFirst  = ((& $PhpPath $expiryScript --json 2>&1) -join "`n") | ConvertFrom-Json
+    $expirySecond = ((& $PhpPath $expiryScript --json 2>&1) -join "`n") | ConvertFrom-Json
+    $expiredStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $expireOrderId;" | Out-String).Trim()
+    $expiredLine   = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $expireOrderId;" | Out-String).Trim()
+    $expiredEvent  = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $expireOrderId AND reason_code = 'payment_expired';" | Out-String).Trim()
+
+    Assert-That 'P7-T7' ($expiryFirst.ok -eq $true -and @($expiryFirst.ids) -contains $expireOrderId `
+            -and $expirySecond.expired -eq 0 -and $expiredStatus -eq 'cancelled' `
+            -and $expiredLine -eq 'released' -and $expiredEvent -eq '1') `
+        "bin/shop_expire.php cancels the overdue order and is idempotent (first=$($expiryFirst.expired), second=$($expirySecond.expired), status=$expiredStatus)"
+
+    # P7-T10 - an admin cannot verify their own order.
+    $adminCart      = Invoke-App -Path '/cart' -Session 'admin'
+    $adminCartToken = Get-Csrf $adminCart.Body
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'admin' `
+        -Form @{ '_csrf' = $adminCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $selfPage  = Invoke-App -Path '/checkout' -Session 'admin'
+    $selfToken = Get-Csrf $selfPage.Body
+    $selfIdem  = ''
+    if ($selfPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $selfIdem = $matches[1] }
+    $selfForm = $payForm.Clone()
+    $selfForm['_csrf']           = $selfToken
+    $selfForm['idempotency_key'] = $selfIdem
+    $selfPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'admin' -Form $selfForm
+    $selfOrderId = 0
+    if ($selfPlaced.Location -match '/orders/(\d+)$') { $selfOrderId = [int]$matches[1] }
+
+    $selfOrderPage = Invoke-App -Path "/orders/$selfOrderId" -Session 'admin'
+    Invoke-App -Method 'POST' -Path "/orders/$selfOrderId/proof" -Session 'admin' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'        = (Get-Csrf $selfOrderPage.Body)
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-SELF-1'
+        } | Out-Null
+
+    $selfReviewPage = Invoke-App -Path "/admin/orders/$selfOrderId" -Session 'admin'
+    $selfVerify     = Invoke-App -Method 'POST' -Path "/admin/orders/$selfOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'             = (Get-Csrf $selfReviewPage.Body)
+        'to'                = 'paid'
+        'amount_received'   = '40.00'
+        'payment_reference' = 'SMOKE-SELF-1'
+    }
+    $selfStatus  = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $selfOrderId;" | Out-String).Trim()
+    $selfAfter   = Invoke-App -Path "/admin/orders/$selfOrderId" -Session 'admin'
+
+    Assert-That 'P7-T10' ($selfOrderId -gt 0 -and $selfReviewPage.Body -match 'You placed this order' `
+            -and $selfVerify.Status -eq 302 -and $selfStatus -eq 'payment_review' `
+            -and $selfAfter.Body -match 'cannot verify, reject or cancel their own order') `
+        "an admin cannot verify their own order (status=$selfStatus)"
+
+    # P7-T4 - the settings page saves the payment windows and validates them.
+    $settingsBefore = Get-SettingValue 'shop_payment_deadline_hours'
+    $settingsPage   = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $settingsToken  = Get-Csrf $settingsPage.Body
+
+    foreach ($key in @(
+            'shop_enabled', 'payment_gcash_number', 'payment_gcash_name',
+            'payment_maya_number', 'payment_maya_name', 'payment_bank_name',
+            'payment_bank_account_name', 'payment_bank_account_number',
+            'shop_payment_deadline_hours', 'shop_correction_window_hours',
+            'shop_max_proof_attempts')) {
+        $settingsSnapshot[$key] = Get-SettingValue $key
+    }
+
+    $saveSettings = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                         = $settingsToken
+        'shop_enabled'                  = '1'
+        'payment_gcash_number'          = '0917 123 4567'
+        'payment_gcash_name'            = 'EcoWealth Smoke'
+        'payment_maya_number'           = '0917 765 4321'
+        'payment_maya_name'             = 'EcoWealth Smoke'
+        'payment_bank_name'             = 'BDO'
+        'payment_bank_account_name'     = 'EcoWealth Smoke Inc.'
+        'payment_bank_account_number'   = '1234 5678 9012'
+        'shop_payment_deadline_hours'   = '30'
+        'shop_correction_window_hours'  = '12'
+        'shop_max_proof_attempts'       = '4'
+    }
+    $settingsSaved = (Invoke-MySql "SELECT CONCAT(value, '|') FROM settings WHERE key_name = 'shop_payment_deadline_hours';" | Out-String).Trim()
+    $attemptsSaved = Get-SettingValue 'shop_max_proof_attempts'
+    $gcashSaved    = Get-SettingValue 'payment_gcash_number'
+
+    Assert-That 'P7-T4' ($settingsPage.Status -eq 200 -and $settingsPage.Body -match 'Receiving accounts' `
+            -and $settingsPage.Body -match 'name="shop_payment_deadline_hours"' `
+            -and $saveSettings.Status -eq 302 -and $settingsSaved -eq '30|' `
+            -and $attemptsSaved -eq '4' -and $gcashSaved -eq '0917 123 4567') `
+        "POST /admin/settings saves the accounts and windows (deadline=$settingsSaved, attempts=$attemptsSaved)"
+
+    $settingsAfter   = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $badSettings     = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = (Get-Csrf $settingsAfter.Body)
+        'shop_enabled'                = '1'
+        'shop_payment_deadline_hours' = '0'
+        'shop_correction_window_hours' = '12'
+        'shop_max_proof_attempts'     = '4'
+    }
+    $settingsKept = Get-SettingValue 'shop_payment_deadline_hours'
+    $settingsErrorPage = Invoke-App -Path '/admin/settings' -Session 'admin'
+
+    Assert-That 'P7-T4' ($badSettings.Status -eq 302 -and $settingsKept -eq '30' `
+            -and $settingsErrorPage.Body -match 'must be at least 1') `
+        "an invalid window is refused and keeps the saved value (deadline=$settingsKept)"
+
+    $memberSettings = Invoke-App -Path '/admin/settings' -Session 'member'
+    Assert-That 'P7-T4' ($memberSettings.Status -eq 403) `
+        "a member cannot open /admin/settings (got $($memberSettings.Status))"
+
+    # Leave the cart clean for the maintenance checks.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
@@ -1157,10 +1490,29 @@ try {
 } finally {
     # Always put the database back the way we found it.
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
+    foreach ($key in $settingsSnapshot.Keys) {
+        try { Set-SettingValue $key ([string] $settingsSnapshot[$key]) } catch { }
+    }
+    try {
+        # Remove proof files this run (or an earlier aborted run) left behind:
+        # any file under uploads/proofs with no row is an orphan.
+        $knownProofs = @{}
+        foreach ($relative in @(Invoke-MySql "SELECT file_path FROM shop_payment_proofs;")) {
+            $knownProofs[([string] $relative).Trim()] = $true
+        }
+        $proofDir = Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs')
+        Get-ChildItem -Path $proofDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.Name -ne '.gitkeep' -and -not $knownProofs.ContainsKey('uploads/proofs/' + $_.Name)) {
+                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
+    try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-Null } } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM packages WHERE name LIKE 'Smoke Package%';" | Out-Null } catch { }
     Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue

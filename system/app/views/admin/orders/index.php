@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 /**
  * Admin order desk — every order, filters and headline numbers
- * (plan §7 Phase 6; reference views/admin/shop_orders.php).
+ * (plan §7 Phases 6–7; reference views/admin/shop_orders.php).
  *
- * Phase 6 is read-only here: payment verification posts (Phase 7) and
- * fulfilment posts (Phase 8) add their own columns/actions.
+ * Phase 7 adds the review counter and the payment-review column; the
+ * fulfilment actions (pack / ship / deliver) land in Phase 8.
  *
  * @var list<array<string, mixed>> $orders
  * @var Paginator $pager
@@ -32,10 +32,12 @@ $cards = [
                 <div>
                   <h4 class="mb-1">Orders</h4>
                   <p class="text-body-secondary mb-0">
-                    Every order, newest first. Payment verification and fulfilment actions arrive with the next phases.
+                    Every order, newest first. Open an order to verify or reject a manual payment proof.
                   </p>
                 </div>
-                <span class="badge bg-label-secondary"><?= (int) $stats['in_review'] ?> awaiting review</span>
+                <a href="<?= e(url('admin/orders?status=payment_review')) ?>" class="badge bg-label-info text-decoration-none">
+                  <i class="icon-base bx bx-search-alt me-1"></i><?= (int) $stats['in_review'] ?> awaiting review
+                </a>
               </div>
 
               <div class="row g-6 mb-6">
