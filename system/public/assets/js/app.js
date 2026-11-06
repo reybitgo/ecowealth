@@ -23,6 +23,65 @@
 
   var input = document.getElementById('navbarQuickSearch');
 
+  /*
+   * Copy-to-clipboard for referral links and registration codes.
+   * Any element carrying `data-copy="…"` copies that value; with
+   * `data-copy-label` the pressed control briefly says "Copied".
+   */
+  document.addEventListener('click', function (event) {
+    var trigger = event.target && event.target.closest ? event.target.closest('[data-copy]') : null;
+
+    if (!trigger) {
+      return;
+    }
+
+    var value = trigger.getAttribute('data-copy') || '';
+    var done = function () {
+      var original = trigger.getAttribute('data-copy-label') || '';
+
+      trigger.classList.add('is-copied');
+
+      if (original !== '') {
+        trigger.setAttribute('data-copy-label', 'Copied');
+        trigger.setAttribute('aria-label', 'Copied');
+      }
+
+      window.setTimeout(function () {
+        trigger.classList.remove('is-copied');
+
+        if (original !== '') {
+          trigger.setAttribute('data-copy-label', original);
+          trigger.setAttribute('aria-label', original);
+        }
+      }, 1500);
+    };
+
+    event.preventDefault();
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(done, function () {});
+      return;
+    }
+
+    /* Fallback for older browsers / insecure origins. */
+    var helper = document.createElement('textarea');
+    helper.value = value;
+    helper.setAttribute('readonly', 'readonly');
+    helper.style.position = 'fixed';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+    helper.select();
+
+    try {
+      document.execCommand('copy');
+      done();
+    } catch (error) {
+      /* Nothing else to do; the value is visible for manual copying. */
+    }
+
+    document.body.removeChild(helper);
+  });
+
   if (!input) {
     return;
   }

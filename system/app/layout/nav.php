@@ -82,6 +82,13 @@ return [
                 ],
             ],
             [
+                'label' => 'Membership',
+                'items' => [
+                    ['key' => 'admin.membership', 'label' => 'My membership', 'path' => 'membership', 'icon' => 'bx-medal', 'guard' => 'admin', 'phase' => 9],
+                    ['key' => 'admin.genealogy', 'label' => 'My genealogy', 'path' => 'genealogy', 'icon' => 'bx-git-branch', 'guard' => 'admin', 'phase' => 9],
+                ],
+            ],
+            [
                 'label' => 'Commerce',
                 'items' => [
                     ['key' => 'admin.orders', 'label' => 'Orders', 'path' => 'admin/orders', 'icon' => 'bx-receipt', 'guard' => 'admin', 'phase' => 6],

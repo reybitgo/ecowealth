@@ -1,20 +1,29 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1-8: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    EcoWealth HTTP smoke test (Phase 1-9: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
-    P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10).
+    P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
+    P9-T1 ... P9-T17).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
     maintenance mode, the product catalogue, the package matrix, the cart,
     the e-wallet, checkout/orders, the manual payment loop, fulfilment
-    (pack, ship, deliver, confirm, invoices) and the auto-complete job end
-    to end, including the expiry job from both the CLI and its web entry.
+    (pack, ship, deliver, confirm, invoices), the auto-complete job and the
+    Phase 9 membership flow (registration modes, registration codes,
+    activation by proof with admin approval, member suspend/restore and
+    genealogy) end to end, including the expiry job from both the CLI and
+    its web entry.
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
-    packages named "Smoke Package …", `maintenance_mode`, the payment and
+    packages named "Smoke Package …", registration codes and member
+    accounts it creates, `maintenance_mode`, the payment and
     fulfilment settings it edits, the smoke proof files and its orders.
+
+    Wallet-funded activations (P9-T4 / P9-T9) are covered by the unit
+    suite instead: they move real money between the payer and the primary
+    admin, which an HTTP smoke run cannot reverse cleanly.
 
     Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
 
@@ -48,6 +57,11 @@ $script:Jars = @{
     admin  = Join-Path $script:TempDir 'admin.jar'
     member = Join-Path $script:TempDir 'member.jar'
     other  = Join-Path $script:TempDir 'other.jar'
+    p9a    = Join-Path $script:TempDir 'p9a.jar'
+    p9b    = Join-Path $script:TempDir 'p9b.jar'
+    p9c    = Join-Path $script:TempDir 'p9c.jar'
+    p9d    = Join-Path $script:TempDir 'p9d.jar'
+    p9e    = Join-Path $script:TempDir 'p9e.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -222,6 +236,14 @@ $maintenanceBefore = '0'
 $selfOrderId       = 0
 $settingsSnapshot  = @{}
 
+# Phase 9 fixtures created by this run (removed in the finally block).
+$p9Users       = @()
+$p9CodeIds     = @()
+$p9CodeStart   = 0
+$p9PackageAId  = 0
+$p9JuanId      = 0
+$p9PendingId   = 0
+
 try {
     # ---- Guest surface ---------------------------------------------------
     $homeGuest = Invoke-App -Path '/'
@@ -299,21 +321,26 @@ try {
         "POST /logout with a wrong CSRF token is rejected (logout=$($badLogout.Status), still signed in=$($afterLogout.Status))"
 
     # ---- Member guard ----------------------------------------------------
+    # Phase 9: a guest registers and is signed in immediately, so the
+    # register POST redirects to /dashboard (no second sign-in needed).
     $registerPage  = Invoke-App -Path '/register' -Session 'member'
     $registerToken = Get-Csrf $registerPage.Body
     $register = Invoke-App -Method 'POST' -Path '/register' -Session 'member' -Form @{
         '_csrf'            = $registerToken
+        'mode'             = 'standard'
+        'sponsor'          = 'juan'
         'username'         = $memberUsername
         'email'            = "$memberUsername@example.com"
         'password'         = $memberPassword
-        'confirm-password' = $memberPassword
+        'password_confirm' = $memberPassword
         'terms'            = '1'
     }
-    Assert-That 'P1-T9' ($register.Status -eq 302 -and $register.Location -match '/login$') `
-        "POST /register creates an account (got $($register.Status) $($register.Location))"
+    Assert-That 'P1-T9' ($register.Status -eq 302 -and $register.Location -match '/dashboard$') `
+        "POST /register creates an account and signs it in (got $($register.Status) $($register.Location))"
 
-    $memberSignedIn = Sign-In -Session 'member' -Username $memberUsername -Password $memberPassword
-    Assert-That 'P1-T9' $memberSignedIn 'the new member can sign in'
+    $memberDashboard = Invoke-App -Path '/dashboard' -Session 'member'
+    Assert-That 'P1-T9' ($memberDashboard.Status -eq 200 -and $memberDashboard.Body -match $memberUsername) `
+        "the new member's session opens /dashboard (got $($memberDashboard.Status))"
 
     $adminAsMember = Invoke-App -Path '/admin' -Session 'member'
     Assert-That 'P1-T2' ($adminAsMember.Status -eq 403 -and $adminAsMember.Body -match 'Access denied') `
@@ -750,13 +777,15 @@ try {
     $otherRegToken = Get-Csrf $otherRegPage.Body
     Invoke-App -Method 'POST' -Path '/register' -Session 'other' -Form @{
         '_csrf'            = $otherRegToken
+        'mode'             = 'standard'
+        'sponsor'          = 'juan'
         'username'         = $otherUsername
         'email'            = "$otherUsername@example.com"
         'password'         = $memberPassword
-        'confirm-password' = $memberPassword
+        'password_confirm' = $memberPassword
         'terms'            = '1'
     } | Out-Null
-    $otherSignedIn = Sign-In -Session 'other' -Username $otherUsername -Password $memberPassword
+    $otherSignedIn = (Invoke-App -Path '/dashboard' -Session 'other').Status -eq 200
 
     $otherCartPage  = Invoke-App -Path '/cart' -Session 'other'
     $otherCartToken = Get-Csrf $otherCartPage.Body
@@ -1778,6 +1807,307 @@ try {
         Assert-That 'P8-T9' $false "the second checkout for the auto-complete check did not create an order"
     }
 
+    # ---- Phase 9: registration, codes, membership and activation ---------
+    $p9PackageAId = [int]((Invoke-MySql "SELECT id FROM packages WHERE slug = 'package-a' LIMIT 1;" | Out-String).Trim())
+    $p9JuanId     = [int]((Invoke-MySql "SELECT id FROM users WHERE username = 'juan' LIMIT 1;" | Out-String).Trim())
+    $p9CodeStart  = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM reg_codes;" | Out-String).Trim())
+
+    # P9-T1 - the P1-T9 signup above is a standard, active, sponsored account.
+    $p9MemberRow = (Invoke-MySql ("SELECT CONCAT(member_status, '|', IF(package_id IS NULL, 'none', package_id), '|', LENGTH(referral_code)) FROM users WHERE username = '$memberUsername';") | Out-String).Trim()
+    $p9MemberSponsor = (Invoke-MySql ("SELECT sp.username FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$memberUsername';") | Out-String).Trim()
+    Assert-That 'P9-T1' ($p9MemberRow -eq 'active|none|8' -and $p9MemberSponsor -eq 'juan') `
+        "standard registration is active, package-free, sponsored and has a referral code (row=$p9MemberRow, sponsor=$p9MemberSponsor)"
+
+    # P9-T6 - a referral link pre-fills the sponsor and creates a pending member.
+    $refPage = Invoke-App -Path '/register?ref=JUAN0001' -Session 'p9a'
+    $refToken = Get-Csrf $refPage.Body
+    $pendingUsername = 'smoke_pending_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $pendingUsername
+    $refPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9a' -Form @{
+        '_csrf'            = $refToken
+        'mode'             = 'pending'
+        'sponsor'          = 'JUAN0001'
+        'username'         = $pendingUsername
+        'email'            = "$pendingUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $pendingRow = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', COALESCE(sp.username, ''), '|', LENGTH(u.referral_code)) FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$pendingUsername';") | Out-String).Trim()
+    $p9PendingId = [int]((Invoke-MySql ("SELECT id FROM users WHERE username = '$pendingUsername';") | Out-String).Trim())
+    Assert-That 'P9-T6' ($refPage.Status -eq 200 -and $refPage.Body -match 'value="juan"' `
+            -and $refPost.Status -eq 302 -and $pendingRow -eq 'pending|juan|8') `
+        "a referral link pre-fills the sponsor and creates a pending member (row=$pendingRow)"
+
+    # P9-T2 - an admin-issued code activates the member with its package.
+    $codesPage  = Invoke-App -Path '/admin/codes' -Session 'admin'
+    $codesToken = Get-Csrf $codesPage.Body
+    $genPost = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '1'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $newCode = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p9CodeStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $newCodeId = [int]((Invoke-MySql "SELECT id FROM reg_codes WHERE code = '$newCode' LIMIT 1;" | Out-String).Trim())
+    if ($newCodeId -gt 0) { $p9CodeIds += $newCodeId }
+
+    $codeUsername = 'smoke_code_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $codeUsername
+    $codeRegPage  = Invoke-App -Path '/register' -Session 'p9b'
+    $codeRegToken = Get-Csrf $codeRegPage.Body
+    $codePost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9b' -Form @{
+        '_csrf'            = $codeRegToken
+        'mode'             = 'code'
+        'sponsor'          = 'juan'
+        'reg_code'         = $newCode
+        'username'         = $codeUsername
+        'email'            = "$codeUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $codeRow = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', p.slug, '|', LENGTH(u.referral_code)) FROM users u JOIN packages p ON p.id = u.package_id WHERE u.username = '$codeUsername';") | Out-String).Trim()
+    $codeUseRow = (Invoke-MySql "SELECT CONCAT(status, '|', IF(used_by IS NULL, 0, 1), '|', IF(used_at IS NULL, 0, 1)) FROM reg_codes WHERE id = $newCodeId;" | Out-String).Trim()
+    Assert-That 'P9-T2' ($genPost.Status -eq 302 -and $newCode -match '^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$' `
+            -and $codePost.Status -eq 302 -and $codeRow -eq 'active|package-a|8' -and $codeUseRow -eq 'used|1|1') `
+        "a registration code activates its package and is marked used (status=$($codePost.Status), row=$codeRow, code=$codeUseRow)"
+
+    # P9-T3 - invalid, unknown and reused codes never create an account.
+    $badPage  = Invoke-App -Path '/register' -Session 'p9c'
+    $badToken = Get-Csrf $badPage.Body
+    $badUsername  = 'smoke_bad_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $reusedName   = 'smoke_reused_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $badUsername
+    $p9Users += $reusedName
+    $badPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'code'
+        'sponsor'          = 'juan'
+        'reg_code'         = 'ZZZZ-ZZZZ-ZZZZ'
+        'username'         = $badUsername
+        'email'            = "$badUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $reusedPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'code'
+        'sponsor'          = 'juan'
+        'reg_code'         = $newCode
+        'username'         = $reusedName
+        'email'            = "$reusedName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $badCount    = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username IN ('$badUsername', '$reusedName');" | Out-String).Trim())
+    Assert-That 'P9-T3' ($badPost.Status -eq 302 -and $badPost.Location -match '/register$' `
+            -and $reusedPost.Status -eq 302 -and $badCount -eq 0) `
+        "invalid and already-used codes are refused without creating an account (rows=$badCount)"
+
+    # P9-T5 - a guest choosing the e-wallet mode is sent to sign in.
+    $guestRegPage = Invoke-App -Path '/register' -Session 'guest'
+    $guestRegToken = Get-Csrf $guestRegPage.Body
+    $ewalletGuestName = 'smoke_ewallet_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $ewalletGuestName
+    $ewalletGuest = Invoke-App -Method 'POST' -Path '/register' -Session 'guest' -Form @{
+        '_csrf'            = $guestRegToken
+        'mode'             = 'ewallet'
+        'sponsor'          = 'juan'
+        'package_id'       = "$p9PackageAId"
+        'username'         = $ewalletGuestName
+        'email'            = "$ewalletGuestName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $ewalletGuestCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username = '$ewalletGuestName';" | Out-String).Trim())
+    Assert-That 'P9-T5' ($ewalletGuest.Status -eq 302 -and $ewalletGuest.Location -match '/login$' -and $ewalletGuestCount -eq 0) `
+        "a guest cannot register by e-wallet (got $($ewalletGuest.Status) $($ewalletGuest.Location), rows=$ewalletGuestCount)"
+
+    # P9-T7 - an unknown sponsor is a field error, not an account.
+    $sponsorFailName = 'smoke_sponsor_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $sponsorFailName
+    $sponsorPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'standard'
+        'sponsor'          = 'nobody_here'
+        'username'         = $sponsorFailName
+        'email'            = "$sponsorFailName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $sponsorCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username = '$sponsorFailName';" | Out-String).Trim())
+    Assert-That 'P9-T7' ($sponsorPost.Status -eq 302 -and $sponsorPost.Location -match '/register$' -and $sponsorCount -eq 0) `
+        "an unknown sponsor is refused without an account (rows=$sponsorCount)"
+
+    # P9-T8 - an existing username is refused.
+    $duplicatePost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'standard'
+        'sponsor'          = 'juan'
+        'username'         = $memberUsername
+        'email'            = "dup_$memberUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $duplicateCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username = '$memberUsername';" | Out-String).Trim())
+    Assert-That 'P9-T8' ($duplicatePost.Status -eq 302 -and $duplicatePost.Location -match '/register$' -and $duplicateCount -eq 1) `
+        "a duplicate username is refused (rows=$duplicateCount)"
+
+    # P9-T10 - a manual proof waits for review and the admin approves it.
+    $pngPath = Join-Path $script:TempDir 'p9-proof.png'
+    [System.IO.File]::WriteAllBytes($pngPath, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))
+
+    $membershipPage  = Invoke-App -Path '/membership' -Session 'p9a'
+    $membershipToken = Get-Csrf $membershipPage.Body
+    $proofReference  = 'SMOKE-P9-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $proofPost = Invoke-App -Method 'POST' -Path '/membership/activate' -Session 'p9a' -Form @{
+        '_csrf'        = $membershipToken
+        'method'       = 'manual'
+        'package_id'   = "$p9PackageAId"
+        'channel'      = 'gcash'
+        'reference_no' = $proofReference
+    } -Files @{ 'proof' = $pngPath }
+    $activationId = [int]((Invoke-MySql "SELECT id FROM activations WHERE user_id = $p9PendingId ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $activationRow = (Invoke-MySql "SELECT CONCAT(status, '|', payment_method, '|', IF(proof_path IS NULL, 'none', 'stored'), '|', COALESCE(reference_no, '')) FROM activations WHERE id = $activationId;" | Out-String).Trim()
+    $queuePage = Invoke-App -Path '/admin/activations' -Session 'admin'
+    $queueOk   = ($queuePage.Status -eq 200) -and ($queuePage.Body -match [regex]::Escape($pendingUsername)) -and ($queuePage.Body -match 'Approve')
+
+    $approve = Invoke-App -Method 'POST' -Path "/admin/activations/$activationId/approve" -Session 'admin' -Form @{
+        '_csrf' = $codesToken
+    }
+    $approvedMember = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', p.slug, '|', IF(u.activated_at IS NULL, 0, 1)) FROM users u JOIN packages p ON p.id = u.package_id WHERE u.id = $p9PendingId;") | Out-String).Trim()
+    $approvedRow = (Invoke-MySql "SELECT CONCAT(status, '|', IF(commission_processed_at IS NULL, 0, 1), '|', IF(reviewed_by IS NULL, 0, 1)) FROM activations WHERE id = $activationId;" | Out-String).Trim()
+    Assert-That 'P9-T10' ($proofPost.Status -eq 302 -and $activationRow -eq ('pending_review|gcash|stored|' + $proofReference) `
+            -and $queueOk -and $approve.Status -eq 302 -and $approvedMember -eq 'active|package-a|1' -and $approvedRow -eq 'approved|1|1') `
+        "a manual activation waits for review and approval activates the member (row=$activationRow, member=$approvedMember, activation=$approvedRow)"
+
+    # P9-T12 - approving the same activation again changes nothing.
+    $approveAgain = Invoke-App -Method 'POST' -Path "/admin/activations/$activationId/approve" -Session 'admin' -Form @{
+        '_csrf' = $codesToken
+    }
+    $approvedCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM activations WHERE user_id = $p9PendingId AND status = 'approved';" | Out-String).Trim())
+    $hookedCount   = [int]((Invoke-MySql "SELECT COUNT(*) FROM activations WHERE user_id = $p9PendingId AND commission_processed_at IS NOT NULL;" | Out-String).Trim())
+    Assert-That 'P9-T12' ($approveAgain.Status -eq 302 -and $approvedCount -eq 1 -and $hookedCount -eq 1) `
+        "a second approval is refused (approved=$approvedCount, hook stamped=$hookedCount)"
+
+    # P9-T11 - a rejection returns the member to pending with a reason.
+    $rejectUsername = 'smoke_reject_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $rejectUsername
+    $rejectRegPage  = Invoke-App -Path '/register' -Session 'p9c'
+    $rejectRegToken = Get-Csrf $rejectRegPage.Body
+    $rejectRegPost  = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $rejectRegToken
+        'mode'             = 'pending'
+        'sponsor'          = 'juan'
+        'username'         = $rejectUsername
+        'email'            = "$rejectUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $rejectMemberId = [int]((Invoke-MySql "SELECT id FROM users WHERE username = '$rejectUsername';" | Out-String).Trim())
+    $rejectMembership = Invoke-App -Path '/membership' -Session 'p9c'
+    $rejectToken = Get-Csrf $rejectMembership.Body
+    $rejectProof = Invoke-App -Method 'POST' -Path '/membership/activate' -Session 'p9c' -Form @{
+        '_csrf'        = $rejectToken
+        'method'       = 'manual'
+        'package_id'   = "$p9PackageAId"
+        'channel'      = 'maya'
+        'reference_no' = 'SMOKE-RJ-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    } -Files @{ 'proof' = $pngPath }
+    $rejectActivationId = [int]((Invoke-MySql "SELECT id FROM activations WHERE user_id = $rejectMemberId ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $rejectAction = Invoke-App -Method 'POST' -Path "/admin/activations/$rejectActivationId/reject" -Session 'admin' -Form @{
+        '_csrf'  = $codesToken
+        'reason' = 'Smoke test rejection'
+    }
+    $rejectRow = (Invoke-MySql ("SELECT CONCAT(a.status, '|', u.member_status, '|', COALESCE(a.reject_reason, '')) FROM activations a JOIN users u ON u.id = a.user_id WHERE a.id = $rejectActivationId;") | Out-String).Trim()
+    Assert-That 'P9-T11' ($rejectRegPost.Status -eq 302 -and $rejectProof.Status -eq 302 -and $rejectAction.Status -eq 302 `
+            -and $rejectRow -eq 'rejected|pending|Smoke test rejection') `
+        "a rejected activation returns the member to pending with a reason (row=$rejectRow)"
+
+    # P9-T16 - the member detail page, then suspend/restore.
+    $detailPage = Invoke-App -Path "/admin/members/$p9PendingId" -Session 'admin'
+    $detailOk   = ($detailPage.Status -eq 200) -and ($detailPage.Body -match 'Package A') `
+        -and ($detailPage.Body -match '@juan') -and ($detailPage.Body -match 'Wallet') `
+        -and ($detailPage.Body -match 'Suspend member')
+
+    $suspend = Invoke-App -Method 'POST' -Path "/admin/members/$p9PendingId/status" -Session 'admin' -Form @{
+        '_csrf'   = $codesToken
+        'action'  = 'suspend'
+        'reason'  = 'Smoke test'
+    }
+    $suspendedRow = (Invoke-MySql "SELECT CONCAT(member_status, '|', is_active) FROM users WHERE id = $p9PendingId;" | Out-String).Trim()
+    $suspendedSession = Invoke-App -Path '/dashboard' -Session 'p9a'
+    $blockedLogin     = Sign-In -Session 'p9d' -Username $pendingUsername -Password $memberPassword
+
+    $restore = Invoke-App -Method 'POST' -Path "/admin/members/$p9PendingId/status" -Session 'admin' -Form @{
+        '_csrf'  = $codesToken
+        'action' = 'restore'
+    }
+    $restoredRow = (Invoke-MySql "SELECT CONCAT(member_status, '|', is_active) FROM users WHERE id = $p9PendingId;" | Out-String).Trim()
+    $restoredLogin = Sign-In -Session 'p9d' -Username $pendingUsername -Password $memberPassword
+
+    Assert-That 'P9-T16' ($detailOk -and $suspend.Status -eq 302 -and $suspendedRow -eq 'suspended|0' `
+            -and $suspendedSession.Status -eq 302 -and (-not $blockedLogin) `
+            -and $restore.Status -eq 302 -and $restoredRow -eq 'active|1' -and $restoredLogin) `
+        "member detail, suspend (sign-in blocked) and restore all work (detail=$detailOk, suspended=$suspendedRow, restored=$restoredRow)"
+
+    # P9-T15 - a member cannot open the back-office membership screens.
+    $memberCodes   = Invoke-App -Path '/admin/codes' -Session 'member'
+    $memberMembers = Invoke-App -Path '/admin/members' -Session 'member'
+    $memberActs    = Invoke-App -Path '/admin/activations' -Session 'member'
+    Assert-That 'P9-T15' ($memberCodes.Status -eq 403 -and $memberMembers.Status -eq 403 -and $memberActs.Status -eq 403) `
+        "a member gets 403 on codes/members/activations (got $($memberCodes.Status)/$($memberMembers.Status)/$($memberActs.Status))"
+
+    # P9-T14 - a batch of ten, one expired, the list and the CSV export.
+    $genTen = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '10'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $batchCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM reg_codes WHERE id > $p9CodeStart;" | Out-String).Trim())
+    $expireCode = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p9CodeStart AND status = 'unused' ORDER BY id ASC LIMIT 1;" | Out-String).Trim()
+    Invoke-MySql "UPDATE reg_codes SET expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE code = '$expireCode';" | Out-Null
+
+    # Validating a past-dated code flips it to `expired` (plan §5.10).
+    $expireCheck = Invoke-App -Method 'POST' -Path '/register/validate-code' -Session 'guest' -Form @{
+        '_csrf' = $guestRegToken
+        'code'  = $expireCode
+    }
+    $expireJson = $null
+    try { $expireJson = $expireCheck.Body | ConvertFrom-Json } catch { }
+    $expireStatus = (Invoke-MySql "SELECT status FROM reg_codes WHERE code = '$expireCode';" | Out-String).Trim()
+    $expiredFilter = Invoke-App -Path "/admin/codes?status=expired" -Session 'admin'
+    $expiredOk     = ($expiredFilter.Status -eq 200) -and ($expiredFilter.Body -match [regex]::Escape($expireCode)) `
+        -and ($expireStatus -eq 'expired') -and ($expireJson.valid -eq $false)
+    $export = Invoke-App -Path '/admin/codes/export?status=expired' -Session 'admin'
+    $exportType = ''
+    if ($export.Headers.ContainsKey('content-type')) { $exportType = [string] $export.Headers['content-type'] }
+    $exportOk = ($export.Status -eq 200) -and ($exportType -match 'text/csv') `
+        -and ($export.Body -match 'Code,Package,Price') -and ($export.Body -match [regex]::Escape($expireCode))
+    Assert-That 'P9-T14' ($genTen.Status -eq 302 -and $batchCount -eq 11 -and $expiredOk -and $exportOk) `
+        "ten codes are generated, one expires and the CSV export follows the filter (batch=$batchCount, filter=$expiredOk, csv=$exportOk status=$($export.Status) type=$exportType bytes=$($export.Body.Length) expired=$expireCode)"
+
+    # P9-T17 - maria sees her sponsor chain and team.
+    $mariaLogin = Sign-In -Session 'p9e' -Username 'maria' -Password 'Demo@1234'
+    $genealogy  = Invoke-App -Path '/genealogy' -Session 'p9e'
+    $genealogyOk = ($genealogy.Status -eq 200) -and ($genealogy.Body -match 'juan') `
+        -and ($genealogy.Body -match 'peter') -and ($genealogy.Body -match 'Direct recruits') `
+        -and ($genealogy.Body -notmatch 'binary_parent|binary_position')
+    Assert-That 'P9-T17' ($mariaLogin -and $genealogyOk) `
+        "GET /genealogy shows the sponsor chain and team (login=$mariaLogin, page=$($genealogy.Status))"
+
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
@@ -1805,10 +2135,13 @@ try {
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
     try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }
     try {
-        # The orders are gone, so any proof file without a row is an orphan
-        # this run (or an earlier aborted run) left behind.
+        # The orders and activations are gone, so any proof file without a
+        # row is an orphan this run (or an earlier aborted run) left behind.
         $knownProofs = @{}
         foreach ($relative in @(Invoke-MySql "SELECT file_path FROM shop_payment_proofs;")) {
+            $knownProofs[([string] $relative).Trim()] = $true
+        }
+        foreach ($relative in @(Invoke-MySql "SELECT proof_path FROM activations WHERE proof_path IS NOT NULL;")) {
             $knownProofs[([string] $relative).Trim()] = $true
         }
         $proofDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs'
@@ -1819,6 +2152,11 @@ try {
         }
     } catch { }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-Null } } catch { }
+    # Phase 9 fixtures: member accounts first (activations cascade), then codes.
+    foreach ($p9Name in $p9Users) {
+        try { Invoke-MySql "DELETE FROM users WHERE username = '$p9Name';" | Out-Null } catch { }
+    }
+    try { if ($p9CodeStart -gt 0) { Invoke-MySql "DELETE FROM reg_codes WHERE id > $p9CodeStart;" | Out-Null } } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }

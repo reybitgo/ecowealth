@@ -1749,6 +1749,143 @@ that could be saved.
 
 Phase 9, as planned.
 
+---
+
+## Phase 9 — Registration, registration codes, membership and activation
+
+**Date:** 2026-11-06 · **Branch:** `feature/shop` · **Gate tag:** `phase-9` · **Status:** complete
+(manual sign-off pending, as for Phases 1–8).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `users` membership columns (`phone`, `member_status`, `package_id`, `sponsor_id`, `referral_code`, `reg_payment_method`, `reg_code_id`, `reg_paid_by`, `activated_at`) with the referral-code backfill; `reg_codes`; `activations`; migration `011_membership.sql`; fresh-install `schema.sql` extended through the Phase 9 shape |
+| **Models** | `Member` (account + package + sponsor, admin directory/filters/stats, audited suspend/restore, package breakdown, primary-admin lookup), `RegCode` (format/normalise, finders, filters, stats, export rows), `Activation` (states, forUser/latestOpen, admin queue, review writers, commission stamp) |
+| **Services** | `RegistrationService` (four modes, sponsor/username/email/password/terms validation, one transaction, duplicate-race mapping), `CodeService` (transactional generate, validate/flip expired, lock + redeem with row-count single use, sweep), `ActivationService` (request code/wallet/manual, approve, reject, the shared `complete()`), `SponsorService` (username-or-code resolve, eligibility, cycle-safe upline/downline, referral codes), `CommissionService` (the Phase 9 hook seam + guarded totals placeholder), `CodeException` / `RegistrationException` / `ActivationException` |
+| **Routes** | `POST /register/validate-code`, `POST /register/check-username`, `POST /register/check-sponsor`, `GET /register/packages`, `GET /dashboard` (was standalone), `GET /membership`, `POST /membership/activate`, `GET /genealogy`, `GET /admin/members`, `GET /admin/members/{id}`, `POST /admin/members/{id}/status`, `POST /admin/members/{id}/toggle`, `GET /admin/codes`, `POST /admin/codes/generate`, `GET /admin/codes/export`, `GET /admin/activations`, `POST /admin/activations/{id}/approve`, `POST /admin/activations/{id}/reject`, `GET /admin/activations/{id}/proof` (19 routes; the last four are inventory extensions) |
+| **Public** | Rewritten `public/register.php` + `app/views/auth/register_form.php` (four-mode selector, sponsor, package cards, code validation, terms gate, progressive enhancement via `app-register.js`); auth layout gained optional page CSS/JS and a wider inner class |
+| **Member** | Routed `/dashboard` (membership, both wallet buckets, referral link + copy, recent orders, team, commission placeholder), `/membership` (status, activation paths, receiving accounts, history, referral link), `/genealogy` (upline chain, direct recruits, team by level) |
+| **Back office** | `/admin/members` (stats, search/status/package filters, suspend/restore), `/admin/members/{id}` (account, membership, wallet, orders, team, activations, audit), `/admin/codes` (counters, transactional issue form, filters, copy buttons, CSV export), `/admin/activations` (tabs, filters, proof stream, approve with modal, inline reject reason) |
+| **Layout / flags** | `APP_PHASE` = 9; member **Membership**/**Genealogy** and admin **Members**/**Activations**/**Registration codes** items go live; admin **My membership**/**My genealogy** added so an admin's own pages have a highlighted destination |
+| **Seeds** | `database/seeds/005_demo_tree.sql` — `admin → juan → maria → peter/sarah/david` (david pending), mixed demo wallets **with matching ledger rows**, and three demo codes (two unused, one expired) |
+| **Tests** | `MembershipTest` (28 cases, P9-T1 … P9-T18 including a two-connection code race), `MembershipViewTest` (20 rendering cases), `MigrationTest` applies 001–011 + a Phase 9 constraint/backfill case, `RouterTest` covers the new routes, `PackageViewTest` updated for the live activation link, `smoke.ps1` +14 P9 checks (and its register step now uses a sponsor); suite 338 → **387**, smoke 115 → **129** |
+| **Evidence** | `docs/qa/evidence/phase-9/` — 20 screenshots (register desktop/referral/code/mobile, dashboard active/pending/associate/mobile, membership pending/review/active/associate/mobile, genealogy desktop/mobile, admin members/detail/codes/activations/mobile) |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-9/db-pre-phase-9.sql` (93,200 bytes) in the repo's git-ignored `backups/` (the sandbox cannot write outside the workspace) |
+| Migration | `011_membership.sql` applied to `ecowealth_sneat`: 9 `users` columns, 3 indexes, 2 foreign keys, the referral backfill, `reg_codes`, `activations` |
+| Seeds | `005_demo_tree.sql` loaded: 5 demo members, 3 wallet ledger rows, 3 codes; existing QA fixtures moved to `member_status='active'` with backfilled `EW……` referral codes |
+| Verified | `MigrationTest` applies 001–011 to the legacy fixture, compares `users`, `reg_codes` and `activations` columns with a fresh `schema.sql` import, and proves the code unique/status/type guards, the package-restrict FK, the activation cascade and the referral backfill |
+| Data check | `bin/wallet_reconcile.php` exits 0 (demo wallets reconcile); the smoke run leaves no accounts, codes, activations or proof files behind |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P9-T1 | Standard registration | **PASS** | Active member, no package, standard payment method, unique referral code, sponsor `juan`; the `free_registration_enabled` gate refuses the mode when off; the guest is signed in (smoke) |
+| P9-T2 | Register with a valid code | **PASS** | Active with the code's package, `reg_payment_method='code'`, code `used` with `used_by`/`used_at`, synthetic approved activation with the hook stamped (smoke repeats it over HTTP) |
+| P9-T3 | Register with an invalid/used/expired code | **PASS** | Specific refusal per state (`code` reason + field error), no account written; a past-dated unused row flips to `expired`; smoke asserts only the valid attempt created a user |
+| P9-T4 | E-wallet registration by a logged-in sponsor | **PASS** | Payer debited exactly once, primary admin credited the same amount (two `registration` ledger rows under the activation), member active with the package, `reg_paid_by` recorded, registrar's session untouched |
+| P9-T5 | Guest tries e-wallet registration | **PASS** | `login_required` is raised before validation; the page redirects to `/login`, no account and no ledger row (smoke asserts both) |
+| P9-T6 | Pending registration via `?ref=CODE` | **PASS** | Sponsor resolved by referral code, `member_status='pending'`, own referral code created; the register page pre-fills `juan` and selects **Activate later** |
+| P9-T7 | Unknown sponsor / self-sponsor | **PASS** | Field errors for an unknown sponsor, a username used as its own sponsor, and a suspended sponsor; no account written |
+| P9-T8 | Duplicate username/email | **PASS** | Field-level errors; the unique indexes are the race fallback (23000 mapped); smoke repeats it |
+| P9-T9 | Activation by wallet | **PASS** | One debit, admin revenue credit, `active` + package, activation approved, `commission_processed_at` set, hook invoked once |
+| P9-T10 | Activation by manual proof | **PASS** | `pending_review` with stored proof/reference; the queue shows it; approval sets `active`, the package and the reviewer, runs the hook (smoke walks it over HTTP) |
+| P9-T11 | Admin rejects activation | **PASS** | Reason required; `rejected` + reason, member stays `pending`, wallet untouched, a new request is allowed |
+| P9-T12 | Double activation / double approval | **PASS** | A second open request refused (`open`), a second approval refused (`status`/`processed`) with no extra hook call, an active member cannot reactivate (`already_active`) |
+| P9-T13 | Code double-redemption race | **PASS** | Two real connections: A holds the code row lock without committing, B times out (1205) and writes nothing, then B is refused `used`; exactly one used row and one account |
+| P9-T14 | Admin generates 10 codes, expires one | **PASS** | Batch of ten in `ABCD-EFGH-JKLM`, counters/status filter follow, the sweep/validation marks the past-dated one `expired`, the CSV export follows the filter (smoke asserts the download); invalid batches write nothing |
+| P9-T15 | Codes page access control | **PASS** | Every `/admin/codes|members|activations` route is `admin`-guarded; smoke gets 403 as a member and the nav never offers them |
+| P9-T16 | Member detail page | **PASS** | Account, membership (package/sponsor/joined-as/activated), both wallet buckets, order/commission counters, activation history, upline and audit; suspend blocks sign-in and drops the session, restore returns active (pending for a never-activated member) |
+| P9-T17 | Genealogy up/down | **PASS** | Upline nearest-first to the company root; downline level 1/2 with no duplicates; a forced cycle terminates; no binary column referenced by the app or present in `users` |
+| P9-T18 | `php -l` + schema check | **PASS** | `php -l` clean (all app/public/tests files); the source scan finds no `binary_*`/pairs/leg counters; the schema scan proves the columns are absent |
+
+### Deviations and decisions
+
+- **The commission hook is a seam, not money.** `CommissionService::onActivation()` records the call and
+  awards nothing in Phase 9; Phases 10–11 replace the body. The once-only guarantee is
+  `activations.commission_processed_at`, stamped in the same transaction, plus a re-check in
+  `complete()` — so a retried approval cannot pay twice later.
+- **`auth_register()` was removed.** Every mode needs a sponsor, `member_status` and a referral code,
+  which the old scalar helper could not express; two registration paths would drift. `public/register.php`
+  now calls `RegistrationService` directly.
+- **A guest is signed in after registering.** The reference logged the guest in and restored a
+  registrar's session; the port keeps the registrar's session untouched (nothing changes it) and signs a
+  guest in with `session_regenerate_id()`. This changed P1-T9's expected redirect from `/login` to
+  `/dashboard`; the smoke script was updated.
+- **`/dashboard` moved into the router.** The 832-line "Growth overview" page was replaced by the Phase 9
+  member dashboard. `public/dashboard.php` is now a three-line redirect shim (old bookmarks keep
+  working); the sandbox blocked deleting the file, and a shim is safer than a dead URL anyway.
+- **Standard members cannot self-activate.** Plan §7 Phase 9 restricts activation to `pending`/`inactive`;
+  a standard (active, package-less) member reads a clear note and is told to contact support. Package
+  upgrades (which would cover this) are a later phase.
+- **The e-wallet payer is the registrar; revenue goes to the primary admin.** Mirrors
+  `Auth::actingAdminId()` from the reference (the superadmin proxy arrives in Phase 14). If no primary
+  admin exists the credit is skipped and logged, matching the reference.
+- **Suspension clears `is_active`.** `auth_user()` already drops a session whose account is inactive, and
+  `auth_login()` additionally refuses `member_status='suspended'` — both halves are asserted. Restoring a
+  suspended pending member returns them to `pending`, not `active`.
+- **Code expiry is pull-based, not a cron.** `CodeService::validate()`/`lockForRedemption()` flip a
+  past-dated unused row to `expired` when they meet it, and `expireSweep()` is exposed for a future job;
+  Phase 9 ships no new scheduler entry (nothing is at risk while a code is unused).
+- **Manual activation proofs live under `uploads/proofs/` and stream through
+  `/admin/activations/{id}/proof`.** Never a public URL, same rule as the Phase 7 payment proofs; the
+  smoke script's orphan sweep now considers `activations.proof_path` as well.
+- **The demo tree is seeded, with ledger rows.** `seeds/005_demo_tree.sql` writes each demo balance and
+  the `adjustment` ledger row that backs it (fixed ref ids 9001–9003), so `bin/wallet_reconcile.php` stays
+  clean and re-seeding is a no-op. The three demo codes are documented in the seed and in the README.
+  It is demo data, not configuration: remove the file from a production install.
+- **`free_registration_enabled` stays a seeded setting.** The phase's rule needs the gate; exposing it on
+  `/admin/settings` would have added a fifth card and reshaped the Phase 7/8 settings tests, and Phase 15
+  owns the full settings page. It is documented in the README.
+- **Referral links use `?ref=CODE` only.** `?sponsor=username` still works. Both resolve through
+  `SponsorService`, so a sponsor can be typed either way anywhere the field appears.
+- **Smoke coverage skips wallet-funded registration/activation.** Those paths move real money to the
+  primary admin and an HTTP smoke run cannot reverse that cleanly; P9-T4 and P9-T9 cover them with unit
+  tests, and the smoke still walks code registration, manual proof approval and rejection, suspend/restore,
+  codes/export and genealogy.
+- **The sandbox blocks subprocess writes under `system/`.** The PHP CLI cron steps inside the smoke script
+  need `system/storage`; the Phase 9 run used one-off wider access for that command (same constraint as
+  Phases 0/7/8, already documented). Browser capture likewise needed wider access for the Chrome profile.
+- **Two defects were caught in-phase and fixed:** the e-wallet registration summary kept its `null`
+  `activation_id` because `+=` does not overwrite keys (fixed with `array_merge`), and the guest e-wallet
+  refusal surfaced as a validation error instead of the planned login redirect (the check now runs before
+  validation). Both are covered by tests.
+
+### Gate checklist (plan §8.3)
+
+- [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 9 shape)
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run; the demo tree is included)
+- [x] All P9 tests pass (49 new cases — 28 `MembershipTest` + 20 `MembershipViewTest` + 1 `MigrationTest`
+      case — plus the router and package-view updates, for **387** total)
+- [x] Full regression suite passes (Phases 1–8 unchanged apart from the register sponsor fields, the
+      dashboard route and the package CTA)
+- [x] Smoke script passes (**129 checks**, 14 new)
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-9-membership.md`) — automated and headless-browser
+      passes complete
+- [x] No new PHP warnings/notices in the Apache error log
+- [x] Money and membership invariants clean — `bin/wallet_reconcile.php` exits 0; one package per
+      activation; the hook never runs twice; suspended accounts cannot sign in
+- [x] Codes are single-use under concurrency (two-connection race) and audited (generate/redeem/export)
+- [x] No binary column is referenced by the app or present in the schema (P9-T17)
+- [x] Visual check in a real browser: register (desktop, referral, validated code, mobile), dashboard
+      (active, pending, associate, mobile), membership (pending, open request, active, associate, mobile),
+      genealogy (desktop/mobile), admin members/detail/codes/activations/mobile — 20 screenshots in
+      `docs/qa/evidence/phase-9/`, no console errors
+- [x] Docs updated (this log, QA pack + sign-off sheet, README, system README)
+- [x] Backup taken; tag `phase-9`
+
+### Next
+
+Phase 10 — direct referral commissions: the `commissions` table, `CommissionService` awarding the
+package's `direct_referral_bonus` to `sponsor_id` inside the activation transaction, the wallet credit
+(`ref_type='commission'`), the uniqueness anchor and the member earnings page.
+
 
 
 

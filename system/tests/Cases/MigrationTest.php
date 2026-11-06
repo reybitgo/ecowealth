@@ -23,6 +23,7 @@ $migrations    = [
     $migrationDir . '008_payment_proofs.sql',
     $migrationDir . '009_shop_expiry.sql',
     $migrationDir . '010_fulfilment.sql',
+    $migrationDir . '011_membership.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -82,6 +83,7 @@ return [
             'carts', 'cart_items', 'ewallet_ledger', 'ewallet_admin_topups',
             'addresses', 'shop_orders', 'shop_order_items', 'shop_order_events',
             'shop_payment_proofs', 'shop_shipments', 'shop_invoices', 'shop_invoice_items',
+            'reg_codes', 'activations',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -255,6 +257,8 @@ return [
         assert_same($columnList($fresh, 'shop_shipments'), $columnList($migrated, 'shop_shipments'), 'shop_shipments columns differ from schema.sql');
         assert_same($columnList($fresh, 'shop_invoices'), $columnList($migrated, 'shop_invoices'), 'shop_invoices columns differ from schema.sql');
         assert_same($columnList($fresh, 'shop_invoice_items'), $columnList($migrated, 'shop_invoice_items'), 'shop_invoice_items columns differ from schema.sql');
+        assert_same($columnList($fresh, 'reg_codes'), $columnList($migrated, 'reg_codes'), 'reg_codes columns differ from schema.sql');
+        assert_same($columnList($fresh, 'activations'), $columnList($migrated, 'activations'), 'activations columns differ from schema.sql');
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {
@@ -446,8 +450,102 @@ return [
         );
     },
 
-    'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {
+    'migration adds membership columns, backfills and guards codes' => function () use ($buildMigrated): void {
         $pdo = $buildMigrated();
+
+        $user = $pdo->query(
+            "SELECT id, username, member_status, referral_code, package_id, sponsor_id,
+                    reg_payment_method, phone, activated_at
+               FROM users WHERE username = 'legacy_user'"
+        )->fetch();
+
+        /* Existing accounts are working accounts: active, and every one
+         * receives an 8-character referral code (P9-T6 / D3). */
+        assert_same('active', $user['member_status']);
+        assert_same(8, strlen((string) $user['referral_code']), 'legacy referral code is backfilled');
+        assert_same('standard', $user['reg_payment_method']);
+        assert_null($user['package_id']);
+        assert_null($user['sponsor_id']);
+
+        /* The code is unique across accounts. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "UPDATE users SET referral_code = '{$user['referral_code']}' WHERE username = 'legacy_admin'"
+            ),
+            PDOException::class,
+            'two accounts may not share a referral code'
+        );
+
+        /* A registration code is one row, bound to a package and creator. */
+        $adminId   = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+
+        $pdo->exec(
+            "INSERT INTO packages (name, slug, price, direct_referral_bonus)
+             VALUES ('Membership probe', 'membership-probe', 100.00, 10.00)"
+        );
+        $packageId = (int) $pdo->lastInsertId();
+
+        $insert = static function (PDO $pdo, int $adminId, int $packageId, string $code, string $status, string $type = 'registration'): void {
+            $pdo->exec(
+                "INSERT INTO reg_codes (code, package_id, price, code_type, status, created_by)
+                 VALUES ('{$code}', {$packageId}, 100.00, '{$type}', '{$status}', {$adminId})"
+            );
+        };
+
+        $insert($pdo, $adminId, $packageId, 'AAAA-BBBB-2C3D', 'unused');
+
+        assert_same(
+            1,
+            (int) $pdo->query("SELECT COUNT(*) FROM reg_codes WHERE code = 'AAAA-BBBB-2C3D'")->fetchColumn()
+        );
+
+        /* The code is unique, and the status/type enums are closed. */
+        assert_throws(static fn () => $insert($pdo, $adminId, $packageId, 'AAAA-BBBB-2C3D', 'unused'), PDOException::class);
+        assert_throws(static fn () => $insert($pdo, $adminId, $packageId, 'BBBB-CCCC-3D4E', 'redeemed'), PDOException::class);
+        assert_throws(static fn () => $insert($pdo, $adminId, $packageId, 'CCCC-DDDD-4E5F', 'unused', 'trial'), PDOException::class);
+
+        /* A package with codes is protected from deletion... */
+        assert_throws(
+            static fn () => $pdo->exec("DELETE FROM packages WHERE id = {$packageId}"),
+            PDOException::class,
+            'a package referenced by a code cannot be deleted'
+        );
+
+        /* ...and an activation row accepts an approved membership record. */
+        $userId = (int) $user['id'];
+
+        $pdo->exec(
+            "INSERT INTO activations (user_id, package_id, amount, payment_method, status)
+             VALUES ({$userId}, {$packageId}, 100.00, 'code', 'approved')"
+        );
+        $activationId = (int) $pdo->lastInsertId();
+
+        $pdo->exec("UPDATE users SET package_id = {$packageId}, member_status = 'active' WHERE id = {$userId}");
+
+        assert_same('active', $pdo->query("SELECT member_status FROM users WHERE id = {$userId}")->fetchColumn());
+        assert_same(
+            1,
+            (int) $pdo->query("SELECT COUNT(*) FROM activations WHERE id = {$activationId}")->fetchColumn()
+        );
+
+        /* Only the five activation states exist in this build. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO activations (user_id, package_id, amount, payment_method, status)
+                 VALUES ({$userId}, {$packageId}, 100.00, 'code', 'paid')"
+            ),
+            PDOException::class
+        );
+
+        /* Deleting the member cascades their activation history. */
+        $pdo->exec("DELETE FROM users WHERE id = {$userId}");
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM activations WHERE id = {$activationId}")->fetchColumn()
+        );
+    },
+
+    'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {        $pdo = $buildMigrated();
 
         assert_throws(
             static fn () => $pdo->exec(

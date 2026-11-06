@@ -51,7 +51,9 @@ function auth_user(): ?array
     $user = null;
     if (!empty($_SESSION['user_id'])) {
         $stmt = db()->prepare(
-            'SELECT id, username, email, full_name, role, is_active, last_login_at, created_at
+            'SELECT id, username, email, full_name, phone, role, member_status, package_id,
+                    sponsor_id, referral_code, reg_payment_method, activated_at,
+                    is_active, last_login_at, created_at
              FROM users
              WHERE id = ?
              LIMIT 1'
@@ -74,6 +76,20 @@ function auth_user(): ?array
 function auth_check(): bool
 {
     return auth_user() !== null;
+}
+
+/**
+ * The signed-in account as a full membership row: package, sponsor,
+ * referral code and both wallet buckets on top of the account fields
+ * (plan §3.4). Null when nobody is signed in.
+ *
+ * @return array<string, mixed>|null
+ */
+function auth_member(): ?array
+{
+    $user = auth_user();
+
+    return $user === null ? null : Member::find((int) $user['id']);
 }
 
 /* --------------------------------------------------------------
@@ -206,7 +222,7 @@ function auth_login(string $identifier, string $password, bool $remember): bool
     }
 
     $stmt = db()->prepare(
-        'SELECT id, username, email, password_hash, role, is_active
+        'SELECT id, username, email, password_hash, role, member_status, is_active
          FROM users
          WHERE email = ? OR username = ?
          LIMIT 1'
@@ -214,8 +230,12 @@ function auth_login(string $identifier, string $password, bool $remember): bool
     $stmt->execute([$identifier, $identifier]);
     $user = $stmt->fetch();
 
+    /* A suspended member is refused even if the row is still marked
+     * active: Member::setStatus() clears both, and this is the second
+     * half of that guarantee (plan §7 Phase 9). */
     $valid = $user
         && (int) $user['is_active'] === 1
+        && (string) $user['member_status'] !== 'suspended'
         && password_verify($password, $user['password_hash']);
 
     if (!$valid) {
@@ -251,60 +271,12 @@ function auth_login(string $identifier, string $password, bool $remember): bool
 
 /* --------------------------------------------------------------
  *  Registration
- * -------------------------------------------------------------- */
-
-/**
- * Validate and create a new account.
  *
- * @return string[] List of error messages — empty array means success.
- */
-function auth_register(string $username, string $email, string $password, string $confirm): array
-{
-    $errors  = [];
-    $username = trim($username);
-    $email    = strtolower(trim($email));
-
-    if ($username === '') {
-        $errors[] = 'Username is required.';
-    } elseif (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
-        $errors[] = 'Username must be 3–50 characters and contain only letters, numbers, dot, underscore or dash.';
-    }
-
-    if ($email === '') {
-        $errors[] = 'Email is required.';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'Please enter a valid email address.';
-    }
-
-    if ($password === '') {
-        $errors[] = 'Password is required.';
-    } elseif (strlen($password) < 8) {
-        $errors[] = 'Password must be at least 8 characters long.';
-    }
-
-    if ($password !== $confirm) {
-        $errors[] = 'Password and confirmation do not match.';
-    }
-
-    if ($errors !== []) {
-        return $errors;
-    }
-
-    // Uniqueness check (username + email)
-    $stmt = db()->prepare('SELECT username, email FROM users WHERE username = ? OR email = ? LIMIT 1');
-    $stmt->execute([$username, $email]);
-    if (($existing = $stmt->fetch()) !== false) {
-        $errors[] = strcasecmp((string) $existing['username'], $username) === 0
-            ? 'This username is already taken.'
-            : 'An account with this email already exists.';
-        return $errors;
-    }
-
-    db()->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, \'member\')')
-        ->execute([$username, $email, password_hash($password, PASSWORD_BCRYPT)]);
-
-    return [];
-}
+ *  Account creation now belongs to RegistrationService (Phase 9):
+ *  every mode needs a sponsor, a member_status and a referral code,
+ *  which the old scalar helper could not express. auth_register()
+ *  was removed rather than left as a second, divergent path.
+ * -------------------------------------------------------------- */
 
 /* --------------------------------------------------------------
  *  "Remember me" — selector : validator token pair

@@ -339,6 +339,32 @@ final class Order
     }
 
     /**
+     * One member's order counters for the dashboard (Phase 9).
+     *
+     * @return array{total:int, open:int, completed:int, spent:float}
+     */
+    public static function statsForUser(int $userId, ?PDO $pdo = null): array
+    {
+        $stmt = ($pdo ?? db())->prepare(
+            "SELECT COUNT(*) AS total,
+                    COUNT(CASE WHEN status NOT IN ('completed','cancelled') THEN 1 END) AS open_count,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) AS completed_count,
+                    COALESCE(SUM(CASE WHEN paid_at IS NOT NULL AND status <> 'cancelled' THEN total ELSE 0 END), 0) AS spent
+               FROM shop_orders
+              WHERE user_id = ?"
+        );
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch() ?: [];
+
+        return [
+            'total'     => (int) ($row['total'] ?? 0),
+            'open'      => (int) ($row['open_count'] ?? 0),
+            'completed' => (int) ($row['completed_count'] ?? 0),
+            'spent'     => round((float) ($row['spent'] ?? 0), 2),
+        ];
+    }
+
+    /**
      * Admin dashboard numbers for the order desk.
      *
      * @return array{

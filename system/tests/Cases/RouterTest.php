@@ -89,7 +89,7 @@ return [
         );
     },
 
-    'Live route table builds and contains the Phase 1–8 routes' => function (): void {
+    'Live route table builds and contains the Phase 1–9 routes' => function (): void {
         $routes = require dirname(__DIR__, 2) . '/app/routes.php';
         $router = new Router($routes);
 
@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(50, $live);
+        assert_count(69, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -149,9 +149,30 @@ return [
         assert_same('admin', $live['POST /admin/orders/{id}/ship']);
         assert_same('admin', $live['POST /admin/orders/{id}/deliver']);
         assert_same('admin', $live['GET /admin/orders/{id}/invoice']);
+
+        /* Phase 9 — registration, membership, codes and activations. */
+        assert_same('any', $live['POST /register/validate-code']);
+        assert_same('any', $live['POST /register/check-username']);
+        assert_same('any', $live['POST /register/check-sponsor']);
+        assert_same('any', $live['GET /register/packages']);
+        assert_same('member', $live['GET /dashboard']);
+        assert_same('member', $live['GET /membership']);
+        assert_same('member', $live['POST /membership/activate']);
+        assert_same('member', $live['GET /genealogy']);
+        assert_same('admin', $live['GET /admin/members']);
+        assert_same('admin', $live['GET /admin/members/{id}']);
+        assert_same('admin', $live['POST /admin/members/{id}/status']);
+        assert_same('admin', $live['POST /admin/members/{id}/toggle']);
+        assert_same('admin', $live['GET /admin/codes']);
+        assert_same('admin', $live['POST /admin/codes/generate']);
+        assert_same('admin', $live['GET /admin/codes/export']);
+        assert_same('admin', $live['GET /admin/activations']);
+        assert_same('admin', $live['POST /admin/activations/{id}/approve']);
+        assert_same('admin', $live['POST /admin/activations/{id}/reject']);
+        assert_same('admin', $live['GET /admin/activations/{id}/proof']);
     },
 
-    'Live route table resolves the Phase 1–8 URLs' => function (): void {
+    'Live route table resolves the Phase 1–9 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
@@ -250,6 +271,73 @@ return [
             AdminOrderController::class,
             $router->match('GET', '/admin/orders/8/invoice')['route']['handler'][0]
         );
+
+        /* Phase 9 handlers. */
+        assert_same(
+            RegistrationController::class,
+            $router->match('POST', '/register/validate-code')['route']['handler'][0]
+        );
+        assert_same(
+            RegistrationController::class,
+            $router->match('POST', '/register/check-sponsor')['route']['handler'][0]
+        );
+        assert_same(
+            RegistrationController::class,
+            $router->match('GET', '/register/packages')['route']['handler'][0]
+        );
+        assert_same(
+            DashboardController::class,
+            $router->match('GET', '/dashboard')['route']['handler'][0]
+        );
+        assert_same(
+            MembershipController::class,
+            $router->match('GET', '/membership')['route']['handler'][0]
+        );
+        assert_same(
+            MembershipController::class,
+            $router->match('POST', '/membership/activate')['route']['handler'][0]
+        );
+        assert_same(
+            GenealogyController::class,
+            $router->match('GET', '/genealogy')['route']['handler'][0]
+        );
+        assert_same(
+            AdminMemberController::class,
+            $router->match('GET', '/admin/members')['route']['handler'][0]
+        );
+        assert_same(
+            AdminMemberController::class,
+            $router->match('GET', '/admin/members/42')['route']['handler'][0]
+        );
+        assert_same(
+            AdminMemberController::class,
+            $router->match('POST', '/admin/members/42/status')['route']['handler'][0]
+        );
+        assert_same(
+            AdminCodeController::class,
+            $router->match('GET', '/admin/codes')['route']['handler'][0]
+        );
+        assert_same(
+            AdminCodeController::class,
+            $router->match('POST', '/admin/codes/generate')['route']['handler'][0]
+        );
+        assert_same(
+            AdminCodeController::class,
+            $router->match('GET', '/admin/codes/export')['route']['handler'][0]
+        );
+        assert_same(
+            AdminActivationController::class,
+            $router->match('GET', '/admin/activations')['route']['handler'][0]
+        );
+        assert_same(
+            AdminActivationController::class,
+            $router->match('POST', '/admin/activations/7/approve')['route']['handler'][0]
+        );
+        assert_same(
+            AdminActivationController::class,
+            $router->match('GET', '/admin/activations/7/proof')['route']['handler'][0]
+        );
+
         assert_null($router->match('GET', '/no-such-page'));
         assert_null($router->match('GET', '/admin/products/abc/edit'));
         assert_null($router->match('GET', '/admin/packages/abc/edit'));
@@ -257,5 +345,13 @@ return [
         assert_null($router->match('GET', '/admin/orders/8/resume'), 'resume is deferred with hold');
         assert_null($router->match('GET', '/admin/proofs/abc'));
         assert_null($router->match('GET', '/orders/8/invoice/extra'));
+
+        /* Not due yet, and the binary-upline endpoints are gone for good. */
+        assert_null($router->match('GET', '/payouts'));
+        assert_null($router->match('GET', '/earnings'));
+        assert_null($router->match('GET', '/admin/commissions'));
+        assert_null($router->match('GET', '/slogin'));
+        assert_null($router->match('POST', '/register/check-upline'));
+        assert_null($router->match('POST', '/register/auto-select-upline'));
     },
 ];

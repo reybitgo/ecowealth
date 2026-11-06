@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * Member packages page (plan §7 Phase 3: "members can view them").
- * Activation is Phase 9 — the CTA is deliberately inert for now.
+ * Activation itself lives on /membership (Phase 9); this page is the
+ * package catalogue.
  *
  * @var list<array<string, mixed>> $packages  PackageService::publicCards()
  */
@@ -27,8 +28,9 @@ CSS;
               <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-info-circle fs-4"></i>
                 <div class="small">
-                  Activation opens with the membership module (Phase 9). Until then this page is the
-                  package catalogue — prices and referral amounts are shown exactly as configured by the admin.
+                  Prices and referral amounts are shown exactly as configured by the admin.
+                  Activate a package from <a href="<?= e(url('membership')) ?>">Membership</a> with a
+                  registration code, your e-wallet or a payment proof.
                 </div>
               </div>
 
@@ -153,10 +155,9 @@ CSS;
 <?php endif; ?>
 
                       <div class="mt-auto">
-                        <button type="button" class="btn btn-primary w-100" disabled
-                          title="Activation opens with the membership module (Phase 9)">
-                          <i class="icon-base bx bx-lock-alt me-1"></i> Activation opens in Phase 9
-                        </button>
+                        <a href="<?= e(url('membership')) ?>" class="btn btn-primary w-100">
+                          <i class="icon-base bx bx-medal me-1"></i> Activate from Membership
+                        </a>
                       </div>
                     </div>
                   </div>

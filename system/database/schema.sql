@@ -21,6 +21,10 @@
 --  Phase 7 owns: shop_payment_proofs, settings.shop_expiry_enabled.
 --  Phase 8 owns: shop_shipments, shop_invoices, shop_invoice_items,
 --                settings.shop_autocomplete_enabled.
+--  Phase 9 owns: users membership columns (phone, member_status,
+--                package_id, sponsor_id, referral_code,
+--                reg_payment_method, reg_code_id, reg_paid_by,
+--                activated_at), reg_codes, activations.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -34,6 +38,18 @@ SET time_zone = '+08:00';
 -- Users
 --  role: member (default) · admin · superadmin
 --        `member` replaced the reference's `user` in Phase 1.
+--
+--  Phase 9 membership columns:
+--    member_status     pending | active | inactive | suspended
+--                      (a suspended member cannot sign in)
+--    package_id        the activated associate package; NULL for a
+--                      standard (shopping-only) or pending member
+--    sponsor_id        the ONE upline link — there is no binary tree
+--    referral_code     8-character public code used by ?ref= links
+--    reg_payment_method  how the account joined
+--    reg_code_id       registration code redeemed, if any
+--    reg_paid_by       payer when a sponsor funded the account
+--    activated_at      when the package was approved
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
   id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -41,7 +57,16 @@ CREATE TABLE IF NOT EXISTS users (
   email         VARCHAR(100) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   full_name     VARCHAR(100) DEFAULT NULL,
+  phone         VARCHAR(30)  NULL,
   role          ENUM('member','admin','superadmin') NOT NULL DEFAULT 'member',
+  member_status ENUM('pending','active','inactive','suspended') NOT NULL DEFAULT 'pending',
+  package_id    INT UNSIGNED NULL,
+  sponsor_id    INT UNSIGNED NULL,
+  referral_code VARCHAR(16)  NULL,
+  reg_payment_method ENUM('standard','code','ewallet','pending') NOT NULL DEFAULT 'standard',
+  reg_code_id   INT UNSIGNED NULL,
+  reg_paid_by   INT UNSIGNED NULL,
+  activated_at  DATETIME     NULL,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   -- Dual wallet bucket (Phase 5, plan §4.4). WalletService is the only
   -- writer; withdrawable_balance is always the subset <= ewallet_balance.
@@ -58,7 +83,10 @@ CREATE TABLE IF NOT EXISTS users (
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_username (username),
   UNIQUE KEY uq_users_email (email),
-  KEY idx_users_role (role, is_active)
+  UNIQUE KEY uq_users_referral (referral_code),
+  KEY idx_users_role (role, is_active),
+  KEY idx_users_sponsor (sponsor_id),
+  KEY idx_users_package (package_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -517,5 +545,82 @@ CREATE TABLE IF NOT EXISTS shop_invoice_items (
   KEY idx_invoice_items_invoice (invoice_id),
   CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (invoice_id) REFERENCES shop_invoices (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Registration codes (plan §5.10; Phase 9)
+--
+--  Admin-issued, package-bound, priced and optionally expiring.
+--  Format: ABCD-EFGH-JKLM from an unambiguous 32-character set,
+--  stored uppercase and compared case-insensitively.
+--
+--  Single use is enforced by CodeService's conditional UPDATE
+--  (`WHERE status='unused'`, row count must be 1), never by a
+--  read-then-write race. States: unused → used | expired.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reg_codes (
+  id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  code       VARCHAR(24)   NOT NULL,
+  package_id INT UNSIGNED  NOT NULL,
+  price      DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  code_type  ENUM('registration','upgrade') NOT NULL DEFAULT 'registration',
+  status     ENUM('unused','used','expired') NOT NULL DEFAULT 'unused',
+  created_by INT UNSIGNED  NOT NULL,
+  used_by    INT UNSIGNED  NULL,
+  used_at    DATETIME      NULL,
+  expires_at DATE          NULL,
+  created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_reg_codes_code (code),
+  KEY idx_reg_codes_status (status),
+  KEY idx_reg_codes_package (package_id),
+  KEY idx_reg_codes_user (used_by),
+  CONSTRAINT fk_reg_codes_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_reg_codes_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_reg_codes_user    FOREIGN KEY (used_by)    REFERENCES users (id) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Activations (plan §4.4, §5.10, §6.2; Phase 9)
+--
+--  One row per package purchase attempt. Registration-time payments
+--  (code / e-wallet) write an already-`approved` row so every
+--  commission in Phases 10–11 points at the activation that caused it.
+--
+--  commission_processed_at is the idempotency anchor: stamped in the
+--  same transaction that awards commissions; a second approval bails
+--  out when it is already set.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS activations (
+  id                      INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  user_id                 INT UNSIGNED  NOT NULL,
+  package_id              INT UNSIGNED  NOT NULL,
+  amount                  DECIMAL(12,2) NOT NULL,
+  payment_method          ENUM('ewallet','code','gcash','maya','bank') NOT NULL,
+  status                  ENUM('pending_payment','pending_review','approved','rejected','cancelled')
+                          NOT NULL DEFAULT 'pending_payment',
+  reg_code_id             INT UNSIGNED  NULL,
+  reference_no            VARCHAR(40)   NULL,
+  proof_path              VARCHAR(255)  NULL,
+  reject_reason           VARCHAR(160)  NULL,
+  reviewed_by             INT UNSIGNED  NULL,
+  reviewed_at             DATETIME      NULL,
+  commission_processed_at DATETIME      NULL,
+  created_at              TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at              TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_activations_user (user_id, status),
+  KEY idx_activations_status (status, created_at),
+  CONSTRAINT fk_activations_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_activations_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Phase 9: users ↔ packages / sponsor links
+--  Declared after `packages` exists (the users table is created
+--  first and cannot reference it inline). Mirrors migration 011.
+-- -------------------------------------------------------------
+ALTER TABLE users
+  ADD CONSTRAINT fk_users_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE SET NULL,
+  ADD CONSTRAINT fk_users_sponsor FOREIGN KEY (sponsor_id) REFERENCES users (id) ON DELETE SET NULL;
 
 

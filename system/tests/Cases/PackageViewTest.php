@@ -40,7 +40,10 @@ return [
         assert_contains('Direct referral (level 1)', $html);
         assert_contains('10 of 10 levels pay', $html);
         assert_contains('Colonics Session', $html);
-        assert_contains('Activation opens in Phase 9', $html);
+
+        /* Phase 9 made activation live on /membership. */
+        assert_contains('Activate from Membership', $html);
+        assert_contains(url('membership'), $html);
     },
 
     'P3-T8 the packages page shows the full ladder on demand' => function () use ($render): void {

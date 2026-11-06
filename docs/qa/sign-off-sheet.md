@@ -22,7 +22,7 @@ still open in each phase of `docs/phase-log.md`.
 | Tester name | |
 | Date(s) of testing | |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6`, `phase-7`, `phase-8` (+ profile payout-account follow-up) |
+| Tags under test | `phase-1`, `phase-2`, `phase-3`, `phase-4`, `phase-5`, `phase-6`, `phase-7`, `phase-8`, `phase-9` (+ profile payout-account follow-up) |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | |
@@ -315,7 +315,39 @@ Document: [phase-8-fulfilment.md](phase-8-fulfilment.md)
 
 ---
 
-## 10. Defect log
+## 10. Phase 9 — Registration, registration codes, membership & activation
+
+Document: [phase-9-membership.md](phase-9-membership.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA9-01 | Standard registration signs the guest in | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-02 | Code registration lands active with the package | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-03 | Invalid / used / expired codes are refused | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-04 | Referral link pre-fills the sponsor (pending) | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-05 | Guest e-wallet registration is sent to login | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-06 | Sponsor pays a registration from the e-wallet | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-07 | Pending member activates with a code | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-08 | Pending member activates with the e-wallet | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-09 | Manual proof → admin approve activates | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-10 | Admin rejection returns the member to pending | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-11 | Codes: issue, filter, expire, CSV export | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-12 | Member directory, detail, suspend/restore | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-13 | Genealogy upline/downline, no binary fields | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-14 | Dashboard: membership, wallet, referral, orders | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-15 | Members cannot reach the admin membership screens | ☐ Pass ☐ Fail ☐ Blocked | |
+| QA9-16 | Ledger/code/activation invariants after the pass | ☐ Pass ☐ Fail ☐ Blocked | |
+
+| Phase 9 summary | |
+|---|---|
+| Executed | ____ / 16 |
+| Passed / Failed / Blocked | ____ / ____ / ____ |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | |
+
+---
+
+## 11. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -335,7 +367,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 11. Final decision
+## 12. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -347,6 +379,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 6 | ☐ Yes ☐ No | |
 | Phase 7 | ☐ Yes ☐ No | |
 | Phase 8 | ☐ Yes ☐ No | |
+| Phase 9 | ☐ Yes ☐ No | |
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

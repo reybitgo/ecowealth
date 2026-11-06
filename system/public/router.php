@@ -35,7 +35,6 @@ $standalone = [
     '/'          => 'index.php',
     '/login'     => 'login.php',
     '/register'  => 'register.php',
-    '/dashboard' => 'dashboard.php',
     '/logout'    => 'logout.php',
 ];
 

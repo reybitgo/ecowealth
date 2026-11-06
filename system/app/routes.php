@@ -125,22 +125,36 @@ return [
     ['GET',  '/admin/orders/{id}/invoice',       [AdminOrderController::class, 'invoice'],     'admin'],    // admin_order_invoice
 
     /* ---------- Phase 9 — registration, codes, membership -----------
-    ['POST', '/register/validate-code',          [RegistrationController::class, 'validateCode'],  'any'],  // validate_code
-    ['POST', '/register/check-username',         [RegistrationController::class, 'checkUsername'], 'any'],  // check_username
-    ['POST', '/register/check-sponsor',          [RegistrationController::class, 'checkSponsor'],  'any'],  // check_upline (re-specified)
-    ['GET',  '/register/packages',               [RegistrationController::class, 'packages'],      'any'],  // get_packages
-    ['GET',  '/membership',                      [MembershipController::class, 'index'],      'member'],    // activate
-    ['POST', '/membership/activate',             [MembershipController::class, 'activate'],   'member'],    // do_activate
-    ['GET',  '/genealogy',                       [GenealogyController::class, 'index'],       'member'],    // genealogy
-    ['GET',  '/dashboard',                       [DashboardController::class, 'index'],       'member'],    // dashboard (was a standalone page)
-    ['GET',  '/admin/members',                   [AdminMemberController::class, 'index'],     'admin'],     // admin_users
-    ['GET',  '/admin/members/{id}',              [AdminMemberController::class, 'show'],      'admin'],     // admin_user_view
-    ['POST', '/admin/members/{id}/status',       [AdminMemberController::class, 'status'],    'admin'],     // admin_deactivate_user
-    ['POST', '/admin/members/{id}/toggle',       [AdminMemberController::class, 'toggle'],    'admin'],     // admin_toggle_user
-    ['GET',  '/admin/codes',                     [AdminCodeController::class, 'index'],       'admin'],     // admin_codes
-    ['POST', '/admin/codes/generate',            [AdminCodeController::class, 'generate'],    'admin'],     // admin_gen_codes
-    ['GET',  '/admin/codes/export',              [AdminCodeController::class, 'export'],      'admin'],     // admin_export_codes
-    ----------------------------------------------------------------- */
+     * Reference: register/do_register stay standalone files; the live
+     * validation endpoints below are the port's `validate_code`,
+     * `check_username`, `check_upline` (re-specified as a sponsor
+     * check), `get_packages`, `activate`, `do_activate`, `genealogy`,
+     * `dashboard`, `admin_users`, `admin_user_view`,
+     * `admin_toggle_user`, `admin_deactivate_user`, `admin_codes`,
+     * `admin_gen_codes`, `admin_export_codes`.
+     *
+     * `/admin/activations` (+approve/reject/proof) is the port's
+     * review queue — the reference handled activation from the member
+     * list, so Appendix A lists it as an extension. */
+    ['POST', '/register/validate-code',          [RegistrationController::class, 'validateCode'],   'any'],   // validate_code
+    ['POST', '/register/check-username',         [RegistrationController::class, 'checkUsername'],  'any'],   // check_username
+    ['POST', '/register/check-sponsor',          [RegistrationController::class, 'checkSponsor'],   'any'],   // check_upline (re-specified)
+    ['GET',  '/register/packages',               [RegistrationController::class, 'packages'],       'any'],   // get_packages
+    ['GET',  '/dashboard',                       [DashboardController::class, 'index'],             'member'], // dashboard (was standalone)
+    ['GET',  '/membership',                      [MembershipController::class, 'index'],            'member'], // activate
+    ['POST', '/membership/activate',             [MembershipController::class, 'activate'],         'member'], // do_activate
+    ['GET',  '/genealogy',                       [GenealogyController::class, 'index'],             'member'], // genealogy
+    ['GET',  '/admin/members',                   [AdminMemberController::class, 'index'],           'admin'],  // admin_users
+    ['GET',  '/admin/members/{id}',              [AdminMemberController::class, 'show'],            'admin'],  // admin_user_view
+    ['POST', '/admin/members/{id}/status',       [AdminMemberController::class, 'status'],          'admin'],  // admin_deactivate_user
+    ['POST', '/admin/members/{id}/toggle',       [AdminMemberController::class, 'toggle'],          'admin'],  // admin_toggle_user
+    ['GET',  '/admin/codes',                     [AdminCodeController::class, 'index'],             'admin'],  // admin_codes
+    ['POST', '/admin/codes/generate',            [AdminCodeController::class, 'generate'],          'admin'],  // admin_gen_codes
+    ['GET',  '/admin/codes/export',              [AdminCodeController::class, 'export'],            'admin'],  // admin_export_codes
+    ['GET',  '/admin/activations',               [AdminActivationController::class, 'index'],       'admin'],  // extension
+    ['POST', '/admin/activations/{id}/approve',  [AdminActivationController::class, 'approve'],     'admin'],  // extension
+    ['POST', '/admin/activations/{id}/reject',   [AdminActivationController::class, 'reject'],      'admin'],  // extension
+    ['GET',  '/admin/activations/{id}/proof',    [AdminActivationController::class, 'proof'],       'admin'],  // extension
 
     /* ---------- Phase 10 — direct referral --------------------------
     ['GET',  '/earnings',                        [EarningsController::class, 'index'],        'member'],    // earnings

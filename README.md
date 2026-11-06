@@ -28,16 +28,23 @@ guards, settings and test suite, **Phase 2** added the product catalogue and sto
 **Phase 3** added associate packages (price, direct bonus, the 2–10 unilevel ladder,
 contents and the member packages page), **Phase 4** the cart, **Phase 5** the dual-bucket
 e-wallet and ledger, **Phase 6** checkout and orders, **Phase 7** manual payments and the
-order lifecycle, and **Phase 8** fulfilment (pack, ship with tracking, deliver, confirm)
-and printable invoices. Registration, referral commissions, transfers, payouts and
-super-login follow in later phases.
+order lifecycle, **Phase 8** fulfilment (pack, ship with tracking, deliver, confirm) and
+printable invoices, and **Phase 9** registration (standard / code / e-wallet / pending),
+registration codes, membership activation with the commission hook, the member dashboard,
+genealogy and the member/codes/activation back office. Referral commissions, transfers,
+payouts and super-login follow in later phases.
+
+The demo tree from Phase 9 (`juan`, `maria`, `peter`, `sarah`, `david`) and its
+wallets/codes are development data: every demo member signs in with `Demo@1234`, and the
+seed is removed or replaced before go-live (see the phase log).
 
 - Application notes, setup and tests: [`system/README.md`](system/README.md)
 - Running log of decisions, migrations and test results: [`docs/phase-log.md`](docs/phase-log.md)
 
 ## Important
 The landing page is still a static frontend prototype. The application behind it is real
-(login, roles, settings and the Phase 1 skeleton) but the simulator and the commerce,
-wallet and payout flows are not connected yet — those are delivered phase by phase.
+(login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership and
+registration codes as of Phase 9) but the simulator is not connected to it, and referral
+commissions, wallet transfers, payouts and super-login are delivered in later phases.
 Product information and final compensation terms are not invented here; they should be
 added from verified official material when available.

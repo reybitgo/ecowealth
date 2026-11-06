@@ -239,6 +239,7 @@ function test_reset_app_database(): void
     test_run_sql_file($pdo, $databaseDir . 'seeds/002_accounts.sql');
     test_run_sql_file($pdo, $databaseDir . 'seeds/003_products.sql');
     test_run_sql_file($pdo, $databaseDir . 'seeds/004_packages.sql');
+    test_run_sql_file($pdo, $databaseDir . 'seeds/005_demo_tree.sql');
 
     unset($GLOBALS['__settings_cache']);
 }
@@ -263,14 +264,16 @@ function test_user(string $username = 'member', string $role = 'member', string 
     }
 
     db()->prepare(
-        'INSERT INTO users (username, email, password_hash, full_name, role, is_active)
-         VALUES (?, ?, ?, ?, ?, 1)'
+        'INSERT INTO users (username, email, password_hash, full_name, role, member_status,
+                            referral_code, is_active)
+         VALUES (?, ?, ?, ?, ?, \'active\', ?, 1)'
     )->execute([
         $username,
         $username . '@test.local',
         password_hash($password, PASSWORD_BCRYPT),
         ucfirst($username) . ' Test',
         $role,
+        strtoupper(bin2hex(random_bytes(4))),
     ]);
 
     $stmt->execute([$username]);

@@ -55,6 +55,12 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <!-- Page CSS -->
     <!-- Page -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/pages/page-auth.css')) ?>" />
+<?php foreach ((array) ($auth_page_css ?? []) as $auth_css): ?>
+    <link rel="stylesheet" href="<?= e(asset_url((string) $auth_css)) ?>" />
+<?php endforeach; ?>
+<?php if (isset($auth_page_styles) && trim((string) $auth_page_styles) !== ''): ?>
+    <style><?= (string) $auth_page_styles ?></style>
+<?php endif; ?>
     <!-- Helpers -->
     <script src="<?= e(url('assets/vendor/js/helpers.js')) ?>"></script>
     <!--! Template customizer & Theme config files MUST be included after core stylesheets and helpers.js in the <head> section -->
@@ -67,4 +73,4 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <!-- Content -->
     <div class="container-xxl">
       <div class="authentication-wrapper authentication-basic container-p-y">
-        <div class="authentication-inner">
+        <div class="authentication-inner<?= isset($auth_inner_class) && (string) $auth_inner_class !== '' ? ' ' . e((string) $auth_inner_class) : '' ?>">

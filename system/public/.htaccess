@@ -8,12 +8,11 @@
   RewriteEngine On
 
   # Standalone pages kept outside the router in this build.
-  # (login/register/logout stay untouched this phase; dashboard is
-  #  re-routed in Phase 9.)
+  # (login/register/logout stay standalone; dashboard moved into the
+  #  router in Phase 9.)
   RewriteRule ^login/?$      login.php      [L,QSA]
   RewriteRule ^register/?$   register.php   [L,QSA]
   RewriteRule ^logout/?$     logout.php     [L,QSA]
-  RewriteRule ^dashboard/?$  dashboard.php  [L,QSA]
 
   # Everything that is not a real file or directory -> front controller.
   RewriteCond %{REQUEST_FILENAME} !-f

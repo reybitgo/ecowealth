@@ -4,7 +4,8 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 8 — fulfilment, completion and invoices.** Phase 1 delivered the skeleton
+**Current status: Phase 9 — registration, registration codes, membership and activation.**
+Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
 the admin editor and the member packages page; Phase 4 adds the persistent cart, the drawer and the
@@ -15,11 +16,16 @@ adds the manual payment loop (proof upload, admin verify/reject, deadlines, corr
 release/re-reserve), admin cancellation with a wallet refund, the expiry command and the admin
 settings page; Phase 8 adds the paid side of the order machine — pack, ready to ship, ship with
 courier + tracking (stock deducted at that point), deliver, member receipt confirmation, the
-auto-complete job, and the immutable printable invoice issued when an order is paid. The expiry job
-runs from the CLI **and** from a guarded URL (`/system/cron/shop_expire.php`); the auto-complete job
-does the same at `/system/cron/order_autocomplete.php`. Both have kill switches on the settings page
-and log to `system/storage/`. Registration and commissions follow in later phases; their menu entries
-stay hidden until their phase lands.
+auto-complete job, and the immutable printable invoice issued when an order is paid; Phase 9 adds the
+four registration modes (standard / registration code / e-wallet / pending) with a required sponsor
+and no binary placement, registration codes (generate, validate, redeem, expire, CSV export),
+membership activation by code / wallet / manual proof with the commission hook wired once per
+activation, the member dashboard, genealogy (sponsor chain only), the member directory and the
+activation review queue. The expiry job runs from the CLI **and** from a guarded URL
+(`/system/cron/shop_expire.php`); the auto-complete job does the same at
+`/system/cron/order_autocomplete.php`. Both have kill switches on the settings page and log to
+`system/storage/`. Referral commissions, transfers, payouts and super-login follow in later phases;
+their menu entries stay hidden until their phase lands.
 
 | | |
 |---|---|
@@ -62,9 +68,11 @@ stay hidden until their phase lands.
    mysql -u root ecowealth_sneat < database/seeds/002_accounts.sql
    mysql -u root ecowealth_sneat < database/seeds/003_products.sql
    mysql -u root ecowealth_sneat < database/seeds/004_packages.sql
+   mysql -u root ecowealth_sneat < database/seeds/005_demo_tree.sql
    ```
 
-   (The Phase 5 wallet tables need no seed: demo balances arrive with the Phase 9 demo tree.)
+   (`005_demo_tree.sql` is demo data — the sponsor tree `admin → juan → maria → peter/sarah/david`,
+   their wallets and three sample registration codes. Drop it from a production install.)
 
 4. **Open** `http://localhost/ecowealth/system/` and sign in.
 
@@ -74,9 +82,10 @@ stay hidden until their phase lands.
 |---|---|---|
 | `admin` | `Admin@123` | `admin` |
 | `superadmin` | `Super@123` | `superadmin` (S-Login console, Phase 14) |
+| `juan` · `maria` · `peter` · `sarah` · `david` | `Demo@1234` | `member` (Phase 9 demo tree: active associates plus one pending member) |
 
-These are development credentials. Plan §9.6 requires both to be changed and the demo
-accounts removed before production.
+These are development credentials. Plan §9.6 requires both staff passwords to be changed,
+the demo members removed and `seeds/005_demo_tree.sql` kept out of production.
 
 ### Built-in PHP server (no Apache)
 
@@ -85,8 +94,8 @@ php -S 127.0.0.1:8080 -t public public/router.php
 # open http://127.0.0.1:8080
 ```
 
-`router.php` mirrors `public/.htaccess`: static files stream through, the four standalone
-pages keep their scripts, everything else goes to the front controller.
+`router.php` mirrors `public/.htaccess`: static files stream through, the three standalone
+pages (login, register, logout) keep their scripts, everything else goes to the front controller.
 
 ---
 
@@ -101,7 +110,7 @@ pages keep their scripts, everything else goes to the front controller.
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `8` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `9` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
@@ -145,21 +154,23 @@ system/
 │   ├── router.php             PHP built-in server parity
 │   ├── cron/shop_expire.php   guarded web entry for the expiry job (local/URL cron)
 │   ├── cron/order_autocomplete.php  guarded web entry for the auto-complete job
-│   ├── login.php register.php logout.php dashboard.php   (standalone this build)
+│   ├── login.php register.php logout.php   (standalone this build)
+│   ├── dashboard.php          legacy redirect shim → the routed /dashboard
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 010_fulfilment
-│   └── seeds/                 settings, accounts, demo catalogue, demo packages
+│   ├── migrations/            001_settings_roles … 011_membership
+│   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P8-T10)
-    ├── Cases/                 Skeleton, Router, Parity, Settings, View, Upload, Migration,
-    │                          Product, ProductView, Package, PackageView, Cart, CartView,
-    │                          Wallet, WalletView, Order, OrderView, Payment, PaymentView,
-    │                          Fulfilment, FulfilmentView, Invoice, Cron
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P9-T17)
+    ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, View, Upload,
+    │                          Migration, Product, ProductView, Package, PackageView, Cart,
+    │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
+    │                          PaymentView, PaymentDetails, Fulfilment, FulfilmentView, Invoice,
+    │                          Cron, Membership, MembershipView
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -176,7 +187,7 @@ compiles to `([0-9]+)`. Guards:
 
 | Guard | Behaviour |
 |---|---|
-| `any` | Public (only `/` and the register validation endpoints in later phases) |
+| `any` | Public: `/`, the register validation endpoints and logout |
 | `guest` | Signed-in visitors are sent to `/dashboard` |
 | `member` | Guests are redirected to `/login` with a flash |
 | `admin` | Guests → `/login`; signed-in non-admins → **403 page** (never a redirect loop) |
@@ -273,8 +284,33 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | GET | `/orders/{id}/invoice` | member | Printable A4 snapshot; own paid orders only |
 | GET | `/admin/orders/{id}/invoice` | admin | The same snapshot from the back office |
 
+### Phase 9 URLs — registration, codes and membership
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| POST | `/register/validate-code` | any | JSON: is this registration code usable? (flips an expired row) |
+| POST | `/register/check-username` | any | JSON: format + availability |
+| POST | `/register/check-sponsor` | any | JSON: resolve a sponsor by username **or** referral code |
+| GET | `/register/packages` | any | JSON: the active packages the e-wallet mode can buy |
+| GET | `/dashboard` | member | Member dashboard: membership, wallet, referral link, orders, commissions |
+| GET | `/membership` | member | Status, package, activation paths (code / wallet / proof) and history |
+| POST | `/membership/activate` | member | Request an activation (one open request per member) |
+| GET | `/genealogy` | member | Upline chain + direct recruits + team by level (sponsor chain only) |
+| GET | `/admin/members` | admin | Member directory with search/status/package filters and stats |
+| GET | `/admin/members/{id}` | admin | Account, membership, wallet, orders, team, activation history, audit |
+| POST | `/admin/members/{id}/status` | admin | Suspend (`is_active=0`) or restore, audited |
+| POST | `/admin/members/{id}/toggle` | admin | Reference `admin_toggle_user`: flip suspended ↔ restored |
+| GET | `/admin/codes` | admin | Stats, issue form, filters and the code list |
+| POST | `/admin/codes/generate` | admin | Transactional batch of 1–500 codes, audited |
+| GET | `/admin/codes/export` | admin | CSV of the filtered codes |
+| GET | `/admin/activations` | admin | Activation review queue (tabs, filters, stats) |
+| POST | `/admin/activations/{id}/approve` | admin | Member active + package + commission hook, exactly once |
+| POST | `/admin/activations/{id}/reject` | admin | Reason required; member returns to pending |
+| GET | `/admin/activations/{id}/proof` | admin | Stream a manual activation proof (never a public URL) |
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
-`/login`, `/register`, `/logout`, `/dashboard`. The two job entries
+`/login`, `/register`, `/logout`. `/dashboard` became a routed page in Phase 9; the old
+`public/dashboard.php` is now a redirect shim only. The two job entries
 (`/cron/shop_expire.php`, `/cron/order_autocomplete.php` → `public/cron/`) are standalone, guarded
 files too; see [Cron](#cron-jobs).
 
@@ -301,6 +337,10 @@ expands in Phase 15.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.
+
+`free_registration_enabled` (default `1`) gates the free standard/pending registration modes
+and the referral-link signup. It is a seeded setting; the full settings page that will expose
+it arrives in Phase 15.
 
 ---
 
@@ -493,6 +533,54 @@ Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 
 ---
 
+## Registration and membership (Phase 9)
+
+- **Sponsor chain only.** `users.sponsor_id` is the one upline link. There is no binary tree, no
+  left/right leg and no placement mode anywhere in the schema, routes or views (P9-T17 asserts it).
+  A sponsor is required at registration (decision D3) and may be entered as a **username or the
+  member's referral code**.
+- **Four modes.** *Standard* (free, active, no package, shopping only) and *pending* (free referral
+  signup, activates later) follow `free_registration_enabled`; *code* redeems a registration code and
+  lands active with the code's package; *e-wallet* is a **signed-in** action where the registrar pays
+  `packages.price`, the primary admin is credited as revenue and the new member is active
+  immediately. A guest choosing e-wallet is sent to `/login` (P9-T5). A guest who registers is signed
+  in on success; a registrar's session is never disturbed (P9-T4).
+- **Referral codes.** Every account gets a unique 8-character code (unambiguous alphabet), used by
+  `?ref=CODE` links. Existing accounts are backfilled by migration 011; `?sponsor=username` still
+  works.
+- **Registration codes.** `ABCD-EFGH-JKLM` (12 characters, three groups, unambiguous set), stored
+  uppercase and compared case-insensitively; an admin issues 1–500 per batch bound to one package,
+  price and optional expiry (admins and superadmins, D21 — no member self-purchase yet). Validation
+  flips a past-dated unused code to `expired`; **single use is a conditional UPDATE
+  (`WHERE status='unused'`, row count must be 1)**, so two parallel redemptions cannot both win
+  (P9-T13). Used codes keep `used_by` / `used_at`; the CSV export follows the list filters.
+- **Activation.** A pending/inactive member activates with a code, the e-wallet or a manual proof
+  (GCash / Maya / bank). Only one request may be open at a time; the amount is `packages.price`.
+  Code and wallet activations complete immediately; a manual proof waits in
+  `/admin/activations` for **approve** (member active + package + commission hook) or **reject**
+  (reason required; the member stays pending). `activations.commission_processed_at` is stamped
+  inside the same transaction, so a replayed approval can never run the hook twice (P9-T12).
+  Registration paid by code/wallet writes an already-approved activation, so Phases 10–11 have one
+  anchor for every award.
+- **Commission hook.** `ActivationService::complete()` calls `CommissionService::onActivation()`
+  exactly once, inside the activation transaction. Phase 9 records the call and moves no money;
+  Phase 10 fills in the direct award and Phase 11 the unilevel ladder.
+- **Member status.** `pending → active` on activation; an admin may suspend (which also clears
+  `is_active`, so the session is dropped and sign-in is refused) and restore. Suspending a pending
+  member restores them to `pending`, not `active`. Every change is audited (`member.status`).
+  A standard member is active without a package and cannot self-activate in this build (package
+  upgrades are a later phase).
+- **Genealogy and dashboard.** `/genealogy` shows the upline chain (max 10) plus direct recruits and
+  the team grouped by level, cycle-safe. `/dashboard` is the routed member landing page: membership
+  status, both wallet buckets, referral link, recent orders and commission totals (zeros until
+  Phase 10). Admins keep the back-office dashboard at the same URL.
+- **Demo data.** `database/seeds/005_demo_tree.sql` creates `admin → juan → maria → peter/sarah/david`
+  (david is pending), their mixed wallet balances with matching ledger rows, and three sample codes
+  (`DEMO-PKGA-2A7K`, `DEMO-PKGB-3B8L` unused; `DEMO-EXPD-4C9M` expired). Every demo member signs in
+  with `Demo@1234`. Remove the file from a production install.
+
+---
+
 ## Cron jobs
 
 Two scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
@@ -533,7 +621,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (329 cases in Phase 8)
+php tests/run.php                 # full suite (387 cases in Phase 9)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -548,7 +636,7 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–010 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–011 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -580,6 +668,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `008_payment_proofs.sql` | `shop_payment_proofs` (attempts, decision, reviewer, reference index) |
 | `009_shop_expiry.sql` | `settings.shop_expiry_enabled` (the expiry kill switch) |
 | `010_fulfilment.sql` | `shop_shipments`, `shop_invoices`, `shop_invoice_items`, `settings.shop_autocomplete_enabled` |
+| `011_membership.sql` | membership columns on `users` (`phone`, `member_status`, `package_id`, `sponsor_id`, `referral_code`, `reg_payment_method`, `reg_code_id`, `reg_paid_by`, `activated_at`), the referral-code backfill, `reg_codes`, `activations` |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

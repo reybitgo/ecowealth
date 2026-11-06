@@ -95,9 +95,9 @@ return [
         $port('do_slogin', 14, [$route('POST', '/slogin')], 'Starts an impersonation session.'),
 
         /* ---------- Dashboard / profile --------------------------------
-         * `/dashboard` stays a standalone page this phase and is re-routed
-         * in Phase 9, when it gains wallet/commission data (plan §7 Phase 1). */
-        $port('dashboard', 1, [$page('dashboard')], 'Standalone file until Phase 9, then GET /dashboard.'),
+         * `/dashboard` becomes a routed page in Phase 9: membership,
+         * wallet, referral link, recent orders and commission totals. */
+        $port('dashboard', 9, [$route('GET', '/dashboard')], 'Routed member dashboard from Phase 9 (was a standalone file).'),
         $port('profile', 6, [$route('GET', '/profile')], 'Member profile + address book.'),
         $port('save_profile', 6, [$route('POST', '/profile')], 'Updates the member profile.'),
 
@@ -170,8 +170,8 @@ return [
         $port('admin_save_package', 3, [$route('POST', '/admin/packages/save')], ''),
 
         /* ---------- Admin: registration codes ------------------------- */
-        $port('admin_codes', 9, [$route('GET', '/admin/codes')], ''),
-        $port('admin_gen_codes', 9, [$route('POST', '/admin/codes/generate')], 'Superadmin-gated volume (D21).'),
+        $port('admin_codes', 9, [$route('GET', '/admin/codes')], 'Stats, filters and the issue form.'),
+        $port('admin_gen_codes', 9, [$route('POST', '/admin/codes/generate')], 'Admins and superadmins may issue (D21).'),
         $port('admin_export_codes', 9, [$route('GET', '/admin/codes/export')], 'CSV download.'),
 
         /* ---------- Admin: payouts ------------------------------------ */
@@ -257,6 +257,7 @@ return [
         $extension('GET', '/admin/activations', 9, 'Activation review queue (reference handled it from the member list).'),
         $extension('POST', '/admin/activations/{id}/approve', 9, 'Approves an activation and pays commissions.'),
         $extension('POST', '/admin/activations/{id}/reject', 9, 'Rejects an activation.'),
+        $extension('GET', '/admin/activations/{id}/proof', 9, 'Streams a manual activation proof behind the admin guard.'),
         $extension('GET', '/admin/commissions', 10, 'Commission ledger (reference: admin dashboard widgets).'),
         $extension('POST', '/slogin/exit', 14, 'Ends the impersonation session from the member layout banner.'),
         $extension('GET', '/admin/impersonations', 14, 'Super-login audit trail.'),

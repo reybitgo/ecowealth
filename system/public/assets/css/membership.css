@@ -1,0 +1,379 @@
+/* ==============================================================
+   EcoWealth — membership, registration, codes and genealogy
+   --------------------------------------------------------------
+   Shared by:
+     · public/register.php            (auth layout, .auth-wide)
+     · /dashboard                     (member dashboard cards)
+     · /membership, /genealogy        (member + admin layouts)
+     · /admin/members, /admin/codes, /admin/activations
+   Everything is scoped so it can never leak into the shop or wallet
+   screens, which have their own stylesheets.
+   ============================================================== */
+
+/* ---------- Registration (auth layout) ------------------------ */
+/* The auth layout pins `.authentication-inner` to 460px through a
+ * three-class selector and the logical `max-inline-size` property, so
+ * the wider registration card has to match that specificity and the
+ * same property to win. */
+.authentication-wrapper.authentication-basic .authentication-inner.auth-wide {
+  max-inline-size: 900px;
+}
+
+.authentication-inner.auth-wide .card {
+  background: rgba(var(--bs-body-bg-rgb), 0.96);
+}
+
+.register-modes {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.register-mode {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  margin: 0;
+}
+
+.register-mode-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border: 1.5px solid var(--bs-border-color);
+  border-radius: 0.6rem;
+  background: var(--bs-body-bg);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  height: 100%;
+}
+
+.register-mode:hover .register-mode-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.5);
+  background: rgba(var(--bs-primary-rgb), 0.03);
+}
+
+.register-mode-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.register-mode-input:checked + .register-mode-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.85);
+  background: rgba(var(--bs-primary-rgb), 0.06);
+  box-shadow: 0 0 0 0.15rem rgba(var(--bs-primary-rgb), 0.12);
+}
+
+.register-mode-input:focus-visible + .register-mode-body {
+  outline: 2px solid rgba(var(--bs-primary-rgb), 0.55);
+  outline-offset: 2px;
+}
+
+.register-mode-muted {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.register-mode-muted .register-mode-body {
+  border-style: dashed;
+}
+
+.register-mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.5rem;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  color: var(--bs-primary);
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+}
+
+.register-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.register-mode-label {
+  font-weight: 600;
+  color: var(--bs-heading-color);
+}
+
+.register-mode-note {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bs-secondary-color);
+}
+
+.register-mode-hint {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+}
+
+/* Mode panels: visible without JavaScript, one at a time with it. */
+.js .mode-panel {
+  display: none;
+}
+
+.js .mode-panel.is-active {
+  display: block;
+}
+
+.register-packages {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.register-package {
+  position: relative;
+  display: block;
+  margin: 0;
+  cursor: pointer;
+}
+
+.register-package-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.register-package-body {
+  display: block;
+  padding: 0.8rem 0.9rem;
+  border: 1.5px solid var(--bs-border-color);
+  border-radius: 0.55rem;
+  background: var(--bs-body-bg);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.register-package:hover .register-package-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.5);
+}
+
+.register-package-input:checked + .register-package-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.85);
+  background: rgba(var(--bs-primary-rgb), 0.06);
+}
+
+.register-package-input:focus-visible + .register-package-body {
+  outline: 2px solid rgba(var(--bs-primary-rgb), 0.55);
+  outline-offset: 2px;
+}
+
+@media (max-width: 575.98px) {
+  .register-modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Shared membership cards --------------------------- */
+.member-hero {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(var(--bs-primary-rgb), 0.14) 0%, rgba(var(--bs-primary-rgb), 0) 58%),
+    linear-gradient(125deg, rgba(var(--bs-primary-rgb), 0.08) 0%, rgba(var(--bs-info-rgb), 0.05) 52%, rgba(var(--bs-primary-rgb), 0) 100%);
+}
+
+.member-hero .avatar-lg {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.referral-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.referral-box code {
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  background: rgba(var(--bs-primary-rgb), 0.08);
+  color: var(--bs-heading-color);
+  word-break: break-all;
+}
+
+.referral-link-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.status-tile {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.55rem;
+  padding: 0.85rem 0.95rem;
+  height: 100%;
+}
+
+.status-tile-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.2rem;
+}
+
+.status-tile-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--bs-heading-color);
+  word-break: break-word;
+}
+
+.activation-method {
+  border: 1.5px solid var(--bs-border-color);
+  border-radius: 0.55rem;
+  padding: 0.9rem 1rem;
+  height: 100%;
+  background: var(--bs-body-bg);
+}
+
+.activation-method h6 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ---------- Genealogy ---------------------------------------- */
+.genealogy-upline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.upline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+  margin-left: calc(var(--depth, 0) * 1.35rem);
+  background: var(--bs-body-bg);
+}
+
+.upline-row.is-self {
+  border-color: rgba(var(--bs-primary-rgb), 0.8);
+  background: rgba(var(--bs-primary-rgb), 0.06);
+}
+
+.upline-level {
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  color: var(--bs-primary);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.team-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ---------- Shared filter bars (members / activations) -------- */
+.membership-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.membership-filters .form-control {
+  max-width: 19rem;
+  min-width: 12rem;
+}
+
+.membership-filters .form-select {
+  max-width: 12rem;
+  min-width: 9rem;
+}
+
+/* ---------- Admin: codes ------------------------------------- */
+.reg-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.code-list-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+/* ---------- Admin: activations -------------------------------- */
+.activation-actions {
+  min-width: 11rem;
+}
+
+.activation-reject-form {
+  width: 11rem;
+  max-width: 100%;
+}
+
+.activation-actions .btn {
+  white-space: nowrap;
+}
+
+.activation-proof-link {
+  font-size: 0.78rem;
+}
+
+.activation-note {
+  max-width: 22rem;
+  font-size: 0.8rem;
+}
+
+/* ---------- Admin: members ----------------------------------- */
+.member-row-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  color: var(--bs-primary);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.member-meta {
+  font-size: 0.78rem;
+  color: var(--bs-secondary-color);
+}
+
+.member-wallet-cell {
+  white-space: nowrap;
+}
+
+.member-wallet-cell small {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+}
+
+@media (max-width: 767.98px) {
+  .upline-row {
+    margin-left: 0;
+  }
+
+  .activation-note {
+    max-width: none;
+  }
+}

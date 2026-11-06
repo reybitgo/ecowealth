@@ -100,8 +100,13 @@ return [
         assert_contains('Recent accounts', $html);
         assert_contains('menu-icon icon-base bx bx-home-smile', $html, 'sidebar icons keep the Boxicons base class');
 
+        /* Phase 9 made the membership screens live. */
+        assert_contains('Members', $html);
+        assert_contains('Activations', $html);
+        assert_contains('Registration codes', $html);
+        assert_contains('href="' . url('admin/members') . '"', $html);
+
         /* Unbuilt screens are left out of the menu entirely. */
-        assert_not_contains('Registration codes', $html);
         assert_not_contains('Payouts', $html);
         assert_not_contains('Soon', $html);
     },

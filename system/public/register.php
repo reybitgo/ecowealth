@@ -2,206 +2,172 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  Registration page
+ *  Registration page (plan §5.10, §7 Phase 9)
+ *
+ *  Kept a standalone file outside the router (Appendix A), exactly
+ *  like login/logout. The live-validation endpoints it calls are
+ *  routed (`/register/validate-code`, …) because they answer JSON.
+ *
+ *  A guest creates their own account and is signed in on success. A
+ *  signed-in member may register someone else; their own session is
+ *  left untouched (the reference restored it — nothing here changes
+ *  it, which is the same guarantee, tested by P9-T4).
+ *
+ *  No binary placement: the form collects a sponsor only.
  * ============================================================== */
 require __DIR__ . '/../app/bootstrap.php';
 
-require_guest();
-
-/* Registration is part of the public site: it follows maintenance mode
- * (the reference closed it with a seat-limit gate instead). */
+/* Registration is part of the public site: it follows maintenance mode. */
 MaintenanceGate::handle();
 
-old_clear();
-
-$errors = [];
-$termsChecked = false;
+$registrar = auth_user();
+$errors    = [];
+$summary   = '';
 
 if (is_post()) {
     if (!csrf_verify($_POST['_csrf'] ?? null)) {
-        $errors[] = 'Your session expired. Please try again.';
-        old_set([
-            'username' => $_POST['username'] ?? '',
-            'email'    => $_POST['email'] ?? '',
-        ]);
-    } else {
-        $username = (string) ($_POST['username'] ?? '');
-        $email    = (string) ($_POST['email'] ?? '');
-        $password = (string) ($_POST['password'] ?? '');
-        $confirm  = (string) ($_POST['confirm-password'] ?? '');
-        $terms    = !empty($_POST['terms']);
+        flash_set('danger', 'Your session expired. Please try again.');
+        redirect('register');
+    }
 
-        $termsChecked = $terms;
+    $input = [
+        'mode'             => strtolower(trim((string) ($_POST['mode'] ?? 'standard'))),
+        'username'         => (string) ($_POST['username'] ?? ''),
+        'email'            => (string) ($_POST['email'] ?? ''),
+        'full_name'        => (string) ($_POST['full_name'] ?? ''),
+        'phone'            => (string) ($_POST['phone'] ?? ''),
+        'password'         => (string) ($_POST['password'] ?? ''),
+        'password_confirm' => (string) ($_POST['password_confirm'] ?? ''),
+        'sponsor'          => (string) ($_POST['sponsor'] ?? ''),
+        'package_id'       => (string) ($_POST['package_id'] ?? ''),
+        'reg_code'         => (string) ($_POST['reg_code'] ?? ''),
+        'terms'            => !empty($_POST['terms']),
+    ];
 
-        if (!$terms) {
-            $errors[] = 'You must agree to the privacy policy & terms.';
-        } else {
-            /* Never create the account before the terms gate passes: the
-             * disabled button is only the client-side half of the rule. */
-            $errors = array_merge(
-                $errors,
-                auth_register($username, $email, $password, $confirm)
-            );
-        }
-
-        if ($errors === []) {
-            old_clear();
-            flash_set('success', 'Account created successfully! You can now sign in.');
+    try {
+        $result = (new RegistrationService())->register($input, $registrar);
+    } catch (RegistrationException $e) {
+        /* A guest trying the e-wallet mode is sent to sign in (P9-T5)
+         * instead of being shown a field error on a form they cannot use. */
+        if ($e->reason === 'login_required') {
+            flash_set('warning', $e->getMessage());
             redirect('login');
         }
 
-        old_set(['username' => $username, 'email' => $email]);
+        $errors  = $e->fieldErrors === [] ? ['_form' => $e->getMessage()] : $e->fieldErrors;
+        $summary = $e->getMessage();
+    } catch (CodeException $e) {
+        $errors  = $e->fieldErrors === [] ? ['reg_code' => $e->getMessage()] : $e->fieldErrors;
+        $summary = $e->getMessage();
+    } catch (Throwable $e) {
+        error_log('[ecowealth] registration failed: ' . $e->getMessage());
+        $errors  = ['_form' => 'The account could not be created. Please try again.'];
+        $summary = 'The account could not be created. Please try again.';
+    }
+
+    if (isset($result)) {
+        old_clear();
+        errors_set([]);
+
+        $package = (string) ($result['package_name'] ?? '');
+
+        if ($registrar !== null) {
+            flash_set('success', sprintf(
+                'Account @%s created%s. You are still signed in as @%s.',
+                (string) $result['username'],
+                $package === '' ? '' : ' and activated with ' . $package,
+                (string) $registrar['username']
+            ));
+
+            redirect(is_admin($registrar) ? 'admin/members' : 'dashboard');
+        }
+
+        /* Guest: sign the new member in (reference behaviour). */
+        session_regenerate_id(true);
+        $_SESSION['user_id']       = (int) $result['user_id'];
+        $_SESSION['logged_in_at']  = time();
+        $_SESSION['last_activity'] = time();
+        $_SESSION['auth_via']      = 'registration';
+        auth_cache_reset();
+
+        db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')
+            ->execute([(int) $result['user_id']]);
+
+        flash_set('success', match ((string) $result['mode']) {
+            'standard' => 'Welcome! Your standard account is ready — you can start shopping.',
+            'pending'  => 'Welcome! Your account is pending. Activate it from Membership when you are ready.',
+            default    => sprintf(
+                'Welcome aboard! Your membership is active%s.',
+                $package === '' ? '' : ' with ' . $package
+            ),
+        });
+
+        redirect('dashboard');
+    }
+
+    /* Failed: keep the typed values and render the form again (PRG). */
+    errors_set($errors);
+    old_set([
+        'mode'       => $input['mode'],
+        'username'   => $input['username'],
+        'email'      => $input['email'],
+        'full_name'  => $input['full_name'],
+        'phone'      => $input['phone'],
+        'sponsor'    => $input['sponsor'],
+        'package_id' => $input['package_id'],
+        'reg_code'   => $input['reg_code'],
+    ]);
+
+    flash_set('danger', $summary);
+    redirect('register');
+}
+
+/* --------------------------------------------------------------
+ *  Render data — names mirror the view's documented variables.
+ * -------------------------------------------------------------- */
+$free_enabled   = setting_bool('free_registration_enabled', true);
+$packages       = PackageService::publicCards();
+$prefill_sponsor = trim((string) ($_GET['sponsor'] ?? ''));
+$referral        = trim((string) ($_GET['ref'] ?? ''));
+
+if ($referral !== '') {
+    /* A referral link carries the sponsor's public code. */
+    $prefill_sponsor = $referral;
+
+    $sponsor = (new SponsorService())->resolve($referral);
+
+    if ($sponsor !== null) {
+        $prefill_sponsor = (string) $sponsor['username'];
     }
 }
 
-$page_title = 'Register';
+$defaultMode = $free_enabled ? 'standard' : 'code';
+
+if ($referral !== '') {
+    $defaultMode = $free_enabled ? 'pending' : 'code';
+}
+
+if ($registrar !== null) {
+    $defaultMode = $free_enabled ? 'standard' : 'code';
+}
+
+$mode = old('mode', $defaultMode);
+
+$registrar_balance = $registrar === null
+    ? 0.0
+    : (new WalletService())->balance((int) $registrar['id']);
+
+$allErrors     = errors_all();
+$has_errors    = $allErrors !== [];
+$summary_error = $has_errors
+    ? (string) ($allErrors['_form'] ?? reset($allErrors))
+    : '';
+
+$page_title       = 'Register';
+$auth_inner_class = 'auth-wide';
+$auth_page_css    = ['assets/css/membership.css'];
+$auth_page_js     = ['assets/js/app-register.js'];
 
 require __DIR__ . '/../app/layout/auth_header.php';
-?>
-          <!-- Register -->
-          <div class="card px-sm-6 px-0">
-            <div class="card-body">
-              <!-- Logo -->
-              <div class="app-brand justify-content-center">
-                <a href="<?= e(url('/')) ?>" class="app-brand-link gap-2">
-                  <?php $brand_logo_height = 56; ?>
-                  <?php require __DIR__ . '/../app/layout/logo.php'; ?>
-                </a>
-              </div>
-              <!-- /Logo -->
-              <h4 class="mb-1">Adventure starts here &#x1f680;</h4>
-              <p class="mb-6">Make your app management easy and fun!</p>
-
-              <?= flash_render() ?>
-
-              <?php if ($errors !== []): ?>
-                <div class="alert alert-danger d-flex align-items-start gap-2 mb-6" role="alert">
-                  <i class="icon-base bx bx-x-circle fs-4 mt-1"></i>
-                  <ul class="mb-0 ps-3">
-                    <?php foreach ($errors as $err): ?>
-                      <li><?= e($err) ?></li>
-                    <?php endforeach; ?>
-                  </ul>
-                </div>
-              <?php endif; ?>
-
-              <form
-                id="formAuthentication"
-                class="mb-6"
-                action="<?= e(url('register')) ?>"
-                method="POST"
-              >
-                <?= csrf_field() ?>
-                <div class="mb-6 form-control-validation">
-                  <label for="username" class="form-label">Username</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="username"
-                    name="username"
-                    placeholder="Enter your username"
-                    value="<?= old('username') ?>"
-                    autofocus
-                  />
-                </div>
-                <div class="mb-6 form-control-validation">
-                  <label for="email" class="form-label">Email</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    id="email"
-                    name="email"
-                    placeholder="Enter your email"
-                    value="<?= old('email') ?>"
-                  />
-                </div>
-                <div class="mb-6 form-password-toggle form-control-validation">
-                  <label class="form-label" for="password">Password</label>
-                  <div class="input-group input-group-merge">
-                    <input
-                      type="password"
-                      id="password"
-                      class="form-control"
-                      name="password"
-                      placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                      aria-describedby="password"
-                    />
-                    <span class="input-group-text cursor-pointer"
-                      ><i class="icon-base bx bx-hide"></i
-                    ></span>
-                  </div>
-                </div>
-                <div class="mb-6 form-password-toggle form-control-validation">
-                  <label class="form-label" for="confirm-password">Confirm Password</label>
-                  <div class="input-group input-group-merge">
-                    <input
-                      type="password"
-                      id="confirm-password"
-                      class="form-control"
-                      name="confirm-password"
-                      placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                      aria-describedby="confirm-password"
-                    />
-                    <span class="input-group-text cursor-pointer"
-                      ><i class="icon-base bx bx-hide"></i
-                    ></span>
-                  </div>
-                </div>
-                <div class="my-7 form-control-validation">
-                  <div class="form-check mb-0">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="terms-conditions"
-                      name="terms"
-                      value="1"<?= $termsChecked ? ' checked' : '' ?>
-                    />
-                    <label class="form-check-label" for="terms-conditions">
-                      I agree to
-                      <a href="javascript:;">privacy policy &amp; terms</a>
-                    </label>
-                  </div>
-                </div>
-                <button
-                  class="btn btn-primary d-grid w-100"
-                  type="submit"
-                  id="register-submit"<?= $termsChecked ? '' : ' disabled' ?>
-                >Sign up</button>
-              </form>
-              <script>
-                (function () {
-                  var form = document.getElementById('formAuthentication');
-                  var terms = document.getElementById('terms-conditions');
-                  var submit = document.getElementById('register-submit');
-
-                  if (!form || !terms || !submit) {
-                    return;
-                  }
-
-                  var sync = function () {
-                    submit.disabled = !terms.checked;
-                  };
-
-                  terms.addEventListener('change', sync);
-                  sync();
-
-                  /* Enter in a field still triggers implicit submission in
-                   * some browsers; keep the gate consistent there too. */
-                  form.addEventListener('submit', function (event) {
-                    if (!terms.checked) {
-                      event.preventDefault();
-                      terms.focus();
-                    }
-                  });
-                })();
-              </script>
-              <p class="text-center">
-                <span>Already have an account?</span>
-                <a href="<?= e(url('login')) ?>">
-                  <span>Sign in instead</span>
-                </a>
-              </p>
-            </div>
-          </div>
-          <!-- /Register -->
-<?php require __DIR__ . '/../app/layout/auth_footer.php'; ?>
+require __DIR__ . '/../app/views/auth/register_form.php';
+require __DIR__ . '/../app/layout/auth_footer.php';

@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–8)
+# EcoWealth — Manual QA pack (Phases 1–9)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7 and 8. The automated suites are already green; these documents let a tester who has never seen the
+7, 8 and 9. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -23,12 +23,13 @@ sign the phase off.
 | [phase-6-orders.md](phase-6-orders.md) | 6 — checkout, address book, orders, admin order desk | 17 | 55–70 min |
 | [phase-7-payments.md](phase-7-payments.md) | 7 — proof upload, verification, rejection, expiry, refunds, settings | 18 | 60–75 min |
 | [phase-8-fulfilment.md](phase-8-fulfilment.md) | 8 — packing, shipping + tracking, delivery, confirmation, invoices, auto-complete | 19 | 60–75 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all eight | — | 10 min to complete |
+| [phase-9-membership.md](phase-9-membership.md) | 9 — registration modes, registration codes, activation, member directory, genealogy | 16 | 60–75 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all nine | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-8` inside it). Phases 4–8 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-9` inside it). Phases 4–9 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
-`evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png` and
-`evidence/phase-8/final-*.png`.
+`evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
+`evidence/phase-8/final-*.png` and `evidence/phase-9/final-*.png`.
 
 ---
 
@@ -47,7 +48,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 338   Passed: 338   Failed: 0
+Cases: 387   Passed: 387   Failed: 0
 All good.
 ```
 
@@ -60,7 +61,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 115   Failed: 0
+Passed: 129   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -108,6 +109,17 @@ Passed: 115   Failed: 0
   server-side resolution, and a no-JS baseline that keeps the free-text field visible. The settings
   page is now four independent cards, each with its own form and Save settings button; the tests and
   smoke checks prove a save in one card leaves the other cards' values untouched.
+- Phase 9: all four registration modes (including the free-registration gate and the guest e-wallet
+  refusal), sponsor resolution by username or referral code, self/unknown/suspended sponsor refusals,
+  duplicate username/email, code generation/validation/expiry/CSV export, single-use redemption under
+  a two-connection race, wallet registration (payer debited once, admin credited, registrar session
+  kept), wallet and code activation (hook invoked exactly once), manual proof → approve/reject with
+  the reason and the member returning to pending, double activation/approval refusals, the member
+  detail + suspend/restore + audit, genealogy up/down with cycle safety, referral-code uniqueness, and
+  the "no binary column anywhere" source/schema scan. The smoke script walks the registration, code,
+  pending, manual-activation, approve/reject, suspend/restore, codes and genealogy paths over HTTP;
+  wallet-funded registration/activation are covered by the unit suite (they move real money) — see the
+  Phase 9 QA document.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
@@ -130,8 +142,11 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
 |---|---|---|
 | `admin` | `Admin@123` | Every back-office check |
 | `superadmin` | `Super@123` | One Phase 1 check (hidden menu item) |
-| `QA_Member_01` | `QaPass!2345` | You create this in Phase 1; reuse it in Phases 2–8 |
+| `QA_Member_01` | `QaPass!2345` | You create this in Phase 1; reuse it in Phases 2–9 |
 | `QA_Fulfil_01` | `QaFulfil!2345` | Phase 8 evidence fixture: one order in every fulfilment state (optional — see the Phase 8 doc) |
+| `juan` · `maria` · `peter` · `sarah` · `david` | `Demo@1234` | Phase 9 demo tree (seeded): use them as sponsors, recruits and the active/pending examples |
+| `QA_Member_09` · `QA_Member_10` | `QaMember!2345` | Phase 9 evidence fixtures (optional — see the Phase 9 doc) |
+| `QA_Assoc_09` | `QaAssoc!2345` | Phase 9 evidence fixture: an active associate with a mixed wallet |
 
 > **Do not change the `admin` or `superadmin` passwords.** Password-change checks use the QA member
 > account and change it back at the end.
@@ -251,6 +266,11 @@ These are deliberate for the current build — do not report them as defects:
   an admin until it ships; after that a returns/RTS flow is needed (deferred). Every paid order has a
   printable, immutable `INV-yymmdd-#####` invoice; cancelling a paid order marks it **VOID** but keeps it.
   The admin settings page owns the seller block and the completion rules.
+- **Registration and membership are live** (Phase 9). `/register` offers standard, code, e-wallet (signed-in
+  sponsors) and pending (activate later) modes; every account needs a sponsor and gets an 8-character
+  referral code (`?ref=CODE` pre-fills it). Pending members activate from **Membership** with a code, the
+  e-wallet or a payment proof; a proof waits in **Admin → Activations**. Suspending a member blocks their
+  sign-in. The demo tree (`juan` … `david`, `Demo@1234`) and three `DEMO-*` codes are seed data.
 - **The admin settings page** (System → Settings) edits the receiving accounts and the payment/correction
   windows, the proof-attempt cap, the invoice seller block and the auto-complete switch/days. Changes are
   audited.
@@ -264,7 +284,9 @@ These are deliberate for the current build — do not report them as defects:
   the cart on its next load. This is intended, not a stale-value bug.
 - Removing the last line empties the cart; a cart row itself is kept server-side until it becomes an
   order (Phase 6), which is why the database has a `carts` row with no `cart_items` after the cleanup query.
-- The packages page button says **“Activation opens in Phase 9”** and is disabled.
+- The packages page button says **“Activation opens in Phase 9”** on a Phase 3 screenshot; it is now a
+  live **Membership** link in the app. The packages page is the catalogue; activation happens at
+  `/membership`.
 - **Packages cannot be deleted** — only enabled/disabled. This is by design.
 - Deleting a **seeded** product is refused with “This product appears in a package.” That is the
   guard working; delete your own `QA` product to test deletion.
@@ -364,6 +386,7 @@ docs/qa/
 ├── phase-6-orders.md                  ← manual checks for Phase 6
 ├── phase-7-payments.md                ← manual checks for Phase 7
 ├── phase-8-fulfilment.md              ← manual checks for Phase 8
+├── phase-9-membership.md              ← manual checks for Phase 9
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/ … phase-8/)
+└── evidence/                          ← your screenshots (phase-1/ … phase-9/)
 ```
