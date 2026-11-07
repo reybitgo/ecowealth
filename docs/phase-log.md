@@ -2340,6 +2340,37 @@ field already set to `juan`.
 someone under another sponsor), and clearing the field keeps the documented blank → company-account
 rule; the server's validation is untouched.
 
+---
+
+## Post-Phase 9 — The wallet monitor shows the member status
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 399 PHP cases,
+132 smoke checks, 2 browser checks.
+
+### Change
+
+The Members tab of `/admin/wallets` replaced its **Role** column with **Status**. The role is already
+visible on each wallet's detail header (`/admin/wallets/{id}`), while the monitor had no way to tell a
+pending member from an active one — every row simply said “Member”.
+
+`Wallet::members()` now selects `member_status`, and the view renders `status_badge(...)` with the usual
+`is_active` fallback. Pending members show the amber **Pending** badge beside their balances; active
+members show **Active**.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **399 / 399** (the monitor view test sets its member pending and asserts the Status header + Pending badge) |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser check | headers `Member \| Status \| Total \| …` (no Role); `QA_Member_09`, `QA_Member_10` and `test3` listed as Pending |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Evidence
+
+`docs/qa/evidence/shell/final-wallet-monitor-status.png` — the monitor with the Status column and the
+pending rows highlighted.
+
 
 
 

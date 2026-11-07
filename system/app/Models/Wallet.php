@@ -380,7 +380,7 @@ final class Wallet
         $pdo ??= db();
         [$where, $params] = self::memberWhere($filters);
 
-        $sql = 'SELECT id, username, full_name, email, role, is_active,
+        $sql = 'SELECT id, username, full_name, email, role, member_status, is_active,
                        ewallet_balance, withdrawable_balance,
                        (SELECT MAX(l.created_at) FROM ewallet_ledger l WHERE l.user_id = users.id) AS last_movement_at
                   FROM users

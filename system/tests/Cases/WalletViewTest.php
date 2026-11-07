@@ -230,6 +230,9 @@ return [
         $wallet->credit($id, '1000.00', 'commission', 4301, 'Earnings');
         $wallet->credit($id, '250.00', 'topup', 4302, 'Welcome credit', false);
 
+        /* The monitor shows the member status, not the (always "Member") role. */
+        db()->prepare("UPDATE users SET member_status = 'pending' WHERE id = ?")->execute([$id]);
+
         test_signed_in_as($admin);
 
         $html = $render('admin', 'admin/wallets/index', $monitorPage('members'));
@@ -242,6 +245,10 @@ return [
         assert_contains('Members', $html);
         assert_contains('Top-ups', $html);
         assert_contains('All movements', $html);
+
+        assert_contains('<th scope="col">Status</th>', $html);
+        assert_not_contains('<th scope="col">Role</th>', $html);
+        assert_contains('bg-label-warning">Pending', $html, 'the pending member is flagged in the monitor');
 
         assert_contains((string) $member['username'], $html);
         assert_contains(money(1250), $html, 'the member total');

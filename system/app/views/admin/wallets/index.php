@@ -65,12 +65,6 @@ $tabs = [
     'topups'  => ['label' => 'Top-ups', 'icon' => 'bx-plus-circle'],
     'ledger'  => ['label' => 'All movements', 'icon' => 'bx-transfer'],
 ];
-
-$roleTone = static fn (string $role): string => match ($role) {
-    'superadmin' => 'danger',
-    'admin'      => 'info',
-    default      => 'secondary',
-};
 ?>
             <div class="container-xxl flex-grow-1 container-p-y wallet-monitor">
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
@@ -154,7 +148,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                     <thead>
                       <tr>
                         <th scope="col">Member</th>
-                        <th scope="col">Role</th>
+                        <th scope="col">Status</th>
                         <th scope="col" class="text-end">Total</th>
                         <th scope="col" class="text-end">Withdrawable</th>
                         <th scope="col" class="text-end">Non-withdrawable</th>
@@ -182,6 +176,14 @@ $roleTone = static fn (string $role): string => match ($role) {
     $memberTotal  = round((float) $member['ewallet_balance'], 2);
     $memberWith   = round((float) $member['withdrawable_balance'], 2);
     $memberLocked = round($memberTotal - $memberWith, 2);
+
+    /* Status, not role: the wallet detail page already shows the role,
+     * and the monitor needs to distinguish pending from active members. */
+    $memberStatus = (string) ($member['member_status'] ?? '');
+
+    if ($memberStatus === '') {
+        $memberStatus = (int) ($member['is_active'] ?? 0) === 1 ? 'active' : 'inactive';
+    }
 ?>
                       <tr>
                         <td>
@@ -201,7 +203,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                             </div>
                           </div>
                         </td>
-                        <td><span class="badge bg-label-<?= e($roleTone((string) $member['role'])) ?>"><?= e(ucfirst((string) $member['role'])) ?></span></td>
+                        <td><?= status_badge($memberStatus) ?></td>
                         <td class="text-end text-nowrap fw-semibold"><?= e(money($memberTotal)) ?></td>
                         <td class="text-end text-nowrap"><?= e(money($memberWith)) ?></td>
                         <td class="text-end text-nowrap text-body-secondary"><?= e(money($memberLocked)) ?></td>
