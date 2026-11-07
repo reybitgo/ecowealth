@@ -114,6 +114,53 @@ return [
         assert_not_contains('Soon', $html);
     },
 
+    'View::page shows the member status, not sign-in state, in recent accounts' => function () use ($render, $adminStats): void {
+        test_signed_in_as(test_user('layout_admin', 'admin'));
+
+        $html = $render('admin', 'admin/dashboard', [
+            'stats'  => $adminStats,
+            'recent' => [
+                [
+                    'id'            => 9001,
+                    'username'      => 'status_pending',
+                    'email'         => 'pending@example.com',
+                    'full_name'     => '',
+                    'role'          => 'member',
+                    'member_status' => 'pending',
+                    'is_active'     => 1,
+                    'created_at'    => '2026-11-07 10:00:00',
+                    'last_login_at' => null,
+                ],
+                [
+                    'id'            => 9002,
+                    'username'      => 'status_suspended',
+                    'email'         => 'suspended@example.com',
+                    'full_name'     => '',
+                    'role'          => 'member',
+                    'member_status' => 'suspended',
+                    'is_active'     => 0,
+                    'created_at'    => '2026-11-06 10:00:00',
+                    'last_login_at' => null,
+                ],
+            ],
+        ]);
+
+        assert_contains('bg-label-warning">Pending', $html);
+        assert_contains('bg-label-danger">Suspended', $html);
+
+        /* A pending member can sign in (is_active = 1); that must never
+         * turn the row's status into "Active" (the members page says
+         * Pending). */
+        $start = strpos($html, 'status_pending');
+        $end   = strpos($html, 'status_suspended', (int) $start);
+
+        assert_true($start !== false && $end !== false, 'both rows render');
+
+        $pendingRow = substr($html, (int) $start, (int) $end - (int) $start);
+
+        assert_not_contains('>Active<', $pendingRow);
+    },
+
     'View::page hides later-phase items from the superadmin console for a plain admin' => function () use ($render, $adminStats): void {
         test_signed_in_as(test_user('layout_admin', 'admin'));
 

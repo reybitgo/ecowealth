@@ -310,6 +310,16 @@ $topValue   = (float) ($chart['values'][0] ?? 0);
 <?php
     $role = (string) ($row['role'] ?? 'member');
     $fullName = trim((string) ($row['full_name'] ?? ''));
+
+    /* The member status is the source of truth (pending / active /
+     * suspended), not is_active: a pending member can sign in, so
+     * is_active alone showed them as "Active" here while the member
+     * directory correctly said "Pending" (Phase 9 QA follow-up). */
+    $status = (string) ($row['member_status'] ?? '');
+
+    if ($status === '') {
+        $status = (int) ($row['is_active'] ?? 0) === 1 ? 'active' : 'inactive';
+    }
 ?>
                           <tr>
                             <td>
@@ -328,7 +338,7 @@ $topValue   = (float) ($chart['values'][0] ?? 0);
                               </div>
                             </td>
                             <td class="d-none d-md-table-cell"><span class="badge bg-label-<?= e($roleTone($role)) ?>"><?= e(ucfirst($role)) ?></span></td>
-                            <td><?= status_badge((int) ($row['is_active'] ?? 0) === 1 ? 'active' : 'inactive') ?></td>
+                            <td><?= status_badge($status) ?></td>
                             <td class="d-none d-lg-table-cell text-body-secondary text-nowrap"><?= e(date('M j, Y', strtotime((string) ($row['created_at'] ?? 'now')) ?: time())) ?></td>
                             <td class="d-none d-lg-table-cell text-body-secondary text-nowrap text-end"><?= e(time_ago((string) ($row['last_login_at'] ?? ''))) ?></td>
                           </tr>

@@ -47,7 +47,9 @@ final class AdminDashboardController
          * created yet must never blank the whole dashboard. */
         try {
             $screen['accounts']        = (int) $db->query('SELECT COUNT(*) FROM users')->fetchColumn();
-            $screen['accounts_active'] = (int) $db->query('SELECT COUNT(*) FROM users WHERE is_active = 1')->fetchColumn();
+            /* "Active" means the member status, not merely sign-in enabled:
+             * pending members can sign in, so is_active would over-count. */
+            $screen['accounts_active'] = (int) $db->query("SELECT COUNT(*) FROM users WHERE member_status = 'active'")->fetchColumn();
             $screen['members']         = (int) $db->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn();
             $screen['admins']          = (int) $db->query("SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin')")->fetchColumn();
             $screen['new_accounts']    = (int) $db->query('SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL 30 DAY')->fetchColumn();
@@ -93,7 +95,7 @@ final class AdminDashboardController
 
         try {
             $recent = $db->query(
-                'SELECT id, username, email, full_name, role, is_active, created_at, last_login_at
+                'SELECT id, username, email, full_name, role, member_status, is_active, created_at, last_login_at
                  FROM users
                  ORDER BY created_at DESC, id DESC
                  LIMIT 7'

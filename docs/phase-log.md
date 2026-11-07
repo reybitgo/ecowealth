@@ -2182,6 +2182,44 @@ the user edits the code or asks for a fresh validation; keeping both states visi
 messages for one field. Clearing on input also matches how the rest of the page behaves when the user
 starts fixing a value.
 
+---
+
+## Post-Phase 9 — Dashboard recent accounts show the member status
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 397 PHP cases,
+132 smoke checks, 2 browser checks.
+
+### Problem
+
+The admin dashboard's “Recent accounts” badge was built from `users.is_active`. A **pending** member can
+sign in (`is_active = 1`), so `test3` and the QA pending members showed **Active** on `/admin` while
+`/admin/members` correctly said **Pending**; a suspended member would have shown “Inactive” instead of
+“Suspended”. The “N active accounts” hint on the total-accounts card counted the same sign-in flag.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Controller** | The recent-accounts query selects `member_status`; the “active accounts” hint counts `member_status = 'active'`. |
+| **View** | The row badge renders `status_badge($row['member_status'])`, falling back to `is_active` only when the status is empty. Pending, suspended and inactive now match the member directory. |
+| **Tests** | A view regression renders a pending row (`is_active = 1`) and a suspended row and asserts the badges read Pending/Suspended, never Active. |
+| **Evidence** | `docs/qa/evidence/shell/final-admin-dashboard-status.png` — `test3` and both QA pending members read Pending on the dashboard. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **397 / 397** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser check | `test3` row: `{"username":"test3","status":"Pending"}`; two pending rows among the recent seven |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decision
+
+**`member_status` is the status; `is_active` is only the sign-in gate.** Suspending clears both, but a
+pending member intentionally keeps `is_active = 1` so they can sign in and activate later — any status
+badge or count must read `member_status`.
+
 
 
 

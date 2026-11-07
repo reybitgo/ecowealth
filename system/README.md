@@ -622,7 +622,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (396 cases in Phase 9)
+php tests/run.php                 # full suite (397 cases in Phase 9)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -694,6 +694,9 @@ job touches a cancelled or completed order (see `docs/cron.md`).
   **once**: a neutral prompt (or a `_form` message) above the form and each reason under its input.
   Do not also queue a danger flash for the same failure — that duplicated every registration error.
 - Money is `DECIMAL` in MySQL and formatted with `money()`; no floats in SQL.
+- `users.member_status` is the member's status (pending / active / inactive / suspended);
+  `users.is_active` only says whether sign-in is allowed. Status badges and status counts
+  read `member_status` — suspended also clears `is_active`, but a pending member can sign in.
 - Every wallet movement is a `WalletService` call inside a transaction — never a direct
   `UPDATE users SET ewallet_balance` from a controller, model or view.
 - Every table paginates server-side through `Paginator::fromTableRequest()` and
