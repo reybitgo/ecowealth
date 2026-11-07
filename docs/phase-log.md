@@ -2060,6 +2060,47 @@ scroll position was not.
 - **The page still reloads.** This preserves server-rendered rows, filters and totals exactly as before;
   no AJAX table library is introduced just to keep the scroll.
 
+---
+
+## Post-Phase 9 — Copy controls use the reference tooltip + check feedback
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 394 PHP cases,
+131 smoke checks, 6 browser checks.
+
+### Problem
+
+The copy buttons worked, but without feedback: no hint about what a button copies and no visible
+confirmation after pressing it. The reference UI (the token-contract control) shows a dark tooltip
+("Copy Address") on hover and swaps the copy icon for a check mark with a "Copied!" tooltip.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Markup** | Every `data-copy` trigger now carries `data-copy-tooltip` (the resting hover text) and `data-bs-toggle="tooltip"`; labelled buttons mark their visible text with `data-copy-text`. The registration-code rows stay icon-only. |
+| **`app.js`** | Initialises Bootstrap tooltips on copy triggers (a fallback for the theme's own initialiser), captures the resting title/label/ARIA once, and on a successful copy swaps `bx-copy` → `bx-check`, sets the label to "Copied", switches the tooltip to **Copied!** and shows it. After 1.8 s the icon, label, ARIA label and tooltip return to normal and the tooltip hides. Repeated clicks restart the timer. |
+| **CSS** | `[data-copy].is-copied i.icon-base` turns the check mark green (`--bs-success`); the button keeps its size, so no row shifts. |
+| **Tests** | View assertions for the tooltip attributes on the codes page and the dashboard; a headless browser harness (6 checks) covers hover text, the copied state (check mark, label, visible "Copied!" tooltip) and the revert, for both the icon-only and the labelled button. |
+| **Evidence** | `docs/qa/evidence/shell/final-copy-hover.png` (tooltip over a code row) and `final-copy-copied.png` (check mark + "Copied!"). |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **394 / 394** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **131 / 131** |
+| Browser harness (`tests/tmp/verify-copy.mjs`) | **6 / 6** — code row: hover "Copy code", click → check + "Copied!", revert; dashboard: hover "Copy link", click → "Copied" label + check |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decisions
+
+- **Bootstrap tooltips, not custom CSS.** The theme already ships Bootstrap 5 + Popper, and its tooltip
+  is the dark bubble with the arrow shown in the reference screenshots; the app only drives the text.
+- **Feedback follows a successful copy.** A refused clipboard write leaves the control unchanged, so
+  "Copied!" never lies; the older `execCommand` fallback still calls the same feedback.
+- **Icon-only vs labelled.** The code rows swap only the icon (there is no label); referral buttons keep
+  their width but read "Copied" with a check while the state lasts.
+
 
 
 

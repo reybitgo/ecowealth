@@ -404,3 +404,11 @@
 
 /* The drawer uses the shared .cart-qty-group sizing (fit-content); no narrower
  * override here, otherwise a two-digit quantity gets clipped again. */
+
+/* ---------- Copy-to-clipboard feedback ----------
+ * The copy icon turns into a check mark and the Bootstrap tooltip reads
+ * "Copied!" for a moment (app.js). The colour is the only visual change
+ * on the button itself, so the row never shifts. */
+[data-copy].is-copied i.icon-base {
+  color: var(--bs-success);
+}

@@ -133,8 +133,11 @@ $referralLink = $member['referral_code'] === null
                           class="btn btn-label-primary"
                           data-copy="<?= e($referralLink) ?>"
                           data-copy-label="Copy"
+                          data-copy-tooltip="Copy link"
+                          data-bs-toggle="tooltip"
+                          title="Copy link"
                           aria-label="Copy referral link"
-                        ><i class="icon-base bx bx-copy me-1"></i><span>Copy</span></button>
+                        ><i class="icon-base bx bx-copy me-1"></i><span data-copy-text>Copy</span></button>
                       </div>
 <?php endif; ?>
                     </div>

@@ -102,8 +102,11 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                           class="btn btn-label-primary"
                           data-copy="<?= e($referral_link) ?>"
                           data-copy-label="Copy"
+                          data-copy-tooltip="Copy link"
+                          data-bs-toggle="tooltip"
+                          title="Copy link"
                           aria-label="Copy referral link"
-                        ><i class="icon-base bx bx-copy me-1"></i><span>Copy</span></button>
+                        ><i class="icon-base bx bx-copy me-1"></i><span data-copy-text>Copy</span></button>
                       </div>
                       <div class="small text-body-secondary mt-2">Code <strong><?= e($referral_code) ?></strong></div>
                     </div>

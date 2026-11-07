@@ -137,9 +137,12 @@ $kpis = [
                           class="btn btn-label-primary"
                           data-copy="<?= e($referral_link) ?>"
                           data-copy-label="Copy link"
+                          data-copy-tooltip="Copy link"
+                          data-bs-toggle="tooltip"
+                          title="Copy link"
                           aria-label="Copy referral link"
                         >
-                          <i class="icon-base bx bx-copy me-1"></i><span>Copy link</span>
+                          <i class="icon-base bx bx-copy me-1"></i><span data-copy-text>Copy link</span>
                         </button>
                       </div>
                       <div class="small text-body-secondary mt-2">

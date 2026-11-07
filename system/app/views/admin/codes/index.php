@@ -279,7 +279,9 @@ $cards = [
                               type="button"
                               class="btn btn-sm btn-icon btn-text-secondary"
                               data-copy="<?= e((string) $code['code']) ?>"
-                              aria-label="Copy <?= e((string) $code['code']) ?>"
+                              data-copy-tooltip="Copy code"
+                              data-bs-toggle="tooltip"
+                              aria-label="Copy code <?= e((string) $code['code']) ?>"
                               title="Copy code"
                             ><i class="icon-base bx bx-copy"></i></button>
 <?php endif; ?>

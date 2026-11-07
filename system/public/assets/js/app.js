@@ -131,9 +131,56 @@
 
   /*
    * Copy-to-clipboard for referral links and registration codes.
-   * Any element carrying `data-copy="…"` copies that value; with
-   * `data-copy-label` the pressed control briefly says "Copied".
+   *
+   * Any element carrying `data-copy="…"` copies that value. On success
+   * the copy icon turns into a check mark, the button text (when it has
+   * one, marked `data-copy-text`) reads "Copied", and the Bootstrap
+   * tooltip switches to "Copied!" for ~1.8 s — the same feedback the
+   * Sneat reference uses for its token-contract copy control.
+   *
+   * Hover text comes from `data-copy-tooltip` (Bootstrap clears the
+   * native `title` once a tooltip is initialised, so the explicit
+   * attribute is the stable source). Tooltips are initialised here as a
+   * fallback in case the theme did not pick the element up.
    */
+  var copyTooltipFor = function (trigger) {
+    return window.bootstrap && bootstrap.Tooltip ? bootstrap.Tooltip.getInstance(trigger) : null;
+  };
+
+  var setCopyTooltip = function (trigger, text) {
+    trigger.setAttribute('title', text);
+    trigger.setAttribute('data-bs-original-title', text);
+
+    var tooltip = copyTooltipFor(trigger);
+
+    if (tooltip) {
+      tooltip.setContent({ '.tooltip-inner': text });
+      tooltip.update();
+    }
+  };
+
+  (function () {
+    var initTooltips = function () {
+      if (!window.bootstrap || !bootstrap.Tooltip) {
+        return;
+      }
+
+      document.querySelectorAll('[data-copy]').forEach(function (trigger) {
+        if (bootstrap.Tooltip.getInstance(trigger)) {
+          return;
+        }
+
+        new bootstrap.Tooltip(trigger, { trigger: 'hover focus' });
+      });
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initTooltips);
+    } else {
+      initTooltips();
+    }
+  })();
+
   document.addEventListener('click', function (event) {
     var trigger = event.target && event.target.closest ? event.target.closest('[data-copy]') : null;
 
@@ -142,24 +189,70 @@
     }
 
     var value = trigger.getAttribute('data-copy') || '';
+
+    /* Capture the resting state once, so a second click during the
+     * "Copied" window still restores the real label/tooltip. */
+    if (!trigger.dataset.copyOriginal) {
+      var restingLabel = trigger.querySelector('[data-copy-text]');
+
+      trigger.dataset.copyOriginal = '1';
+      trigger.dataset.copyTitle = trigger.getAttribute('data-copy-tooltip') || trigger.getAttribute('title') || 'Copy';
+      trigger.dataset.copyLabel = restingLabel ? restingLabel.textContent : '';
+      trigger.dataset.copyAria = trigger.getAttribute('aria-label') || 'Copy';
+    }
+
+    var resting = {
+      title: trigger.dataset.copyTitle,
+      label: trigger.dataset.copyLabel,
+      aria: trigger.dataset.copyAria
+    };
+
     var done = function () {
-      var original = trigger.getAttribute('data-copy-label') || '';
+      var icon = trigger.querySelector('i.icon-base') || trigger.querySelector('i');
+      var label = trigger.querySelector('[data-copy-text]');
+      var tooltip = copyTooltipFor(trigger);
 
-      trigger.classList.add('is-copied');
-
-      if (original !== '') {
-        trigger.setAttribute('data-copy-label', 'Copied');
-        trigger.setAttribute('aria-label', 'Copied');
+      if (trigger.copyTimer) {
+        window.clearTimeout(trigger.copyTimer);
       }
 
-      window.setTimeout(function () {
-        trigger.classList.remove('is-copied');
+      trigger.classList.add('is-copied');
+      trigger.setAttribute('aria-label', 'Copied');
 
-        if (original !== '') {
-          trigger.setAttribute('data-copy-label', original);
-          trigger.setAttribute('aria-label', original);
+      if (icon) {
+        icon.classList.remove('bx-copy');
+        icon.classList.add('bx-check');
+      }
+
+      if (label) {
+        label.textContent = 'Copied';
+      }
+
+      setCopyTooltip(trigger, 'Copied!');
+
+      if (tooltip) {
+        tooltip.show();
+      }
+
+      trigger.copyTimer = window.setTimeout(function () {
+        trigger.classList.remove('is-copied');
+        trigger.setAttribute('aria-label', resting.aria);
+
+        if (icon) {
+          icon.classList.remove('bx-check');
+          icon.classList.add('bx-copy');
         }
-      }, 1500);
+
+        if (label && resting.label !== '') {
+          label.textContent = resting.label;
+        }
+
+        setCopyTooltip(trigger, resting.title);
+
+        if (tooltip) {
+          tooltip.hide();
+        }
+      }, 1800);
     };
 
     event.preventDefault();

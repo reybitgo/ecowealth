@@ -390,6 +390,7 @@ return [
         assert_contains('Recent orders', $html);
         assert_contains('Earnings', $html);
         assert_contains('Withdrawable', $html);
+        assert_contains('data-copy-tooltip="Copy link"', $html, 'the referral copy button has a tooltip');
         assert_not_contains('binary', strtolower($html));
     },
 
@@ -459,6 +460,8 @@ return [
         assert_contains((string) $batch['codes'][0], $html);
         assert_contains('Total codes', $html);
         assert_contains('Revenue (used)', $html);
+        assert_contains('data-bs-toggle="tooltip"', $html, 'copy buttons carry a tooltip');
+        assert_contains('data-copy-tooltip="Copy code"', $html);
     },
 
     'P9-T15 a member cannot reach the admin screens (route guards)' => function (): void {
