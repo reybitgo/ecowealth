@@ -1926,6 +1926,13 @@ try {
         'password_confirm' = $memberPassword
         'terms'            = '1'
     }
+    # The refusal page must announce the failure once (one alert, one message):
+    # the previous build flashed the message and also rendered it in the summary.
+    $badRender       = Invoke-App -Path '/register' -Session 'p9c'
+    $badMessageCount = [regex]::Matches($badRender.Body, 'That registration code has already been used\.').Count
+    $badAlertCount   = [regex]::Matches($badRender.Body, 'alert-danger').Count
+    Assert-That 'P9-T3' ($badRender.Status -eq 200 -and $badMessageCount -eq 1 -and $badAlertCount -eq 1) `
+        "a refused code renders one notification (alerts=$badAlertCount, messages=$badMessageCount)"
     $badCount    = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username IN ('$badUsername', '$reusedName');" | Out-String).Trim())
     Assert-That 'P9-T3' ($badPost.Status -eq 302 -and $badPost.Location -match '/register$' `
             -and $reusedPost.Status -eq 302 -and $badCount -eq 0) `

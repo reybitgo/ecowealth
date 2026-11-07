@@ -2101,6 +2101,48 @@ confirmation after pressing it. The reference UI (the token-contract control) sh
 - **Icon-only vs labelled.** The code rows swap only the icon (there is no label); referral buttons keep
   their width but read "Copied" with a check while the state lasts.
 
+---
+
+## Post-Phase 9 — A failed registration is announced once
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 396 PHP cases,
+132 smoke checks.
+
+### Problem
+
+A refused registration code produced **two identical red banners**: `public/register.php` queued a
+danger flash with the exception message *and* the form's own summary block rendered the same string. The
+same duplication applied to any registration failure (duplicate username, closed registration, even a
+database error), because every failure path flashed a summary as well.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Controller** | `public/register.php` no longer calls `flash_set('danger', …)` for a failed registration; it stores the field errors and the old input and redirects. The flash is reserved for the CSRF-expired case (which has no form errors) and for the guest e-wallet redirect to login. |
+| **View** | `app/views/auth/register_form.php` renders errors in two distinct ways: a global failure (`_form`) shows its actual message once; otherwise the banner is the neutral **“Please fix the highlighted field and try again.”**, and each field's reason appears under that input (`invalid-feedback`). The old summary block that repeated the first message is gone. |
+| **Tests** | Two view regressions (code error → exactly one alert and one message; `_form` error → its message once, no generic prompt) and a smoke check that submits a rejected code over HTTP and asserts `alerts=1, messages=1`. A headless capture confirms the rendered page. |
+| **Evidence** | `docs/qa/evidence/shell/final-register-error.png` — one generic alert plus the inline code error. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **396 / 396** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** (new: “a refused code renders one notification”) |
+| Browser capture | one `.alert-danger`, one occurrence of the message, no dismissible flash banner |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decisions
+
+- **The form owns its errors.** Like the admin product/package forms, the page shows a generic prompt
+  plus inline field messages; a flash is only for a failure with no form to render into (expired
+  session, e-wallet login redirect).
+- **The specific reason stays next to the field.** The code panel keeps *“That registration code is not
+  recognised.”* under the input, so the user knows exactly what to fix without reading a banner twice.
+- **No other form changed.** The membership/activation pages show a single flash plus inline field
+  hints; they do not render a second summary block, so the register-page duplication was the outlier.
+
 
 
 

@@ -13,9 +13,19 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $packages        active packages (PackageService::publicCards())
  * @var array<string, mixed>|null  $registrar       the signed-in member registering someone, or null
  * @var float                      $registrar_balance
- * @var bool                       $has_errors
- * @var string                     $summary_error   one-line message above the form
  */
+
+/* Field errors are shown under their own inputs; the banner above the form
+ * only carries a generic prompt (or a global failure such as a database
+ * problem). public/register.php deliberately no longer sets a danger flash
+ * for the same failure — one notification, not two. */
+$form_errors   = errors_all();
+$global_errors = array_filter(
+    $form_errors,
+    static fn (string|int $field): bool => str_starts_with((string) $field, '_'),
+    ARRAY_FILTER_USE_KEY
+);
+$field_errors  = array_diff_key($form_errors, $global_errors);
 
 $modes = [];
 
@@ -91,19 +101,25 @@ $feedback = static function (string $field): string {
 
     <?= flash_render() ?>
 
-<?php if ($has_errors): ?>
+<?php if ($global_errors !== []): ?>
     <div class="alert alert-danger d-flex align-items-start gap-2 mb-5" role="alert">
       <i class="icon-base bx bx-x-circle fs-4 mt-1"></i>
       <div class="small">
-        <strong><?= e($summary_error) ?></strong>
-<?php $allErrors = errors_all(); ?>
-<?php if (count($allErrors) > 1): ?>
+        <strong><?= e((string) reset($global_errors)) ?></strong>
+<?php if (count($global_errors) > 1): ?>
         <ul class="mb-0 ps-3 mt-1">
-<?php foreach ($allErrors as $message): ?>
+<?php foreach ($global_errors as $message): ?>
           <li><?= e($message) ?></li>
 <?php endforeach; ?>
         </ul>
 <?php endif; ?>
+      </div>
+    </div>
+<?php elseif ($field_errors !== []): ?>
+    <div class="alert alert-danger d-flex align-items-start gap-2 mb-5" role="alert">
+      <i class="icon-base bx bx-error-circle fs-4 mt-1"></i>
+      <div class="small">
+        Please fix the highlighted field<?= count($field_errors) === 1 ? '' : 's' ?> and try again.
       </div>
     </div>
 <?php endif; ?>

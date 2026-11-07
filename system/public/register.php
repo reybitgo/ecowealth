@@ -54,15 +54,12 @@ if (is_post()) {
             redirect('login');
         }
 
-        $errors  = $e->fieldErrors === [] ? ['_form' => $e->getMessage()] : $e->fieldErrors;
-        $summary = $e->getMessage();
+        $errors = $e->fieldErrors === [] ? ['_form' => $e->getMessage()] : $e->fieldErrors;
     } catch (CodeException $e) {
-        $errors  = $e->fieldErrors === [] ? ['reg_code' => $e->getMessage()] : $e->fieldErrors;
-        $summary = $e->getMessage();
+        $errors = $e->fieldErrors === [] ? ['reg_code' => $e->getMessage()] : $e->fieldErrors;
     } catch (Throwable $e) {
         error_log('[ecowealth] registration failed: ' . $e->getMessage());
-        $errors  = ['_form' => 'The account could not be created. Please try again.'];
-        $summary = 'The account could not be created. Please try again.';
+        $errors = ['_form' => 'The account could not be created. Please try again.'];
     }
 
     if (isset($result)) {
@@ -105,7 +102,11 @@ if (is_post()) {
         redirect('dashboard');
     }
 
-    /* Failed: keep the typed values and render the form again (PRG). */
+    /* Failed: keep the typed values and render the form again (PRG).
+     * The form itself renders the errors — a global message above the
+     * form, and each field's reason under its input — so no danger
+     * flash is queued here. Flashing the same message as well showed
+     * two identical banners (fixed after the Phase 9 QA pass). */
     errors_set($errors);
     old_set([
         'mode'       => $input['mode'],
@@ -118,7 +119,6 @@ if (is_post()) {
         'reg_code'   => $input['reg_code'],
     ]);
 
-    flash_set('danger', $summary);
     redirect('register');
 }
 
@@ -156,12 +156,6 @@ $mode = old('mode', $defaultMode);
 $registrar_balance = $registrar === null
     ? 0.0
     : (new WalletService())->balance((int) $registrar['id']);
-
-$allErrors     = errors_all();
-$has_errors    = $allErrors !== [];
-$summary_error = $has_errors
-    ? (string) ($allErrors['_form'] ?? reset($allErrors))
-    : '';
 
 $page_title       = 'Register';
 $auth_inner_class = 'auth-wide';

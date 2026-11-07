@@ -116,6 +116,40 @@ return [
         assert_contains('XXXX-XXXX-XXXX', $html);
     },
 
+    'P9-T3 a code error is announced once, not twice' => function () use ($renderRegister): void {
+        errors_set(['reg_code' => 'That registration code is not recognised.']);
+
+        try {
+            $html = $renderRegister(['mode' => 'code']);
+        } finally {
+            errors_set([]);
+        }
+
+        /* One generic prompt above the form, one detail under the field. */
+        assert_same(1, substr_count($html, 'alert-danger'));
+        assert_contains('Please fix the highlighted field and try again.', $html);
+        assert_same(
+            1,
+            substr_count($html, 'That registration code is not recognised.'),
+            'the message must not be repeated'
+        );
+        assert_not_contains('That registration code is not recognised.</strong>', $html);
+    },
+
+    'P9-T3 a global registration failure shows its message once' => function () use ($renderRegister): void {
+        errors_set(['_form' => 'The account could not be created. Please try again.']);
+
+        try {
+            $html = $renderRegister();
+        } finally {
+            errors_set([]);
+        }
+
+        assert_same(1, substr_count($html, 'alert-danger'));
+        assert_same(1, substr_count($html, 'The account could not be created. Please try again.'));
+        assert_not_contains('Please fix the highlighted field', $html);
+    },
+
     'P9-T1 the register form pre-fills a referral sponsor' => function () use ($renderRegister): void {
         $html = $renderRegister(['mode' => 'pending', 'prefill_sponsor' => 'juan']);
 
