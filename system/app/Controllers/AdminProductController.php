@@ -73,36 +73,14 @@ final class AdminProductController
     /**
      * Live-update metadata for the initial page render.
      *
-     * When the revision table is unavailable the page still renders,
-     * with live updates switched off, instead of failing the screen.
-     *
      * @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int}
      */
     private function liveMeta(): array
     {
-        $surface = 'admin.products';
-        $meta    = [
-            'surface'  => $surface,
-            'enabled'  => true,
-            'revision' => 0,
-            'etag'     => '',
-            'interval' => 30000,
-        ];
-
-        try {
-            $revision        = Live::revision($surface);
-            $meta['revision'] = $revision;
-            $meta['etag']     = Live::etag(
-                $surface,
-                $revision,
-                Live::scope($_GET, (int) (auth_user()['id'] ?? 0))
-            );
-        } catch (Throwable $e) {
-            error_log('[ecowealth] live revision unavailable: ' . $e->getMessage());
-            $meta['enabled'] = false;
-        }
-
-        return $meta;
+        return Live::meta(
+            'admin.products',
+            Live::scope($_GET, (int) (auth_user()['id'] ?? 0))
+        );
     }
 
     /**

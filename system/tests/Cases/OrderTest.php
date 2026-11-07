@@ -432,7 +432,11 @@ return [
         assert_count(1, $gcash);
         assert_same('gcash', $gcash[0]['payment_method']);
 
-        $search = Order::listForUser($userId, Order::normaliseFilters(['q' => $orders[0]]), new Paginator(1, 10, 1));
+        /* Search by the order number: a bare numeric id could match the
+         * yymmdd/id digits inside several order numbers and make this
+         * case depend on AUTO_INCREMENT. */
+        $firstNo = (string) Order::find($orders[0])['order_no'];
+        $search = Order::listForUser($userId, Order::normaliseFilters(['q' => $firstNo]), new Paginator(1, 10, 1));
         assert_count(1, $search);
 
         $today = date('Y-m-d');

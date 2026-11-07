@@ -39,6 +39,36 @@ final class AdminOrderController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
+        /* The same URL is both the page and its feed: X-Live: 1 turns
+         * the request into JSON fragments. Paginator::url() and the
+         * per-page form therefore keep pointing at /admin/orders. */
+        if (Live::isFeedRequest()) {
+            $this->listFeed();
+            return;
+        }
+
+        $data = $this->listContext();
+
+        View::page('admin', 'admin/orders/index', $data + [
+            'page_title'  => 'Orders',
+            'current_nav' => 'admin.orders',
+            'page_css'    => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'live'        => $this->listLiveMeta(),
+        ]);
+    }
+
+    /**
+     * Build the order-desk list once for both the page and its feed.
+     *
+     * @return array{
+     *   orders: list<array<string, mixed>>,
+     *   pager: Paginator,
+     *   filters: array{type:string, q:string, status:string, method:string, from:string, to:string},
+     *   stats: array{total:int, awaiting_payment:int, in_review:int, in_progress:int, completed:int, cancelled:int, revenue:float, today_count:int, today_total:float}
+     * }
+     */
+    private function listContext(): array
+    {
         $filters = Order::normaliseFilters([
             'status' => Request::string('status'),
             'q'      => Request::string('q'),
@@ -47,36 +77,158 @@ final class AdminOrderController
             'to'     => Request::string('to'),
         ]);
 
-        $pager  = Paginator::fromTableRequest(Order::countAdmin($filters));
-        $orders = Order::adminList($filters, $pager);
+        $pager = Paginator::fromTableRequest(Order::countAdmin($filters));
 
-        View::page('admin', 'admin/orders/index', [
-            'page_title'  => 'Orders',
-            'current_nav' => 'admin.orders',
-            'page_css'    => ['assets/css/shop.css', 'assets/css/orders.css'],
-            'orders'      => $orders,
-            'pager'       => $pager,
-            'filters'     => $filters,
-            'stats'       => Order::stats(),
-        ]);
+        return [
+            'orders'  => Order::adminList($filters, $pager),
+            'pager'   => $pager,
+            'filters' => $filters,
+            'stats'   => Order::stats(),
+        ];
     }
 
-    /** @param array<string, string> $params */
+    /**
+     * ETag scope for the list.
+     *
+     * The "today" counters are relative to the current date, so the day is
+     * part of the scope: a tab left open across midnight revalidates on its
+     * next poll instead of showing yesterday's numbers.
+     */
+    private function listScope(int $userId): string
+    {
+        return Live::scope($_GET, $userId) . '|day:' . date('Y-m-d');
+    }
+
+    /** @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int} */
+    private function listLiveMeta(): array
+    {
+        return Live::meta('admin.orders', $this->listScope((int) (auth_user()['id'] ?? 0)));
+    }
+
+    /**
+     * JSON feed for the open order desk.
+     *
+     * The 304 check runs before listContext(), so an unchanged surface
+     * costs one primary-key lookup and no list/aggregate queries.
+     */
+    private function listFeed(): void
+    {
+        $userId = (int) (auth_user()['id'] ?? 0);
+
+        /* No fragment renders a form, but keep the token primed in case a
+         * later region does; the lock is released before any query work. */
+        csrf_token();
+        session_write_close();
+
+        $surface = 'admin.orders';
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, $this->listScope($userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->listContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] order live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the order list. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the list feed payload. Public so the view tests can assert the
+     * fragments without going through Live::json()'s exit.
+     *
+     * @param array{
+     *   orders: list<array<string, mixed>>,
+     *   pager: Paginator,
+     *   filters: array{type:string, q:string, status:string, method:string, from:string, to:string},
+     *   stats: array{total:int, awaiting_payment:int, in_review:int, in_progress:int, completed:int, cancelled:int, revenue:float, today_count:int, today_total:float}
+     * } $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.orders',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'order-header' => View::capture('admin/orders/_header', [
+                    'stats' => $data['stats'],
+                ]),
+                'order-stats' => View::capture('admin/orders/_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'order-rows' => View::capture('admin/orders/_rows', [
+                    'orders'  => $data['orders'],
+                    'filters' => $data['filters'],
+                ]),
+                'order-pagination' => View::capture('admin/orders/_pagination', [
+                    'pager'       => $data['pager'],
+                    'pager_label' => 'Orders',
+                ]),
+            ],
+            'meta' => [
+                'page'      => $data['pager']->page,
+                'pages'     => $data['pager']->pages,
+                'total'     => $data['pager']->total,
+                'per_page'  => $data['pager']->perPage,
+                'canonical' => $this->canonicalListUrl($data['pager']),
+            ],
+        ];
+    }
+
+    /** The list URL with an out-of-range page clamped to a real page. */
+    private function canonicalListUrl(Paginator $pager): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        unset($query['page']);
+
+        if ($pager->page > 1) {
+            $query['page'] = (string) $pager->page;
+        }
+
+        $qs = http_build_query($query);
+
+        return url('admin/orders' . ($qs !== '' ? '?' . $qs : ''));
+    }
+
+    /**
+     * One order's screen.
+     *
+     * The same URL doubles as the JSON feed (`X-Live: 1`). The status, the
+     * payment review pane, fulfilment, items, history and each side card
+     * are separate regions; a region that owns a form carries
+     * `data-live-hold="dirty"` so the client keeps the user's unsaved input
+     * and shows a "changed in another tab" banner instead of replacing it.
+     *
+     * @param array<string, string> $params
+     */
     public function show(array $params = []): void
     {
-        $order = Order::find((int) ($params['id'] ?? 0));
+        $orderId = (int) ($params['id'] ?? 0);
+
+        if (Live::isFeedRequest()) {
+            $this->detailFeed($orderId);
+            return;
+        }
+
+        $order = Order::find($orderId);
 
         if ($order === null) {
             View::error(404);
         }
-
-        $admin    = auth_user();
-        $adminId  = $admin === null ? 0 : (int) $admin['id'];
-        $orderId  = (int) $order['id'];
-        $member   = Wallet::account((int) $order['user_id']);
-        $proofs   = PaymentProof::forOrder($orderId);
-        $latest   = $proofs === [] ? null : $proofs[count($proofs) - 1];
-        $isSelf   = $adminId > 0 && (int) $order['user_id'] === $adminId;
 
         View::page('admin', 'admin/orders/show', [
             'page_title'  => 'Order ' . (string) $order['order_no'],
@@ -90,32 +242,148 @@ final class AdminOrderController
                 'assets/vendor/libs/sweetalert2/sweetalert2.js',
                 'assets/js/app-confirm.js',
                 'assets/js/app-ship.js',
+                'assets/js/admin-order.js',
             ],
-            'order'          => $order,
-            'lines'          => Order::items($orderId),
-            'events'         => Order::events($orderId),
-            'member'         => $member,
-            'proofs'         => $proofs,
-            'latest_proof'   => $latest,
-            'window'         => $this->payments->windowFor($order),
-            'is_self'        => $isSelf,
-            'can_review'     => !$isSelf
-                && (string) $order['status'] === 'payment_review'
+            'ctx'  => $this->orderContext($order),
+            'live' => Live::meta(
+                Live::orderSurface($orderId),
+                Live::scope($_GET, (int) (auth_user()['id'] ?? 0))
+            ),
+        ]);
+    }
+
+    /**
+     * Everything the order screen renders, built once for the page and its
+     * feed. Public so the view tests can assert the real screen data.
+     *
+     * @return array<string, mixed>
+     */
+    public function orderContext(array $order): array
+    {
+        $admin    = auth_user();
+        $adminId  = $admin === null ? 0 : (int) $admin['id'];
+        $orderId  = (int) $order['id'];
+        $status   = (string) $order['status'];
+        $proofs   = PaymentProof::forOrder($orderId);
+        $latest   = $proofs === [] ? null : $proofs[count($proofs) - 1];
+        $isSelf   = $adminId > 0 && (int) $order['user_id'] === $adminId;
+        $shipment = Shipment::latestFor($orderId);
+        $invoice  = Invoice::latestFor($orderId);
+
+        $courier  = $shipment === null ? '' : trim((string) ($shipment['courier'] ?? ''));
+        $tracking = $shipment === null ? '' : trim((string) ($shipment['tracking_number'] ?? ''));
+
+        $fullAddress = implode(', ', array_filter([
+            (string) $order['shipping_address'],
+            (string) ($order['shipping_barangay'] ?? ''),
+            (string) ($order['shipping_city'] ?? ''),
+            (string) ($order['shipping_province'] ?? ''),
+            (string) ($order['shipping_postal'] ?? ''),
+        ]));
+
+        return [
+            'order'            => $order,
+            'lines'            => Order::items($orderId),
+            'events'           => Order::events($orderId),
+            'member'           => Wallet::account((int) $order['user_id']),
+            'proofs'           => $proofs,
+            'latest_proof'     => $latest,
+            'window'           => $this->payments->windowFor($order),
+            'is_self'          => $isSelf,
+            'can_review'       => !$isSelf
+                && $status === 'payment_review'
                 && $latest !== null
                 && (string) $latest['status'] === 'pending',
-            'can_cancel'     => !$isSelf && Order::canAdminCancel($order),
+            'can_cancel'       => !$isSelf && Order::canAdminCancel($order),
             'refund_on_cancel' => !$isSelf && Order::isRefundable($order),
-            'reject_reasons' => PaymentService::REJECT_REASONS,
-            'cancel_reasons' => PaymentService::CANCEL_REASONS,
-            'shipment'       => Shipment::latestFor($orderId),
-            'invoice'        => Invoice::latestFor($orderId),
-            'can_pack'       => (string) $order['status'] === 'paid',
-            'can_ready'      => (string) $order['status'] === 'packing',
-            'can_ship'       => (string) $order['status'] === 'ready_to_ship',
-            'can_deliver'    => (string) $order['status'] === 'shipped',
-            'can_confirm'    => Order::canMemberConfirm($order),
-            'auto_days'      => FulfilmentService::autoCompleteDays(),
-        ]);
+            'reject_reasons'   => PaymentService::REJECT_REASONS,
+            'cancel_reasons'   => PaymentService::CANCEL_REASONS,
+            'shipment'         => $shipment,
+            'invoice'          => $invoice,
+            'has_invoice'      => $invoice !== null || Order::isPaid($order),
+            'invoice_url'      => url('admin/orders/' . $orderId . '/invoice'),
+            'can_pack'         => $status === 'paid',
+            'can_ready'        => $status === 'packing',
+            'can_ship'         => $status === 'ready_to_ship',
+            'can_deliver'      => $status === 'shipped',
+            'can_confirm'      => Order::canMemberConfirm($order),
+            'auto_days'        => FulfilmentService::autoCompleteDays(),
+            'courier'          => $courier,
+            'tracking'         => $tracking,
+            'courier_choice'   => old('courier'),
+            'full_address'     => $fullAddress,
+        ];
+    }
+
+    /**
+     * JSON feed for one open order page.
+     *
+     * The 304 check runs before the order read, so an unchanged order costs
+     * one revision lookup. Fragments are rendered after the session lock is
+     * released; the token is primed first because the forms carry it.
+     */
+    private function detailFeed(int $orderId): void
+    {
+        $userId = (int) (auth_user()['id'] ?? 0);
+
+        csrf_token();
+        session_write_close();
+
+        $surface = Live::orderSurface($orderId);
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            $order = Order::find($orderId);
+
+            if ($order === null) {
+                Live::jsonError('Order not found.', 404);
+            }
+
+            Live::json($etag, $this->detailFeedPayload($revision, $etag, $this->orderContext($order)));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] order detail live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh this order. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the detail feed payload. Public so tests can assert the
+     * fragments without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $ctx
+     * @return array<string, mixed>
+     */
+    public function detailFeedPayload(int $revision, string $etag, array $ctx): array
+    {
+        $order = $ctx['order'];
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::orderSurface((int) $order['id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'order-status' => View::capture('admin/orders/_status', ['ctx' => $ctx]),
+                'order-payment' => View::capture('admin/orders/_payment', ['ctx' => $ctx]),
+                'order-fulfilment' => View::capture('admin/orders/_fulfilment', ['ctx' => $ctx]),
+                'order-items' => View::capture('admin/orders/_items', ['ctx' => $ctx]),
+                'order-timeline' => View::capture('admin/orders/_timeline', ['ctx' => $ctx]),
+                'order-member' => View::capture('admin/orders/_member', ['ctx' => $ctx]),
+                'order-delivery' => View::capture('admin/orders/_delivery', ['ctx' => $ctx]),
+                'order-shipment' => View::capture('admin/orders/_shipment', ['ctx' => $ctx]),
+                'order-payment-summary' => View::capture('admin/orders/_payment_summary', ['ctx' => $ctx]),
+                'order-cancel' => View::capture('admin/orders/_cancel', ['ctx' => $ctx]),
+            ],
+            'meta'      => [
+                'canonical' => url('admin/orders/' . (int) $order['id']),
+            ],
+        ];
     }
 
     /**
@@ -218,6 +486,10 @@ final class AdminOrderController
             redirect($back);
         }
 
+        /* The POST redirects to a normal page load; queue the surfaces so
+         * that landing page broadcasts them to every other open tab. */
+        Live::publish(['admin.orders', Live::orderSurface($orderId), 'admin.products']);
+
         redirect($back);
     }
 
@@ -282,7 +554,7 @@ final class AdminOrderController
             redirect($back);
         }
 
-        Live::publish(['admin.products', 'admin.dashboard']);
+        Live::publish(['admin.orders', Live::orderSurface($orderId), 'admin.products', 'admin.dashboard']);
 
         flash_set('success', sprintf(
             'Order shipped via %s — tracking %s. The stock has been deducted.',
@@ -331,6 +603,7 @@ final class AdminOrderController
         }
 
         flash_set('success', 'Order marked delivered. The member can now confirm receipt.');
+        Live::publish(['admin.orders', Live::orderSurface($orderId)]);
         redirect($back);
     }
 

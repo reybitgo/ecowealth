@@ -340,6 +340,9 @@ final class PaymentService
                     $this->pdo
                 );
 
+                /* The order desk now has a proof to review. */
+                Live::touchOrder($orderId);
+
                 return ['proof_id' => $proofId, 'attempt' => $attempt, 'status' => 'payment_review'];
             });
         } catch (Throwable $e) {
@@ -441,6 +444,7 @@ final class PaymentService
             $this->invoices->issueForPaidOrder($orderId, $this->pdo);
 
             Live::touch('admin.products');
+            Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => 'paid', 'total' => $total];
         });
@@ -518,6 +522,8 @@ final class PaymentService
                 sprintf('Attempt %d rejected · %s', (int) $proof['attempt_no'], $reasonText),
                 $this->pdo
             );
+
+            Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => 'payment_failed', 'reason' => $reasonCode];
         });
@@ -603,6 +609,8 @@ final class PaymentService
                 $reasonText . ($refunded > 0 ? ' · ' . money($refunded) . ' refunded to the e-wallet' : ''),
                 $this->pdo
             );
+
+            Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => 'cancelled', 'refunded' => $refunded, 'reason' => $reasonCode];
         });
@@ -754,6 +762,8 @@ final class PaymentService
                             . format_datetime($deadline),
                         $this->pdo
                     );
+
+                    Live::touchOrder($orderId);
 
                     return $orderId;
                 });

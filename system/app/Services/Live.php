@@ -25,6 +25,55 @@ final class Live
         return Request::header('X-Live') === '1';
     }
 
+    /**
+     * Live metadata for a page render.
+     *
+     * Never throws: when the revision table is unavailable (a deploy that
+     * lands before migration 013) the page still renders, with updates
+     * switched off, instead of failing the screen.
+     *
+     * @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int}
+     */
+    public static function meta(string $surface, string $scope = ''): array
+    {
+        $meta = [
+            'surface'  => $surface,
+            'enabled'  => true,
+            'revision' => 0,
+            'etag'     => '',
+            'interval' => 30000,
+        ];
+
+        try {
+            $revision         = self::revision($surface);
+            $meta['revision'] = $revision;
+            $meta['etag']     = self::etag($surface, $revision, $scope);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] live revision unavailable for ' . $surface . ': ' . $e->getMessage());
+            $meta['enabled'] = false;
+        }
+
+        return $meta;
+    }
+
+    /** The detail surface key for one order (`admin.orders:42`). */
+    public static function orderSurface(int $orderId): string
+    {
+        return 'admin.orders:' . max(0, $orderId);
+    }
+
+    /**
+     * Bump the order list and one order's detail surface.
+     *
+     * Every write that changes an order row — placement, a proof, a review
+     * decision, a fulfilment step, expiry or a member confirmation — calls
+     * this after the change so both open pages revalidate.
+     */
+    public static function touchOrder(int $orderId): void
+    {
+        self::touch(['admin.orders', self::orderSurface($orderId)]);
+    }
+
     /** Current revision for a surface; a missing row means revision 0. */
     public static function revision(string $surface): int
     {

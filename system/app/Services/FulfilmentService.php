@@ -286,6 +286,8 @@ final class FulfilmentService
                 $this->pdo
             );
 
+            Live::touchOrder($orderId);
+
             return [
                 'order_id'        => $orderId,
                 'status'          => 'shipped',
@@ -342,6 +344,8 @@ final class FulfilmentService
                 $this->pdo
             );
 
+            Live::touchOrder($orderId);
+
             return ['order_id' => $orderId, 'status' => 'delivered', 'shipment_id' => $shipmentId];
         });
     }
@@ -387,6 +391,8 @@ final class FulfilmentService
                 'Receipt confirmed by the member' . $this->suffix($note),
                 $this->pdo
             );
+
+            Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => 'completed'];
         });
@@ -492,6 +498,8 @@ final class FulfilmentService
                         $this->pdo
                     );
 
+                    Live::touchOrder($orderId);
+
                     return $orderId;
                 });
 
@@ -559,6 +567,8 @@ final class FulfilmentService
                 $note,
                 $this->pdo
             );
+
+            Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => $to];
         });

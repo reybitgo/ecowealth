@@ -238,25 +238,7 @@ final class AdminDashboardController
      */
     private function liveMeta(): array
     {
-        $surface = 'admin.dashboard';
-        $meta    = [
-            'surface'  => $surface,
-            'enabled'  => true,
-            'revision' => 0,
-            'etag'     => '',
-            'interval' => 30000,
-        ];
-
-        try {
-            $revision         = Live::revision($surface);
-            $meta['revision'] = $revision;
-            $meta['etag']     = Live::etag($surface, $revision, $this->scope());
-        } catch (Throwable $e) {
-            error_log('[ecowealth] admin dashboard live revision unavailable: ' . $e->getMessage());
-            $meta['enabled'] = false;
-        }
-
-        return $meta;
+        return Live::meta('admin.dashboard', $this->scope());
     }
 
     /**

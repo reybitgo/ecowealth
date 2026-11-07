@@ -73,7 +73,8 @@ You will use only these Hostinger hPanel areas:
 
 In deployment terms, the live-update feature adds two new artifacts you must not forget:
 
-- one static file: `public/assets/js/app-live.js`;
+- one static script, `public/assets/js/app-live.js` (loaded by the footer on every page),
+  plus the per-page hooks it calls (`admin-dashboard.js`, `admin-order.js`);
 - one small table: `live_revisions` (one row per page surface).
 
 Everything else ships as part of the application files. There is no separate service to
@@ -482,6 +483,11 @@ If you imported your existing database, use your existing credentials.
 4. If you hide one tab and change the status in the other, the hidden tab should update
    when you switch back to it.
 5. Edit a product and save. The list in the other tab should update when the save lands.
+6. Open `<app-url>/admin/orders` in two tabs and open one order in each. Upload a proof
+   as the member, then verify it in the first tab: the second order page should show the
+   new status and review pane without a refresh. Type into a note field in that second
+   tab first; the page must keep the typed value and show the "another administrator
+   updated this order" banner instead of replacing the form.
 
 If the page works but live updates do not:
 

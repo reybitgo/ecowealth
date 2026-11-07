@@ -301,6 +301,9 @@ final class OrderService
                  * order reservations, not just products.stock. */
                 Live::touch('admin.products');
 
+                /* A new order changes the order desk's rows and counters. */
+                Live::touchOrder($orderId);
+
                 return [
                     'order_id' => $orderId,
                     'order_no' => $orderNo,
@@ -381,6 +384,7 @@ final class OrderService
             );
 
             Live::touch('admin.products');
+            Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => 'cancelled', 'reason' => $reason];
         });

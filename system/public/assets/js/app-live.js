@@ -47,6 +47,90 @@
     return !!document.querySelector('.swal2-container, .modal.show');
   }
 
+  /**
+   * Does a region contain input the user changed but did not submit?
+   *
+   * Compared against the values the server rendered, so a pre-filled
+   * field (an amount, a chosen courier) is still "clean" until edited.
+   * A region with a form declares `data-live-hold="dirty"` and is never
+   * replaced while this returns true.
+   */
+  function hasUnsavedInput(region) {
+    var fields = region.querySelectorAll('input, select, textarea');
+
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i];
+      var type = (field.getAttribute('type') || '').toLowerCase();
+
+      if (field.disabled || type === 'hidden' || type === 'submit' || type === 'button') {
+        continue;
+      }
+
+      if (type === 'checkbox' || type === 'radio') {
+        if (field.checked !== field.defaultChecked) {
+          return true;
+        }
+        continue;
+      }
+
+      if (type === 'file') {
+        if (field.files && field.files.length > 0) {
+          return true;
+        }
+        continue;
+      }
+
+      if (field.tagName === 'SELECT') {
+        if (field.multiple) {
+          for (var j = 0; j < field.options.length; j++) {
+            if (field.options[j].selected !== field.options[j].defaultSelected) {
+              return true;
+            }
+          }
+          continue;
+        }
+
+        /* A single select has no defaultSelectedIndex property; the
+         * browser picks the marked option, else the first enabled one. */
+        if (field.selectedIndex !== defaultSelectedIndex(field)) {
+          return true;
+        }
+        continue;
+      }
+
+      if (field.value !== field.defaultValue) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function defaultSelectedIndex(select) {
+    var found = -1;
+    var i;
+
+    /* The browser gives the last option carrying the selected attribute
+     * its selectedness. */
+    for (i = 0; i < select.options.length; i++) {
+      if (select.options[i].defaultSelected) {
+        found = i;
+      }
+    }
+
+    if (found !== -1) {
+      return found;
+    }
+
+    for (i = 0; i < select.options.length; i++) {
+      if (!select.options[i].disabled) {
+        return i;
+      }
+    }
+
+    return 0;
+  }
+
   function notify(message, type) {
     if (typeof window.showToast === 'function') {
       window.showToast(message, type);
@@ -286,6 +370,8 @@
       stopped: false,
       deferred: false,
       deferredBound: false,
+      held: false,
+      heldBound: false,
       pending: null,
       lastFetch: 0,
       backoff: 0,
@@ -581,6 +667,7 @@
     var changed = false;
     var applied = [];
     var deferred = [];
+    var held = [];
     var active = document.activeElement;
 
     /* A previous payload may have deferred one region while focus was
@@ -620,6 +707,15 @@
         return;
       }
 
+      /* A form region with unsaved input is never replaced: keep the
+       * user's fields and let the page show its stale banner. The next
+       * payload is retried once those fields are clean again. */
+      if (current.getAttribute('data-live-hold') !== null && hasUnsavedInput(current)) {
+        surface.held = true;
+        held.push(key);
+        return;
+      }
+
       if (current.contains(active)) {
         surface.deferred = true;
         deferred.push(key);
@@ -633,6 +729,15 @@
 
     if (changed) {
       setStatus(surface, 'Updated just now', 'success');
+    }
+
+    if (held.length > 0) {
+      /* The server has newer data than at least one form region we kept.
+       * Tell the page and re-check when the user's fields become clean. */
+      setStatus(surface, 'Changes held — you have unsaved input.', 'warning');
+      bindHeld(surface);
+    } else {
+      surface.held = false;
     }
 
     if (surface.deferred) {
@@ -665,7 +770,8 @@
             payload: payload,
             changed: changed,
             applied: applied,
-            deferred: deferred
+            deferred: deferred,
+            held: held
           }
         }));
       } catch (error) {
@@ -863,6 +969,44 @@
     };
 
     document.addEventListener('focusout', handler, true);
+  }
+
+  /**
+   * Watch a surface whose form regions were held back.
+   *
+   * Once every held region is clean again the stored ETag is dropped and
+   * one forced refresh applies the server's newer payload. Bound once per
+   * surface; it is inert while `surface.held` is false.
+   */
+  function bindHeld(surface) {
+    if (surface.heldBound) {
+      return;
+    }
+
+    surface.heldBound = true;
+
+    var recheck = function () {
+      if (!surface.held || surface.stopped) {
+        return;
+      }
+
+      var regions = surface.el.querySelectorAll('[data-live-hold]');
+
+      for (var i = 0; i < regions.length; i++) {
+        if (hasUnsavedInput(regions[i])) {
+          return;
+        }
+      }
+
+      surface.etag = '';
+      refresh(surface, { force: true });
+    };
+
+    document.addEventListener('input', recheck, true);
+    document.addEventListener('change', recheck, true);
+    document.addEventListener('focusout', function () {
+      window.setTimeout(recheck, 120);
+    }, true);
   }
 
   /* ------------------------------------------------------------------
