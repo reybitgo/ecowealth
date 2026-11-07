@@ -34,6 +34,7 @@ their menu entries stay hidden until their phase lands.
 |---|---|
 | App URL (Laragon) | `http://localhost/ecowealth/system/` |
 | Front door | `http://localhost/ecowealth/` → repo-root `index.html` |
+| Deployment | [`docs/deploy.md`](../docs/deploy.md) — beginner guide for Hostinger / shared hosting |
 | Scheduled jobs | `docs/cron.md` (expiry + auto-complete: CLI, URL, Windows launcher, Hostinger) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
@@ -164,7 +165,7 @@ system/
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 011_membership
+│   ├── migrations/            001_settings_roles … 013_live_revisions
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
@@ -174,7 +175,7 @@ system/
     │                          Migration, Product, ProductView, Package, PackageView, Cart,
     │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
     │                          PaymentView, PaymentDetails, Fulfilment, FulfilmentView, Invoice,
-    │                          Cron, Membership, MembershipView
+    │                          Cron, Membership, MembershipView, Live
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -689,7 +690,7 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–011 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–013 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -722,6 +723,8 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `009_shop_expiry.sql` | `settings.shop_expiry_enabled` (the expiry kill switch) |
 | `010_fulfilment.sql` | `shop_shipments`, `shop_invoices`, `shop_invoice_items`, `settings.shop_autocomplete_enabled` |
 | `011_membership.sql` | membership columns on `users` (`phone`, `member_status`, `package_id`, `sponsor_id`, `referral_code`, `reg_payment_method`, `reg_code_id`, `reg_paid_by`, `activated_at`), the referral-code backfill, `reg_codes`, `activations` |
+| `012_commissions.sql` | `commissions` (the award ledger and its `(type, source_user_id, user_id, level)` idempotency key) |
+| `013_live_revisions.sql` | `live_revisions` (one monotonic revision per live page surface; see [live updates](../docs/live-updates.md)) |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

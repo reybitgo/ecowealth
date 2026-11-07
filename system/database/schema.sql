@@ -666,4 +666,17 @@ ALTER TABLE users
   ADD CONSTRAINT fk_users_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_users_sponsor FOREIGN KEY (sponsor_id) REFERENCES users (id) ON DELETE SET NULL;
 
+-- -------------------------------------------------------------
+-- Live updates: one revision row per live page surface
+--  The no-refresh client asks for a surface revision before it
+--  reads page data; an unchanged revision becomes a 304. Rows are
+--  created lazily by Live::touch() on the first write.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS live_revisions (
+  surface    VARCHAR(64)     NOT NULL,
+  revision   BIGINT UNSIGNED NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (surface)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 

@@ -213,6 +213,13 @@ return [
                 2 => ['orders' => 0, 'carts' => 0, 'packages' => 3],
             ],
             'available'  => [1 => 50, 2 => 0],
+            'live'       => [
+                'surface'  => 'admin.products',
+                'enabled'  => true,
+                'revision' => 9,
+                'etag'     => '"admin.products:9:abc"',
+                'interval' => 30000,
+            ],
         ]);
 
         assert_contains('Products', $html);
@@ -225,6 +232,20 @@ return [
         assert_contains('Showing 1–2 of 2', $html);
         assert_contains('Inactive', $html);
         assert_contains(url('assets/img/ecowealth-mark.png'), $html, 'missing image falls back to the leaf mark');
+
+        /* The list is one live surface with three replaceable regions. */
+        assert_contains('data-live-surface="admin.products"', $html);
+        assert_contains('data-live-enabled="1"', $html);
+        assert_contains('data-live-revision="9"', $html);
+        assert_contains('data-live-etag="&quot;admin.products:9:abc&quot;"', $html);
+        assert_contains('data-live-interval="30000"', $html);
+        assert_contains('data-live-region="product-stats"', $html);
+        assert_contains('data-live-region="product-rows"', $html);
+        assert_contains('data-live-region="product-pagination"', $html);
+        assert_contains('data-live-key="1"', $html);
+        assert_contains('data-live-action="status"', $html);
+        assert_contains('data-live-action="delete"', $html);
+        assert_contains('data-live-status', $html);
     },
 
     'P2-T1 the admin form renders values, errors and the upload field' => function () use ($render, $product): void {

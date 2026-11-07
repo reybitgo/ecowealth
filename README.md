@@ -42,6 +42,7 @@ wallets/codes are development data: every demo member signs in with `Demo@1234`,
 seed is removed or replaced before go-live (see the phase log).
 
 - Application notes, setup and tests: [`system/README.md`](system/README.md)
+- Deployment guide for shared hosting / Hostinger: [`docs/deploy.md`](docs/deploy.md)
 - Running log of decisions, migrations and test results: [`docs/phase-log.md`](docs/phase-log.md)
 
 ## Important

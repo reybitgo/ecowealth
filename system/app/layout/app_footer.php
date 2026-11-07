@@ -54,6 +54,23 @@
       data-csrf="<?= e(csrf_token()) ?>"
     ></div>
 <?php endif; ?>
+<?php
+    /* A native POST (the product create/edit form) queues its surface in
+     * the session; the landing page hands it to app-live.js, which
+     * broadcasts it to the other open tabs. */
+    $live_publish = class_exists('Live') ? Live::takePublished() : [];
+    $live_json    = json_encode($live_publish, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    if ($live_json === false) {
+        $live_json = '[]';
+    }
+?>
+    <div
+      id="liveConfig"
+      hidden
+      data-publish="<?= e($live_json) ?>"
+      data-channel="ecowealth:live:<?= e(trim(base_url(), '/')) ?>"
+    ></div>
     <!-- Toast host + cart behaviour (Phase 4) -->
     <div
       id="toastContainer"
@@ -77,6 +94,7 @@
     <!-- App JS -->
     <script src="<?= e(asset_url('assets/js/app.js')) ?>"></script>
     <script src="<?= e(asset_url('assets/js/app-cart.js')) ?>"></script>
+    <script src="<?= e(asset_url('assets/js/app-live.js')) ?>"></script>
     <!-- Main JS -->
     <script src="<?= e(url('assets/js/main.js')) ?>"></script>
   </body>

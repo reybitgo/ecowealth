@@ -262,6 +262,8 @@ final class Product
 
             db()->prepare('UPDATE products SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($args);
 
+            Live::touch('admin.products');
+
             return $id;
         }
 
@@ -274,7 +276,11 @@ final class Product
             'INSERT INTO products (' . implode(', ', $columns) . ') VALUES (' . $marks . ')'
         )->execute(array_values($record));
 
-        return (int) db()->lastInsertId();
+        $id = (int) db()->lastInsertId();
+
+        Live::touch('admin.products');
+
+        return $id;
     }
 
     /** Flip a product between active and inactive. */
@@ -284,11 +290,18 @@ final class Product
             throw new InvalidArgumentException('Unknown product status: ' . $status);
         }
 
-        if (self::find($id) === null) {
+        $product = self::find($id);
+
+        if ($product === null) {
             return false;
         }
 
         db()->prepare('UPDATE products SET status = ? WHERE id = ?')->execute([$status, $id]);
+
+        /* A no-op toggle must not invalidate every open product list. */
+        if ((string) $product['status'] !== $status) {
+            Live::touch('admin.products');
+        }
 
         return true;
     }
@@ -330,6 +343,8 @@ final class Product
         }
 
         db()->prepare('DELETE FROM products WHERE id = ?')->execute([$id]);
+
+        Live::touch('admin.products');
 
         return ['ok' => true, 'reason' => null, 'orders' => 0, 'carts' => 0, 'packages' => 0];
     }

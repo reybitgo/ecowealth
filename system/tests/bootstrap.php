@@ -373,6 +373,7 @@ function test_run_isolated(callable $case): void
         $_SESSION['_errors'],
         $_SESSION['_flash'],
         $_SESSION['_old_payload'],
+        $_SESSION['_live_publish'],
         $GLOBALS['__form_errors'],
         $GLOBALS['__old_payload']
     );
@@ -395,6 +396,7 @@ function test_run_isolated(callable $case): void
         unset($GLOBALS['__settings_cache']);
         $_POST = [];
         $_GET  = [];
+        $_SERVER['REQUEST_URI'] = '/';
     }
 }
 

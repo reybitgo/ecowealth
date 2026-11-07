@@ -440,6 +440,8 @@ final class PaymentService
             /* The invoice is frozen with the verification (plan §5.7). */
             $this->invoices->issueForPaidOrder($orderId, $this->pdo);
 
+            Live::touch('admin.products');
+
             return ['order_id' => $orderId, 'status' => 'paid', 'total' => $total];
         });
     }
@@ -834,11 +836,16 @@ final class PaymentService
     /** Release every held unit on the order (cancellation / rejection). */
     private function releaseReservation(int $orderId): void
     {
-        $this->pdo->prepare(
+        $stmt = $this->pdo->prepare(
             "UPDATE shop_order_items
                 SET reservation_state = 'released'
               WHERE order_id = ? AND reservation_state IN ('reserved', 'committed')"
-        )->execute([$orderId]);
+        );
+        $stmt->execute([$orderId]);
+
+        if ($stmt->rowCount() > 0) {
+            Live::touch('admin.products');
+        }
     }
 
     /**
@@ -897,11 +904,16 @@ final class PaymentService
             }
         }
 
-        $this->pdo->prepare(
+        $stmt = $this->pdo->prepare(
             "UPDATE shop_order_items
                 SET reservation_state = 'reserved'
               WHERE order_id = ? AND reservation_state = 'released'"
-        )->execute([$orderId]);
+        );
+        $stmt->execute([$orderId]);
+
+        if ($stmt->rowCount() > 0) {
+            Live::touch('admin.products');
+        }
     }
 
     /** Segregation of duties (plan §3.7): never review your own order. */

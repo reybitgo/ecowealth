@@ -198,6 +198,34 @@
   opacity: 0.45;
 }
 
+/* ---------- Live regions ----------
+ * Background refreshes must be noticeable but not disruptive: a short
+ * tint on only the rows that changed, plus the small status text beside
+ * the section heading. The status span collapses when empty so it never
+ * changes the header layout. */
+[data-live-status]:empty {
+  display: none;
+}
+
+@keyframes ecowealth-live-row {
+  from {
+    background-color: rgba(var(--bs-primary-rgb), 0.14);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+table tr.is-live-updated > td {
+  animation: ecowealth-live-row 1.6s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  table tr.is-live-updated > td {
+    animation: none;
+  }
+}
+
 /* ---------- Dashboard: tables ---------- */
 .dashboard-table > :not(caption) > * > * {
   padding-block: 0.85rem;

@@ -182,6 +182,14 @@ final class Router
 
             case 'member':
                 if (!auth_check()) {
+                    if (Request::wantsJson()) {
+                        json_response([
+                            'ok'      => false,
+                            'code'    => 'auth',
+                            'message' => 'Please sign in again.',
+                        ], 401);
+                    }
+
                     flash_set('warning', 'Please sign in to continue.');
                     redirect('login');
                 }
@@ -189,20 +197,52 @@ final class Router
 
             case 'admin':
                 if (!auth_check()) {
+                    if (Request::wantsJson()) {
+                        json_response([
+                            'ok'      => false,
+                            'code'    => 'auth',
+                            'message' => 'Please sign in again.',
+                        ], 401);
+                    }
+
                     flash_set('warning', 'Please sign in to continue.');
                     redirect('login');
                 }
                 if (!is_admin()) {
+                    if (Request::wantsJson()) {
+                        json_response([
+                            'ok'      => false,
+                            'code'    => 'forbidden',
+                            'message' => 'You do not have permission to view that page.',
+                        ], 403);
+                    }
+
                     View::error(403);
                 }
                 return true;
 
             case 'superadmin':
                 if (!auth_check()) {
+                    if (Request::wantsJson()) {
+                        json_response([
+                            'ok'      => false,
+                            'code'    => 'auth',
+                            'message' => 'Please sign in again.',
+                        ], 401);
+                    }
+
                     flash_set('warning', 'Please sign in to continue.');
                     redirect('login');
                 }
                 if (!is_superadmin()) {
+                    if (Request::wantsJson()) {
+                        json_response([
+                            'ok'      => false,
+                            'code'    => 'forbidden',
+                            'message' => 'You do not have permission to view that page.',
+                        ], 403);
+                    }
+
                     View::error(403);
                 }
                 return true;

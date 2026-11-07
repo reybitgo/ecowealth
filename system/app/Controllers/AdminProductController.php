@@ -17,6 +17,40 @@ final class AdminProductController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
+        /* The same URL is both the page and its feed: X-Live: 1 turns
+         * the request into JSON fragments. That keeps Paginator::url()
+         * and the per-page form pointing at /admin/products rather than
+         * a separate feed path. */
+        if (Live::isFeedRequest()) {
+            $this->feed();
+            return;
+        }
+
+        $data = $this->listContext();
+
+        View::page('admin', 'admin/products/index', $data + [
+            'page_title'  => 'Products',
+            'current_nav' => 'admin.products',
+            'live'        => $this->liveMeta(),
+            'page_css'    => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
+            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js'],
+        ]);
+    }
+
+    /**
+     * Build the list data once for both the page and its JSON feed.
+     *
+     * @return array{
+     *   products: list<array<string, mixed>>,
+     *   pager: Paginator,
+     *   filters: array{q: string, status: string},
+     *   stats: array{total:int, active:int, inactive:int, out_of_stock:int},
+     *   references: array<int, array{orders:int, carts:int, packages:int}>,
+     *   available: array<int, int>
+     * }
+     */
+    private function listContext(): array
+    {
         $filters = [
             'q'      => Request::string('q'),
             'status' => Request::string('status'),
@@ -26,18 +60,151 @@ final class AdminProductController
         $products = Product::adminList($filters, $pager);
         $ids      = array_map(static fn (array $row): int => (int) $row['id'], $products);
 
-        View::page('admin', 'admin/products/index', [
-            'page_title'  => 'Products',
-            'current_nav' => 'admin.products',
-            'products'    => $products,
-            'pager'       => $pager,
-            'filters'     => $filters,
-            'stats'       => Product::stats(),
-            'references'  => Product::referencesMap($ids),
-            'available'   => StockService::availableMap($ids),
-            'page_css'    => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
-            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js'],
-        ]);
+        return [
+            'products'   => $products,
+            'pager'      => $pager,
+            'filters'    => $filters,
+            'stats'      => Product::stats(),
+            'references' => Product::referencesMap($ids),
+            'available'  => StockService::availableMap($ids),
+        ];
+    }
+
+    /**
+     * Live-update metadata for the initial page render.
+     *
+     * When the revision table is unavailable the page still renders,
+     * with live updates switched off, instead of failing the screen.
+     *
+     * @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int}
+     */
+    private function liveMeta(): array
+    {
+        $surface = 'admin.products';
+        $meta    = [
+            'surface'  => $surface,
+            'enabled'  => true,
+            'revision' => 0,
+            'etag'     => '',
+            'interval' => 30000,
+        ];
+
+        try {
+            $revision        = Live::revision($surface);
+            $meta['revision'] = $revision;
+            $meta['etag']     = Live::etag(
+                $surface,
+                $revision,
+                Live::scope($_GET, (int) (auth_user()['id'] ?? 0))
+            );
+        } catch (Throwable $e) {
+            error_log('[ecowealth] live revision unavailable: ' . $e->getMessage());
+            $meta['enabled'] = false;
+        }
+
+        return $meta;
+    }
+
+    /**
+     * JSON feed for the open list page.
+     *
+     * The 304 check runs before listContext(), so an unchanged surface
+     * costs one primary-key lookup and no page data queries. The session
+     * is closed first: two tabs polling at once must not serialize on
+     * PHP's default file session lock.
+     */
+    private function feed(): void
+    {
+        $userId = (int) (auth_user()['id'] ?? 0);
+
+        /* Prime the token while the session is still writable; the row
+         * fragments render csrf_field() after the lock is released. */
+        csrf_token();
+        session_write_close();
+
+        $surface = 'admin.products';
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->listContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] product live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the product list. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the feed payload. Public so the view tests can assert the
+     * fragments without going through json_response()'s exit.
+     *
+     * @param array{
+     *   products: list<array<string, mixed>>,
+     *   pager: Paginator,
+     *   filters: array{q: string, status: string},
+     *   stats: array{total:int, active:int, inactive:int, out_of_stock:int},
+     *   references: array<int, array{orders:int, carts:int, packages:int}>,
+     *   available: array<int, int>
+     * } $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'         => true,
+            'surface'    => 'admin.products',
+            'revision'   => $revision,
+            'etag'       => $etag,
+            'fragments'  => [
+                'product-stats' => View::capture('admin/products/_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'product-rows' => View::capture('admin/products/_rows', [
+                    'products'   => $data['products'],
+                    'references' => $data['references'],
+                    'available'  => $data['available'],
+                    'filters'    => $data['filters'],
+                ]),
+                'product-pagination' => View::capture('admin/products/_pagination', [
+                    'pager'       => $data['pager'],
+                    'pager_label' => 'Products',
+                ]),
+            ],
+            'meta' => [
+                'page'      => $data['pager']->page,
+                'pages'     => $data['pager']->pages,
+                'total'     => $data['pager']->total,
+                'per_page'  => $data['pager']->perPage,
+                'canonical' => $this->canonicalListUrl($data['pager']),
+            ],
+        ];
+    }
+
+    /** The list URL with an out-of-range page clamped to a real page. */
+    private function canonicalListUrl(Paginator $pager): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        unset($query['page']);
+
+        if ($pager->page > 1) {
+            $query['page'] = (string) $pager->page;
+        }
+
+        $qs = http_build_query($query);
+
+        return url('admin/products' . ($qs !== '' ? '?' . $qs : ''));
     }
 
     /** @param array<string, string> $params */
@@ -140,6 +307,11 @@ final class AdminProductController
 
         old_clear();
         flash_set('success', $id > 0 ? 'Product updated.' : 'Product created.');
+
+        /* The form keeps its native POST/redirect flow. Queue the surface
+         * so the landing page broadcasts it to the other open tabs. */
+        Live::publish('admin.products');
+
         redirect('admin/products');
     }
 
@@ -157,7 +329,8 @@ final class AdminProductController
             View::error(404);
         }
 
-        $name = (string) $product['name'];
+        $name    = (string) $product['name'];
+        $changed = (string) $product['status'] !== $status;
 
         try {
             Product::setStatus($id, $status);
@@ -171,8 +344,20 @@ final class AdminProductController
             $message = 'Could not update the product status. Please try again.';
         }
 
+        $changed = $ok && $changed;
+
         if (Request::wantsJson()) {
-            json_response(['ok' => $ok, 'message' => $message, 'status' => $status], $ok ? 200 : 422);
+            /* The client broadcasts and refreshes only when this is true. */
+            json_response([
+                'ok'      => $ok,
+                'changed' => $changed,
+                'message' => $message,
+                'status'  => $status,
+            ], $ok ? 200 : 422);
+        }
+
+        if ($changed) {
+            Live::publish('admin.products');
         }
 
         flash_set($ok ? 'success' : 'danger', $message);
@@ -206,6 +391,10 @@ final class AdminProductController
 
         if (Request::wantsJson()) {
             json_response(['ok' => $result['ok'], 'message' => $message], $result['ok'] ? 200 : 422);
+        }
+
+        if ($result['ok']) {
+            Live::publish('admin.products');
         }
 
         flash_set($result['ok'] ? 'success' : 'danger', $message);

@@ -626,6 +626,10 @@ final class FulfilmentService
                 SET reservation_state = 'deducted'
               WHERE order_id = ? AND reservation_state IN ('reserved', 'committed')"
         )->execute([$orderId]);
+
+        /* products.stock changed: the admin catalogue's stock and
+         * available columns are now stale. */
+        Live::touch('admin.products');
     }
 
     /** @return array<string, mixed>|null The order row, locked for update. */

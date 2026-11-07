@@ -297,6 +297,10 @@ final class OrderService
 
                 $this->carts->convert($userId);
 
+                /* The product list's "available" column is derived from
+                 * order reservations, not just products.stock. */
+                Live::touch('admin.products');
+
                 return [
                     'order_id' => $orderId,
                     'order_no' => $orderNo,
@@ -375,6 +379,8 @@ final class OrderService
                 $reason === '' ? 'Cancelled by the member' : 'Cancelled by the member: ' . $reason,
                 $this->pdo
             );
+
+            Live::touch('admin.products');
 
             return ['order_id' => $orderId, 'status' => 'cancelled', 'reason' => $reason];
         });
