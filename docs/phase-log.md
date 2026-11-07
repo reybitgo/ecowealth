@@ -2205,6 +2205,11 @@ sign in (`is_active = 1`), so `test3` and the QA pending members showed **Active
 | **Tests** | A view regression renders a pending row (`is_active = 1`) and a suspended row and asserts the badges read Pending/Suspended, never Active. |
 | **Evidence** | `docs/qa/evidence/shell/final-admin-dashboard-status.png` — `test3` and both QA pending members read Pending on the dashboard. |
 
+**The same fix reached the wallet detail header.** `Wallet::account()` now also selects
+`member_status`, and `admin/wallets/show.php` renders that status with the same `is_active` fallback;
+before that, a pending member's wallet header said “Active”. The P5-T7 view test sets its member to
+pending and asserts the Pending badge.
+
 ### Verification
 
 | Check | Result |

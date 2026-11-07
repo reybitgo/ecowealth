@@ -21,7 +21,15 @@ declare(strict_types=1);
 $total        = round((float) $member['ewallet_balance'], 2);
 $withdrawable = round((float) $member['withdrawable_balance'], 2);
 $locked       = round($total - $withdrawable, 2);
-$isActive     = (int) $member['is_active'] === 1;
+
+/* Member status, not sign-in state: a pending member has is_active = 1
+ * so they can activate later, but the badge must read Pending. */
+$memberStatus = (string) ($member['member_status'] ?? '');
+
+if ($memberStatus === '') {
+    $memberStatus = (int) ($member['is_active'] ?? 0) === 1 ? 'active' : 'inactive';
+}
+
 $roleTone     = match ((string) $member['role']) {
     'superadmin' => 'danger',
     'admin'      => 'info',
@@ -44,7 +52,7 @@ $roleTone     = match ((string) $member['role']) {
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <span class="badge bg-label-<?= e($roleTone) ?>"><?= e(ucfirst((string) $member['role'])) ?></span>
-                  <?= status_badge($isActive ? 'active' : 'inactive') ?>
+                  <?= status_badge($memberStatus) ?>
                   <a href="<?= e(url('admin/wallets')) ?>" class="btn btn-label-secondary">
                     <i class="icon-base bx bx-arrow-back me-1"></i> Back to monitor
                   </a>

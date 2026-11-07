@@ -287,11 +287,17 @@ return [
         $member = $makeMember();
         $id     = (int) $member['id'];
 
+        /* Pending members can sign in, so the header badge must read the
+         * member status rather than is_active (Phase 9 follow-up). */
+        db()->prepare("UPDATE users SET member_status = 'pending' WHERE id = ?")->execute([$id]);
+
         $wallet = new WalletService();
         $wallet->adminTopUp((int) $admin['id'], $id, '99.50', 'First credit');
 
         $statement   = $wallet->statement($id, Wallet::filterDefaults(), 1);
         $topupsPager = Paginator::fromRequest(Wallet::topupCountFor($id), 10);
+
+        assert_same('pending', (string) Wallet::account($id)['member_status']);
 
         test_signed_in_as($admin);
 
@@ -324,6 +330,7 @@ return [
         assert_contains('Wallet statement', $html);
         assert_contains('Admin top-up', $html);
         assert_contains('Back to monitor', $html);
+        assert_contains('bg-label-warning">Pending', $html, 'the header shows the member status, not is_active');
     },
 
     'P5-T7 the top-up form echoes field errors and the submitted value' => function () use ($render, $makeMember): void {
