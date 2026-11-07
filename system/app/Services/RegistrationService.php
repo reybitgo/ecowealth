@@ -215,6 +215,8 @@ final class RegistrationService
                     ],
                 ], $this->pdo);
 
+                Live::touch('admin.dashboard');
+
                 return $summary;
             });
         } catch (PDOException $e) {

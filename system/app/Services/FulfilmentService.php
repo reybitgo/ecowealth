@@ -629,7 +629,7 @@ final class FulfilmentService
 
         /* products.stock changed: the admin catalogue's stock and
          * available columns are now stale. */
-        Live::touch('admin.products');
+        Live::touch(['admin.products', 'admin.dashboard']);
     }
 
     /** @return array<string, mixed>|null The order row, locked for update. */

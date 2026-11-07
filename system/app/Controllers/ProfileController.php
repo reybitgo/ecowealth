@@ -115,6 +115,9 @@ final class ProfileController
         db()->prepare('UPDATE users SET full_name = ? WHERE id = ?')
             ->execute([mb_substr($input['full_name'], 0, 100), (int) $user['id']]);
 
+        Live::touch('admin.dashboard');
+        Live::publish('admin.dashboard');
+
         old_clear();
         flash_set('success', 'Profile updated.');
         redirect('profile');

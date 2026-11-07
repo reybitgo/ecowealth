@@ -64,6 +64,7 @@ if (is_post()) {
     if (isset($result)) {
         old_clear();
         errors_set([]);
+        Live::publish('admin.dashboard');
 
         $package = (string) ($result['package_name'] ?? '');
 

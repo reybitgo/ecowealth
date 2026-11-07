@@ -151,6 +151,8 @@ final class AdminPackageController
         Package::save($input, $levels, $normalized['rows'], $id > 0 ? $id : null);
         old_payload_clear();
 
+        Live::publish('admin.dashboard');
+
         flash_set('success', $id > 0 ? 'Package updated.' : 'Package created.');
         redirect('admin/packages');
     }
@@ -169,7 +171,8 @@ final class AdminPackageController
             View::error(404);
         }
 
-        $name = (string) $package['name'];
+        $name    = (string) $package['name'];
+        $changed = (string) $package['status'] !== $status;
 
         try {
             Package::setStatus($id, $status);
@@ -183,8 +186,20 @@ final class AdminPackageController
             $message = 'Could not update the package status. Please try again.';
         }
 
+        $changed = $ok && $changed;
+
         if (Request::wantsJson()) {
-            json_response(['ok' => $ok, 'message' => $message, 'status' => $status], $ok ? 200 : 422);
+            json_response([
+                'ok'          => $ok,
+                'changed'     => $changed,
+                'message'     => $message,
+                'status'      => $status,
+                'invalidates' => $changed ? ['admin.dashboard'] : [],
+            ], $ok ? 200 : 422);
+        }
+
+        if ($changed) {
+            Live::publish('admin.dashboard');
         }
 
         flash_set($ok ? 'success' : 'danger', $message);

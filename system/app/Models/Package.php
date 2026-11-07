@@ -489,6 +489,8 @@ final class Package
             throw $e;
         }
 
+        Live::touch('admin.dashboard');
+
         return $packageId;
     }
 
@@ -499,11 +501,17 @@ final class Package
             throw new InvalidArgumentException('Unknown package status: ' . $status);
         }
 
-        if (self::find($id) === null) {
+        $package = self::find($id);
+
+        if ($package === null) {
             return false;
         }
 
         db()->prepare('UPDATE packages SET status = ? WHERE id = ?')->execute([$status, $id]);
+
+        if ((string) $package['status'] !== $status) {
+            Live::touch('admin.dashboard');
+        }
 
         return true;
     }

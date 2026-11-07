@@ -389,6 +389,8 @@ final class Member
                 ],
             ], $pdo);
 
+            Live::touch('admin.dashboard');
+
             if ($owns) {
                 $pdo->commit();
             }

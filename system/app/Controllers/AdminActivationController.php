@@ -85,6 +85,8 @@ final class AdminActivationController
             redirect('admin/activations');
         }
 
+        Live::publish('admin.dashboard');
+
         flash_set('success', sprintf(
             'Activation #%d approved — @%s is now active with %s (%s).',
             (int) $result['activation_id'],

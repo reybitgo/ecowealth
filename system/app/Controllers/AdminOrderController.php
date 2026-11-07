@@ -282,6 +282,8 @@ final class AdminOrderController
             redirect($back);
         }
 
+        Live::publish(['admin.products', 'admin.dashboard']);
+
         flash_set('success', sprintf(
             'Order shipped via %s — tracking %s. The stock has been deducted.',
             (string) $result['courier'],

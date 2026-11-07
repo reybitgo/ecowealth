@@ -38,5 +38,8 @@ if (empty($_SESSION['user_id']) && !empty($_COOKIE[REMEMBER_COOKIE])) {
         auth_cache_reset();
         db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')
             ->execute([$remembered['user_id']]);
+
+        Live::touch('admin.dashboard');
+        Live::publish('admin.dashboard');
     }
 }

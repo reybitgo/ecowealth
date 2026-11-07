@@ -116,6 +116,15 @@ return [
         /* Unbuilt screens are left out of the menu entirely. */
         assert_not_contains('Payouts', $html);
         assert_not_contains('Soon', $html);
+
+        /* The dashboard is one live surface with five replaceable regions. */
+        assert_contains('data-live-surface="admin.dashboard"', $html);
+        assert_contains('data-live-region="dashboard-kpis"', $html);
+        assert_contains('data-live-region="dashboard-catalogue"', $html);
+        assert_contains('data-live-region="dashboard-stock"', $html);
+        assert_contains('data-live-region="dashboard-recent"', $html);
+        assert_contains('data-live-region="dashboard-packages"', $html);
+        assert_contains('data-live-status', $html);
     },
 
     'View::page shows the member status, not sign-in state, in recent accounts' => function () use ($render, $adminStats): void {

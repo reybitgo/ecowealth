@@ -262,6 +262,10 @@ function auth_login(string $identifier, string $password, bool $remember): bool
     db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')
         ->execute([$user['id']]);
 
+    /* The back-office dashboard's recent-accounts table shows last sign-in. */
+    Live::touch('admin.dashboard');
+    Live::publish('admin.dashboard');
+
     if ($remember) {
         remember_token_issue((int) $user['id']);
     }

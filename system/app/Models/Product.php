@@ -262,7 +262,7 @@ final class Product
 
             db()->prepare('UPDATE products SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($args);
 
-            Live::touch('admin.products');
+            Live::touch(['admin.products', 'admin.dashboard']);
 
             return $id;
         }
@@ -278,7 +278,7 @@ final class Product
 
         $id = (int) db()->lastInsertId();
 
-        Live::touch('admin.products');
+        Live::touch(['admin.products', 'admin.dashboard']);
 
         return $id;
     }
@@ -300,7 +300,7 @@ final class Product
 
         /* A no-op toggle must not invalidate every open product list. */
         if ((string) $product['status'] !== $status) {
-            Live::touch('admin.products');
+            Live::touch(['admin.products', 'admin.dashboard']);
         }
 
         return true;
@@ -344,7 +344,7 @@ final class Product
 
         db()->prepare('DELETE FROM products WHERE id = ?')->execute([$id]);
 
-        Live::touch('admin.products');
+        Live::touch(['admin.products', 'admin.dashboard']);
 
         return ['ok' => true, 'reason' => null, 'orders' => 0, 'carts' => 0, 'packages' => 0];
     }

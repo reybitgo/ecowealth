@@ -127,6 +127,10 @@ final class MembershipController
 
         old_clear();
 
+        if ((string) $result['status'] !== 'pending_review') {
+            Live::publish('admin.dashboard');
+        }
+
         if ((string) $result['status'] === 'pending_review') {
             flash_set(
                 'success',

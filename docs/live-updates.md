@@ -1,7 +1,8 @@
 # Live page updates
 
-The admin product list updates itself without a full page reload. The same
-pattern is intended for the other list, detail and dashboard pages.
+The admin product list and the admin dashboard update themselves without a
+full page reload. The same pattern is intended for the other list, detail and
+dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -17,7 +18,7 @@ in one place.
 - The same URL doubles as the JSON feed. A request with `X-Live: 1` and
   `Accept: application/json` returns fragments instead of the layout.
 - The client sends the previous ETag. An unchanged surface returns `304`
-  before the page reads product/order rows.
+  before the page reads its list or aggregate queries.
 - A successful mutation broadcasts its surface key on `BroadcastChannel`.
   Other tabs revalidate immediately. A visible tab also polls every 30s as a
   fallback for changes made in another browser or by a CLI job.
@@ -89,7 +90,35 @@ and cart reservations, because the list shows `available`, not just `stock`.
   in flight;
 - updates `history.replaceState()` when a page is clamped to the last page;
 - broadcasts after a status/delete success and forces one local refresh;
-- uses a `localStorage`/`storage` fallback when `BroadcastChannel` is missing.
+- uses a `localStorage`/`storage` fallback when `BroadcastChannel` is missing;
+- dispatches `ecowealth:live-applied` after a payload is applied, with
+  `detail.surface`, `detail.payload`, `detail.applied` and `detail.deferred`.
+
+### Widgets that need re-initialisation
+
+A swapped region may own a chart, map or other widget that was initialised against the
+old DOM. Listen for the event and re-render only the regions that actually applied:
+
+```js
+document.addEventListener('ecowealth:live-applied', function (event) {
+  var detail = event.detail || {};
+
+  if (detail.surface === 'admin.dashboard'
+      && (detail.applied || []).indexOf('dashboard-catalogue') !== -1) {
+    renderCatalogue(detail.payload.data.catalogue);
+  }
+});
+```
+
+The admin dashboard uses this hook to destroy and recreate its ApexCharts instances after
+the catalogue or stock card is replaced. A deferred region (focus was inside it) is not
+listed in `detail.applied`, so its chart is not re-rendered until the actual swap.
+
+The dashboard's ETag scope also includes the current date: its 30/60-day account windows
+change at midnight even when no row is written. A tab left open across midnight therefore
+revalidates on its next poll. The navbar notification dropdown sits outside the dashboard
+surface and updates on the next full navigation; it is a candidate for a future shell
+surface.
 
 ## Adding another surface
 
@@ -129,11 +158,12 @@ and cart reservations, because the list shows `available`, not just `stock`.
 | Surface | Page | Regions |
 |---|---|---|
 | `admin.products` | `/admin/products` | stats, rows, pagination |
+| `admin.dashboard` | `/admin` | KPIs, catalogue chart, stock health, recent accounts, packages |
 
-Planned next: `admin.dashboard`, `admin.orders` (+ detail), `admin.wallets`
-(+ detail), `admin.members`, `admin.activations`, `admin.codes`,
-`admin.commissions`, `shop.catalog`, `shop.product:{id}`,
-`member.orders:{userId}`, `member.wallet:{userId}`, `member.earnings:{userId}`.
+Planned next: `admin.orders` (+ detail), `admin.wallets` (+ detail), `admin.members`,
+`admin.activations`, `admin.codes`, `admin.commissions`, `shop.catalog`,
+`shop.product:{id}`, `member.orders:{userId}`, `member.wallet:{userId}`,
+`member.earnings:{userId}`.
 
 ## Deployment
 

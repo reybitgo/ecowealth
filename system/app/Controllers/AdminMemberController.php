@@ -133,6 +133,8 @@ final class AdminMemberController
 
         old_clear();
 
+        Live::publish('admin.dashboard');
+
         flash_set('success', sprintf(
             '@%s is now %s%s.',
             (string) $member['username'],
@@ -163,6 +165,8 @@ final class AdminMemberController
             flash_set('danger', 'The member status could not be changed. Please try again.');
             redirect('admin/members');
         }
+
+        Live::publish('admin.dashboard');
 
         flash_set('success', sprintf(
             '@%s is now %s.',

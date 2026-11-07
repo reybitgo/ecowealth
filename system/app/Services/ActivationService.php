@@ -424,6 +424,8 @@ final class ActivationService
             ],
         ], $this->pdo);
 
+        Live::touch('admin.dashboard');
+
         return [
             'activation_id' => $activationId,
             'user_id'       => $userId,

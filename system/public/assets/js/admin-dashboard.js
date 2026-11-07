@@ -1,14 +1,18 @@
 /**
  * EcoWealth — back-office dashboard widgets
  * -----------------------------------------
- * Boots the catalogue-value bar chart and the stock-health donut from
- * the payload printed by views/admin/dashboard.php (window.ECOWEALTH_ADMIN).
+ * Boots the catalogue-value bar chart and the stock-health donut from the
+ * payload printed by views/admin/dashboard.php (window.ECOWEALTH_ADMIN).
+ *
+ * The dashboard is a live surface. When app-live.js swaps the catalogue or
+ * stock card, it dispatches `ecowealth:live-applied` with the new chart data;
+ * this script destroys the old ApexCharts instance and renders the new one.
+ *
  * Every widget degrades to a readable empty state without ApexCharts.
  */
 (function () {
   'use strict';
 
-  var payload = window.ECOWEALTH_ADMIN || {};
   var palette = (window.config && window.config.colors) || {};
 
   var primary = palette.primary || '#7367f0';
@@ -17,6 +21,9 @@
   var danger = palette.danger || '#ea5455';
   var muted = palette.textMuted || '#8a8f98';
   var border = palette.borderColor || '#e7e7e8';
+
+  var catalogueChart = null;
+  var stockChart = null;
 
   var php = function (value, decimals) {
     return '₱' + Number(value || 0).toLocaleString('en-PH', {
@@ -39,15 +46,33 @@
     return '₱' + amount;
   };
 
+  function destroyChart(chart) {
+    if (chart && typeof chart.destroy === 'function') {
+      try {
+        chart.destroy();
+      } catch (error) {
+        /* The old container may already be detached; nothing to clean. */
+      }
+    }
+  }
+
   /* ---------------------------------------------------------------
    * Catalogue value (bar chart)
    * ------------------------------------------------------------- */
-  var catalogue = payload.catalogue || {};
-  var barEl = document.querySelector('#catalogueValueChart');
-  var hasCatalogue = Array.isArray(catalogue.labels) && catalogue.labels.length > 0;
+  function renderCatalogue(catalogue) {
+    destroyChart(catalogueChart);
+    catalogueChart = null;
 
-  if (barEl && window.ApexCharts && hasCatalogue) {
-    new window.ApexCharts(barEl, {
+    catalogue = catalogue || {};
+
+    var barEl = document.querySelector('#catalogueValueChart');
+    var hasCatalogue = Array.isArray(catalogue.labels) && catalogue.labels.length > 0;
+
+    if (!barEl || !window.ApexCharts || !hasCatalogue) {
+      return;
+    }
+
+    catalogueChart = new window.ApexCharts(barEl, {
       chart: {
         type: 'bar',
         height: 390,
@@ -94,19 +119,29 @@
         y: { formatter: function (value) { return php(value, true); } }
       },
       noData: { text: 'No catalogue data yet', style: { color: muted } }
-    }).render();
+    });
+
+    catalogueChart.render();
   }
 
   /* ---------------------------------------------------------------
    * Stock health (donut)
    * ------------------------------------------------------------- */
-  var stock = payload.stock || {};
-  var donutEl = document.querySelector('#stockHealthChart');
-  var stockValues = Array.isArray(stock.values) ? stock.values.map(Number) : [];
-  var stockTotal = stockValues.reduce(function (sum, value) { return sum + value; }, 0);
+  function renderStock(stock) {
+    destroyChart(stockChart);
+    stockChart = null;
 
-  if (donutEl && window.ApexCharts && stockTotal > 0) {
-    new window.ApexCharts(donutEl, {
+    stock = stock || {};
+
+    var donutEl = document.querySelector('#stockHealthChart');
+    var stockValues = Array.isArray(stock.values) ? stock.values.map(Number) : [];
+    var stockTotal = stockValues.reduce(function (sum, value) { return sum + value; }, 0);
+
+    if (!donutEl || !window.ApexCharts || stockTotal <= 0) {
+      return;
+    }
+
+    stockChart = new window.ApexCharts(donutEl, {
       chart: {
         type: 'donut',
         height: 220,
@@ -154,6 +189,42 @@
           }
         }
       }
-    }).render();
+    });
+
+    stockChart.render();
   }
+
+  function render(payload) {
+    payload = payload || {};
+
+    renderCatalogue(payload.catalogue || {});
+    renderStock(payload.stock || {});
+  }
+
+  /* Initial page load. */
+  render(window.ECOWEALTH_ADMIN || {});
+
+  /* A live region was replaced by app-live.js. Only re-render a chart
+   * whose own card was actually applied (a deferred card may still be
+   * waiting for focus to leave). */
+  document.addEventListener('ecowealth:live-applied', function (event) {
+    var detail = event.detail || {};
+
+    if (detail.surface !== 'admin.dashboard' || !detail.payload) {
+      return;
+    }
+
+    var data = detail.payload.data || {};
+    var applied = detail.applied || [];
+
+    if (applied.indexOf('dashboard-catalogue') !== -1) {
+      renderCatalogue(data.catalogue || {});
+    }
+
+    if (applied.indexOf('dashboard-stock') !== -1) {
+      renderStock(data.stock || {});
+    }
+  });
+
+  window.EcoWealthAdminDashboard = { render: render };
 })();

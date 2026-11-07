@@ -7,12 +7,65 @@ declare(strict_types=1);
  *  adds the live catalogue, stock and packaging picture the
  *  operations screen needs. Later phases extend $stats instead of
  *  rebuilding the view.
+ *
+ *  The same URL doubles as its JSON feed (`X-Live: 1`). The KPI
+ *  cards, catalogue chart, stock health card, recent accounts and
+ *  package list are separate live regions; the browser patches only
+ *  the regions that changed.
  * ============================================================== */
 
 final class AdminDashboardController
 {
     /** @param array<string, string> $params */
     public function index(array $params = []): void
+    {
+        if (Live::isFeedRequest()) {
+            $this->feed();
+            return;
+        }
+
+        $data = $this->dashboardContext();
+
+        View::page('admin', 'admin/dashboard', [
+            'page_title'  => 'Dashboard',
+            'current_nav' => 'admin.dashboard',
+            'page_css'    => ['assets/vendor/libs/apex-charts/apex-charts.css'],
+            'page_js'     => [
+                'assets/vendor/libs/apex-charts/apexcharts.js',
+                'assets/js/admin-dashboard.js',
+            ],
+            'stats'       => $data['stats'],
+            'packages'    => $data['packages'],
+            'recent'      => $data['recent'],
+            'chart'       => $data['chart'],
+            'stock'       => $data['stock'],
+            'attention'   => $data['attention'],
+            'chart_data'  => $data['chart_data'],
+            'nav_notes'   => $data['notes'],
+            'live'        => $this->liveMeta(),
+        ]);
+    }
+
+    /**
+     * Everything the dashboard renders, built once for the page and its
+     * feed. Each block stays independently guarded so a missing later-phase
+     * table can never blank the whole screen.
+     *
+     * @return array{
+     *   stats: array<string, int|float>,
+     *   packages: list<array<string, mixed>>,
+     *   recent: list<array<string, mixed>>,
+     *   chart: array{labels: list<string>, values: list<float>, stock: list<int>},
+     *   stock: array{healthy:int, low:int, out:int},
+     *   attention: list<array<string, mixed>>,
+     *   notes: list<array<string, string>>,
+     *   chart_data: array{
+     *     catalogue: array{labels: list<string>, values: list<float>},
+     *     stock: array{labels: list<string>, values: list<int>}
+     *   }
+     * }
+     */
+    private function dashboardContext(): array
     {
         $screen = [
             'accounts'         => 0,
@@ -43,8 +96,6 @@ final class AdminDashboardController
 
         $db = db();
 
-        /* Each block is independent: a table that a later phase has not
-         * created yet must never blank the whole dashboard. */
         try {
             $screen['accounts']        = (int) $db->query('SELECT COUNT(*) FROM users')->fetchColumn();
             /* "Active" means the member status, not merely sign-in enabled:
@@ -104,7 +155,7 @@ final class AdminDashboardController
             error_log('[ecowealth] admin dashboard recent accounts: ' . $e->getMessage());
         }
 
-        /* ---- Chart + donut payloads (computed once, printed as JSON) ---- */
+        /* ---- Chart + donut payloads (computed once) ---- */
         $chart = ['labels' => [], 'values' => [], 'stock' => []];
         $stock = ['healthy' => 0, 'low' => 0, 'out' => 0];
         $chartRows = [];
@@ -157,22 +208,151 @@ final class AdminDashboardController
             ];
         }
 
-        View::page('admin', 'admin/dashboard', [
-            'page_title'  => 'Dashboard',
-            'current_nav' => 'admin.dashboard',
-            'page_css'    => ['assets/vendor/libs/apex-charts/apex-charts.css'],
-            'page_js'     => [
-                'assets/vendor/libs/apex-charts/apexcharts.js',
-                'assets/js/admin-dashboard.js',
+        $chartData = [
+            'catalogue' => [
+                'labels' => array_values($chart['labels']),
+                'values' => array_values(array_map('floatval', $chart['values'])),
             ],
-            'stats'       => $screen,
-            'products'    => $products,
-            'packages'    => $packages,
-            'recent'      => $recent,
-            'chart'       => $chart,
-            'stock'       => $stock,
-            'attention'   => $attention,
-            'nav_notes'   => $notes,
-        ]);
+            'stock' => [
+                'labels' => ['Healthy', 'Low stock', 'Out of stock'],
+                'values' => [(int) $stock['healthy'], (int) $stock['low'], (int) $stock['out']],
+            ],
+        ];
+
+        return [
+            'stats'      => $screen,
+            'packages'   => $packages,
+            'recent'     => $recent,
+            'chart'      => $chart,
+            'stock'      => $stock,
+            'attention'  => $attention,
+            'notes'      => $notes,
+            'chart_data' => $chartData,
+        ];
+    }
+
+    /**
+     * Live metadata for the initial page render.
+     *
+     * @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int}
+     */
+    private function liveMeta(): array
+    {
+        $surface = 'admin.dashboard';
+        $meta    = [
+            'surface'  => $surface,
+            'enabled'  => true,
+            'revision' => 0,
+            'etag'     => '',
+            'interval' => 30000,
+        ];
+
+        try {
+            $revision         = Live::revision($surface);
+            $meta['revision'] = $revision;
+            $meta['etag']     = Live::etag($surface, $revision, $this->scope());
+        } catch (Throwable $e) {
+            error_log('[ecowealth] admin dashboard live revision unavailable: ' . $e->getMessage());
+            $meta['enabled'] = false;
+        }
+
+        return $meta;
+    }
+
+    /**
+     * JSON feed for the open dashboard.
+     *
+     * The 304 check runs before dashboardContext(), so an unchanged
+     * revision costs one primary-key lookup and no aggregate queries.
+     */
+    private function feed(): void
+    {
+        $userId = (int) (auth_user()['id'] ?? 0);
+
+        /* Prime the token while the session is writable; a future live
+         * region may render a POST form. */
+        csrf_token();
+        session_write_close();
+
+        $surface = 'admin.dashboard';
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, $this->scope($userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->dashboardContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] admin dashboard live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the dashboard. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the feed payload. Public so tests can assert the fragments
+     * without going through Live::json()'s exit.
+     *
+     * @param array{
+     *   stats: array<string, int|float>,
+     *   packages: list<array<string, mixed>>,
+     *   recent: list<array<string, mixed>>,
+     *   chart: array{labels: list<string>, values: list<float>, stock: list<int>},
+     *   stock: array{healthy:int, low:int, out:int},
+     *   attention: list<array<string, mixed>>,
+     *   notes: list<array<string, string>>,
+     *   chart_data: array{
+     *     catalogue: array{labels: list<string>, values: list<float>},
+     *     stock: array{labels: list<string>, values: list<int>}
+     *   }
+     * } $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.dashboard',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'dashboard-kpis' => View::capture('admin/dashboard/_kpis', [
+                    'stats' => $data['stats'],
+                ]),
+                'dashboard-catalogue' => View::capture('admin/dashboard/_catalogue', [
+                    'stats' => $data['stats'],
+                    'chart' => $data['chart'],
+                ]),
+                'dashboard-stock' => View::capture('admin/dashboard/_stock', [
+                    'stats'     => $data['stats'],
+                    'stock'     => $data['stock'],
+                    'attention' => $data['attention'],
+                ]),
+                'dashboard-recent' => View::capture('admin/dashboard/_recent', [
+                    'recent' => $data['recent'],
+                ]),
+                'dashboard-packages' => View::capture('admin/dashboard/_packages', [
+                    'packages' => $data['packages'],
+                ]),
+            ],
+            'data'      => $data['chart_data'],
+        ];
+    }
+
+    /**
+     * ETag scope for the dashboard.
+     *
+     * The 30/60-day account windows and "time ago" labels are relative to
+     * the current date, so the day is part of the scope. A tab left open
+     * across midnight revalidates on its next poll instead of staying
+     * stale until some unrelated write.
+     */
+    private function scope(?int $userId = null): string
+    {
+        $userId ??= (int) (auth_user()['id'] ?? 0);
+
+        return Live::scope($_GET, $userId) . '|day:' . date('Y-m-d');
     }
 }

@@ -579,6 +579,8 @@
   function applyPayload(surface, payload) {
     var fragments = payload.fragments || {};
     var changed = false;
+    var applied = [];
+    var deferred = [];
     var active = document.activeElement;
 
     /* A previous payload may have deferred one region while focus was
@@ -603,8 +605,10 @@
 
         if (rowsChanged === -1) {
           surface.deferred = true;
+          deferred.push(key);
         } else if (rowsChanged > 0) {
           changed = true;
+          applied.push(key);
         }
 
         return;
@@ -618,11 +622,13 @@
 
       if (current.contains(active)) {
         surface.deferred = true;
+        deferred.push(key);
         return;
       }
 
       current.replaceWith(next);
       changed = true;
+      applied.push(key);
     });
 
     if (changed) {
@@ -645,6 +651,25 @@
 
         surface.feedUrl = window.location.href;
         surface.etag = '';
+      }
+    }
+
+    /* Page widgets that own charts or maps can re-initialise themselves
+     * after their region was replaced. The detail says which regions were
+     * actually applied, so a deferred card is not rendered twice. */
+    if (typeof window.CustomEvent === 'function') {
+      try {
+        document.dispatchEvent(new window.CustomEvent('ecowealth:live-applied', {
+          detail: {
+            surface: surface.key,
+            payload: payload,
+            changed: changed,
+            applied: applied,
+            deferred: deferred
+          }
+        }));
+      } catch (error) {
+        /* A widget hook must never break the refresh. */
       }
     }
   }
@@ -950,7 +975,11 @@
           return;
         }
 
-        broadcast([surface.key]);
+        var invalidates = Array.isArray(payload.invalidates) && payload.invalidates.length
+          ? payload.invalidates
+          : [surface.key];
+
+        broadcast(invalidates);
         refresh(surface, { force: true });
       })
       .catch(function (error) {

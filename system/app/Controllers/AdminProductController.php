@@ -308,9 +308,9 @@ final class AdminProductController
         old_clear();
         flash_set('success', $id > 0 ? 'Product updated.' : 'Product created.');
 
-        /* The form keeps its native POST/redirect flow. Queue the surface
-         * so the landing page broadcasts it to the other open tabs. */
-        Live::publish('admin.products');
+        /* The form keeps its native POST/redirect flow. Queue every
+         * affected surface so the landing page broadcasts to other tabs. */
+        Live::publish(['admin.products', 'admin.dashboard']);
 
         redirect('admin/products');
     }
@@ -349,15 +349,16 @@ final class AdminProductController
         if (Request::wantsJson()) {
             /* The client broadcasts and refreshes only when this is true. */
             json_response([
-                'ok'      => $ok,
-                'changed' => $changed,
-                'message' => $message,
-                'status'  => $status,
+                'ok'          => $ok,
+                'changed'     => $changed,
+                'message'     => $message,
+                'status'      => $status,
+                'invalidates' => $changed ? ['admin.products', 'admin.dashboard'] : [],
             ], $ok ? 200 : 422);
         }
 
         if ($changed) {
-            Live::publish('admin.products');
+            Live::publish(['admin.products', 'admin.dashboard']);
         }
 
         flash_set($ok ? 'success' : 'danger', $message);
@@ -390,11 +391,15 @@ final class AdminProductController
         };
 
         if (Request::wantsJson()) {
-            json_response(['ok' => $result['ok'], 'message' => $message], $result['ok'] ? 200 : 422);
+            json_response([
+                'ok'          => $result['ok'],
+                'message'     => $message,
+                'invalidates' => $result['ok'] ? ['admin.products', 'admin.dashboard'] : [],
+            ], $result['ok'] ? 200 : 422);
         }
 
         if ($result['ok']) {
-            Live::publish('admin.products');
+            Live::publish(['admin.products', 'admin.dashboard']);
         }
 
         flash_set($result['ok'] ? 'success' : 'danger', $message);
