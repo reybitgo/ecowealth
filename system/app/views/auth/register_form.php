@@ -71,10 +71,10 @@ $fieldClass = static function (string $field): string {
     return 'form-control' . (has_error($field) ? ' is-invalid' : '');
 };
 
-$feedback = static function (string $field): string {
+$feedback = static function (string $field, string $attributes = ''): string {
     $message = error_for($field);
 
-    return $message === '' ? '' : '<div class="invalid-feedback">' . e($message) . '</div>';
+    return $message === '' ? '' : '<div class="invalid-feedback"' . $attributes . '>' . e($message) . '</div>';
 };
 ?>
 <script>
@@ -312,7 +312,7 @@ $feedback = static function (string $field): string {
             />
             <button class="btn btn-outline-primary" type="button" data-code-validate>Validate</button>
           </div>
-          <?= $feedback('reg_code') ?>
+          <?= $feedback('reg_code', ' data-code-feedback') ?>
           <div class="form-text" data-code-hint>The code determines the package you activate.</div>
           <div class="alert alert-success d-none mt-3 mb-0 py-2 small" data-code-ok></div>
         </div>

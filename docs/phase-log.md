@@ -2143,6 +2143,45 @@ database error), because every failure path flashed a summary as well.
 - **No other form changed.** The membership/activation pages show a single flash plus inline field
   hints; they do not render a second summary block, so the register-page duplication was the outlier.
 
+---
+
+## Post-Phase 9 — Validate replaces the last code error
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 396 PHP cases,
+132 smoke checks, 3 browser checks.
+
+### Problem
+
+After a rejected submit rendered the server-side code error (“That registration code is not
+recognised.”), pressing **Validate** with another code wrote the live result into the hint but left the
+server's `invalid-feedback` and the input's `is-invalid` state in place. The field then showed two red
+lines — the old error and the new one — and the old one survived typing.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **View** | `$feedback()` takes an optional attribute string; the code field's error is rendered with `data-code-feedback` so the live validator can find and remove it. |
+| **`app-register.js`** | New `clearCodeError()` removes the stale `.invalid-feedback` and `is-invalid` state. It runs when the user types in the code field and again when **Validate** is pressed (before the completeness check and the request), then the hint owns the field: one live message on failure, green “Code is valid.” plus the package box on success. |
+| **Tests** | The register-error view test asserts the `data-code-feedback` hook; the browser capture covers the reported sequence — server error, Validate with a used code → exactly one red line — and a valid code → only the green confirmation. |
+| **Evidence** | `docs/qa/evidence/shell/final-register-validate.png` — one “already been used” line after Validate, no stale “not recognised”. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **396 / 396** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser capture (`tests/tmp/capture-register-error.mjs`) | **3 / 3** — one banner on submit; Validate clears the stale error (feedbacks 0, invalid 0, messages 1); a valid code shows green only |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decision
+
+**The live check takes ownership of the field.** A server-rendered error is authoritative only until
+the user edits the code or asks for a fresh validation; keeping both states visible would be two
+messages for one field. Clearing on input also matches how the rest of the page behaves when the user
+starts fixing a value.
+
 
 
 

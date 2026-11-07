@@ -133,6 +133,7 @@ return [
             substr_count($html, 'That registration code is not recognised.'),
             'the message must not be repeated'
         );
+        assert_contains('data-code-feedback', $html, 'the live Validate check can clear the server error');
         assert_not_contains('That registration code is not recognised.</strong>', $html);
     },
 

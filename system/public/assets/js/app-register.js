@@ -221,6 +221,7 @@
   var codeButton = form.querySelector('[data-code-validate]');
   var codeHint = form.querySelector('[data-code-hint]');
   var codeOk = form.querySelector('[data-code-ok]');
+  var codeFeedback = form.querySelector('[data-code-feedback]');
 
   function formatCode(raw) {
     var clean = (raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12);
@@ -240,10 +241,26 @@
     }
   }
 
+  /* The server renders the last submit's field error above the hint. Once
+   * the user edits the code or asks Validate to check a new value, that
+   * error is stale: remove it (and the red input state) so the live check
+   * is the only message under the field. */
+  function clearCodeError() {
+    if (codeInput) {
+      codeInput.classList.remove('is-invalid');
+    }
+
+    if (codeFeedback) {
+      codeFeedback.remove();
+      codeFeedback = null;
+    }
+  }
+
   if (codeInput) {
     codeInput.addEventListener('input', function () {
       codeInput.value = formatCode(codeInput.value);
       clearCodeResult();
+      clearCodeError();
       setHint(codeHint, 'The code determines the package you activate.', '');
     });
   }
@@ -251,6 +268,9 @@
   if (codeButton && codeInput) {
     codeButton.addEventListener('click', function () {
       var value = codeInput.value.trim();
+
+      clearCodeError();
+      clearCodeResult();
 
       if (value.replace(/-/g, '').length !== 12) {
         setHint(codeHint, 'Enter a complete code (XXXX-XXXX-XXXX).', 'danger');
