@@ -74,7 +74,7 @@ final class DashboardController
             'last_activation' => $last === null ? null : $last,
             'activation_count' => count($history),
             'referral_code'   => (string) ($member['referral_code'] ?? ''),
-            'referral_link'   => url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
+            'referral_link'   => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
             'recent_history'  => array_slice($history, 0, 3),
         ]);
     }

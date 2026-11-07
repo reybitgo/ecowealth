@@ -2225,6 +2225,51 @@ pending and asserts the Pending badge.
 pending member intentionally keeps `is_active = 1` so they can sign in and activate later — any status
 badge or count must read `member_status`.
 
+---
+
+## Post-Phase 9 — Register in the sidebar and absolute referral links
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 399 PHP cases,
+132 smoke checks, 7 browser checks.
+
+### Problem
+
+- A signed-in member had no direct route to the registration form they use to sponsor someone; the page
+  existed but nothing in the sidebar pointed at it.
+- Referral links were root-relative (`/ecowealth/system/register?ref=5MS9S37C`). Copying one produced a
+  path that only works on the current host — useless in a message, email or QR code.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Navigation** | `nav.php` gains **Register** under Membership in both layouts: `register` for the member portal and `admin.register` for the back office (icon `bx-user-plus`, phase 9, guard per layout). |
+| **Register page (signed-in)** | The heading becomes **Register a member**, the subtitle names the sponsor and says the session stays untouched, and the guest “Already have an account? Sign in instead” line is replaced by **Back to dashboard**. |
+| **Absolute links** | New `APP_URL` config constant (`config.php` / `config.local.php` / env): the canonical origin, e.g. `http://localhost` or `https://www.ecowealth.com`. `app_origin()` uses it, or derives the origin from the request (HTTPS, `X-Forwarded-Proto`, sanitised `HTTP_HOST`, `localhost` fallback in CLI); `absolute_url()` adds it to `url()`, so the install prefix (`/ecowealth/system/`) stays in place. |
+| **Referral links** | The dashboard, membership, genealogy and admin member-detail controllers/views now build referral links with `absolute_url()`; copying them yields `http://localhost/ecowealth/system/register?ref=…` in development and the production host in production. |
+| **Cleanup** | Removed the unused `$summary` variable left in `public/register.php`. |
+| **Tests** | `absolute_url()`/`app_origin()` cases (http, https, proxy header, no host, already-absolute passthrough, configured `APP_URL`), nav assertions for both layouts, and the registrar framing; the browser harness checks 7 scenarios. |
+| **Evidence** | `docs/qa/evidence/shell/final-register-nav.png` (sidebar + absolute dashboard link) and `final-register-registrar.png` (signed-in register page). |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **399 / 399** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser harness (`tests/tmp/verify-register-nav.mjs`) | **7 / 7** — Register under Membership for member + admin (`/ecowealth/system/register`), absolute links on dashboard/membership/genealogy/admin member detail (`http://localhost/…?ref=JUAN0001`), registrar framing |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decisions
+
+- **`APP_URL` is the origin, not the full base path.** `url()` already knows the installation prefix and
+  the gateway query; storing `scheme://host` keeps one source of truth. Leaving `APP_URL` empty derives
+  the origin from the request, so development works without configuration while production can pin the
+  canonical `https://www.ecowealth.com` to avoid proxy/host variations in copied links.
+- **Register lives under Membership, not Commerce.** The sidebar entry is for the member/sponsor flow
+  (`/register`), distinct from the back-office Members directory; admins get the same entry because they
+  may sponsor members too.
+
 
 
 

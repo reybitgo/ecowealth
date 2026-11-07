@@ -36,7 +36,7 @@ $statusLabel = match (true) {
 
 $referralLink = $member['referral_code'] === null
     ? ''
-    : url('register?ref=' . rawurlencode((string) $member['referral_code']));
+    : absolute_url('register?ref=' . rawurlencode((string) $member['referral_code']));
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
               <?= flash_render() ?>

@@ -85,6 +85,28 @@ defined('STORAGE_PATH') || define('STORAGE_PATH', dirname(__DIR__) . '/storage')
  * .htaccess pair (system/.htaccess → public/).
  * ----------------------------------------------------------------------------- */
 
+/* Canonical origin for links that leave the app (referral links, copy
+ * buttons, emails). Set it in config.local.php or the APP_URL environment
+ * variable:
+ *
+ *   development: http://localhost
+ *   production:  https://www.ecowealth.com
+ *
+ * The install prefix (/ecowealth/system/) is added by url(); this value is
+ * the scheme + host only. Empty → derive the origin from the request. */
+defined('APP_URL') || define('APP_URL', (string) (getenv('APP_URL') ?: ''));
+
+/* Canonical origin for links that leave the app (referral links, copy
+ * buttons, emails). Set it in config.local.php or the APP_URL environment
+ * variable:
+ *
+ *   development: http://localhost
+ *   production:  https://www.ecowealth.com
+ *
+ * The install prefix (/ecowealth/system/) is added by url(); this value is
+ * the scheme + host only. Empty → derive the origin from the request. */
+defined('APP_URL') || define('APP_URL', (string) (getenv('APP_URL') ?: ''));
+
 /* ---------- Sessions ---------- */
 defined('SESSION_NAME') || define('SESSION_NAME', 'ecowealth_sid');
 defined('SESSION_IDLE_MAX') || define('SESSION_IDLE_MAX', 30 * 60);   // 30 minutes of inactivity

@@ -38,6 +38,7 @@ return [
                 'items' => [
                     ['key' => 'packages', 'label' => 'Packages', 'path' => 'packages', 'icon' => 'bx-box', 'guard' => 'member', 'phase' => 3],
                     ['key' => 'membership', 'label' => 'Membership', 'path' => 'membership', 'icon' => 'bx-medal', 'guard' => 'member', 'phase' => 9],
+                    ['key' => 'register', 'label' => 'Register', 'path' => 'register', 'icon' => 'bx-user-plus', 'guard' => 'member', 'phase' => 9],
                     ['key' => 'genealogy', 'label' => 'Genealogy', 'path' => 'genealogy', 'icon' => 'bx-git-branch', 'guard' => 'member', 'phase' => 9],
                     ['key' => 'earnings', 'label' => 'Earnings', 'path' => 'earnings', 'icon' => 'bx-line-chart', 'guard' => 'member', 'phase' => 10],
                 ],
@@ -85,6 +86,7 @@ return [
                 'label' => 'Membership',
                 'items' => [
                     ['key' => 'admin.membership', 'label' => 'My membership', 'path' => 'membership', 'icon' => 'bx-medal', 'guard' => 'admin', 'phase' => 9],
+                    ['key' => 'admin.register', 'label' => 'Register', 'path' => 'register', 'icon' => 'bx-user-plus', 'guard' => 'admin', 'phase' => 9],
                     ['key' => 'admin.genealogy', 'label' => 'My genealogy', 'path' => 'genealogy', 'icon' => 'bx-git-branch', 'guard' => 'admin', 'phase' => 9],
                 ],
             ],

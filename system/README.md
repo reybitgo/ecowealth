@@ -112,6 +112,7 @@ pages (login, register, logout) keep their scripts, everything else goes to the 
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
 | `APP_PHASE` | `9` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
+| `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
 | `UPLOAD_MAX_BYTES` | 5 MB | Upload cap |
@@ -622,7 +623,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (397 cases in Phase 9)
+php tests/run.php                 # full suite (399 cases in Phase 9)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

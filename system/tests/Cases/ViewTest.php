@@ -79,6 +79,8 @@ return [
         assert_contains('Dashboard', $html);
         assert_contains('Shop', $html);
         assert_contains('Change password', $html);
+        assert_contains('<div>Register</div>', $html, 'members get a Register entry under Membership');
+        assert_contains('href="' . url('register') . '"', $html);
         assert_contains('menu-icon icon-base bx bx-home-smile', $html, 'sidebar icons keep the Boxicons base class');
 
         /* P1-T8: member pages never expose back-office items. */
@@ -104,6 +106,8 @@ return [
         assert_contains('Members', $html);
         assert_contains('Activations', $html);
         assert_contains('href="' . url('admin/members') . '"', $html);
+        assert_contains('<div>Register</div>', $html, 'admins get a Register entry under Membership');
+        assert_contains('href="' . url('register') . '"', $html);
 
         /* The codes item is short ("Codes") so it never truncates. */
         assert_contains('<div>Codes</div>', $html);

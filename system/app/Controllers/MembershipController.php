@@ -80,7 +80,7 @@ final class MembershipController
             'open_activation'   => Activation::latestOpen($userId),
             'history'           => $history,
             'history_pager'     => $historyPager,
-            'referral_link'     => url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
+            'referral_link'     => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
             'channels'          => self::receivingAccounts(),
             'free_registration' => setting_bool('free_registration_enabled', true),
         ]);

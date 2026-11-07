@@ -47,7 +47,7 @@ P9-T12 double activation/approval refused · P9-T13 two parallel redemptions use
 (two database connections) · P9-T14 generation, expiry and export · P9-T15 route guards · P9-T16
 member detail + suspend/restore + audit · P9-T17 genealogy up/down, cycle safety and no binary
 column · P9-T18 referral-code uniqueness. `MembershipTest`, `MembershipViewTest` and the extended
-`MigrationTest`/`RouterTest` cover these (**397 cases in total**). The HTTP smoke script walks the
+`MigrationTest`/`RouterTest` cover these (**399 cases in total**). The HTTP smoke script walks the
 registration, code, pending, manual-activation, approve/reject, suspend/restore, codes and genealogy
 paths over HTTP — **132 checks in total**.
 
@@ -83,7 +83,7 @@ your pass):
 
 > **Before you start:** Phases 1–8 should be signed off, the demo tree must be seeded
 > (`database/seeds/005_demo_tree.sql`) and the automated suites must be green:
-> `php tests\run.php` → **397 cases**; `powershell -NoProfile -File tests\smoke.ps1` → **132 checks**.
+> `php tests\run.php` → **399 cases**; `powershell -NoProfile -File tests\smoke.ps1` → **132 checks**.
 > Create `docs\qa\evidence\phase-9\` for your own screenshots.
 
 ---

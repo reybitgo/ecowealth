@@ -110,6 +110,59 @@ function url(string $path = '/'): string
     return $link;
 }
 
+/**
+ * Origin (scheme://host[:port]) used by absolute_url().
+ *
+ * APP_URL (config.php / config.local.php / env) pins the canonical origin:
+ *
+ *   APP_URL = 'http://localhost'              → development
+ *   APP_URL = 'https://www.ecowealth.com'     → production
+ *
+ * With an empty APP_URL the origin is derived from the current request,
+ * which already carries the host the visitor typed (and the proxy scheme
+ * when X-Forwarded-Proto is set). The install prefix stays in url(), so
+ * the final link keeps its /ecowealth/system/ segment where present.
+ */
+function app_origin(): string
+{
+    $configured = defined('APP_URL') ? trim((string) APP_URL) : '';
+
+    if ($configured !== '') {
+        return rtrim($configured, '/');
+    }
+
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+
+    if ($host !== '' && preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host) === 1) {
+        $proto = strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $https = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+            || $proto === 'https';
+
+        return ($https ? 'https' : 'http') . '://' . $host;
+    }
+
+    return 'http://localhost';
+}
+
+/**
+ * Absolute URL for links that leave the app — referral links, copy buttons,
+ * emails. The path follows url() (so the install prefix and gateway query
+ * are kept); only the origin is added.
+ *
+ *   absolute_url('register?ref=ABC12345')
+ *     → 'http://localhost/ecowealth/system/register?ref=ABC12345'
+ */
+function absolute_url(string $path = '/'): string
+{
+    $path = (string) $path;
+
+    if (preg_match('#^(?:[a-z][a-z0-9+.-]*:)?//#i', $path) === 1) {
+        return $path;
+    }
+
+    return app_origin() . url($path);
+}
+
 /** HTML-escape a value for safe output. */
 function e(null|string $value): string
 {

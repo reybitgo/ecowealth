@@ -22,7 +22,6 @@ MaintenanceGate::handle();
 
 $registrar = auth_user();
 $errors    = [];
-$summary   = '';
 
 if (is_post()) {
     if (!csrf_verify($_POST['_csrf'] ?? null)) {

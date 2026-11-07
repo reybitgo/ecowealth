@@ -30,6 +30,69 @@ return [
         assert_same('/ecowealth/system/admin/products/9/edit', url('/admin/products/9/edit'));
     },
 
+    'P9-T18 absolute_url() adds the origin to copyable links' => function (): void {
+        $saved = [
+            'HTTP_HOST'             => $_SERVER['HTTP_HOST'] ?? null,
+            'HTTPS'                 => $_SERVER['HTTPS'] ?? null,
+            'HTTP_X_FORWARDED_PROTO' => $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null,
+        ];
+
+        try {
+            /* A configured APP_URL wins over the request host. */
+            if (defined('APP_URL') && trim((string) APP_URL) !== '') {
+                assert_same(
+                    rtrim((string) APP_URL, '/') . '/ecowealth/system/register?ref=5MS9S37C',
+                    absolute_url('register?ref=5MS9S37C')
+                );
+
+                return;
+            }
+
+            $_SERVER['HTTP_HOST'] = 'localhost';
+            unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_FORWARDED_PROTO']);
+
+            assert_same(
+                'http://localhost/ecowealth/system/register?ref=5MS9S37C',
+                absolute_url('register?ref=5MS9S37C')
+            );
+            assert_same('http://localhost/ecowealth/system/', absolute_url('/'));
+
+            $_SERVER['HTTP_HOST'] = 'www.ecowealth.com';
+            assert_same(
+                'http://www.ecowealth.com/ecowealth/system/register?ref=5MS9S37C',
+                absolute_url('register?ref=5MS9S37C')
+            );
+
+            $_SERVER['HTTPS'] = 'on';
+            assert_same('https://www.ecowealth.com/ecowealth/system/register', absolute_url('register'));
+
+            unset($_SERVER['HTTPS']);
+            $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https, http';
+            assert_same('https://www.ecowealth.com/ecowealth/system/register', absolute_url('register'));
+
+            assert_same(
+                'https://example.com/join',
+                absolute_url('https://example.com/join'),
+                'an already absolute URL is left alone'
+            );
+
+            unset($_SERVER['HTTP_HOST']);
+            assert_same(
+                'http://localhost/ecowealth/system/register',
+                absolute_url('register'),
+                'CLI/no-host falls back to localhost'
+            );
+        } finally {
+            foreach ($saved as $key => $value) {
+                if ($value === null) {
+                    unset($_SERVER[$key]);
+                } else {
+                    $_SERVER[$key] = $value;
+                }
+            }
+        }
+    },
+
     'P1-T5 Request::pathFrom strips the install prefix from a deep URL' => function (): void {
         assert_same(
             '/admin/products/9/edit',

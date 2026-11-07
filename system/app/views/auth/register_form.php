@@ -93,11 +93,19 @@ $feedback = static function (string $field, string $attributes = ''): string {
       </a>
     </div>
 
-    <h4 class="mb-1">Join EcoWealth</h4>
+    <h4 class="mb-1"><?= $registrar === null ? 'Join EcoWealth' : 'Register a member' ?></h4>
+<?php if ($registrar === null): ?>
     <p class="mb-5 text-body-secondary">
       One sponsor link, one membership record. Choose how you want to join —
       you can change your package path later from the membership page.
     </p>
+<?php else: ?>
+    <p class="mb-5 text-body-secondary">
+      Create an account for someone you sponsor. You stay signed in as
+      <strong>@<?= e((string) $registrar['username']) ?></strong>; the new member
+      can sign in on their own afterwards.
+    </p>
+<?php endif; ?>
 
     <?= flash_render() ?>
 
@@ -413,12 +421,12 @@ $feedback = static function (string $field, string $attributes = ''): string {
       </button>
     </form>
 
+<?php if ($registrar === null): ?>
     <p class="text-center mb-2">
       <span>Already have an account?</span>
       <a href="<?= e(url('login')) ?>"><span>Sign in instead</span></a>
     </p>
-
-<?php if ($registrar !== null): ?>
+<?php else: ?>
     <p class="text-center mb-0">
       <a href="<?= e(url('dashboard')) ?>" class="small">Back to dashboard</a>
     </p>

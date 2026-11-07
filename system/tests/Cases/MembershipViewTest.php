@@ -74,7 +74,7 @@ $membershipData = static function (array $member) use ($makeMember): array {
         'open_activation'   => Activation::latestOpen((int) $member['id']),
         'history'           => Activation::forUser((int) $member['id']),
         'history_pager'     => Paginator::make($total, 1, Paginator::DEFAULT_PER_PAGE),
-        'referral_link'     => url('register?ref=' . rawurlencode((string) $member['referral_code'])),
+        'referral_link'     => absolute_url('register?ref=' . rawurlencode((string) $member['referral_code'])),
         'channels'          => MembershipController::receivingAccounts(),
         'free_registration' => setting_bool('free_registration_enabled', true),
     ];
@@ -179,6 +179,20 @@ return [
         assert_contains('Package B', $html);
         assert_contains('Your balance: ' . money(9000.0), $html);
         assert_not_contains('register-mode-muted', $html, 'a registrar gets the real e-wallet option');
+    },
+
+    'P9-T4 a signed-in registrar sees the register-a-member framing' => function () use ($renderRegister): void {
+        $registrar = test_user('mv_registrar', 'member');
+
+        $html = $renderRegister([
+            'mode'      => 'standard',
+            'registrar' => $registrar,
+        ]);
+
+        assert_contains('Register a member', $html);
+        assert_contains('@' . $registrar['username'], $html);
+        assert_contains('Back to dashboard', $html);
+        assert_not_contains('Already have an account?', $html, 'a signed-in registrar is not offered sign-in');
     },
 
     'P9-T1 closed free registration leaves only the code mode' => function () use ($renderRegister): void {
@@ -330,7 +344,7 @@ return [
             'team_count'    => count($team),
             'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),
             'referral_code' => (string) $juan['referral_code'],
-            'referral_link' => url('register?ref=' . (string) $juan['referral_code']),
+            'referral_link' => absolute_url('register?ref=' . (string) $juan['referral_code']),
         ]);
 
         assert_contains('Upline chain', $html);
@@ -378,7 +392,7 @@ return [
                 'team_count'    => count($team),
                 'levels_used'   => 1,
                 'referral_code' => 'TESTCODE',
-                'referral_link' => url('register?ref=TESTCODE'),
+                'referral_link' => absolute_url('register?ref=TESTCODE'),
             ]);
 
             assert_not_contains('<script>alert(1)</script>', $html);
@@ -413,7 +427,7 @@ return [
             'last_activation' => null,
             'activation_count' => 0,
             'referral_code' => (string) $juan['referral_code'],
-            'referral_link' => url('register?ref=' . (string) $juan['referral_code']),
+            'referral_link' => absolute_url('register?ref=' . (string) $juan['referral_code']),
             'recent_history' => [],
         ]);
 
@@ -449,7 +463,7 @@ return [
             'last_activation' => null,
             'activation_count' => 0,
             'referral_code' => (string) $david['referral_code'],
-            'referral_link' => url('register?ref=' . (string) $david['referral_code']),
+            'referral_link' => absolute_url('register?ref=' . (string) $david['referral_code']),
             'recent_history' => [],
         ]);
 
