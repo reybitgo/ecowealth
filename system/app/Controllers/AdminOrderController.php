@@ -242,7 +242,7 @@ final class AdminOrderController
                 'assets/vendor/libs/sweetalert2/sweetalert2.js',
                 'assets/js/app-confirm.js',
                 'assets/js/app-ship.js',
-                'assets/js/admin-order.js',
+                'assets/js/admin-live.js',
             ],
             'ctx'  => $this->orderContext($order),
             'live' => Live::meta(

@@ -133,7 +133,7 @@ final class AdminMemberController
 
         old_clear();
 
-        Live::publish('admin.dashboard');
+        Live::publish(['admin.dashboard', 'admin.wallets', Live::walletSurface($id)]);
 
         flash_set('success', sprintf(
             '@%s is now %s%s.',
@@ -166,7 +166,7 @@ final class AdminMemberController
             redirect('admin/members');
         }
 
-        Live::publish('admin.dashboard');
+        Live::publish(['admin.dashboard', 'admin.wallets', Live::walletSurface($id)]);
 
         flash_set('success', sprintf(
             '@%s is now %s.',

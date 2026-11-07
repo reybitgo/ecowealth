@@ -390,6 +390,7 @@ final class Member
             ], $pdo);
 
             Live::touch('admin.dashboard');
+            Live::touchWallet($memberId);
 
             if ($owns) {
                 $pdo->commit();

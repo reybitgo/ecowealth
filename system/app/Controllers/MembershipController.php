@@ -128,7 +128,13 @@ final class MembershipController
         old_clear();
 
         if ((string) $result['status'] !== 'pending_review') {
-            Live::publish('admin.dashboard');
+            $publish = ['admin.dashboard', 'admin.wallets'];
+
+            if ((int) ($result['user_id'] ?? 0) > 0) {
+                $publish[] = Live::walletSurface((int) $result['user_id']);
+            }
+
+            Live::publish($publish);
         }
 
         if ((string) $result['status'] === 'pending_review') {

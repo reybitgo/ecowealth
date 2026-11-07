@@ -217,6 +217,10 @@ final class RegistrationService
 
                 Live::touch('admin.dashboard');
 
+                /* A new member is a new row in the wallet monitor's
+                 * directory (an unfunded wallet still belongs there). */
+                Live::touchWallet($userId);
+
                 return $summary;
             });
         } catch (PDOException $e) {

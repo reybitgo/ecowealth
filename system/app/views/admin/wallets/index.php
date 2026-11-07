@@ -10,6 +10,13 @@ declare(strict_types=1);
  * topped up today — then three tabs: the member directory, every
  * admin top-up, and every ledger movement across all wallets.
  *
+ * The page is one live surface. The metric badges, stat cards, tab counts
+ * and the active tab's rows are regions; the search/filter forms stay
+ * outside them so a background refresh never steals focus or discards an
+ * unsubmitted search. The ledger tab's statement card includes its filter
+ * form, so it is marked `data-live-hold="dirty"` and the page shows a
+ * stale banner instead of overwriting typed filters.
+ *
  * @var array{
  *   total: float, withdrawable: float, locked: float, funded_members: int,
  *   topups: int, topup_total: float, topups_today: int, topup_today_total: float,
@@ -28,95 +35,56 @@ declare(strict_types=1);
  * @var Paginator $ledger_pager
  * @var array{rows:int, credits:float, debits:float, net:float} $ledger_totals
  * @var array{type:string, ref_type:string, from:string, to:string, q:string} $ledger_filters
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
-$cards = [
-    [
-        'label' => 'Total float',
-        'value' => money((float) $totals['total']),
-        'hint'  => $totals['funded_members'] . ' funded wallet' . ($totals['funded_members'] === 1 ? '' : 's'),
-        'icon'  => 'bx-wallet',
-        'tone'  => 'primary',
-    ],
-    [
-        'label' => 'Withdrawable',
-        'value' => money((float) $totals['withdrawable']),
-        'hint'  => 'Cashable by members',
-        'icon'  => 'bx-money-withdraw',
-        'tone'  => 'success',
-    ],
-    [
-        'label' => 'Non-withdrawable',
-        'value' => money((float) $totals['locked']),
-        'hint'  => 'Spendable in the shop only',
-        'icon'  => 'bx-lock-alt',
-        'tone'  => 'warning',
-    ],
-    [
-        'label' => 'Top-ups today',
-        'value' => money((float) $totals['topup_today_total']),
-        'hint'  => $totals['topups_today'] . ' today · ' . money((float) $totals['topup_total']) . ' lifetime',
-        'icon'  => 'bx-plus-circle',
-        'tone'  => 'info',
-    ],
-];
-
-$tabs = [
-    'members' => ['label' => 'Members', 'icon' => 'bx-group'],
-    'topups'  => ['label' => 'Top-ups', 'icon' => 'bx-plus-circle'],
-    'ledger'  => ['label' => 'All movements', 'icon' => 'bx-transfer'],
+$live = $live ?? [
+    'surface'  => 'admin.wallets',
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
 ];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y wallet-monitor">
+            <div
+              class="container-xxl flex-grow-1 container-p-y wallet-monitor"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">E-wallet monitor</h4>
                   <p class="text-body-secondary mb-0">
                     The float, both buckets and every movement. Top-ups are audited; ledger rows are immutable.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
-                <div class="text-md-end">
-                  <span class="badge bg-label-secondary me-1">Credits today <?= e(money((float) $totals['credits_today'])) ?></span>
-                  <span class="badge bg-label-secondary">Debits today <?= e(money((float) $totals['debits_today'])) ?></span>
-                </div>
+<?= View::capture('admin/wallets/_metrics', ['totals' => $totals]) ?>
               </div>
 
-              <div class="row g-6 mb-6">
-<?php foreach ($cards as $card): ?>
-                <div class="col-6 col-xl-3">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small"><?= e($card['label']) ?></span>
-                      </div>
-                      <h4 class="mb-2 wallet-stat-value"><?= e($card['value']) ?></h4>
-                      <p class="text-body-secondary small mb-0"><?= e($card['hint']) ?></p>
-                    </div>
-                  </div>
-                </div>
-<?php endforeach; ?>
-              </div>
-
-              <ul class="nav nav-pills mb-4 wallet-tabs" role="tablist">
-<?php foreach ($tabs as $key => $meta): ?>
-                <li class="nav-item" role="presentation">
-                  <a
-                    class="nav-link <?= $tab === $key ? 'active' : '' ?>"
-                    href="<?= e(url('admin/wallets?tab=' . $key)) ?>"
-                    role="tab"
-                    aria-selected="<?= $tab === $key ? 'true' : 'false' ?>"
-                  >
-                    <i class="icon-base <?= e(icon_class($meta['icon'])) ?> me-1"></i> <?= e($meta['label']) ?>
-                    <span class="badge rounded-pill bg-label-primary ms-1"><?= (int) ($tab_counts[$key] ?? 0) ?></span>
+              <div
+                class="alert alert-warning d-flex align-items-start gap-2 mb-6 d-none"
+                data-live-stale
+                role="status"
+                aria-live="polite"
+              >
+                <i class="icon-base bx bx-error-circle fs-5"></i>
+                <div>
+                  <strong>The wallet data changed in another tab.</strong>
+                  Your unsaved filters were kept, so the ledger may be out of date.
+                  <a href="<?= e(url('admin/wallets')) ?>" class="alert-link" data-live-reload>
+                    Reload the monitor
                   </a>
-                </li>
-<?php endforeach; ?>
-              </ul>
+                  to see the latest.
+                </div>
+              </div>
+
+<?= View::capture('admin/wallets/_stats', ['totals' => $totals]) ?>
+
+<?= View::capture('admin/wallets/_tabs', ['tab' => $tab, 'tab_counts' => $tab_counts]) ?>
 
 <?php if ($tab === 'members'): ?>
               <div class="card">
@@ -163,74 +131,11 @@ $tabs = [
                         <th scope="col" class="text-end">Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
-<?php if ($members === []): ?>
-                      <tr>
-                        <td colspan="7" class="py-0">
-<?php
-    echo View::partial('empty_state', [
-        'icon'  => 'bx bx-group',
-        'title' => 'No members match these filters',
-        'text'  => 'Try a different search, or clear the filters to list every wallet.',
-    ]);
-?>
-                        </td>
-                      </tr>
-<?php endif; ?>
-<?php foreach ($members as $member): ?>
-<?php
-    $memberId     = (int) $member['id'];
-    $memberTotal  = round((float) $member['ewallet_balance'], 2);
-    $memberWith   = round((float) $member['withdrawable_balance'], 2);
-    $memberLocked = round($memberTotal - $memberWith, 2);
-
-    /* Status, not role: the wallet detail page already shows the role,
-     * and the monitor needs to distinguish pending from active members. */
-    $memberStatus = (string) ($member['member_status'] ?? '');
-
-    if ($memberStatus === '') {
-        $memberStatus = (int) ($member['is_active'] ?? 0) === 1 ? 'active' : 'inactive';
-    }
-?>
-                      <tr>
-                        <td>
-                          <div class="d-flex align-items-center gap-3">
-                            <span class="avatar avatar-sm">
-                              <span class="avatar-initial rounded-circle bg-label-primary">
-                                <?= e(initials((string) $member['username'])) ?>
-                              </span>
-                            </span>
-                            <div class="min-w-0">
-                              <a href="<?= e(url('admin/wallets/' . $memberId)) ?>" class="text-body fw-medium">
-                                <?= e((string) $member['username']) ?>
-                              </a>
-                              <div class="small text-body-secondary">
-                                <?= e(trim((string) ($member['full_name'] ?? '')) !== '' ? (string) $member['full_name'] : (string) $member['email']) ?>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td><?= status_badge($memberStatus) ?></td>
-                        <td class="text-end text-nowrap fw-semibold"><?= e(money($memberTotal)) ?></td>
-                        <td class="text-end text-nowrap"><?= e(money($memberWith)) ?></td>
-                        <td class="text-end text-nowrap text-body-secondary"><?= e(money($memberLocked)) ?></td>
-                        <td class="text-nowrap small text-body-secondary">
-                          <?= e($member['last_movement_at'] === null ? '—' : time_ago((string) $member['last_movement_at'])) ?>
-                        </td>
-                        <td class="text-end">
-                          <a href="<?= e(url('admin/wallets/' . $memberId)) ?>" class="btn btn-sm btn-label-primary">
-                            <i class="icon-base bx bx-wallet me-1"></i> Open
-                          </a>
-                        </td>
-                      </tr>
-<?php endforeach; ?>
-                    </tbody>
+<?= View::capture('admin/wallets/_members', ['members' => $members]) ?>
                   </table>
                 </div>
 
-                <div class="card-body pt-2">
-<?= View::partial('pagination', ['pager' => $members_pager, 'pager_label' => 'Members']) ?>
-                </div>
+<?= View::capture('admin/wallets/_members_pagination', ['members_pager' => $members_pager]) ?>
               </div>
 
 <?php elseif ($tab === 'topups'): ?>
@@ -269,61 +174,19 @@ $tabs = [
                         <th scope="col">Note</th>
                       </tr>
                     </thead>
-                    <tbody>
-<?php if ($topups === []): ?>
-                      <tr>
-                        <td colspan="5" class="py-0">
-<?php
-    echo View::partial('empty_state', [
-        'icon'  => 'bx bx-plus-circle',
-        'title' => 'No top-ups yet',
-        'text'  => 'Open a member’s wallet to credit it. Every top-up lands here and in the audit log.',
-        'action_href'  => 'admin/wallets',
-        'action_label' => 'Open the member directory',
-    ]);
-?>
-                        </td>
-                      </tr>
-<?php endif; ?>
-<?php foreach ($topups as $topup): ?>
-                      <tr>
-                        <td class="text-nowrap small"><?= e(format_datetime((string) $topup['created_at'])) ?></td>
-                        <td>
-                          <a href="<?= e(url('admin/wallets/' . (int) $topup['recipient_id'])) ?>" class="text-body fw-medium">
-                            <?= e((string) $topup['recipient_username']) ?>
-                          </a>
-                          <?php if (trim((string) ($topup['recipient_name'] ?? '')) !== ''): ?>
-                            <div class="small text-body-secondary"><?= e((string) $topup['recipient_name']) ?></div>
-                          <?php endif; ?>
-                        </td>
-                        <td class="text-end text-nowrap fw-semibold wallet-amount-positive"><?= e(money((float) $topup['amount'], true)) ?></td>
-                        <td><span class="badge bg-label-info"><?= e((string) $topup['admin_username']) ?></span></td>
-                        <td class="small text-body-secondary wallet-ref-note"><?= e(trim((string) ($topup['note'] ?? '')) !== '' ? (string) $topup['note'] : '—') ?></td>
-                      </tr>
-<?php endforeach; ?>
-                    </tbody>
+<?= View::capture('admin/wallets/_topups', ['topups' => $topups]) ?>
                   </table>
                 </div>
 
-                <div class="card-body pt-2">
-<?= View::partial('pagination', ['pager' => $topups_pager, 'pager_label' => 'Top-ups']) ?>
-                </div>
+<?= View::capture('admin/wallets/_topups_pagination', ['topups_pager' => $topups_pager]) ?>
               </div>
 
 <?php else: ?>
-<?=
-    View::partial('wallet_statement', [
-        'filters'         => $ledger_filters,
-        'ledger'          => $ledger,
-        'pager'           => $ledger_pager,
-        'totals'          => $ledger_totals,
-        'statement_url'   => url('admin/wallets?tab=ledger'),
-        'statement_title' => 'All wallet movements',
-        'show_member'     => true,
-        'empty_title'     => 'No movements match these filters',
-        'empty_text'      => 'Every credit and debit across all wallets appears here, newest first.',
-        'hidden_params'   => ['tab' => 'ledger'],
-    ])
-?>
+<?= View::capture('admin/wallets/_ledger', [
+    'ledger_filters' => $ledger_filters,
+    'ledger'         => $ledger,
+    'ledger_pager'   => $ledger_pager,
+    'ledger_totals'  => $ledger_totals,
+]) ?>
 <?php endif; ?>
             </div>

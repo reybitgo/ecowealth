@@ -63,6 +63,26 @@ final class Live
     }
 
     /**
+     * The detail surface key for one member wallet (`admin.wallets:42`).
+     */
+    public static function walletSurface(int $userId): string
+    {
+        return 'admin.wallets:' . max(0, $userId);
+    }
+
+    /**
+     * The member's own dashboard surface (`member.dashboard:42`).
+     *
+     * The member dashboard only exposes the E-wallet KPI and card as live
+     * regions; the surface is per user so one member's balance change never
+     * refreshes another member's open dashboard.
+     */
+    public static function memberDashboardSurface(int $userId): string
+    {
+        return 'member.dashboard:' . max(0, $userId);
+    }
+
+    /**
      * Bump the order list and one order's detail surface.
      *
      * Every write that changes an order row — placement, a proof, a review
@@ -72,6 +92,29 @@ final class Live
     public static function touchOrder(int $orderId): void
     {
         self::touch(['admin.orders', self::orderSurface($orderId)]);
+    }
+
+    /**
+     * Bump the wallet monitor and one member's wallet page.
+     *
+     * Every balance movement (top-up, commission, purchase, refund, payout)
+     * and every change to a member's directory fields (name, status) calls
+     * this after the change.
+     */
+    public static function touchWallet(int $userId): void
+    {
+        self::touch(['admin.wallets', self::walletSurface($userId)]);
+    }
+
+    /**
+     * Bump one member's dashboard so its E-wallet KPI and card refresh.
+     *
+     * Called after a wallet movement, not after directory/profile changes:
+     * the member dashboard's live regions only read the two buckets.
+     */
+    public static function touchMemberDashboard(int $userId): void
+    {
+        self::touch(self::memberDashboardSurface($userId));
     }
 
     /** Current revision for a surface; a missing row means revision 0. */

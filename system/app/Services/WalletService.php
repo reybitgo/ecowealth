@@ -579,12 +579,24 @@ final class WalletService
             $note === '' ? null : $note,
         ]);
 
+        /* Capture the ledger id before any other statement runs: the live
+         * revision bump below inserts into `live_revisions` and would
+         * otherwise become the connection's lastInsertId. */
+        $ledgerId = (int) $this->pdo->lastInsertId();
+
+        /* Both buckets and the monitor's movement list changed. A replayed
+         * movement returned above without touching anything. */
+        Live::touchWallet($userId);
+
+        /* The member's own dashboard shows the same two buckets. */
+        Live::touchMemberDashboard($userId);
+
         return [
             'ok'                 => true,
             'replayed'           => false,
             'type'               => $type,
             'amount'             => $amount,
-            'ledger_id'          => (int) $this->pdo->lastInsertId(),
+            'ledger_id'          => $ledgerId,
             'balance_after'      => $newTotal,
             'withdrawable_after' => $newWithdrawable,
             'user_id'            => $userId,

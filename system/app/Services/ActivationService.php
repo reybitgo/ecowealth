@@ -426,6 +426,10 @@ final class ActivationService
 
         Live::touch('admin.dashboard');
 
+        /* The member is now active: the wallet monitor's status column and
+         * this member's wallet header both read it. */
+        Live::touchWallet($userId);
+
         return [
             'activation_id' => $activationId,
             'user_id'       => $userId,

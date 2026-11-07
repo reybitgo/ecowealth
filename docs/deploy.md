@@ -74,7 +74,7 @@ You will use only these Hostinger hPanel areas:
 In deployment terms, the live-update feature adds two new artifacts you must not forget:
 
 - one static script, `public/assets/js/app-live.js` (loaded by the footer on every page),
-  plus the per-page hooks it calls (`admin-dashboard.js`, `admin-order.js`);
+  plus the per-page hooks it calls (`admin-dashboard.js`, `admin-live.js`);
 - one small table: `live_revisions` (one row per page surface).
 
 Everything else ships as part of the application files. There is no separate service to
@@ -488,6 +488,13 @@ If you imported your existing database, use your existing credentials.
    new status and review pane without a refresh. Type into a note field in that second
    tab first; the page must keep the typed value and show the "another administrator
    updated this order" banner instead of replacing the form.
+7. Open `<app-url>/admin/wallets` in two tabs and open one member's wallet in each. Credit
+   the wallet from the first tab: the second tab's monitor and wallet page should update
+   without a refresh. Type into a ledger filter in the second tab first; its statement
+   card must keep the typed filter and show the stale banner instead of replacing it.
+8. Sign in as that member in another browser, open `<app-url>/dashboard`, then top their
+   wallet up from the admin wallet page. The member's E-wallet KPI and card should update
+   on the next poll (within 30 seconds) without a reload.
 
 If the page works but live updates do not:
 

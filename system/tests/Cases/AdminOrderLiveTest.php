@@ -607,14 +607,17 @@ return [
         assert_not_contains("document.querySelectorAll('form[data-confirm]')", $confirm);
 
         /* The page banner is driven by detail.held, not by every refresh. */
-        $order = (string) file_get_contents($root . 'admin-order.js');
-        assert_contains("document.querySelector('[data-live-stale]')", $order);
-        assert_contains('detail.held', $order);
-        assert_contains("classList.remove('d-none')", $order);
-        assert_contains("classList.add('d-none')", $order);
+        $adminJs = (string) file_get_contents($root . 'admin-live.js');
+        assert_contains("document.querySelector('[data-live-stale]')", $adminJs);
+        assert_contains('detail.held', $adminJs);
+        assert_contains("classList.remove('d-none')", $adminJs);
+        assert_contains("classList.add('d-none')", $adminJs);
+        assert_contains('isAdminSurface', $adminJs);
+        assert_contains('data-live-reload', $adminJs);
     },
 
-    'the order pages declare their live surfaces and regions' => function () use ($makeProduct, $makeMember, $placeOrder): void {        $admin   = test_user('desk_page_admin', 'admin');
+    'the order pages declare their live surfaces and regions' => function () use ($makeProduct, $makeMember, $placeOrder): void {
+        $admin   = test_user('desk_page_admin', 'admin');
         $member  = $makeMember();
         $product = $makeProduct();
 
@@ -677,7 +680,7 @@ return [
                     'assets/vendor/libs/sweetalert2/sweetalert2.js',
                     'assets/js/app-confirm.js',
                     'assets/js/app-ship.js',
-                    'assets/js/admin-order.js',
+                    'assets/js/admin-live.js',
                 ],
                 'ctx'  => $ctx,
                 'live' => Live::meta('admin.orders:' . $orderId, 'page'),
@@ -689,7 +692,7 @@ return [
         assert_contains('data-live-surface="admin.orders:' . $orderId . '"', $detailHtml);
         assert_contains('data-live-status', $detailHtml);
         assert_contains('data-live-stale', $detailHtml);
-        assert_contains('admin-order.js', $detailHtml);
+        assert_contains('admin-live.js', $detailHtml);
         assert_contains('data-live-region="order-status"', $detailHtml);
         assert_contains('data-live-region="order-payment"', $detailHtml);
         assert_contains('data-live-region="order-fulfilment"', $detailHtml);

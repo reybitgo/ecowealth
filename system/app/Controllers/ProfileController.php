@@ -116,7 +116,15 @@ final class ProfileController
             ->execute([mb_substr($input['full_name'], 0, 100), (int) $user['id']]);
 
         Live::touch('admin.dashboard');
-        Live::publish('admin.dashboard');
+
+        /* The wallet monitor shows the member's name; their own wallet
+         * header does too. */
+        Live::touchWallet((int) $user['id']);
+        Live::publish([
+            'admin.dashboard',
+            'admin.wallets',
+            Live::walletSurface((int) $user['id']),
+        ]);
 
         old_clear();
         flash_set('success', 'Profile updated.');

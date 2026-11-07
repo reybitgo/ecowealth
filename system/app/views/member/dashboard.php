@@ -21,12 +21,20 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $recent_history
  * @var string                     $referral_code
  * @var string                     $referral_link
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
+
+$live = $live ?? [
+    'surface'  => Live::memberDashboardSurface((int) ($member['id'] ?? 0)),
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
+];
 
 $status       = (string) $member['member_status'];
 $hasPackage   = $member['package_id'] !== null;
 $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['username'];
-$lockedAmount = max(0.0, $balance - $withdrawable);
 
 $statusTone = match ($status) {
     'active'    => 'success',
@@ -52,13 +60,6 @@ $kpis = [
         'tone'   => $hasPackage ? 'primary' : 'info',
     ],
     [
-        'label'  => 'E-wallet',
-        'value'  => money($balance),
-        'sub'    => money($withdrawable) . ' withdrawable',
-        'icon'   => 'bx-wallet',
-        'tone'   => 'success',
-    ],
-    [
         'label'  => 'Commissions',
         'value'  => money($commissions['credited']),
         'sub'    => $commissions['count'] === 0
@@ -76,13 +77,23 @@ $kpis = [
     ],
 ];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y">
+            <div
+              class="container-xxl flex-grow-1 container-p-y"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <?= flash_render() ?>
 
               <div class="d-flex align-items-start align-items-sm-center justify-content-between flex-column flex-sm-row gap-3 mb-4">
                 <div>
                   <h4 class="mb-1">Welcome back, <?= e($displayName) ?><?= $status === 'active' ? ' &#x1f44b;' : '' ?></h4>
-                  <p class="text-body-secondary mb-0">Your membership, wallet and orders in one place.</p>
+                  <p class="text-body-secondary mb-0">
+                    Your membership, wallet and orders in one place.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
+                  </p>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <?= status_badge($status, [
@@ -155,24 +166,10 @@ $kpis = [
 
               <!-- KPIs -->
               <div class="row g-4 mb-4">
-<?php foreach ($kpis as $kpi): ?>
-                <div class="col-sm-6 col-xl-3">
-                  <div class="card h-100">
-                    <div class="card-body">
-                      <div class="d-flex align-items-start justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($kpi['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($kpi['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                      </div>
-                      <p class="text-body-secondary mb-1 small"><?= e($kpi['label']) ?></p>
-                      <h4 class="mb-1 text-truncate"><?= e($kpi['value']) ?></h4>
-                      <small class="text-body-secondary d-block"><?= e($kpi['sub']) ?></small>
-                    </div>
-                  </div>
-                </div>
-<?php endforeach; ?>
+<?= View::capture('member/dashboard/_kpi', ['kpi' => $kpis[0]]) ?>
+<?= View::capture('member/dashboard/_wallet_kpi', ['balance' => $balance, 'withdrawable' => $withdrawable]) ?>
+<?= View::capture('member/dashboard/_kpi', ['kpi' => $kpis[1]]) ?>
+<?= View::capture('member/dashboard/_kpi', ['kpi' => $kpis[2]]) ?>
               </div>
 
               <div class="row g-4 mb-4">
@@ -254,36 +251,7 @@ $kpis = [
 
                 <!-- Wallet -->
                 <div class="col-xl-6">
-                  <div class="card h-100">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                      <h5 class="card-title mb-0">E-wallet</h5>
-                      <a href="<?= e(url('wallet')) ?>" class="btn btn-sm btn-label-primary">Statement</a>
-                    </div>
-                    <div class="card-body">
-                      <div class="row g-3">
-                        <div class="col-sm-6">
-                          <div class="status-tile">
-                            <div class="status-tile-label">Total balance</div>
-                            <div class="status-tile-value"><?= e(money($balance)) ?></div>
-                          </div>
-                        </div>
-                        <div class="col-sm-6">
-                          <div class="status-tile">
-                            <div class="status-tile-label">Withdrawable</div>
-                            <div class="status-tile-value"><?= e(money($withdrawable)) ?></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="alert alert-secondary d-flex align-items-start gap-2 py-3 mt-3 mb-0" role="alert">
-                        <i class="icon-base bx bx-info-circle fs-5"></i>
-                        <div class="small">
-                          <?= e(money($lockedAmount)) ?> of your balance is spend-only (admin top-ups). Commissions and
-                          refunds stay withdrawable.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+<?= View::capture('member/dashboard/_wallet_card', ['balance' => $balance, 'withdrawable' => $withdrawable]) ?>
                 </div>
               </div>
 

@@ -1,8 +1,10 @@
 # Live page updates
 
-The admin product list, the admin dashboard and the order desk (list and
-one order) update themselves without a full page reload. The same pattern is
-intended for the other list, detail and dashboard pages.
+The admin product list, the admin dashboard, the order desk (list and one
+order), the wallet monitor (all three tabs and one member's wallet) and the
+member dashboard's E-wallet widgets update themselves without a full page
+reload. The same pattern is intended for the other list, detail and dashboard
+pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -75,6 +77,10 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
 - `publish(...)` / `takePublished()` — native POST → redirect → broadcast
 - `orderSurface($id)` / `touchOrder($id)` — the `admin.orders` list plus one
   `admin.orders:{id}` detail page
+- `walletSurface($id)` / `touchWallet($id)` — the `admin.wallets` monitor plus
+  one `admin.wallets:{id}` detail page
+- `memberDashboardSurface($id)` / `touchMemberDashboard($id)` — the member's
+  own `/dashboard`, where the E-wallet KPI and card are live regions
 
 `Product::save()`, `Product::setStatus()` and `Product::delete()` touch
 `admin.products` after a successful change. A surface must be touched by
@@ -87,6 +93,20 @@ proof upload, verify/reject/cancel (admin and member), packing, shipping,
 delivery, member confirmation, payment expiry and auto-complete. The detail
 surface is `admin.orders:{id}`, so a background refresh on one order page never
 touches another.
+
+A wallet has a monitor surface and one detail surface. `WalletService::apply()`
+calls `touchWallet()` after every successful balance movement — top-ups,
+commissions, purchases, refunds and payouts — and skips a replayed movement
+because no money moved. The same movement also calls `touchMemberDashboard()`
+so the member's own `/dashboard` E-wallet KPI and card refresh. Member-facing
+writes that change what the monitor shows (registration, activation, a status
+change, a profile name) touch the admin surfaces only. The detail surface is
+`admin.wallets:{id}`, so one wallet's movement does not refresh every other
+open wallet page.
+
+`/dashboard` is role-dependent: an administrator is delegated to the admin
+dashboard and keeps the `admin.dashboard` surface, while a member gets
+`member.dashboard:{id}` with only those two wallet regions live.
 
 ## Client behaviour
 
@@ -104,7 +124,7 @@ touches another.
   the held keys in `detail.held` so the page can show a stale banner; once every
   held field is clean again it forces one refresh and applies the newer form;
 - updates `history.replaceState()` when a page is clamped to the last page;
-- broadcasts after a status/delete success and forces one local refresh;
+- broadcasts after a successful live mutation and forces one local refresh;
 - uses a `localStorage`/`storage` fallback when `BroadcastChannel` is missing;
 - dispatches `ecowealth:live-applied` after a payload is applied, with
   `detail.surface`, `detail.payload`, `detail.applied`, `detail.deferred` (focus
@@ -139,7 +159,7 @@ The admin dashboard uses this hook to destroy and recreate its ApexCharts instan
 the catalogue or stock card is replaced. A deferred region (focus was inside it) is not
 listed in `detail.applied`, so its chart is not re-rendered until the actual swap.
 
-Two order-page behaviours re-initialise themselves the same way:
+Two page behaviours keep swapped forms working:
 
 - `public/assets/js/app-ship.js` re-runs the courier/“Other courier” toggle after the
   fulfilment card is replaced, because the ship form can be swapped in.
@@ -147,16 +167,28 @@ Two order-page behaviours re-initialise themselves the same way:
   binding each form at load, so a verify/reject/ship/cancel form that a swap inserted
   still asks for confirmation before it posts.
 
-`public/assets/js/admin-order.js` consumes `detail.held` and reveals the page's
-`[data-live-stale]` banner: “another administrator updated this order, reload to see the
-latest actions”. The banner is only shown when a form region was held back; otherwise
-the newer forms were swapped in and there is nothing stale.
+`public/assets/js/admin-live.js` is shared by every admin surface with a form region:
+it consumes `detail.held` and reveals the page's `[data-live-stale]` banner (“changed
+in another tab, your unsaved input was kept — reload to see the latest”). The banner is
+only shown when a form region was held back; a payload that applied cleanly hides it
+again. A `[data-live-reload]` link in the banner is pointed at the current URL, filters
+and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
-“today” counters use `CURDATE()`; a tab left open across midnight therefore revalidates
-on its next poll. The navbar notification dropdown sits outside the dashboard surface and
-updates on the next full navigation; it is a candidate for a future shell surface.
+“today” counters use `CURDATE()`. The wallet monitor adds the hour as well, because its
+directory shows a relative “last movement” label; a tab left open therefore revalidates
+on its next poll without a write. The navbar notification dropdown sits outside the
+dashboard surface and updates on the next full navigation; it is a candidate for a
+future shell surface.
+
+### Tabbed pages
+
+The wallet monitor is one surface with three tabs. The feed returns the shared regions
+(metric badges, stat cards, tab counts) plus only the active tab's regions; a fragment
+key with no matching region is ignored by the client. Because the tab is part of the URL,
+the existing `window.location.href` feed URL already selects the right feed, and the
+canonical URL keeps `tab=` and the filters while clamping only the page number.
 
 ## Adding another surface
 
@@ -212,9 +244,12 @@ updates on the next full navigation; it is a candidate for a future shell surfac
 | `admin.dashboard` | `/admin` | KPIs, catalogue chart, stock health, recent accounts, packages |
 | `admin.orders` | `/admin/orders` | header/counter, stats, rows, pagination |
 | `admin.orders:{id}` | `/admin/orders/{id}` | status, payment review, fulfilment, items, history, member, delivery, shipment, payment summary, cancel |
+| `admin.wallets` | `/admin/wallets` | metrics, stats, tab counts, members tab, top-ups tab, ledger tab |
+| `admin.wallets:{id}` | `/admin/wallets/{id}` | heading, badges, buckets, statement, top-up form, top-up history |
+| `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
 
-Planned next: `admin.wallets` (+ detail), `admin.members`, `admin.activations`,
-`admin.codes`, `admin.commissions`, `shop.catalog`, `shop.product:{id}`,
+Planned next: `admin.members`, `admin.activations`, `admin.codes`,
+`admin.commissions`, `shop.catalog`, `shop.product:{id}`,
 `member.orders:{userId}`, `member.wallet:{userId}`, `member.earnings:{userId}`.
 
 ## Deployment

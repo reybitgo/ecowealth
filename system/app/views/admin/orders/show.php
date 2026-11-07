@@ -148,7 +148,7 @@ $live = $live ?? [
                 <div>
                   <strong>Another administrator updated this order.</strong>
                   Your unsaved changes were kept, so the action forms may be out of date.
-                  <a href="<?= e(url('admin/orders/' . $orderId)) ?>" class="alert-link">Reload the order</a>
+                  <a href="<?= e(url('admin/orders/' . $orderId)) ?>" class="alert-link" data-live-reload>Reload the order</a>
                   to see the latest actions.
                 </div>
               </div>

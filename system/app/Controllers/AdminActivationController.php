@@ -85,7 +85,13 @@ final class AdminActivationController
             redirect('admin/activations');
         }
 
-        Live::publish('admin.dashboard');
+        $publish = ['admin.dashboard', 'admin.wallets'];
+
+        if ((int) ($result['user_id'] ?? 0) > 0) {
+            $publish[] = Live::walletSurface((int) $result['user_id']);
+        }
+
+        Live::publish($publish);
 
         flash_set('success', sprintf(
             'Activation #%d approved — @%s is now active with %s (%s).',

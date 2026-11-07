@@ -18,6 +18,8 @@ declare(strict_types=1);
  * @var string  $empty_title
  * @var string  $empty_text
  * @var array<string, string> $hidden_params Extra GET parameters (e.g. the monitor tab)
+ * @var string|null $live_region  Wrap the card as a live region when set
+ * @var bool    $live_hold     true when the card owns the filter form (admin pages)
  */
 
 $filters        = $filters ?? Wallet::filterDefaults();
@@ -29,6 +31,8 @@ $show_member    = (bool) ($show_member ?? false);
 $empty_title    = $empty_title ?? 'No wallet movements yet';
 $empty_text     = $empty_text ?? 'Money movements appear here as they happen — commissions, top-ups, purchases and payouts.';
 $hidden_params  = $hidden_params ?? [];
+$live_region    = $live_region ?? null;
+$live_hold      = (bool) ($live_hold ?? false);
 
 $hasFilters = ($filters['type'] ?? '') !== ''
     || ($filters['ref_type'] ?? '') !== ''
@@ -38,7 +42,15 @@ $hasFilters = ($filters['type'] ?? '') !== ''
 
 $columns = $show_member ? 6 : 5;
 ?>
-              <div class="card wallet-statement">
+              <div
+                class="card wallet-statement"
+<?php if ($live_region !== null && (string) $live_region !== ''): ?>
+                data-live-region="<?= e((string) $live_region) ?>"
+<?php endif; ?>
+<?php if ($live_hold): ?>
+                data-live-hold="dirty"
+<?php endif; ?>
+              >
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <div>
                     <h5 class="mb-1"><?= e($statement_title) ?></h5>
