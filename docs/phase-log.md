@@ -2302,6 +2302,44 @@ view test now pins the icon-only class and the browser harness covers the intera
 `docs/qa/evidence/shell/final-membership-copy.png` (hover) and `final-membership-copy-copied.png`
 (check + “Copied!”).
 
+---
+
+## Post-Phase 9 — The registrar is the default sponsor
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 399 PHP cases,
+132 smoke checks, 9 browser checks.
+
+### Change
+
+When a signed-in registrar opens `/register` and no `?ref` / `?sponsor` prefill is present, the
+**Sponsor username or referral code** field now defaults to their own username, and the hint reads
+“Defaults to your account, @juan.” The guest hint is unchanged. The field stays editable, a shared link's
+sponsor still wins, and `app-register.js` restores the registrar hint when the field is cleared.
+
+Why: a sponsor registering a member — most visibly through the **e-wallet** mode, where they pay from
+their own balance — had to retype their username, and leaving it blank placed the new member under the
+company account instead of their own tree.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **399 / 399** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser harness (`tests/tmp/verify-register-nav.mjs`) | **9 / 9** — as `@juan`: sponsor `juan`, hint “Defaults to your account, @juan.”; `?sponsor=maria` still pre-fills `maria` |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Evidence
+
+`docs/qa/evidence/shell/final-register-registrar.png` — the signed-in register page with the sponsor
+field already set to `juan`.
+
+### Decision
+
+**A convenience, not enforcement.** The registrar can still change the sponsor (an admin may register
+someone under another sponsor), and clearing the field keeps the documented blank → company-account
+rule; the server's validation is untouched.
+
 
 
 

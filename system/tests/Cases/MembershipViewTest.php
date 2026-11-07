@@ -193,6 +193,11 @@ return [
         assert_contains('@' . $registrar['username'], $html);
         assert_contains('Back to dashboard', $html);
         assert_not_contains('Already have an account?', $html, 'a signed-in registrar is not offered sign-in');
+        assert_contains(
+            'Defaults to your account, @' . $registrar['username'] . '.',
+            $html,
+            'the sponsor hint names the registrar'
+        );
     },
 
     'P9-T1 closed free registration leaves only the code mode' => function () use ($renderRegister): void {

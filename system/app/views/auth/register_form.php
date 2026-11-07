@@ -205,9 +205,14 @@ $feedback = static function (string $field, string $attributes = ''): string {
           />
         </div>
         <?= $feedback('sponsor') ?>
-        <div class="form-text" data-sponsor-hint>
-          Leave this blank to join under the company account.
-        </div>
+<?php $sponsorHintDefault = $registrar === null
+    ? 'Leave this blank to join under the company account.'
+    : 'Defaults to your account, @' . (string) $registrar['username'] . '.'; ?>
+        <div
+          class="form-text"
+          data-sponsor-hint
+          data-sponsor-default="<?= e($sponsorHintDefault) ?>"
+        ><?= e($sponsorHintDefault) ?></div>
       </div>
 
       <div class="row g-4">

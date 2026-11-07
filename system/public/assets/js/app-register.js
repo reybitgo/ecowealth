@@ -174,6 +174,9 @@
   /* ---------- Sponsor check --------------------------------- */
   var sponsor = form.querySelector('[data-sponsor-input]');
   var sponsorHint = form.querySelector('[data-sponsor-hint]');
+  var sponsorDefault = sponsorHint
+    ? sponsorHint.getAttribute('data-sponsor-default') || 'Optional — leave blank to join under the company account.'
+    : '';
   var sponsorTimer = null;
 
   if (sponsor && sponsorHint) {
@@ -183,7 +186,7 @@
       window.clearTimeout(sponsorTimer);
 
       if (value === '') {
-        setHint(sponsorHint, 'Optional — leave blank to join under the company account.', '');
+        setHint(sponsorHint, sponsorDefault, '');
         return;
       }
 

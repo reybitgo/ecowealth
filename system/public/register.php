@@ -140,6 +140,14 @@ if ($referral !== '') {
     }
 }
 
+/* A signed-in registrar is the natural sponsor: default the field to their
+ * own username (most visibly for the e-wallet mode, where they pay for the
+ * new member). A ?ref / ?sponsor link above still wins, and the field stays
+ * editable so an admin can register someone under another sponsor. */
+if ($prefill_sponsor === '' && $registrar !== null) {
+    $prefill_sponsor = (string) $registrar['username'];
+}
+
 $defaultMode = $free_enabled ? 'standard' : 'code';
 
 if ($referral !== '') {
