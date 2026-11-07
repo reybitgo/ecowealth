@@ -99,15 +99,29 @@ final class RegistrationService
             }
         }
 
-        $sponsor = $this->sponsors->resolve((string) ($input['sponsor'] ?? ''));
+        $typedSponsor = trim((string) ($input['sponsor'] ?? ''));
+
+        /* Free registration is open, so the sponsor field is optional: a
+         * blank field joins the member under the company account (the
+         * default sponsor) instead of being refused. A typed sponsor must
+         * still resolve to an active account. */
+        $sponsor = $typedSponsor === ''
+            ? $this->sponsors->defaultSponsor()
+            : $this->sponsors->resolve($typedSponsor);
 
         if ($sponsor === null) {
-            throw RegistrationException::sponsor('Enter a valid sponsor username or referral code.');
+            throw RegistrationException::sponsor(
+                $typedSponsor === ''
+                    ? 'Registration is not open yet — no sponsoring account exists. Please contact support.'
+                    : 'Enter a valid sponsor username or referral code.'
+            );
         }
 
         if (!$this->sponsors->isEligible($sponsor)) {
             throw RegistrationException::sponsor('That sponsor account is not active.');
         }
+
+        $sponsorDefaulted = $typedSponsor === '';
 
         $username = trim((string) ($input['username'] ?? ''));
         $email    = strtolower(trim((string) ($input['email'] ?? '')));
@@ -121,6 +135,7 @@ final class RegistrationService
                 $input,
                 $registrar,
                 $sponsor,
+                $sponsorDefaulted,
                 $package,
                 $username,
                 $email,
@@ -175,6 +190,8 @@ final class RegistrationService
                     'package_name'  => null,
                     'activation_id' => null,
                     'sponsor_id'    => (int) $sponsor['id'],
+                    'sponsor_username' => (string) ($sponsor['username'] ?? ''),
+                    'sponsor_defaulted' => $sponsorDefaulted,
                 ];
 
                 if ($mode === 'code') {
@@ -190,10 +207,11 @@ final class RegistrationService
                     'subject_type' => 'user',
                     'subject_id'   => $userId,
                     'meta'         => [
-                        'mode'          => $mode,
-                        'sponsor_id'    => (int) $sponsor['id'],
-                        'activation_id' => $summary['activation_id'],
-                        'package_id'    => $summary['package_id'],
+                        'mode'           => $mode,
+                        'sponsor_id'     => (int) $sponsor['id'],
+                        'sponsor_defaulted' => $sponsorDefaulted,
+                        'activation_id'  => $summary['activation_id'],
+                        'package_id'     => $summary['package_id'],
                     ],
                 ], $this->pdo);
 
@@ -282,11 +300,12 @@ final class RegistrationService
             $errors['password_confirm'] = 'Password and confirmation do not match.';
         }
 
+        /* The sponsor is optional: a blank field joins the member under
+         * the company's default sponsor (the primary admin). A typed
+         * value still may not be the member's own username. */
         $sponsor = trim((string) ($input['sponsor'] ?? ''));
-        if ($sponsor === '') {
-            $errors['sponsor'] = 'A sponsor is required — enter their username or referral code.';
-        } elseif (strcasecmp($sponsor, $username) === 0) {
-            $errors['sponsor'] = 'You cannot sponsor yourself. Enter your sponsor’s username.';
+        if ($sponsor !== '' && strcasecmp($sponsor, $username) === 0) {
+            $errors['sponsor'] = 'You cannot sponsor yourself. Enter your sponsor’s username, or leave it blank.';
         }
 
         if ($mode === 'code' && RegCode::normalise((string) ($input['reg_code'] ?? '')) === '') {

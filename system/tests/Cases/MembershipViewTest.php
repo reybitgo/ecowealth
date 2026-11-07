@@ -94,7 +94,20 @@ return [
         assert_not_contains('value="ewallet"', $html);
         assert_contains('Sign in', $html);
 
-        assert_contains('name="sponsor"', $html, 'every mode collects a sponsor');
+        assert_contains('name="sponsor"', $html, 'the sponsor field is present');
+        assert_contains('Sponsor username or referral code', $html);
+        assert_contains('(optional)', $html, 'the sponsor field is optional');
+        assert_contains('Leave this blank to join under the company account.', $html);
+        assert_same(
+            1,
+            preg_match('/id="sponsor"[\s\S]{0,400}?\/>/', $html),
+            'the sponsor input renders'
+        );
+        assert_same(
+            0,
+            preg_match('/id="sponsor"[\s\S]{0,400}?required/', $html),
+            'the sponsor input is not required'
+        );
         assert_contains('name="reg_code"', $html);
         assert_contains('name="terms"', $html);
         assert_contains('name="_csrf"', $html);

@@ -1886,6 +1886,52 @@ Phase 10 — direct referral commissions: the `commissions` table, `CommissionSe
 package's `direct_referral_bonus` to `sponsor_id` inside the activation transaction, the wallet credit
 (`ref_type='commission'`), the uniqueness anchor and the member earnings page.
 
+---
+
+## Post-Phase 9 — Sponsor is optional; a blank field joins the company account
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 389 PHP cases,
+130 smoke checks.
+
+### Problem
+
+Free registration is open, but the form still marked the sponsor field `required` and the service
+refused a blank value. That closed the door on anyone who joins without a sponsor — a walk-in, someone
+who found the site directly, or an existing member adding people who have no upline. Decision D3 said
+"required"; with free registration live it became an unnecessary barrier.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Service** | [`SponsorService::defaultSponsor()`](../system/app/Services/SponsorService.php) resolves the company's sponsoring account: the primary admin (the same account that receives registration revenue), falling back to the lowest-id active account if no admin is usable. |
+| **Registration** | [`RegistrationService`](../system/app/Services/RegistrationService.php) treats a blank sponsor as "join under the company account" in every mode; a typed sponsor still has to resolve to an active account (unknown / self / suspended are still field errors). The summary carries `sponsor_defaulted` and the `member.register` audit entry records it. |
+| **Form** | [`register_form.php`](../system/app/views/auth/register_form.php) — the label reads **Sponsor username or referral code (optional)**, the helper says *Leave this blank to join under the company account*, and the `required` attribute is gone. [`app-register.js`](../system/public/assets/js/app-register.js) shows the same hint when the field is cleared. |
+| **Tests** | `MembershipTest` +2 cases (blank sponsor → primary admin in standard and pending modes, with the audit flag; `defaultSponsor()` returns the admin); `MembershipViewTest` asserts the optional label/hint and that the input is not required; `smoke.ps1` +1 check (register with an empty sponsor over HTTP → active, sponsor `admin`). |
+| **Docs** | Plan D3 amended (§12) and the Phase 9 sponsor rule updated (§7); this log, the QA pack, the QA README and both READMEs follow. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **389 / 389** (51 membership cases) |
+| `powershell -NoProfile -File tests/smoke.ps1` | **130 / 130** |
+| Manual HTTP | blank sponsor → `302 /dashboard`, row `active|admin`; `?ref=JUAN0001` signup → `pending|juan` |
+| Browser | `/register` at 1440 × 900 shows the optional label and hint; screenshots refreshed (`docs/qa/evidence/phase-9/final-register*.png`) |
+
+### Decisions
+
+- **The default is the primary admin, not a hard-coded id.** `admin` happens to be id 1 in the seed,
+  but the rule is "the company's receiving account" — the first active `admin`, with a lowest-id active
+  fallback so a suspended admin cannot silently block signups. If no account is eligible at all, the
+  form says registration is not open yet and writes nothing.
+- **The typed sponsor path is unchanged.** Only the blank case changed; unknown usernames, self-sponsorship
+  and suspended sponsors remain field errors, and a valid typed sponsor overrides the default.
+- **The default is auditable.** `member.register` carries `sponsor_defaulted: true` and the resolved
+  `sponsor_id`, so the back office can tell a company-sponsored signup from a recruited one.
+- **Decision D3 is amended, not silently broken.** The plan now records "optional — blank joins the
+  company root", and the earlier Phase 9 section above stays as the record of what shipped that day.
+
 
 
 

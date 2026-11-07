@@ -14,9 +14,10 @@
 
 A visitor can **join** in one of four ways and end up with a real membership record: standard (free,
 shopping only), registration code, e-wallet (paid by a signed-in sponsor) or pending (activate
-later). Every account has a sponsor and a referral code. A pending member becomes an active
-associate the moment their package is paid — and that moment is the single trigger the commission
-engine of Phases 10–11 will listen to.
+later). Every account has a sponsor — typed, or the company admin when the optional field is left
+blank — and its own referral code. A pending member becomes an active associate the moment their
+package is paid — and that moment is the single trigger the commission engine of Phases 10–11 will
+listen to.
 
 Five rules matter most:
 
@@ -34,8 +35,9 @@ Five rules matter most:
 5. **Money still reconciles.** Every registration/activation wallet movement is a ledger row written
    by `WalletService`; `bin/wallet_reconcile.php` stays clean.
 
-**Already proven automatically:** P9-T1 standard registration (and the `free_registration_enabled`
-gate) · P9-T2 code registration activates the code's package · P9-T3 invalid/used/expired codes are
+**Already proven automatically:** P9-T1 standard registration, the `free_registration_enabled`
+gate and the blank-sponsor default (joins under the primary admin, audited) · P9-T2 code registration
+activates the code's package · P9-T3 invalid/used/expired codes are
 refused without an account · P9-T4 e-wallet registration debits the payer once, credits the admin,
 keeps the registrar's session · P9-T5 guest e-wallet refused · P9-T6 referral signup resolves the
 sponsor by code and stays pending · P9-T7 unknown/self/suspended sponsors refused · P9-T8 duplicate
@@ -45,9 +47,9 @@ P9-T12 double activation/approval refused · P9-T13 two parallel redemptions use
 (two database connections) · P9-T14 generation, expiry and export · P9-T15 route guards · P9-T16
 member detail + suspend/restore + audit · P9-T17 genealogy up/down, cycle safety and no binary
 column · P9-T18 referral-code uniqueness. `MembershipTest`, `MembershipViewTest` and the extended
-`MigrationTest`/`RouterTest` cover these (**387 cases in total**). The HTTP smoke script walks the
+`MigrationTest`/`RouterTest` cover these (**389 cases in total**). The HTTP smoke script walks the
 registration, code, pending, manual-activation, approve/reject, suspend/restore, codes and genealogy
-paths over HTTP — **129 checks in total**.
+paths over HTTP — **130 checks in total**.
 
 **Already captured headlessly** (reference screenshots — still run the checks; refresh them during
 your pass):
@@ -81,7 +83,7 @@ your pass):
 
 > **Before you start:** Phases 1–8 should be signed off, the demo tree must be seeded
 > (`database/seeds/005_demo_tree.sql`) and the automated suites must be green:
-> `php tests\run.php` → **387 cases**; `powershell -NoProfile -File tests\smoke.ps1` → **129 checks**.
+> `php tests\run.php` → **389 cases**; `powershell -NoProfile -File tests\smoke.ps1` → **130 checks**.
 > Create `docs\qa\evidence\phase-9\` for your own screenshots.
 
 ---
@@ -92,7 +94,7 @@ your pass):
 
 | | |
 |---|---|
-| **Why it matters** | This is the free front door: shopping only, no package, no commissions. |
+| **Why it matters** | This is the free front door: shopping only, no package, no commissions. The sponsor is optional so an unsponsored visitor can still join. |
 | **Where** | `/register` (signed out) |
 | **Evidence** | `QA9-01-register-standard.png` · reference `final-register.png` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
@@ -100,17 +102,18 @@ your pass):
 **Steps**
 
 1. Sign out, open `/register`.
-2. Keep **Standard** selected, type a sponsor (`juan` or `JUAN0001`), a new username, email and a
-   password of at least 8 characters, tick the terms.
-3. Submit.
+2. Keep **Standard** selected and **leave the sponsor field blank** (it is labelled *(optional)*).
+3. Fill in a new username, email and a password of at least 8 characters, tick the terms.
+4. Submit.
 
 **Expected**
 
 - The four mode cards render; **E-wallet** is shown as a teaser with a *Sign in* link for a guest.
+- The sponsor label says **(optional)** and the hint says *"Leave this blank to join under the company account."*
 - On submit you land on `/dashboard` with a success flash — no separate sign-in step.
 - The dashboard says **Standard member**, wallet ₱0.00, and the membership card says no package.
-- In `/admin/members` the new account is **Active**, package `—`, sponsor `@juan`, with an
-  8-character referral code.
+- In `/admin/members` the new account is **Active**, package `—`, sponsor **@admin** (the company
+  account), with an 8-character referral code.
 
 ### QA9-02 — A registration code lands the member active with its package
 
@@ -178,7 +181,8 @@ your pass):
 
 - The sponsor field shows `juan`; **Activate later** is selected.
 - The dashboard says **Pending activation** and links to Membership.
-- In `/admin/members` the account is **Pending**, sponsor `@juan`, and it has its own referral code.
+- In `/admin/members` the account is **Pending**, sponsor `@juan` (a typed sponsor overrides the
+  company default), and it has its own referral code.
 
 ### QA9-05 — A guest cannot pay with an e-wallet
 

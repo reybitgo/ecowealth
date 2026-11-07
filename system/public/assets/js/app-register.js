@@ -183,7 +183,7 @@
       window.clearTimeout(sponsorTimer);
 
       if (value === '') {
-        setHint(sponsorHint, 'Every member joins under a sponsor.', '');
+        setHint(sponsorHint, 'Optional — leave blank to join under the company account.', '');
         return;
       }
 

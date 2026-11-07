@@ -163,7 +163,10 @@ $feedback = static function (string $field): string {
 
       <!-- Sponsor -->
       <div class="mb-4">
-        <label class="form-label" for="sponsor">Sponsor username or referral code</label>
+        <label class="form-label" for="sponsor">
+          Sponsor username or referral code
+          <span class="text-body-secondary">(optional)</span>
+        </label>
         <div class="input-group">
           <span class="input-group-text"><i class="icon-base bx bx-user-check"></i></span>
           <input
@@ -175,11 +178,12 @@ $feedback = static function (string $field): string {
             placeholder="e.g. juan or JUAN0001"
             autocomplete="off"
             data-sponsor-input
-            required
           />
         </div>
         <?= $feedback('sponsor') ?>
-        <div class="form-text" data-sponsor-hint>Every member joins under a sponsor.</div>
+        <div class="form-text" data-sponsor-hint>
+          Leave this blank to join under the company account.
+        </div>
       </div>
 
       <div class="row g-4">

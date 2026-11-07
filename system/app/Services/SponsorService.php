@@ -103,6 +103,48 @@ final class SponsorService
     }
 
     /**
+     * The company's default sponsor for a referral-less signup.
+     *
+     * Free registration is open to everyone, so the form's sponsor field
+     * is optional: a blank field means "join under the company account".
+     * That account is the primary admin (the first active `admin`, the
+     * same account that receives registration revenue), falling back to
+     * the lowest-id active account if no admin is usable.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function defaultSponsor(?PDO $pdo = null): ?array
+    {
+        $pdo ??= $this->pdo;
+
+        $admin = Member::primaryAdmin($pdo);
+
+        if ($admin !== null) {
+            $row = Member::find((int) $admin['id'], $pdo);
+
+            if ($row !== null && $this->isEligible($row)) {
+                return $row;
+            }
+        }
+
+        $stmt = $pdo->query(
+            "SELECT id FROM users
+              WHERE is_active = 1 AND member_status <> 'suspended'
+              ORDER BY id ASC
+              LIMIT 1"
+        );
+        $fallbackId = (int) ($stmt->fetchColumn() ?: 0);
+
+        if ($fallbackId <= 0) {
+            return null;
+        }
+
+        $row = Member::find($fallbackId, $pdo);
+
+        return $row !== null && $this->isEligible($row) ? $row : null;
+    }
+
+    /**
      * The upline chain, nearest first: level 1 is the direct sponsor,
      * level 2 their sponsor, and so on up to MAX_LEVELS.
      *

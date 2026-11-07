@@ -48,7 +48,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 387   Passed: 387   Failed: 0
+Cases: 389   Passed: 389   Failed: 0
 All good.
 ```
 
@@ -61,7 +61,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 129   Failed: 0
+Passed: 130   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -267,10 +267,11 @@ These are deliberate for the current build — do not report them as defects:
   printable, immutable `INV-yymmdd-#####` invoice; cancelling a paid order marks it **VOID** but keeps it.
   The admin settings page owns the seller block and the completion rules.
 - **Registration and membership are live** (Phase 9). `/register` offers standard, code, e-wallet (signed-in
-  sponsors) and pending (activate later) modes; every account needs a sponsor and gets an 8-character
-  referral code (`?ref=CODE` pre-fills it). Pending members activate from **Membership** with a code, the
-  e-wallet or a payment proof; a proof waits in **Admin → Activations**. Suspending a member blocks their
-  sign-in. The demo tree (`juan` … `david`, `Demo@1234`) and three `DEMO-*` codes are seed data.
+  sponsors) and pending (activate later) modes. The sponsor field is optional — a blank field joins the
+  member under the company admin — and every account gets an 8-character referral code (`?ref=CODE`
+  pre-fills the sponsor). Pending members activate from **Membership** with a code, the e-wallet or a
+  payment proof; a proof waits in **Admin → Activations**. Suspending a member blocks their sign-in. The
+  demo tree (`juan` … `david`, `Demo@1234`) and three `DEMO-*` codes are seed data.
 - **The admin settings page** (System → Settings) edits the receiving accounts and the payment/correction
   windows, the proof-attempt cap, the invoice seller block and the auto-complete switch/days. Changes are
   audited.

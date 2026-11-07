@@ -62,6 +62,7 @@ $script:Jars = @{
     p9c    = Join-Path $script:TempDir 'p9c.jar'
     p9d    = Join-Path $script:TempDir 'p9d.jar'
     p9e    = Join-Path $script:TempDir 'p9e.jar'
+    p9f    = Join-Path $script:TempDir 'p9f.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -1817,6 +1818,27 @@ try {
     $p9MemberSponsor = (Invoke-MySql ("SELECT sp.username FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$memberUsername';") | Out-String).Trim()
     Assert-That 'P9-T1' ($p9MemberRow -eq 'active|none|8' -and $p9MemberSponsor -eq 'juan') `
         "standard registration is active, package-free, sponsored and has a referral code (row=$p9MemberRow, sponsor=$p9MemberSponsor)"
+
+    # P9-T1 - a blank sponsor joins the company account (the primary admin).
+    $noSponsorName = 'smoke_nosponsor_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $noSponsorName
+    $noSponsorPage  = Invoke-App -Path '/register' -Session 'p9f'
+    $noSponsorToken = Get-Csrf $noSponsorPage.Body
+    $noSponsorPost  = Invoke-App -Method 'POST' -Path '/register' -Session 'p9f' -Form @{
+        '_csrf'            = $noSponsorToken
+        'mode'             = 'standard'
+        'sponsor'          = ''
+        'username'         = $noSponsorName
+        'email'            = "$noSponsorName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $noSponsorRow = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', COALESCE(sp.username, ''), '|', LENGTH(u.referral_code)) FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$noSponsorName';") | Out-String).Trim()
+    Assert-That 'P9-T1' ($noSponsorPage.Body -match '\(optional\)' `
+            -and $noSponsorPost.Status -eq 302 -and $noSponsorPost.Location -match '/dashboard$' `
+            -and $noSponsorRow -eq 'active|admin|8') `
+        "a blank sponsor is optional and joins the company account (row=$noSponsorRow)"
 
     # P9-T6 - a referral link pre-fills the sponsor and creates a pending member.
     $refPage = Invoke-App -Path '/register?ref=JUAN0001' -Session 'p9a'

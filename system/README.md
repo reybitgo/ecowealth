@@ -537,8 +537,9 @@ it arrives in Phase 15.
 
 - **Sponsor chain only.** `users.sponsor_id` is the one upline link. There is no binary tree, no
   left/right leg and no placement mode anywhere in the schema, routes or views (P9-T17 asserts it).
-  A sponsor is required at registration (decision D3) and may be entered as a **username or the
-  member's referral code**.
+  The sponsor field is **optional** (decision D3, amended after Phase 9): a blank field joins the
+  member under the company root (the primary admin), while a typed sponsor must exist and be active
+  and may be entered as a **username or the member's referral code**.
 - **Four modes.** *Standard* (free, active, no package, shopping only) and *pending* (free referral
   signup, activates later) follow `free_registration_enabled`; *code* redeems a registration code and
   lands active with the code's package; *e-wallet* is a **signed-in** action where the registrar pays
@@ -621,7 +622,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (387 cases in Phase 9)
+php tests/run.php                 # full suite (389 cases in Phase 9)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

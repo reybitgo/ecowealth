@@ -145,6 +145,55 @@ return [
         assert_same(8, strlen((string) $member['referral_code']));
         assert_same((int) Member::findByUsername('juan')['id'], (int) $member['sponsor_id']);
         assert_null($result['activation_id']);
+        assert_false($result['sponsor_defaulted']);
+    },
+
+    'P9-T1 a blank sponsor joins the company account (primary admin)' => function () use ($payload, $members): void {
+        $admin = Member::primaryAdmin();
+        assert_not_null($admin);
+
+        $result = $members()->register($payload([
+            'mode'    => 'standard',
+            'sponsor' => '',
+        ]), null);
+
+        $member = Member::find((int) $result['user_id']);
+
+        assert_same((int) $admin['id'], (int) $member['sponsor_id'], 'blank sponsor defaults to the primary admin');
+        assert_same('admin', (string) $member['sponsor_username']);
+        assert_true($result['sponsor_defaulted'], 'the summary says the sponsor was defaulted');
+        assert_same('active', $member['member_status']);
+
+        /* Every registration mode accepts the blank sponsor. */
+        $pending = $members()->register($payload([
+            'mode'    => 'pending',
+            'sponsor' => '   ',
+        ]), null);
+
+        $pendingMember = Member::find((int) $pending['user_id']);
+        assert_same('pending', $pendingMember['member_status']);
+        assert_same((int) $admin['id'], (int) $pendingMember['sponsor_id']);
+
+        /* The audit entry records that the default was used. */
+        $audits   = AuditLog::forSubject('user', (int) $member['id'], 5);
+        $register = $audits[0] ?? [];
+        $meta     = json_decode((string) ($register['meta_json'] ?? ''), true);
+
+        assert_same('member.register', (string) ($register['action'] ?? ''));
+        assert_same(true, $meta['sponsor_defaulted'] ?? null, 'the audit trail records the defaulted sponsor');
+    },
+
+    'P9-T1 the default sponsor is the primary admin' => function (): void {
+        $sponsors = new SponsorService();
+        $admin    = Member::primaryAdmin();
+
+        assert_not_null($admin);
+
+        $default = $sponsors->defaultSponsor();
+
+        assert_not_null($default);
+        assert_same((int) $admin['id'], (int) $default['id']);
+        assert_true($sponsors->isEligible($default));
     },
 
     'P9-T1 free registration can be closed by the setting' => function () use ($payload, $members): void {

@@ -646,7 +646,7 @@ active ──(exit / TTL expiry / IP-UA mismatch / member suspended)──▶ lo
 | E-wallet | **Logged-in** registrar only (sponsor/admin pays) | wallet debit, credited to admin revenue | Active with the chosen package; commissions fire immediately |
 | Pending / referral | Guest via referral link, free registration enabled | none at signup | `pending` account; activation later via code, e-wallet or manual proof |
 
-- Common validation: username format/uniqueness, password ≥ 8 + confirmation, sponsor username exists (and is not self), package active, terms accepted.
+- Common validation: username format/uniqueness, password ≥ 8 + confirmation, sponsor username exists when entered (and is not self), package active, terms accepted.
 - Sponsor is captured in every mode; **no** binary upline, binary position or placement mode is collected.
 - When a logged-in member registers someone else, the registrar's session is restored after the call; guests are logged in as the new member (reference behaviour).
 - The pending member's activation page offers code / e-wallet / manual-proof paths; admin approval of a manual proof completes the same activation service.
@@ -1286,7 +1286,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
   - *Code* — the code determines the package; redemption and account creation happen in one transaction; member active immediately.
   - *E-wallet* — only a logged-in registrar (sponsor/admin); debit `debitInternal`, credit the primary admin as revenue, member active immediately.
   - *Pending* — free signup (referral flow), `member_status='pending'`; activation later by code, wallet or approved manual proof.
-- Sponsor is required in every mode; sponsor can be a username or a referral code; self-sponsorship and cycles are refused.
+- Sponsor is captured in every mode and is **optional**: a blank field joins the member under the company root (the primary admin). A typed sponsor can be a username or a referral code; self-sponsorship and cycles are refused.
 - Referral code: 8 random alphanumeric characters, unique, generated at registration, used by `?ref=`.
 - **Codes:** 12 characters in three groups (`ABCD-EFGH-JKLM`) from an unambiguous set; stored uppercase, compared case-insensitively; unique; admin sets package, quantity (1–500), price, expiry; single-use enforced by `UPDATE … WHERE status='unused'` + row-count check; expired codes flip to `expired` on validation; CSV export and stats.
 - **Activation:** one package at a time; only from `pending`/`inactive`; amount from `packages.price`; wallet path debits immediately; manual path stores a proof and waits for admin approval; approval runs the commission hook (Phase 10/11) inside the same transaction.
@@ -1764,7 +1764,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 |---|---|---|---|---|
 | D1 | App/brand name | EcoWealth / other | **EcoWealth** (configurable `APP_NAME`) | Phase 1 |
 | D2 | Can guests browse the shop? | Yes / members-only | **Members-only** (matches reference) | Phase 2 |
-| D3 | Is a sponsor required at registration? | Required / optional | **Required**, except seeded root accounts | Phase 9 |
+| D3 | Is a sponsor required at registration? | Required / optional | **Optional** — a blank sponsor joins under the company root (the primary admin); a typed sponsor must exist and be active. (Amended after Phase 9, 2026-11-07.) | Phase 9 |
 | D4 | Must a member have a package to shop? | Yes / no | **No** — shopping open to logged-in members; commissions only when active | Phase 6 |
 | D5 | Level 1 double pay? | Direct + indirect L1 / direct only | **Direct only** | Phase 11 |
 | D6 | Upline compression when inactive? | Compress / no compression | **No compression** (config flag reserved) | Phase 11 |
