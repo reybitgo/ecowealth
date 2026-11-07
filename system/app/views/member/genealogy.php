@@ -160,6 +160,11 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                         </tbody>
                       </table>
                     </div>
+<?php if (isset($recruits_pager) && $recruits_pager instanceof Paginator): ?>
+                    <div class="card-body pt-2">
+<?= View::partial('pagination', ['pager' => $recruits_pager, 'pager_label' => 'Recruits']) ?>
+                    </div>
+<?php endif; ?>
                   </div>
                 </div>
               </div>

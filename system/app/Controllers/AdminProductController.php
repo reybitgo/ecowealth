@@ -22,7 +22,7 @@ final class AdminProductController
             'status' => Request::string('status'),
         ];
 
-        $pager    = Paginator::fromRequest(Product::countAdmin($filters), 20);
+        $pager    = Paginator::fromTableRequest(Product::countAdmin($filters));
         $products = Product::adminList($filters, $pager);
         $ids      = array_map(static fn (array $row): int => (int) $row['id'], $products);
 

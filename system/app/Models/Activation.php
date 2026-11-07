@@ -73,6 +73,37 @@ final class Activation
         return $stmt->fetchAll();
     }
 
+    /** How many activation requests a member has ever made. */
+    public static function countForUser(int $userId, ?PDO $pdo = null): int
+    {
+        $pdo ??= db();
+
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM activations WHERE user_id = ?');
+        $stmt->execute([$userId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * One page of a member's activation history, newest first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function pageForUser(int $userId, Paginator $pager, ?PDO $pdo = null): array
+    {
+        $pdo ??= db();
+
+        $sql = self::select()
+            . ' WHERE a.user_id = ?'
+            . ' ORDER BY a.id DESC'
+            . ' LIMIT ' . (int) $pager->perPage . ' OFFSET ' . (int) $pager->offset;
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$userId]);
+
+        return $stmt->fetchAll();
+    }
+
     /**
      * The member's unfinished request, if any (one at a time).
      *

@@ -622,7 +622,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (389 cases in Phase 9)
+php tests/run.php                 # full suite (394 cases in Phase 9)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -694,6 +694,12 @@ job touches a cancelled or completed order (see `docs/cron.md`).
 - Money is `DECIMAL` in MySQL and formatted with `money()`; no floats in SQL.
 - Every wallet movement is a `WalletService` call inside a transaction — never a direct
   `UPDATE users SET ewallet_balance` from a controller, model or view.
+- Every table paginates server-side through `Paginator::fromTableRequest()` and
+  `app/views/partials/pagination.php`: 10 rows by default, with a rows-per-page control
+  offering 5, 10, 15 … 100 (`?per_page=N`) that keeps the active filters. A filter form
+  carries `<?= per_page_hidden() ?>` so changing a filter never resets the chosen size.
+  Fixed-size lists (the catalogue card grid, dashboard snapshots) use `fromRequest()` /
+  `new Paginator()` and pass `'show_per_page' => false` to the partial.
 
 ---
 

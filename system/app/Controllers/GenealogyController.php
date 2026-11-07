@@ -49,11 +49,9 @@ final class GenealogyController
 
         ksort($byLevel);
 
-        $direct = [];
-
-        foreach ($byLevel[1] ?? [] as $row) {
-            $direct[] = $row;
-        }
+        /* Direct recruits are their own table, so they paginate. */
+        $recruitsPager = Paginator::fromTableRequest($sponsors->countDirectRecruits($userId));
+        $direct        = $sponsors->directRecruits($userId, null, $recruitsPager);
 
         $deeper = [];
 
@@ -74,6 +72,7 @@ final class GenealogyController
             'member'        => $member,
             'upline'        => $chain,
             'direct'        => $direct,
+            'recruits_pager' => $recruitsPager,
             'deeper'        => $deeper,
             'team_count'    => count($team),
             'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),

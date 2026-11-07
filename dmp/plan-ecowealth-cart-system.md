@@ -348,7 +348,7 @@ Component sources (copy structure from `dmp/sneat/`):
 | Dates | Stored UTC+8 (`SET time_zone`) and displayed `Asia/Manila` |
 | Money format | `money(1234.5)` → `₱1,234.50`; `money(…, true)` → `+₱…` |
 | Order number | `EW` + `yymmdd` + 5-digit id (e.g. `EW26110100042`), generated after insert and unique by id |
-| Pagination | 20 rows default, `?page=N`, server-side for admin tables, DataTables optional |
+| Pagination | 10 rows default, `?page=N` plus a rows-per-page control (5, 10, 15 … 100 in steps of five, `?per_page=N`), server-side for every table, DataTables not used |
 
 ### 3.7 Security baseline (applies to every phase)
 

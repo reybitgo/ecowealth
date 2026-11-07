@@ -443,6 +443,11 @@ $statusTone = match ($status) {
                         </tbody>
                       </table>
                     </div>
+<?php if (isset($history_pager) && $history_pager instanceof Paginator): ?>
+                    <div class="card-body pt-2">
+<?= View::partial('pagination', ['pager' => $history_pager, 'pager_label' => 'Requests']) ?>
+                    </div>
+<?php endif; ?>
                   </div>
                 </div>
               </div>

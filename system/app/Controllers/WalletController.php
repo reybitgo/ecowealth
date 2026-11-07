@@ -43,7 +43,12 @@ final class WalletController
             'q'        => Request::string('q'),
         ]);
 
-        $statement = $this->wallet->statement($userId, $filters, (int) Request::query('page', 1));
+        $statement = $this->wallet->statement(
+            $userId,
+            $filters,
+            (int) Request::query('page', 1),
+            Paginator::perPageFromRequest()
+        );
         $account   = Wallet::account($userId);
 
         if ($account === null) {

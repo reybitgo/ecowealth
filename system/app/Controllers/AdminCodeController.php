@@ -34,7 +34,7 @@ final class AdminCodeController
             'package' => Request::string('package'),
         ]);
 
-        $pager = Paginator::fromRequest(RegCode::countAdmin($filters), 20);
+        $pager = Paginator::fromTableRequest(RegCode::countAdmin($filters));
         $rows  = RegCode::adminList($filters, $pager);
 
         View::page('admin', 'admin/codes/index', [

@@ -108,6 +108,7 @@ $methods = [
 
                 <div class="card-body py-3 border-top">
                   <form method="GET" action="<?= e(url('admin/activations')) ?>" class="membership-filters">
+                    <?= per_page_hidden() ?>
                     <input type="hidden" name="status" value="<?= e($status) ?>" />
                     <input
                       type="search"

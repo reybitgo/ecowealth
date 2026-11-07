@@ -3,17 +3,36 @@ declare(strict_types=1);
 
 /* ==============================================================
  *  Paginator — page maths for admin tables and member lists
- *  (plan §3.6: 20 rows by default, ?page=N).
+ *  (plan §3.6: 10 rows by default, `?page=N` plus a rows-per-page
+ *  control offering 5, 10, 15 … 100 in steps of five).
  *
- *    $pager = Paginator::fromRequest($total, 20);
+ *    $pager = Paginator::fromTableRequest($total);
  *    // SQL: ... LIMIT {$pager->perPage} OFFSET {$pager->offset}
- *    // View: require partials/pagination.php with $pager
+ *    // View: View::partial('pagination', ['pager' => $pager])
+ *
+ *  `fromTableRequest()` is the one every listing screen uses: it
+ *  reads both `?page=` and `?per_page=`, validates the requested size
+ *  against perPageOptions() and falls back to the default when the
+ *  value is missing or not one of the offered sizes. A fixed-size
+ *  list (e.g. the catalogue grid) uses fromRequest()/new self().
  * ============================================================== */
 
 final class Paginator
 {
-    public const DEFAULT_PER_PAGE = 20;
-    public const MAX_PER_PAGE     = 200;
+    /** Default rows per page across every table. */
+    public const DEFAULT_PER_PAGE = 10;
+
+    /** Smallest size the rows-per-page control offers. */
+    public const PER_PAGE_MIN = 5;
+
+    /** Largest size the control offers (still a multiple of the step). */
+    public const PER_PAGE_MAX = 100;
+
+    /** The rows-per-page control steps by five. */
+    public const PER_PAGE_STEP = 5;
+
+    /** Hard ceiling for a caller that builds a pager directly. */
+    public const MAX_PER_PAGE = 200;
 
     public readonly int $total;
     public readonly int $perPage;
@@ -40,12 +59,55 @@ final class Paginator
         return new self($total, $perPage, $page ?? 1);
     }
 
-    /** Build from the current `?page=` query parameter. */
+    /** Build from the current `?page=` query parameter (fixed page size). */
     public static function fromRequest(int $total, int $perPage = self::DEFAULT_PER_PAGE, string $param = 'page'): self
     {
         $page = Request::query($param);
 
         return new self($total, $perPage, is_scalar($page) ? (int) $page : 1);
+    }
+
+    /**
+     * Build from the request of a listing table: `?page=` and
+     * `?per_page=`. The size is only honoured when it is one of
+     * perPageOptions(); anything else falls back to the default.
+     */
+    public static function fromTableRequest(
+        int $total,
+        string $pageParam = 'page',
+        string $perPageParam = 'per_page'
+    ): self {
+        $page = Request::query($pageParam);
+
+        return new self(
+            $total,
+            self::perPageFromRequest($perPageParam),
+            is_scalar($page) ? (int) $page : 1
+        );
+    }
+
+    /**
+     * The rows-per-page sizes the control offers: 5, 10, 15 … 100.
+     *
+     * @return list<int>
+     */
+    public static function perPageOptions(): array
+    {
+        return range(self::PER_PAGE_MIN, self::PER_PAGE_MAX, self::PER_PAGE_STEP);
+    }
+
+    /** A requested `?per_page=` clamped to the offered sizes (default 10). */
+    public static function perPageFromRequest(string $param = 'per_page'): int
+    {
+        $value = Request::query($param);
+
+        if (!is_scalar($value)) {
+            return self::DEFAULT_PER_PAGE;
+        }
+
+        $size = (int) $value;
+
+        return in_array($size, self::perPageOptions(), true) ? $size : self::DEFAULT_PER_PAGE;
     }
 
     public function hasPrev(): bool

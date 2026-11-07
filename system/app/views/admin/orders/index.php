@@ -64,6 +64,7 @@ $cards = [
               <div class="card">
                 <div class="card-header">
                   <form method="GET" action="<?= e(url('admin/orders')) ?>" class="d-flex flex-wrap align-items-end gap-3 order-filters">
+                    <?= per_page_hidden() ?>
                     <div class="order-filter-field order-filter-wide">
                       <label class="form-label" for="admin-order-q">Search</label>
                       <input type="search" name="q" id="admin-order-q" class="form-control" value="<?= e($filters['q']) ?>" placeholder="Order # or member…" />

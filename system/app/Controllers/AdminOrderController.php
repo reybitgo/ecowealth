@@ -47,7 +47,7 @@ final class AdminOrderController
             'to'     => Request::string('to'),
         ]);
 
-        $pager  = Paginator::fromRequest(Order::countAdmin($filters), 20);
+        $pager  = Paginator::fromTableRequest(Order::countAdmin($filters));
         $orders = Order::adminList($filters, $pager);
 
         View::page('admin', 'admin/orders/index', [

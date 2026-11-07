@@ -35,7 +35,7 @@ final class AdminMemberController
             'package' => Request::string('package'),
         ]);
 
-        $pager = Paginator::fromRequest(Member::countAdmin($filters), 20);
+        $pager = Paginator::fromTableRequest(Member::countAdmin($filters));
         $rows  = Member::adminList($filters, $pager);
 
         View::page('admin', 'admin/members/index', [
@@ -68,6 +68,8 @@ final class AdminMemberController
 
         $userId = (int) $member['id'];
 
+        $activationsPager = Paginator::fromTableRequest(Activation::countForUser($userId));
+
         View::page('admin', 'admin/members/show', [
             'page_title'   => 'Member — ' . (string) $member['username'],
             'current_nav'  => 'admin.members',
@@ -82,7 +84,8 @@ final class AdminMemberController
             'member'       => $member,
             'balance'      => $this->wallet->balance($userId),
             'withdrawable' => $this->wallet->withdrawable($userId),
-            'activations'  => Activation::forUser($userId),
+            'activations'  => Activation::pageForUser($userId, $activationsPager),
+            'activations_pager' => $activationsPager,
             'orders'       => Order::statsForUser($userId),
             'commissions'  => (new CommissionService())->totalsFor($userId),
             'team'         => (new SponsorService())->teamStats($userId),

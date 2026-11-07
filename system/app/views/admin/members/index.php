@@ -64,6 +64,7 @@ $cards = [
                 </div>
                 <div class="card-body py-3 border-top">
                   <form method="GET" action="<?= e(url('admin/members')) ?>" class="membership-filters">
+                    <?= per_page_hidden() ?>
                     <input
                       type="search"
                       class="form-control"

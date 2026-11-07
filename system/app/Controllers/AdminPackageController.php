@@ -21,7 +21,7 @@ final class AdminPackageController
             'status' => Request::string('status'),
         ];
 
-        $pager    = Paginator::fromRequest(Package::countAdmin($filters), 20);
+        $pager    = Paginator::fromTableRequest(Package::countAdmin($filters));
         $packages = Package::adminList($filters, $pager);
         $ids      = array_map(static fn (array $row): int => (int) $row['id'], $packages);
 

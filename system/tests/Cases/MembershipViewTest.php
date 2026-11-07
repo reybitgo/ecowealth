@@ -57,6 +57,7 @@ $makeMember = static function (array $overrides = []): array {
 
 $membershipData = static function (array $member) use ($makeMember): array {
     $balance = (new WalletService())->balance((int) $member['id']);
+    $total   = Activation::countForUser((int) $member['id']);
 
     return [
         'page_title'        => 'Membership',
@@ -72,6 +73,7 @@ $membershipData = static function (array $member) use ($makeMember): array {
         'minimum_price'     => (float) Package::findBySlug('package-a')['price'],
         'open_activation'   => Activation::latestOpen((int) $member['id']),
         'history'           => Activation::forUser((int) $member['id']),
+        'history_pager'     => Paginator::make($total, 1, Paginator::DEFAULT_PER_PAGE),
         'referral_link'     => url('register?ref=' . rawurlencode((string) $member['referral_code'])),
         'channels'          => MembershipController::receivingAccounts(),
         'free_registration' => setting_bool('free_registration_enabled', true),
@@ -288,6 +290,7 @@ return [
             'member'        => $juan,
             'upline'        => $sponsors->chain((int) $juan['id']),
             'direct'        => $direct,
+            'recruits_pager' => Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE),
             'deeper'        => $byLevel,
             'team_count'    => count($team),
             'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),
@@ -301,6 +304,7 @@ return [
 
         assert_contains('Direct recruits', $html);
         assert_contains('maria', $html);
+        assert_contains('Rows per page', $html, 'the recruits table paginates');
 
         /* Level 2 holds maria's recruits: peter, sarah and david. */
         assert_contains('Level 2', $html);
@@ -588,6 +592,18 @@ return [
         $maria = Member::findByUsername('maria');
         assert_not_null($maria);
 
+        /* One activation so the history table and its footer render. */
+        Activation::create([
+            'user_id'        => (int) $maria['id'],
+            'package_id'     => (int) Package::findBySlug('package-a')['id'],
+            'amount'         => 4498.00,
+            'payment_method' => 'gcash',
+            'status'         => 'pending_review',
+            'reference_no'   => 'QA-VIEW-1',
+        ]);
+
+        $activations = Activation::forUser((int) $maria['id']);
+
         $wallet   = new WalletService();
         $sponsors = new SponsorService();
 
@@ -597,7 +613,8 @@ return [
             'member'       => $maria,
             'balance'      => $wallet->balance((int) $maria['id']),
             'withdrawable' => $wallet->withdrawable((int) $maria['id']),
-            'activations'  => Activation::forUser((int) $maria['id']),
+            'activations'  => $activations,
+            'activations_pager' => Paginator::make(count($activations), 1, Paginator::DEFAULT_PER_PAGE),
             'orders'       => Order::statsForUser((int) $maria['id']),
             'commissions'  => (new CommissionService())->totalsFor((int) $maria['id']),
             'team'         => $sponsors->teamStats((int) $maria['id']),
@@ -612,10 +629,36 @@ return [
         assert_contains('@juan', $html);
         assert_contains(money(1000.0), $html);
         assert_contains('Commission credited', $html);
-        assert_contains('no activation requests', strtolower($html));
+        assert_contains('Rows per page', $html, 'the activation history paginates');
+        assert_contains('GCash', $html);
+        assert_contains('Pending review', $html);
         assert_contains('Upline', $html);
         assert_contains('Recent audit', $html);
         assert_contains('Suspend member', $html);
         assert_not_contains('binary', strtolower($html));
+    },
+
+    'P9-T16 the member table honours the rows-per-page choice' => function (): void {
+        test_signed_in_as(test_user('mv_admin', 'admin'));
+
+        $filters = Member::normaliseFilters([]);
+
+        $_GET = ['per_page' => '5'];
+
+        try {
+            $pager = Paginator::fromTableRequest(Member::countAdmin($filters));
+            $rows  = Member::adminList($filters, $pager);
+
+            assert_same(5, $pager->perPage);
+            assert_same(min(5, $pager->total), count($rows), 'the first page holds exactly the chosen size');
+            assert_true($pager->total >= 5, 'the demo tree supplies at least five members');
+
+            $_GET = ['per_page' => '7'];
+
+            $fallback = Paginator::fromTableRequest(Member::countAdmin($filters));
+            assert_same(10, $fallback->perPage, 'an unlisted size falls back to 10');
+        } finally {
+            $_GET = [];
+        }
     },
 ];

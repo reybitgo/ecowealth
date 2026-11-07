@@ -189,6 +189,7 @@ $cards = [
                       <small class="text-body-secondary">The list and the export both follow these filters.</small>
                     </div>
                     <form method="GET" action="<?= e(url('admin/codes')) ?>" class="card-body">
+                      <?= per_page_hidden() ?>
                       <div class="mb-3">
                         <label class="form-label" for="code-q">Search</label>
                         <input

@@ -21,6 +21,25 @@
     }
   });
 
+  /*
+   * Rows-per-page selects (pagination footer) submit their own GET form
+   * on change, so the list reloads at the chosen size. Without
+   * JavaScript the same form carries a <noscript> Apply button.
+   */
+  document.addEventListener('change', function (event) {
+    var select = event.target;
+
+    if (!select || !select.matches || !select.matches('[data-per-page]')) {
+      return;
+    }
+
+    var form = select.form || (select.closest ? select.closest('form') : null);
+
+    if (form) {
+      form.submit();
+    }
+  });
+
   var input = document.getElementById('navbarQuickSearch');
 
   /*

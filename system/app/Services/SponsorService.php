@@ -187,22 +187,37 @@ final class SponsorService
      *
      * @return list<array<string, mixed>>
      */
-    public function directRecruits(int $userId, ?PDO $pdo = null): array
+    public function directRecruits(int $userId, ?PDO $pdo = null, ?Paginator $pager = null): array
     {
         $pdo ??= $this->pdo;
 
-        $stmt = $pdo->prepare(
-            'SELECT u.id, u.username, u.full_name, u.email, u.member_status, u.is_active,
-                    u.referral_code, u.activated_at, u.created_at,
-                    p.name AS package_name
-               FROM users u
-               LEFT JOIN packages p ON p.id = u.package_id
-              WHERE u.sponsor_id = ? AND u.role = ?
-              ORDER BY u.created_at DESC, u.id DESC'
-        );
+        $sql = 'SELECT u.id, u.username, u.full_name, u.email, u.member_status, u.is_active,
+                       u.referral_code, u.activated_at, u.created_at,
+                       p.name AS package_name
+                  FROM users u
+                  LEFT JOIN packages p ON p.id = u.package_id
+                 WHERE u.sponsor_id = ? AND u.role = ?
+                 ORDER BY u.created_at DESC, u.id DESC';
+
+        if ($pager !== null) {
+            $sql .= ' LIMIT ' . (int) $pager->perPage . ' OFFSET ' . (int) $pager->offset;
+        }
+
+        $stmt = $pdo->prepare($sql);
         $stmt->execute([$userId, 'member']);
 
         return $stmt->fetchAll();
+    }
+
+    /** How many members this account has personally sponsored. */
+    public function countDirectRecruits(int $userId, ?PDO $pdo = null): int
+    {
+        $pdo ??= $this->pdo;
+
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM users WHERE sponsor_id = ? AND role = ?');
+        $stmt->execute([$userId, 'member']);
+
+        return (int) $stmt->fetchColumn();
     }
 
     /**

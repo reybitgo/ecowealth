@@ -291,6 +291,35 @@ function csrf_verify(null|string $token): bool
 }
 
 /* ==============================================================
+ *  Pagination helpers
+ * ============================================================== */
+
+/**
+ * Hidden `per_page` field for a filter form (plan §3.6).
+ *
+ * Filtering a table must not silently reset the rows-per-page the
+ * member chose, so every GET filter form carries the current size.
+ * Renders nothing when the request has no valid `per_page`, which
+ * keeps plain URLs clean.
+ */
+function per_page_hidden(): string
+{
+    $requested = Request::query('per_page');
+
+    if (!is_scalar($requested)) {
+        return '';
+    }
+
+    $size = Paginator::perPageFromRequest();
+
+    if ((int) $requested !== $size) {
+        return '';
+    }
+
+    return '<input type="hidden" name="per_page" value="' . e((string) $size) . '">';
+}
+
+/* ==============================================================
  *  Formatting helpers
  * ============================================================== */
 

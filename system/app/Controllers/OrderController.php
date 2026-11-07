@@ -49,7 +49,7 @@ final class OrderController
             'to'     => Request::string('to'),
         ]);
 
-        $pager = Paginator::fromRequest(Order::countForUser($userId, $filters), 10);
+        $pager = Paginator::fromTableRequest(Order::countForUser($userId, $filters));
         $orders = Order::listForUser($userId, $filters, $pager);
 
         $isAdmin = is_admin($user);

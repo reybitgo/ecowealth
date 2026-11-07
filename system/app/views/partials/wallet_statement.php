@@ -51,6 +51,7 @@ $columns = $show_member ? 6 : 5;
 
                 <div class="card-body border-bottom">
                   <form method="GET" action="<?= e($statement_url) ?>" class="d-flex flex-wrap align-items-end gap-3 wallet-filters">
+                    <?= per_page_hidden() ?>
 <?php foreach ($hidden_params as $paramName => $paramValue): ?>
                     <input type="hidden" name="<?= e((string) $paramName) ?>" value="<?= e((string) $paramValue) ?>" />
 <?php endforeach; ?>

@@ -32,6 +32,7 @@ $hasFilters = $filters['status'] !== ''
               <div class="card">
                 <div class="card-header">
                   <form method="GET" action="<?= e(url('orders')) ?>" class="d-flex flex-wrap align-items-end gap-3 order-filters">
+                    <?= per_page_hidden() ?>
                     <div class="order-filter-field">
                       <label class="form-label" for="order-filter-status">Status</label>
                       <select name="status" id="order-filter-status" class="form-select">

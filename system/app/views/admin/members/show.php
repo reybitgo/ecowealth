@@ -287,6 +287,11 @@ $referralLink = $member['referral_code'] === null
                         </tbody>
                       </table>
                     </div>
+<?php if (isset($activations_pager) && $activations_pager instanceof Paginator): ?>
+                    <div class="card-body pt-2">
+<?= View::partial('pagination', ['pager' => $activations_pager, 'pager_label' => 'Requests']) ?>
+                    </div>
+<?php endif; ?>
                   </div>
                 </div>
 

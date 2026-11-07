@@ -206,7 +206,7 @@ $roleTone     = match ((string) $member['role']) {
                       </table>
                     </div>
                     <div class="card-body py-3">
-<?= View::partial('pagination', ['pager' => $topups_pager]) ?>
+<?= View::partial('pagination', ['pager' => $topups_pager, 'page_param' => 'topup_page']) ?>
                     </div>
                   </div>
                 </div>

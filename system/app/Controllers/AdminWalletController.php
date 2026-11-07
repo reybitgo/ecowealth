@@ -59,11 +59,11 @@ final class AdminWalletController
 
         if ($tab === 'members') {
             $filters      = ['q' => $query, 'funded' => $funded];
-            $membersPager = Paginator::fromRequest(Wallet::memberCount($filters), 20);
+            $membersPager = Paginator::fromTableRequest(Wallet::memberCount($filters));
             $members      = Wallet::members($filters, $membersPager);
         } elseif ($tab === 'topups') {
             $filters     = ['q' => $query];
-            $topupsPager = Paginator::fromRequest(Wallet::allTopupCount($filters), 20);
+            $topupsPager = Paginator::fromTableRequest(Wallet::allTopupCount($filters));
             $topups      = Wallet::allTopups($filters, $topupsPager);
         } else {
             $filters     = Wallet::normaliseFilters([
@@ -73,7 +73,7 @@ final class AdminWalletController
                 'to'       => Request::string('to'),
                 'q'        => $query,
             ]);
-            $ledgerPager  = Paginator::fromRequest(Wallet::ledgerCount(null, $filters), 20);
+            $ledgerPager  = Paginator::fromTableRequest(Wallet::ledgerCount(null, $filters));
             $ledger       = Wallet::ledger(null, $filters, $ledgerPager);
             $ledgerTotals = Wallet::ledgerTotals(null, $filters);
         }
@@ -121,10 +121,13 @@ final class AdminWalletController
         $statement = $this->wallet->statement(
             $userId,
             $filters,
-            is_scalar($page) ? (int) $page : 1
+            is_scalar($page) ? (int) $page : 1,
+            Paginator::perPageFromRequest()
         );
 
-        $topupsPager = Paginator::fromRequest(Wallet::topupCountFor($userId), 10);
+        /* Two independent lists share this page, so the top-up history
+         * uses its own page key; changing one never moves the other. */
+        $topupsPager = Paginator::fromTableRequest(Wallet::topupCountFor($userId), 'topup_page');
         $topups      = Wallet::topupsFor($userId, $topupsPager);
 
         View::page('admin', 'admin/wallets/show', [

@@ -106,7 +106,7 @@ foreach ($products as $product) {
 <?php if ($pager->pages > 1): ?>
               <div class="card mt-6">
                 <div class="card-body py-3">
-<?= View::partial('pagination', ['pager' => $pager, 'pager_label' => 'Products']) ?>
+<?= View::partial('pagination', ['pager' => $pager, 'pager_label' => 'Products', 'show_per_page' => false]) ?>
                 </div>
               </div>
 <?php endif; ?>

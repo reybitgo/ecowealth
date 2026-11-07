@@ -59,6 +59,11 @@ final class MembershipController
 
         $balance = $this->wallet->balance($userId);
 
+        /* The history is a growing table, so it paginates like every
+         * other list (10 by default, 5–100 per page). */
+        $historyPager = Paginator::fromTableRequest(Activation::countForUser($userId));
+        $history      = Activation::pageForUser($userId, $historyPager);
+
         View::page($isAdmin ? 'admin' : 'member', 'member/membership', [
             'page_title'        => 'Membership',
             'current_nav'       => $isAdmin ? 'admin.membership' : 'membership',
@@ -73,7 +78,8 @@ final class MembershipController
             'withdrawable'      => $this->wallet->withdrawable($userId),
             'minimum_price'     => $minimum,
             'open_activation'   => Activation::latestOpen($userId),
-            'history'           => Activation::forUser($userId),
+            'history'           => $history,
+            'history_pager'     => $historyPager,
             'referral_link'     => url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
             'channels'          => self::receivingAccounts(),
             'free_registration' => setting_bool('free_registration_enabled', true),

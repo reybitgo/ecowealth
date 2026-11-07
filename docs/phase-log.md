@@ -1969,6 +1969,56 @@ registration-codes screen; only the menu entry needed to be shorter.
 - **No route, key, permission or data change.** `admin.codes`, `/admin/codes` and the inventory entry
   are untouched; the rename is presentational plus its test/documentation updates.
 
+---
+
+## Post-Phase 9 — Pagination on every table with a rows-per-page control
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 394 PHP cases,
+131 smoke checks, 11 browser checks.
+
+### Problem
+
+Pagination was inconsistent: most tables defaulted to 20 rows, a few used 10 or 12, the rows-per-page
+size was hard-coded per controller, and there was no way to ask for a smaller page. On the wallet detail
+page two independent tables shared the same `?page=` parameter, so paging one moved the other.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Paginator** | Default is **10**; `perPageOptions()` offers **5, 10, 15 … 100** (step 5); `perPageFromRequest()` ignores anything outside that list and falls back to 10; `fromTableRequest()` reads `?page=` **and** `?per_page=`. `url()` keeps the chosen size and accepts a page-key for multi-table pages. |
+| **Partial** | `app/views/partials/pagination.php` now renders the rows-per-page select (submits itself through `app.js`, with a `<noscript>` Apply button), keeps every active filter/tab as a hidden input, resets to page 1 on change, and adds first/last links around the page window. `show_per_page => false` is available for fixed-size lists, and `page_param` lets two tables on one page page independently. |
+| **Tables** | Products, packages, orders (member + admin), members, codes, activations, the wallet monitor's three tabs, the member statement, the admin wallet statement, the admin top-up history, the member membership history, the admin member activation history and the genealogy direct-recruit table all use the shared footer. The wallet detail page now pages its top-ups on `?topup_page=` so the statement's `?page=` no longer moves it. |
+| **Filters** | Every GET filter form carries `<?= per_page_hidden() ?>`, so filtering a table never silently resets the chosen size. |
+| **Fixed lists** | The catalogue card grid (12 cards) and the dashboard "recent" snapshots keep their fixed sizes and pass `show_per_page => false`; they are cards/summaries, not paginated tables. |
+| **Tests** | New `Paginator` cases (default/options/validation/URL), partial assertions (control, options, selected size, hidden filter, fixed-list variant), model pager cases (`Activation::pageForUser`, `SponsorService::directRecruits` with a pager) and a smoke check (`/admin/members?per_page=5` → five rows, `/admin/members?per_page=7` → 10). A headless-Chrome harness verifies the interaction: default 10, choose 5, page 2 keeps 5, filters keep 5, codes table, wallet page's two footers, mobile layout and a no-JS run with the Apply button. |
+| **Evidence** | `docs/qa/evidence/shell/final-pagination.png` + `-mobile.png`; the Phase 9 screenshots were refreshed with the new footers. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **394 / 394** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **131 / 131** |
+| Browser harness (`tests/tmp/verify-pagination.mjs`) | **11 / 11**, no console errors |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decisions
+
+- **10 is the default, 5 the minimum.** Sizes outside the offered list (`per_page=7`, `0`, `500`) fall
+  back to 10 rather than being clamped to an arbitrary number, so a hand-edited URL can never produce a
+  surprising page size.
+- **Every page change is a real GET reload.** No client-side table library: the same server-rendered
+  rows, filters and totals behave identically with JavaScript off (the Apply button covers that case).
+- **Filters keep the size; page numbers keep the size; changing the size resets to page 1.** That is the
+  conventional behaviour and it is asserted in both the suite and the browser harness.
+- **Two tables on one page get two page keys.** The wallet detail page uses `?page=` for the statement
+  and `?topup_page=` for top-ups; both share the rows-per-page size, which is what "rows per page" means
+  for the screen.
+- **History tables are tables too.** The membership/member activation history and the genealogy recruit
+  list now paginate, so no record list grows without a footer. Dashboard snapshots stay top-N and link to
+  their full, paginated list.
+
 
 
 

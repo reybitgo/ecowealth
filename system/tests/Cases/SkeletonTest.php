@@ -184,6 +184,76 @@ return [
         assert_same([3, 4, 5], (new Paginator(100, 20, 4))->window(1));
     },
 
+    'Paginator defaults to ten rows and offers 5 … 100 in fives' => function (): void {
+        assert_same(10, Paginator::DEFAULT_PER_PAGE);
+        assert_same(10, (new Paginator(100))->perPage);
+
+        $options = Paginator::perPageOptions();
+
+        assert_same(5, $options[0]);
+        assert_same(10, $options[1]);
+        assert_same(15, $options[2]);
+        assert_same(20, $options[3]);
+        assert_same(100, $options[count($options) - 1]);
+
+        foreach ($options as $option) {
+            assert_same(0, $option % 5, 'every size is a multiple of five');
+        }
+
+        assert_count(20, $options);
+    },
+
+    'Paginator reads a valid per_page and falls back to the default' => function (): void {
+        $_GET = ['per_page' => '15', 'page' => '2'];
+
+        try {
+            $pager = Paginator::fromTableRequest(57);
+
+            assert_same(15, $pager->perPage);
+            assert_same(2, $pager->page);
+            assert_same(15, $pager->offset);
+            assert_same(4, $pager->pages);
+
+            $_GET = ['per_page' => '7'];
+            assert_same(10, Paginator::perPageFromRequest(), 'a size outside the options falls back to 10');
+            assert_same(10, Paginator::fromTableRequest(57)->perPage);
+
+            $_GET = ['per_page' => '0'];
+            assert_same(10, Paginator::perPageFromRequest());
+
+            $_GET = ['per_page' => '500'];
+            assert_same(10, Paginator::perPageFromRequest());
+
+            $_GET = [];
+            assert_same(10, Paginator::perPageFromRequest());
+            assert_same(1, (new Paginator(0))->page);
+
+            $_GET = ['per_page' => '5'];
+            $first = Paginator::fromTableRequest(4);
+            assert_same(5, $first->perPage);
+            assert_same(1, $first->pages);
+        } finally {
+            $_GET = [];
+        }
+    },
+
+    'Paginator page URLs keep the chosen page size' => function (): void {
+        $_SERVER['REQUEST_URI'] = '/admin/members?per_page=25&q=ana';
+        $_GET = ['per_page' => '25', 'q' => 'ana'];
+
+        try {
+            $pager = new Paginator(100, 25, 2);
+            $url   = $pager->url(3);
+
+            assert_contains('per_page=25', $url);
+            assert_contains('q=ana', $url);
+            assert_contains('page=3', $url);
+        } finally {
+            unset($_SERVER['REQUEST_URI']);
+            $_GET = [];
+        }
+    },
+
     /* ---------- Flash / old input / form errors ------------------------ */
 
     'flash messages render once' => function (): void {

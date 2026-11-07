@@ -996,4 +996,44 @@ return [
         );
         assert_null((new SponsorService())->resolve('no-such-sponsor'));
     },
+
+    'P9-T16 activation history and recruits page with the shared pager' => function (): void {
+        $juan = Member::findByUsername('juan');
+        assert_not_null($juan);
+
+        $historyMember = test_user('ms_history_member', 'member');
+
+        for ($i = 1; $i <= 3; $i++) {
+            Activation::create([
+                'user_id'        => (int) $historyMember['id'],
+                'package_id'     => (int) Package::findBySlug('package-a')['id'],
+                'amount'         => 4498.00,
+                'payment_method' => 'gcash',
+                'status'         => 'pending_review',
+                'reference_no'   => 'HIST-' . $i,
+            ]);
+        }
+
+        assert_same(3, Activation::countForUser((int) $historyMember['id']));
+
+        $firstPage = Activation::pageForUser((int) $historyMember['id'], new Paginator(3, 2, 1));
+        $lastPage  = Activation::pageForUser((int) $historyMember['id'], new Paginator(3, 2, 2));
+
+        assert_count(2, $firstPage);
+        assert_count(1, $lastPage);
+        assert_same('HIST-3', (string) $firstPage[0]['reference_no'], 'newest first');
+        assert_same('HIST-1', (string) $lastPage[0]['reference_no']);
+
+        /* Direct recruits share the same pager contract. */
+        $sponsors = new SponsorService();
+        $total    = $sponsors->countDirectRecruits((int) $juan['id']);
+        $all      = $sponsors->directRecruits((int) $juan['id']);
+
+        assert_same(count($all), $total);
+        assert_true($total >= 1);
+
+        $one = $sponsors->directRecruits((int) $juan['id'], null, new Paginator($total, 1, 1));
+        assert_count(1, $one);
+        assert_same((string) $all[0]['username'], (string) $one[0]['username']);
+    },
 ];

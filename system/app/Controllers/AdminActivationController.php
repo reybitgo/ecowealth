@@ -36,7 +36,7 @@ final class AdminActivationController
             'q'      => Request::string('q'),
         ]);
 
-        $pager = Paginator::fromRequest(Activation::countAdmin($filters), 20);
+        $pager = Paginator::fromTableRequest(Activation::countAdmin($filters));
         $rows  = Activation::adminList($filters, $pager);
 
         $tabCounts = [

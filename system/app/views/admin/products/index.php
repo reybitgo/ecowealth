@@ -58,6 +58,7 @@ $cards = [
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <h5 class="mb-0">Catalogue</h5>
                   <form method="GET" action="<?= e(url('admin/products')) ?>" class="catalog-filter d-flex flex-wrap gap-2">
+                    <?= per_page_hidden() ?>
                     <input
                       type="search"
                       name="q"

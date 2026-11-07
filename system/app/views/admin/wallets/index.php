@@ -129,6 +129,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                   <h5 class="mb-0">Members</h5>
                   <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap gap-2 wallet-search">
                     <input type="hidden" name="tab" value="members" />
+                    <?= per_page_hidden() ?>
                     <input
                       type="search"
                       name="q"
@@ -232,6 +233,7 @@ $roleTone = static fn (string $role): string => match ($role) {
                   </div>
                   <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap gap-2 wallet-search">
                     <input type="hidden" name="tab" value="topups" />
+                    <?= per_page_hidden() ?>
                     <input
                       type="search"
                       name="q"

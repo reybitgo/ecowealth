@@ -2082,6 +2082,17 @@ try {
             -and $restore.Status -eq 302 -and $restoredRow -eq 'active|1' -and $restoredLogin) `
         "member detail, suspend (sign-in blocked) and restore all work (detail=$detailOk, suspended=$suspendedRow, restored=$restoredRow)"
 
+    # P9-T16 - the tables take a rows-per-page size (5 ... 100, default 10).
+    $pagedFive = Invoke-App -Path '/admin/members?per_page=5' -Session 'admin'
+    $pagedBad  = Invoke-App -Path '/admin/members?per_page=7' -Session 'admin'
+    $pagedRows = [regex]::Matches($pagedFive.Body, 'member-row-avatar').Count
+    Assert-That 'P9-T16' ($pagedFive.Status -eq 200 -and $pagedRows -eq 5 `
+            -and $pagedFive.Body -match 'name="per_page"' `
+            -and $pagedFive.Body -match '<option value="5" selected' `
+            -and $pagedFive.Body -match 'Rows per page' `
+            -and $pagedBad.Body -match '<option value="10" selected') `
+        "the member table pages 5 per page and rejects an unlisted size (rows=$pagedRows, fallback=10)"
+
     # P9-T15 - a member cannot open the back-office membership screens.
     $memberCodes   = Invoke-App -Path '/admin/codes' -Session 'member'
     $memberMembers = Invoke-App -Path '/admin/members' -Session 'member'

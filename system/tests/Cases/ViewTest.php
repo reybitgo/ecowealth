@@ -224,11 +224,41 @@ return [
         assert_contains('Orders appear here after checkout.', $empty);
 
         $pager = new Paginator(57, 20, 2);
-        $links = View::partial('pagination', ['pager' => $pager]);
+
+        $_GET = ['per_page' => '20', 'q' => 'ana'];
+
+        try {
+            $links = View::partial('pagination', ['pager' => $pager, 'pager_label' => 'Orders']);
+        } finally {
+            $_GET = [];
+        }
 
         assert_contains('Showing 21–40 of 57', $links);
+        assert_contains('Orders', $links);
         assert_contains('page=3', $links);
         assert_contains('page=1', $links);
+        assert_contains('First page', $links);
+        assert_contains('Last page', $links);
+
+        /* The rows-per-page control offers 5 … 100, keeps filters and
+         * selects the current size (P6-T9, §3.6). */
+        assert_contains('Rows per page', $links);
+        assert_contains('name="per_page"', $links);
+        assert_contains('data-per-page', $links);
+        assert_contains('<option value="5"', $links);
+        assert_contains('<option value="10"', $links);
+        assert_contains('<option value="100"', $links);
+        assert_contains('<option value="20" selected', $links);
+        assert_contains('name="q" value="ana"', $links, 'the rows form keeps the active filter');
+
+        /* A list without a size choice omits the control. */
+        $fixed = View::partial('pagination', [
+            'pager'         => new Paginator(30, 12, 1),
+            'show_per_page' => false,
+        ]);
+
+        assert_not_contains('Rows per page', $fixed);
+        assert_contains('Showing 1–12 of 30', $fixed);
     },
 
     'View::page footer carries only the EcoWealth copyright' => function () use ($render): void {
