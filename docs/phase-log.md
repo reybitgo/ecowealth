@@ -2098,8 +2098,10 @@ confirmation after pressing it. The reference UI (the token-contract control) sh
   is the dark bubble with the arrow shown in the reference screenshots; the app only drives the text.
 - **Feedback follows a successful copy.** A refused clipboard write leaves the control unchanged, so
   "Copied!" never lies; the older `execCommand` fallback still calls the same feedback.
-- **Icon-only vs labelled.** The code rows swap only the icon (there is no label); referral buttons keep
-  their width but read "Copied" with a check while the state lasts.
+- **Icon-only everywhere.** The code rows and the referral cards both use a bare `bx-copy` icon button
+  with a tooltip; the check mark and “Copied!” tooltip carry the feedback, so a copy never changes a
+  button's width. The shared handler still supports a labelled control through `data-copy-text` (none
+  remain in the UI).
 
 ---
 
@@ -2269,6 +2271,36 @@ badge or count must read `member_status`.
 - **Register lives under Membership, not Commerce.** The sidebar entry is for the member/sponsor flow
   (`/register`), distinct from the back-office Members directory; admins get the same entry because they
   may sponsor members too.
+
+---
+
+## Post-Phase 9 — Referral copy is a bare icon with a tooltip
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 399 PHP cases,
+132 smoke checks, 8 browser checks.
+
+### Change
+
+The **Referral link** card's labelled “Copy” button became the same icon-only control the code list uses:
+`btn btn-icon btn-text-secondary` with a `bx-copy` icon, `data-bs-toggle="tooltip"` and
+`data-copy-tooltip="Copy link"`. The same markup applies on the dashboard, Membership, Genealogy and the
+admin member detail, so every referral link is copied the same way: hover → “Copy link”, click → green
+check + “Copied!” for ~1.8 s, then back to the copy icon. No new test cases were needed; the membership
+view test now pins the icon-only class and the browser harness covers the interaction.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **399 / 399** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser harness (`tests/tmp/verify-copy.mjs`) | **8 / 8** — code row and membership icon-only control: no label text, hover “Copy link”, click → check + “Copied!”, revert |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Evidence
+
+`docs/qa/evidence/shell/final-membership-copy.png` (hover) and `final-membership-copy-copied.png`
+(check + “Copied!”).
 
 
 

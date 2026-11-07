@@ -708,10 +708,11 @@ job touches a cancelled or completed order (see `docs/cron.md`).
   put it back after the reload, so changing the size never jumps the page to the top.
   Fixed-size lists (the catalogue card grid, dashboard snapshots) use `fromRequest()` /
   `new Paginator()` and pass `'show_per_page' => false` to the partial.
-- Copy controls use the shared `[data-copy]` handler: `data-copy` holds the value,
-  `data-copy-tooltip` the hover text, `data-bs-toggle="tooltip"` the Bootstrap tooltip and
-  `data-copy-text` the visible label (labelled buttons only). A successful copy shows a
-  green check plus a "Copied!" tooltip for ~1.8 s, then reverts.
+- Copy controls use the shared `[data-copy]` handler and are rendered as a bare icon button
+  (`btn btn-icon btn-text-secondary`, as on the code rows and referral cards): `data-copy` holds the
+  value, `data-copy-tooltip` the hover text and `data-bs-toggle="tooltip"` the Bootstrap tooltip. A
+  successful copy shows a green check plus a "Copied!" tooltip for ~1.8 s, then reverts; a labelled
+  control can mark its text with `data-copy-text`, though none remain in the UI.
 
 ---
 

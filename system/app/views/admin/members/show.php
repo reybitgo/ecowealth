@@ -130,14 +130,13 @@ $referralLink = $member['referral_code'] === null
                         <input type="text" class="form-control referral-link-input" value="<?= e($referralLink) ?>" readonly onfocus="this.select()" aria-label="Referral link" />
                         <button
                           type="button"
-                          class="btn btn-label-primary"
+                          class="btn btn-icon btn-text-secondary"
                           data-copy="<?= e($referralLink) ?>"
-                          data-copy-label="Copy"
                           data-copy-tooltip="Copy link"
                           data-bs-toggle="tooltip"
                           title="Copy link"
                           aria-label="Copy referral link"
-                        ><i class="icon-base bx bx-copy me-1"></i><span data-copy-text>Copy</span></button>
+                        ><i class="icon-base bx bx-copy"></i></button>
                       </div>
 <?php endif; ?>
                     </div>

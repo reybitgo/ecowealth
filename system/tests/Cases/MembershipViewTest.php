@@ -239,6 +239,15 @@ return [
 
         /* History empty state. */
         assert_contains('No activation requests yet', $html);
+
+        /* The referral card's copy control is a bare icon with a tooltip,
+         * matching the code list (no labelled "Copy" button). */
+        $referralStart = strpos($html, 'Referral link');
+        $referralBox   = $referralStart === false ? '' : substr($html, (int) $referralStart, 1600);
+
+        assert_contains('class="btn btn-icon btn-text-secondary"', $referralBox);
+        assert_contains('data-copy-tooltip="Copy link"', $referralBox);
+        assert_not_contains('data-copy-text', $referralBox);
     },
 
     'P9-T10 an open proof request replaces the activation forms' => function () use ($renderView, $makeMember, $membershipData): void {
@@ -440,6 +449,7 @@ return [
         assert_contains('Earnings', $html);
         assert_contains('Withdrawable', $html);
         assert_contains('data-copy-tooltip="Copy link"', $html, 'the referral copy button has a tooltip');
+        assert_contains('class="btn btn-icon btn-text-secondary"', $html, 'the referral copy control is a bare icon');
         assert_not_contains('binary', strtolower($html));
     },
 
