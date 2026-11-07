@@ -53,7 +53,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | The root address is the app’s front door; a guest must land on a usable login page. |
 | **Where** | `http://localhost/ecowealth/system/` |
 | **Evidence** | `QA1-01-login-redirect.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -76,7 +76,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | A broken theme (missing CSS, fonts or logo) would undermine every later screen. |
 | **Where** | Login page (Incognito) |
 | **Evidence** | `QA1-02-login-page.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -99,7 +99,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | This is the path every back-office user takes. |
 | **Where** | Login page |
 | **Evidence** | `QA1-03-dashboard-after-login.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -124,7 +124,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | The dashboard is the member’s home; every section must render, including interactive ones. |
 | **Where** | `/dashboard` as `QA_Member_01` (register it in QA1-07 first) |
 | **Evidence** | `QA1-04-dashboard-sections.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -147,7 +147,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | A menu must never advertise pages the current role cannot use. |
 | **Where** | Left sidebar at `/dashboard` as `QA_Member_01` |
 | **Evidence** | `QA1-05-member-menu.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -170,7 +170,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | The shop is members-only (decision D2); a guest must be sent to login with a clear message. |
 | **Where** | `/shop` in an Incognito window |
 | **Evidence** | `QA1-06-guest-shop-redirect.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -194,7 +194,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | Registration is the entry point for every future member and is reused by Phases 2–3. |
 | **Where** | `/register` |
 | **Evidence** | `QA1-07-registration.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -222,7 +222,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | This is the main security boundary between members and administrators. |
 | **Where** | `/admin` while signed in as `QA_Member_01` |
 | **Evidence** | `QA1-08-member-403.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -243,7 +243,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | A missed URL must fail cleanly, not with a blank page or a stack trace. |
 | **Where** | `/no-such-page` |
 | **Evidence** | `QA1-09-404.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -264,7 +264,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | The most common routing bug after a rewrite is broken asset URLs on nested pages. |
 | **Where** | `/admin/products/987654/edit` (a product that does not exist) |
 | **Evidence** | `QA1-10-deep-url-404-styled.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -288,7 +288,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | Password rules are the member’s own security control; errors must be understandable. |
 | **Where** | `/profile/password` as `QA_Member_01` |
 | **Evidence** | `QA1-11-password-errors.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -312,7 +312,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | The change must persist through a real sign-out/sign-in cycle. |
 | **Where** | `/profile/password` and the login page |
 | **Evidence** | `QA1-12-password-changed.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -339,7 +339,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | A logout that leaves the back office reachable is a serious defect. |
 | **Where** | Any signed-in page |
 | **Evidence** | `QA1-13-logout.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -360,7 +360,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | Maintenance mode must protect the site from visitors while keeping administrators able to work — and it must be reversible. |
 | **Where** | `/shop` (guest) and `/admin` (admin) |
 | **Evidence** | `QA1-14-maintenance.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -395,7 +395,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | Menu visibility must follow the role, not just be hidden by hand. |
 | **Where** | `/admin` as `admin` and as `superadmin` |
 | **Evidence** | `QA1-15-admin-vs-superadmin-menu.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -421,7 +421,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | Visitors arrive at the landing page before the app; it must not be affected by the app work. |
 | **Where** | `http://localhost/ecowealth/` |
 | **Evidence** | `QA1-16-front-door.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -441,7 +441,7 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 | **Why it matters** | Many members will use phones; the layout must collapse, not overflow. |
 | **Where** | `/login`, `/dashboard`, `/shop`, `/packages` at 390 × 844 |
 | **Evidence** | `QA1-17-mobile-login.png`, `QA1-17-mobile-dashboard.png`, `QA1-17-mobile-shop.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -478,14 +478,14 @@ The checks below go further: layout quality, real clicks, screenshots, and a mob
 
 | Item | Value |
 |---|---|
-| Checks executed | ____ / 17 |
-| Passed | ____ |
-| Failed | ____ |
-| Blocked | ____ |
-| Automated suite (`php tests\run.php`) | ☐ 141/141 pass |
-| Automated smoke (`tests\smoke.ps1`) | ☐ 41/41 pass |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
-| Tester / date | __________________________ |
+| Checks executed | 17 / 17 |
+| Passed | 17 |
+| Failed | 0 |
+| Blocked | 0 |
+| Automated suite (`php tests\run.php`) | ☑ 400/400 pass |
+| Automated smoke (`tests\smoke.ps1`) | ☑ 132/132 pass |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester / date | DSH · 2026-11-07 |
 
 **Notes for the developer** (anything that felt wrong even if it passed):
 

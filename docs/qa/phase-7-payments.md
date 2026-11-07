@@ -78,7 +78,7 @@ your pass):
 | **Why it matters** | The upload form is the only way a manual payment becomes verifiable. |
 | **Where** | `/checkout` → `/orders/{id}` as `QA_Member_01` |
 | **Evidence** | `QA7-01-proof-panel.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -103,7 +103,7 @@ your pass):
 | **Why it matters** | The happy path: evidence stored, order under review, stock still held. |
 | **Where** | Pending order page → submit → `/orders/{id}` |
 | **Evidence** | `QA7-02-order-review.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -129,7 +129,7 @@ your pass):
 | **Why it matters** | Evidence must be an image or a PDF, not an executable renamed. |
 | **Where** | A fresh pending order's proof panel |
 | **Evidence** | `QA7-03-bad-file.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -151,7 +151,7 @@ your pass):
 | **Why it matters** | Unlimited attempts would let a member flood the review queue and bypass the deadline. |
 | **Where** | An order you reject three times (needs `admin` too) |
 | **Evidence** | `QA7-04-attempt-cap.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -175,7 +175,7 @@ your pass):
 | **Why it matters** | The payment window is what the expiry job enforces; the form must agree with it. |
 | **Where** | A pending order whose deadline has passed (SQL below) + `/orders/{id}` |
 | **Evidence** | `QA7-05-window-closed.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -205,7 +205,7 @@ your pass):
 | **Why it matters** | Verification without the evidence on screen is guesswork. |
 | **Where** | `/admin/orders/{id}` for the QA7-02 order as `admin` |
 | **Evidence** | `QA7-06-admin-review.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -232,7 +232,7 @@ your pass):
 | **Why it matters** | This is where manual money becomes a paid order; the amount must match. |
 | **Where** | `/admin/orders/{id}` → Verify |
 | **Evidence** | `QA7-07-verified.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -260,7 +260,7 @@ your pass):
 | **Why it matters** | A rejected proof must not silently kill the order; the member gets one clear retry. |
 | **Where** | A reviewed order → Reject ⇒ member page |
 | **Evidence** | `QA7-08-rejected.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -287,7 +287,7 @@ your pass):
 | **Why it matters** | The order must hold its units again or the member could pay for a sold-out item. |
 | **Where** | Rejected order → re-upload ⇒ admin review |
 | **Evidence** | `QA7-09-reupload.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -310,7 +310,7 @@ your pass):
 | **Why it matters** | Self-approval is how a staff account pays itself. |
 | **Where** | `admin` places an order and opens it in the back office |
 | **Evidence** | `QA7-10-self-review.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -333,7 +333,7 @@ your pass):
 | **Why it matters** | A payment screenshot can contain account numbers. |
 | **Where** | `/admin/proofs/{id}` as admin / member / guest |
 | **Evidence** | `QA7-11-proof-guard.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -356,7 +356,7 @@ your pass):
 | **Why it matters** | A cancellation must return exactly the money the purchase took — no more, no less. |
 | **Where** | `/checkout` (e-wallet) → `/admin/orders/{id}` → Cancel ⇒ `/wallet` |
 | **Evidence** | `QA7-12-refund.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -391,7 +391,7 @@ your pass):
 | **Why it matters** | Unpaid orders must not hold stock forever, and the job must be safe to run repeatedly — from a browser or from cron. |
 | **Where** | `http://localhost/ecowealth/system/cron/shop_expire.php` · `bin\shop_expire.php` |
 | **Evidence** | `QA7-13-expiry-url.png`, `QA7-13-expiry-cli.png`, `QA7-13-cron-log.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -471,7 +471,7 @@ your pass):
 | **Why it matters** | These values are where buyers send money and how long they have to do it. |
 | **Where** | `/admin/settings` |
 | **Evidence** | `QA7-14-settings.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -512,7 +512,7 @@ your pass):
 | **Why it matters** | Every payment action must be explainable and every peso accounted for. |
 | **Where** | Order page history, `/admin/orders/{id}`, terminal |
 | **Evidence** | `QA7-15-reconcile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -552,7 +552,7 @@ your pass):
 | **Why it matters** | Members photograph a receipt on their phone; the form must fit. |
 | **Where** | DevTools device toolbar, iPhone 12 Pro (390 × 844) |
 | **Evidence** | `QA7-16-mobile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -573,7 +573,7 @@ your pass):
 | **Why it matters** | Phase 7 touched the order page, the layout and the schema. |
 | **Where** | `/shop`, `/cart`, `/checkout`, `/wallet`, `/admin/products` |
 | **Evidence** | `QA7-17-regression.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -594,7 +594,7 @@ your pass):
 | **Why it matters** | The dev database should be left as found. |
 | **Where** | phpMyAdmin → SQL |
 | **Evidence** | `QA7-18-cleanup.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 

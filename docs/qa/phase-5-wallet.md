@@ -60,7 +60,7 @@ guard and reconciliation paths.
 | **Why it matters** | A new member lands on a blank page; the two buckets need a plain explanation. |
 | **Where** | `/wallet` as `QA_Member_01` (before any top-up) |
 | **Evidence** | `QA5-01-wallet-empty.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -82,7 +82,7 @@ guard and reconciliation paths.
 | **Why it matters** | The core Phase 5 path: admin creates money, the member sees it, the ledger records it. |
 | **Where** | `/admin/wallets` → member wallet → `/wallet` |
 | **Evidence** | `QA5-02-topup.png`, `QA5-03-member-topup.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -108,7 +108,7 @@ guard and reconciliation paths.
 | **Why it matters** | Each row must show the balance after it, not the current balance repeated. |
 | **Where** | Member wallet after a second credit |
 | **Evidence** | `QA5-04-running-balance.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -129,7 +129,7 @@ guard and reconciliation paths.
 | **Why it matters** | The form must reject zero, negative, non-numeric and over-precision amounts without writing anything. |
 | **Where** | `/admin/wallets/{id}` as admin |
 | **Evidence** | `QA5-05-invalid-topup.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -151,7 +151,7 @@ guard and reconciliation paths.
 | **Why it matters** | A ledger is only useful if it can be narrowed by type, source, date and note. |
 | **Where** | `/wallet` |
 | **Evidence** | `QA5-06-filters.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -176,7 +176,7 @@ guard and reconciliation paths.
 | **Why it matters** | The back office needs one screen for total money held, what is cashable and what is locked. |
 | **Where** | `/admin/wallets` as admin |
 | **Evidence** | `QA5-07-monitor.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -200,7 +200,7 @@ guard and reconciliation paths.
 | **Why it matters** | Top-ups are an audited operation and the ledger is cross-member. |
 | **Where** | `/admin/wallets?tab=topups` and `?tab=ledger` |
 | **Evidence** | `QA5-08-topups-tab.png`, `QA5-09-ledger-tab.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -223,7 +223,7 @@ guard and reconciliation paths.
 | **Why it matters** | Menu hiding is not a guard; the routes must answer 403. |
 | **Where** | `/admin/wallets`, `/admin/wallets/{id}` as `QA_Member_01` |
 | **Evidence** | `QA5-10-member-403.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -246,7 +246,7 @@ guard and reconciliation paths.
 | **Why it matters** | The statement is private. |
 | **Where** | Incognito window → `/wallet` |
 | **Evidence** | `QA5-11-guest-redirect.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -265,7 +265,7 @@ guard and reconciliation paths.
 | **Why it matters** | Admins may use the member portal; `/wallet` must not break their back-office layout. |
 | **Where** | Sidebar **Finance → My e-wallet** |
 | **Evidence** | `QA5-12-admin-wallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -285,7 +285,7 @@ guard and reconciliation paths.
 | **Why it matters** | Money created by an admin must be attributable after the fact. |
 | **Where** | phpMyAdmin → `ecowealth_sneat` → SQL |
 | **Evidence** | `QA5-13-audit.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -315,7 +315,7 @@ guard and reconciliation paths.
 | **Why it matters** | Success criterion 4/7: the two buckets always equal the ledger. |
 | **Where** | Git Bash **or** PowerShell, in `C:\laragon\www\ecowealth\system` |
 | **Evidence** | `QA5-14-reconcile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -386,7 +386,7 @@ guard and reconciliation paths.
 | **Why it matters** | The statement is the page members check on a phone. |
 | **Where** | DevTools device toolbar, iPhone 12 Pro (390 × 844) |
 | **Evidence** | `QA5-15-mobile-wallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -408,7 +408,7 @@ guard and reconciliation paths.
 | **Why it matters** | The back office is desktop-first, but the monitor should not break on a tablet. |
 | **Where** | `/admin/wallets` at 390 × 844 |
 | **Evidence** | `QA5-16-monitor-mobile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -427,7 +427,7 @@ guard and reconciliation paths.
 | **Why it matters** | Phase 5 changed the menu, the schema and `APP_PHASE`. |
 | **Where** | `/shop`, `/cart`, `/packages`, `/admin/products` |
 | **Evidence** | `QA5-17-regression.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -450,7 +450,7 @@ guard and reconciliation paths.
 | **Why it matters** | The dev database should be left as found. |
 | **Where** | phpMyAdmin → SQL |
 | **Evidence** | `QA5-18-cleanup.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 

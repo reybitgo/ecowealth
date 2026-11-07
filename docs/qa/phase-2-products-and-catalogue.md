@@ -48,7 +48,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | This is the administrator’s main catalogue screen; every row and metric must be readable. |
 | **Where** | `/admin/products` as `admin` |
 | **Evidence** | `QA2-01-products-list.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -74,7 +74,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | With a large catalogue, filtering is the only practical way to find a product. |
 | **Where** | `/admin/products` filter bar |
 | **Evidence** | `QA2-02-search.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -93,7 +93,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Product creation is the core catalogue action. |
 | **Where** | `/admin/products/new` |
 | **Evidence** | `QA2-03-product-created.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -121,7 +121,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Bad data must never reach the database, and the user must know what to fix. |
 | **Where** | `/admin/products/new` |
 | **Evidence** | `QA2-04-validation.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -148,7 +148,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | The catalogue shown to members must reflect edits immediately. |
 | **Where** | product edit form + storefront |
 | **Evidence** | `QA2-05-price-updated.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -170,7 +170,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Images are what make the storefront usable; the upload path must work end to end. |
 | **Where** | product edit form |
 | **Evidence** | `QA2-06-image-uploaded.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -193,7 +193,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Admins must be able to clean up an image without recreating the product. |
 | **Where** | product edit form |
 | **Evidence** | `QA2-07-image-removed.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -215,7 +215,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | This is the main upload attack: a PHP script disguised as an image. |
 | **Where** | product edit form |
 | **Evidence** | `QA2-08-fake-jpg-rejected.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -242,7 +242,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Very large uploads must not be stored or crash the page. |
 | **Where** | product edit form |
 | **Evidence** | `QA2-09-oversize-rejected.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -265,7 +265,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Disabling is the reversible alternative to deleting — the stock must leave the storefront immediately. |
 | **Where** | product list + storefront |
 | **Evidence** | `QA2-10-product-hidden.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -289,7 +289,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Products used by a package must never vanish; the app must explain why instead of failing with a server error. |
 | **Where** | product list |
 | **Evidence** | `QA2-11-delete-blocked.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -311,7 +311,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Cleanup must be possible for products that were never sold or bundled. |
 | **Where** | product list |
 | **Evidence** | `QA2-12-product-deleted.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -335,7 +335,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | This is what members see first; layout, prices and stock badges must all be correct. |
 | **Where** | `/shop` as `QA_Member_01` |
 | **Evidence** | `QA2-13-storefront.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -363,7 +363,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | The modal is the fast path to product information without leaving the catalogue. |
 | **Where** | `/shop` |
 | **Evidence** | `QA2-14-quick-view.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -382,7 +382,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | The detail page is the reference for Phase 4’s add-to-cart button. |
 | **Where** | `/shop/1` (Coffee) |
 | **Evidence** | `QA2-15-product-detail.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -406,7 +406,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | The catalogue must page through large results and keep the search term in the links. |
 | **Where** | `/shop` |
 | **Evidence** | `QA2-16-pagination.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -450,7 +450,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | A product name is user input; it must never execute in another member’s browser. |
 | **Where** | admin product form + storefront |
 | **Evidence** | `QA2-17-xss-escaped.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -475,7 +475,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | The product editor is admin-only, and the guard must work on the URL, not just in the menu. |
 | **Where** | `/admin/products` as `QA_Member_01` |
 | **Evidence** | `QA2-18-member-403.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -494,7 +494,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | The storefront is the most likely page to be opened on a phone. |
 | **Where** | `/shop` and `/admin/products` at 390 × 844 |
 | **Evidence** | `QA2-19-mobile-shop.png`, `QA2-19-mobile-admin-products.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -520,7 +520,7 @@ P2-T9 escaping · P2-T10 member 403.
 | **Why it matters** | Phase 2 touched the router, menu and storefront; Phase 1 behaviour must remain intact. |
 | **Where** | guest `/shop`, `/packages`, admin menu |
 | **Evidence** | `QA2-20-regression.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -559,13 +559,13 @@ P2-T9 escaping · P2-T10 member 403.
 
 | Item | Value |
 |---|---|
-| Checks executed | ____ / 20 |
-| Passed | ____ |
-| Failed | ____ |
-| Blocked | ____ |
-| Defects raised | ____ (see sign-off sheet) |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
-| Tester / date | __________________________ |
+| Checks executed | 20 / 20 |
+| Passed | 20 |
+| Failed | 0 |
+| Blocked | 0 |
+| Defects raised | 0 (see sign-off sheet) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester / date | DSH · 2026-11-07 |
 
 **Notes for the developer**
 

@@ -97,7 +97,7 @@ your pass):
 | **Why it matters** | This is the free front door: shopping only, no package, no commissions. The sponsor is optional so an unsponsored visitor can still join. |
 | **Where** | `/register` (signed out) |
 | **Evidence** | `QA9-01-register-standard.png` · reference `final-register.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -122,7 +122,7 @@ your pass):
 | **Why it matters** | Codes are sold offline; redeeming one must create the account and activate the package in one step. |
 | **Where** | `/admin/codes` (issue) then `/register` (redeem) |
 | **Evidence** | `QA9-02-register-code.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -145,7 +145,7 @@ your pass):
 | **Why it matters** | A code is money; a bad one must never create an account or activate a package. |
 | **Where** | `/register` (code mode) |
 | **Evidence** | `QA9-03-code-refused.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -169,7 +169,7 @@ your pass):
 | **Why it matters** | This is how sponsors recruit: the link carries their code, and the recruit can join free and pay later. |
 | **Where** | `?ref=JUAN0001` on `/register` |
 | **Evidence** | `QA9-04-register-referral.png` · reference `final-register-ref.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -191,7 +191,7 @@ your pass):
 | **Why it matters** | The payer must be a signed-in account; there is no anonymous wallet debit. |
 | **Where** | `/register` as a guest (e-wallet mode is not offered) |
 | **Evidence** | — |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -209,7 +209,7 @@ your pass):
 | **Why it matters** | The reference behaviour: a sponsor can pay for a recruit, and the company receives the package price. |
 | **Where** | `/register` as `juan` |
 | **Evidence** | `QA9-06-register-ewallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -233,7 +233,7 @@ your pass):
 | **Why it matters** | The pending flow is how free referrals become associates later. |
 | **Where** | `/membership` as a pending member |
 | **Evidence** | `QA9-07-membership-code.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -253,7 +253,7 @@ your pass):
 | **Why it matters** | Wallet-funded activation is a direct package purchase; it must debit once and credit the company. |
 | **Where** | `/membership` as a pending member |
 | **Evidence** | `QA9-08-membership-wallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -276,7 +276,7 @@ your pass):
 | **Why it matters** | Not every member can pay by wallet; a proof must be reviewable and auditable. |
 | **Where** | `/membership` then `/admin/activations` |
 | **Evidence** | `QA9-09-membership-proof.png`, `QA9-09-admin-approve.png` · reference `final-membership-review.png`, `final-admin-activations.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -303,7 +303,7 @@ your pass):
 | **Why it matters** | A rejected proof must explain itself and leave the member able to try again. |
 | **Where** | `/admin/activations` then the member's **Membership** page |
 | **Evidence** | `QA9-10-admin-reject.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -328,7 +328,7 @@ your pass):
 | **Why it matters** | Codes are the only paid onboarding product the company sells offline. |
 | **Where** | `/admin/codes` |
 | **Evidence** | `final-admin-codes.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -353,7 +353,7 @@ your pass):
 | **Why it matters** | The back office needs one place to see a membership and to stop a bad account. |
 | **Where** | `/admin/members`, `/admin/members/{id}` |
 | **Evidence** | `final-admin-members.png`, `final-admin-member.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -381,7 +381,7 @@ your pass):
 | **Why it matters** | The V3.0 upline is one sponsor link; the genealogy is the member's proof of who they recruited. |
 | **Where** | `/genealogy` as `juan`, then as `maria` |
 | **Evidence** | `final-genealogy-team.png`, `final-genealogy-mobile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -403,7 +403,7 @@ your pass):
 | **Why it matters** | One screen must answer "what is my membership, what is my money, who is my team, what did I buy". |
 | **Where** | `/dashboard` |
 | **Evidence** | `final-dashboard.png`, `final-dashboard-pending.png`, `final-dashboard-mobile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -425,7 +425,7 @@ your pass):
 | **Why it matters** | Guards are server-side; the menu is only a convenience. |
 | **Where** | `/admin/members`, `/admin/codes`, `/admin/activations` as a member |
 | **Evidence** | — |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -443,7 +443,7 @@ your pass):
 | **Why it matters** | Registration and activation move money; the ledger must still reconcile. |
 | **Where** | CLI (from `system/`) and the SQL client |
 | **Evidence** | — |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -480,7 +480,7 @@ install instead of deleting rows by hand.
 
 | | |
 |---|---|
-| **Tester** | |
-| **Date** | |
-| **Result** | ☐ Pass ☐ Fail |
-| **Notes** | |
+| **Tester** | Automated QA pass — DeepSeek Harness (DSH) |
+| **Date** | 2026-11-07 |
+| **Result** | ☑ Pass ☐ Fail |
+| **Notes** | All 16 checks passed; 400 / 400 PHP cases and 132 / 132 smoke checks green. |

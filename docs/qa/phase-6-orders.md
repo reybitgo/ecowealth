@@ -62,7 +62,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | The checkout page is the last place a member can see what they are about to pay. |
 | **Where** | `/checkout` as `QA_Member_01` with at least one product in the cart |
 | **Evidence** | `QA6-01-checkout.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -89,7 +89,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Retyping a delivery address or a payout account on every order is the quickest way to lose a buyer. |
 | **Where** | `/profile` → address form / payout form → `/checkout` |
 | **Evidence** | `QA6-02-address-book.png`, `QA6-02-payout-accounts.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -122,7 +122,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Validation must be field-level, the typed address must survive the round trip, and an unticked terms box must not look submittable. |
 | **Where** | `/checkout` |
 | **Evidence** | `QA6-03-validation.png`, `QA6-03-terms-gate.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -152,7 +152,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | The happy path: one transaction, one debit, one order, cart emptied. |
 | **Where** | `/checkout` → `/orders/{id}` → `/wallet` |
 | **Evidence** | `QA6-04-paid-order.png`, `QA6-05-wallet-debit.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -189,7 +189,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | GCash/Maya/bank are verified by the company; the order must wait in `pending`. |
 | **Where** | `/checkout` → order page |
 | **Evidence** | `QA6-06-pending-order.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -216,7 +216,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | A member who changes their mind must not leave stock held forever. |
 | **Where** | Pending order page → cancel |
 | **Evidence** | `QA6-06-cancel-modal.png`, `QA6-07-cancelled-order.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -245,7 +245,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Money has been taken; cancellation needs a refund flow, which is a later phase. |
 | **Where** | Paid order page (QA6-04) |
 | **Evidence** | `QA6-08-paid-no-cancel.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -263,7 +263,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | The option must not be offered when it would always fail server-side. |
 | **Where** | `/checkout` as a member with a small wallet balance |
 | **Evidence** | `QA6-09-wallet-disabled.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -289,7 +289,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | The history is the member's record; filters must narrow, not leak. |
 | **Where** | `/orders` |
 | **Evidence** | `QA6-10-orders-list.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -311,7 +311,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Order ids are sequential; URL guessing must not leak an order. |
 | **Where** | `/orders/{id}` as a different member; `/admin/orders` as a member |
 | **Evidence** | `QA6-11-isolation.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -332,7 +332,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | The order number is what support and the member quote to each other. |
 | **Where** | `/orders`, order page, admin order desk |
 | **Evidence** | `QA6-12-order-numbers.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -354,7 +354,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Operations needs one screen for the day's orders. |
 | **Where** | `/admin/orders` as `admin` |
 | **Evidence** | `QA6-13-admin-orders.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -381,7 +381,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Support needs the delivery snapshot, the member's wallet and the status trail in one place. |
 | **Where** | `/admin/orders/{id}` |
 | **Evidence** | `QA6-14-admin-order.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -403,7 +403,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Checkout is the page most likely to be completed on a phone. |
 | **Where** | DevTools device toolbar, iPhone 12 Pro (390 × 844) |
 | **Evidence** | `QA6-15-checkout-mobile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -427,7 +427,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Phase 6 moves money and holds stock; both must stay exact. |
 | **Where** | Terminal + phpMyAdmin |
 | **Evidence** | `QA6-16-reconcile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -461,7 +461,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | Phase 6 changed the cart buttons, the layout menu and the schema. |
 | **Where** | `/shop`, `/cart`, `/packages`, `/admin/products`, `/wallet` |
 | **Evidence** | `QA6-17-regression.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -484,7 +484,7 @@ address book, missing-terms and cancellation paths.
 | **Why it matters** | The dev database should be left as found. |
 | **Where** | phpMyAdmin → SQL |
 | **Evidence** | `QA6-18-cleanup.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 

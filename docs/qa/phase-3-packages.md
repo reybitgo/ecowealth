@@ -37,7 +37,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | This table is the administrator’s summary of every package and its money rules. |
 | **Where** | `/admin/packages` |
 | **Evidence** | `QA3-01-packages-list.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -64,7 +64,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | This is the main admin workflow of the phase: one save writes the package, the ladder and the contents together. |
 | **Where** | `/admin/packages/new` |
 | **Evidence** | `QA3-02-package-created.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -96,7 +96,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | Entering level 1 twice (once as a level, once as the direct bonus) is the classic way to double-pay a sponsor. |
 | **Where** | package form |
 | **Evidence** | `QA3-03-level-1-readonly.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -120,7 +120,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | The matrix is the package’s compensation offer; an edit must survive a reload. |
 | **Where** | package edit form |
 | **Evidence** | `QA3-04-level-edited.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -143,7 +143,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | A negative or over-precise bonus must never reach the database. |
 | **Where** | `/admin/packages/new` |
 | **Evidence** | `QA3-05-validation.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -172,7 +172,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | The read-only form is only half the guarantee — the table itself must contain levels 2–10 only. |
 | **Where** | phpMyAdmin |
 | **Evidence** | `QA3-06-levels-table.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -204,7 +204,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | The admin must not accidentally end up with two separate lines for the same product. |
 | **Where** | package edit form |
 | **Evidence** | `QA3-07-contents-merged.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -226,7 +226,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | Retired products must not be added to new bundles, but an existing package must keep working when a product is temporarily disabled. |
 | **Where** | product list + package forms |
 | **Evidence** | `QA3-08-inactive-content.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -255,7 +255,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | Disabling is the supported alternative to deleting; it must take effect immediately. |
 | **Where** | `/admin/packages` + `/packages` |
 | **Evidence** | `QA3-09-package-hidden.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -278,7 +278,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | Confirms the “deactivate instead of delete” rule is what the build actually ships. |
 | **Where** | `/admin/packages` and the package form |
 | **Evidence** | `QA3-10-no-delete.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -297,7 +297,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | This is the page members judge the offer by; every number must match the admin data. |
 | **Where** | `/packages` as `QA_Member_01` |
 | **Evidence** | `QA3-11-packages-page.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -328,7 +328,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | The details must show ten levels with level 1 clearly identified as the direct bonus. |
 | **Where** | `/packages` |
 | **Evidence** | `QA3-12-ladder.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -349,7 +349,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | The package editor controls money rules; it must be admin-only. |
 | **Where** | `/admin/packages` as `QA_Member_01` |
 | **Evidence** | `QA3-13-member-403.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -372,7 +372,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | Package comparisons are likely to be read on a phone. |
 | **Where** | `/packages` at 390 × 844 |
 | **Evidence** | `QA3-14-mobile-packages.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -394,7 +394,7 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 | **Why it matters** | Phase 3 touched shared navigation and the product delete guard. |
 | **Where** | `/shop`, `/admin/products`, `/admin` |
 | **Evidence** | `QA3-15-regression.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -445,13 +445,13 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
 
 | Item | Value |
 |---|---|
-| Checks executed | ____ / 16 |
-| Passed | ____ |
-| Failed | ____ |
-| Blocked | ____ |
-| Defects raised | ____ (see sign-off sheet) |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
-| Tester / date | __________________________ |
+| Checks executed | 16 / 16 |
+| Passed | 16 |
+| Failed | 0 |
+| Blocked | 0 |
+| Defects raised | 0 (see sign-off sheet) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester / date | DSH · 2026-11-07 |
 
 **Notes for the developer**
 

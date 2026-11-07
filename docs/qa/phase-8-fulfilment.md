@@ -85,7 +85,7 @@ your pass):
 | **Why it matters** | The moment the money is received the member should see both the receipt and the promise of shipping. |
 | **Where** | `/orders/{id}` as `QA_Fulfil_01` on the **paid** fixture order |
 | **Evidence** | `QA8-01-member-paid.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -106,7 +106,7 @@ your pass):
 | **Why it matters** | Packing is invisible work; the member needs a status that explains the pause. |
 | **Where** | The **ready** fixture order |
 | **Evidence** | `QA8-02-member-ready.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -125,7 +125,7 @@ your pass):
 | **Why it matters** | This is the information the buyer needs to receive the parcel. |
 | **Where** | The **shipped** fixture order; also the **mobile** check |
 | **Evidence** | `QA8-03-member-shipped.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -146,7 +146,7 @@ your pass):
 | **Why it matters** | Confirmation is the member's half of the closing handshake. |
 | **Where** | The **delivered** fixture order |
 | **Evidence** | `QA8-04-member-delivered.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -169,7 +169,7 @@ your pass):
 | **Why it matters** | The close of the lifecycle; it must happen exactly once. |
 | **Where** | Delivered order → **Confirm receipt** |
 | **Evidence** | `QA8-05-member-completed.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -192,7 +192,7 @@ your pass):
 | **Why it matters** | The document is what the buyer keeps; wrong totals or a missing seller block are real defects. |
 | **Where** | Any paid order → **View / print invoice** (opens in a new tab) |
 | **Evidence** | `QA8-06-invoice.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -220,7 +220,7 @@ your pass):
 | **Why it matters** | "Immutable snapshot" is the whole point of the invoice. |
 | **Where** | The same order → the invoice, twice |
 | **Evidence** | `QA8-07-invoice-reprint.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -241,7 +241,7 @@ your pass):
 | **Why it matters** | Invoices carry names, addresses and money. |
 | **Where** | A second member session (e.g. `QA_Member_01`) |
 | **Evidence** | `QA8-08-invoice-guard.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -267,7 +267,7 @@ your pass):
 | **Why it matters** | First fulfilment step; it must be available only on a paid order. |
 | **Where** | Admin → Orders → a **Paid** order (e.g. `QA_Member_01`'s paid e-wallet order) |
 | **Evidence** | `QA8-09-admin-paid.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -291,7 +291,7 @@ your pass):
 | **Why it matters** | Separates packing from the courier handoff, which is where stock leaves the shelf. |
 | **Where** | The same order, now **Packing** |
 | **Evidence** | `QA8-10-admin-packing.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -310,7 +310,7 @@ your pass):
 | **Why it matters** | Tracking is the buyer's proof of dispatch, and the stock movement must be exact. |
 | **Where** | The ready-to-ship order → **Ship order** |
 | **Evidence** | `QA8-11-admin-ship-form.png`, `QA8-11-member-shipped.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -351,7 +351,7 @@ your pass):
 | **Why it matters** | Delivery starts the member's confirmation window and the auto-complete clock. |
 | **Where** | The shipped order → **Mark delivered** |
 | **Evidence** | `QA8-12-admin-delivered.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -373,7 +373,7 @@ your pass):
 | **Why it matters** | Money and goods are already moving; cancellation needs the returns/RTS flow that is deferred. |
 | **Where** | A shipped order → **Cancel order** card |
 | **Evidence** | `QA8-13-no-cancel-after-ship.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -395,7 +395,7 @@ your pass):
 | **Why it matters** | Finance needs the same document the member sees, and a cancelled sale must not look live. |
 | **Where** | Admin order page → **View / print invoice**; a paid order cancelled by an admin |
 | **Evidence** | `QA8-14-admin-invoice.png`, `QA8-14-invoice-void.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -423,7 +423,7 @@ your pass):
 | **Why it matters** | Orders must not stay open forever when a member never confirms. |
 | **Where** | A delivered order older than the window; `/cron/order_autocomplete.php` |
 | **Evidence** | `QA8-15-auto-complete.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -465,7 +465,7 @@ your pass):
 | **Why it matters** | The invoice identity and the auto-complete window are configuration, not code. |
 | **Where** | Admin → Settings → **Fulfilment & invoices** |
 | **Evidence** | `QA8-16-admin-settings.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -505,7 +505,7 @@ your pass):
 | **Why it matters** | Fulfilment touches stock and money-adjacent documents; the earlier invariants must survive. |
 | **Where** | The order pages, `/wallet`, `bin/wallet_reconcile.php` |
 | **Evidence** | `QA8-17-invariants.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -539,7 +539,7 @@ your pass):
 | **Why it matters** | The shipped/delivered pages are read on a phone; the new routes must not disturb Phases 1–7. |
 | **Where** | 390 × 844 browser emulation; the member and admin menus |
 | **Evidence** | `QA8-18-mobile.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -564,7 +564,7 @@ your pass):
 | **Why it matters** | Leave the development database ready for the next phase. |
 | **Where** | phpMyAdmin → `ecowealth_sneat` → **SQL** |
 | **Evidence** | `QA8-19-cleanup.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -600,11 +600,11 @@ your pass):
 
 | Done | Item |
 |---|---|
-| ☐ | Every check above is ticked or has a defect written up |
-| ☐ | Screenshots saved under `docs/qa/evidence/phase-8/` with the names in the tables |
-| ☐ | The fixture account `QA_Fulfil_01` and its orders are removed (or left intentionally and noted) |
-| ☐ | Seller block / auto-complete settings are restored or the new values are recorded |
-| ☐ | `docs/qa/sign-off-sheet.md` has the Phase 8 section filled in |
+| ☑ | Every check above is ticked or has a defect written up |
+| ☑ | Screenshots saved under `docs/qa/evidence/phase-8/` with the names in the tables |
+| ☑ | The fixture account `QA_Fulfil_01` and its orders are removed (or left intentionally and noted) — left in place for re-tests |
+| ☑ | Seller block / auto-complete settings are restored or the new values are recorded |
+| ☑ | `docs/qa/sign-off-sheet.md` has the Phase 8 section filled in |
 
 ## Known and accepted behaviour (not bugs)
 

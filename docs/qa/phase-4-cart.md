@@ -62,7 +62,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The blank state is the first thing a new member sees; it must explain what to do. |
 | **Where** | `/cart` as `QA_Member_01` with nothing added |
 | **Evidence** | `QA4-01-empty-cart.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -83,7 +83,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | This is the main add path from the catalogue. |
 | **Where** | `/shop` |
 | **Evidence** | `QA4-02-add-from-card.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -107,7 +107,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | A repeated add must not create a duplicate line (one line per product). |
 | **Where** | `/shop` → drawer |
 | **Evidence** | `QA4-03-repeat-add.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -127,7 +127,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The drawer is the fast path; its +/− must save, not just repaint. |
 | **Where** | drawer, on any member page |
 | **Evidence** | `QA4-04-drawer-stepper.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -150,7 +150,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The full cart page must offer the same control as the drawer, plus a clear remove action. |
 | **Where** | `/cart` |
 | **Evidence** | `QA4-05-cart-edit.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -175,7 +175,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The “type 0 to remove” gesture is documented; it must not write an empty line. |
 | **Where** | `/cart` |
 | **Evidence** | `QA4-06-zero-removes.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -198,7 +198,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The cart is the first line of defence against overselling. |
 | **Where** | `/admin/products` + `/cart` |
 | **Evidence** | `QA4-07-stock-refusal.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -220,7 +220,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Stock can shrink while an item sits in a cart; the page must warn and stop checkout. |
 | **Where** | `/cart` |
 | **Evidence** | `QA4-08-over-stock.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -245,7 +245,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The cart must never charge an old snapshot price. |
 | **Where** | `/admin/products` + `/cart` |
 | **Evidence** | `QA4-09-price-change.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -266,7 +266,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Admins retire products; a cart that contains one must tell the member why. |
 | **Where** | `/admin/products` + `/cart` |
 | **Evidence** | `QA4-10-inactive-line.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -290,7 +290,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The catalogue badge and the cart enforce the same `available` number. |
 | **Where** | `/shop`, `/admin/products` |
 | **Evidence** | `QA4-11-low-stock.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -314,7 +314,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Cart line ids are sequential; they must never authorise a write on their own. |
 | **Where** | two browser profiles or one normal + one private window |
 | **Evidence** | `QA4-12-idor.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -348,7 +348,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Every control is a real form; the shop must not depend on the script. |
 | **Where** | `/shop` with JS off |
 | **Evidence** | `QA4-13-no-js.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -377,7 +377,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Cart data is personal; a guest must be sent to sign-in. |
 | **Where** | private window |
 | **Evidence** | `QA4-14-guest-redirect.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -400,7 +400,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Shopping is mobile-first; the cart must not force sideways scrolling. |
 | **Where** | `/cart` and the drawer at 390 × 844 |
 | **Evidence** | `QA4-15-mobile-cart.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -423,7 +423,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | The cart reports success and refusal through toasts; a hidden toast is a silent failure. |
 | **Where** | `/shop`, `/cart`, drawer |
 | **Evidence** | `QA4-16-toast.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -445,7 +445,7 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 | **Why it matters** | Phase 4 changed the shared footer, navbar, product cards and product page. |
 | **Where** | `/shop`, `/shop/{id}`, `/admin/products`, `/admin`, `/packages` |
 | **Evidence** | `QA4-17-regression.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked — Notes: |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked — Notes: |
 
 **Steps**
 
@@ -503,13 +503,13 @@ P4-T11 JSON contract · P4-T12 no-JS add · P4-T13 drawer refresh.
 
 | Item | Value |
 |---|---|
-| Checks executed | ____ / 17 |
-| Passed | ____ |
-| Failed | ____ |
-| Blocked | ____ |
-| Defects raised | ____ (see sign-off sheet) |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
-| Tester / date | __________________________ |
+| Checks executed | 17 / 17 |
+| Passed | 17 |
+| Failed | 0 |
+| Blocked | 0 |
+| Defects raised | 0 (see sign-off sheet) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester / date | DSH · 2026-11-07 |
 
 **Notes for the developer**
 
