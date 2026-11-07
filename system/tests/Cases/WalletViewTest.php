@@ -65,7 +65,7 @@ $memberPage = static function (array $account, array $filters = [], int $page = 
 };
 
 /** View data for the admin monitor, as AdminWalletController::index builds it. */
-$monitorPage = static function (string $tab = 'members', string $query = ''): array {
+$monitorPage = static function (string $tab = 'members', string $query = '', string $status = ''): array {
     $totals = Wallet::monitorTotals();
 
     $members      = [];
@@ -77,7 +77,7 @@ $monitorPage = static function (string $tab = 'members', string $query = ''): ar
     $ledgerTotals = ['rows' => 0, 'credits' => 0.0, 'debits' => 0.0, 'net' => 0.0];
 
     if ($tab === 'members') {
-        $filters      = ['q' => $query, 'funded' => ''];
+        $filters      = ['q' => $query, 'funded' => '', 'status' => $status];
         $membersPager = Paginator::fromRequest(Wallet::memberCount($filters), 20);
         $members      = Wallet::members($filters, $membersPager);
     } elseif ($tab === 'topups') {
@@ -104,6 +104,7 @@ $monitorPage = static function (string $tab = 'members', string $query = ''): ar
         ],
         'query'          => $query,
         'funded'         => '',
+        'status'         => $status,
         'members'        => $members,
         'members_pager'  => $membersPager,
         'topups'         => $topups,
@@ -261,6 +262,28 @@ return [
         assert_contains('My e-wallet', $nav);
         assert_contains('menu-item active', $nav);
         assert_not_contains('Payouts', $nav, 'Phase 13 is still hidden');
+    },
+
+    'P5-T7 the monitor filters members by status' => function () use ($render, $makeMember, $monitorPage): void {
+        $admin   = test_user('wv_admin', 'admin');
+        $active  = $makeMember();
+        $pending = $makeMember();
+
+        db()->prepare("UPDATE users SET member_status = 'pending' WHERE id = ?")
+            ->execute([(int) $pending['id']]);
+
+        $wallet = new WalletService();
+        $wallet->credit((int) $pending['id'], '100.00', 'topup', 4401, 'Fund', false);
+        $wallet->credit((int) $active['id'], '50.00', 'topup', 4402, 'Fund', false);
+
+        test_signed_in_as($admin);
+
+        $html = $render('admin', 'admin/wallets/index', $monitorPage('members', '', 'pending'));
+
+        assert_contains('value="pending" selected', $html, 'the status filter keeps its selection');
+        assert_contains((string) $pending['username'], $html);
+        assert_not_contains((string) $active['username'], $html, 'active members are filtered out');
+        assert_contains('Clear', $html, 'a status filter offers Clear');
     },
 
     'P5-T7 the admin top-up tab and the all-movements tab render' => function () use ($render, $makeMember, $monitorPage): void {

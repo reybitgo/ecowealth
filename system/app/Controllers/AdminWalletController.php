@@ -38,6 +38,11 @@ final class AdminWalletController
 
         $query  = Request::string('q');
         $funded = Request::string('funded');
+        $status = strtolower(Request::string('status'));
+
+        if (!in_array($status, ['active', 'pending', 'inactive', 'suspended'], true)) {
+            $status = '';
+        }
 
         $totals = Wallet::monitorTotals();
 
@@ -58,7 +63,7 @@ final class AdminWalletController
         $ledgerTotals = ['rows' => 0, 'credits' => 0.0, 'debits' => 0.0, 'net' => 0.0];
 
         if ($tab === 'members') {
-            $filters      = ['q' => $query, 'funded' => $funded];
+            $filters      = ['q' => $query, 'funded' => $funded, 'status' => $status];
             $membersPager = Paginator::fromTableRequest(Wallet::memberCount($filters));
             $members      = Wallet::members($filters, $membersPager);
         } elseif ($tab === 'topups') {
@@ -87,6 +92,7 @@ final class AdminWalletController
             'tab_counts'      => $tabCounts,
             'query'           => $query,
             'funded'          => $funded,
+            'status'          => $status,
             'members'         => $members,
             'members_pager'   => $membersPager,
             'topups'          => $topups,

@@ -2371,6 +2371,34 @@ members show **Active**.
 `docs/qa/evidence/shell/final-wallet-monitor-status.png` — the monitor with the Status column and the
 pending rows highlighted.
 
+---
+
+## Post-Phase 9 — Status filter in the wallet monitor
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 400 PHP cases,
+132 smoke checks, 3 browser checks.
+
+### Change
+
+The Members tab of `/admin/wallets` gained a **Status** filter beside the search and funded selects:
+All statuses / Active / Pending / Inactive / Suspended. `AdminWalletController::index` reads `?status=`
+(unknown values are ignored), passes it through `Wallet::memberWhere()` as a `member_status = ?`
+condition, and the select keeps its selection. Any active filter shows the **Clear** link, and the
+existing filter form keeps the choice across searches because the value is part of the GET query.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **400 / 400** — new test renders the monitor with `status=pending`, asserts the selected option and that active members are absent |
+| `powershell -NoProfile -File tests/smoke.ps1` | **132 / 132** |
+| Browser check | `?tab=members&status=pending&per_page=100` → select shows Pending, every row is Pending (`QA_Member_09`, `QA_Member_10`, `test3`) |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Evidence
+
+`docs/qa/evidence/shell/final-wallet-status-filter.png` — the filtered monitor.
+
 
 
 

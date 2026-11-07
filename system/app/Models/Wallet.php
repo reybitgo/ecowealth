@@ -356,6 +356,13 @@ final class Wallet
             $where[] = 'ewallet_balance > 0';
         }
 
+        $status = strtolower(trim((string) ($filters['status'] ?? '')));
+
+        if (in_array($status, ['active', 'pending', 'inactive', 'suspended'], true)) {
+            $where[]  = 'member_status = ?';
+            $params[] = $status;
+        }
+
         return [implode(' AND ', $where), $params];
     }
 

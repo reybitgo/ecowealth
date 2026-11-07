@@ -19,6 +19,7 @@ declare(strict_types=1);
  * @var array<string, int> $tab_counts
  * @var string $query
  * @var string $funded
+ * @var string $status
  * @var list<array<string, mixed>> $members
  * @var Paginator $members_pager
  * @var list<array<string, mixed>> $topups
@@ -136,8 +137,14 @@ $tabs = [
                       <option value="">All members</option>
                       <option value="1" <?= $funded === '1' ? 'selected' : '' ?>>Funded only</option>
                     </select>
+                    <select name="status" class="form-select" aria-label="Filter by status">
+                      <option value="">All statuses</option>
+<?php foreach (['active' => 'Active', 'pending' => 'Pending', 'inactive' => 'Inactive', 'suspended' => 'Suspended'] as $value => $label): ?>
+                      <option value="<?= e($value) ?>" <?= $status === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+<?php endforeach; ?>
+                    </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
-<?php if ($query !== '' || $funded !== ''): ?>
+<?php if ($query !== '' || $funded !== '' || $status !== ''): ?>
                     <a href="<?= e(url('admin/wallets?tab=members')) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>
                   </form>
