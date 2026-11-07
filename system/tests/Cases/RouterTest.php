@@ -89,7 +89,7 @@ return [
         );
     },
 
-    'Live route table builds and contains the Phase 1–9 routes' => function (): void {
+    'Live route table builds and contains the Phase 1–10 routes' => function (): void {
         $routes = require dirname(__DIR__, 2) . '/app/routes.php';
         $router = new Router($routes);
 
@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(69, $live);
+        assert_count(71, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -170,9 +170,13 @@ return [
         assert_same('admin', $live['POST /admin/activations/{id}/approve']);
         assert_same('admin', $live['POST /admin/activations/{id}/reject']);
         assert_same('admin', $live['GET /admin/activations/{id}/proof']);
+
+        /* Phase 10 — the member earnings statement and the admin ledger. */
+        assert_same('member', $live['GET /earnings']);
+        assert_same('admin', $live['GET /admin/commissions']);
     },
 
-    'Live route table resolves the Phase 1–9 URLs' => function (): void {
+    'Live route table resolves the Phase 1–10 URLs' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 
         assert_same(HomeController::class, $router->match('GET', '/')['route']['handler'][0]);
@@ -338,6 +342,16 @@ return [
             $router->match('GET', '/admin/activations/7/proof')['route']['handler'][0]
         );
 
+        /* Phase 10 handlers. */
+        assert_same(
+            EarningsController::class,
+            $router->match('GET', '/earnings')['route']['handler'][0]
+        );
+        assert_same(
+            AdminCommissionController::class,
+            $router->match('GET', '/admin/commissions')['route']['handler'][0]
+        );
+
         assert_null($router->match('GET', '/no-such-page'));
         assert_null($router->match('GET', '/admin/products/abc/edit'));
         assert_null($router->match('GET', '/admin/packages/abc/edit'));
@@ -348,8 +362,7 @@ return [
 
         /* Not due yet, and the binary-upline endpoints are gone for good. */
         assert_null($router->match('GET', '/payouts'));
-        assert_null($router->match('GET', '/earnings'));
-        assert_null($router->match('GET', '/admin/commissions'));
+        assert_null($router->match('POST', '/payouts/request'));
         assert_null($router->match('GET', '/slogin'));
         assert_null($router->match('POST', '/register/check-upline'));
         assert_null($router->match('POST', '/register/auto-select-upline'));

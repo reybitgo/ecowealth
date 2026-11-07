@@ -156,10 +156,12 @@ return [
     ['POST', '/admin/activations/{id}/reject',   [AdminActivationController::class, 'reject'],      'admin'],  // extension
     ['GET',  '/admin/activations/{id}/proof',    [AdminActivationController::class, 'proof'],       'admin'],  // extension
 
-    /* ---------- Phase 10 — direct referral --------------------------
-    ['GET',  '/earnings',                        [EarningsController::class, 'index'],        'member'],    // earnings
-    ['GET',  '/admin/commissions',               [AdminCommissionController::class, 'index'], 'admin'],     // commissions
-    ----------------------------------------------------------------- */
+    /* ---------- Phase 10 — direct referral commissions --------------
+     * Reference: `earnings` (the member's commission statement). The
+     * admin ledger is a port extension — the reference exposed
+     * commissions only as dashboard widgets. */
+    ['GET',  '/earnings',                        [EarningsController::class, 'index'],        'member'],   // earnings
+    ['GET',  '/admin/commissions',               [AdminCommissionController::class, 'index'], 'admin'],    // extension
 
     /* ---------- Phase 12 — wallet transfers -------------------------
     ['GET',  '/wallet/transfer',                 [TransferController::class, 'index'],        'member'],    // ewallet_transfer (guard raised from 'any')

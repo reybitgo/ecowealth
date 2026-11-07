@@ -615,6 +615,49 @@ CREATE TABLE IF NOT EXISTS activations (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
+-- Commissions (plan §4.2, §6.2–6.5; Phase 10)
+--
+--  One row per award: direct referral in Phase 10, the indirect
+--  ladder (levels 2–10) in Phase 11. `type` + `level` say which leg
+--  paid; `source_user_id` is the activated member whose purchase
+--  funds it and `package_id` is the package that prices it.
+--
+--  uq_commission_event (type, source_user_id, user_id, level) is the
+--  money anchor: a replayed approval or a retried job cannot create a
+--  second row for the same event, recipient and level (plan §6.5).
+--
+--  status = 'skipped' records a due-but-unpaid award (ineligible
+--  upline) for the audit trail; it never moves money. A credited row
+--  always carries its `ledger_id` — the immutable wallet movement
+--  (ref_type = 'commission', ref_id = commissions.id).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS commissions (
+  id             INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  user_id        INT UNSIGNED     NOT NULL,                 -- recipient
+  type           ENUM('direct_referral','indirect_referral') NOT NULL,
+  amount         DECIMAL(12,2)    NOT NULL,
+  level          TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  source_user_id INT UNSIGNED     NOT NULL,                 -- the activated member
+  package_id     INT UNSIGNED     NOT NULL,                 -- source package (prices the award)
+  activation_id  INT UNSIGNED     NOT NULL,
+  status         ENUM('credited','skipped','voided') NOT NULL DEFAULT 'credited',
+  reason         VARCHAR(120)     NULL,
+  ledger_id      INT UNSIGNED     NULL,                     -- ewallet_ledger row credited
+  created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_commission_event (type, source_user_id, user_id, level),
+  KEY idx_commissions_user (user_id, created_at),
+  KEY idx_commissions_source (source_user_id, created_at),
+  KEY idx_commissions_activation (activation_id),
+  KEY idx_commissions_status (status, created_at),
+  KEY idx_commissions_ledger (ledger_id),
+  CONSTRAINT fk_comm_user       FOREIGN KEY (user_id)        REFERENCES users (id)       ON DELETE CASCADE,
+  CONSTRAINT fk_comm_source     FOREIGN KEY (source_user_id) REFERENCES users (id)       ON DELETE CASCADE,
+  CONSTRAINT fk_comm_package    FOREIGN KEY (package_id)     REFERENCES packages (id)     ON DELETE RESTRICT,
+  CONSTRAINT fk_comm_activation FOREIGN KEY (activation_id)  REFERENCES activations (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
 -- Phase 9: users ↔ packages / sponsor links
 --  Declared after `packages` exists (the users table is created
 --  first and cannot reference it inline). Mirrors migration 011.

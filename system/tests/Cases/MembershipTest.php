@@ -649,7 +649,11 @@ return [
         $pdoB->exec('SET SESSION innodb_lock_wait_timeout = 1');
 
         try {
-            $base = $payload(['mode' => 'code', 'reg_code' => $code]);
+            /* Sponsor = david (pending, no package). This test is about the
+             * code row lock, and the registration commits for real, so the
+             * sponsor must not be someone who earns a Phase 10 commission —
+             * that would leak money into later cases. */
+            $base = $payload(['mode' => 'code', 'reg_code' => $code, 'sponsor' => 'david']);
 
             /* A holds the code row lock without committing (the service
              * adopts an existing transaction with a savepoint). */

@@ -406,7 +406,7 @@ final class ActivationService
 
         /* The one and only award call: Phases 10–11 credit the sponsor
          * chain inside this transaction. */
-        $this->commissions->onActivation($activationId, $this->pdo);
+        $commissions = $this->commissions->onActivation($activationId, $this->pdo);
 
         Activation::markCommissionProcessed($activationId, $this->pdo);
 
@@ -430,6 +430,10 @@ final class ActivationService
             'package_id'    => $packageId,
             'amount'        => $amount,
             'member_status' => 'active',
+            /* What the compensation hook did, so the caller can flash it
+             * and the tests can assert the award without re-reading rows. */
+            'commission_credited' => round((float) ($commissions['credited'] ?? 0.0), 2),
+            'commission_skipped'  => (int) ($commissions['skipped'] ?? 0),
         ];
     }
 

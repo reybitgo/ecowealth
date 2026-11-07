@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–9)
+# EcoWealth — Manual QA pack (Phases 1–10)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8 and 9. The automated suites are already green; these documents let a tester who has never seen the
+7, 8, 9 and 10. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -24,12 +24,13 @@ sign the phase off.
 | [phase-7-payments.md](phase-7-payments.md) | 7 — proof upload, verification, rejection, expiry, refunds, settings | 18 | 60–75 min |
 | [phase-8-fulfilment.md](phase-8-fulfilment.md) | 8 — packing, shipping + tracking, delivery, confirmation, invoices, auto-complete | 19 | 60–75 min |
 | [phase-9-membership.md](phase-9-membership.md) | 9 — registration modes, registration codes, activation, member directory, genealogy | 16 | 60–75 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all nine | — | 10 min to complete |
+| [phase-10-commissions.md](phase-10-commissions.md) | 10 — direct referral award, earnings statement, commission ledger | 10 | 35–45 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all ten | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-9` inside it). Phases 4–9 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-10` inside it). Phases 4–10 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
-`evidence/phase-8/final-*.png` and `evidence/phase-9/final-*.png`.
+`evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png` and `evidence/phase-10/*.png`.
 
 ---
 
@@ -48,7 +49,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 400   Passed: 400   Failed: 0
+Cases: 427   Passed: 427   Failed: 0
 All good.
 ```
 
@@ -61,7 +62,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 132   Failed: 0
+Passed: 139   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -120,6 +121,17 @@ Passed: 132   Failed: 0
   pending, manual-activation, approve/reject, suspend/restore, codes and genealogy paths over HTTP;
   wallet-funded registration/activation are covered by the unit suite (they move real money) — see the
   Phase 9 QA document.
+- Phase 10: the direct referral award (₱500 from the package) paid by a code registration, a manual
+  approval and the shared completion step — wallet credit, ledger row and award row together, the
+  credit withdrawable; ineligible sponsors (pending, package-less, inactive) skipped with a reason and
+  no money; a zero direct bonus awarding nothing; replay and double-approval paying nothing twice
+  (service guard plus the `uq_commission_event` unique key); two recruits as two awards; wallet and
+  commission reconciliation clean, and a tampered award caught; member totals, filters and pagination;
+  admin ledger filters by member/source/type/level/status/date; member isolation; the award → activation
+  → wallet trace; and the migration guards (unique key, closed enums, package/activation cascades).
+  The smoke script pays a sponsor over HTTP, skips an ineligible one, opens the earnings statement and
+  the admin ledger, and runs the finance report — then restores every demo wallet it moved. A headless
+  Chrome pass covers the ledger, both drawers, the mobile layouts and 0 JavaScript errors.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
@@ -272,6 +284,16 @@ These are deliberate for the current build — do not report them as defects:
   pre-fills the sponsor). Pending members activate from **Membership** with a code, the e-wallet or a
   payment proof; a proof waits in **Admin → Activations**. Suspending a member blocks their sign-in. The
   demo tree (`juan` … `david`, `Demo@1234`) and three `DEMO-*` codes are seed data.
+- **Referral commissions are live** (Phase 10). When a package activation is approved, the member's
+  sponsor is paid the package's **direct referral bonus** (₱500 on the seeded packages) into their
+  e-wallet as **withdrawable** earnings. It is paid exactly once, and a sponsor who is inactive or has
+  no package is **skipped** — the award is recorded with a reason and no money moves. The member sees
+  every award on **Membership → Earnings**; the company sees them all on **Finance → Commissions**.
+  Awards are immutable: there is no edit or delete control, and `php bin\wallet_reconcile.php` now
+  checks the awards against the ledger too. Indirect (levels 2–10) awards arrive in Phase 11; until
+  then the **Indirect referral** card reads ₱0.00 and a level-2+ filter finds nothing.
+- **Commissions are money history.** Do not delete a `commissions` row or its ledger row by hand on a
+  live database — a correction is a new `adjustment` movement, never an edit.
 - **The admin settings page** (System → Settings) edits the receiving accounts and the payment/correction
   windows, the proof-attempt cap, the invoice seller block and the auto-complete switch/days. Changes are
   audited.
@@ -329,7 +351,7 @@ failed check afterwards and updates the row to **Closed**.
 ## 8. Sign-off flow
 
 1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
-2. Work through the eight phase documents in order (Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8). Each phase assumes the
+2. Work through the ten phase documents in order (Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10). Each phase assumes the
    previous one is done.
 3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
    decision.
@@ -388,6 +410,7 @@ docs/qa/
 ├── phase-7-payments.md                ← manual checks for Phase 7
 ├── phase-8-fulfilment.md              ← manual checks for Phase 8
 ├── phase-9-membership.md              ← manual checks for Phase 9
+├── phase-10-commissions.md            ← manual checks for Phase 10
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/ … phase-9/)
+└── evidence/                          ← your screenshots (phase-1/ … phase-10/)
 ```

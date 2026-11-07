@@ -1,25 +1,29 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1-9: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    EcoWealth HTTP smoke test (Phase 1-10: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
     P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
-    P9-T1 ... P9-T17).
+    P9-T1 ... P9-T17, P10-T1 ... P10-T8).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
     codes, redirects, guards, menu visibility, asset base paths,
     maintenance mode, the product catalogue, the package matrix, the cart,
     the e-wallet, checkout/orders, the manual payment loop, fulfilment
-    (pack, ship, deliver, confirm, invoices), the auto-complete job and the
+    (pack, ship, deliver, confirm, invoices), the auto-complete job, the
     Phase 9 membership flow (registration modes, registration codes,
     activation by proof with admin approval, member suspend/restore and
-    genealogy) end to end, including the expiry job from both the CLI and
-    its web entry.
+    genealogy) and the Phase 10 compensation path (a real activation
+    crediting its sponsor, an ineligible sponsor skipped, the member
+    earnings statement, the admin commission ledger and the finance
+    report) end to end, including the expiry job from both the CLI and its
+    web entry.
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", registration codes and member
-    accounts it creates, `maintenance_mode`, the payment and
-    fulfilment settings it edits, the smoke proof files and its orders.
+    accounts it creates, the commissions it paid and the wallet balances
+    they moved, `maintenance_mode`, the payment and fulfilment settings it
+    edits, the smoke proof files and its orders.
 
     Wallet-funded activations (P9-T4 / P9-T9) are covered by the unit
     suite instead: they move real money between the payer and the primary
@@ -63,6 +67,7 @@ $script:Jars = @{
     p9d    = Join-Path $script:TempDir 'p9d.jar'
     p9e    = Join-Path $script:TempDir 'p9e.jar'
     p9f    = Join-Path $script:TempDir 'p9f.jar'
+    p10a   = Join-Path $script:TempDir 'p10a.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -245,7 +250,23 @@ $p9PackageAId  = 0
 $p9JuanId      = 0
 $p9PendingId   = 0
 
+# Phase 10: commissions paid during this run go to demo members (juan), so
+# the finally block removes the awards, their ledger rows and restores every
+# pre-existing wallet to the balance it had before the run.
+$p10CommissionStart = 0
+$p10LedgerStart     = 0
+$p10WalletSnapshot  = @{}
+
 try {
+    $p10CommissionStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM commissions;" | Out-String).Trim())
+    $p10LedgerStart     = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
+
+    foreach ($walletRow in @(Invoke-MySql "SELECT CONCAT(username, '|', ewallet_balance, '|', withdrawable_balance) FROM users;")) {
+        $walletParts = ([string] $walletRow).Trim().Split('|')
+        if ($walletParts.Count -eq 3) {
+            $p10WalletSnapshot[$walletParts[0]] = "$($walletParts[1])|$($walletParts[2])"
+        }
+    }
     # ---- Guest surface ---------------------------------------------------
     $homeGuest = Invoke-App -Path '/'
     Assert-That 'P1-T1' ($homeGuest.Status -eq 302 -and $homeGuest.Location -match '/login$') `
@@ -2148,6 +2169,100 @@ try {
     Assert-That 'P9-T17' ($mariaLogin -and $genealogyOk) `
         "GET /genealogy shows the sponsor chain and team (login=$mariaLogin, page=$($genealogy.Status))"
 
+    # ---- Phase 10: direct referral commissions ---------------------------
+    # The Phase 9 flows above already paid juan twice over HTTP: the code
+    # registration (P9-T2) and the approved manual activation (P9-T10).
+    $p10Credited = [int]((Invoke-MySql "SELECT COUNT(*) FROM commissions WHERE id > $p10CommissionStart AND status = 'credited' AND type = 'direct_referral';" | Out-String).Trim())
+    $p10LedgerRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE id > $p10LedgerStart AND ref_type = 'commission';" | Out-String).Trim())
+    $p10Linked = [int]((Invoke-MySql "SELECT COUNT(*) FROM commissions c JOIN ewallet_ledger l ON l.id = c.ledger_id WHERE c.id > $p10CommissionStart AND c.status = 'credited' AND l.ref_type = 'commission';" | Out-String).Trim())
+    $p10JuanBefore = [double](([string] $p10WalletSnapshot['juan']).Split('|')[0])
+    $p10JuanNow    = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p10JuanWithdrawable = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+
+    Assert-That 'P10-T1' ($p10Credited -eq 2 -and $p10LedgerRows -eq 2 -and $p10Linked -eq 2 `
+            -and [math]::Abs($p10JuanNow - ($p10JuanBefore + 1000)) -lt 0.001) `
+        "two activations credit the sponsor twice, each with its ledger row (awards=$p10Credited, ledger=$p10LedgerRows, linked=$p10Linked, juan=$p10JuanNow was $p10JuanBefore)"
+    Assert-That 'P10-T1' ($p10JuanWithdrawable -ge 1000) `
+        "the sponsor's commission is withdrawable (withdrawable=$p10JuanWithdrawable)"
+
+    # P10-T2 — a registration sponsored by the company root (active but
+    # package-less) records a skip and moves no money.
+    $skipGen = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '1'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $skipCode = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p9CodeStart AND status = 'unused' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $skipUsername = 'smoke_skip_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $skipUsername
+    $skipRegPage  = Invoke-App -Path '/register' -Session 'p9f'
+    $skipRegToken = Get-Csrf $skipRegPage.Body
+    $skipPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9f' -Form @{
+        '_csrf'            = $skipRegToken
+        'mode'             = 'code'
+        'sponsor'          = 'admin'
+        'reg_code'         = $skipCode
+        'username'         = $skipUsername
+        'email'            = "$skipUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $skipRow = (Invoke-MySql ("SELECT CONCAT(c.status, '|', c.amount, '|', CASE WHEN c.ledger_id IS NULL THEN 0 ELSE 1 END, '|', CASE WHEN c.reason IS NULL OR c.reason = '' THEN 0 ELSE 1 END) FROM commissions c JOIN users u ON u.id = c.source_user_id WHERE u.username = '$skipUsername' ORDER BY c.id DESC LIMIT 1;") | Out-String).Trim()
+    $skipMember = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', p.slug) FROM users u JOIN packages p ON p.id = u.package_id WHERE u.username = '$skipUsername';") | Out-String).Trim()
+    $p10AdminBefore = [double](([string] $p10WalletSnapshot['admin']).Split('|')[0])
+    $adminNow = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+    $juanAfterSkip = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    Assert-That 'P10-T2' ($skipPost.Status -eq 302 -and $skipRow -eq 'skipped|500.00|0|1' -and $skipMember -eq 'active|package-a' `
+            -and [math]::Abs($adminNow - $p10AdminBefore) -lt 0.001 -and [math]::Abs($juanAfterSkip - $p10JuanNow) -lt 0.001) `
+        "an ineligible sponsor is skipped, audited and unpaid (row=$skipRow, member=$skipMember, admin=$adminNow was $p10AdminBefore)"
+
+    # P10-T7 — juan's earnings statement shows the awards, the filters and
+    # the drawer; a guest cannot open it. (p10a is a fresh session: the P9
+    # jars are still signed in as the members they registered.)
+    $juanLogin = Sign-In -Session 'p10a' -Username 'juan' -Password 'Demo@1234'
+    $earnings  = Invoke-App -Path '/earnings' -Session 'p10a'
+    $earningsGuest = Invoke-App -Path '/earnings' -Session 'guest'
+    $earningsAdmin = Invoke-App -Path '/earnings' -Session 'admin'
+    $earningsOk = ($earnings.Status -eq 200) `
+        -and ($earnings.Body -match 'Total credited') -and ($earnings.Body -match 'Direct referral') `
+        -and ($earnings.Body -match 'Indirect referral') -and ($earnings.Body -match '1,000\.00') `
+        -and ($earnings.Body -match [regex]::Escape($codeUsername)) `
+        -and ($earnings.Body -match 'name="level"') -and ($earnings.Body -match 'data-commission="') `
+        -and ($earnings.Body -match 'id="commissionDetail"') -and ($earnings.Body -match 'href="[^"]*/wallet"')
+    Assert-That 'P10-T7' ($juanLogin -and $earningsOk -and $earningsGuest.Status -eq 302 `
+            -and $earningsGuest.Location -match '/login$' -and $earningsAdmin.Status -eq 200) `
+        "GET /earnings shows the awards and the drawer; guest=$($earningsGuest.Status), admin=$($earningsAdmin.Status)"
+    Assert-That 'P10-T7' ($earningsAdmin.Body -match 'Back office') `
+        "an admin opening /earnings keeps the back-office layout"
+
+    # P10-T8 — the admin ledger lists both sides, filters, and is admin-only.
+    $ledgerPage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $ledgerSkipped = Invoke-App -Path '/admin/commissions?status=skipped' -Session 'admin'
+    $ledgerIndirect = Invoke-App -Path '/admin/commissions?type=indirect_referral' -Session 'admin'
+    $ledgerMember = Invoke-App -Path '/admin/commissions' -Session 'p10a'
+    $ledgerOk = ($ledgerPage.Status -eq 200) `
+        -and ($ledgerPage.Body -match 'Commission ledger') -and ($ledgerPage.Body -match 'Total credited') `
+        -and ($ledgerPage.Body -match '@juan') -and ($ledgerPage.Body -match [regex]::Escape($codeUsername)) `
+        -and ($ledgerPage.Body -match 'data-commission="')
+    $ledgerFiltersOk = ($ledgerSkipped.Status -eq 200) -and ($ledgerSkipped.Body -match [regex]::Escape($skipUsername)) `
+        -and ($ledgerIndirect.Status -eq 200) -and ($ledgerIndirect.Body -match 'No commissions match these filters')
+    Assert-That 'P10-T8' ($ledgerOk -and $ledgerFiltersOk -and $ledgerMember.Status -eq 403) `
+        "GET /admin/commissions lists and filters the ledger; member=$($ledgerMember.Status) (page=$($ledgerPage.Status), skipped=$($ledgerSkipped.Status), indirect=$($ledgerIndirect.Status))"
+
+    # P10-T6 — the finance report covers commissions too, and it is clean.
+    $p10ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $p10ReconcileExit   = $LASTEXITCODE
+    $p10ReconcileJson   = $null
+    try { $p10ReconcileJson = ($p10ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P10-T6' ($p10ReconcileExit -eq 0 -and $p10ReconcileJson.ok -eq $true `
+            -and $p10ReconcileJson.commissions.ok -eq $true `
+            -and $p10ReconcileJson.commissions.credited_rows -ge 2) `
+        "bin/wallet_reconcile.php reconciles wallets and commissions (exit=$p10ReconcileExit, credited=$($p10ReconcileJson.commissions.credited_rows))"
+
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
@@ -2197,6 +2312,20 @@ try {
         try { Invoke-MySql "DELETE FROM users WHERE username = '$p9Name';" | Out-Null } catch { }
     }
     try { if ($p9CodeStart -gt 0) { Invoke-MySql "DELETE FROM reg_codes WHERE id > $p9CodeStart;" | Out-Null } } catch { }
+    # Phase 10: the awards this run paid to demo members, their ledger rows and
+    # the balances they moved. Without this every smoke run would inflate juan's
+    # wallet by 1,000.
+    try {
+        Invoke-MySql "DELETE FROM commissions WHERE id > $p10CommissionStart;" | Out-Null
+        Invoke-MySql "DELETE FROM ewallet_ledger WHERE id > $p10LedgerStart AND ref_type = 'commission';" | Out-Null
+
+        foreach ($walletName in $p10WalletSnapshot.Keys) {
+            $walletParts = ([string] $p10WalletSnapshot[$walletName]).Split('|')
+            if ($walletParts.Count -eq 2) {
+                Invoke-MySql "UPDATE users SET ewallet_balance = $($walletParts[0]), withdrawable_balance = $($walletParts[1]) WHERE username = '$walletName';" | Out-Null
+            }
+        }
+    } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }

@@ -62,7 +62,7 @@ $kpis = [
         'label'  => 'Commissions',
         'value'  => money($commissions['credited']),
         'sub'    => $commissions['count'] === 0
-            ? 'Awards arrive with the commission phase'
+            ? 'No awards yet'
             : money($commissions['this_month']) . ' this month',
         'icon'   => 'bx-line-chart',
         'tone'   => 'warning',
@@ -356,7 +356,10 @@ $kpis = [
                   <div class="card h-100">
                     <div class="card-header d-flex align-items-center justify-content-between">
                       <h5 class="card-title mb-0">Earnings</h5>
-                      <a href="<?= e(url('genealogy')) ?>" class="btn btn-sm btn-label-secondary">Genealogy</a>
+                      <div class="d-flex gap-2">
+                        <a href="<?= e(url('genealogy')) ?>" class="btn btn-sm btn-label-secondary">Genealogy</a>
+                        <a href="<?= e(url('earnings')) ?>" class="btn btn-sm btn-label-primary">All awards</a>
+                      </div>
                     </div>
                     <div class="card-body">
                       <div class="d-flex align-items-center gap-3 mb-3">
@@ -408,7 +411,8 @@ $kpis = [
                       </ul>
 <?php else: ?>
                       <div class="alert alert-info py-2 small mb-0 mt-3">
-                        Commission awards arrive with the next phase. Your team and activation history are already tracked.
+                        No commissions yet. A direct referral is credited the moment someone you sponsored
+                        activates a package — <a href="<?= e(url('earnings')) ?>">see earnings</a>.
                       </div>
 <?php endif; ?>
                     </div>

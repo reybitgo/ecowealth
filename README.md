@@ -29,10 +29,13 @@ guards, settings and test suite, **Phase 2** added the product catalogue and sto
 contents and the member packages page), **Phase 4** the cart, **Phase 5** the dual-bucket
 e-wallet and ledger, **Phase 6** checkout and orders, **Phase 7** manual payments and the
 order lifecycle, **Phase 8** fulfilment (pack, ship with tracking, deliver, confirm) and
-printable invoices, and **Phase 9** registration (standard / code / e-wallet / pending),
+printable invoices, **Phase 9** registration (standard / code / e-wallet / pending),
 registration codes, membership activation with the commission hook, the member dashboard,
-genealogy and the member/codes/activation back office. Referral commissions, transfers,
-payouts and super-login follow in later phases.
+genealogy and the member/codes/activation back office, and **Phase 10** direct referral
+commissions (the package's direct bonus paid to the sponsor exactly once, into the
+withdrawable e-wallet, with the member earnings statement and the admin commission ledger).
+Indirect referral commissions (levels 2–10), transfers, payouts and super-login follow in
+later phases.
 
 The demo tree from Phase 9 (`juan`, `maria`, `peter`, `sarah`, `david`) and its
 wallets/codes are development data: every demo member signs in with `Demo@1234`, and the
@@ -43,8 +46,9 @@ seed is removed or replaced before go-live (see the phase log).
 
 ## Important
 The landing page is still a static frontend prototype. The application behind it is real
-(login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership and
-registration codes as of Phase 9) but the simulator is not connected to it, and referral
-commissions, wallet transfers, payouts and super-login are delivered in later phases.
+(login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership,
+registration codes and direct referral commissions as of Phase 10) but the simulator is not
+connected to it, and indirect commissions, wallet transfers, payouts and super-login are
+delivered in later phases.
 Product information and final compensation terms are not invented here; they should be
 added from verified official material when available.

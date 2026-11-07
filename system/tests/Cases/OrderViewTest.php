@@ -662,6 +662,7 @@ return [
         assert_contains('Profile', $nav);
         assert_contains('E-wallet', $nav);
         assert_not_contains('Payouts', $nav, 'Phase 13 is still hidden');
-        assert_not_contains('Earnings', $nav, 'Phase 10 is still hidden');
+        assert_contains('Earnings', $nav, 'Phase 10 makes the earnings statement live');
+        assert_contains('href="' . url('earnings') . '"', $nav);
     },
 ];

@@ -4,7 +4,7 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 9 — registration, registration codes, membership and activation.**
+**Current status: Phase 10 — direct referral commissions.**
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -21,10 +21,13 @@ four registration modes (standard / registration code / e-wallet / pending) with
 and no binary placement, registration codes (generate, validate, redeem, expire, CSV export),
 membership activation by code / wallet / manual proof with the commission hook wired once per
 activation, the member dashboard, genealogy (sponsor chain only), the member directory and the
-activation review queue. The expiry job runs from the CLI **and** from a guarded URL
+activation review queue; Phase 10 pays the **direct referral** bonus (₱500 from the package) to the
+sponsor when an activation is approved — exactly once, audited in `commissions`, credited to the
+withdrawable wallet — and adds the member **Earnings** statement and the admin **Commissions** ledger.
+The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete job does the same at
 `/system/cron/order_autocomplete.php`. Both have kill switches on the settings page and log to
-`system/storage/`. Referral commissions, transfers, payouts and super-login follow in later phases;
+`system/storage/`. Indirect referral commissions, transfers, payouts and super-login follow in later phases;
 their menu entries stay hidden until their phase lands.
 
 | | |
@@ -110,7 +113,7 @@ pages (login, register, logout) keep their scripts, everything else goes to the 
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `9` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `10` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
@@ -133,7 +136,7 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 … 8 routes)
+│   ├── routes.php             the live route table (Phase 1 … 10 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate,
 │   │                          CronAccess, CronLock, CronLog, InvoicePage
@@ -308,6 +311,13 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/admin/activations/{id}/approve` | admin | Member active + package + commission hook, exactly once |
 | POST | `/admin/activations/{id}/reject` | admin | Reason required; member returns to pending |
 | GET | `/admin/activations/{id}/proof` | admin | Stream a manual activation proof (never a public URL) |
+
+### Phase 10 URLs — commissions
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/earnings` | member | The member's own awards: totals, filters, award table, detail drawer, e-wallet link |
+| GET | `/admin/commissions` | admin | Company ledger: credited and skipped awards, filters and totals |
 
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`. `/dashboard` became a routed page in Phase 9; the old
@@ -565,8 +575,8 @@ it arrives in Phase 15.
   Registration paid by code/wallet writes an already-approved activation, so Phases 10–11 have one
   anchor for every award.
 - **Commission hook.** `ActivationService::complete()` calls `CommissionService::onActivation()`
-  exactly once, inside the activation transaction. Phase 9 records the call and moves no money;
-  Phase 10 fills in the direct award and Phase 11 the unilevel ladder.
+  exactly once, inside the activation transaction. Phase 10 pays the direct award; Phase 11 adds the
+  unilevel ladder (levels 2–10).
 - **Member status.** `pending → active` on activation; an admin may suspend (which also clears
   `is_active`, so the session is dropped and sign-in is refused) and restore. Suspending a pending
   member restores them to `pending`, not `active`. Every change is audited (`member.status`).
@@ -574,12 +584,53 @@ it arrives in Phase 15.
   upgrades are a later phase).
 - **Genealogy and dashboard.** `/genealogy` shows the upline chain (max 10) plus direct recruits and
   the team grouped by level, cycle-safe. `/dashboard` is the routed member landing page: membership
-  status, both wallet buckets, referral link, recent orders and commission totals (zeros until
-  Phase 10). Admins keep the back-office dashboard at the same URL.
+  status, both wallet buckets, referral link, recent orders and commission totals, with a link to
+  **Earnings**. Admins keep the back-office dashboard at the same URL.
 - **Demo data.** `database/seeds/005_demo_tree.sql` creates `admin → juan → maria → peter/sarah/david`
   (david is pending), their mixed wallet balances with matching ledger rows, and three sample codes
   (`DEMO-PKGA-2A7K`, `DEMO-PKGB-3B8L` unused; `DEMO-EXPD-4C9M` expired). Every demo member signs in
   with `Demo@1234`. Remove the file from a production install.
+
+---
+
+## Commissions (Phase 10)
+
+The compensation plan's first pillar: a **direct referral** bonus paid to the sponsor of a new
+associate, once, as withdrawable wallet money.
+
+- **One trigger.** Only a completed package activation pays — `ActivationService::complete()` calls
+  `CommissionService::onActivation()` inside the activation transaction, then stamps
+  `activations.commission_processed_at`. Standard registrations, product orders and rejected
+  activations pay nothing.
+- **Amount.** `packages.direct_referral_bonus` of the **source** package (₱500 on both seeded
+  packages). A package with a zero bonus awards nothing (no row, no error). Level 1 is direct only;
+  levels 2–10 are the indirect ladder (Phase 11).
+- **Eligibility.** The recipient must be active (`is_active = 1`), `member_status = 'active'` **and**
+  have a package. Otherwise the award is written with `status = 'skipped'` and a reason — it never
+  moves money. A member with no sponsor writes no row at all; the company root (no package) is never
+  paid by a blank-sponsor signup.
+- **Exactly once.** `commissions` is unique on `(type, source_user_id, user_id, level)`, the service
+  checks `forEvent()` before writing, and the activation stamp blocks a replayed approval. A credited
+  row always has `ledger_id` pointing at its immutable `ewallet_ledger` movement
+  (`ref_type='commission'`, `ref_id` = award id); both are written in one transaction.
+- **Withdrawable.** The wallet credit is earnings, so it raises both buckets. `totalsFor()` and the
+  statements count only `credited` rows as money.
+- **Reporting.** `/earnings` (member, own rows only) shows total/month/direct/indirect, filters and the
+  award drawer; `/admin/commissions` shows the whole ledger with member/source/type/level/status/date
+  filters and the totals finance needs. Both reward rows carry a JSON record that
+  `app-commissions.js` renders into one shared offcanvas — the member drawer hides the recipient row.
+- **Reconciliation.** `php bin/wallet_reconcile.php` reports **Wallets** and **Commissions** and exits
+  non-zero if either fails: credited sum vs `ref_type='commission'` ledger sum, missing/orphan ledger
+  rows and amount drift. `settings.commission_ledger_since` (written by migration 012) marks where the
+  award history begins; commission credits that predate it are reported as **legacy** (the development
+  database has two from earlier QA work) and do not fail the check.
+- **Immutable.** There is no update or delete path for an award or a ledger row. A correction is a new
+  `adjustment` movement, never an edit.
+
+```bash
+php bin/wallet_reconcile.php          # wallets + commissions, exit 0 when clean
+php bin/wallet_reconcile.php --json
+```
 
 ---
 
@@ -623,7 +674,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (400 cases in Phase 9)
+php tests/run.php                 # full suite (427 cases in Phase 10)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

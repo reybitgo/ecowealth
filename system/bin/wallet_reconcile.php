@@ -3,14 +3,19 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  EcoWealth — wallet reconciliation command (plan §7 Phase 5)
+ *  EcoWealth — finance reconciliation command (plan §6.8, §7 Phase 5 + 10)
  *
  *      php bin/wallet_reconcile.php [--json]
  *
- *  Recomputes both wallet buckets from `ewallet_ledger` and reports
- *  every mismatch. Read-only: it never repairs anything, because a
- *  mismatch means a balance was written outside WalletService and
- *  needs a human looking at it.
+ *  Two read-only reports:
+ *
+ *    1. Wallets — both buckets recomputed from `ewallet_ledger`.
+ *    2. Commissions — every credited award against its wallet movement
+ *       (plan §6.8: SUM(credited) = SUM(ledger ref_type='commission'),
+ *       one ledger row per award, no orphan ledger rows).
+ *
+ *  Nothing is repaired: a mismatch means a balance or an award was
+ *  written outside its service and needs a human looking at it.
  *
  *  Exit codes:  0 = clean, 1 = mismatches or invariant violations,
  *               2 = the command could not run.
@@ -35,16 +40,20 @@ $options = getopt('', ['json', 'help']);
 if (isset($options['help'])) {
     echo "Usage: php bin/wallet_reconcile.php [--json]\n\n";
     echo "Recomputes ewallet_balance / withdrawable_balance from the ledger and\n";
-    echo "reports mismatches. Read-only. Exit 0 when clean, 1 when not.\n";
+    echo "checks every commission award against its wallet movement. Read-only.\n";
+    echo "Exit 0 when clean, 1 when not.\n";
     exit(0);
 }
 
 try {
-    $report = (new WalletService())->reconcile();
+    $wallets     = (new WalletService())->reconcile();
+    $commissions = (new CommissionService())->reconcile();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Wallet reconciliation failed: ' . $e->getMessage() . PHP_EOL);
+    fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
+
+$ok = $wallets['ok'] && $commissions['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -52,62 +61,110 @@ $format = static fn (mixed $value): string => $value === null
 
 if (isset($options['json'])) {
     echo json_encode(
-        ['database' => DB_NAME] + $report,
+        [
+            'database'    => DB_NAME,
+            'ok'          => $ok,
+        ] + $wallets + [
+            'commissions' => $commissions,
+        ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
 
-    exit($report['ok'] ? 0 : 1);
+    exit($ok ? 0 : 1);
 }
 
-echo 'EcoWealth wallet reconciliation', PHP_EOL;
+echo 'EcoWealth finance reconciliation', PHP_EOL;
 printf("  database:          %s (%s)%s", DB_NAME, DB_HOST, PHP_EOL);
-printf("  accounts checked:  %d%s", $report['checked'], PHP_EOL);
-printf("  accounts with ledger: %d%s", $report['ledger_users'], PHP_EOL);
+printf("  accounts checked:  %d%s", $wallets['checked'], PHP_EOL);
+printf("  accounts with ledger: %d%s", $wallets['ledger_users'], PHP_EOL);
 echo PHP_EOL;
 
-if ($report['ok']) {
-    echo 'OK — every wallet matches its ledger on both buckets.', PHP_EOL;
+echo 'Wallets', PHP_EOL;
+
+if ($wallets['ok']) {
+    echo '  OK — every wallet matches its ledger on both buckets.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($wallets['mismatches']) + count($wallets['violations']), PHP_EOL);
+
+    foreach ($wallets['mismatches'] as $mismatch) {
+        $parts = [];
+
+        if (($mismatch['expected'] ?? null) !== null || ($mismatch['actual'] ?? null) !== null) {
+            $parts[] = 'total ledger ' . $format($mismatch['expected'] ?? null)
+                . ' vs wallet ' . $format($mismatch['actual'] ?? null);
+        }
+
+        if (($mismatch['expected_withdrawable'] ?? null) !== null || ($mismatch['actual_withdrawable'] ?? null) !== null) {
+            $parts[] = 'withdrawable ledger ' . $format($mismatch['expected_withdrawable'] ?? null)
+                . ' vs wallet ' . $format($mismatch['actual_withdrawable'] ?? null);
+        }
+
+        printf(
+            "  - user #%d @%s [%s]: %s%s",
+            (int) $mismatch['user_id'],
+            (string) $mismatch['username'],
+            (string) $mismatch['kind'],
+            implode('; ', $parts),
+            PHP_EOL
+        );
+    }
+
+    foreach ($wallets['violations'] as $violation) {
+        printf(
+            "  - user #%d @%s [invariant]: %s (total %s / withdrawable %s)%s",
+            (int) $violation['user_id'],
+            (string) $violation['username'],
+            (string) $violation['reason'],
+            $format($violation['balance']),
+            $format($violation['withdrawable']),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+echo 'Commissions', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $commissions['credited_rows'],
+    $format($commissions['credited_total']),
+    PHP_EOL
+);
+printf("  skipped awards:    %d%s", $commissions['skipped_rows'], PHP_EOL);
+printf("  ledger total:      %s%s", $format($commissions['ledger_total']), PHP_EOL);
+
+if (($commissions['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy credits:    %d (%s) — commission movements before the award history began%s",
+        $commissions['legacy_rows'],
+        $format($commissions['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($commissions['ok']) {
+    echo '  OK — every credited award has its wallet movement and the totals agree.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($commissions['mismatches']), PHP_EOL);
+
+    foreach ($commissions['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+if ($ok) {
+    echo 'All good — wallets and commissions reconcile.', PHP_EOL;
     exit(0);
 }
 
-$problems = count($report['mismatches']) + count($report['violations']);
-printf("FAILED — %d problem(s) found.%s", $problems, PHP_EOL);
-
-foreach ($report['mismatches'] as $mismatch) {
-    $parts = [];
-
-    if (($mismatch['expected'] ?? null) !== null || ($mismatch['actual'] ?? null) !== null) {
-        $parts[] = 'total ledger ' . $format($mismatch['expected'] ?? null)
-            . ' vs wallet ' . $format($mismatch['actual'] ?? null);
-    }
-
-    if (($mismatch['expected_withdrawable'] ?? null) !== null || ($mismatch['actual_withdrawable'] ?? null) !== null) {
-        $parts[] = 'withdrawable ledger ' . $format($mismatch['expected_withdrawable'] ?? null)
-            . ' vs wallet ' . $format($mismatch['actual_withdrawable'] ?? null);
-    }
-
-    printf(
-        "  - user #%d @%s [%s]: %s%s",
-        (int) $mismatch['user_id'],
-        (string) $mismatch['username'],
-        (string) $mismatch['kind'],
-        implode('; ', $parts),
-        PHP_EOL
-    );
-}
-
-foreach ($report['violations'] as $violation) {
-    printf(
-        "  - user #%d @%s [invariant]: %s (total %s / withdrawable %s)%s",
-        (int) $violation['user_id'],
-        (string) $violation['username'],
-        (string) $violation['reason'],
-        $format($violation['balance']),
-        $format($violation['withdrawable']),
-        PHP_EOL
-    );
-}
-
-echo PHP_EOL;
-echo 'No automatic repair was attempted. Inspect these accounts before touching money.', PHP_EOL;
+echo 'No automatic repair was attempted. Inspect these records before touching money.', PHP_EOL;
 exit(1);

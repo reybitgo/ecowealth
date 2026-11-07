@@ -24,6 +24,7 @@ $migrations    = [
     $migrationDir . '009_shop_expiry.sql',
     $migrationDir . '010_fulfilment.sql',
     $migrationDir . '011_membership.sql',
+    $migrationDir . '012_commissions.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -259,6 +260,7 @@ return [
         assert_same($columnList($fresh, 'shop_invoice_items'), $columnList($migrated, 'shop_invoice_items'), 'shop_invoice_items columns differ from schema.sql');
         assert_same($columnList($fresh, 'reg_codes'), $columnList($migrated, 'reg_codes'), 'reg_codes columns differ from schema.sql');
         assert_same($columnList($fresh, 'activations'), $columnList($migrated, 'activations'), 'activations columns differ from schema.sql');
+        assert_same($columnList($fresh, 'commissions'), $columnList($migrated, 'commissions'), 'commissions columns differ from schema.sql');
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {
@@ -542,6 +544,78 @@ return [
         assert_same(
             0,
             (int) $pdo->query("SELECT COUNT(*) FROM activations WHERE id = {$activationId}")->fetchColumn()
+        );
+    },
+
+    'migration guards the commission event key and its cascades' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $adminId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+        $userId  = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        $pdo->exec(
+            "INSERT INTO packages (name, slug, price, direct_referral_bonus)
+             VALUES ('Commission probe', 'commission-probe', 100.00, 500.00)"
+        );
+        $packageId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO activations (user_id, package_id, amount, payment_method, status)
+             VALUES ({$userId}, {$packageId}, 100.00, 'code', 'approved')"
+        );
+        $activationId = (int) $pdo->lastInsertId();
+
+        $insert = static function (
+            PDO $pdo,
+            int $recipientId,
+            int $sourceId,
+            int $packageId,
+            int $activationId,
+            string $type = 'direct_referral',
+            int $level = 1,
+            string $status = 'credited'
+        ): void {
+            $pdo->exec(
+                "INSERT INTO commissions
+                   (user_id, type, amount, level, source_user_id, package_id, activation_id, status)
+                 VALUES ({$recipientId}, '{$type}', 500.00, {$level}, {$sourceId}, {$packageId}, {$activationId}, '{$status}')"
+            );
+        };
+
+        /* One award per (type, source, recipient, level) — the idempotency
+         * anchor the whole plan relies on (plan §6.5). */
+        $insert($pdo, $adminId, $userId, $packageId, $activationId);
+        assert_throws(
+            static fn () => $insert($pdo, $adminId, $userId, $packageId, $activationId),
+            PDOException::class,
+            'a replayed award must be refused by the unique key'
+        );
+
+        /* A different level is a different award. */
+        $insert($pdo, $adminId, $userId, $packageId, $activationId, 'indirect_referral', 2);
+
+        /* The status and type enums are closed in this build. */
+        assert_throws(
+            static fn () => $insert($pdo, $adminId, $userId, $packageId, $activationId, 'direct_referral', 3, 'paid'),
+            PDOException::class
+        );
+        assert_throws(
+            static fn () => $insert($pdo, $adminId, $userId, $packageId, $activationId, 'residual', 3),
+            PDOException::class
+        );
+
+        /* A package that priced an award cannot be deleted out from under it. */
+        assert_throws(
+            static fn () => $pdo->exec("DELETE FROM packages WHERE id = {$packageId}"),
+            PDOException::class,
+            'a package referenced by an award cannot be deleted'
+        );
+
+        /* Deleting the activation removes its awards. */
+        $pdo->exec("DELETE FROM activations WHERE id = {$activationId}");
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM commissions WHERE activation_id = {$activationId}")->fetchColumn()
         );
     },
 

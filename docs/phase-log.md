@@ -2399,6 +2399,116 @@ existing filter form keeps the choice across searches because the value is part 
 
 `docs/qa/evidence/shell/final-wallet-status-filter.png` — the filtered monitor.
 
+---
+
+## Phase 10 — Direct referral commissions
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Gate tag:** `phase-10` · **Status:** complete
+(manual sign-off pending, as for Phases 1–9).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | `commissions` (unique `uq_commission_event` on `(type, source_user_id, user_id, level)`, indexes for recipient/source/activation/status/ledger, FKs to users/packages/activations); migration `012_commissions.sql`; the same DDL appended to the fresh-install `schema.sql`; the `commission_ledger_since` setting that marks where the award history begins |
+| **Model** | `app/Models/Commission.php` — `TYPES`/`STATUSES`/`LEVEL_*`, `find`, `forActivation`, `forEvent`, member `pageForUser`/`countForUser`/`totalsForUser`, admin `adminList`/`countAdmin`/`stats`, `levelBreakdown` (Phase 11 hook), the `create`/`linkLedger` writers, and the shared filter normaliser (type, level, status, dates, q) |
+| **Service** | `CommissionService` — the real `onActivation()` direct leg, `award()` (insert + `WalletService::credit` + `linkLedger` in one transaction), `skip()` (audited, never paid), `ineligibility()` (active + package rule), `totalsFor()` (zeros when the table is missing), `reconcile()` (credited sum vs ledger sum, missing/orphan rows, amount drift) and the retained Phase 9 invocation seam |
+| **Routes** | `GET /earnings` (member) and `GET /admin/commissions` (admin, an inventory extension); `APP_PHASE` = 10 so the member **Earnings** and admin **Commissions** menu items go live |
+| **Member** | `earnings` page — four summary cards (total credited, this month, direct, indirect), a skipped-award notice, filters (type/level/status/dates/source), the award table with a details drawer, pagination and the e-wallet link; the dashboard's commission card and earnings panel now link here and no longer say "next phase" |
+| **Back office** | `admin/commissions` — total credited/month/awards/skipped cards, filters (member/source/package, type, level, status, dates), the ledger with recipient/source/package, type/level, amount, status, activation and wallet links, the same detail drawer (with the recipient row) and pagination; the member detail page links its award count to the filtered ledger |
+| **Assets** | `public/assets/css/commissions.css` (cards, table, filters, drawer, mobile columns) and `public/assets/js/app-commissions.js` (fills the shared offcanvas from each row's JSON, hides the wallet link for a skipped award) |
+| **CLI** | `bin/wallet_reconcile.php` now reports **Wallets** and **Commissions** and exits non-zero if either fails; legacy commission credits that predate the award history are reported separately and do not fail the check |
+| **Tests** | `CommissionTest` (17 cases, P10-T1 … P10-T10), `CommissionViewTest` (9 rendering/escaping cases), `MigrationTest` applies 012 + a commissions guard case, `RouterTest` resolves the two new routes (69 → 71), `MembershipTest`'s code-race case now uses an ineligible sponsor so its committed registration cannot leak money, `OrderViewTest` asserts Earnings is live; suite 400 → **427** |
+| **Smoke** | `smoke.ps1` — Phase 10 section: the two real awards from the Phase 9 flows, an ineligible (company-root) sponsor skipped, juan's earnings statement, the admin ledger + filters, and the finance report (139 checks); the `finally` block now removes the run's awards and ledger rows and restores every demo wallet it moved |
+| **Evidence** | `docs/qa/evidence/phase-10/` — 7 screenshots (admin ledger, skipped filter, admin drawer, member earnings, member drawer, both mobile layouts) plus 20 headless-browser checks |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-10/db-pre-phase-10.sql` (235,086 bytes) in the repo's git-ignored `backups/` |
+| Migration | `012_commissions.sql` applied to `ecowealth_sneat`: the `commissions` table (5 indexes, 4 FKs, the unique event key) and the `commission_ledger_since` setting |
+| Verified | `MigrationTest` applies 001–012 to the legacy fixture, compares the `commissions` columns with a fresh `schema.sql` import, and proves the unique event key, the closed enums, the package-restrict FK and the activation cascade |
+| Data check | `bin/wallet_reconcile.php` exits 0 (wallets and commissions both clean; the two pre-Phase-10 QA credits are reported as legacy, not failures) |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P10-T1 | Activation with an active sponsor | **PASS** | ₱500 credited to the sponsor by a code registration, a manual approval and the shared `complete()`; wallet +₱500 in both buckets (withdrawable), one `commissions` row linked to the activation and its ledger row (`ref_type='commission'`, `ref_id` = award id), note names the package and source; both packages pay the same ₱500 |
+| P10-T2 | Sponsor pending/inactive/package-less | **PASS** | `status='skipped'` with a specific reason, no ledger row, no wallet change anywhere; the activation still completes; a member with no sponsor writes no row at all |
+| P10-T3 | Package with direct bonus 0 | **PASS** | No award row, no money, no error; the activation completes |
+| P10-T4 | Replay approval | **PASS** | A second `complete()` is refused; a direct hook replay returns the existing award and credits nothing; the unique key refuses a hand-written duplicate |
+| P10-T5 | Two recruits | **PASS** | ₱1,000 total in two rows, two distinct award ids, two ledger rows |
+| P10-T6 | Wallet invariant after suite | **PASS** | `WalletService::reconcile()` and `CommissionService::reconcile()` both clean after credited + skipped + top-up; a tampered `ledger_id` is reported as `missing_ledger` |
+| P10-T7 | Member earnings page | **PASS** | Totals (total/month/direct/indirect/count/last), row filters and pagination scoped to the member; invalid filters ignored; the rendered page (cards, table, drawer, wallet link, empty state, mobile) and the dashboard links |
+| P10-T8 | Admin ledger filters | **PASS** | Member/source/type/level/status/date filters return the right subsets and sums; the ledger renders recipient, source, package, activation and wallet links; member 403 |
+| P10-T9 | Member A cannot see B's commissions | **PASS** | Every member query is scoped by `user_id`; juan and maria see only their own rows; `/admin/commissions` is admin-guarded |
+| P10-T10 | Commission detail | **PASS** | `find()` joins the activation, source member, package and wallet snapshot; the ledger row matches the award; the drawer shows the same record, read-only |
+
+### Deviations and decisions
+
+- **`commission_ledger_since` exists because history predates the table.** The development database already
+  carried two commission credits from earlier QA work (`QA_Fulfil_01` ₱20,000, `QA_Assoc_09` ₱500) whose
+  source member, package and activation cannot be reconstructed. The migration records the instant the
+  award history begins; `reconcile()` enforces one-ledger-row-per-credited-award from that instant and
+  reports the older credits as **legacy**. The alternative — failing forever on data the phase cannot
+  reconstruct — would make the gate unreachable without deleting real ledger rows.
+- **A skipped award records the amount it would have paid.** The row is the audit trail (`status='skipped'`,
+  reason, amount), so finance can see what was due; `totalsFor()` and both statements count only
+  `credited` rows as money.
+- **A member with no sponsor writes no row.** `commissions.user_id` is the recipient; with no upline there
+  is no recipient to record. The activation audit trail still covers the event.
+- **The company root is never paid.** It has no package, so a blank-sponsor signup is skipped
+  (`recipient has no package`). That keeps company revenue and commissions apart.
+- **`ActivationService::complete()` now returns the hook result** (`commission_credited`,
+  `commission_skipped`) so callers can flash it and tests can assert it without re-reading rows.
+- **The Phase 9 invocation seam stays.** `CommissionService::invocations()` / `wasInvokedFor()` are still
+  recorded alongside the real awards; the Phase 9 tests that assert "invoked once" keep their meaning.
+- **The unique key is the last line of defence, not the happy path.** The activation stamp
+  (`commission_processed_at`) prevents a replay earlier; the service also checks `forEvent()` before
+  writing. The unique key only fires if both were bypassed, which the tests prove.
+- **The code-race test changed sponsor.** `MembershipTest`'s two-connection code race commits for real;
+  once commissions pay it would have credited juan ₱500 on every full run. It now registers under `david`
+  (ineligible), so the committed transaction moves no money and its rows cascade away with the users.
+- **The smoke run restores the wallets it moved.** A code registration and a manual approval pay juan;
+  without a cleanup every smoke run would inflate the demo wallet by ₱1,000. The script snapshots every
+  balance, removes the run's awards and commission ledger rows, and restores the snapshot — verified by
+  `bin/wallet_reconcile.php` after the run.
+- **Mobile columns move, they are not dropped.** Below 768 px the member table keeps source, amount, status
+  and details; the date, package and leg move into a meta line under the source. The admin table hides
+  activation/awarded and keeps the award id + date under the recipient.
+- **The admin ledger was compacted after the first screenshot pass.** Package moved under the source so the
+  nine-column table no longer clipped the details button at 1440 px.
+- **No cron.** Nothing in Phase 10 schedules work; awards happen inside the activation transaction.
+
+### Gate checklist (plan §7 Phase 10)
+
+- [x] Migration applied to dev DB; `schema.sql` regenerated for fresh installs (Phase 10 shape)
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
+- [x] All P10 tests pass (26 new cases: 17 `CommissionTest` + 9 `CommissionViewTest`; suite **427**)
+- [x] Full regression suite passes (Phases 1–9 unchanged apart from the code-race sponsor, the two route
+      assertions and the dashboard copy)
+- [x] Smoke script passes (**139 checks**, 7 new)
+- [x] Headless browser pass (**20 checks**) and 7 reference screenshots in
+      `docs/qa/evidence/phase-10/`
+- [x] Finance invariants clean — `bin/wallet_reconcile.php` exits 0 (wallets + commissions)
+- [x] Awards are idempotent (service check, activation stamp and the unique event key)
+- [x] No member can read another member's awards; the admin ledger is guarded
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-10-commissions.md`) — automated and headless-browser
+      passes complete
+- [x] Docs updated (this log, QA pack + sign-off sheet, both READMEs)
+- [x] Backup taken; tag `phase-10`
+
+### Next
+
+Phase 11 — indirect referral commissions (levels 2–10): `CommissionService::onActivation()` walks the sponsor
+chain from level 2, reads the **source package's** `package_levels` matrix, skips ineligible uplines but
+consumes their level, honours `indirect_enabled` and `commission_indirect_max_levels`, and writes one award
+per level inside the same transaction. The earnings page gains the level breakdown (the model's
+`levelBreakdown()` is already in place) and the admin ledger its type/level filters.
+
+
 
 
 

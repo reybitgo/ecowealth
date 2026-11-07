@@ -573,6 +573,37 @@ function wallet_ref_icon(string $refType): string
 }
 
 /* ==============================================================
+ *  Commissions (plan §6; Phase 10)
+ * ============================================================== */
+
+/** Human label for a `commissions.type` value. */
+function commission_type_label(string $type): string
+{
+    return Commission::TYPE_LABELS[$type] ?? ucfirst(str_replace('_', ' ', $type));
+}
+
+/**
+ * Level label used on both statements.
+ *
+ *   commission_level_label(1)  → "Level 1 · Direct"
+ *   commission_level_label(3)  → "Level 3"
+ */
+function commission_level_label(int $level, bool $withDirect = true): string
+{
+    if ($level === Commission::LEVEL_DIRECT) {
+        return $withDirect ? 'Level 1 · Direct' : 'Level 1';
+    }
+
+    return 'Level ' . $level;
+}
+
+/** Boxicons class for a `commissions.type` value. */
+function commission_type_icon(string $type): string
+{
+    return 'bx ' . ($type === 'indirect_referral' ? 'bx-git-branch' : 'bx-user-plus');
+}
+
+/* ==============================================================
  *  Orders & payments (plan §5.3–5.6; Phase 6)
  * ============================================================== */
 

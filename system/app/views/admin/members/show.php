@@ -235,6 +235,12 @@ $referralLink = $member['referral_code'] === null
                         <strong><?= e(money($commissions['credited'])) ?></strong>
                       </div>
                       <div class="d-flex align-items-center justify-content-between small py-1">
+                        <span class="text-body-secondary">Commission awards</span>
+                        <a href="<?= e(url('admin/commissions?q=' . rawurlencode((string) $member['username']))) ?>" class="text-body">
+                          <?= (int) $commissions['count'] ?> <i class="icon-base bx bx-link-external"></i>
+                        </a>
+                      </div>
+                      <div class="d-flex align-items-center justify-content-between small py-1">
                         <span class="text-body-secondary">Activation requests</span>
                         <strong><?= count($activations) ?></strong>
                       </div>
