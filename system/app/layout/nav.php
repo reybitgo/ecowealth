@@ -94,7 +94,7 @@ return [
                     ['key' => 'admin.orders', 'label' => 'Orders', 'path' => 'admin/orders', 'icon' => 'bx-receipt', 'guard' => 'admin', 'phase' => 6],
                     ['key' => 'admin.members', 'label' => 'Members', 'path' => 'admin/members', 'icon' => 'bx-group', 'guard' => 'admin', 'phase' => 9],
                     ['key' => 'admin.activations', 'label' => 'Activations', 'path' => 'admin/activations', 'icon' => 'bx-check-shield', 'guard' => 'admin', 'phase' => 9],
-                    ['key' => 'admin.codes', 'label' => 'Registration codes', 'path' => 'admin/codes', 'icon' => 'bx-key', 'guard' => 'admin', 'phase' => 9],
+                    ['key' => 'admin.codes', 'label' => 'Codes', 'path' => 'admin/codes', 'icon' => 'bx-key', 'guard' => 'admin', 'phase' => 9],
                 ],
             ],
             [

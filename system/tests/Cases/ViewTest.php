@@ -82,7 +82,7 @@ return [
         assert_contains('menu-icon icon-base bx bx-home-smile', $html, 'sidebar icons keep the Boxicons base class');
 
         /* P1-T8: member pages never expose back-office items. */
-        assert_not_contains('Registration codes', $html);
+        assert_not_contains(url('admin/codes'), $html);
         assert_not_contains('E-wallet monitor', $html);
         assert_not_contains('S-Login console', $html);
         assert_not_contains('Commissions', $html);
@@ -103,8 +103,11 @@ return [
         /* Phase 9 made the membership screens live. */
         assert_contains('Members', $html);
         assert_contains('Activations', $html);
-        assert_contains('Registration codes', $html);
         assert_contains('href="' . url('admin/members') . '"', $html);
+
+        /* The codes item is short ("Codes") so it never truncates. */
+        assert_contains('<div>Codes</div>', $html);
+        assert_contains('href="' . url('admin/codes') . '"', $html);
 
         /* Unbuilt screens are left out of the menu entirely. */
         assert_not_contains('Payouts', $html);

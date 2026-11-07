@@ -1932,6 +1932,43 @@ who found the site directly, or an existing member adding people who have no upl
 - **Decision D3 is amended, not silently broken.** The plan now records "optional — blank joins the
   company root", and the earlier Phase 9 section above stays as the record of what shipped that day.
 
+---
+
+## Post-Phase 9 — Sidebar item "Registration codes" renamed to "Codes"
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 389 PHP cases,
+130 smoke checks.
+
+### Problem
+
+The admin sidebar label **Registration codes** was truncated in the menu rail at common widths
+(“Registration cod…”), so the entry read like a broken or unfinished item. The page itself is still the
+registration-codes screen; only the menu entry needed to be shorter.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Menu** | [`app/layout/nav.php`](../system/app/layout/nav.php) — the `admin.codes` item reads **Codes**; icon, route and placement are unchanged. |
+| **Tests** | [`ViewTest`](../system/tests/Cases/ViewTest.php) — the admin layout asserts `<div>Codes</div>` and the `/admin/codes` link; the member layout asserts no link to the back-office codes page (replacing the old text assertion). |
+| **Docs** | Plan §3.5's admin menu list now says **Codes**; the Phase 9 QA step points at **Commerce → Codes** and notes that the page heading is still *Registration codes*. |
+| **Evidence** | The Phase 9 screenshots showing the admin sidebar were re-captured (`final-admin-codes.png` and the other admin shots). |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **389 / 389** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **130 / 130** |
+| Browser | `/admin/codes` shows **Codes** in the sidebar, untruncated, active; the page heading remains **Registration codes** |
+
+### Decisions
+
+- **The page keeps its full name.** “Registration codes” is what the screen manages; only the sidebar
+  label is shortened, so the menu cannot truncate while the page heading stays descriptive.
+- **No route, key, permission or data change.** `admin.codes`, `/admin/codes` and the inventory entry
+  are untouched; the rename is presentational plus its test/documentation updates.
+
 
 
 

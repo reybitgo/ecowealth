@@ -312,7 +312,7 @@ Two app layouts, plus a front door that lives outside the app:
 |---|---|---|
 | Front door (outside the app) | the repo-root `index.html` page and its own nav | `/ecowealth/` — visitors land here first; its only app-facing piece is a link into `/ecowealth/system/` |
 | Member (`layout=member`) | Dashboard, Shop, Cart, My Orders, Membership, Earnings, Wallet, Payouts, Profile | member pages (plus an impersonation banner during S-Login) |
-| Admin (`layout=admin`) | Dashboard, Products, Packages, Orders, Activations, Registration Codes, Members, Commissions, E-Wallet Monitor, Payouts, Settings, S-Login console | `/admin/*`, `/slogin` |
+| Admin (`layout=admin`) | Dashboard, Products, Packages, Orders, Activations, Codes, Members, Commissions, E-Wallet Monitor, Payouts, Settings, S-Login console | `/admin/*`, `/slogin` |
 
 Both app layouts are the existing EcoWealth vertical theme; the sidebar becomes data-driven from `app/layout/nav.php` (sections → items → route, icon, badge), with `$current_nav` derived from the active route. The current dashboard's anchor-based menu is replaced by this config in Phase 1. The impersonation banner in the member layout is added in Phase 14.
 

@@ -126,8 +126,8 @@ your pass):
 
 **Steps**
 
-1. Sign in as `admin`, open **Registration codes**, issue 1 code for **Package A** at ₱4,498 with an
-   expiry date a month away.
+1. Sign in as `admin`, open **Codes** (Commerce → Codes; the page heading is *Registration codes*),
+   issue 1 code for **Package A** at ₱4,498 with an expiry date a month away.
 2. Copy the new code from the list.
 3. Sign out and open `/register`, choose **Registration code**, paste the code, fill the account
    fields with `juan` as the sponsor and submit.
