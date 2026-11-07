@@ -245,6 +245,7 @@ return [
         assert_contains('Rows per page', $links);
         assert_contains('name="per_page"', $links);
         assert_contains('data-per-page', $links);
+        assert_contains('data-pagination="', $links, 'a stable key lets the table stay in view');
         assert_contains('<option value="5"', $links);
         assert_contains('<option value="10"', $links);
         assert_contains('<option value="100"', $links);

@@ -698,6 +698,8 @@ job touches a cancelled or completed order (see `docs/cron.md`).
   `app/views/partials/pagination.php`: 10 rows by default, with a rows-per-page control
   offering 5, 10, 15 … 100 (`?per_page=N`) that keeps the active filters. A filter form
   carries `<?= per_page_hidden() ?>` so changing a filter never resets the chosen size.
+  The footer's change/link handlers remember where the table card sat in the viewport and
+  put it back after the reload, so changing the size never jumps the page to the top.
   Fixed-size lists (the catalogue card grid, dashboard snapshots) use `fromRequest()` /
   `new Paginator()` and pass `'show_per_page' => false` to the partial.
 

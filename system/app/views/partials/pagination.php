@@ -50,9 +50,15 @@ foreach ($_GET as $key => $value) {
     $hidden[$key] = (string) $value;
 }
 
-$select_id = 'perPage-' . substr(md5($pager_label . '|' . $page_param . '|' . $per_page_param), 0, 8);
+/* A stable key lets app.js keep the table card in view across the
+ * reload a page-size or page-number change triggers. */
+$pagination_key = substr(md5($pager_label . '|' . $page_param . '|' . $per_page_param), 0, 8);
+$select_id      = 'perPage-' . $pagination_key;
 ?>
-<div class="pagination-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4">
+<div
+  class="pagination-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4"
+  data-pagination="<?= e($pagination_key) ?>"
+>
   <div class="d-flex flex-wrap align-items-center gap-3">
 <?php if ($show_per_page && $pager->total > 0): ?>
     <form method="GET" action="<?= e($form_action) ?>" class="d-flex align-items-center gap-2" data-per-page-form>

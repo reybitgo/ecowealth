@@ -2019,6 +2019,47 @@ page two independent tables shared the same `?page=` parameter, so paging one mo
   list now paginate, so no record list grows without a footer. Dashboard snapshots stay top-N and link to
   their full, paginated list.
 
+---
+
+## Post-Phase 9 — Pagination keeps the table in view
+
+**Date:** 2026-11-07 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 394 PHP cases,
+131 smoke checks, 14 browser checks.
+
+### Problem
+
+Changing the rows-per-page size (or clicking a page number) reloads the document; the browser starts at
+the top, so the table the user was reading disappears below the fold. The page size was working, but the
+scroll position was not.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Partial** | The pagination bar carries a stable `data-pagination="<key>"` derived from its label and page keys (unique per table, including the two lists on a wallet page). |
+| **`app.js`** | Before a rows-per-page change or a pagination-link click, the browser stores the table card's viewport offset in `sessionStorage` (`ecowealth:pagination-position`). On the next load the script finds the same bar, scrolls its `.card` back to that offset and clears the key. If the document is now shorter than the saved position, the browser's natural clamp keeps the footer visible instead of overshooting. |
+| **Fallbacks** | With JavaScript off the pages behave exactly as before (top of the page) — the size change still works through the `<noscript>` Apply button. If storage is unavailable (private mode), the script silently falls back to the default jump. |
+| **Tests** | `ViewTest` asserts the stable key; the browser harness scrolls the member table into view, changes the size and clicks page 2, and asserts the scroll position and the card's on-screen offset survive both reloads (14 checks). |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **394 / 394** |
+| `powershell -NoProfile -File tests/smoke.ps1` | **131 / 131** |
+| Browser harness (`tests/tmp/verify-pagination.mjs`) | **14 / 14** — `scrollBefore=219`, `scrollAfter=219`, card top 120 px after the size change and after page 2 |
+| Data check | `bin/wallet_reconcile.php` exits 0 |
+
+### Decisions
+
+- **The card is the anchor, not the footer.** Restoring the footer's own position would push the table
+  off-screen on short pages; restoring the whole table card keeps the header, the first rows and the
+  filter row where the user left them.
+- **`sessionStorage`, not the URL.** The position is a transient UI courtesy; it must not become part of
+  a bookmark or a shared link, and it is cleared the moment it is applied.
+- **The page still reloads.** This preserves server-rendered rows, filters and totals exactly as before;
+  no AJAX table library is introduced just to keep the scroll.
+
 
 
 

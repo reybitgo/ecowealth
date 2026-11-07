@@ -22,23 +22,110 @@
   });
 
   /*
-   * Rows-per-page selects (pagination footer) submit their own GET form
-   * on change, so the list reloads at the chosen size. Without
-   * JavaScript the same form carries a <noscript> Apply button.
+   * Pagination keeps the table in view (plan §3.6).
+   *
+   * A rows-per-page or page-number change reloads the document; without
+   * help the browser starts at the top and the table the user was
+   * looking at disappears. Before such a navigation we remember where
+   * the table's card sat in the viewport, and after the reload we put
+   * it back at the same spot. The key lives in sessionStorage, so it is
+   * scoped to this tab and cleared as soon as it is used.
    */
-  document.addEventListener('change', function (event) {
-    var select = event.target;
+  (function () {
+    var STORAGE_KEY = 'ecowealth:pagination-position';
 
-    if (!select || !select.matches || !select.matches('[data-per-page]')) {
-      return;
+    var read = function () {
+      try {
+        return JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) || 'null');
+      } catch (error) {
+        return null;
+      }
+    };
+
+    var clear = function () {
+      try {
+        window.sessionStorage.removeItem(STORAGE_KEY);
+      } catch (error) {
+        /* Storage may be disabled; nothing to clean up. */
+      }
+    };
+
+    var remember = function (bar) {
+      if (!bar) {
+        return;
+      }
+
+      var card = bar.closest ? bar.closest('.card') : null;
+      var anchor = card || bar;
+
+      try {
+        window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+          id: bar.getAttribute('data-pagination') || '',
+          offset: anchor.getBoundingClientRect().top
+        }));
+      } catch (error) {
+        /* Private mode / storage disabled: fall back to the default jump. */
+      }
+    };
+
+    var restore = function () {
+      var saved = read();
+
+      if (!saved || !saved.id) {
+        return;
+      }
+
+      clear();
+
+      var bar = document.querySelector('[data-pagination="' + saved.id + '"]');
+
+      if (!bar) {
+        return;
+      }
+
+      var card = bar.closest ? bar.closest('.card') : null;
+      var anchor = card || bar;
+      var top = anchor.getBoundingClientRect().top + window.scrollY - (saved.offset || 0);
+
+      window.scrollTo(0, Math.max(0, top));
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', restore);
+    } else {
+      restore();
     }
 
-    var form = select.form || (select.closest ? select.closest('form') : null);
+    /* A page-number or first/last link: remember before the document unloads. */
+    document.addEventListener('click', function (event) {
+      var link = event.target && event.target.closest
+        ? event.target.closest('.pagination-bar .pagination a')
+        : null;
 
-    if (form) {
-      form.submit();
-    }
-  });
+      if (!link) {
+        return;
+      }
+
+      remember(link.closest('[data-pagination]'));
+    });
+
+    /* A rows-per-page change submits its form: remember first. */
+    document.addEventListener('change', function (event) {
+      var select = event.target;
+
+      if (!select || !select.matches || !select.matches('[data-per-page]')) {
+        return;
+      }
+
+      remember(select.closest ? select.closest('[data-pagination]') : null);
+
+      var form = select.form || (select.closest ? select.closest('form') : null);
+
+      if (form) {
+        form.submit();
+      }
+    });
+  })();
 
   var input = document.getElementById('navbarQuickSearch');
 
