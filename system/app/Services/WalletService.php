@@ -588,6 +588,9 @@ final class WalletService
          * movement returned above without touching anything. */
         Live::touchWallet($userId);
 
+        /* The member's own statement shows the same buckets and rows. */
+        Live::touchMemberWallet($userId);
+
         /* The member's own dashboard shows the same two buckets. */
         Live::touchMemberDashboard($userId);
 

@@ -160,10 +160,18 @@ final class CheckoutController
         old_clear();
         old_payload_clear();
 
-        Live::publish([
+        $publish = [
             Live::memberOrdersSurface((int) $user['id']),
             Live::memberOrderSurface((int) $result['order_id']),
-        ]);
+        ];
+
+        /* An e-wallet payment debits the wallet inside the placement
+         * transaction, so another open statement tab must revalidate too. */
+        if ((string) ($result['status'] ?? '') === 'paid') {
+            $publish[] = Live::memberWalletSurface((int) $user['id']);
+        }
+
+        Live::publish($publish);
 
         flash_set(
             'success',

@@ -4,10 +4,11 @@ The admin product list, the admin dashboard, the order desk (list and one
 order), the wallet monitor (all three tabs and one member's wallet), the
 member directory (list and one member), the activation queue, the
 registration-code list, the commission ledger, the member dashboard's
-E-wallet widgets, the member's own membership page, the member's order
-history and one order page, and the storefront catalogue/product pages
-update themselves without a full page reload. The same pattern is intended
-for the other list, detail and dashboard pages.
+E-wallet widgets, the member's own membership page, the member's own
+e-wallet statement and earnings page, the member's order history and one
+order page, and the storefront catalogue/product pages update themselves
+without a full page reload. The same pattern is intended for the other
+list, detail and dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -89,6 +90,10 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   plus one `admin.members:{id}` detail page
 - `memberDashboardSurface($id)` / `touchMemberDashboard($id)` — the member's
   own `/dashboard`, where the E-wallet KPI and card are live regions
+- `memberWalletSurface($id)` / `touchMemberWallet($id)` — the member's own
+  `/wallet` statement (buckets and ledger)
+- `earningsSurface($id)` / `touchEarnings($id)` — the member's own
+  `/earnings` statement (commission awards)
 - `membershipSurface($id)` / `touchMembership($id)` — the member's own
   `/membership` page (status, package, activation paths and history)
 - `shopProductSurface($id)` / `touchShop($ids)` — the `shop.catalog` grid
@@ -122,13 +127,32 @@ present (hidden while the list is empty) so a first proof can appear live.
 A wallet has a monitor surface and one detail surface. `WalletService::apply()`
 calls `touchWallet()` after every successful balance movement — top-ups,
 commissions, purchases, refunds and payouts — and skips a replayed movement
-because no money moved. The same movement also calls `touchMemberDashboard()`
-so the member's own `/dashboard` E-wallet KPI and card refresh, and
+because no money moved. The same movement also calls `touchMemberWallet()`,
+`touchMemberDashboard()` and `touchMembership()`, so the member's own `/wallet`
+statement, `/dashboard` E-wallet widgets and `/membership` balance refresh, and
 `touchMember()` so the member directory's wallet column and that member's page
 show the new buckets. Member-facing writes that change what the monitor shows
 (registration, activation, a status change, a profile name) touch the admin
 surfaces only. The detail surface is `admin.wallets:{id}`, so one wallet's
 movement does not refresh every other open wallet page.
+
+The member's own `/wallet` page is `member.wallet:{id}`. It renders two
+regions: the three bucket cards and the statement card. The statement card owns
+the ledger filter form, so it carries `data-live-hold="dirty"` and the page
+shows the stale banner; the heading and the explanatory alert stay static. The
+ETag scope is the query string plus the signed-in member — the page has no
+clock-relative label, so it does not widen the scope with the day or hour.
+
+The member's own `/earnings` page is `member.earnings:{id}`.
+`CommissionService` calls `touchEarnings()` after every credited and every
+skipped award; a replayed award writes no row and does not bump. The page
+renders five regions: the four summary cards, the skipped-award alert, the card
+heading with its row count, the award rows and the pagination. The skipped
+alert is always present — an empty hidden wrapper while the member has none —
+so the first skipped award can appear live. The filter form stays outside the
+regions, so a background refresh never discards an unsubmitted filter. The ETag
+scope includes the hour because the "last award" label is relative and "this
+month" counts from `CURDATE()`.
 
 The member directory and one member page are two surfaces: `admin.members`
 and `admin.members:{id}`. `touchMember()` bumps both. It is called by
@@ -251,13 +275,13 @@ Three page behaviours keep swapped forms working:
   working quick view. The add-to-cart forms are delegated by `app-cart.js`.
 
 `public/assets/js/admin-live.js` is shared by every live surface with a form
-region — the admin pages, the member's `/membership` page, the member order
-page and the product page: it consumes `detail.held` and reveals the page's
-`[data-live-stale]` banner (“changed in another tab, your unsaved input was
-kept — reload to see the latest”). The banner is only shown when a form region
-was held back; a payload that applied cleanly hides it again. A
-`[data-live-reload]` link in the banner is pointed at the current URL, filters
-and page included.
+region — the admin pages, the member's `/membership` page, the member's own
+`/wallet` statement, the member order page and the product page: it consumes
+`detail.held` and reveals the page's `[data-live-stale]` banner (“changed in
+another tab, your unsaved input was kept — reload to see the latest”). The
+banner is only shown when a form region was held back; a payload that applied
+cleanly hides it again. A `[data-live-reload]` link in the banner is pointed at
+the current URL, filters and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
@@ -265,12 +289,13 @@ change at midnight even when no row is written. The order desk does the same bec
 include the day: `new_week` counts from `CURDATE()` and the ledger's “this month” total
 moves at the month boundary. The wallet monitor adds the hour as well, because its
 directory shows a relative “last movement” label; a tab left open therefore revalidates
-on its next poll without a write. The member order page adds the hour too, because its
-payment/correction window labels read the clock. The storefront catalogue and product
-pages include the `shop_enabled` setting for the same reason: closing the shop must
-reach an open tab without a product write. The navbar notification dropdown sits outside
-the dashboard surface and updates on the next full navigation; it is a candidate for a
-future shell surface.
+on its next poll without a write. The member earnings page adds the hour too, because its
+“last award” label is relative and “this month” counts from `CURDATE()`. The member order
+page adds the hour too, because its payment/correction window labels read the clock. The
+storefront catalogue and product pages include the `shop_enabled` setting for the same
+reason: closing the shop must reach an open tab without a product write. The navbar
+notification dropdown sits outside the dashboard surface and updates on the next full
+navigation; it is a candidate for a future shell surface.
 
 ### Tabbed pages
 
@@ -343,12 +368,14 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
+| `member.wallet:{id}` | `/wallet` | buckets, statement |
+| `member.earnings:{id}` | `/earnings` | stats, skipped notice, header, rows, pagination |
 | `member.orders:{id}` | `/orders` | rows, pagination |
 | `member.order:{id}` | `/orders/{id}` | header, status, payment attempts, delivery, payment summary, history |
 | `shop.catalog` | `/shop` | heading, result states, quick-view JSON |
 | `shop.product:{id}` | `/shop/{id}` | heading, shop-closed notice, product card |
 
-Planned next: `member.wallet:{userId}`, `member.earnings:{userId}`.
+Planned next: `member.genealogy:{userId}` (team counters).
 
 ## Deployment
 

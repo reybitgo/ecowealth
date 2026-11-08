@@ -241,9 +241,11 @@ final class CommissionService
             throw $e;
         }
 
-        /* One new award row on the admin ledger (its wallet credit also
-         * bumps the recipient's member page through WalletService). */
+        /* One new award row on the admin ledger and on the recipient's
+         * own earnings page (its wallet credit also bumps the recipient's
+         * dashboard, wallet and membership pages through WalletService). */
         Live::touch('admin.commissions');
+        Live::touchEarnings($recipientId);
 
         $row = Commission::find($commissionId, $this->pdo) ?? [];
 
@@ -295,9 +297,11 @@ final class CommissionService
             'reason'         => $reason,
         ], $this->pdo);
 
-        /* The ledger's "skipped" counter moved; no wallet or member page
+        /* The ledger's "skipped" counter moved and the recipient's own
+         * earnings page gained an audit row; no wallet or dashboard page
          * shows a skipped award. */
         Live::touch('admin.commissions');
+        Live::touchEarnings($recipientId);
 
         return Commission::find($commissionId, $this->pdo) ?? ['id' => $commissionId, 'status' => 'skipped'];
     }

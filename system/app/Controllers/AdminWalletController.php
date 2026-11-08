@@ -524,6 +524,7 @@ final class AdminWalletController
         Live::publish([
             'admin.wallets',
             Live::walletSurface($userId),
+            Live::memberWalletSurface($userId),
             Live::memberDashboardSurface($userId),
             Live::membershipSurface($userId),
         ]);

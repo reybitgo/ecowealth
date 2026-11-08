@@ -79,6 +79,28 @@ final class Live
     }
 
     /**
+     * The member's own wallet statement surface (`member.wallet:42`).
+     *
+     * The surface is per user: one member's movement never refreshes
+     * another member's open statement.
+     */
+    public static function memberWalletSurface(int $userId): string
+    {
+        return 'member.wallet:' . max(0, $userId);
+    }
+
+    /**
+     * The member's own earnings statement surface (`member.earnings:42`).
+     *
+     * The surface is per user: one member's award never refreshes another
+     * member's open earnings page.
+     */
+    public static function earningsSurface(int $userId): string
+    {
+        return 'member.earnings:' . max(0, $userId);
+    }
+
+    /**
      * The member's own dashboard surface (`member.dashboard:42`).
      *
      * The member dashboard only exposes the E-wallet KPI and card as live
@@ -151,11 +173,13 @@ final class Live
     }
 
     /**
-     * Bump the wallet monitor and one member's wallet page.
+     * Bump the wallet monitor and one admin wallet detail page.
      *
      * Every balance movement (top-up, commission, purchase, refund, payout)
      * and every change to a member's directory fields (name, status) calls
-     * this after the change.
+     * this after the change. The member's own surfaces are bumped by their
+     * own helpers: touchMemberWallet(), touchMemberDashboard() and
+     * touchMembership().
      */
     public static function touchWallet(int $userId): void
     {
@@ -173,6 +197,32 @@ final class Live
     public static function touchMember(int $userId): void
     {
         self::touch(['admin.members', self::memberSurface($userId)]);
+    }
+
+    /**
+     * Bump one member's own `/wallet` statement.
+     *
+     * Called by WalletService::apply() after every successful balance
+     * movement, alongside touchWallet(); a replayed movement moves no
+     * money and never bumps it. Directory/profile changes do not call it:
+     * the statement renders only the two buckets and the ledger rows.
+     */
+    public static function touchMemberWallet(int $userId): void
+    {
+        self::touch(self::memberWalletSurface($userId));
+    }
+
+    /**
+     * Bump one member's `/earnings` statement.
+     *
+     * Called by CommissionService after every credited or skipped award;
+     * a replayed award writes no row and never bumps it. The award also
+     * credits the wallet, so WalletService separately refreshes the
+     * dashboard, membership and wallet surfaces of the recipient.
+     */
+    public static function touchEarnings(int $userId): void
+    {
+        self::touch(self::earningsSurface($userId));
     }
 
     /**

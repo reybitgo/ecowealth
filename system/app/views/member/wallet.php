@@ -10,6 +10,10 @@ declare(strict_types=1);
  * paid out. Admin top-ups raise the total only (non-withdrawable), so
  * the explanation under the cards matters.
  *
+ * One live surface per member (`member.wallet:{id}`). The bucket cards
+ * and the statement card are regions; the statement owns the filter form,
+ * so it is held while the member has unsaved input.
+ *
  * @var array<string, mixed> $account
  * @var list<array<string, mixed>> $ledger
  * @var Paginator $pager
@@ -18,42 +22,43 @@ declare(strict_types=1);
  * @var string $statement_url
  * @var string $statement_title
  * @var bool $show_member
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
-$total        = round((float) $account['ewallet_balance'], 2);
-$withdrawable = round((float) $account['withdrawable_balance'], 2);
-$locked       = round($total - $withdrawable, 2);
-
-$cards = [
-    [
-        'label' => 'Total balance',
-        'value' => money($total),
-        'hint'  => 'Spendable in the shop and available for payouts.',
-        'icon'  => 'bx-wallet',
-        'tone'  => 'primary',
-    ],
-    [
-        'label' => 'Withdrawable',
-        'value' => money($withdrawable),
-        'hint'  => 'May be paid out — commissions land here.',
-        'icon'  => 'bx-money-withdraw',
-        'tone'  => 'success',
-    ],
-    [
-        'label' => 'Non-withdrawable',
-        'value' => money($locked),
-        'hint'  => 'Top-ups and transferred funds: spendable, not cashable.',
-        'icon'  => 'bx-lock-alt',
-        'tone'  => 'warning',
-    ],
+$live = $live ?? [
+    'surface'  => Live::memberWalletSurface((int) ($account['id'] ?? 0)),
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
 ];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y wallet-page">
+            <div
+              class="container-xxl flex-grow-1 container-p-y wallet-page"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
+                <i class="icon-base bx bx-error-circle fs-5"></i>
+                <div>
+                  <strong>Your wallet changed in another tab.</strong>
+                  Your unsaved filter was kept, so this page may be out of date.
+                  <a href="<?= e(url('wallet')) ?>" class="alert-link" data-live-reload>
+                    Reload the page
+                  </a>
+                  to see the latest.
+                </div>
+              </div>
+
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">E-wallet</h4>
                   <p class="text-body-secondary mb-0">
                     Every peso comes from one ledger. Nothing here can be edited — corrections are new entries.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
                 <span class="badge bg-label-primary fs-6">
@@ -61,26 +66,7 @@ $cards = [
                 </span>
               </div>
 
-              <div class="row g-6 mb-6">
-<?php foreach ($cards as $card): ?>
-                <div class="col-12 col-md-4">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small"><?= e($card['label']) ?></span>
-                      </div>
-                      <h3 class="mb-2 wallet-stat-value"><?= e($card['value']) ?></h3>
-                      <p class="text-body-secondary small mb-0"><?= e($card['hint']) ?></p>
-                    </div>
-                  </div>
-                </div>
-<?php endforeach; ?>
-              </div>
+<?= View::capture('member/wallet/_buckets', ['account' => $account]) ?>
 
               <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-info-circle fs-4"></i>
@@ -92,15 +78,13 @@ $cards = [
                 </div>
               </div>
 
-<?=
-    View::partial('wallet_statement', [
-        'filters'         => $filters,
-        'ledger'          => $ledger,
-        'pager'           => $pager,
-        'totals'          => $totals,
-        'statement_url'   => $statement_url,
-        'statement_title' => $statement_title,
-        'show_member'     => $show_member,
-    ])
-?>
+<?= View::capture('member/wallet/_statement', [
+    'filters'         => $filters,
+    'ledger'          => $ledger,
+    'pager'           => $pager,
+    'totals'          => $totals,
+    'statement_url'   => $statement_url,
+    'statement_title' => $statement_title,
+    'show_member'     => $show_member,
+]) ?>
             </div>

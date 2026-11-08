@@ -526,6 +526,13 @@ If you imported your existing database, use your existing credentials.
     proof or cancel the order in the other tab. The first tab must keep the typed value and
     show the stale banner. Submit a proof and check that the "Payment attempts" card appears
     live in the other tab.
+18. Sign in as a member and open `<app-url>/wallet` in two tabs. Credit the wallet from the
+    admin monitor (or let a commission land): the three bucket cards and the statement
+    should update on the next poll without a reload. Type into a ledger filter in one tab
+    first; the statement card must keep the typed filter and show the stale banner.
+19. Open `<app-url>/earnings` in two tabs and approve an activation that pays the member:
+    the summary cards, the award count and the rows should update without a refresh. A
+    skipped award must reveal the "was skipped" notice live.
 
 If the page works but live updates do not:
 

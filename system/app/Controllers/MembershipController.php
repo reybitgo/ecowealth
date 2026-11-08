@@ -306,6 +306,7 @@ final class MembershipController
             $publish[] = 'admin.members';
             $publish[] = 'admin.commissions';
             $publish[] = Live::walletSurface($memberId);
+            $publish[] = Live::memberWalletSurface($memberId);
         }
 
         Live::publish($publish);
