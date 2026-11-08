@@ -27,6 +27,7 @@ $migrations    = [
     $migrationDir . '012_commissions.sql',
     $migrationDir . '013_live_revisions.sql',
     $migrationDir . '014_indirect_commissions.sql',
+    $migrationDir . '015_package_b_premium_ladder.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -573,6 +574,43 @@ return [
         assert_same(
             '3',
             $pdo->query("SELECT value FROM settings WHERE key_name = 'commission_indirect_max_levels'")->fetchColumn()
+        );
+    },
+
+    'migration raises Package B to the premium ladder only' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        /* The legacy fixture has no demo packages, so build the old
+         * Package B exactly as Phase 3 seeded it. */
+        $pdo->exec(
+            "INSERT INTO packages (name, slug, price, product_value, direct_referral_bonus)
+             VALUES ('Package B', 'package-b', 6998.00, 8300.00, 500.00)"
+        );
+        $packageId = (int) $pdo->lastInsertId();
+
+        $insertLevel = $pdo->prepare('INSERT INTO package_levels (package_id, level, amount) VALUES (?, ?, ?)');
+
+        foreach ([2 => 100.00, 3 => 50.00, 4 => 40.00, 5 => 30.00, 6 => 20.00, 7 => 10.00, 8 => 5.00, 9 => 5.00, 10 => 5.00] as $level => $amount) {
+            $insertLevel->execute([$packageId, $level, number_format($amount, 2, '.', '')]);
+        }
+
+        test_run_sql_file($pdo, dirname(__DIR__, 2) . '/database/migrations/015_package_b_premium_ladder.sql');
+
+        assert_same('600.00', (string) $pdo->query("SELECT direct_referral_bonus FROM packages WHERE id = {$packageId}")->fetchColumn());
+        assert_same(
+            '120.00|60.00|48.00|36.00|24.00|12.00|6.00|6.00|6.00',
+            $pdo->query(
+                "SELECT GROUP_CONCAT(amount ORDER BY level SEPARATOR '|') FROM package_levels WHERE package_id = {$packageId}"
+            )->fetchColumn()
+        );
+
+        /* An admin-edited value is left alone on a re-run. */
+        $pdo->exec("UPDATE package_levels SET amount = 125.00 WHERE package_id = {$packageId} AND level = 2");
+        test_run_sql_file($pdo, dirname(__DIR__, 2) . '/database/migrations/015_package_b_premium_ladder.sql');
+
+        assert_same(
+            '125.00',
+            $pdo->query("SELECT amount FROM package_levels WHERE package_id = {$packageId} AND level = 2")->fetchColumn()
         );
     },
 

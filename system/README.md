@@ -21,9 +21,10 @@ four registration modes (standard / registration code / e-wallet / pending) with
 and no binary placement, registration codes (generate, validate, redeem, expire, CSV export),
 membership activation by code / wallet / manual proof with the commission hook wired once per
 activation, the member dashboard, genealogy (sponsor chain only), the member directory and the
-activation review queue; Phase 10 pays the **direct referral** bonus (₱500 from the package) to the
-sponsor when an activation is approved — exactly once, audited in `commissions`, credited to the
-withdrawable wallet — and adds the member **Earnings** statement and the admin **Commissions** ledger.
+activation review queue; Phase 10 pays the **direct referral** bonus (₱500 on Package A, ₱600 on
+Package B) to the sponsor when an activation is approved — exactly once, audited in `commissions`,
+credited to the withdrawable wallet — and adds the member **Earnings** statement and the admin
+**Commissions** ledger.
 Phase 11 adds the **indirect referral** ladder: levels 2–10 are priced by the source package's
 `package_levels`, skip ineligible uplines without compressing the levels, honour the package/global
 switches and `commission_indirect_max_levels`, and credit each eligible level in the same activation
@@ -611,10 +612,12 @@ withdrawable wallet money.
   `CommissionService::onActivation()` inside the activation transaction, then stamps
   `activations.commission_processed_at`. Standard registrations, product orders and rejected
   activations pay nothing.
-- **Direct (level 1).** `packages.direct_referral_bonus` of the **source** package (₱500 on both seeded
-  packages). A package with a zero bonus awards nothing (no row, no error).
+- **Direct (level 1).** `packages.direct_referral_bonus` of the **source** package (₱500 on Package A,
+  ₱600 on Package B). A package with a zero bonus awards nothing (no row, no error).
 - **Indirect (levels 2–10).** The service walks `users.sponsor_id` from the sponsor's sponsor upward,
-  reading the **source package's** `package_levels` matrix. `packages.indirect_enabled = 0` or
+  reading the **source package's** `package_levels` matrix. Package A pays 100/50/40/30/20/10/5/5/5;
+  Package B pays **20% more at every level** (120/60/48/36/24/12/6/6/6), so its ₱6,998 price carries a
+  stronger referral incentive. `packages.indirect_enabled = 0` or
   `settings.commission_indirect_enabled = 0` pays the direct leg only;
   `settings.commission_indirect_max_levels` (2–10) caps the depth. An ineligible upline **consumes its
   level** (no compression, `commission_compression` reserved at 0) and deeper levels keep their own
@@ -690,7 +693,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (558 cases in Phase 11)
+php tests/run.php                 # full suite (559 cases in Phase 11)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

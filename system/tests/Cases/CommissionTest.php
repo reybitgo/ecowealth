@@ -195,7 +195,7 @@ return [
         assert_same(500.0, (float) $rows[0]['amount']);
     },
 
-    'P10-T1 package B pays the same direct bonus as package A' => function () use ($pendingMember, $wallet, $juan, $pkgB, $directOnly): void {
+    'P10-T1 package B pays its premium direct bonus' => function () use ($pendingMember, $wallet, $juan, $pkgB, $directOnly): void {
         $directOnly();
         $member = $pendingMember('juan');
         $juanId = (int) $juan()['id'];
@@ -211,8 +211,9 @@ return [
 
         (new ActivationService())->complete($activationId);
 
-        assert_same($before + 500.0, $wallet()->balance($juanId), 'the V3.0 ladder is the same for both packages');
+        assert_same($before + 600.0, $wallet()->balance($juanId), 'Package B pays its higher direct bonus');
         assert_same('Package B', Commission::forActivation($activationId)[0]['package_name']);
+        assert_same(600.0, (float) Commission::forActivation($activationId)[0]['amount']);
     },
 
     /* ---------- P10-T2: ineligible recipients are skipped --------- */
