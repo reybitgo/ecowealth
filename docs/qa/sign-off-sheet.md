@@ -6,7 +6,7 @@ still open in each phase of `docs/phase-log.md`.
 
 **Status of this pass (2026-11-07):** Phases 1–10 are recorded as **passed** — **166 / 166**
 manual checks, **427 / 427** PHP cases and **139 / 139** smoke checks; **0 failed, 0 blocked**.
-Phase 11 is automated-complete (**558 / 558** PHP cases, **143 / 143** smoke checks) with its ten
+Phase 11 is automated-complete (**559 / 559** PHP cases, **143 / 143** smoke checks) with its ten
 manual checks still to tick.
 
 **How to use**
@@ -43,7 +43,7 @@ manual checks still to tick.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 558  Passed: 558  Failed: 0` / `All good.` | `Cases: 558   Passed: 558   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 559  Passed: 559  Failed: 0` / `All good.` | `Cases: 559   Passed: 559   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
 | `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 143   Failed: 0` | `Passed: 143   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
@@ -51,7 +51,7 @@ Paste the final lines of each command here:
 ```text
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 558   Passed: 558   Failed: 0
+Cases: 559   Passed: 559   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
@@ -401,9 +401,9 @@ Document: [phase-11-commissions.md](phase-11-commissions.md)
 
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
-| QA11-01 | A code registration pays the unilevel chain and skips the root | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png` |
+| QA11-01 | A code registration pays the chain; the indirect filter correctly omits the level-1 sponsor | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
 | QA11-02 | Member earnings level breakdown and CSV | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/member-earnings.png` |
-| QA11-03 | Package B pays the same ladder as Package A | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T4` |
+| QA11-03 | Package B pays a 20% premium ladder over Package A | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T4` |
 | QA11-04 | An inactive upline consumes its level | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-skipped.png` |
 | QA11-05 | Package/global switches and the depth cap | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T5` |
 | QA11-06 | A replay pays nothing twice | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T6` |
@@ -451,7 +451,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 8 | ☑ Yes ☐ No | 19 / 19 checks passed. |
 | Phase 9 | ☑ Yes ☐ No | 16 / 16 checks passed. |
 | Phase 10 | ☑ Yes ☐ No | 10 / 10 checks passed; 427 / 427 PHP cases, 139 / 139 smoke checks and 20 / 20 browser checks green. |
-| Phase 11 | ☐ Yes ☐ No | Automated gate: 558 / 558 PHP cases, 143 / 143 smoke checks and a headless browser pass green; 10 manual checks pending. |
+| Phase 11 | ☐ Yes ☐ No | Automated gate: 559 / 559 PHP cases, 143 / 143 smoke checks and a headless browser pass green; 10 manual checks pending. |
 
 All ten earlier phases are **Approved**. Phase 11 is automated- and headless-complete; its manual
 browser sign-off is pending. No defect is open, so no accepted exception is recorded.

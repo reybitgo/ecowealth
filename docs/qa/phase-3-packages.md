@@ -52,8 +52,8 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
   Status · Actions**.
 - **Package A** row: price **₱4,498.00**, product value **₱4,750.00**, level 1 **₱500.00**,
   levels 2–10 **₱265.00** with “9 paying levels”, contents **5**, status **Active**.
-- **Package B** row: price **₱6,998.00**, product value **₱8,300.00**, level 1 **₱500.00**,
-  levels 2–10 **₱265.00**, contents **5**.
+- **Package B** row: price **₱6,998.00**, product value **₱8,300.00**, level 1 **₱600.00**,
+  levels 2–10 **₱318.00** (the premium ladder), contents **5**.
 - Each row has only two actions: pencil (edit) and pause (disable) — **there is no delete button**
   (packages are deactivated instead of deleted, by design).
 
@@ -314,7 +314,8 @@ P3-T4 contents · P3-T5 level-1 rule · P3-T6 deactivation · P3-T7 member 403 �
   ₱500.00**, **Levels 2–10 ₱265.00**, **“10 of 10 levels pay”**, a **Show all levels** control,
   a **Package contents** list including “2 × Spirulina”, a **What you get** list from the perks, and a
   **disabled** button **“Activation opens in Phase 9”**.
-- **Package B** card: price **₱6,998.00**, “Product value ₱8,300.00”, level 1 **₱500.00**, and its
+- **Package B** card: price **₱6,998.00**, “Product value ₱8,300.00”, level 1 **₱600.00**, levels 2–10
+  **₱318.00** (20% above Package A), and its
   contents include **“1 × Colonics Session”**.
 - A third card for **QA Test Package** appears because you created it as active: price
   **₱999.00**, level 1 **₱50.00**, levels 2–10 **₱95.00** (after the QA3-04 edit), and its contents

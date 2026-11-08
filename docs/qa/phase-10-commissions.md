@@ -13,7 +13,7 @@
 ## What this phase is meant to prove
 
 When a package activation is approved, the associate who sponsored the new member is paid the
-package's **direct referral bonus** (₱500 in the seeded packages) **exactly once**, the money lands
+package's **direct referral bonus** (₱500 on Package A, ₱600 on Package B) **exactly once**, the money lands
 in their e-wallet as withdrawable earnings, and both sides can see the award: the member on
 **Earnings**, the company on **Commissions**.
 

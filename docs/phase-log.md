@@ -288,7 +288,7 @@ routes already.
 | Step | Result |
 |---|---|
 | Migration | `003_packages.sql` applied to `ecowealth_sneat` |
-| Seed | Package A (₱4,498 / value ₱4,750 / direct ₱500) and Package B (₱6,998 / ₱8,300 / ₱500), 9 ladder rows each (100/50/40/30/20/10/5/5/5), 5 contents each |
+| Seed | Package A (₱4,498 / value ₱4,750 / direct ₱500) and Package B (₱6,998 / ₱8,300 / ₱500), 9 ladder rows each (100/50/40/30/20/10/5/5/5), 5 contents each. *Package B's ladder was raised to the 20% premium tier in the Post-Phase 11 note; Package A is unchanged.* |
 | Service product | `Colonics Session` (`EW-COLONICS`, ₱1,500 placeholder, stock 20) seeded because Package B bundles it (plan §4.5) |
 | Verified | `MigrationTest` applies 001–003 and matches `schema.sql` for all tables and columns; seeded state is 2 packages / 18 level rows / 10 content rows / 7 products |
 
@@ -2522,7 +2522,7 @@ monitor gains transfer/top-up tabs. The wallet page links the transfer form and 
 | **Model** | `Commission::LEVEL_MIN`, `exportRows()` (the unpaginated filtered CSV feed) and the existing `levelBreakdown()`; `Package::levels()`/`levelsMap()` accept the service connection |
 | **Member** | `/earnings` gains the **Unilevel breakdown** card (levels 1–10, award count, amount and share bar), a filtered **Export CSV** download (`GET /earnings/export`, member-scoped) and the same live region set as before plus `earnings-levels` |
 | **Back office** | `GET /admin/commissions/export` streams the filtered ledger (recipient, source, type, level, package, amount, status, reason, activation, ledger) and is audited (`commission.export`); the ledger page links the export and already carried the type/level filters from Phase 10 |
-| **Tests** | 14 new `CommissionIndirectTest` cases (P11-T1 … P11-T12, with separate global/package/depth switch cases), the Phase 10 direct-leg cases now pin the package's `indirect_enabled = 0` so their expected money stays direct-only, the phase 9 code-race sponsor is a chainless package-less account, the earnings live/view tests cover the new region and export, the migration test applies 014 and checks the settings, the router table is 71 → 73 routes, suite 543 → **558** |
+| **Tests** | 14 new `CommissionIndirectTest` cases (P11-T1 … P11-T12, with separate global/package/depth switch cases), the Phase 10 direct-leg cases now pin the package's `indirect_enabled = 0` so their expected money stays direct-only, the phase 9 code-race sponsor is a chainless package-less account, the earnings live/view tests cover the new region and export, the migration test applies 014 and checks the settings, the router table is 71 → 73 routes, suite **559** (14 new P11 cases plus the package-premium migration case) |
 | **Smoke** | Phase 11 block: a code registration under `peter` pays peter ₱500 / maria ₱100 / juan ₱50, skips the company root at level 4, proves the wallet credits, the member level breakdown, both CSV exports and the admin type/level filter; the run restores every wallet and removes its awards. **143 checks** |
 | **Docs** | This log, `docs/qa/phase-11-commissions.md`, the QA README/sign-off sheet, `docs/live-updates.md` and both READMEs |
 
@@ -2541,7 +2541,7 @@ monitor gains transfer/top-up tabs. The wallet page links the transfer form and 
 | P11-T1 | Chain 10 deep, activate at the bottom | **PASS** | Levels 1–10 each get one row and one withdrawable wallet credit: 500/100/50/40/30/20/10/5/5/5 = **₱765**; 10 ledger rows; every row links its activation, source and package |
 | P11-T2 | Chain 11 deep | **PASS** | Ten awards; the eleventh ancestor gets no row and no money |
 | P11-T3 | Inactive upline mid-chain | **PASS** | Level 2 is `skipped` with its ₱100 recorded for audit and no ledger row; level 3 (₱50) and level 4 (₱40) still pay; total ₱590 |
-| P11-T4 | Package B matrix | **PASS** | `Package::levels(A) === Package::levels(B)`; a Package B activation pays 500/100/50 and names Package B on each row |
+| P11-T4 | Package B matrix | **PASS** | Package B pays 20% more at every level: direct ₱600 and 120/60/48/36/24/12/6/6/6 (₱918 total); a Package B activation pays 600/120/60 and names Package B on each row |
 | P11-T5 | `indirect_enabled=0`, global switch, depth cap | **PASS** | Package off and global off pay only the direct ₱500; `commission_indirect_max_levels=3` writes levels 1–3 only and leaves levels 4–5 untouched |
 | P11-T6 | Replay approval | **PASS** | The hook replay reports the existing rows, credits ₱0, writes no row or ledger movement and leaves every wallet unchanged; `complete()` is refused |
 | P11-T7 | Zero-amount level | **PASS** | Level 3 writes no row; level 4 still pays ₱40; total ₱640 |
@@ -2581,7 +2581,7 @@ monitor gains transfer/top-up tabs. The wallet page links the transfer form and 
 
 - [x] Migration applied to dev DB; `schema.sql` unchanged (no table change) and seeds carry the new keys
 - [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
-- [x] All P11 tests pass (14 new cases; suite **558**)
+- [x] All P11 tests pass (14 new cases; suite **559**)
 - [x] Full regression suite passes (Phases 1–10; direct-leg isolation and the race sponsor documented)
 - [x] Smoke script passes (**143 checks**, 4 new)
 - [x] Headless browser pass (**26 checks**) and 8 reference screenshots in `docs/qa/evidence/phase-11/`
@@ -2598,6 +2598,31 @@ monitor gains transfer/top-up tabs. The wallet page links the transfer form and 
 Phase 12 — e-wallet transfers, limits and monitoring: `TransferService` moves funds between members with a
 fee, password confirmation, minimum and daily/weekly limits; the reset cron zeroes the counters; the admin
 monitor gains transfer/top-up tabs. The wallet page links the transfer form and shows limit usage.
+
+---
+
+## Post-Phase 11 — Package B premium referral ladder
+
+**Date:** 2026-11-08 · **Branch:** `feature/shop` · **Status:** complete (automated suites re-run)
+
+Package B is the more expensive entry package (₱6,998 vs ₱4,498), so its referral ladder now pays **20%
+more than Package A at every level** — a deliberate upgrade incentive. Package A is unchanged.
+
+| Ladder | Direct (L1) | L2 | L3 | L4 | L5 | L6 | L7 | L8 | L9 | L10 | Total |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Package A | 500 | 100 | 50 | 40 | 30 | 20 | 10 | 5 | 5 | 5 | **765** |
+| Package B | 600 | 120 | 60 | 48 | 36 | 24 | 12 | 6 | 6 | 6 | **918** |
+
+| Step | Result |
+|---|---|
+| Migration | `015_package_b_premium_ladder.sql` updates Package B's direct bonus and levels 2–10 only when they still hold the old defaults; an operator-edited package is not overwritten and a re-run is a no-op |
+| Seeds | `database/seeds/004_packages.sql` now seeds B at 600 / 120,60,48,36,24,12,6,6,6; A keeps the base ladder |
+| Dev DB | Migration applied to `ecowealth_sneat`; A = 500 / 100,50,40,30,20,10,5,5,5 and B = 600 / 120,60,48,36,24,12,6,6,6 |
+| Tests | `CommissionIndirectTest` P11-T4 now asserts the premium matrix and a B activation paying 600/120/60; `CommissionTest` P10-T1 expects B's ₱600 direct bonus; `PackageTest` and `MigrationTest` assert the new ladder and the guarded update; suite **559 / 559** |
+| Docs | `docs/qa/phase-11-commissions.md` (statement, intro, QA11-03), the QA sign-off sheet, the Phase 3 QA guide, `docs/qa/README.md` and `system/README.md` updated |
+
+The HTTP smoke run uses Package A, so its **143 checks** are unaffected; the full PHP suite and the finance
+reconciliation were re-run after the change.
 
 
 

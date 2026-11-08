@@ -13,13 +13,15 @@
 ## What this phase is meant to prove
 
 When an associate activates a package, the **whole sponsor chain** is paid: the direct sponsor at level 1
-(₱500 in the seeded packages), then every eligible upline at levels 2–10 using the **source package's**
-ladder (₱100, ₱50, ₱40, ₱30, ₱20, ₱10, ₱5, ₱5, ₱5). Every award is one row, one wallet credit and one
+(₱500 on Package A, ₱600 on Package B), then every eligible upline at levels 2–10 using the **source
+package's** ladder (Package A: ₱100, ₱50, ₱40, ₱30, ₱20, ₱10, ₱5, ₱5, ₱5; Package B is 20% higher
+throughout). Every award is one row, one wallet credit and one
 ledger row, written in the same transaction as the activation.
 
 Six rules matter most:
 
-1. **Source package prices the ladder.** Package B pays exactly the same amounts as Package A.
+1. **Source package prices the ladder.** Package B pays a **premium ladder**: 20% more than
+   Package A at every level, because the more expensive package carries a stronger upgrade incentive.
 2. **No compression.** An inactive or package-less upline is *skipped* and its level is consumed; deeper
    uplines continue and keep their own level amounts.
 3. **Switches.** `packages.indirect_enabled = 0` or `settings.commission_indirect_enabled = 0` pays the
@@ -34,21 +36,22 @@ Six rules matter most:
 
 - P11-T1 ten-deep chain: levels 1–10 paid exactly per matrix (₱765 total, ten ledger rows) ·
   P11-T2 an eleventh ancestor earns nothing · P11-T3 an ineligible level 2 is skipped, levels 3–4 still
-  pay · P11-T4 Package B shares the matrix · P11-T5 package/global/depth switches · P11-T6 replay pays
+  pay · P11-T4 Package B pays its 20% premium matrix · P11-T5 package/global/depth switches · P11-T6 replay pays
   nothing · P11-T7 a zero level writes no row · P11-T8 wallet credits equal the award rows ·
   P11-T9 the page renders the level breakdown and live region · P11-T10 admin type/level filters and
   export · P11-T11 the 10-hop walk stays within 20 queries · P11-T12 the workflow example (Juan ₱900,
   Peter ₱1,000, Maria ₱1,500 directs + ₱200 level-2 = ₱1,700).
 - `CommissionIndirectTest` (14 cases), the updated `CommissionTest`/`CommissionViewTest`/
-  `MemberEarningsLiveTest`, `MigrationTest`, `RouterTest` and `SettingsTest` — **558 cases in total**.
+  `MemberEarningsLiveTest`, `MigrationTest`, `RouterTest` and `SettingsTest` — **559 cases in total**.
 - The HTTP smoke script walks a real code registration under `peter`: peter ₱500, maria ₱100, juan ₱50,
   the company root skipped at level 4; it also checks the level breakdown, both CSV exports and the admin
   filter — **143 checks**.
 - The headless browser pass captured the screens in `docs/qa/evidence/phase-11/`.
 
 > **Before you start:** Phases 1–10 should be signed off, the demo tree must be seeded
-> (`database/seeds/005_demo_tree.sql`) and migration `014_indirect_commissions.sql` applied. The automated
-> suites must be green: `php tests\run.php` → **558 cases**;
+> (`database/seeds/005_demo_tree.sql`) and migrations `014_indirect_commissions.sql` +
+> `015_package_b_premium_ladder.sql` applied. The automated
+> suites must be green: `php tests\run.php` → **559 cases**;
 > `powershell -NoProfile -File tests\smoke.ps1` → **143 checks**. Note juan/maria/peter's wallet balances
 > before you start — the checks below move real demo money, so the last check restores them.
 
@@ -56,13 +59,13 @@ Six rules matter most:
 
 ## A. The ladder
 
-### QA11-01 — A code registration under `peter` pays three levels and skips the root
+### QA11-01 — A code registration under `peter` pays direct, two indirect levels and skips the root
 
 | | |
 |---|---|
-| **Steps** | 1. Sign in as `admin`, open **Codes**, issue one Package A registration code (₱4,498). 2. Open the register page in a private window, choose **Registration code**, sponsor `peter`, paste the code, complete the form. 3. Open **Commissions** as admin and filter **Type = Indirect referral**. 4. Check the four awards for the new member. |
-| **Expected** | Four rows: level 1 peter **credited ₱500**; level 2 maria **credited ₱100**; level 3 juan **credited ₱50**; level 4 admin **skipped ₱40** (company root has no package). Peter +500, maria +100, juan +50; admin unchanged. |
-| **Evidence** | `phase-11/admin-ledger.png` |
+| **Steps** | 1. Sign in as `admin`, open **Codes**, issue one Package A registration code (₱4,498). 2. Open the register page in a private window, choose **Registration code**, sponsor `peter`, paste the code, complete the form. 3. Open **Commissions** as admin and filter **Type = Indirect referral**. 4. Confirm the filtered rows below. 5. Clear the Type filter (or set it to **Direct referral**) and find peter's level-1 award. |
+| **Expected** | With **Type = Indirect referral**, exactly **three** rows appear: level 2 maria **credited ₱100**; level 3 juan **credited ₱50**; level 4 admin **skipped ₱40** (company root has no package). **Peter does not appear in this filtered view** — his award is the level-1 **direct referral**, so it is visible with the Type filter cleared (or set to Direct referral) as **peter credited ₱500**. Across the full ledger the new member produced four awards: peter +₱500 direct, maria +₱100 indirect, juan +₱50 indirect, admin skipped; admin's wallet is unchanged. |
+| **Evidence** | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
 
 ### QA11-02 — The member sees the level breakdown
 
@@ -74,12 +77,12 @@ Six rules matter most:
 
 ## B. The rules
 
-### QA11-03 — Package B pays the same ladder as Package A
+### QA11-03 — Package B pays a premium ladder over Package A
 
 | | |
 |---|---|
-| **Steps** | 1. Activate a new member under a three-deep chain using Package B. 2. Compare the amounts with QA11-01. |
-| **Expected** | Level 1 ₱500, level 2 ₱100, level 3 ₱50 — the package price difference buys product value, not compensation. |
+| **Steps** | 1. Activate a new member under a three-deep chain using Package B. 2. Compare the amounts with QA11-01 (Package A). |
+| **Expected** | Level 1 **₱600**, level 2 **₱120**, level 3 **₱60** — exactly 20% above Package A at every level. The full B ladder is ₱600 direct + ₱318 indirect = **₱918**, against A's ₱765; the higher price carries a stronger referral incentive. |
 
 ### QA11-04 — An inactive upline consumes its level
 
@@ -138,7 +141,7 @@ Six rules matter most:
 
 | Check | Result | Evidence file |
 |---|---|---|
-| QA11-01 | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png` |
+| QA11-01 | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
 | QA11-02 | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/member-earnings.png` |
 | QA11-03 | ☐ Pass ☐ Fail ☐ Blocked | `automated: P11-T4` |
 | QA11-04 | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-skipped.png` |

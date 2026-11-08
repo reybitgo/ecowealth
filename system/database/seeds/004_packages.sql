@@ -41,14 +41,16 @@ VALUES
     'active', 10
   ),
   (
-    'Package B', 'package-b', 6998.00, 8300.00, 500.00, 1,
-    'Growth associate package. Demo values follow the plan''s worked example — confirm the official price list before launch.',
+    'Package B', 'package-b', 6998.00, 8300.00, 600.00, 1,
+    'Growth associate package. Demo values follow the plan''s worked example; the referral ladder is 20% above Package A to reward the larger entry package. Confirm the official price list before launch.',
     'Associate status\nShop access\nDirect referral + 10-level unilevel ladder\nLarger product bundle',
     'active', 20
   )
 ON DUPLICATE KEY UPDATE name = name;
 
--- Indirect ladder, levels 2–10 (same amounts for both packages) --
+-- Indirect ladder, levels 2–10.
+-- Package A keeps the V3.0 base ladder; Package B pays exactly 20% more
+-- at every level (600 / 120,60,48,36,24,12,6,6,6 vs 500 / 100,50,40,30,20,10,5,5,5).
 INSERT INTO package_levels (package_id, level, amount)
 SELECT p.id, v.level, v.amount
 FROM packages p
@@ -63,7 +65,24 @@ JOIN (
   UNION ALL SELECT 9, 5.00
   UNION ALL SELECT 10, 5.00
 ) v
-WHERE p.slug IN ('package-a', 'package-b')
+WHERE p.slug = 'package-a'
+  AND NOT EXISTS (SELECT 1 FROM package_levels pl WHERE pl.package_id = p.id);
+
+INSERT INTO package_levels (package_id, level, amount)
+SELECT p.id, v.level, v.amount
+FROM packages p
+JOIN (
+            SELECT 2 AS level, 120.00 AS amount
+  UNION ALL SELECT 3, 60.00
+  UNION ALL SELECT 4, 48.00
+  UNION ALL SELECT 5, 36.00
+  UNION ALL SELECT 6, 24.00
+  UNION ALL SELECT 7, 12.00
+  UNION ALL SELECT 8, 6.00
+  UNION ALL SELECT 9, 6.00
+  UNION ALL SELECT 10, 6.00
+) v
+WHERE p.slug = 'package-b'
   AND NOT EXISTS (SELECT 1 FROM package_levels pl WHERE pl.package_id = p.id);
 
 -- Package A contents: 1 Coffee, 1 Immune Booster, 2 Spirulina,

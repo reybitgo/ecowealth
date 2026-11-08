@@ -48,6 +48,7 @@ return [
         assert_same('4750.00', $a['product_value']);
         assert_same('500.00', $a['direct_referral_bonus']);
         assert_same('6998.00', $b['price']);
+        assert_same('600.00', $b['direct_referral_bonus'], 'Package B carries the premium direct bonus');
         assert_same(1, (int) $a['indirect_enabled']);
 
         $levels = Package::levels((int) $a['id']);
@@ -55,6 +56,11 @@ return [
         assert_same(100.0, $levels[2]);
         assert_same(50.0, $levels[3]);
         assert_same(5.0, $levels[10]);
+
+        $bLevels = Package::levels((int) $b['id']);
+        assert_same(120.0, $bLevels[2], 'Package B pays 20% more at level 2');
+        assert_same(60.0, $bLevels[3]);
+        assert_same(6.0, $bLevels[10]);
 
         $contents = Package::contents((int) $a['id']);
         assert_count(5, $contents);
@@ -82,8 +88,14 @@ return [
         assert_count(2, $map);
         foreach ($ids as $id) {
             assert_count(9, $map[$id]);
-            assert_same(100.0, $map[$id][2]);
         }
+
+        $a = Package::findBySlug('package-a');
+        $b = Package::findBySlug('package-b');
+        assert_not_null($a);
+        assert_not_null($b);
+        assert_same(100.0, $map[(int) $a['id']][2]);
+        assert_same(120.0, $map[(int) $b['id']][2], 'the batch map keeps the Package B premium');
 
         assert_same([], Package::levelsMap([]));
     },

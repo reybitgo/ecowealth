@@ -51,7 +51,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 558   Passed: 558   Failed: 0
+Cases: 559   Passed: 559   Failed: 0
 All good.
 ```
 
@@ -123,7 +123,7 @@ Passed: 143   Failed: 0
   pending, manual-activation, approve/reject, suspend/restore, codes and genealogy paths over HTTP;
   wallet-funded registration/activation are covered by the unit suite (they move real money) — see the
   Phase 9 QA document.
-- Phase 10: the direct referral award (₱500 from the package) paid by a code registration, a manual
+- Phase 10: the direct referral award (₱500 on Package A, ₱600 on Package B) paid by a code registration, a manual
   approval and the shared completion step — wallet credit, ledger row and award row together, the
   credit withdrawable; ineligible sponsors (pending, package-less, inactive) skipped with a reason and
   no money; a zero direct bonus awarding nothing; replay and double-approval paying nothing twice
@@ -137,7 +137,7 @@ Passed: 143   Failed: 0
 - Phase 11: the indirect referral ladder (levels 2–10) priced by the **source package's** matrix, paid
   through a real ten-deep chain — one commission row, wallet credit and ledger row per level; the
   eleventh level earns nothing; an inactive upline is skipped but consumes its level while deeper levels
-  keep paying; Package B matches Package A; the package switch, the global switch and
+  keep paying; Package B pays a 20% premium ladder over Package A; the package switch, the global switch and
   `commission_indirect_max_levels` cap the walk; a zero level writes no row; a replay pays nothing twice;
   wallet credits equal the award rows; the member earnings level breakdown and its live region; the admin
   type/level filters; and both CSV exports (`/earnings/export` member-scoped, `/admin/commissions/export`

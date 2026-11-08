@@ -227,13 +227,25 @@ return [
         assert_same($ledgerBefore + 3, (int) db()->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn());
     },
 
-    /* ---------- P11-T4: package B has the same ladder ------------- */
+    /* ---------- P11-T4: package B has the premium ladder ---------- */
 
-    'P11-T4 package B pays the same level matrix as package A' => function () use ($pkgA, $pkgB, $buildChain, $activate, $rowsByLevel): void {
+    'P11-T4 package B pays a higher level matrix than package A' => function () use ($pkgA, $pkgB, $buildChain, $activate, $rowsByLevel): void {
         $a = $pkgA();
         $b = $pkgB();
 
-        assert_same(Package::levels((int) $a['id']), Package::levels((int) $b['id']), 'both packages share the V3.0 ladder');
+        $aLevels = Package::levels((int) $a['id']);
+        $bLevels = Package::levels((int) $b['id']);
+
+        $expectedB = [2 => 120.0, 3 => 60.0, 4 => 48.0, 5 => 36.0, 6 => 24.0, 7 => 12.0, 8 => 6.0, 9 => 6.0, 10 => 6.0];
+
+        assert_same(500.0, (float) $a['direct_referral_bonus']);
+        assert_same(600.0, (float) $b['direct_referral_bonus'], 'Package B carries the 20% premium direct bonus');
+        assert_same($expectedB, $bLevels, 'Package B levels 2–10 are 20% above Package A');
+        assert_same(918.0, round(600.0 + array_sum($bLevels), 2), 'the full Package B ladder');
+
+        foreach ($aLevels as $level => $amount) {
+            assert_true($bLevels[$level] > $amount, 'Package B pays more at level ' . $level);
+        }
 
         $chain = $buildChain(3, $b, 'p11b');
         $run   = $activate($chain['source'], $b);
@@ -241,9 +253,9 @@ return [
         $byLevel = $rowsByLevel($rows);
 
         assert_count(3, $rows);
-        assert_same(500.0, (float) $byLevel[1]['amount']);
-        assert_same(100.0, (float) $byLevel[2]['amount']);
-        assert_same(50.0, (float) $byLevel[3]['amount']);
+        assert_same(600.0, (float) $byLevel[1]['amount']);
+        assert_same(120.0, (float) $byLevel[2]['amount']);
+        assert_same(60.0, (float) $byLevel[3]['amount']);
         assert_same('Package B', $byLevel[2]['package_name']);
         assert_same('indirect_referral', $byLevel[2]['type']);
     },
