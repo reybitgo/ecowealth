@@ -82,13 +82,100 @@ final class EarningsController
         return [
             'user_id'       => $userId,
             'totals'        => Commission::totalsForUser($userId),
+            'levels'        => Commission::levelBreakdown($userId),
             'filters'       => $filters,
             'pager'         => $pager,
             'commissions'   => $rows,
             'wallet_url'    => url('wallet'),
             'genealogy_url' => url('genealogy'),
             'statement_url' => url('earnings'),
+            'export_url'    => url('earnings/export' . self::queryString($filters)),
         ];
+    }
+
+    /**
+     * CSV "Unilevel statement" for the signed-in member.
+     *
+     * Route (Appendix A extension): GET /earnings/export   guard `member`
+     *
+     * Same filters as the statement, scoped to the caller's own awards.
+     * This is the cheap export the phase plan asks for: the member can
+     * reconcile their level ladder offline without a screen scrape.
+     *
+     * @param array<string, string> $params
+     */
+    public function export(array $params = []): void
+    {
+        $user = auth_user();
+
+        if ($user === null) {
+            redirect('login');
+        }
+
+        $userId  = (int) $user['id'];
+        $filters = Commission::normaliseFilters([
+            'type'   => Request::string('type'),
+            'level'  => Request::string('level'),
+            'status' => Request::string('status'),
+            'from'   => Request::string('from'),
+            'to'     => Request::string('to'),
+            'q'      => Request::string('q'),
+        ]);
+
+        $rows = Commission::exportRows($userId, $filters);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="unilevel-statement_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, [
+            'Award', 'Awarded at', 'Level', 'Type', 'Source', 'Source name',
+            'Package', 'Amount', 'Status', 'Reason', 'Activation', 'Ledger',
+        ]);
+
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (int) $row['id'],
+                (string) $row['created_at'],
+                (int) $row['level'],
+                (string) $row['type'],
+                (string) $row['source_username'],
+                (string) ($row['source_name'] ?? ''),
+                (string) $row['package_name'],
+                number_format((float) $row['amount'], 2, '.', ''),
+                (string) $row['status'],
+                (string) ($row['reason'] ?? ''),
+                (int) $row['activation_id'],
+                $row['ledger_id'] === null ? '' : (int) $row['ledger_id'],
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The current filters as an export query string ('' when none).
+     *
+     * @param array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function queryString(array $filters): string
+    {
+        $query = array_filter(
+            $filters,
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return $query === [] ? '' : '?' . http_build_query($query);
     }
 
     /**
@@ -156,6 +243,10 @@ final class EarningsController
                     'pager' => $pager,
                 ]),
                 'earnings-stats' => View::capture('member/earnings/_stats', [
+                    'totals' => $data['totals'],
+                ]),
+                'earnings-levels' => View::capture('member/earnings/_levels', [
+                    'levels' => $data['levels'],
                     'totals' => $data['totals'],
                 ]),
                 'earnings-skipped' => View::capture('member/earnings/_skipped', [

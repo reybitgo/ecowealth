@@ -169,13 +169,15 @@ clock-relative label, so it does not widen the scope with the day or hour.
 The member's own `/earnings` page is `member.earnings:{id}`.
 `CommissionService` calls `touchEarnings()` after every credited and every
 skipped award; a replayed award writes no row and does not bump. The page
-renders five regions: the four summary cards, the skipped-award alert, the card
-heading with its row count, the award rows and the pagination. The skipped
-alert is always present — an empty hidden wrapper while the member has none —
-so the first skipped award can appear live. The filter form stays outside the
-regions, so a background refresh never discards an unsubmitted filter. The ETag
-scope includes the hour because the "last award" label is relative and "this
-month" counts from `CURDATE()`.
+renders six regions: the four summary cards, the level breakdown (levels 1–10,
+counts and amounts), the skipped-award alert, the card heading with its row
+count, the award rows and the pagination. The skipped alert is always present
+— an empty hidden wrapper while the member has none — so the first skipped
+award can appear live, and the level breakdown is always present so the first
+indirect award can move a bar without a full reload. The filter form stays
+outside the regions, so a background refresh never discards an unsubmitted
+filter. The ETag scope includes the hour because the "last award" label is
+relative and "this month" counts from `CURDATE()`.
 
 The member's own `/genealogy` page is `member.genealogy:{id}`. It renders six
 regions: the heading's team badges, the upline card, the direct-recruit count
@@ -506,7 +508,7 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `member.dashboard:{id}` | `/dashboard` | header pill, KPI row, E-wallet card, membership, recent orders, earnings |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, statement |
-| `member.earnings:{id}` | `/earnings` | stats, skipped notice, header, rows, pagination |
+| `member.earnings:{id}` | `/earnings` | stats, level breakdown, skipped notice, header, rows, pagination |
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |
 | `member.cart:{id}` | `/cart` | cart content (notice, stock warnings, lines, summary, empty state) |

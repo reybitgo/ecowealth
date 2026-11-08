@@ -166,6 +166,7 @@ return [
             [
                 'earnings-header',
                 'earnings-stats',
+                'earnings-levels',
                 'earnings-skipped',
                 'earnings-rows',
                 'earnings-pagination',
@@ -175,6 +176,7 @@ return [
 
         $header     = $payload['fragments']['earnings-header'];
         $stats      = $payload['fragments']['earnings-stats'];
+        $levels     = $payload['fragments']['earnings-levels'];
         $skipped    = $payload['fragments']['earnings-skipped'];
         $rows       = $payload['fragments']['earnings-rows'];
         $pagination = $payload['fragments']['earnings-pagination'];
@@ -188,6 +190,12 @@ return [
         assert_contains('This month', $stats);
         assert_contains('Direct referral', $stats);
         assert_contains('Indirect referral', $stats);
+
+        assert_contains('data-live-region="earnings-levels"', $levels);
+        assert_contains('Unilevel breakdown', $levels);
+        assert_contains('Level 1 · Direct', $levels);
+        assert_contains('Level 10', $levels);
+        assert_contains('6 awards', $levels, 'the direct level carries all six awards');
 
         assert_contains('data-live-region="earnings-skipped"', $skipped);
         assert_contains('earnings-skipped" hidden', $skipped);
@@ -316,6 +324,7 @@ return [
         assert_contains('data-live-interval="30000"', $html);
         assert_contains('data-live-region="earnings-header"', $html);
         assert_contains('data-live-region="earnings-stats"', $html);
+        assert_contains('data-live-region="earnings-levels"', $html);
         assert_contains('data-live-region="earnings-skipped"', $html);
         assert_contains('data-live-region="earnings-rows"', $html);
         assert_contains('data-live-region="earnings-pagination"', $html);

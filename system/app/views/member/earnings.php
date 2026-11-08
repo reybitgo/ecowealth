@@ -18,12 +18,14 @@ declare(strict_types=1);
  *   count:int, credited:float, this_month:float, direct:float,
  *   indirect:float, skipped:int, last_at:?string
  * } $totals
+ * @var array<int, array{amount:float, count:int}> $levels
  * @var array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $commissions
  * @var string $wallet_url
  * @var string $genealogy_url
  * @var string $statement_url
+ * @var string $export_url
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
@@ -44,10 +46,11 @@ $hasFilters = $filters['type'] !== ''
 
 /* PHP turns a numeric string key into an int, so the level list is a real
  * list of (value, label) pairs: the comparison against the string filter
- * stays strict. */
-$levels = [['value' => '', 'label' => 'All levels']];
+ * stays strict. Named `$levelOptions` so it never shadows the breakdown
+ * data the `_levels` partial receives. */
+$levelOptions = [['value' => '', 'label' => 'All levels']];
 for ($level = Commission::LEVEL_DIRECT; $level <= Commission::LEVEL_MAX; $level++) {
-    $levels[] = ['value' => (string) $level, 'label' => commission_level_label($level)];
+    $levelOptions[] = ['value' => (string) $level, 'label' => commission_level_label($level)];
 }
 
 $types = ['' => 'All types'];
@@ -79,6 +82,9 @@ foreach (Commission::STATUSES as $status) {
                   </p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                  <a href="<?= e($export_url) ?>" class="btn btn-label-secondary">
+                    <i class="icon-base bx bx-download me-1"></i> Export CSV
+                  </a>
                   <a href="<?= e($genealogy_url) ?>" class="btn btn-label-secondary">
                     <i class="icon-base bx bx-git-branch me-1"></i> Genealogy
                   </a>
@@ -89,6 +95,8 @@ foreach (Commission::STATUSES as $status) {
               </div>
 
 <?= View::capture('member/earnings/_stats', ['totals' => $totals]) ?>
+
+<?= View::capture('member/earnings/_levels', ['levels' => $levels, 'totals' => $totals]) ?>
 
 <?= View::capture('member/earnings/_skipped', ['totals' => $totals]) ?>
 
@@ -110,7 +118,7 @@ foreach (Commission::STATUSES as $status) {
                     <div class="commission-filter-field commission-filter-wide">
                       <label class="form-label" for="commission-filter-level">Level</label>
                       <select name="level" id="commission-filter-level" class="form-select">
-<?php foreach ($levels as $option): ?>
+<?php foreach ($levelOptions as $option): ?>
                         <option value="<?= e($option['value']) ?>" <?= $filters['level'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
 <?php endforeach; ?>
                       </select>

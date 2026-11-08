@@ -643,17 +643,22 @@ return [
         $first  = 'race_a_' . bin2hex(random_bytes(3));
         $second = 'race_b_' . bin2hex(random_bytes(3));
 
+        /* Sponsor with no upline and no package. This test commits for
+         * real, and from Phase 11 a sponsor with an active upline would
+         * pay indirect commissions into later cases; a chainless,
+         * package-less sponsor is skipped at level 1 and has no level 2. */
+        $chainless = test_user('race_sponsor_' . bin2hex(random_bytes(3)));
+        $chainlessName = (string) $chainless['username'];
+
         $pdoA = test_pdo(['db' => DB_NAME]);
         $pdoB = test_pdo(['db' => DB_NAME]);
         $pdoA->exec('SET SESSION innodb_lock_wait_timeout = 2');
         $pdoB->exec('SET SESSION innodb_lock_wait_timeout = 1');
 
         try {
-            /* Sponsor = david (pending, no package). This test is about the
-             * code row lock, and the registration commits for real, so the
-             * sponsor must not be someone who earns a Phase 10 commission —
-             * that would leak money into later cases. */
-            $base = $payload(['mode' => 'code', 'reg_code' => $code, 'sponsor' => 'david']);
+            /* Sponsor = the chainless, package-less account above: the
+             * registration commits for real, so it must not earn. */
+            $base = $payload(['mode' => 'code', 'reg_code' => $code, 'sponsor' => $chainlessName]);
 
             /* A holds the code row lock without committing (the service
              * adopts an existing transaction with a savepoint). */
@@ -706,6 +711,7 @@ return [
             }
 
             $pdoA->prepare('DELETE FROM users WHERE username IN (?, ?)')->execute([$first, $second]);
+            $pdoA->prepare('DELETE FROM users WHERE username = ?')->execute([$chainlessName]);
             $pdoA->prepare('DELETE FROM reg_codes WHERE code = ?')->execute([$code]);
         }
     },

@@ -163,6 +163,13 @@ return [
     ['GET',  '/earnings',                        [EarningsController::class, 'index'],        'member'],   // earnings
     ['GET',  '/admin/commissions',               [AdminCommissionController::class, 'index'], 'admin'],    // extension
 
+    /* ---------- Phase 11 — indirect referral commissions ------------
+     * The level breakdown is rendered on `/earnings` and the admin
+     * ledger already filters by type/level; the two CSV routes are the
+     * phase's "Unilevel statement" export. */
+    ['GET',  '/earnings/export',                 [EarningsController::class, 'export'],         'member'],   // extension: unilevel CSV
+    ['GET',  '/admin/commissions/export',        [AdminCommissionController::class, 'export'],  'admin'],    // extension: ledger CSV
+
     /* ---------- Phase 12 — wallet transfers -------------------------
     ['GET',  '/wallet/transfer',                 [TransferController::class, 'index'],        'member'],    // ewallet_transfer (guard raised from 'any')
     ['POST', '/wallet/transfer',                 [TransferController::class, 'send'],         'member'],    // do_ewallet_transfer

@@ -2502,11 +2502,102 @@ existing filter form keeps the choice across searches because the value is part 
 
 ### Next
 
-Phase 11 — indirect referral commissions (levels 2–10): `CommissionService::onActivation()` walks the sponsor
-chain from level 2, reads the **source package's** `package_levels` matrix, skips ineligible uplines but
-consumes their level, honours `indirect_enabled` and `commission_indirect_max_levels`, and writes one award
-per level inside the same transaction. The earnings page gains the level breakdown (the model's
-`levelBreakdown()` is already in place) and the admin ledger its type/level filters.
+Phase 12 — e-wallet transfers, limits and monitoring: `TransferService` moves funds between members with a
+fee, password confirmation, minimum and daily/weekly limits; the reset cron zeroes the counters; the admin
+monitor gains transfer/top-up tabs. The wallet page links the transfer form and shows limit usage.
+
+---
+
+## Phase 11 — Indirect referral commissions (levels 2–10)
+
+**Date:** 2026-11-08 · **Branch:** `feature/shop` · **Gate tag:** `phase-11` · **Status:** complete
+(manual sign-off pending, as for Phases 1–10).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | No table change: migration `014_indirect_commissions.sql` adds the three settings that steer the walk (`commission_indirect_enabled` = 1, `commission_indirect_max_levels` = 10, `commission_compression` = 0) and never overwrites an operator's value; the same keys ship in `database/seeds/001_settings.sql` |
+| **Service** | `CommissionService::onActivation()` now runs both legs in the activation transaction: level 1 from `packages.direct_referral_bonus`, then a bounded `sponsorChain()` walk for levels 2–10 priced from the **source package's** `package_levels`. `award()`/`skip()` are unchanged and every level gets its own commission row, ledger credit and live-surface bump. Zero-amount levels write nothing; ineligible uplines are skipped but consume their level (no compression); package/global toggles and `commission_indirect_max_levels` control the depth; a cycle or self-sponsor stops the walk |
+| **Model** | `Commission::LEVEL_MIN`, `exportRows()` (the unpaginated filtered CSV feed) and the existing `levelBreakdown()`; `Package::levels()`/`levelsMap()` accept the service connection |
+| **Member** | `/earnings` gains the **Unilevel breakdown** card (levels 1–10, award count, amount and share bar), a filtered **Export CSV** download (`GET /earnings/export`, member-scoped) and the same live region set as before plus `earnings-levels` |
+| **Back office** | `GET /admin/commissions/export` streams the filtered ledger (recipient, source, type, level, package, amount, status, reason, activation, ledger) and is audited (`commission.export`); the ledger page links the export and already carried the type/level filters from Phase 10 |
+| **Tests** | 14 new `CommissionIndirectTest` cases (P11-T1 … P11-T12, with separate global/package/depth switch cases), the Phase 10 direct-leg cases now pin the package's `indirect_enabled = 0` so their expected money stays direct-only, the phase 9 code-race sponsor is a chainless package-less account, the earnings live/view tests cover the new region and export, the migration test applies 014 and checks the settings, the router table is 71 → 73 routes, suite 543 → **558** |
+| **Smoke** | Phase 11 block: a code registration under `peter` pays peter ₱500 / maria ₱100 / juan ₱50, skips the company root at level 4, proves the wallet credits, the member level breakdown, both CSV exports and the admin type/level filter; the run restores every wallet and removes its awards. **143 checks** |
+| **Docs** | This log, `docs/qa/phase-11-commissions.md`, the QA README/sign-off sheet, `docs/live-updates.md` and both READMEs |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-11/db-pre-phase-11.sql` (346,367 bytes) in the repo's git-ignored `backups/` |
+| Migration | `014_indirect_commissions.sql` applied to `ecowealth_sneat`: the three settings (`commission_indirect_enabled=1`, `commission_indirect_max_levels=10`, `commission_compression=0`) |
+| Verified | `MigrationTest` applies 001–014 to the legacy fixture and proves the keys exist, a re-run keeps an operator's edited value, and the fresh-install schema still matches |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P11-T1 | Chain 10 deep, activate at the bottom | **PASS** | Levels 1–10 each get one row and one withdrawable wallet credit: 500/100/50/40/30/20/10/5/5/5 = **₱765**; 10 ledger rows; every row links its activation, source and package |
+| P11-T2 | Chain 11 deep | **PASS** | Ten awards; the eleventh ancestor gets no row and no money |
+| P11-T3 | Inactive upline mid-chain | **PASS** | Level 2 is `skipped` with its ₱100 recorded for audit and no ledger row; level 3 (₱50) and level 4 (₱40) still pay; total ₱590 |
+| P11-T4 | Package B matrix | **PASS** | `Package::levels(A) === Package::levels(B)`; a Package B activation pays 500/100/50 and names Package B on each row |
+| P11-T5 | `indirect_enabled=0`, global switch, depth cap | **PASS** | Package off and global off pay only the direct ₱500; `commission_indirect_max_levels=3` writes levels 1–3 only and leaves levels 4–5 untouched |
+| P11-T6 | Replay approval | **PASS** | The hook replay reports the existing rows, credits ₱0, writes no row or ledger movement and leaves every wallet unchanged; `complete()` is refused |
+| P11-T7 | Zero-amount level | **PASS** | Level 3 writes no row; level 4 still pays ₱40; total ₱640 |
+| P11-T8 | Wallet credits vs awards | **PASS** | Sum of credited rows = sum of their `commission` ledger rows = sum of the wallet movements = ₱765 |
+| P11-T9 | Earnings breakdown | **PASS** | A top member activated at five distances has one award at each of levels 1–5 (₱500/100/50/40/30); the page renders the breakdown region, the levels and the CSV link; the live feed renders six regions |
+| P11-T10 | Admin type/level filters | **PASS** | The ledger returns the three indirect rows, filters level 2/3/4 individually, `stats.top_level = 4`, and the export returns the same rows |
+| P11-T11 | Performance | **PASS** | A 10-hop chain + the package ladder read in ≤ 20 session queries (11 chain reads + 1 ladder read) |
+| P11-T12 | Worked Example B | **PASS** | Juan ₱900, Peter ₱1,000, Maria ₱1,500 directs + ₱200 level-2 = ₱1,700 |
+
+### Deviations and decisions
+
+- **The plan's Example B total for Maria is short by ₱200.** §6.6 and Appendix C show Maria at ₱1,500
+  (“directs Peter/Sarah/David”), but Linda and Miguel also sit two levels below her, and §6.4 pays every
+  eligible level 2–10. The correct full total is **₱1,700**; the automated case asserts both the plan's
+  ₱1,500 direct figure and the full ₱1,700, and the discrepancy is called out here rather than silently
+  under-paying the ladder.
+- **No compression is implemented literally.** `settings.commission_compression` is seeded as `0` and
+  reserved; an ineligible upline consumes its level and deeper levels keep their own amounts. A later
+  compression switch can change only the walk, not the schema.
+- **Skipped rows are per recipient.** A level with an ineligible upline writes a `skipped` row (amount and
+  reason) because finance needs to see what was due; it never writes a ledger row and never pays later.
+- **A zero amount writes nothing.** This keeps the ledger clean when an admin edits the matrix down to zero.
+- **The earnings breakdown is all-time.** It summarises every credited award by level and deliberately
+  ignores the table filters; the award table below it is the filtered view.
+- **Two CSV exports were cheap enough to ship.** The member file is the “Unilevel statement”; the admin file
+  is the same ledger view with the recipient columns and an audit entry. Both stream from
+  `Commission::exportRows()` and share the on-screen filters.
+- **The Phase 10 direct-leg cases disable the indirect toggle.** Their expected rows, totals and wallet
+  balances are direct-only by design; using the package switch (`indirect_enabled = 0`) keeps those cases
+  honest without changing the production default.
+- **The Phase 9 code-race sponsor is now chainless.** Once indirect awards exist, a real commit under
+  `david` would pay maria and juan into later cases; the race now uses a fresh package-less, sponsor-less
+  account and deletes it in `finally`.
+- **No cron or queue.** The whole walk runs inside the activation transaction; there is no deferred award job.
+
+### Gate checklist (plan §7 Phase 11)
+
+- [x] Migration applied to dev DB; `schema.sql` unchanged (no table change) and seeds carry the new keys
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
+- [x] All P11 tests pass (14 new cases; suite **558**)
+- [x] Full regression suite passes (Phases 1–10; direct-leg isolation and the race sponsor documented)
+- [x] Smoke script passes (**143 checks**, 4 new)
+- [x] Headless browser pass (**26 checks**) and 8 reference screenshots in `docs/qa/evidence/phase-11/`
+- [x] Finance invariants clean — `bin/wallet_reconcile.php` exits 0 (wallets + commissions)
+- [x] Awards are idempotent (service check, activation stamp and the unique event key)
+- [x] No member can read another member's awards or export; the admin ledger/export are guarded
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-11-commissions.md`) — automated and headless-browser
+      passes complete
+- [x] Docs updated (this log, QA pack + sign-off sheet, both READMEs)
+- [x] Backup taken; tag `phase-11`
+
+### Next
+
+Phase 12 — e-wallet transfers, limits and monitoring: `TransferService` moves funds between members with a
+fee, password confirmation, minimum and daily/weekly limits; the reset cron zeroes the counters; the admin
+monitor gains transfer/top-up tabs. The wallet page links the transfer form and shows limit usage.
 
 
 

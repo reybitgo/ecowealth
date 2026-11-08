@@ -4,7 +4,7 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 10 — direct referral commissions.**
+**Current status: Phase 11 — indirect referral commissions (levels 2–10).**
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -17,17 +17,22 @@ release/re-reserve), admin cancellation with a wallet refund, the expiry command
 settings page; Phase 8 adds the paid side of the order machine — pack, ready to ship, ship with
 courier + tracking (stock deducted at that point), deliver, member receipt confirmation, the
 auto-complete job, and the immutable printable invoice issued when an order is paid; Phase 9 adds the
-four registration modes (standard / registration code / e-wallet / pending) with a required sponsor
+four registration modes (standard / registration code / e-wallet / pending) with an optional sponsor
 and no binary placement, registration codes (generate, validate, redeem, expire, CSV export),
 membership activation by code / wallet / manual proof with the commission hook wired once per
 activation, the member dashboard, genealogy (sponsor chain only), the member directory and the
 activation review queue; Phase 10 pays the **direct referral** bonus (₱500 from the package) to the
 sponsor when an activation is approved — exactly once, audited in `commissions`, credited to the
 withdrawable wallet — and adds the member **Earnings** statement and the admin **Commissions** ledger.
+Phase 11 adds the **indirect referral** ladder: levels 2–10 are priced by the source package's
+`package_levels`, skip ineligible uplines without compressing the levels, honour the package/global
+switches and `commission_indirect_max_levels`, and credit each eligible level in the same activation
+transaction. The member earnings page gains the per-level breakdown and a CSV export; the admin ledger
+gains type/level filters and its own CSV export.
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete job does the same at
 `/system/cron/order_autocomplete.php`. Both have kill switches on the settings page and log to
-`system/storage/`. Indirect referral commissions, transfers, payouts and super-login follow in later phases;
+`system/storage/`. E-wallet transfers, payouts and super-login follow in later phases;
 their menu entries stay hidden until their phase lands.
 
 | | |
@@ -313,12 +318,14 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/admin/activations/{id}/reject` | admin | Reason required; member returns to pending |
 | GET | `/admin/activations/{id}/proof` | admin | Stream a manual activation proof (never a public URL) |
 
-### Phase 10 URLs — commissions
+### Phase 10–11 URLs — commissions
 
 | Method | Path | Guard | Purpose |
 |---|---|---|---|
-| GET | `/earnings` | member | The member's own awards: totals, filters, award table, detail drawer, e-wallet link |
-| GET | `/admin/commissions` | admin | Company ledger: credited and skipped awards, filters and totals |
+| GET | `/earnings` | member | The member's own awards: totals, filters, level breakdown, award table, detail drawer, e-wallet link |
+| GET | `/earnings/export` | member | CSV "Unilevel statement" of the signed-in member's filtered awards |
+| GET | `/admin/commissions` | admin | Company ledger: credited and skipped awards, filters (member/source/type/level/status/date) and totals |
+| GET | `/admin/commissions/export` | admin | Filtered CSV of the ledger (audited) |
 
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`. `/dashboard` became a routed page in Phase 9; the old
@@ -594,31 +601,39 @@ it arrives in Phase 15.
 
 ---
 
-## Commissions (Phase 10)
+## Commissions (Phases 10–11)
 
-The compensation plan's first pillar: a **direct referral** bonus paid to the sponsor of a new
-associate, once, as withdrawable wallet money.
+The compensation plan's first two pillars: a **direct referral** bonus for the sponsor, and the
+**indirect referral** unilevel ladder (levels 2–10) up the same sponsor chain, both paid once, as
+withdrawable wallet money.
 
 - **One trigger.** Only a completed package activation pays — `ActivationService::complete()` calls
   `CommissionService::onActivation()` inside the activation transaction, then stamps
   `activations.commission_processed_at`. Standard registrations, product orders and rejected
   activations pay nothing.
-- **Amount.** `packages.direct_referral_bonus` of the **source** package (₱500 on both seeded
-  packages). A package with a zero bonus awards nothing (no row, no error). Level 1 is direct only;
-  levels 2–10 are the indirect ladder (Phase 11).
+- **Direct (level 1).** `packages.direct_referral_bonus` of the **source** package (₱500 on both seeded
+  packages). A package with a zero bonus awards nothing (no row, no error).
+- **Indirect (levels 2–10).** The service walks `users.sponsor_id` from the sponsor's sponsor upward,
+  reading the **source package's** `package_levels` matrix. `packages.indirect_enabled = 0` or
+  `settings.commission_indirect_enabled = 0` pays the direct leg only;
+  `settings.commission_indirect_max_levels` (2–10) caps the depth. An ineligible upline **consumes its
+  level** (no compression, `commission_compression` reserved at 0) and deeper levels keep their own
+  amounts; a zero amount writes no row; a cycle or self-sponsor stops the walk.
 - **Eligibility.** The recipient must be active (`is_active = 1`), `member_status = 'active'` **and**
-  have a package. Otherwise the award is written with `status = 'skipped'` and a reason — it never
+  have a package. Otherwise the level is written with `status = 'skipped'` and a reason — it never
   moves money. A member with no sponsor writes no row at all; the company root (no package) is never
   paid by a blank-sponsor signup.
 - **Exactly once.** `commissions` is unique on `(type, source_user_id, user_id, level)`, the service
   checks `forEvent()` before writing, and the activation stamp blocks a replayed approval. A credited
   row always has `ledger_id` pointing at its immutable `ewallet_ledger` movement
   (`ref_type='commission'`, `ref_id` = award id); both are written in one transaction.
-- **Withdrawable.** The wallet credit is earnings, so it raises both buckets. `totalsFor()` and the
+- **Withdrawable.** Every wallet credit is earnings, so it raises both buckets. `totalsFor()` and the
   statements count only `credited` rows as money.
-- **Reporting.** `/earnings` (member, own rows only) shows total/month/direct/indirect, filters and the
-  award drawer; `/admin/commissions` shows the whole ledger with member/source/type/level/status/date
-  filters and the totals finance needs. Both reward rows carry a JSON record that
+- **Reporting.** `/earnings` (member, own rows only) shows total/month/direct/indirect, the
+  **Unilevel breakdown** (levels 1–10 with counts, amounts and share bars), filters, the award drawer
+  and a filtered **CSV export**. `/admin/commissions` shows the whole ledger with
+  member/source/type/level/status/date filters, the totals finance needs and its own filtered CSV
+  export (audited as `commission.export`). Both reward rows carry a JSON record that
   `app-commissions.js` renders into one shared offcanvas — the member drawer hides the recipient row.
 - **Reconciliation.** `php bin/wallet_reconcile.php` reports **Wallets** and **Commissions** and exits
   non-zero if either fails: credited sum vs `ref_type='commission'` ledger sum, missing/orphan ledger
@@ -675,7 +690,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (427 cases in Phase 10)
+php tests/run.php                 # full suite (558 cases in Phase 11)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -690,7 +705,7 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–013 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–014 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away

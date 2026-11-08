@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /* ==============================================================
  *  CommissionService — the compensation plan's money path
- *  (plan §6.2–6.5, §7 Phase 10; reference Commission::processDirectReferral)
+ *  (plan §6.2–6.6, §7 Phases 10–11; reference
+ *   Commission::processDirectReferral / processIndirectReferral)
  *
  *  The ONLY trigger in this build is a completed package activation.
  *  ActivationService::complete() calls onActivation() inside the same
@@ -17,13 +18,23 @@ declare(strict_types=1);
  *      credit     WalletService::credit(ref_type = 'commission',
  *                                      ref_id    = commissions.id)
  *
- *  Phase 11 adds the indirect walk (levels 2–10) to the same call.
+ *  Phase 11 adds the INDIRECT leg in the same call (plan §6.4):
  *
- *  Rules this service owns (plan §6.3, §6.5):
+ *      walk       users.sponsor_id upward, levels 2 … 10
+ *      amount     the SOURCE package's package_levels row for that level
+ *      credit     one withdrawable commission credit per awarded level
  *
- *    • a zero direct bonus awards nothing — no row, no money
+ *  Rules this service owns (plan §6.3–6.5):
+ *
+ *    • a zero amount awards nothing — no row, no money
  *    • a recipient without an active membership + package is SKIPPED:
  *      a `status='skipped'` row records why, and no money moves
+ *    • no compression: an ineligible upline consumes its level and the
+ *      walk continues to the next one (settings.commission_compression
+ *      is reserved and currently always 0)
+ *    • `packages.indirect_enabled = 0` or
+ *      `settings.commission_indirect_enabled = 0` pays the direct leg
+ *      only; `commission_indirect_max_levels` caps the depth
  *    • a credited row exists only together with its wallet movement:
  *      both are written in the caller's transaction, so a failed
  *      credit rolls the row back (there is no one-sided state)
@@ -72,7 +83,22 @@ final class CommissionService
      * credit takes a savepoint inside it, so a refused debit leaves the
      * award row unwritten too.
      *
-     * @return array{awards: list<array<string, mixed>>, credited: float, skipped: int}
+     * Two legs, one call (plan §6.2–6.5, Phase 11):
+     *
+     *   1. direct   the activated member's sponsor (level 1), priced by
+     *               the source package's `direct_referral_bonus`
+     *   2. indirect levels 2–10 up the same sponsor chain, each priced
+     *               by the source package's `package_levels` row
+     *
+     * An ineligible recipient consumes the level (no compression) and
+     * writes an audited `skipped` row; deeper levels continue. A zero
+     * amount writes no row at all.
+     *
+     * @return array{
+     *   awards: list<array<string, mixed>>, credited: float, skipped: int,
+     *   direct_credited: float, indirect_credited: float,
+     *   direct_skipped: int, indirect_skipped: int
+     * }
      */
     public function onActivation(int $activationId, ?PDO $pdo = null): array
     {
@@ -87,7 +113,7 @@ final class CommissionService
         }
 
         $pdo ??= $this->pdo;
-        $empty = ['awards' => [], 'credited' => 0.0, 'skipped' => 0];
+        $empty = self::emptySummary();
 
         if (!self::tableExists($pdo)) {
             /* A database mid-migration must not block an activation. */
@@ -118,14 +144,25 @@ final class CommissionService
             return $empty;
         }
 
-        $sourceId  = (int) $activation['user_id'];
-        $sponsorId = $this->sponsorOf($sourceId, $pdo);
+        $sourceId = (int) $activation['user_id'];
 
-        if ($sponsorId === null) {
+        /* One walk serves both legs. When indirect awards are switched
+         * off (globally, by the package, or by a max-level setting of 1)
+         * only the direct sponsor is read. */
+        $indirectPermitted = setting_bool('commission_indirect_enabled', true)
+            && (int) ($package['indirect_enabled'] ?? 1) === 1;
+
+        $maxLevels = $indirectPermitted
+            ? $this->indirectMaxLevels()
+            : Commission::LEVEL_DIRECT;
+
+        $chain = $this->sponsorChain($sourceId, $maxLevels, $pdo);
+
+        if ($chain === []) {
             /* No upline: there is no recipient, so there is no row to
              * write. The audit trail still records the activation. */
             error_log(sprintf(
-                '[ecowealth] activation #%d: @%s has no sponsor — no direct referral due',
+                '[ecowealth] activation #%d: @%s has no sponsor — no referral due',
                 $activationId,
                 (string) ($activation['username'] ?? ('#' . $sourceId))
             ));
@@ -133,37 +170,194 @@ final class CommissionService
             return $empty;
         }
 
-        $amount = round((float) $package['direct_referral_bonus'], 2);
+        $summary = self::emptySummary();
 
-        if ($amount <= 0) {
-            /* The package pays no direct bonus: nothing due, no row (P10-T3). */
-            return $empty;
+        /* ---------- Level 1: direct referral ------------------------ */
+
+        $direct   = $chain[0]['member'];
+        $directId = (int) $direct['id'];
+        $amount   = round((float) $package['direct_referral_bonus'], 2);
+
+        if ($amount > 0) {
+            $existing = Commission::forEvent('direct_referral', $sourceId, $directId, Commission::LEVEL_DIRECT, $pdo);
+
+            if ($existing !== null) {
+                /* Already awarded: report the row, but claim no new money. */
+                $summary['awards'][] = $existing;
+            } else {
+                $reason = self::ineligibility($direct);
+
+                if ($reason !== '') {
+                    $summary['awards'][] = $this->skip(
+                        $activation,
+                        $package,
+                        $directId,
+                        Commission::LEVEL_DIRECT,
+                        $amount,
+                        $reason,
+                        'direct_referral'
+                    );
+                    $summary['skipped']++;
+                    $summary['direct_skipped']++;
+                } else {
+                    $summary['awards'][] = $this->award(
+                        $activation,
+                        $package,
+                        $directId,
+                        Commission::LEVEL_DIRECT,
+                        $amount,
+                        'direct_referral'
+                    );
+                    $summary['credited'] += $amount;
+                    $summary['direct_credited'] += $amount;
+                }
+            }
         }
 
-        /* Idempotency anchor: a replayed approval never pays twice. */
-        $existing = Commission::forEvent('direct_referral', $sourceId, $sponsorId, Commission::LEVEL_DIRECT, $pdo);
+        /* ---------- Levels 2–10: indirect referral ------------------ */
 
-        if ($existing !== null) {
-            /* Already awarded: report the row, but claim no new money. */
-            return [
-                'awards'   => [$existing],
-                'credited' => 0.0,
-                'skipped'  => 0,
-            ];
+        if ($indirectPermitted && count($chain) > 1) {
+            $levels = Package::levels((int) $package['id'], $pdo);
+
+            foreach (array_slice($chain, 1) as $hop) {
+                $level  = (int) $hop['level'];
+                $member = $hop['member'];
+                $amount = round((float) ($levels[$level] ?? 0), 2);
+
+                /* A zero level pays nothing and writes no row; it still
+                 * consumes the level so deeper amounts keep their place. */
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $recipientId = (int) $member['id'];
+                $existing    = Commission::forEvent('indirect_referral', $sourceId, $recipientId, $level, $pdo);
+
+                if ($existing !== null) {
+                    $summary['awards'][] = $existing;
+                    continue;
+                }
+
+                $reason = self::ineligibility($member);
+
+                if ($reason !== '') {
+                    $summary['awards'][] = $this->skip(
+                        $activation,
+                        $package,
+                        $recipientId,
+                        $level,
+                        $amount,
+                        $reason,
+                        'indirect_referral'
+                    );
+                    $summary['skipped']++;
+                    $summary['indirect_skipped']++;
+                } else {
+                    $summary['awards'][] = $this->award(
+                        $activation,
+                        $package,
+                        $recipientId,
+                        $level,
+                        $amount,
+                        'indirect_referral'
+                    );
+                    $summary['credited'] += $amount;
+                    $summary['indirect_credited'] += $amount;
+                }
+            }
         }
 
-        $sponsor = Member::find($sponsorId, $pdo);
-        $reason  = self::ineligibility($sponsor);
+        $summary['credited'] = round($summary['credited'], 2);
+        $summary['direct_credited'] = round($summary['direct_credited'], 2);
+        $summary['indirect_credited'] = round($summary['indirect_credited'], 2);
 
-        if ($reason !== '') {
-            $row = $this->skip($activation, $package, $sponsorId, Commission::LEVEL_DIRECT, $amount, $reason, 'direct_referral');
+        return $summary;
+    }
 
-            return ['awards' => [$row], 'credited' => 0.0, 'skipped' => 1];
+    /** @return array{awards: list<array<string, mixed>>, credited: float, skipped: int, direct_credited: float, indirect_credited: float, direct_skipped: int, indirect_skipped: int} */
+    private static function emptySummary(): array
+    {
+        return [
+            'awards'            => [],
+            'credited'          => 0.0,
+            'skipped'           => 0,
+            'direct_credited'   => 0.0,
+            'indirect_credited' => 0.0,
+            'direct_skipped'    => 0,
+            'indirect_skipped'  => 0,
+        ];
+    }
+
+    /**
+     * Walk `users.sponsor_id` from an activated member's direct sponsor
+     * upward (plan §6.4).
+     *
+     * Level 1 is the direct sponsor, level 2 their sponsor, and so on.
+     * The walk stops at the requested depth, the end of the chain, or a
+     * cycle (visited set). It is the only chain query path; one member
+     * read per hop keeps the 10-level walk bounded (P11-T11).
+     *
+     * @return list<array{level:int, member:array<string, mixed>}>
+     */
+    public function sponsorChain(int $sourceUserId, int $maxLevels = Commission::LEVEL_MAX, ?PDO $pdo = null): array
+    {
+        $sourceUserId = max(0, $sourceUserId);
+        $maxLevels    = max(1, min(Commission::LEVEL_MAX, $maxLevels));
+
+        if ($sourceUserId <= 0) {
+            return [];
         }
 
-        $row = $this->award($activation, $package, $sponsorId, Commission::LEVEL_DIRECT, $amount, 'direct_referral');
+        $pdo     = $pdo ?? $this->pdo;
+        $current = $this->sponsorOf($sourceUserId, $pdo);
+        $visited = [$sourceUserId => true];
+        $chain   = [];
 
-        return ['awards' => [$row], 'credited' => $amount, 'skipped' => 0];
+        for ($level = 1; $level <= $maxLevels && $current !== null; $level++) {
+            $currentId = (int) $current;
+
+            if ($currentId <= 0 || isset($visited[$currentId])) {
+                /* A corrupted chain (or a self-sponsor) pays nobody else. */
+                error_log(sprintf(
+                    '[ecowealth] sponsor chain for user #%d loops at #%d — walk stopped',
+                    $sourceUserId,
+                    $currentId
+                ));
+                break;
+            }
+
+            $member = Member::find($currentId, $pdo);
+
+            if ($member === null) {
+                break;
+            }
+
+            $visited[$currentId] = true;
+            $chain[] = ['level' => $level, 'member' => $member];
+
+            $next    = (int) ($member['sponsor_id'] ?? 0);
+            $current = $next > 0 ? $next : null;
+        }
+
+        return $chain;
+    }
+
+    /**
+     * How many indirect levels the configuration allows.
+     *
+     * `settings.commission_indirect_max_levels` is clamped to 2–10; a
+     * value below 2 (including a non-numeric one read as 0) leaves the
+     * direct leg only, which the caller represents as max level 1.
+     */
+    private function indirectMaxLevels(): int
+    {
+        $configured = setting_int('commission_indirect_max_levels', Commission::LEVEL_MAX);
+
+        if ($configured < Commission::LEVEL_MIN) {
+            return Commission::LEVEL_DIRECT;
+        }
+
+        return min(Commission::LEVEL_MAX, $configured);
     }
 
     /* ----------------------------------------------------------

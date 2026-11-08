@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–10)
+# EcoWealth — Manual QA pack (Phases 1–11)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9 and 10. The automated suites are already green; these documents let a tester who has never seen the
+7, 8, 9, 10 and 11. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -25,12 +25,14 @@ sign the phase off.
 | [phase-8-fulfilment.md](phase-8-fulfilment.md) | 8 — packing, shipping + tracking, delivery, confirmation, invoices, auto-complete | 19 | 60–75 min |
 | [phase-9-membership.md](phase-9-membership.md) | 9 — registration modes, registration codes, activation, member directory, genealogy | 16 | 60–75 min |
 | [phase-10-commissions.md](phase-10-commissions.md) | 10 — direct referral award, earnings statement, commission ledger | 10 | 35–45 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all ten | — | 10 min to complete |
+| [phase-11-commissions.md](phase-11-commissions.md) | 11 — indirect referral ladder, level breakdown, CSV exports | 10 | 35–45 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all eleven | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-10` inside it). Phases 4–10 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-11` inside it). Phases 4–11 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
-`evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png` and `evidence/phase-10/*.png`.
+`evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png` and
+`evidence/phase-11/*.png`.
 
 ---
 
@@ -49,7 +51,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 427   Passed: 427   Failed: 0
+Cases: 558   Passed: 558   Failed: 0
 All good.
 ```
 
@@ -62,7 +64,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 139   Failed: 0
+Passed: 143   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -132,6 +134,16 @@ Passed: 139   Failed: 0
   The smoke script pays a sponsor over HTTP, skips an ineligible one, opens the earnings statement and
   the admin ledger, and runs the finance report — then restores every demo wallet it moved. A headless
   Chrome pass covers the ledger, both drawers, the mobile layouts and 0 JavaScript errors.
+- Phase 11: the indirect referral ladder (levels 2–10) priced by the **source package's** matrix, paid
+  through a real ten-deep chain — one commission row, wallet credit and ledger row per level; the
+  eleventh level earns nothing; an inactive upline is skipped but consumes its level while deeper levels
+  keep paying; Package B matches Package A; the package switch, the global switch and
+  `commission_indirect_max_levels` cap the walk; a zero level writes no row; a replay pays nothing twice;
+  wallet credits equal the award rows; the member earnings level breakdown and its live region; the admin
+  type/level filters; and both CSV exports (`/earnings/export` member-scoped, `/admin/commissions/export`
+  admin-only, audited). The smoke script registers a real code under `peter`, proves peter ₱500 / maria
+  ₱100 / juan ₱50 with the company root skipped, then checks the level breakdown, both exports and the
+  finance report. A headless Chrome pass captures the ledger, the breakdown and the mobile layouts.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
@@ -284,14 +296,15 @@ These are deliberate for the current build — do not report them as defects:
   pre-fills the sponsor). Pending members activate from **Membership** with a code, the e-wallet or a
   payment proof; a proof waits in **Admin → Activations**. Suspending a member blocks their sign-in. The
   demo tree (`juan` … `david`, `Demo@1234`) and three `DEMO-*` codes are seed data.
-- **Referral commissions are live** (Phase 10). When a package activation is approved, the member's
-  sponsor is paid the package's **direct referral bonus** (₱500 on the seeded packages) into their
-  e-wallet as **withdrawable** earnings. It is paid exactly once, and a sponsor who is inactive or has
-  no package is **skipped** — the award is recorded with a reason and no money moves. The member sees
-  every award on **Membership → Earnings**; the company sees them all on **Finance → Commissions**.
-  Awards are immutable: there is no edit or delete control, and `php bin\wallet_reconcile.php` now
-  checks the awards against the ledger too. Indirect (levels 2–10) awards arrive in Phase 11; until
-  then the **Indirect referral** card reads ₱0.00 and a level-2+ filter finds nothing.
+- **Referral commissions are live** (Phases 10–11). When a package activation is approved, the member's
+  sponsor is paid the package's **direct referral bonus** (₱500 on the seeded packages), and the sponsor
+  chain is paid the **indirect ladder** for levels 2–10 (₱100, ₱50, ₱40, ₱30, ₱20, ₱10, ₱5, ₱5, ₱5) using
+  the source package's matrix. Every credit lands in the e-wallet as **withdrawable** earnings, exactly
+  once; an inactive or package-less upline is **skipped** (level consumed, no money). The member sees
+  every award and the level breakdown on **Membership → Earnings**, with a filtered CSV; the company sees
+  them all on **Finance → Commissions**, with type/level filters and its own CSV. Awards are immutable:
+  there is no edit or delete control, and `php bin\wallet_reconcile.php` checks the awards against the
+  ledger too.
 - **Commissions are money history.** Do not delete a `commissions` row or its ledger row by hand on a
   live database — a correction is a new `adjustment` movement, never an edit.
 - **The admin settings page** (System → Settings) edits the receiving accounts and the payment/correction
@@ -411,6 +424,7 @@ docs/qa/
 ├── phase-8-fulfilment.md              ← manual checks for Phase 8
 ├── phase-9-membership.md              ← manual checks for Phase 9
 ├── phase-10-commissions.md            ← manual checks for Phase 10
+├── phase-11-commissions.md            ← manual checks for Phase 11
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/ … phase-10/)
+└── evidence/                          ← your screenshots (phase-1/ … phase-11/)
 ```

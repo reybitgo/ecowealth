@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1-10: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    EcoWealth HTTP smoke test (Phase 1-11: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
     P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
-    P9-T1 ... P9-T17, P10-T1 ... P10-T8).
+    P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -13,11 +13,12 @@
     (pack, ship, deliver, confirm, invoices), the auto-complete job, the
     Phase 9 membership flow (registration modes, registration codes,
     activation by proof with admin approval, member suspend/restore and
-    genealogy) and the Phase 10 compensation path (a real activation
-    crediting its sponsor, an ineligible sponsor skipped, the member
-    earnings statement, the admin commission ledger and the finance
-    report) end to end, including the expiry job from both the CLI and its
-    web entry.
+    genealogy) and the Phase 10/11 compensation path (real activations
+    crediting the direct sponsor and the unilevel levels 2-10, an
+    ineligible upline skipped, the member earnings statement with its
+    level breakdown, the admin commission ledger, the two CSV exports
+    and the finance report) end to end, including the expiry job from
+    both the CLI and its web entry.
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", registration codes and member
@@ -68,6 +69,7 @@ $script:Jars = @{
     p9e    = Join-Path $script:TempDir 'p9e.jar'
     p9f    = Join-Path $script:TempDir 'p9f.jar'
     p10a   = Join-Path $script:TempDir 'p10a.jar'
+    p11reg = Join-Path $script:TempDir 'p11reg.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -230,7 +232,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phase 1 + 2 + 3 + 4 + 5 + 6 + 7)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-11)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -2227,9 +2229,13 @@ try {
     $earnings  = Invoke-App -Path '/earnings' -Session 'p10a'
     $earningsGuest = Invoke-App -Path '/earnings' -Session 'guest'
     $earningsAdmin = Invoke-App -Path '/earnings' -Session 'admin'
+    # The statement totals every credited award, including the two QA
+    # awards already on this development database before the run.
+    $p10JuanEarningsValue = [double]((Invoke-MySql "SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE user_id = $p9JuanId AND status = 'credited';" | Out-String).Trim())
+    $p10JuanEarnings = $p10JuanEarningsValue.ToString('N2', [System.Globalization.CultureInfo]::InvariantCulture)
     $earningsOk = ($earnings.Status -eq 200) `
         -and ($earnings.Body -match 'Total credited') -and ($earnings.Body -match 'Direct referral') `
-        -and ($earnings.Body -match 'Indirect referral') -and ($earnings.Body -match '1,000\.00') `
+        -and ($earnings.Body -match 'Indirect referral') -and ($earnings.Body -match [regex]::Escape($p10JuanEarnings)) `
         -and ($earnings.Body -match [regex]::Escape($codeUsername)) `
         -and ($earnings.Body -match 'name="level"') -and ($earnings.Body -match 'data-commission="') `
         -and ($earnings.Body -match 'id="commissionDetail"') -and ($earnings.Body -match 'href="[^"]*/wallet"')
@@ -2249,9 +2255,92 @@ try {
         -and ($ledgerPage.Body -match '@juan') -and ($ledgerPage.Body -match [regex]::Escape($codeUsername)) `
         -and ($ledgerPage.Body -match 'data-commission="')
     $ledgerFiltersOk = ($ledgerSkipped.Status -eq 200) -and ($ledgerSkipped.Body -match [regex]::Escape($skipUsername)) `
-        -and ($ledgerIndirect.Status -eq 200) -and ($ledgerIndirect.Body -match 'No commissions match these filters')
+        -and ($ledgerIndirect.Status -eq 200) -and ($ledgerIndirect.Body -match 'Indirect referral') `
+        -and ($ledgerIndirect.Body -match 'Skipped')
     Assert-That 'P10-T8' ($ledgerOk -and $ledgerFiltersOk -and $ledgerMember.Status -eq 403) `
         "GET /admin/commissions lists and filters the ledger; member=$($ledgerMember.Status) (page=$($ledgerPage.Status), skipped=$($ledgerSkipped.Status), indirect=$($ledgerIndirect.Status))"
+
+    # ---- Phase 11: indirect referral commissions --------------------------
+    # A code registration under peter walks the demo chain:
+    #   peter L1 500, maria L2 100, juan L3 50, admin L4 skipped (no package).
+    $p11CodeStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM reg_codes;" | Out-String).Trim())
+    $p11Gen = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '1'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $p11Code = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p11CodeStart AND status = 'unused' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p11Username = 'smoke_p11_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $p11Username
+    $p11PeterBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p11MariaBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'maria';" | Out-String).Trim())
+    $p11JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p11AdminBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+
+    $p11RegPage  = Invoke-App -Path '/register' -Session 'p11reg'
+    $p11RegToken = Get-Csrf $p11RegPage.Body
+    $p11Post = Invoke-App -Method 'POST' -Path '/register' -Session 'p11reg' -Form @{
+        '_csrf'            = $p11RegToken
+        'mode'             = 'code'
+        'sponsor'          = 'peter'
+        'reg_code'         = $p11Code
+        'username'         = $p11Username
+        'email'            = "$p11Username@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+
+    $p11Awards = (Invoke-MySql ("SELECT CONCAT(COUNT(*), '|', SUM(status = 'credited'), '|', SUM(status = 'skipped'), '|', SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END)) FROM commissions c JOIN users u ON u.id = c.source_user_id WHERE u.username = '$p11Username';") | Out-String).Trim()
+    $p11Levels = (Invoke-MySql ("SELECT GROUP_CONCAT(CONCAT(level, ':', type, ':', status) ORDER BY level SEPARATOR ',') FROM commissions c JOIN users u ON u.id = c.source_user_id WHERE u.username = '$p11Username';") | Out-String).Trim()
+    $p11PeterAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p11MariaAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'maria';" | Out-String).Trim())
+    $p11JuanAfter  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p11AdminAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+    Assert-That 'P11-T12' ($p11Gen.Status -eq 302 -and $p11Post.Status -eq 302 -and $p11Awards -eq '4|3|1|650.00' `
+            -and $p11Levels -eq '1:direct_referral:credited,2:indirect_referral:credited,3:indirect_referral:credited,4:indirect_referral:skipped') `
+        "a code registration pays the full unilevel chain (status=$($p11Post.Status), awards=$p11Awards, levels=$p11Levels)"
+    Assert-That 'P11-T8' ([math]::Abs($p11PeterAfter - ($p11PeterBefore + 500)) -lt 0.001 `
+            -and [math]::Abs($p11MariaAfter - ($p11MariaBefore + 100)) -lt 0.001 `
+            -and [math]::Abs($p11JuanAfter - ($p11JuanBefore + 50)) -lt 0.001 `
+            -and [math]::Abs($p11AdminAfter - $p11AdminBefore) -lt 0.001) `
+        "wallet credits match the levels: peter +500, maria +100, juan +50, admin skipped"
+
+    # P11-T9 — juan's earnings page now carries the level-3 award and the
+    # per-level breakdown; the unilevel CSV exports the same rows.
+    $p11Earnings = Invoke-App -Path '/earnings' -Session 'p10a'
+    $p11Csv      = Invoke-App -Path '/earnings/export' -Session 'p10a'
+    $p11CsvType  = ''
+    if ($p11Csv.Headers.ContainsKey('content-type')) { $p11CsvType = [string] $p11Csv.Headers['content-type'] }
+    $p11CsvGuest = Invoke-App -Path '/earnings/export' -Session 'guest'
+    $p11JuanEarningsValue = [double]((Invoke-MySql "SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE user_id = $p9JuanId AND status = 'credited';" | Out-String).Trim())
+    $p11JuanEarnings = $p11JuanEarningsValue.ToString('N2', [System.Globalization.CultureInfo]::InvariantCulture)
+    $p11EarningsOk = ($p11Earnings.Status -eq 200) -and ($p11Earnings.Body -match 'Unilevel breakdown') `
+        -and ($p11Earnings.Body -match 'Level 3') -and ($p11Earnings.Body -match [regex]::Escape($p11JuanEarnings)) `
+        -and ($p11Earnings.Body -match 'Export CSV')
+    $p11CsvOk = ($p11Csv.Status -eq 200) -and ($p11CsvType -match 'text/csv') `
+        -and ($p11Csv.Body -match 'Award,"Awarded at",Level') -and ($p11Csv.Body -match 'indirect_referral') `
+        -and ($p11Csv.Body -match [regex]::Escape($p11Username))
+    Assert-That 'P11-T9' ($p11EarningsOk -and $p11CsvOk -and $p11CsvGuest.Status -eq 302 -and $p11CsvGuest.Location -match '/login$') `
+        "the earnings breakdown and unilevel CSV show the new L3 award; guest=$($p11CsvGuest.Status)"
+
+    # P11-T10 — the admin ledger filters the indirect rows by type and level,
+    # and its CSV export is admin-only.
+    $p11Ledger = Invoke-App -Path '/admin/commissions?type=indirect_referral&level=3' -Session 'admin'
+    $p11AdminCsv = Invoke-App -Path '/admin/commissions/export?type=indirect_referral' -Session 'admin'
+    $p11AdminCsvType = ''
+    if ($p11AdminCsv.Headers.ContainsKey('content-type')) { $p11AdminCsvType = [string] $p11AdminCsv.Headers['content-type'] }
+    $p11AdminCsvMember = Invoke-App -Path '/admin/commissions/export' -Session 'p10a'
+    $p11LedgerOk = ($p11Ledger.Status -eq 200) -and ($p11Ledger.Body -match '@juan') `
+        -and ($p11Ledger.Body -match 'Level 3') -and ($p11Ledger.Body -match '50\.00') `
+        -and ($p11Ledger.Body -notmatch 'No commissions match these filters')
+    $p11AdminCsvOk = ($p11AdminCsv.Status -eq 200) -and ($p11AdminCsvType -match 'text/csv') `
+        -and ($p11AdminCsv.Body -match 'Recipient,"Recipient name"') -and ($p11AdminCsv.Body -match 'indirect_referral')
+    Assert-That 'P11-T10' ($p11LedgerOk -and $p11AdminCsvOk -and $p11AdminCsvMember.Status -eq 403) `
+        "the admin ledger filters indirect/level and exports CSV; member=$($p11AdminCsvMember.Status)"
 
     # P10-T6 — the finance report covers commissions too, and it is clean.
     $p10ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
@@ -2260,7 +2349,7 @@ try {
     try { $p10ReconcileJson = ($p10ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
     Assert-That 'P10-T6' ($p10ReconcileExit -eq 0 -and $p10ReconcileJson.ok -eq $true `
             -and $p10ReconcileJson.commissions.ok -eq $true `
-            -and $p10ReconcileJson.commissions.credited_rows -ge 2) `
+            -and $p10ReconcileJson.commissions.credited_rows -ge 5) `
         "bin/wallet_reconcile.php reconciles wallets and commissions (exit=$p10ReconcileExit, credited=$($p10ReconcileJson.commissions.credited_rows))"
 
     # Leave the cart clean for the maintenance checks.

@@ -146,7 +146,7 @@ final class Package
      *
      * @return array<int, float>
      */
-    public static function levels(int $packageId): array
+    public static function levels(int $packageId, ?PDO $pdo = null): array
     {
         $levels = array_fill(self::LEVEL_MIN, self::LEVEL_MAX - self::LEVEL_MIN + 1, 0.0);
 
@@ -154,7 +154,9 @@ final class Package
             return $levels;
         }
 
-        $stmt = db()->prepare('SELECT level, amount FROM package_levels WHERE package_id = ? ORDER BY level');
+        $pdo ??= db();
+
+        $stmt = $pdo->prepare('SELECT level, amount FROM package_levels WHERE package_id = ? ORDER BY level');
         $stmt->execute([$packageId]);
 
         foreach ($stmt->fetchAll() as $row) {
@@ -171,12 +173,14 @@ final class Package
      * @param list<int|string> $packageIds
      * @return array<int, array<int, float>>
      */
-    public static function levelsMap(array $packageIds): array
+    public static function levelsMap(array $packageIds, ?PDO $pdo = null): array
     {
         $ids = self::intIds($packageIds);
         if ($ids === []) {
             return [];
         }
+
+        $pdo ??= db();
 
         $map = [];
         foreach ($ids as $id) {
@@ -184,7 +188,7 @@ final class Package
         }
 
         $marks = implode(',', array_fill(0, count($ids), '?'));
-        $stmt  = db()->prepare(
+        $stmt  = $pdo->prepare(
             'SELECT package_id, level, amount FROM package_levels
               WHERE package_id IN (' . $marks . ') ORDER BY level'
         );

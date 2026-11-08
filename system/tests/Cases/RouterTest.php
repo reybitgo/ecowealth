@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(71, $live);
+        assert_count(73, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -174,6 +174,10 @@ return [
         /* Phase 10 — the member earnings statement and the admin ledger. */
         assert_same('member', $live['GET /earnings']);
         assert_same('admin', $live['GET /admin/commissions']);
+
+        /* Phase 11 — the two CSV exports. */
+        assert_same('member', $live['GET /earnings/export']);
+        assert_same('admin', $live['GET /admin/commissions/export']);
     },
 
     'Live route table resolves the Phase 1–10 URLs' => function (): void {
@@ -350,6 +354,16 @@ return [
         assert_same(
             AdminCommissionController::class,
             $router->match('GET', '/admin/commissions')['route']['handler'][0]
+        );
+
+        /* Phase 11 handlers. */
+        assert_same(
+            EarningsController::class,
+            $router->match('GET', '/earnings/export')['route']['handler'][0]
+        );
+        assert_same(
+            AdminCommissionController::class,
+            $router->match('GET', '/admin/commissions/export')['route']['handler'][0]
         );
 
         assert_null($router->match('GET', '/no-such-page'));

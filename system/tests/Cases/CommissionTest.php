@@ -78,10 +78,24 @@ $activate = static function (array $member, array $package) use ($approvedActiva
     return (new ActivationService())->complete($activationId);
 };
 
+/**
+ * Phase 10 pins the DIRECT leg in isolation.
+ *
+ * From Phase 11 the same activation also walks levels 2–10, so the demo
+ * chain would add the indirect awards (and the company-root skip) to
+ * every expected row count. The package toggle is the documented way to
+ * switch the ladder off (P11-T5); each direct-leg case turns it off for
+ * its own transaction, which the harness rolls back.
+ */
+$directOnly = static function (): void {
+    db()->exec('UPDATE packages SET indirect_enabled = 0');
+};
+
 return [
     /* ---------- P10-T1: the award itself -------------------------- */
 
-    'P10-T1 an active sponsor earns the package direct bonus exactly once' => function () use ($pendingMember, $wallet, $juan, $pkgA, $admin): void {
+    'P10-T1 an active sponsor earns the package direct bonus exactly once' => function () use ($pendingMember, $wallet, $juan, $pkgA, $admin, $directOnly): void {
+        $directOnly();
         $member = $pendingMember('juan');
         $juanId = (int) $juan()['id'];
 
@@ -142,7 +156,8 @@ return [
         assert_same(500.0, (float) $summary['commission_credited'], 'the completion summary carries the credit');
     },
 
-    'P10-T1 registration with a code pays the sponsor immediately' => function () use ($juan, $wallet): void {
+    'P10-T1 registration with a code pays the sponsor immediately' => function () use ($juan, $wallet, $directOnly): void {
+        $directOnly();
         $admin = test_user('comm_code_admin', 'admin');
 
         $batch = (new CodeService())->generate([
@@ -180,7 +195,8 @@ return [
         assert_same(500.0, (float) $rows[0]['amount']);
     },
 
-    'P10-T1 package B pays the same direct bonus as package A' => function () use ($pendingMember, $wallet, $juan, $pkgB): void {
+    'P10-T1 package B pays the same direct bonus as package A' => function () use ($pendingMember, $wallet, $juan, $pkgB, $directOnly): void {
+        $directOnly();
         $member = $pendingMember('juan');
         $juanId = (int) $juan()['id'];
         $before = $wallet()->balance($juanId);
@@ -201,7 +217,8 @@ return [
 
     /* ---------- P10-T2: ineligible recipients are skipped --------- */
 
-    'P10-T2 a pending sponsor is skipped without moving money' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate): void {
+    'P10-T2 a pending sponsor is skipped without moving money' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         /* david is a pending demo member with no package. */
         $david = Member::findByUsername('david');
         assert_not_null($david);
@@ -232,7 +249,8 @@ return [
         assert_same('active', Member::find((int) $member['id'])['member_status']);
     },
 
-    'P10-T2 an inactive or package-less sponsor is skipped with a reason' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate): void {
+    'P10-T2 an inactive or package-less sponsor is skipped with a reason' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $juanId = (int) $juan()['id'];
 
         /* juan has a package; the award is paid. */
@@ -305,7 +323,8 @@ return [
 
     /* ---------- P10-T4: idempotency ------------------------------- */
 
-    'P10-T4 replaying the hook pays nothing twice' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate): void {
+    'P10-T4 replaying the hook pays nothing twice' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $member = $pendingMember('juan');
         $juanId = (int) $juan()['id'];
         $before = $wallet()->balance($juanId);
@@ -332,7 +351,8 @@ return [
         );
     },
 
-    'P10-T4 the unique key refuses a second award for the same event' => function () use ($pendingMember, $pkgA, $activate): void {
+    'P10-T4 the unique key refuses a second award for the same event' => function () use ($pendingMember, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $member = $pendingMember('juan');
         $summary = $activate($member, $pkgA());
         $row     = Commission::forActivation((int) $summary['activation_id'])[0];
@@ -354,7 +374,8 @@ return [
 
     /* ---------- P10-T5: two recruits ------------------------------ */
 
-    'P10-T5 two recruits credit two separate awards' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate): void {
+    'P10-T5 two recruits credit two separate awards' => function () use ($pendingMember, $wallet, $juan, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $juanId = (int) $juan()['id'];
         $before = $wallet()->balance($juanId);
         $count  = Commission::countForUser($juanId, Commission::filterDefaults());
@@ -379,7 +400,8 @@ return [
 
     /* ---------- P10-T6: finance invariants ------------------------ */
 
-    'P10-T6 wallet and commission reconciliation stay clean' => function () use ($pendingMember, $pkgA, $activate): void {
+    'P10-T6 wallet and commission reconciliation stay clean' => function () use ($pendingMember, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         /* A credited award, a skipped one and an unrelated top-up. */
         $activate($pendingMember('juan'), $pkgA());
         $activate($pendingMember('david'), $pkgA());
@@ -402,7 +424,8 @@ return [
         assert_same(1, $commissionReport['skipped_rows']);
     },
 
-    'P10-T6 reconciliation catches an award without its wallet movement' => function () use ($pendingMember, $pkgA, $activate): void {
+    'P10-T6 reconciliation catches an award without its wallet movement' => function () use ($pendingMember, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $activate($pendingMember('juan'), $pkgA());
 
         $row = db()->query("SELECT id FROM commissions WHERE status = 'credited' LIMIT 1")->fetch();
@@ -419,7 +442,8 @@ return [
 
     /* ---------- P10-T7: member totals and pagination -------------- */
 
-    'P10-T7 member totals, filters and pagination follow the awards' => function () use ($pendingMember, $pkgA, $activate, $juan): void {
+    'P10-T7 member totals, filters and pagination follow the awards' => function () use ($pendingMember, $pkgA, $activate, $juan, $directOnly): void {
+        $directOnly();
         $juanId = (int) $juan()['id'];
 
         for ($i = 0; $i < 3; $i++) {
@@ -475,7 +499,8 @@ return [
 
     /* ---------- P10-T8: the admin ledger ------------------------- */
 
-    'P10-T8 the admin ledger filters by member, type, level, status and date' => function () use ($pendingMember, $pkgA, $activate): void {
+    'P10-T8 the admin ledger filters by member, type, level, status and date' => function () use ($pendingMember, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $credited = $activate($pendingMember('juan'), $pkgA());
 
         $davidMember = $pendingMember('david');
@@ -500,7 +525,7 @@ return [
         assert_true(Commission::countAdmin($byType) >= 1);
 
         $byLevel = Commission::normaliseFilters(['level' => '2']);
-        assert_same(0, Commission::countAdmin($byLevel), 'no indirect awards in Phase 10');
+        assert_same(0, Commission::countAdmin($byLevel), 'the direct-only fixture has no indirect awards');
 
         $recent = Commission::normaliseFilters(['from' => date('Y-m-d', strtotime('-1 day'))]);
         assert_true(Commission::countAdmin($recent) >= 1);
@@ -521,7 +546,8 @@ return [
 
     /* ---------- P10-T9: isolation -------------------------------- */
 
-    'P10-T9 a member query never returns another member commissions' => function () use ($pendingMember, $pkgA, $activate, $maria): void {
+    'P10-T9 a member query never returns another member commissions' => function () use ($pendingMember, $pkgA, $activate, $maria, $directOnly): void {
+        $directOnly();
         $juanId  = (int) (Member::findByUsername('juan') ?? [])['id'];
         $mariaId = (int) $maria()['id'];
 
@@ -553,7 +579,8 @@ return [
 
     /* ---------- P10-T10: the detail trail ------------------------ */
 
-    'P10-T10 an award links to its activation, source member and wallet entry' => function () use ($pendingMember, $pkgA, $activate): void {
+    'P10-T10 an award links to its activation, source member and wallet entry' => function () use ($pendingMember, $pkgA, $activate, $directOnly): void {
+        $directOnly();
         $member  = $pendingMember('juan');
         $summary = $activate($member, $pkgA());
         $row     = Commission::forActivation((int) $summary['activation_id'])[0];

@@ -66,8 +66,100 @@ final class AdminCommissionController
             'pager'       => $pager,
             'commissions' => Commission::adminList($filters, $pager),
             'ledger_url'  => url('admin/commissions'),
+            'export_url'  => url('admin/commissions/export' . self::queryString($filters)),
             'wallet_url'  => url('admin/wallets'),
         ];
+    }
+
+    /**
+     * CSV of the filtered commission ledger (plan §7 Phase 11:
+     * "Unilevel statement" export).
+     *
+     * Route (Appendix A extension): GET /admin/commissions/export
+     * guard `admin`. Exports every matching award — credited and skipped
+     * — with the recipient, source, package, level and ledger link, so
+     * finance can reconcile offline. The download is audited.
+     *
+     * @param array<string, string> $params
+     */
+    public function export(array $params = []): void
+    {
+        $filters = Commission::normaliseFilters([
+            'type'   => Request::string('type'),
+            'level'  => Request::string('level'),
+            'status' => Request::string('status'),
+            'from'   => Request::string('from'),
+            'to'     => Request::string('to'),
+            'q'      => Request::string('q'),
+        ]);
+
+        $rows = Commission::exportRows(null, $filters);
+        $admin = auth_user();
+
+        AuditLog::record([
+            'action'       => 'commission.export',
+            'actor_id'     => $admin === null ? null : (int) $admin['id'],
+            'actor_role'   => $admin === null ? null : (string) $admin['role'],
+            'subject_type' => 'commission',
+            'subject_id'   => null,
+            'meta'         => ['filters' => $filters, 'rows' => count($rows)],
+        ]);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="commissions_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, [
+            'Award', 'Awarded at', 'Recipient', 'Recipient name', 'Level', 'Type',
+            'Source', 'Source name', 'Package', 'Amount', 'Status', 'Reason',
+            'Activation', 'Ledger',
+        ]);
+
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (int) $row['id'],
+                (string) $row['created_at'],
+                (string) $row['recipient_username'],
+                (string) ($row['recipient_name'] ?? ''),
+                (int) $row['level'],
+                (string) $row['type'],
+                (string) $row['source_username'],
+                (string) ($row['source_name'] ?? ''),
+                (string) $row['package_name'],
+                number_format((float) $row['amount'], 2, '.', ''),
+                (string) $row['status'],
+                (string) ($row['reason'] ?? ''),
+                (int) $row['activation_id'],
+                $row['ledger_id'] === null ? '' : (int) $row['ledger_id'],
+            ]);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The current filters as an export query string ('' when none).
+     *
+     * @param array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function queryString(array $filters): string
+    {
+        $query = array_filter(
+            $filters,
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return $query === [] ? '' : '?' . http_build_query($query);
     }
 
     /**

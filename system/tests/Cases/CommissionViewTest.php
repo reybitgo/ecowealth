@@ -77,12 +77,14 @@ $earningsData = static function (int $userId, array $filters = []): array {
         'page_title'    => 'Earnings',
         'current_nav'   => 'earnings',
         'totals'        => Commission::totalsForUser($userId),
+        'levels'        => Commission::levelBreakdown($userId),
         'filters'       => $filters,
         'pager'         => $pager,
         'commissions'   => Commission::pageForUser($userId, $filters, $pager),
         'wallet_url'    => url('wallet'),
         'genealogy_url' => url('genealogy'),
         'statement_url' => url('earnings'),
+        'export_url'    => url('earnings/export'),
     ];
 };
 
@@ -99,6 +101,7 @@ $ledgerData = static function (array $filters = [], int $page = 1): array {
         'pager'       => $pager,
         'commissions' => Commission::adminList($filters, $pager),
         'ledger_url'  => url('admin/commissions'),
+        'export_url'  => url('admin/commissions/export'),
         'wallet_url'  => url('admin/wallets'),
     ];
 };
@@ -133,6 +136,14 @@ return [
         /* The page routes to the money and the team. */
         assert_contains('href="' . url('wallet') . '"', $html);
         assert_contains('href="' . url('genealogy') . '"', $html);
+        assert_contains('href="' . url('earnings/export') . '"', $html, 'the unilevel CSV export is offered');
+        assert_contains('Export CSV', $html);
+
+        /* The level breakdown is always rendered, even with one level paid. */
+        assert_contains('Unilevel breakdown', $html);
+        assert_contains('data-live-region="earnings-levels"', $html);
+        assert_contains('Level 1 · Direct', $html);
+        assert_contains('Level 10', $html);
 
         /* Filters and the drawer are present. */
         assert_contains('name="type"', $html);
@@ -250,6 +261,7 @@ return [
         assert_contains('data-commission="{', $html);
         assert_contains('id="commissionDetail"', $html);
         assert_contains('E-wallet monitor', $html);
+        assert_contains('href="' . url('admin/commissions/export') . '"', $html, 'the ledger CSV export is offered');
 
         /* The admin drawer includes the recipient row the member one hides. */
         assert_contains('data-detail="recipient"', $html);

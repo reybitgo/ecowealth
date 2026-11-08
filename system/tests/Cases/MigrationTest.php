@@ -26,6 +26,7 @@ $migrations    = [
     $migrationDir . '011_membership.sql',
     $migrationDir . '012_commissions.sql',
     $migrationDir . '013_live_revisions.sql',
+    $migrationDir . '014_indirect_commissions.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -546,6 +547,32 @@ return [
         assert_same(
             0,
             (int) $pdo->query("SELECT COUNT(*) FROM activations WHERE id = {$activationId}")->fetchColumn()
+        );
+    },
+
+    'migration adds the indirect commission settings' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        assert_same(
+            '1',
+            $pdo->query("SELECT value FROM settings WHERE key_name = 'commission_indirect_enabled'")->fetchColumn()
+        );
+        assert_same(
+            '10',
+            $pdo->query("SELECT value FROM settings WHERE key_name = 'commission_indirect_max_levels'")->fetchColumn()
+        );
+        assert_same(
+            '0',
+            $pdo->query("SELECT value FROM settings WHERE key_name = 'commission_compression'")->fetchColumn()
+        );
+
+        /* A re-run must not overwrite an operator's choice. */
+        $pdo->exec("UPDATE settings SET value = '3' WHERE key_name = 'commission_indirect_max_levels'");
+        test_run_sql_file($pdo, dirname(__DIR__, 2) . '/database/migrations/014_indirect_commissions.sql');
+
+        assert_same(
+            '3',
+            $pdo->query("SELECT value FROM settings WHERE key_name = 'commission_indirect_max_levels'")->fetchColumn()
         );
     },
 

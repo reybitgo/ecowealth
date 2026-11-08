@@ -46,6 +46,7 @@ INSERT INTO settings (key_name, value) VALUES
   ('commission_direct_enabled',        '1'),
   ('commission_indirect_enabled',      '1'),
   ('commission_indirect_max_levels',   '10'),
+  ('commission_compression',           '0'),
   ('commission_requires_active_sponsor','1'),
   ('free_registration_enabled',        '1'),
 

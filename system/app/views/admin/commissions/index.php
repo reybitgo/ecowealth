@@ -22,6 +22,7 @@ declare(strict_types=1);
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $commissions
  * @var string $ledger_url
+ * @var string $export_url
  * @var string $wallet_url
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
@@ -76,9 +77,14 @@ $live = $live ?? [
                     Every referral award, credited or skipped. One row per activation, recipient and level.
                   </p>
                 </div>
-                <a href="<?= e($wallet_url) ?>" class="btn btn-label-primary">
-                  <i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor
-                </a>
+                <div class="d-flex flex-wrap gap-2">
+                  <a href="<?= e($export_url) ?>" class="btn btn-label-secondary">
+                    <i class="icon-base bx bx-download me-1"></i> Export CSV
+                  </a>
+                  <a href="<?= e($wallet_url) ?>" class="btn btn-label-primary">
+                    <i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor
+                  </a>
+                </div>
               </div>
 
 <?= View::capture('admin/commissions/_stats', ['stats' => $stats]) ?>

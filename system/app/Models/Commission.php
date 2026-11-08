@@ -44,6 +44,9 @@ final class Commission
     /** Level 1 is the direct referral bonus. */
     public const LEVEL_DIRECT = 1;
 
+    /** First indirect level (plan §6.1, §6.4). */
+    public const LEVEL_MIN = 2;
+
     /** Last indirect level (plan §6.1, §6.4). */
     public const LEVEL_MAX = 10;
 
@@ -299,6 +302,31 @@ final class Commission
     public static function adminList(array $filters, Paginator $pager, ?PDO $pdo = null): array
     {
         return self::pageWhere(null, $filters, $pager, $pdo);
+    }
+
+    /**
+     * Every award matching the filters, newest first — the CSV feed for
+     * the member "Unilevel statement" and the admin commission ledger.
+     *
+     * Deliberately unpaginated: an export is the whole filtered set. The
+     * caller owns the scope (`$userId` for a member, null for admin).
+     *
+     * @param array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
+     * @return list<array<string, mixed>>
+     */
+    public static function exportRows(?int $userId, array $filters, ?PDO $pdo = null): array
+    {
+        $pdo ??= db();
+        [$where, $params] = self::whereFor($userId, $filters);
+
+        $stmt = $pdo->prepare(
+            self::select()
+            . ' WHERE ' . $where
+            . ' ORDER BY c.id DESC'
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
     }
 
     /**

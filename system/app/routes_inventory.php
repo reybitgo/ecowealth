@@ -259,6 +259,8 @@ return [
         $extension('POST', '/admin/activations/{id}/reject', 9, 'Rejects an activation.'),
         $extension('GET', '/admin/activations/{id}/proof', 9, 'Streams a manual activation proof behind the admin guard.'),
         $extension('GET', '/admin/commissions', 10, 'Commission ledger (reference: admin dashboard widgets).'),
+        $extension('GET', '/earnings/export', 11, 'Unilevel statement CSV (phase plan §7 Phase 11).'),
+        $extension('GET', '/admin/commissions/export', 11, 'Filtered commission-ledger CSV export.'),
         $extension('POST', '/slogin/exit', 14, 'Ends the impersonation session from the member layout banner.'),
         $extension('GET', '/admin/impersonations', 14, 'Super-login audit trail.'),
         $extension('GET', '/admin/reports', 15, 'Reconciliation report.'),

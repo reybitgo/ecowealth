@@ -1,6 +1,6 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: preliminary.** This guide covers the Phase 10 build plus the live-update
+> **Status: preliminary.** This guide covers the Phase 11 build plus the live-update
 > layer. It will be updated as later phases add migrations, cron jobs or hosting
 > requirements. Hostinger's hPanel labels can change; the steps stay the same.
 >
@@ -184,9 +184,9 @@ SHOW TABLES LIKE 'live_revisions';
 If the table is missing, the pages still work, but the live-update client switches
 itself off and the feed returns an error. Do not skip this table.
 
-If the dump is older than Phase 10, apply **every missing migration** in
-`<app>/database/migrations/` in numeric order (for example `012_commissions.sql`, then
-`013_live_revisions.sql`), not just 013.
+If the dump is older than Phase 11, apply **every missing migration** in
+`<app>/database/migrations/` in numeric order (for example `012_commissions.sql`,
+`013_live_revisions.sql`, then `014_indirect_commissions.sql`), not just the newest one.
 
 > **Import size limit:** if phpMyAdmin says the file is too large, export as `.sql.gz`
 > (gzip) and import the `.sql.gz`, or split the dump. Hostinger's phpMyAdmin accepts
@@ -794,6 +794,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | Date | Change |
 |---|---|
 | 2026-11-07 | Initial preliminary guide for the Phase 10 build plus live updates. |
+| 2026-11-08 | Phase 11: add migration 014 and note the indirect-commission settings. |
 
 When a later phase adds a migration, a cron job or a new hosting requirement, update
 [Step 5](#5-import-the-database), [Step 8](#8-set-the-php-version-and-extensions),
