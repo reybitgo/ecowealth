@@ -341,7 +341,7 @@ final class PaymentService
                 );
 
                 /* The order desk now has a proof to review. */
-                Live::touchOrder($orderId);
+                Live::touchOrder($orderId, $userId);
 
                 return ['proof_id' => $proofId, 'attempt' => $attempt, 'status' => 'payment_review'];
             });
@@ -444,7 +444,7 @@ final class PaymentService
             $this->invoices->issueForPaidOrder($orderId, $this->pdo);
 
             Live::touch('admin.products');
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, (int) $order['user_id']);
 
             /* The member page's "paid to the shop" total reads paid_at. */
             Live::touchMember((int) $order['user_id']);
@@ -526,7 +526,7 @@ final class PaymentService
                 $this->pdo
             );
 
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, (int) $order['user_id']);
 
             return ['order_id' => $orderId, 'status' => 'payment_failed', 'reason' => $reasonCode];
         });
@@ -613,7 +613,7 @@ final class PaymentService
                 $this->pdo
             );
 
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, (int) $order['user_id']);
 
             /* A cancelled order leaves the member's "paid to the shop" sum. */
             Live::touchMember((int) $order['user_id']);
@@ -769,7 +769,7 @@ final class PaymentService
                         $this->pdo
                     );
 
-                    Live::touchOrder($orderId);
+                    Live::touchOrder($orderId, (int) $order['user_id']);
 
                     return $orderId;
                 });

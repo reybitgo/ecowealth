@@ -519,6 +519,13 @@ If you imported your existing database, use your existing credentials.
     should swap the card for the "no longer available" state; restore it and the card comes
     back. Open the quick-view modal after a catalogue refresh and confirm it still opens
     (the grid was replaced, not the modal).
+16. Sign in as a member with orders and open `<app-url>/orders` in two tabs. Pack or ship
+    one of that member's orders from the admin desk: the history row's status should update
+    without a refresh.
+17. Open one order in two tabs. Type a proof reference in one but do not submit; upload a
+    proof or cancel the order in the other tab. The first tab must keep the typed value and
+    show the stale banner. Submit a proof and check that the "Payment attempts" card appears
+    live in the other tab.
 
 If the page works but live updates do not:
 

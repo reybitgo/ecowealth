@@ -4,9 +4,10 @@ The admin product list, the admin dashboard, the order desk (list and one
 order), the wallet monitor (all three tabs and one member's wallet), the
 member directory (list and one member), the activation queue, the
 registration-code list, the commission ledger, the member dashboard's
-E-wallet widgets, the member's own membership page and the storefront
-catalogue/product pages update themselves without a full page reload. The
-same pattern is intended for the other list, detail and dashboard pages.
+E-wallet widgets, the member's own membership page, the member's order
+history and one order page, and the storefront catalogue/product pages
+update themselves without a full page reload. The same pattern is intended
+for the other list, detail and dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -77,8 +78,11 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
 - `matchesIfNoneMatch(...)` / `notModified(...)` — conditional GET
 - `json(...)` / `jsonError(...)` — feed responses
 - `publish(...)` / `takePublished()` — native POST → redirect → broadcast
-- `orderSurface($id)` / `touchOrder($id)` — the `admin.orders` list plus one
-  `admin.orders:{id}` detail page
+- `orderSurface($id)` / `touchOrder($id, $userId = null)` — the `admin.orders`
+  list, one `admin.orders:{id}` detail page, one `member.order:{id}` page and
+  (when the buyer id is passed) that buyer's `member.orders:{userId}` history
+- `memberOrdersSurface($id)` / `memberOrderSurface($id)` — the member's own
+  order history and one order detail page
 - `walletSurface($id)` / `touchWallet($id)` — the `admin.wallets` monitor plus
   one `admin.wallets:{id}` detail page
 - `memberSurface($id)` / `touchMember($id)` — the `admin.members` directory
@@ -101,6 +105,19 @@ proof upload, verify/reject/cancel (admin and member), packing, shipping,
 delivery, member confirmation, payment expiry and auto-complete. The detail
 surface is `admin.orders:{id}`, so a background refresh on one order page never
 touches another.
+
+The member side has two surfaces: `member.orders:{userId}` for the history and
+`member.order:{orderId}` for one order. Every order write calls
+`touchOrder($orderId, $buyerId)`, so the admin desk, the member detail page and
+the buyer's history all revalidate; a caller that only knows the order id still
+bumps the detail page. The history renders two regions (rows and pagination)
+and keeps its filter form outside them. The detail renders six regions:
+header, status card, payment attempts, delivery, payment summary and history.
+The status card owns the proof / cancel / confirm forms, so it carries
+`data-live-hold="dirty"`; its ETag scope also includes the hour because the
+payment and correction window labels read the clock. The item snapshot is
+immutable and stays static, and the "payment attempts" wrapper is always
+present (hidden while the list is empty) so a first proof can appear live.
 
 A wallet has a monitor surface and one detail surface. `WalletService::apply()`
 calls `touchWallet()` after every successful balance movement — top-ups,
@@ -234,12 +251,13 @@ Three page behaviours keep swapped forms working:
   working quick view. The add-to-cart forms are delegated by `app-cart.js`.
 
 `public/assets/js/admin-live.js` is shared by every live surface with a form
-region — the admin pages, the member's `/membership` page and the product page:
-it consumes `detail.held` and reveals the page's `[data-live-stale]` banner
-(“changed in another tab, your unsaved input was kept — reload to see the
-latest”). The banner is only shown when a form region was held back; a payload
-that applied cleanly hides it again. A `[data-live-reload]` link in the banner
-is pointed at the current URL, filters and page included.
+region — the admin pages, the member's `/membership` page, the member order
+page and the product page: it consumes `detail.held` and reveals the page's
+`[data-live-stale]` banner (“changed in another tab, your unsaved input was
+kept — reload to see the latest”). The banner is only shown when a form region
+was held back; a payload that applied cleanly hides it again. A
+`[data-live-reload]` link in the banner is pointed at the current URL, filters
+and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
@@ -247,10 +265,11 @@ change at midnight even when no row is written. The order desk does the same bec
 include the day: `new_week` counts from `CURDATE()` and the ledger's “this month” total
 moves at the month boundary. The wallet monitor adds the hour as well, because its
 directory shows a relative “last movement” label; a tab left open therefore revalidates
-on its next poll without a write. The storefront catalogue and product pages include the
-`shop_enabled` setting for the same reason: closing the shop must reach an open tab
-without a product write. The navbar notification dropdown sits outside the
-dashboard surface and updates on the next full navigation; it is a candidate for a
+on its next poll without a write. The member order page adds the hour too, because its
+payment/correction window labels read the clock. The storefront catalogue and product
+pages include the `shop_enabled` setting for the same reason: closing the shop must
+reach an open tab without a product write. The navbar notification dropdown sits outside
+the dashboard surface and updates on the next full navigation; it is a candidate for a
 future shell surface.
 
 ### Tabbed pages
@@ -324,11 +343,12 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
+| `member.orders:{id}` | `/orders` | rows, pagination |
+| `member.order:{id}` | `/orders/{id}` | header, status, payment attempts, delivery, payment summary, history |
 | `shop.catalog` | `/shop` | heading, result states, quick-view JSON |
 | `shop.product:{id}` | `/shop/{id}` | heading, shop-closed notice, product card |
 
-Planned next: `member.orders:{userId}`, `member.wallet:{userId}`,
-`member.earnings:{userId}`.
+Planned next: `member.wallet:{userId}`, `member.earnings:{userId}`.
 
 ## Deployment
 

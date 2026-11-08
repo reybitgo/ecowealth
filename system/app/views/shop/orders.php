@@ -5,9 +5,14 @@ declare(strict_types=1);
  * My orders — the member's order history (plan §5.3, Phase 6;
  * reference views/member/shop_orders.php).
  *
+ * One live surface per member (`member.orders:{id}`): the rows and the
+ * pagination are regions. The filter form stays outside them, so a
+ * background refresh never steals focus or discards an unsubmitted filter.
+ *
  * @var list<array<string, mixed>> $orders
  * @var Paginator $pager
  * @var array{status:string, method:string, from:string, to:string, q:string} $filters
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
 $hasFilters = $filters['status'] !== ''
@@ -15,13 +20,29 @@ $hasFilters = $filters['status'] !== ''
     || $filters['from'] !== ''
     || $filters['to'] !== ''
     || $filters['q'] !== '';
+
+$live = $live ?? [
+    'surface'  => 'member.orders:0',
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
+];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y orders-page">
+            <div
+              class="container-xxl flex-grow-1 container-p-y orders-page"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">My orders</h4>
                   <p class="text-body-secondary mb-0">
                     Every order you have placed, newest first. Open one to see its items, delivery details and history.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
                 <a href="<?= e(url('shop')) ?>" class="btn btn-label-primary">
@@ -89,52 +110,10 @@ $hasFilters = $filters['status'] !== ''
                         <th scope="col" class="text-end">Actions</th>
                       </tr>
                     </thead>
-                    <tbody>
-<?php if ($orders === []): ?>
-                      <tr>
-                        <td colspan="7" class="py-0">
-<?php
-    echo View::partial('empty_state', [
-        'icon'         => 'bx bx-receipt',
-        'title'        => $hasFilters ? 'No orders match these filters' : 'No orders yet',
-        'text'         => $hasFilters
-            ? 'Try a different status, payment method or date range.'
-            : 'When you check out, your orders and their progress appear here.',
-        'action_href'  => $hasFilters ? 'orders' : 'shop',
-        'action_label' => $hasFilters ? 'Clear filters' : 'Browse the shop',
-    ]);
-?>
-                        </td>
-                      </tr>
-<?php endif; ?>
-<?php foreach ($orders as $order): ?>
-                      <tr>
-                        <td>
-                          <a href="<?= e(url('orders/' . (int) $order['id'])) ?>" class="fw-semibold text-body">
-                            <?= e((string) $order['order_no']) ?>
-                          </a>
-                        </td>
-                        <td class="text-nowrap small text-body-secondary"><?= e(format_datetime((string) $order['created_at'])) ?></td>
-                        <td class="text-center"><?= (int) $order['item_count'] ?></td>
-                        <td class="text-end text-nowrap fw-semibold"><?= e(money((float) $order['total'])) ?></td>
-                        <td class="text-nowrap">
-                          <i class="icon-base <?= e(payment_method_icon((string) $order['payment_method'])) ?> me-1 text-body-secondary"></i>
-                          <?= e(payment_method_label((string) $order['payment_method'])) ?>
-                        </td>
-                        <td><?= status_badge((string) $order['status']) ?></td>
-                        <td class="text-end">
-                          <a href="<?= e(url('orders/' . (int) $order['id'])) ?>" class="btn btn-sm btn-label-primary">
-                            View
-                          </a>
-                        </td>
-                      </tr>
-<?php endforeach; ?>
-                    </tbody>
+<?= View::capture('shop/orders/_rows', ['orders' => $orders, 'filters' => $filters]) ?>
                   </table>
                 </div>
 
-                <div class="card-body pt-2">
-<?= View::partial('pagination', ['pager' => $pager, 'pager_label' => 'Orders']) ?>
-                </div>
+<?= View::capture('shop/orders/_pagination', ['pager' => $pager]) ?>
               </div>
             </div>

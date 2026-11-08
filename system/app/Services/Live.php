@@ -110,15 +110,44 @@ final class Live
     }
 
     /**
+     * The member's order-history surface (`member.orders:42`).
+     */
+    public static function memberOrdersSurface(int $userId): string
+    {
+        return 'member.orders:' . max(0, $userId);
+    }
+
+    /**
+     * The detail surface for one member order (`member.order:42`).
+     */
+    public static function memberOrderSurface(int $orderId): string
+    {
+        return 'member.order:' . max(0, $orderId);
+    }
+
+    /**
      * Bump the order list and one order's detail surface.
      *
      * Every write that changes an order row — placement, a proof, a review
      * decision, a fulfilment step, expiry or a member confirmation — calls
-     * this after the change so both open pages revalidate.
+     * this after the change so both open pages revalidate. Passing the
+     * buyer's id also bumps their `/orders` history; the member order detail
+     * surface is always bumped, so an order page never goes stale even when
+     * the caller only knows the order id.
      */
-    public static function touchOrder(int $orderId): void
+    public static function touchOrder(int $orderId, ?int $userId = null): void
     {
-        self::touch(['admin.orders', self::orderSurface($orderId)]);
+        $surfaces = [
+            'admin.orders',
+            self::orderSurface($orderId),
+            self::memberOrderSurface($orderId),
+        ];
+
+        if ($userId !== null && $userId > 0) {
+            $surfaces[] = self::memberOrdersSurface($userId);
+        }
+
+        self::touch($surfaces);
     }
 
     /**

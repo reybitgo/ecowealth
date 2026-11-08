@@ -160,6 +160,11 @@ final class CheckoutController
         old_clear();
         old_payload_clear();
 
+        Live::publish([
+            Live::memberOrdersSurface((int) $user['id']),
+            Live::memberOrderSurface((int) $result['order_id']),
+        ]);
+
         flash_set(
             'success',
             $result['status'] === 'paid'

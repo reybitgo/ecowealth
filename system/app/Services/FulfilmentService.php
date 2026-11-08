@@ -286,7 +286,7 @@ final class FulfilmentService
                 $this->pdo
             );
 
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, (int) $order['user_id']);
 
             return [
                 'order_id'        => $orderId,
@@ -344,7 +344,7 @@ final class FulfilmentService
                 $this->pdo
             );
 
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, (int) $order['user_id']);
 
             return ['order_id' => $orderId, 'status' => 'delivered', 'shipment_id' => $shipmentId];
         });
@@ -392,7 +392,7 @@ final class FulfilmentService
                 $this->pdo
             );
 
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, $userId);
 
             return ['order_id' => $orderId, 'status' => 'completed'];
         });
@@ -498,7 +498,7 @@ final class FulfilmentService
                         $this->pdo
                     );
 
-                    Live::touchOrder($orderId);
+                    Live::touchOrder($orderId, (int) $order['user_id']);
 
                     return $orderId;
                 });
@@ -568,7 +568,7 @@ final class FulfilmentService
                 $this->pdo
             );
 
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, (int) $order['user_id']);
 
             return ['order_id' => $orderId, 'status' => $to];
         });

@@ -303,7 +303,7 @@ final class OrderService
                 Live::touchShop($productIds);
 
                 /* A new order changes the order desk's rows and counters. */
-                Live::touchOrder($orderId);
+                Live::touchOrder($orderId, $userId);
 
                 /* The member page shows how many orders the account placed
                  * and what has been paid to the shop. */
@@ -392,7 +392,7 @@ final class OrderService
 
             Live::touch('admin.products');
             Live::touchShop($productIds);
-            Live::touchOrder($orderId);
+            Live::touchOrder($orderId, $userId);
 
             return ['order_id' => $orderId, 'status' => 'cancelled', 'reason' => $reason];
         });
