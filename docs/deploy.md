@@ -511,6 +511,14 @@ If you imported your existing database, use your existing credentials.
     must survive the refresh and the stale banner must explain why the forms were kept.
 13. Approve that member's activation as the administrator: the member's open `/membership`
     tab should switch from the forms/notice to the active-associate state on its next poll.
+14. Open `<app-url>/shop` in two tabs as a member. Edit a product's price or stock in the
+    back office: the other tab's card and its "left"/"Sold out" badge should update without
+    a refresh. Place an order from a product page and check that the catalogue availability
+    drops on the other tab.
+15. Open one product in two tabs. Change the product's status to inactive: the other tab
+    should swap the card for the "no longer available" state; restore it and the card comes
+    back. Open the quick-view modal after a catalogue refresh and confirm it still opens
+    (the grid was replaced, not the modal).
 
 If the page works but live updates do not:
 

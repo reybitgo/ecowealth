@@ -188,6 +188,11 @@ final class AdminSettingsController
 
         setting_cache_clear();
 
+        /* Turning the shop on or off changes what the catalogue renders. */
+        if (array_key_exists('shop_enabled', $changes)) {
+            Live::touchShop();
+        }
+
         if ($changes !== []) {
             $admin = auth_user();
 

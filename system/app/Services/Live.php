@@ -102,6 +102,14 @@ final class Live
     }
 
     /**
+     * The storefront product detail surface (`shop.product:42`).
+     */
+    public static function shopProductSurface(int $productId): string
+    {
+        return 'shop.product:' . max(0, $productId);
+    }
+
+    /**
      * Bump the order list and one order's detail surface.
      *
      * Every write that changes an order row — placement, a proof, a review
@@ -160,6 +168,31 @@ final class Live
     public static function touchMembership(int $userId): void
     {
         self::touch(self::membershipSurface($userId));
+    }
+
+    /**
+     * Bump the catalogue and one or more product detail pages.
+     *
+     * Every write that can change what the storefront shows — a product
+     * edit, a status change, a delete, or a reservation release/creation
+     * that moves `available` — calls this after the change.
+     *
+     * @param int|list<int> $productIds
+     */
+    public static function touchShop(int|array $productIds = []): void
+    {
+        $ids      = is_array($productIds) ? $productIds : [$productIds];
+        $surfaces = ['shop.catalog'];
+
+        foreach ($ids as $productId) {
+            $productId = (int) $productId;
+
+            if ($productId > 0) {
+                $surfaces[] = self::shopProductSurface($productId);
+            }
+        }
+
+        self::touch($surfaces);
     }
 
     /** Current revision for a surface; a missing row means revision 0. */

@@ -300,6 +300,7 @@ final class OrderService
                 /* The product list's "available" column is derived from
                  * order reservations, not just products.stock. */
                 Live::touch('admin.products');
+                Live::touchShop($productIds);
 
                 /* A new order changes the order desk's rows and counters. */
                 Live::touchOrder($orderId);
@@ -364,6 +365,8 @@ final class OrderService
                 throw OrderException::notCancellable($status);
             }
 
+            $productIds = $this->productIdsForOrder($orderId);
+
             $this->pdo->prepare(
                 "UPDATE shop_orders
                     SET status = 'cancelled', cancelled_at = NOW(), cancelled_reason = ?
@@ -388,6 +391,7 @@ final class OrderService
             );
 
             Live::touch('admin.products');
+            Live::touchShop($productIds);
             Live::touchOrder($orderId);
 
             return ['order_id' => $orderId, 'status' => 'cancelled', 'reason' => $reason];
@@ -420,6 +424,21 @@ final class OrderService
         $row = $stmt->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    /**
+     * Product ids on one order, for the storefront live surfaces.
+     *
+     * @return list<int>
+     */
+    private function productIdsForOrder(int $orderId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT DISTINCT product_id FROM shop_order_items WHERE order_id = ? ORDER BY product_id ASC'
+        );
+        $stmt->execute([$orderId]);
+
+        return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
     /**

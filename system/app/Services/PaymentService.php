@@ -849,9 +849,26 @@ final class PaymentService
         return $row === false ? null : $row;
     }
 
+    /**
+     * Product ids on one order, for the storefront live surfaces.
+     *
+     * @return list<int>
+     */
+    private function productIdsForOrder(int $orderId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT DISTINCT product_id FROM shop_order_items WHERE order_id = ? ORDER BY product_id ASC'
+        );
+        $stmt->execute([$orderId]);
+
+        return array_map(static fn (mixed $id): int => (int) $id, $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     /** Release every held unit on the order (cancellation / rejection). */
     private function releaseReservation(int $orderId): void
     {
+        $productIds = $this->productIdsForOrder($orderId);
+
         $stmt = $this->pdo->prepare(
             "UPDATE shop_order_items
                 SET reservation_state = 'released'
@@ -861,6 +878,7 @@ final class PaymentService
 
         if ($stmt->rowCount() > 0) {
             Live::touch('admin.products');
+            Live::touchShop($productIds);
         }
     }
 
@@ -929,6 +947,7 @@ final class PaymentService
 
         if ($stmt->rowCount() > 0) {
             Live::touch('admin.products');
+            Live::touchShop($productIds);
         }
     }
 

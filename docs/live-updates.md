@@ -4,9 +4,9 @@ The admin product list, the admin dashboard, the order desk (list and one
 order), the wallet monitor (all three tabs and one member's wallet), the
 member directory (list and one member), the activation queue, the
 registration-code list, the commission ledger, the member dashboard's
-E-wallet widgets and the member's own membership page update themselves
-without a full page reload. The same pattern is intended for the other list,
-detail and dashboard pages.
+E-wallet widgets, the member's own membership page and the storefront
+catalogue/product pages update themselves without a full page reload. The
+same pattern is intended for the other list, detail and dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -87,6 +87,8 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   own `/dashboard`, where the E-wallet KPI and card are live regions
 - `membershipSurface($id)` / `touchMembership($id)` — the member's own
   `/membership` page (status, package, activation paths and history)
+- `shopProductSurface($id)` / `touchShop($ids)` — the `shop.catalog` grid
+  plus one or more `shop.product:{id}` detail pages
 
 `Product::save()`, `Product::setStatus()` and `Product::delete()` touch
 `admin.products` after a successful change. A surface must be touched by
@@ -143,6 +145,24 @@ typed code, package, reference or selected proof file is never discarded by a
 background refresh. `touchMembership()` is called by an activation request,
 approval or rejection, a status change, a profile-name change and every wallet
 movement (the e-wallet path shows the balance).
+
+The storefront catalogue is `shop.catalog` and one product is
+`shop.product:{id}`. `touchShop()` bumps the catalogue and every listed
+product page; `Product::save()`, `Product::setStatus()` and
+`Product::delete()` call it, and so does every reservation change — order
+placement, member/admin cancellation, payment rejection, the expiry sweep and
+a re-upload that reserves stock again. Shipping does not call it: the stock
+decrement and the reservation release cancel out, so `available` is
+unchanged. The catalogue renders the heading's result count, the result block
+(closed shop, empty state, grid and pagination) and a quick-view JSON region;
+the search form stays outside them. One product page renders the breadcrumb,
+the shop-closed notice and the product card, with the card held while the
+quantity input is dirty. If a product is deleted or deactivated while its page
+is open, the feed answers 200 with an "unavailable" card instead of a JSON
+404 the client would retry forever; reactivating the product swaps the card
+back. Both surfaces include the shop-open setting in their ETag scope, so
+closing or opening the shop reaches an open tab on its next poll without a
+product write.
 
 `/dashboard` is role-dependent: an administrator is delegated to the admin
 dashboard and keeps the `admin.dashboard` surface, while a member gets
@@ -201,21 +221,25 @@ The admin dashboard uses this hook to destroy and recreate its ApexCharts instan
 the catalogue or stock card is replaced. A deferred region (focus was inside it) is not
 listed in `detail.applied`, so its chart is not re-rendered until the actual swap.
 
-Two page behaviours keep swapped forms working:
+Three page behaviours keep swapped forms working:
 
 - `public/assets/js/app-ship.js` re-runs the courier/“Other courier” toggle after the
   fulfilment card is replaced, because the ship form can be swapped in.
 - `public/assets/js/app-confirm.js` listens on `document` (delegated submit) instead of
   binding each form at load, so a verify/reject/ship/cancel form that a swap inserted
   still asks for confirmation before it posts.
+- The catalogue's quick view is delegated too: the click handler reads the
+  `shop-catalog-quickview` JSON region afresh on every open, and the modal element is
+  static, so replacing the whole product grid never leaves a card's button without a
+  working quick view. The add-to-cart forms are delegated by `app-cart.js`.
 
 `public/assets/js/admin-live.js` is shared by every live surface with a form
-region — the admin pages and the member's `/membership` page: it consumes
-`detail.held` and reveals the page's `[data-live-stale]` banner (“changed in
-another tab, your unsaved input was kept — reload to see the latest”). The banner is
-only shown when a form region was held back; a payload that applied cleanly hides it
-again. A `[data-live-reload]` link in the banner is pointed at the current URL, filters
-and page included.
+region — the admin pages, the member's `/membership` page and the product page:
+it consumes `detail.held` and reveals the page's `[data-live-stale]` banner
+(“changed in another tab, your unsaved input was kept — reload to see the
+latest”). The banner is only shown when a form region was held back; a payload
+that applied cleanly hides it again. A `[data-live-reload]` link in the banner
+is pointed at the current URL, filters and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
@@ -223,7 +247,9 @@ change at midnight even when no row is written. The order desk does the same bec
 include the day: `new_week` counts from `CURDATE()` and the ledger's “this month” total
 moves at the month boundary. The wallet monitor adds the hour as well, because its
 directory shows a relative “last movement” label; a tab left open therefore revalidates
-on its next poll without a write. The navbar notification dropdown sits outside the
+on its next poll without a write. The storefront catalogue and product pages include the
+`shop_enabled` setting for the same reason: closing the shop must reach an open tab
+without a product write. The navbar notification dropdown sits outside the
 dashboard surface and updates on the next full navigation; it is a candidate for a
 future shell surface.
 
@@ -298,9 +324,11 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
+| `shop.catalog` | `/shop` | heading, result states, quick-view JSON |
+| `shop.product:{id}` | `/shop/{id}` | heading, shop-closed notice, product card |
 
-Planned next: `shop.catalog`, `shop.product:{id}`, `member.orders:{userId}`,
-`member.wallet:{userId}`, `member.earnings:{userId}`.
+Planned next: `member.orders:{userId}`, `member.wallet:{userId}`,
+`member.earnings:{userId}`.
 
 ## Deployment
 
