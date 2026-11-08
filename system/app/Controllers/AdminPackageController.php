@@ -16,6 +16,30 @@ final class AdminPackageController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
+        /* The same URL doubles as the JSON feed. The filter form stays
+         * outside the regions; the stats, rows and pagination are live. */
+        if (Live::isFeedRequest()) {
+            $this->feed();
+            return;
+        }
+
+        View::page('admin', 'admin/packages/index', $this->packagesContext() + [
+            'page_title'  => 'Packages',
+            'current_nav' => 'admin.packages',
+            'page_css'    => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
+            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js'],
+            'live'        => Live::meta('admin.packages', Live::scope($_GET, (int) (auth_user()['id'] ?? 0))),
+        ]);
+    }
+
+    /**
+     * Everything the list renders, built once for the page and its feed.
+     * Public so the view tests can assert the real screen data.
+     *
+     * @return array<string, mixed>
+     */
+    public function packagesContext(): array
+    {
         $filters = [
             'q'      => Request::string('q'),
             'status' => Request::string('status'),
@@ -25,18 +49,103 @@ final class AdminPackageController
         $packages = Package::adminList($filters, $pager);
         $ids      = array_map(static fn (array $row): int => (int) $row['id'], $packages);
 
-        View::page('admin', 'admin/packages/index', [
-            'page_title'  => 'Packages',
-            'current_nav' => 'admin.packages',
-            'packages'    => $packages,
-            'pager'       => $pager,
-            'filters'     => $filters,
-            'stats'       => Package::stats(),
-            'levels'      => Package::levelsMap($ids),
-            'contents'    => Package::contentsMap($ids),
-            'page_css'    => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
-            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js'],
-        ]);
+        return [
+            'packages' => $packages,
+            'pager'    => $pager,
+            'filters'  => $filters,
+            'stats'    => Package::stats(),
+            'levels'   => Package::levelsMap($ids),
+            'contents' => Package::contentsMap($ids),
+        ];
+    }
+
+    /**
+     * JSON feed for the open package list.
+     *
+     * The 304 check runs before packagesContext(), so an unchanged list
+     * costs one revision lookup. The status toggle forms render CSRF
+     * fields, so the token is primed before the session lock is released.
+     */
+    private function feed(): void
+    {
+        csrf_token();
+        session_write_close();
+
+        $surface = 'admin.packages';
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, (int) (auth_user()['id'] ?? 0)));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->packagesContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] package list live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the package list. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the package-list payload. Public so tests can assert the
+     * fragments without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.packages',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'package-stats' => View::capture('admin/packages/_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'package-rows' => View::capture('admin/packages/_rows', [
+                    'packages' => $data['packages'],
+                    'filters'  => $data['filters'],
+                    'levels'   => $data['levels'],
+                    'contents' => $data['contents'],
+                ]),
+                'package-pagination' => View::capture('admin/packages/_pagination', [
+                    'pager' => $data['pager'],
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $data['pager']->page,
+                'pages'     => $data['pager']->pages,
+                'total'     => $data['pager']->total,
+                'per_page'  => $data['pager']->perPage,
+                'canonical' => $this->canonicalPackagesUrl($data['pager']),
+            ],
+        ];
+    }
+
+    /** The package list URL with an out-of-range page clamped. */
+    private function canonicalPackagesUrl(Paginator $pager): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        unset($query['page']);
+
+        if ($pager->page > 1) {
+            $query['page'] = (string) $pager->page;
+        }
+
+        $qs = http_build_query($query);
+
+        return url('admin/packages' . ($qs !== '' ? '?' . $qs : ''));
     }
 
     /** @param array<string, string> $params */
@@ -151,7 +260,7 @@ final class AdminPackageController
         Package::save($input, $levels, $normalized['rows'], $id > 0 ? $id : null);
         old_payload_clear();
 
-        Live::publish('admin.dashboard');
+        Live::publish(['admin.dashboard', 'admin.packages', 'shop.packages', Live::CONFIG]);
 
         flash_set('success', $id > 0 ? 'Package updated.' : 'Package created.');
         redirect('admin/packages');
@@ -194,12 +303,12 @@ final class AdminPackageController
                 'changed'     => $changed,
                 'message'     => $message,
                 'status'      => $status,
-                'invalidates' => $changed ? ['admin.dashboard'] : [],
+                'invalidates' => $changed ? ['admin.dashboard', 'admin.packages', 'shop.packages', Live::CONFIG] : [],
             ], $ok ? 200 : 422);
         }
 
         if ($changed) {
-            Live::publish('admin.dashboard');
+            Live::publish(['admin.dashboard', 'admin.packages', 'shop.packages', Live::CONFIG]);
         }
 
         flash_set($ok ? 'success' : 'danger', $message);

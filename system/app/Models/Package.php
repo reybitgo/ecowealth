@@ -490,6 +490,7 @@ final class Package
         }
 
         Live::touch('admin.dashboard');
+        Live::touchPackages();
 
         return $packageId;
     }
@@ -511,6 +512,7 @@ final class Package
 
         if ((string) $package['status'] !== $status) {
             Live::touch('admin.dashboard');
+            Live::touchPackages();
         }
 
         return true;

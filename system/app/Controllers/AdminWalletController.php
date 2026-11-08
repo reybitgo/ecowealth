@@ -525,6 +525,7 @@ final class AdminWalletController
             'admin.wallets',
             Live::walletSurface($userId),
             Live::memberWalletSurface($userId),
+            Live::checkoutSurface($userId),
             Live::memberDashboardSurface($userId),
             Live::membershipSurface($userId),
         ]);

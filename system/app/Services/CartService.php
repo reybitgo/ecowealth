@@ -178,7 +178,7 @@ final class CartService
             throw CartException::productInactive((string) $product['name']);
         }
 
-        return $this->withTransaction(function () use ($userId, $productId, $quantity): array {
+        $result = $this->withTransaction(function () use ($userId, $productId, $quantity): array {
             $cart   = $this->lockCart($userId, true);
             $cartId = (int) $cart['id'];
 
@@ -212,6 +212,11 @@ final class CartService
 
             return $this->mutationResult($userId, $cartId, $itemId, false);
         });
+
+        /* An open checkout summary re-prices from the cart. */
+        Live::touchCheckout($userId);
+
+        return $result;
     }
 
     /**
@@ -231,12 +236,16 @@ final class CartService
             throw CartException::quantityTooLarge(self::MAX_QUANTITY);
         }
 
-        return $this->withTransaction(function () use ($userId, $itemId, $quantity): array {
+        $result = $this->withTransaction(function () use ($userId, $itemId, $quantity): array {
             $cart   = $this->lockCart($userId, false);
             $cartId = (int) $cart['id'];
 
             return $this->applyQuantity($userId, $cartId, $this->lockItem($cartId, $itemId), $quantity);
         });
+
+        Live::touchCheckout($userId);
+
+        return $result;
     }
 
     /**
@@ -255,7 +264,7 @@ final class CartService
             throw CartException::quantity();
         }
 
-        return $this->withTransaction(function () use ($userId, $itemId, $delta): array {
+        $result = $this->withTransaction(function () use ($userId, $itemId, $delta): array {
             $cart   = $this->lockCart($userId, false);
             $cartId = (int) $cart['id'];
             $item   = $this->lockItem($cartId, $itemId);
@@ -264,6 +273,10 @@ final class CartService
 
             return $this->applyQuantity($userId, $cartId, $item, $quantity);
         });
+
+        Live::touchCheckout($userId);
+
+        return $result;
     }
 
     /**
@@ -311,7 +324,7 @@ final class CartService
      */
     public function remove(int $userId, int $itemId): array
     {
-        return $this->withTransaction(function () use ($userId, $itemId): array {
+        $result = $this->withTransaction(function () use ($userId, $itemId): array {
             $cart   = $this->lockCart($userId, false);
             $cartId = (int) $cart['id'];
 
@@ -324,18 +337,26 @@ final class CartService
 
             return $this->mutationResult($userId, $cartId, null, true);
         });
+
+        Live::touchCheckout($userId);
+
+        return $result;
     }
 
     /** Delete every line in the member's active cart. */
     public function clear(int $userId): bool
     {
-        return $this->withTransaction(function () use ($userId): bool {
+        $result = $this->withTransaction(function () use ($userId): bool {
             $cart = $this->lockCart($userId, false);
 
             $this->pdo->prepare('DELETE FROM cart_items WHERE cart_id = ?')->execute([(int) $cart['id']]);
 
             return true;
         });
+
+        Live::touchCheckout($userId);
+
+        return $result;
     }
 
     /**
@@ -344,7 +365,7 @@ final class CartService
      */
     public function convert(int $userId): bool
     {
-        return $this->withTransaction(function () use ($userId): bool {
+        $result = $this->withTransaction(function () use ($userId): bool {
             $stmt = $this->pdo->prepare(
                 "UPDATE carts SET status = 'converted' WHERE user_id = ? AND status = 'active'"
             );
@@ -352,6 +373,12 @@ final class CartService
 
             return $stmt->rowCount() > 0;
         });
+
+        if ($result) {
+            Live::touchCheckout($userId);
+        }
+
+        return $result;
     }
 
     /** Refresh line snapshots from the live catalogue (§5.2). */

@@ -3,13 +3,15 @@
 The admin product list, the admin dashboard, the order desk (list and one
 order), the wallet monitor (all three tabs and one member's wallet), the
 member directory (list and one member), the activation queue, the
-registration-code list, the commission ledger, the member dashboard's
-E-wallet widgets, the member's own membership page, the member's own
-e-wallet statement and earnings page, the member's genealogy and profile
-pages, the checkout page's saved-address picker, the member's order
-history and one order page, and the storefront catalogue/product pages
-update themselves without a full page reload. The same pattern is intended
-for the other list, detail and dashboard pages.
+registration-code list, the commission ledger, the admin package list and
+the member package catalogue, the admin settings page, the member
+dashboard's E-wallet widgets, the member's own membership page, the
+member's own e-wallet statement and earnings page, the member's genealogy
+and profile pages, the checkout page (saved addresses, order summary and
+payment/wallet card), the member's order history and one order page, and
+the storefront catalogue/product pages update themselves without a full
+page reload. The same pattern is intended for the other list, detail and
+dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -100,10 +102,17 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   shared `GENEALOGY_TEAM` revision into its ETag
 - `profileSurface($id)` / `touchProfile($id)` — the member's own `/profile`
   page (name, payout accounts and address book)
-- `checkoutSurface($id)` / `touchCheckout($id)` — the saved-address picker on
-  `/checkout`
+- `checkoutSurface($id)` / `touchCheckout($id)` — the checkout page's saved
+  addresses, order summary and payment/wallet card
 - `touchAddressBook($id)` — bumps the profile and checkout surfaces together
   after an address-book write
+- `touchPackages()` — bumps the `admin.packages` list, the `shop.packages`
+  catalogue and the shared `CONFIG` revision
+- `touchSettings()` — bumps the `admin.settings` page and the shared `CONFIG`
+  revision
+- `CONFIG` / `revisionOrZero($surface)` — the shared configuration revision
+  mixed into the membership and order ETags, and a safe read used while a
+  scope is being built
 - `membershipSurface($id)` / `touchMembership($id)` — the member's own
   `/membership` page (status, package, activation paths and history)
 - `shopProductSurface($id)` / `touchShop($ids)` — the `shop.catalog` grid
@@ -188,13 +197,19 @@ scope is the query string plus the member; the page has no clock-relative
 label. Address writes call `touchAddressBook()`, which bumps this surface and
 the checkout picker; a full-name or payout save calls `touchProfile()`.
 
-The shared `checkoutSurface:{id}` belongs to the saved-address picker on
-`/checkout`. Only that card is a region — the delivery, payment and terms form
-stays outside every region so a refresh never disturbs the member's input. The
-wrapper is always present and `hidden` while the book is empty, so the first
-saved address can appear live; the `address` query selects the highlighted
-card, and a stale id falls back to the default and is removed from the
-canonical URL.
+The shared `checkoutSurface:{id}` belongs to `/checkout`. It renders three
+regions: the saved-address picker, the order summary and the payment/wallet
+card. The summary has no input and is replaced freely; the payment card owns
+the radio choice, so it carries `data-live-hold="dirty"` and the page shows
+the stale banner. The delivery form, the terms card and the summary footer
+(the Place order button) stay static, so `app-checkout.js` keeps its binding.
+The address wrapper is always present and `hidden` while the book is empty, so
+the first saved address can appear live; the `address` query selects the
+highlighted card, and a stale id falls back to the default and is removed from
+the canonical URL. The ETag scope includes the `shop.catalog` revision, so a
+price or stock change re-renders the summary without touching every member's
+cart; `CartService` and `WalletService` bump the per-member checkout surface
+after a cart or balance movement.
 
 The member directory and one member page are two surfaces: `admin.members`
 and `admin.members:{id}`. `touchMember()` bumps both. It is called by
@@ -215,6 +230,26 @@ expiry sweep; the commission ledger by every credited or skipped award. The
 activation queue's `<tbody>` is a held region: the rejection reason is typed
 directly into the table, so the client keeps the rows while that input is
 dirty and the page shows its stale banner.
+
+The admin package list is `admin.packages`. The counters, keyed rows and
+pagination are regions; the search/status form stays outside them, and the
+status toggle is a normal POST whose CSRF field is primed before the feed
+closes the session. Every `Package::save()` and a real `Package::setStatus()`
+bump it and the member catalogue `shop.packages` through `touchPackages()`,
+which also moves the shared `CONFIG` revision because the membership
+activation options read the active packages. The member package page renders
+one `package-cards` region (the grid or the empty state); the heading and the
+explanatory alert stay static.
+
+The admin settings page is `admin.settings`. It renders five regions: the
+placeholder-accounts notice and the four card bodies (shop, receiving
+accounts, payment windows, fulfilment & invoices). Each body is held while the
+admin has typed into that card, and the card headers, footers and Save buttons
+stay static. A settings save calls `touchSettings()`, which bumps this surface
+and the shared `CONFIG` revision; the membership and order pages include that
+revision in their ETags because their activation channels and payment
+instructions read the receiving accounts. A `shop_enabled` change also keeps
+the existing `touchShop()` call.
 
 The member's own `/membership` page is `member.membership:{id}`. It renders
 four regions: the heading with the status badge, the current-membership card,
@@ -318,13 +353,13 @@ Three page behaviours keep swapped forms working:
 
 `public/assets/js/admin-live.js` is shared by every live surface with a form
 region — the admin pages, the member's `/membership` page, the member's own
-`/wallet` statement, the member's `/profile` page, the member order page and
-the product page: it consumes `detail.held` and reveals the page's
-`[data-live-stale]` banner (“changed in another tab, your unsaved input was
-kept — reload to see the latest”). The banner is only shown when a form region
-was held back; a payload that applied cleanly hides it again. A
-`[data-live-reload]` link in the banner is pointed at the current URL, filters
-and page included.
+`/wallet` statement, the member's `/profile` page, the admin settings page,
+the checkout page, the member order page and the product page: it consumes
+`detail.held` and reveals the page's `[data-live-stale]` banner (“changed in
+another tab, your unsaved input was kept — reload to see the latest”). The
+banner is only shown when a form region was held back; a payload that applied
+cleanly hides it again. A `[data-live-reload]` link in the banner is pointed at
+the current URL, filters and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
@@ -337,8 +372,11 @@ on its next poll without a write. The member earnings page adds the hour too, be
 page adds the hour too, because its payment/correction window labels read the clock. Every
 genealogy page adds the shared team revision instead of a clock: an activation, a status
 change or a profile-name change rewrites the upline row on a descendant's page, so the
-per-page key alone would leave half the tree stale. The storefront catalogue and product
-pages include the `shop_enabled` setting for the same reason: closing the shop must
+per-page key alone would leave half the tree stale. The membership and member order pages
+add the shared `CONFIG` revision because their activation channels and payment
+instructions read the receiving accounts. The checkout page adds the `shop.catalog`
+revision so a price or stock change re-renders its summary. The storefront catalogue and
+product pages include the `shop_enabled` setting for the same reason: closing the shop must
 reach an open tab without a product write. The navbar notification dropdown sits outside
 the dashboard surface and updates on the next full navigation; it is a candidate for a
 future shell surface.
@@ -412,20 +450,22 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.activations` | `/admin/activations` | header, stats, tabs, rows, pagination |
 | `admin.codes` | `/admin/codes` | stats, rows, pagination |
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
+| `admin.packages` | `/admin/packages` | stats, rows, pagination |
+| `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payment windows, fulfilment & invoices |
 | `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, statement |
 | `member.earnings:{id}` | `/earnings` | stats, skipped notice, header, rows, pagination |
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |
-| `member.checkout:{id}` | `/checkout` | saved-address picker |
+| `member.checkout:{id}` | `/checkout` | saved addresses, order summary, payment/wallet card |
 | `member.orders:{id}` | `/orders` | rows, pagination |
 | `member.order:{id}` | `/orders/{id}` | header, status, payment attempts, delivery, payment summary, history |
 | `shop.catalog` | `/shop` | heading, result states, quick-view JSON |
 | `shop.product:{id}` | `/shop/{id}` | heading, shop-closed notice, product card |
+| `shop.packages` | `/packages` | package cards, empty state |
 
-Planned next: the admin package list, the admin settings page and the rest of
-the checkout flow.
+Planned next: the cart page and the remaining dashboard/form widgets.
 
 ## Deployment
 

@@ -24,7 +24,7 @@ declare(strict_types=1);
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
-$posted = old_payload();
+$posted = $posted ?? old_payload();
 
 $value = static function (string $key, string $default = '') use ($posted, $prefill): string {
     if (array_key_exists($key, $posted)) {
@@ -33,18 +33,6 @@ $value = static function (string $key, string $default = '') use ($posted, $pref
 
     return e((string) ($prefill[$key] ?? $default));
 };
-
-$selectedMethod = (string) ($posted['payment_method'] ?? '');
-
-if (!isset($payment_methods[$selectedMethod]) || !$payment_methods[$selectedMethod]['available']) {
-    $selectedMethod = '';
-    foreach ($payment_methods as $key => $method) {
-        if ($method['available']) {
-            $selectedMethod = $key;
-            break;
-        }
-    }
-}
 
 /* Terms are accepted by default; a failed submit keeps the unticked state
  * so the member sees exactly what they need to fix. */
@@ -56,7 +44,6 @@ $key = array_key_exists('idempotency_key', $posted) && (string) $posted['idempot
     ? (string) $posted['idempotency_key']
     : $idempotency_key;
 $selectedId = (int) ($selected_id ?? (isset($selected) && $selected !== null ? (int) $selected['id'] : 0));
-$subtotal   = (float) ($state['totals']['subtotal'] ?? 0);
 
 $live = $live ?? [
     'surface'  => Live::checkoutSurface((int) (auth_user()['id'] ?? 0)),
@@ -74,6 +61,18 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
+                <i class="icon-base bx bx-error-circle fs-5"></i>
+                <div>
+                  <strong>Your checkout changed in another tab.</strong>
+                  Your unsaved payment choice was kept, so this page may be out of date.
+                  <a href="<?= e(url('checkout')) ?>" class="alert-link" data-live-reload>
+                    Reload the page
+                  </a>
+                  to see the latest.
+                </div>
+              </div>
+
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">Checkout</h4>
@@ -212,38 +211,10 @@ $live = $live ?? [
                       <div class="card-header">
                         <h5 class="mb-0">Payment method</h5>
                       </div>
-                      <div class="card-body">
-                        <div class="row g-3">
-<?php foreach ($payment_methods as $methodKey => $method): ?>
-                          <div class="col-12 col-md-6">
-                            <label class="checkout-payment-option<?= $method['available'] ? '' : ' is-disabled' ?><?= $selectedMethod === $methodKey ? ' is-selected' : '' ?>">
-                              <input
-                                type="radio"
-                                name="payment_method"
-                                value="<?= e($methodKey) ?>"
-                                class="form-check-input mt-0"
-                                <?= $selectedMethod === $methodKey ? 'checked' : '' ?>
-                                <?= $method['available'] ? '' : 'disabled' ?>
-                                required
-                              />
-                              <span class="checkout-payment-icon"><i class="icon-base <?= e(icon_class($method['icon'])) ?>"></i></span>
-                              <span class="checkout-payment-text">
-                                <span class="d-block fw-medium"><?= e($method['label']) ?></span>
-<?php if (isset($method['balance'])): ?>
-                                <span class="checkout-payment-balance<?= $method['available'] ? '' : ' is-short' ?>" data-wallet-balance>
-                                  Balance <?= e(money((float) $method['balance'])) ?>
-                                </span>
-<?php endif; ?>
-                                <span class="d-block small text-body-secondary"><?= e($method['hint']) ?></span>
-                              </span>
-                            </label>
-                          </div>
-<?php endforeach; ?>
-                        </div>
-<?php if (has_error('payment_method')): ?>
-                        <div class="text-danger small mt-2"><?= e(error_for('payment_method')) ?></div>
-<?php endif; ?>
-                      </div>
+<?= View::capture('shop/checkout/_payment', [
+    'payment_methods' => $payment_methods,
+    'posted'          => $posted,
+]) ?>
                     </div>
 
                     <div class="card checkout-card">
@@ -266,47 +237,11 @@ $live = $live ?? [
                       <div class="card-header">
                         <h5 class="mb-0">Order summary</h5>
                       </div>
-                      <div class="card-body">
-                        <ul class="list-unstyled checkout-summary-items mb-0">
-<?php foreach ($state['items'] as $item): ?>
-                          <li class="d-flex justify-content-between gap-3 py-2 border-bottom">
-                            <div class="min-w-0">
-                              <div class="fw-medium"><?= e((string) $item['product_name']) ?></div>
-                              <div class="small text-body-secondary"><?= (int) $item['quantity'] ?> × <?= e(money((float) $item['current_price'])) ?></div>
-                            </div>
-                            <span class="text-nowrap fw-semibold"><?= e(money((float) $item['line_total'])) ?></span>
-                          </li>
-<?php endforeach; ?>
-                        </ul>
-
-                        <div class="d-flex justify-content-between mt-4">
-                          <span class="text-body-secondary">Items</span>
-                          <span><?= (int) $state['totals']['quantity'] ?></span>
-                        </div>
-                        <div class="d-flex justify-content-between mt-2">
-                          <span class="text-body-secondary">Subtotal</span>
-                          <span><?= e(money($subtotal)) ?></span>
-                        </div>
-                        <div class="d-flex justify-content-between mt-2">
-                          <span class="text-body-secondary">Shipping</span>
-                          <span class="text-body-secondary">Free</span>
-                        </div>
-                        <div class="d-flex justify-content-between pt-3 mt-3 border-top fw-semibold fs-5">
-                          <span>Total</span>
-                          <span><?= e(money($subtotal)) ?></span>
-                        </div>
-
-                        <div class="checkout-wallet-note mt-4">
-                          <div class="d-flex align-items-center justify-content-between gap-2">
-                            <span class="small text-body-secondary"><i class="icon-base bx bx-wallet me-1"></i> E-wallet</span>
-                            <span class="fw-semibold"><?= e(money($wallet['balance'])) ?></span>
-                          </div>
-                          <div class="small text-body-secondary mt-1">
-                            <?= e(money($wallet['withdrawable'])) ?> of it is withdrawable.
-                            <a href="<?= e(url('wallet')) ?>">View wallet</a>
-                          </div>
-                        </div>
-
+<?= View::capture('shop/checkout/_summary', [
+    'state'  => $state,
+    'wallet' => $wallet,
+]) ?>
+                      <div class="card-body pt-0">
                         <button
                           type="submit"
                           class="btn btn-primary w-100 mt-4"

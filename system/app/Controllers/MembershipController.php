@@ -62,7 +62,7 @@ final class MembershipController
             'page_js'     => ['assets/js/admin-live.js'],
             'live'        => Live::meta(
                 Live::membershipSurface($userId),
-                Live::scope($_GET, $userId)
+                $this->membershipScope($userId)
             ),
         ]);
     }
@@ -151,7 +151,7 @@ final class MembershipController
 
         try {
             $revision = Live::revision($surface);
-            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+            $etag     = Live::etag($surface, $revision, $this->membershipScope($userId));
 
             if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
                 Live::notModified($etag);
@@ -224,6 +224,19 @@ final class MembershipController
                 'canonical' => $this->canonicalMembershipUrl($pager),
             ],
         ];
+    }
+
+    /**
+     * ETag scope for the membership page.
+     *
+     * The query string and the member keep filters and pages apart; the
+     * shared config revision refreshes the activation channels when an
+     * admin edits the receiving accounts or a package.
+     */
+    private function membershipScope(int $userId): string
+    {
+        return Live::scope($_GET, $userId)
+            . '|config:' . Live::revisionOrZero(Live::CONFIG);
     }
 
     /** The membership URL with an out-of-range history page clamped. */
@@ -307,6 +320,7 @@ final class MembershipController
             $publish[] = 'admin.commissions';
             $publish[] = Live::walletSurface($memberId);
             $publish[] = Live::memberWalletSurface($memberId);
+            $publish[] = Live::checkoutSurface($memberId);
             $publish[] = Live::GENEALOGY_TEAM;
         }
 

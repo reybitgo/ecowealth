@@ -591,6 +591,9 @@ final class WalletService
         /* The member's own statement shows the same buckets and rows. */
         Live::touchMemberWallet($userId);
 
+        /* The checkout page's e-wallet option and summary read the buckets. */
+        Live::touchCheckout($userId);
+
         /* The member's own dashboard shows the same two buckets. */
         Live::touchMemberDashboard($userId);
 

@@ -116,20 +116,113 @@ final class AdminSettingsController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        View::page('admin', 'admin/settings/index', [
-            'page_title'      => 'Settings',
-            'current_nav'     => 'admin.settings',
-            'page_css'        => ['assets/css/orders.css'],
-            'settings'        => setting_all(),
-            'account_groups'  => self::ACCOUNT_GROUPS,
-            'window_fields'   => self::WINDOW_FIELDS,
-            'seller_fields'   => self::SELLER_FIELDS,
-            'fulfilment_fields' => self::FULFILMENT_FIELDS,
-            'shop_enabled'    => setting_bool('shop_enabled', true),
-            'expiry_enabled'  => setting_bool('shop_expiry_enabled', true),
-            'autocomplete_enabled' => FulfilmentService::autoCompleteEnabled(),
-            'manual_open'     => $this->manualMethodsConfigured(),
+        /* The same URL doubles as the JSON feed. Each card body is a held
+         * region; the forms, headers and footers stay static. */
+        if (Live::isFeedRequest()) {
+            $this->feed();
+            return;
+        }
+
+        View::page('admin', 'admin/settings/index', $this->settingsContext() + [
+            'page_title'  => 'Settings',
+            'current_nav' => 'admin.settings',
+            'page_css'    => ['assets/css/orders.css'],
+            'page_js'     => ['assets/js/admin-live.js'],
+            'live'        => Live::meta('admin.settings', Live::scope($_GET, (int) (auth_user()['id'] ?? 0))),
         ]);
+    }
+
+    /**
+     * Everything the settings page renders, built once for the page and
+     * its feed. Public so the view tests can assert the real screen data.
+     *
+     * @return array<string, mixed>
+     */
+    public function settingsContext(): array
+    {
+        return [
+            'settings'          => setting_all(),
+            'account_groups'    => self::ACCOUNT_GROUPS,
+            'window_fields'     => self::WINDOW_FIELDS,
+            'seller_fields'     => self::SELLER_FIELDS,
+            'fulfilment_fields' => self::FULFILMENT_FIELDS,
+            'shop_enabled'      => setting_bool('shop_enabled', true),
+            'expiry_enabled'    => setting_bool('shop_expiry_enabled', true),
+            'autocomplete_enabled' => FulfilmentService::autoCompleteEnabled(),
+            'manual_open'       => $this->manualMethodsConfigured(),
+        ];
+    }
+
+    /**
+     * JSON feed for the open settings page.
+     *
+     * The 304 check runs before settingsContext(), so an unchanged page
+     * costs one revision lookup and no settings reads. The card-body
+     * fragments hold no form/CSRF field (the form wraps the whole card),
+     * so the session lock is released immediately.
+     */
+    private function feed(): void
+    {
+        session_write_close();
+
+        $surface = 'admin.settings';
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, (int) (auth_user()['id'] ?? 0)));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->settingsContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] settings live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the settings. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the settings payload. Public so tests can assert the
+     * fragments without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.settings',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'settings-notice' => View::capture('admin/settings/_notice', [
+                    'manual_open' => $data['manual_open'],
+                ]),
+                'settings-shop' => View::capture('admin/settings/_shop', [
+                    'settings' => $data['settings'],
+                ]),
+                'settings-accounts' => View::capture('admin/settings/_accounts', [
+                    'settings'       => $data['settings'],
+                    'account_groups' => $data['account_groups'],
+                ]),
+                'settings-windows' => View::capture('admin/settings/_windows', [
+                    'settings'       => $data['settings'],
+                    'window_fields'  => $data['window_fields'],
+                    'expiry_enabled' => $data['expiry_enabled'],
+                ]),
+                'settings-fulfilment' => View::capture('admin/settings/_fulfilment', [
+                    'settings'             => $data['settings'],
+                    'seller_fields'        => $data['seller_fields'],
+                    'fulfilment_fields'    => $data['fulfilment_fields'],
+                    'autocomplete_enabled' => $data['autocomplete_enabled'],
+                ]),
+            ],
+            'meta'      => [
+                'canonical' => url('admin/settings'),
+            ],
+        ];
     }
 
     /**
@@ -194,6 +287,12 @@ final class AdminSettingsController
         }
 
         if ($changes !== []) {
+            /* The settings page itself and every page whose regions read a
+             * setting (membership channels, order payment instructions)
+             * revalidate from the shared config revision. */
+            Live::touchSettings();
+            Live::publish(['admin.settings', Live::CONFIG]);
+
             $admin = auth_user();
 
             AuditLog::record([

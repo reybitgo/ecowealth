@@ -216,7 +216,12 @@ final class OrderController
      */
     private function detailScope(int $userId): string
     {
-        return Live::scope($_GET, $userId) . '|hour:' . date('Y-m-d H');
+        /* The payment instructions read the configured receiving accounts
+         * and the completion copy reads the auto-complete window, so the
+         * shared config revision is part of the scope too. */
+        return Live::scope($_GET, $userId)
+            . '|hour:' . date('Y-m-d H')
+            . '|config:' . Live::revisionOrZero(Live::CONFIG);
     }
 
     /**

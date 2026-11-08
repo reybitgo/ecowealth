@@ -544,6 +544,16 @@ If you imported your existing database, use your existing credentials.
 22. Open `<app-url>/checkout` and `<app-url>/profile` in two tabs. Add an address on the
     profile tab: the checkout tab's saved-address card should appear or update without a
     reload, while the delivery form keeps whatever was typed.
+23. Open `<app-url>/admin/packages` in two tabs and `<app-url>/packages` in a member tab.
+    Edit a package's price or toggle its status in one admin tab: the other admin tab's
+    counters and row, and the member's package card, should update without a refresh.
+24. Open `<app-url>/admin/settings` in two tabs. Change the receiving accounts in one:
+    the other tab's card should update on its next poll. Type into a different card first;
+    the typed value must survive and the stale banner must appear instead of replacing it.
+25. Open `<app-url>/checkout` in two tabs (with items in the cart). Change a quantity in
+    the cart tab: the other checkout tab's order summary should re-price without a
+    reload. Top up the wallet: the e-wallet option and balance note should update; if a
+    payment method was typed/selected first, the card is held and the banner explains why.
 
 If the page works but live updates do not:
 

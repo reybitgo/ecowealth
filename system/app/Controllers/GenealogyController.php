@@ -139,16 +139,8 @@ final class GenealogyController
      */
     private function genealogyScope(int $userId): string
     {
-        $team = 0;
-
-        try {
-            $team = Live::revision(Live::GENEALOGY_TEAM);
-        } catch (Throwable) {
-            /* Live::meta() reports the missing table once and turns the
-             * surface off; the page must still render. */
-        }
-
-        return Live::scope($_GET, $userId) . '|team:' . $team;
+        return Live::scope($_GET, $userId)
+            . '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM);
     }
 
     /**

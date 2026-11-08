@@ -94,6 +94,30 @@ return [
         assert_same($profileBefore, Live::revision(Live::profileSurface($id)), 'a refused save does not bump');
     },
 
+    'cart and wallet movements bump the checkout surface' => function () use ($makeMember): void {
+        $member  = $makeMember();
+        $id      = (int) $member['id'];
+        $product = Product::save([
+            'name'   => 'Checkout Bump Product',
+            'sku'    => 'CBP-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'  => '150.00',
+            'stock'  => '20',
+            'status' => 'active',
+        ]);
+
+        $before = Live::revision(Live::checkoutSurface($id));
+
+        (new CartService())->add($id, $product, 1);
+
+        assert_same($before + 1, Live::revision(Live::checkoutSurface($id)), 'cart add');
+
+        $before = Live::revision(Live::checkoutSurface($id));
+
+        (new WalletService())->credit($id, '200.00', 'adjustment', 987101, 'Checkout funds');
+
+        assert_same($before + 1, Live::revision(Live::checkoutSurface($id)), 'wallet credit');
+    },
+
     'the profile feed renders the name, payout and address regions' => function () use ($makeMember, $validPayments): void {
         $member = $makeMember();
         $id     = (int) $member['id'];
@@ -252,6 +276,16 @@ return [
         $id      = (int) $member['id'];
         $book    = new AddressService();
 
+        $product = Product::save([
+            'name'   => 'Checkout Live Product',
+            'sku'    => 'CPL-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'  => '300.00',
+            'stock'  => '20',
+            'status' => 'active',
+        ]);
+        (new CartService())->add($id, $product, 2);
+        (new WalletService())->credit($id, '1000.00', 'adjustment', 987001, 'Checkout live funds');
+
         $first = $book->save($id, [
             'label'          => 'Home',
             'recipient_name' => 'Checkout Owner',
@@ -271,52 +305,74 @@ return [
         $_SERVER['REQUEST_URI'] = '/ecowealth/system/checkout?address=' . $first;
 
         $controller = new CheckoutController();
-        $payload    = $controller->addressFeedPayload(
+        $payload    = $controller->feedPayload(
             3,
             '"member.checkout:' . $id . ':3:abc"',
-            $controller->addressContext($id)
+            $controller->checkoutContext(Member::find($id))
         );
 
         assert_same('member.checkout:' . $id, $payload['surface']);
-        assert_same(['checkout-addresses'], array_keys($payload['fragments']));
+        assert_same(
+            ['checkout-addresses', 'checkout-summary', 'checkout-payment'],
+            array_keys($payload['fragments'])
+        );
 
-        $html = $payload['fragments']['checkout-addresses'];
+        $addresses = $payload['fragments']['checkout-addresses'];
+        $summary   = $payload['fragments']['checkout-summary'];
+        $payment   = $payload['fragments']['checkout-payment'];
 
-        assert_contains('data-live-region="checkout-addresses"', $html);
-        assert_not_contains('checkout-addresses" hidden', $html);
-        assert_contains('Saved addresses', $html);
-        assert_contains('Checkout Owner', $html);
-        assert_contains('12 Mabini Street', $html);
-        assert_contains('99 Ayala Avenue', $html);
-        assert_contains('Manage addresses', $html);
-        assert_contains('checkout?address=' . $first, $html);
-        assert_contains('Selected', $html);
-        assert_contains('Default', $html);
+        assert_contains('data-live-region="checkout-addresses"', $addresses);
+        assert_not_contains('checkout-addresses" hidden', $addresses);
+        assert_contains('Saved addresses', $addresses);
+        assert_contains('Checkout Owner', $addresses);
+        assert_contains('12 Mabini Street', $addresses);
+        assert_contains('99 Ayala Avenue', $addresses);
+        assert_contains('Manage addresses', $addresses);
+        assert_contains('checkout?address=' . $first, $addresses);
+        assert_contains('Selected', $addresses);
+        assert_contains('Default', $addresses);
+
+        assert_contains('data-live-region="checkout-summary"', $summary);
+        assert_contains('Checkout Live Product', $summary);
+        assert_contains(money(600), $summary);
+        assert_contains('E-wallet', $summary);
+        assert_contains(money(1000), $summary, 'the live wallet note follows the balance');
+        assert_contains('View wallet', $summary);
+        assert_not_contains('data-live-hold', $summary, 'the summary has no input to hold');
+
+        assert_contains('data-live-region="checkout-payment"', $payment);
+        assert_contains('data-live-hold="dirty"', $payment);
+        assert_contains('name="payment_method"', $payment);
+        assert_contains('value="ewallet"', $payment);
+        assert_contains('value="gcash"', $payment);
+        assert_contains('Balance ' . money(1000), $payment);
+        assert_contains('checked', $payment);
+
         assert_contains('checkout?address=' . $first, (string) $payload['meta']['canonical']);
 
         /* A stale address id falls back to the default and drops from the URL. */
         $_GET = ['address' => '999999'];
         $_SERVER['REQUEST_URI'] = '/ecowealth/system/checkout?address=999999';
 
-        $stale = $controller->addressFeedPayload(
+        $stale = $controller->feedPayload(
             4,
             '"member.checkout:' . $id . ':4:def"',
-            $controller->addressContext($id)
+            $controller->checkoutContext(Member::find($id))
         );
 
         assert_same(url('checkout'), $stale['meta']['canonical']);
         assert_contains('Selected', $stale['fragments']['checkout-addresses']);
 
         /* An empty book renders the hidden wrapper and no card. */
-        $empty = $makeMember();
+        $empty   = $makeMember();
         $emptyId = (int) $empty['id'];
         $_GET = [];
         $_SERVER['REQUEST_URI'] = '/ecowealth/system/checkout';
 
-        $emptyPayload = $controller->addressFeedPayload(
+        $emptyPayload = $controller->feedPayload(
             1,
             '"member.checkout:' . $emptyId . ':1:x"',
-            $controller->addressContext($emptyId)
+            $controller->checkoutContext(Member::find($emptyId))
         );
 
         $emptyHtml = $emptyPayload['fragments']['checkout-addresses'];
@@ -326,7 +382,7 @@ return [
         assert_same(url('checkout'), $emptyPayload['meta']['canonical']);
     },
 
-    'the checkout page declares its live surface and address region' => function () use ($makeMember): void {
+    'the checkout page declares its live surface and regions' => function () use ($makeMember): void {
         $member = $makeMember();
 
         (new AddressService())->save((int) $member['id'], [
@@ -334,44 +390,33 @@ return [
             'address_line'   => '12 Mabini Street',
         ]);
 
+        $product = Product::save([
+            'name'   => 'Checkout Page Product',
+            'sku'    => 'CPP-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'  => '250.00',
+            'stock'  => '20',
+            'status' => 'active',
+        ]);
+        (new CartService())->add((int) $member['id'], $product, 1);
+
         test_signed_in_as($member);
 
         $_GET = [];
         $_SERVER['REQUEST_URI'] = '/ecowealth/system/checkout';
 
         $controller = new CheckoutController();
-        $context    = $controller->addressContext((int) $member['id']);
+        $context    = $controller->checkoutContext(Member::find((int) $member['id']));
 
         ob_start();
 
         try {
-            View::page('member', 'shop/checkout', [
+            View::page('member', 'shop/checkout', $context + [
                 'page_title'      => 'Checkout',
                 'current_nav'     => 'cart',
                 'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
-                'page_js'         => ['assets/js/app-checkout.js'],
-                'state'           => ['items' => [], 'totals' => ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0]],
-                'addresses'       => $context['addresses'],
-                'selected'        => $context['selected'],
-                'selected_id'     => $context['selected_id'],
-                'prefill'         => [
-                    'billing_name'      => '',
-                    'billing_phone'     => '',
-                    'shipping_name'     => '',
-                    'shipping_phone'    => '',
-                    'shipping_address'  => '',
-                    'shipping_barangay' => '',
-                    'shipping_city'     => '',
-                    'shipping_province' => '',
-                    'shipping_postal'   => '',
-                    'notes_member'      => '',
-                ],
-                'wallet'          => ['balance' => 0.0, 'withdrawable' => 0.0],
-                'payment_methods' => [
-                    'gcash' => ['label' => 'GCash', 'icon' => 'bx-mobile-alt', 'hint' => 'Manual', 'available' => true],
-                ],
-                'terms_version'   => OrderService::TERMS_VERSION,
+                'page_js'         => ['assets/js/app-checkout.js', 'assets/js/admin-live.js'],
                 'idempotency_key' => 'checkout-key',
+                'shop_open'       => true,
                 'live'            => Live::meta(Live::checkoutSurface((int) $member['id']), 'page'),
             ]);
         } finally {
@@ -382,9 +427,15 @@ return [
         assert_contains('data-live-enabled="1"', $html);
         assert_contains('data-live-interval="30000"', $html);
         assert_contains('data-live-region="checkout-addresses"', $html);
+        assert_contains('data-live-region="checkout-summary"', $html);
+        assert_contains('data-live-region="checkout-payment"', $html);
+        assert_contains('data-live-hold="dirty"', $html);
         assert_contains('data-live-status', $html);
-        assert_not_contains('data-live-stale', $html, 'the address card has no form to hold');
+        assert_contains('data-live-stale', $html);
+        assert_contains('admin-live.js', $html);
         assert_contains('Saved addresses', $html);
+        assert_contains('Checkout Page Product', $html);
         assert_contains('name="shipping_name"', $html, 'the delivery form stays static');
+        assert_contains('id="placeOrder"', $html, 'the summary footer stays static');
     },
 ];

@@ -123,6 +123,55 @@ final class Live
     public const GENEALOGY_TEAM = 'member.genealogy';
 
     /**
+     * Shared revision for configuration read by other live pages.
+     *
+     * Settings and packages change what the membership activation paths,
+     * the order payment instructions and the member package page render;
+     * those pages mix this revision into their ETags instead of walking
+     * every member or every order on a save.
+     */
+    public const CONFIG = 'config';
+
+    /**
+     * Bump the admin package list, the member package page and the shared
+     * configuration revision.
+     *
+     * Called by Package::save() and Package::setStatus() after a
+     * successful change.
+     */
+    public static function touchPackages(): void
+    {
+        self::touch(['admin.packages', 'shop.packages', self::CONFIG]);
+    }
+
+    /**
+     * Bump the admin settings page and the shared configuration revision.
+     *
+     * Called after a settings card is saved; open membership and order
+     * pages revalidate from the shared revision.
+     */
+    public static function touchSettings(): void
+    {
+        self::touch(['admin.settings', self::CONFIG]);
+    }
+
+    /**
+     * A revision read that never fails the page.
+     *
+     * Used by scopes that mix a shared revision into the ETag: a deploy
+     * that lands before migration 013 must render with updates off, not
+     * throw while the scope is being built.
+     */
+    public static function revisionOrZero(string $surface): int
+    {
+        try {
+            return self::revision($surface);
+        } catch (Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * The member's own profile page (`member.profile:42`).
      *
      * The page key is per user; the full-name, payout-account and address

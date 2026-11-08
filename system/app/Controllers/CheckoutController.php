@@ -33,10 +33,11 @@ final class CheckoutController
         $user   = $this->member();
         $userId = (int) $user['id'];
 
-        /* The same URL doubles as the JSON feed for the saved-address
-         * picker. The delivery/payment form is never replaced. */
+        /* The same URL doubles as the JSON feed for the address picker,
+         * the order summary and the payment/wallet card. The delivery
+         * form and the terms stay outside every region. */
         if (Live::isFeedRequest()) {
-            $this->addressFeed($userId);
+            $this->feed($userId);
             return;
         }
 
@@ -45,7 +46,7 @@ final class CheckoutController
             redirect('cart');
         }
 
-        $state = $this->carts->state((int) $user['id'], true);
+        $state = $this->carts->state($userId, true);
 
         if ($state['items'] === []) {
             flash_set('info', 'Your cart is empty. Add a product before checking out.');
@@ -57,17 +58,65 @@ final class CheckoutController
             redirect('cart');
         }
 
-        $context   = $this->addressContext($userId);
-        $addresses = $context['addresses'];
-        $selected  = $context['selected'];
-        $prefill   = $this->prefill($user, $selected);
+        $isAdmin = is_admin($user);
 
-        $wallet       = Wallet::account((int) $user['id']) ?? [];
-        $balance      = round((float) ($wallet['ewallet_balance'] ?? 0), 2);
-        $withdrawable = round((float) ($wallet['withdrawable_balance'] ?? 0), 2);
-        $total        = round((float) $state['totals']['subtotal'], 2);
+        View::page($isAdmin ? 'admin' : 'member', 'shop/checkout', $this->checkoutContext($user) + [
+            'page_title'      => 'Checkout',
+            'current_nav'     => $isAdmin ? 'admin.storefront' : 'cart',
+            'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
+            'page_js'         => ['assets/js/app-checkout.js', 'assets/js/admin-live.js'],
+            'idempotency_key' => $this->newIdempotencyKey(),
+            'shop_open'       => true,
+            'live'            => Live::meta(
+                Live::checkoutSurface($userId),
+                $this->checkoutScope($userId)
+            ),
+        ]);
+    }
 
-        $methods = [
+    /**
+     * Everything the checkout page renders, built once for the page and
+     * its feed. Public so the view tests can assert the real screen data.
+     *
+     * @param array<string, mixed> $user
+     * @return array<string, mixed>
+     */
+    public function checkoutContext(array $user): array
+    {
+        $userId = (int) $user['id'];
+        $state  = $this->carts->state($userId, true);
+
+        $addresses = $this->addresses->forUser($userId);
+        $selected  = $this->selectedAddress($userId, $addresses, (int) Request::query('address', 0));
+
+        $walletRow    = Wallet::account($userId) ?? [];
+        $balance      = round((float) ($walletRow['ewallet_balance'] ?? 0), 2);
+        $withdrawable = round((float) ($walletRow['withdrawable_balance'] ?? 0), 2);
+        $total        = round((float) ($state['totals']['subtotal'] ?? 0), 2);
+
+        return [
+            'user_id'         => $userId,
+            'state'           => $state,
+            'addresses'       => $addresses,
+            'selected'        => $selected,
+            'selected_id'     => $selected === null ? 0 : (int) $selected['id'],
+            'prefill'         => $this->prefill($user, $selected),
+            'wallet'          => ['balance' => $balance, 'withdrawable' => $withdrawable],
+            'payment_methods' => $this->paymentMethods($balance, $total),
+            'terms_version'   => OrderService::TERMS_VERSION,
+            'posted'          => old_payload(),
+        ];
+    }
+
+    /**
+     * The payment options, with the e-wallet only offered when its
+     * balance covers the order.
+     *
+     * @return array<string, array{label:string, icon:string, hint:string, available:bool, balance?:float}>
+     */
+    private function paymentMethods(float $balance, float $total): array
+    {
+        return [
             'ewallet' => [
                 'label'     => 'E-wallet',
                 'icon'      => 'bx-wallet',
@@ -96,58 +145,30 @@ final class CheckoutController
                 'available' => true,
             ],
         ];
-
-        $isAdmin = is_admin($user);
-
-        View::page($isAdmin ? 'admin' : 'member', 'shop/checkout', [
-            'page_title'      => 'Checkout',
-            'current_nav'     => $isAdmin ? 'admin.storefront' : 'cart',
-            'page_css'        => ['assets/css/shop.css', 'assets/css/orders.css'],
-            'page_js'         => ['assets/js/app-checkout.js'],
-            'state'           => $state,
-            'addresses'       => $addresses,
-            'selected'        => $selected,
-            'selected_id'     => $context['selected_id'],
-            'prefill'         => $prefill,
-            'wallet'          => ['balance' => $balance, 'withdrawable' => $withdrawable],
-            'payment_methods' => $methods,
-            'terms_version'   => OrderService::TERMS_VERSION,
-            'idempotency_key' => $this->newIdempotencyKey(),
-            'shop_open'       => true,
-            'live'            => Live::meta(
-                Live::checkoutSurface($userId),
-                Live::scope($_GET, $userId)
-            ),
-        ]);
     }
 
     /**
-     * Everything the address picker renders, built once for the page and
-     * its feed. Public so the view tests can assert the real screen data.
+     * ETag scope for the checkout page.
      *
-     * @return array<string, mixed>
+     * The query string keeps the selected address; the shared shop
+     * revision revalidates the summary when a product price or the
+     * available stock changes, without a per-member fan-out.
      */
-    public function addressContext(int $userId): array
+    private function checkoutScope(int $userId): string
     {
-        $addresses = $this->addresses->forUser($userId);
-        $selected  = $this->selectedAddress($userId, $addresses, (int) Request::query('address', 0));
-
-        return [
-            'user_id'     => $userId,
-            'addresses'   => $addresses,
-            'selected'    => $selected,
-            'selected_id' => $selected === null ? 0 : (int) $selected['id'],
-        ];
+        return Live::scope($_GET, $userId)
+            . '|shop:' . Live::revisionOrZero('shop.catalog');
     }
 
     /**
-     * JSON feed for the open checkout page's address picker.
+     * JSON feed for the open checkout page.
      *
-     * The 304 check runs before the address read, so an unchanged picker
-     * costs one revision lookup. The region renders only links, so the
-     * session lock is released immediately.
+     * The 304 check runs before checkoutContext(), so an unchanged page
+     * costs two revision lookups and no cart/address/wallet queries. No
+     * fragment renders a CSRF field, so the session lock is released
+     * immediately.
      */
-    private function addressFeed(int $userId): void
+    private function feed(int $userId): void
     {
         session_write_close();
 
@@ -155,31 +176,33 @@ final class CheckoutController
 
         try {
             $revision = Live::revision($surface);
-            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+            $etag     = Live::etag($surface, $revision, $this->checkoutScope($userId));
 
             if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
                 Live::notModified($etag);
             }
 
-            if (Member::find($userId) === null) {
+            $user = Member::find($userId);
+
+            if ($user === null) {
                 Live::jsonError('Member not found.', 404);
             }
 
-            Live::json($etag, $this->addressFeedPayload($revision, $etag, $this->addressContext($userId)));
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->checkoutContext($user)));
         } catch (Throwable $e) {
-            error_log('[ecowealth] checkout address feed failed: ' . $e->getMessage());
-            Live::jsonError('Could not refresh the saved addresses. Please try again.', 500);
+            error_log('[ecowealth] checkout live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the checkout. Please try again.', 500);
         }
     }
 
     /**
-     * Render the address-picker payload. Public so tests can assert the
-     * fragment without going through Live::json()'s exit.
+     * Render the checkout payload. Public so tests can assert the
+     * fragments without going through Live::json()'s exit.
      *
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    public function addressFeedPayload(int $revision, string $etag, array $data): array
+    public function feedPayload(int $revision, string $etag, array $data): array
     {
         return [
             'ok'        => true,
@@ -190,6 +213,14 @@ final class CheckoutController
                 'checkout-addresses' => View::capture('shop/checkout/_addresses', [
                     'addresses'   => $data['addresses'],
                     'selected_id' => $data['selected_id'],
+                ]),
+                'checkout-summary' => View::capture('shop/checkout/_summary', [
+                    'state'  => $data['state'],
+                    'wallet' => $data['wallet'],
+                ]),
+                'checkout-payment' => View::capture('shop/checkout/_payment', [
+                    'payment_methods' => $data['payment_methods'],
+                    'posted'          => $data['posted'],
                 ]),
             ],
             'meta'      => [

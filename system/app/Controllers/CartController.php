@@ -151,6 +151,11 @@ final class CartController
         $message = $successMessage
             ?? ($result['removed'] ? 'Item removed from your cart.' : 'Cart updated.');
 
+        /* An open checkout tab re-prices from the cart. The revision bump is
+         * in CartService; this also publishes when the response is a normal
+         * redirect (the AJAX path's queued key is harmless). */
+        Live::publish([Live::checkoutSurface($userId)]);
+
         if ($isAjax) {
             $state  = $this->carts->state($userId);
             $totals = $state['totals'];
