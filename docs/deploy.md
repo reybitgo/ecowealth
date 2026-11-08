@@ -495,6 +495,22 @@ If you imported your existing database, use your existing credentials.
 8. Sign in as that member in another browser, open `<app-url>/dashboard`, then top their
    wallet up from the admin wallet page. The member's E-wallet KPI and card should update
    on the next poll (within 30 seconds) without a reload.
+9. Open `<app-url>/admin/members` in two tabs and suspend a member from one. The other
+   tab's row, status counters and "joined this week" badge should update. Open that
+   member's page in a second tab and top up their wallet from the monitor: the balance
+   and wallet summary should update without a reload.
+10. Open `<app-url>/admin/activations` in two tabs. Type a rejection reason in one but do
+    not submit; approve or reject a different request in the other tab. The first tab must
+    keep the typed reason and show the stale banner instead of replacing the row.
+11. Open `<app-url>/admin/codes` and `<app-url>/admin/commissions` in two tabs each. Generate
+    a code batch in one codes tab and approve an activation in a commissions tab: the other
+    tab of the same page should update without a refresh.
+12. Sign in as a pending member in two browser tabs, both on `<app-url>/membership`. Submit
+    a manual proof in one tab: the other tab should show the "activation in progress"
+    notice without a reload. Type into the registration-code field first; the typed code
+    must survive the refresh and the stale banner must explain why the forms were kept.
+13. Approve that member's activation as the administrator: the member's open `/membership`
+    tab should switch from the forms/notice to the active-associate state on its next poll.
 
 If the page works but live updates do not:
 

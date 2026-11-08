@@ -682,6 +682,15 @@
       }
 
       if (key === 'product-rows' || current.tagName === 'TBODY') {
+        /* A table body can own a form too (the activation queue's
+         * rejection reason). Keep the rows while a field differs from its
+         * rendered value; the page shows its stale banner instead. */
+        if (current.getAttribute('data-live-hold') !== null && hasUnsavedInput(current)) {
+          surface.held = true;
+          held.push(key);
+          return;
+        }
+
         var nextBody = parseRows(fragments[key]);
 
         if (!nextBody) {

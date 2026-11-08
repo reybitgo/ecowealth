@@ -591,6 +591,13 @@ final class WalletService
         /* The member's own dashboard shows the same two buckets. */
         Live::touchMemberDashboard($userId);
 
+        /* The member directory and the member page show both buckets too. */
+        Live::touchMember($userId);
+
+        /* The membership page shows the e-wallet balance before an
+         * activation; the member's own wallet page reads the same rows. */
+        Live::touchMembership($userId);
+
         return [
             'ok'                 => true,
             'replayed'           => false,

@@ -1,10 +1,12 @@
 # Live page updates
 
 The admin product list, the admin dashboard, the order desk (list and one
-order), the wallet monitor (all three tabs and one member's wallet) and the
-member dashboard's E-wallet widgets update themselves without a full page
-reload. The same pattern is intended for the other list, detail and dashboard
-pages.
+order), the wallet monitor (all three tabs and one member's wallet), the
+member directory (list and one member), the activation queue, the
+registration-code list, the commission ledger, the member dashboard's
+E-wallet widgets and the member's own membership page update themselves
+without a full page reload. The same pattern is intended for the other list,
+detail and dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -79,8 +81,12 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   `admin.orders:{id}` detail page
 - `walletSurface($id)` / `touchWallet($id)` — the `admin.wallets` monitor plus
   one `admin.wallets:{id}` detail page
+- `memberSurface($id)` / `touchMember($id)` — the `admin.members` directory
+  plus one `admin.members:{id}` detail page
 - `memberDashboardSurface($id)` / `touchMemberDashboard($id)` — the member's
   own `/dashboard`, where the E-wallet KPI and card are live regions
+- `membershipSurface($id)` / `touchMembership($id)` — the member's own
+  `/membership` page (status, package, activation paths and history)
 
 `Product::save()`, `Product::setStatus()` and `Product::delete()` touch
 `admin.products` after a successful change. A surface must be touched by
@@ -98,11 +104,45 @@ A wallet has a monitor surface and one detail surface. `WalletService::apply()`
 calls `touchWallet()` after every successful balance movement — top-ups,
 commissions, purchases, refunds and payouts — and skips a replayed movement
 because no money moved. The same movement also calls `touchMemberDashboard()`
-so the member's own `/dashboard` E-wallet KPI and card refresh. Member-facing
-writes that change what the monitor shows (registration, activation, a status
-change, a profile name) touch the admin surfaces only. The detail surface is
-`admin.wallets:{id}`, so one wallet's movement does not refresh every other
-open wallet page.
+so the member's own `/dashboard` E-wallet KPI and card refresh, and
+`touchMember()` so the member directory's wallet column and that member's page
+show the new buckets. Member-facing writes that change what the monitor shows
+(registration, activation, a status change, a profile name) touch the admin
+surfaces only. The detail surface is `admin.wallets:{id}`, so one wallet's
+movement does not refresh every other open wallet page.
+
+The member directory and one member page are two surfaces: `admin.members`
+and `admin.members:{id}`. `touchMember()` bumps both. It is called by
+registration (plus the sponsor and every ancestor's detail surface, because a
+new downline row moves their team counters), activation approval, a status
+change, a profile-name change, a wallet movement, an order placement or
+payment decision and every commission award. A member page renders seven
+regions — heading, account, membership (including team counters), wallet and
+activity totals, activation history with its own pagination, upline and recent
+audit — so a background refresh fails gracefully when a member has no
+activations, upline or audit rows.
+
+`admin.activations`, `admin.codes` and `admin.commissions` are single-surface
+list pages with no detail page. The activation queue is touched by a manual
+request, an approval and a rejection (approval also touches the member's list
+and detail surfaces); the code list by a batch issue, a redemption and an
+expiry sweep; the commission ledger by every credited or skipped award. The
+activation queue's `<tbody>` is a held region: the rejection reason is typed
+directly into the table, so the client keeps the rows while that input is
+dirty and the page shows its stale banner.
+
+The member's own `/membership` page is `member.membership:{id}`. It renders
+four regions: the heading with the status badge, the current-membership card,
+the activation-path block and the activation history with its own pagination.
+The path block changes shape with the membership state — three activation
+forms (registration code, e-wallet, manual proof) while the member can
+activate, an "activation in progress" notice while a request is open, and the
+suspended / standard / active-associate notice otherwise — so the feed always
+returns the same four region wrappers. The path block is a held region: a
+typed code, package, reference or selected proof file is never discarded by a
+background refresh. `touchMembership()` is called by an activation request,
+approval or rejection, a status change, a profile-name change and every wallet
+movement (the e-wallet path shows the balance).
 
 `/dashboard` is role-dependent: an administrator is delegated to the admin
 dashboard and keeps the `admin.dashboard` surface, while a member gets
@@ -122,7 +162,9 @@ dashboard and keeps the `admin.dashboard` surface, while a member gets
 - never replaces a region marked `data-live-hold="dirty"` while the user has
   unsaved input in it. It applies the other regions, keeps the form, and reports
   the held keys in `detail.held` so the page can show a stale banner; once every
-  held field is clean again it forces one refresh and applies the newer form;
+  held field is clean again it forces one refresh and applies the newer form.
+  A `<tbody data-live-hold="dirty">` is held the same way: the activation
+  queue's rejection-reason field lives inside its rows.
 - updates `history.replaceState()` when a page is clamped to the last page;
 - broadcasts after a successful live mutation and forces one local refresh;
 - uses a `localStorage`/`storage` fallback when `BroadcastChannel` is missing;
@@ -167,16 +209,19 @@ Two page behaviours keep swapped forms working:
   binding each form at load, so a verify/reject/ship/cancel form that a swap inserted
   still asks for confirmation before it posts.
 
-`public/assets/js/admin-live.js` is shared by every admin surface with a form region:
-it consumes `detail.held` and reveals the page's `[data-live-stale]` banner (“changed
-in another tab, your unsaved input was kept — reload to see the latest”). The banner is
+`public/assets/js/admin-live.js` is shared by every live surface with a form
+region — the admin pages and the member's `/membership` page: it consumes
+`detail.held` and reveals the page's `[data-live-stale]` banner (“changed in
+another tab, your unsaved input was kept — reload to see the latest”). The banner is
 only shown when a form region was held back; a payload that applied cleanly hides it
 again. A `[data-live-reload]` link in the banner is pointed at the current URL, filters
 and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
-“today” counters use `CURDATE()`. The wallet monitor adds the hour as well, because its
+“today” counters use `CURDATE()`. The member directory and the commission ledger also
+include the day: `new_week` counts from `CURDATE()` and the ledger's “this month” total
+moves at the month boundary. The wallet monitor adds the hour as well, because its
 directory shows a relative “last movement” label; a tab left open therefore revalidates
 on its next poll without a write. The navbar notification dropdown sits outside the
 dashboard surface and updates on the next full navigation; it is a candidate for a
@@ -246,11 +291,16 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.orders:{id}` | `/admin/orders/{id}` | status, payment review, fulfilment, items, history, member, delivery, shipment, payment summary, cancel |
 | `admin.wallets` | `/admin/wallets` | metrics, stats, tab counts, members tab, top-ups tab, ledger tab |
 | `admin.wallets:{id}` | `/admin/wallets/{id}` | heading, badges, buckets, statement, top-up form, top-up history |
+| `admin.members` | `/admin/members` | header, stats, filters, rows, pagination |
+| `admin.members:{id}` | `/admin/members/{id}` | heading, account, membership, wallet, activations, upline, audit |
+| `admin.activations` | `/admin/activations` | header, stats, tabs, rows, pagination |
+| `admin.codes` | `/admin/codes` | stats, rows, pagination |
+| `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
+| `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 
-Planned next: `admin.members`, `admin.activations`, `admin.codes`,
-`admin.commissions`, `shop.catalog`, `shop.product:{id}`,
-`member.orders:{userId}`, `member.wallet:{userId}`, `member.earnings:{userId}`.
+Planned next: `shop.catalog`, `shop.product:{id}`, `member.orders:{userId}`,
+`member.wallet:{userId}`, `member.earnings:{userId}`.
 
 ## Deployment
 

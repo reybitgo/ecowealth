@@ -612,7 +612,7 @@ return [
         assert_contains('detail.held', $adminJs);
         assert_contains("classList.remove('d-none')", $adminJs);
         assert_contains("classList.add('d-none')", $adminJs);
-        assert_contains('isAdminSurface', $adminJs);
+        assert_contains('isLiveSurface', $adminJs);
         assert_contains('data-live-reload', $adminJs);
     },
 

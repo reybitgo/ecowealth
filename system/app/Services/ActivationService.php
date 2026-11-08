@@ -170,6 +170,11 @@ final class ActivationService
                         ],
                     ], $this->pdo);
 
+                    /* A new queue row and a new activation-history row. */
+                    Live::touch('admin.activations');
+                    Live::touch(Live::memberSurface($userId));
+                    Live::touchMembership($userId);
+
                     return [
                         'activation_id' => $activationId,
                         'status'        => 'pending_review',
@@ -327,6 +332,11 @@ final class ActivationService
                 ],
             ], $this->pdo);
 
+            /* The queue row's status and the member's activation history. */
+            Live::touch('admin.activations');
+            Live::touch(Live::memberSurface((int) $locked['user_id']));
+            Live::touchMembership((int) $locked['user_id']);
+
             return [
                 'activation_id' => $activationId,
                 'status'        => 'rejected',
@@ -429,6 +439,12 @@ final class ActivationService
         /* The member is now active: the wallet monitor's status column and
          * this member's wallet header both read it. */
         Live::touchWallet($userId);
+
+        /* The activation row is approved, and the member directory and
+         * member page both show the new status, package and activation. */
+        Live::touch('admin.activations');
+        Live::touchMember($userId);
+        Live::touchMembership($userId);
 
         return [
             'activation_id' => $activationId,

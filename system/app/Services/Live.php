@@ -71,6 +71,14 @@ final class Live
     }
 
     /**
+     * The detail surface key for one member page (`admin.members:42`).
+     */
+    public static function memberSurface(int $userId): string
+    {
+        return 'admin.members:' . max(0, $userId);
+    }
+
+    /**
      * The member's own dashboard surface (`member.dashboard:42`).
      *
      * The member dashboard only exposes the E-wallet KPI and card as live
@@ -80,6 +88,17 @@ final class Live
     public static function memberDashboardSurface(int $userId): string
     {
         return 'member.dashboard:' . max(0, $userId);
+    }
+
+    /**
+     * The member's own membership page (`member.membership:42`).
+     *
+     * The surface is per user: one member's activation/history change never
+     * refreshes another member's open membership page.
+     */
+    public static function membershipSurface(int $userId): string
+    {
+        return 'member.membership:' . max(0, $userId);
     }
 
     /**
@@ -107,6 +126,19 @@ final class Live
     }
 
     /**
+     * Bump the member directory and one member's detail page.
+     *
+     * Called by every write that changes a directory row — registration,
+     * activation (status/package), a status change, a profile name, a
+     * wallet balance — and by any write that changes a member page's
+     * wallet, order, commission, activation or audit figures.
+     */
+    public static function touchMember(int $userId): void
+    {
+        self::touch(['admin.members', self::memberSurface($userId)]);
+    }
+
+    /**
      * Bump one member's dashboard so its E-wallet KPI and card refresh.
      *
      * Called after a wallet movement, not after directory/profile changes:
@@ -115,6 +147,19 @@ final class Live
     public static function touchMemberDashboard(int $userId): void
     {
         self::touch(self::memberDashboardSurface($userId));
+    }
+
+    /**
+     * Bump one member's `/membership` page.
+     *
+     * Called after an activation request, an approval or rejection, a member
+     * status change, a profile-name change and every wallet movement: the
+     * page shows the status, package, activation history and the wallet
+     * balance used by the e-wallet activation path.
+     */
+    public static function touchMembership(int $userId): void
+    {
+        self::touch(self::membershipSurface($userId));
     }
 
     /** Current revision for a surface; a missing row means revision 0. */

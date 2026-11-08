@@ -1,12 +1,12 @@
 /**
- * EcoWealth — admin live-page notices
+ * EcoWealth — live-page notices
  * -----------------------------------
- * Admin live surfaces (the order desk, the wallet monitor and future
- * back-office pages) keep their form regions when the signed-in user has
- * unsaved input: app-live.js applies the safe regions and reports the held
- * keys in `detail.held`. This script reveals the page's `[data-live-stale]`
- * banner when that happens and hides it again as soon as a later payload
- * applies without holding anything back.
+ * Live surfaces with a form region (the admin order desk, wallet monitor and
+ * member directory, and the member's own membership page) keep those regions
+ * when the signed-in user has unsaved input: app-live.js applies the safe
+ * regions and reports the held keys in `detail.held`. This script reveals the
+ * page's `[data-live-stale]` banner when that happens and hides it again as
+ * soon as a later payload applies without holding anything back.
  *
  * The banner is optional; pages without one simply do not load this file.
  * A `[data-live-reload]` link inside the banner is pointed at the current
@@ -27,14 +27,14 @@
     reload.setAttribute('href', window.location.href);
   }
 
-  function isAdminSurface(key) {
-    return typeof key === 'string' && key.indexOf('admin.') === 0;
+  function isLiveSurface(key) {
+    return typeof key === 'string' && key !== '';
   }
 
   document.addEventListener('ecowealth:live-applied', function (event) {
     var detail = event.detail || {};
 
-    if (!isAdminSurface(detail.surface)) {
+    if (!isLiveSurface(detail.surface)) {
       return;
     }
 

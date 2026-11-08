@@ -304,6 +304,10 @@ final class OrderService
                 /* A new order changes the order desk's rows and counters. */
                 Live::touchOrder($orderId);
 
+                /* The member page shows how many orders the account placed
+                 * and what has been paid to the shop. */
+                Live::touchMember($userId);
+
                 return [
                     'order_id' => $orderId,
                     'order_no' => $orderNo,

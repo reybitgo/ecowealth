@@ -8,11 +8,16 @@ declare(strict_types=1);
  * One card to issue a batch, one to filter/export, then the list with
  * the counters above it.
  *
+ * One live surface: the five counters, the rows and the pagination are
+ * regions. The issue and filter forms stay outside them, so a background
+ * refresh never steals focus or discards unsubmitted input.
+ *
  * @var array{total:int, unused:int, used:int, expired:int, revenue:float} $stats
  * @var array{q:string, status:string, package:string} $filters
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $codes
  * @var list<array<string, mixed>> $packages
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
 $query      = (string) $filters['q'];
@@ -26,15 +31,22 @@ $exportQuery = http_build_query(array_filter([
     'package' => $packageId,
 ], static fn (string $value): bool => $value !== ''));
 
-$cards = [
-    ['label' => 'Total codes', 'value' => (string) $stats['total'], 'icon' => 'bx-key', 'tone' => 'primary'],
-    ['label' => 'Unused', 'value' => (string) $stats['unused'], 'icon' => 'bx-check-circle', 'tone' => 'success'],
-    ['label' => 'Used', 'value' => (string) $stats['used'], 'icon' => 'bx-check-shield', 'tone' => 'info'],
-    ['label' => 'Expired', 'value' => (string) $stats['expired'], 'icon' => 'bx-time-five', 'tone' => 'danger'],
-    ['label' => 'Revenue (used)', 'value' => money($stats['revenue']), 'icon' => 'bx-line-chart', 'tone' => 'warning'],
+$live = $live ?? [
+    'surface'  => 'admin.codes',
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
 ];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y">
+            <div
+              class="container-xxl flex-grow-1 container-p-y code-books"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <?= flash_render() ?>
 
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -52,25 +64,7 @@ $cards = [
                 </a>
               </div>
 
-              <div class="row g-4 mb-4">
-<?php foreach ($cards as $card): ?>
-                <div class="col-6 col-xl">
-                  <div class="card h-100">
-                    <div class="card-body">
-                      <div class="d-flex align-items-start justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                      </div>
-                      <p class="text-body-secondary mb-1 small"><?= e($card['label']) ?></p>
-                      <h5 class="mb-0 text-truncate"><?= e($card['value']) ?></h5>
-                    </div>
-                  </div>
-                </div>
-<?php endforeach; ?>
-              </div>
+<?= View::capture('admin/codes/_stats', ['stats' => $stats]) ?>
 
               <div class="row g-4 mb-4">
                 <!-- Issue -->
@@ -236,6 +230,7 @@ $cards = [
               <div class="card">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <h5 class="card-title mb-0">Code list</h5>
+                  <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                 </div>
                 <div class="table-responsive">
                   <table class="table table-hover align-middle mb-0">
@@ -250,69 +245,9 @@ $cards = [
                         <th>Expires</th>
                       </tr>
                     </thead>
-                    <tbody>
-<?php if ($codes === []): ?>
-                      <tr>
-                        <td colspan="7" class="py-0">
-<?php
-    echo View::partial('empty_state', [
-        'icon'         => 'bx bx-key',
-        'title'        => $hasFilters ? 'No codes match these filters' : 'No codes issued yet',
-        'text'         => $hasFilters
-            ? 'Try a different search, status or package.'
-            : 'Issue the first batch with the form above.',
-        'action_href'  => $hasFilters ? 'admin/codes' : '',
-        'action_label' => $hasFilters ? 'Clear filters' : '',
-    ]);
-?>
-                        </td>
-                      </tr>
-<?php endif; ?>
-<?php foreach ($codes as $code): ?>
-<?php $isUnused = (string) $code['status'] === 'unused'; ?>
-                      <tr>
-                        <td>
-                          <div class="d-flex align-items-center gap-2">
-                            <span class="reg-code"><?= e((string) $code['code']) ?></span>
-<?php if ($isUnused): ?>
-                            <button
-                              type="button"
-                              class="btn btn-sm btn-icon btn-text-secondary"
-                              data-copy="<?= e((string) $code['code']) ?>"
-                              data-copy-tooltip="Copy code"
-                              data-bs-toggle="tooltip"
-                              aria-label="Copy code <?= e((string) $code['code']) ?>"
-                              title="Copy code"
-                            ><i class="icon-base bx bx-copy"></i></button>
-<?php endif; ?>
-                          </div>
-                        </td>
-                        <td><?= e((string) $code['package_name']) ?></td>
-                        <td class="text-end text-nowrap"><?= e(money((float) $code['price'])) ?></td>
-                        <td><?= status_badge((string) $code['status']) ?></td>
-                        <td>
-<?php if ($code['used_by_username'] !== null): ?>
-                          <a href="<?= e(url('admin/members/' . (int) $code['used_by'])) ?>" class="text-body">
-                            @<?= e((string) $code['used_by_username']) ?>
-                          </a>
-                          <div class="member-meta"><?= e(format_datetime($code['used_at'] === null ? null : (string) $code['used_at'])) ?></div>
-<?php else: ?>
-                          <span class="text-body-secondary">—</span>
-<?php endif; ?>
-                        </td>
-                        <td class="text-nowrap"><span class="member-meta"><?= e(format_datetime((string) $code['created_at'])) ?></span></td>
-                        <td class="text-nowrap">
-                          <?= $code['expires_at'] === null
-                              ? '<span class="text-body-secondary">No expiry</span>'
-                              : '<span class="member-meta">' . e(format_datetime((string) $code['expires_at'])) . '</span>' ?>
-                        </td>
-                      </tr>
-<?php endforeach; ?>
-                    </tbody>
+<?= View::capture('admin/codes/_rows', ['codes' => $codes, 'filters' => $filters]) ?>
                   </table>
                 </div>
-                <div class="card-body pt-2">
-<?= View::partial('pagination', ['pager' => $pager, 'pager_label' => 'Codes']) ?>
-                </div>
+<?= View::capture('admin/codes/_pagination', ['pager' => $pager]) ?>
               </div>
             </div>

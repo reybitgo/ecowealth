@@ -446,6 +446,9 @@ final class PaymentService
             Live::touch('admin.products');
             Live::touchOrder($orderId);
 
+            /* The member page's "paid to the shop" total reads paid_at. */
+            Live::touchMember((int) $order['user_id']);
+
             return ['order_id' => $orderId, 'status' => 'paid', 'total' => $total];
         });
     }
@@ -611,6 +614,9 @@ final class PaymentService
             );
 
             Live::touchOrder($orderId);
+
+            /* A cancelled order leaves the member's "paid to the shop" sum. */
+            Live::touchMember((int) $order['user_id']);
 
             return ['order_id' => $orderId, 'status' => 'cancelled', 'refunded' => $refunded, 'reason' => $reasonCode];
         });

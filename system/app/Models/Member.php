@@ -392,6 +392,12 @@ final class Member
             Live::touch('admin.dashboard');
             Live::touchWallet($memberId);
 
+            /* The directory's status pill and the member page's header both
+             * read `member_status` / `is_active`. The member's own
+             * `/membership` page shows the same status. */
+            Live::touchMember($memberId);
+            Live::touchMembership($memberId);
+
             if ($owns) {
                 $pdo->commit();
             }

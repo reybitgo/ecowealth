@@ -14,6 +14,9 @@ declare(strict_types=1);
  *  Decision D21: admins AND superadmins may issue codes, so the
  *  router's `admin` guard is exactly the right gate. Every batch is
  *  audited (`code.generate`) by CodeService.
+ *
+ *  The list is one live surface (`admin.codes`): the counters, rows and
+ *  pagination are regions; the issue and filter forms stay outside them.
  * ============================================================== */
 
 final class AdminCodeController
@@ -28,6 +31,29 @@ final class AdminCodeController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
+        /* The same URL doubles as the JSON feed: X-Live: 1 returns the
+         * stats, rows and pagination instead of the layout. */
+        if (Live::isFeedRequest()) {
+            $this->listFeed();
+            return;
+        }
+
+        View::page('admin', 'admin/codes/index', $this->listContext() + [
+            'page_title'  => 'Registration codes',
+            'current_nav' => 'admin.codes',
+            'page_css'    => ['assets/css/membership.css'],
+            'page_js'     => ['assets/js/app-codes.js'],
+            'live'        => $this->listLiveMeta(),
+        ]);
+    }
+
+    /**
+     * Everything the code list renders, built once for the page and feed.
+     *
+     * @return array<string, mixed>
+     */
+    public function listContext(): array
+    {
         $filters = RegCode::normaliseFilters([
             'q'       => Request::string('q'),
             'status'  => Request::string('status'),
@@ -35,19 +61,109 @@ final class AdminCodeController
         ]);
 
         $pager = Paginator::fromTableRequest(RegCode::countAdmin($filters));
-        $rows  = RegCode::adminList($filters, $pager);
 
-        View::page('admin', 'admin/codes/index', [
-            'page_title'  => 'Registration codes',
-            'current_nav' => 'admin.codes',
-            'page_css'    => ['assets/css/membership.css'],
-            'page_js'     => ['assets/js/app-codes.js'],
-            'stats'       => RegCode::stats(),
-            'filters'     => $filters,
-            'pager'       => $pager,
-            'codes'       => $rows,
-            'packages'    => Package::all(),
-        ]);
+        return [
+            'stats'    => RegCode::stats(),
+            'filters'  => $filters,
+            'pager'    => $pager,
+            'codes'    => RegCode::adminList($filters, $pager),
+            'packages' => Package::all(),
+        ];
+    }
+
+    /** @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int} */
+    private function listLiveMeta(): array
+    {
+        return Live::meta('admin.codes', Live::scope($_GET, (int) (auth_user()['id'] ?? 0)));
+    }
+
+    /**
+     * JSON feed for the open code list.
+     *
+     * The 304 check runs before listContext(), so an unchanged list costs
+     * one revision lookup and no queries.
+     */
+    private function listFeed(): void
+    {
+        $userId = (int) (auth_user()['id'] ?? 0);
+
+        session_write_close();
+
+        $surface = 'admin.codes';
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->listContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] registration code feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the registration codes. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the code-list payload. Public so tests can assert the
+     * fragments without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.codes',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'code-stats' => View::capture('admin/codes/_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'code-rows' => View::capture('admin/codes/_rows', [
+                    'codes'   => $data['codes'],
+                    'filters' => $data['filters'],
+                ]),
+                'code-pagination' => View::capture('admin/codes/_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalListUrl($pager),
+            ],
+        ];
+    }
+
+    /** The code-list URL with an out-of-range page clamped to a real page. */
+    private function canonicalListUrl(Paginator $pager): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        unset($query['page']);
+
+        if ($pager->page > 1) {
+            $query['page'] = (string) $pager->page;
+        }
+
+        $qs = http_build_query($query);
+
+        return url('admin/codes' . ($qs !== '' ? '?' . $qs : ''));
     }
 
     /** POST /admin/codes/generate — issue a batch. */
@@ -82,6 +198,11 @@ final class AdminCodeController
         }
 
         old_clear();
+
+        /* Other open code lists revalidate on the next poll via the
+         * revision bump; this broadcast refreshes them immediately after
+         * the redirect lands. */
+        Live::publish('admin.codes');
 
         $sample = $result['codes'] === []
             ? ''

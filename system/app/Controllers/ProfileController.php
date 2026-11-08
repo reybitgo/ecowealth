@@ -118,12 +118,18 @@ final class ProfileController
         Live::touch('admin.dashboard');
 
         /* The wallet monitor shows the member's name; their own wallet
-         * header does too. */
+         * header does too. The member directory and member page show it
+         * as well. */
         Live::touchWallet((int) $user['id']);
+        Live::touchMember((int) $user['id']);
+        Live::touchMembership((int) $user['id']);
         Live::publish([
             'admin.dashboard',
             'admin.wallets',
+            'admin.members',
             Live::walletSurface((int) $user['id']),
+            Live::memberSurface((int) $user['id']),
+            Live::membershipSurface((int) $user['id']),
         ]);
 
         old_clear();

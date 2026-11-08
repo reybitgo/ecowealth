@@ -165,6 +165,9 @@ final class CodeService
             throw $e;
         }
 
+        /* The code list and its counters gained a whole batch. */
+        Live::touch('admin.codes');
+
         return [
             'codes'        => $codes,
             'batch'        => count($codes),
@@ -353,6 +356,9 @@ final class CodeService
             'subject_id'   => $codeId,
             'meta'         => ['user_id' => $userId],
         ], $this->pdo);
+
+        /* The admin code list now shows the row as used. */
+        Live::touch('admin.codes');
     }
 
     /* ----------------------------------------------------------
@@ -375,7 +381,13 @@ final class CodeService
                 AND expires_at < CURDATE()"
         );
 
-        return $stmt->rowCount();
+        $changed = $stmt->rowCount();
+
+        if ($changed > 0) {
+            Live::touch('admin.codes');
+        }
+
+        return $changed;
     }
 
     /** How many codes exist for a package (used by the package page/guard). */
@@ -393,9 +405,14 @@ final class CodeService
 
     private function markExpired(int $codeId): void
     {
-        $this->pdo->prepare(
+        $stmt = $this->pdo->prepare(
             "UPDATE reg_codes SET status = 'expired' WHERE id = ? AND status = 'unused'"
-        )->execute([$codeId]);
+        );
+        $stmt->execute([$codeId]);
+
+        if ($stmt->rowCount() === 1) {
+            Live::touch('admin.codes');
+        }
     }
 
     /** Is a DATE column value before today (Asia/Manila)? */

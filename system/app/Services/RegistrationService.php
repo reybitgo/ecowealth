@@ -221,6 +221,19 @@ final class RegistrationService
                  * directory (an unfunded wallet still belongs there). */
                 Live::touchWallet($userId);
 
+                /* The directory gains a row and the new member page exists:
+                 * bump both. Every ancestor's team counters also move, so
+                 * their open detail pages revalidate too. */
+                Live::touchMember($userId);
+
+                if ((string) ($sponsor['role'] ?? 'member') === 'member') {
+                    Live::touch(Live::memberSurface((int) $sponsor['id']));
+                }
+
+                foreach ($this->sponsors->chain((int) $sponsor['id']) as $ancestor) {
+                    Live::touch(Live::memberSurface((int) $ancestor['id']));
+                }
+
                 return $summary;
             });
         } catch (PDOException $e) {
