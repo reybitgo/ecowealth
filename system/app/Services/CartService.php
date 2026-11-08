@@ -213,8 +213,9 @@ final class CartService
             return $this->mutationResult($userId, $cartId, $itemId, false);
         });
 
-        /* An open checkout summary re-prices from the cart. */
-        Live::touchCheckout($userId);
+        /* The member's open cart page re-renders from these rows; an open
+         * checkout summary re-prices from the same cart. */
+        Live::touchCart($userId);
 
         return $result;
     }
@@ -243,7 +244,7 @@ final class CartService
             return $this->applyQuantity($userId, $cartId, $this->lockItem($cartId, $itemId), $quantity);
         });
 
-        Live::touchCheckout($userId);
+        Live::touchCart($userId);
 
         return $result;
     }
@@ -274,7 +275,7 @@ final class CartService
             return $this->applyQuantity($userId, $cartId, $item, $quantity);
         });
 
-        Live::touchCheckout($userId);
+        Live::touchCart($userId);
 
         return $result;
     }
@@ -338,7 +339,7 @@ final class CartService
             return $this->mutationResult($userId, $cartId, null, true);
         });
 
-        Live::touchCheckout($userId);
+        Live::touchCart($userId);
 
         return $result;
     }
@@ -354,7 +355,7 @@ final class CartService
             return true;
         });
 
-        Live::touchCheckout($userId);
+        Live::touchCart($userId);
 
         return $result;
     }
@@ -375,7 +376,7 @@ final class CartService
         });
 
         if ($result) {
-            Live::touchCheckout($userId);
+            Live::touchCart($userId);
         }
 
         return $result;

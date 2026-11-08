@@ -4,14 +4,15 @@ declare(strict_types=1);
 /**
  * Member dashboard — the E-wallet KPI card.
  *
- * This is a live region: an admin top-up, a commission or any purchase
- * refreshes the total and the withdrawable line in place.
+ * Rendered inside the `dashboard-kpis` region: an admin top-up, a
+ * commission or any purchase refreshes the total and the withdrawable
+ * line together with the rest of the row.
  *
  * @var float $balance
  * @var float $withdrawable
  */
 ?>
-                <div class="col-sm-6 col-xl-3" data-live-region="dashboard-wallet-kpi">
+                <div class="col-sm-6 col-xl-3">
                   <div class="card h-100">
                     <div class="card-body">
                       <div class="d-flex align-items-start justify-content-between mb-3">

@@ -170,10 +170,13 @@ final class ActivationService
                         ],
                     ], $this->pdo);
 
-                    /* A new queue row and a new activation-history row. */
+                    /* A new queue row and a new activation-history row. The
+                     * member's dashboard membership card shows the open
+                     * request and the activation count. */
                     Live::touch('admin.activations');
                     Live::touch(Live::memberSurface($userId));
                     Live::touchMembership($userId);
+                    Live::touchMemberDashboard($userId);
 
                     return [
                         'activation_id' => $activationId,
@@ -337,6 +340,9 @@ final class ActivationService
             Live::touch(Live::memberSurface((int) $locked['user_id']));
             Live::touchMembership((int) $locked['user_id']);
 
+            /* The dashboard membership card shows the rejected request. */
+            Live::touchMemberDashboard((int) $locked['user_id']);
+
             return [
                 'activation_id' => $activationId,
                 'status'        => 'rejected',
@@ -445,6 +451,10 @@ final class ActivationService
         Live::touch('admin.activations');
         Live::touchMember($userId);
         Live::touchMembership($userId);
+
+        /* The dashboard's membership KPI/card and activation list read the
+         * new status, package and activation row. */
+        Live::touchMemberDashboard($userId);
 
         /* The member's status and package now show in their own genealogy
          * self row and in every ancestor's team list. */

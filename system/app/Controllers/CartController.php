@@ -14,8 +14,13 @@ declare(strict_types=1);
  *      POST /cart/remove
  *
  *  Every mutation answers two ways (§3.6):
- *      XHR  → JSON { ok, count, items, subtotal, item, drawer_html }
+ *      XHR  → JSON { ok, count, items, subtotal, item, drawer_html, live }
  *      form → flash + redirect back (no-JS fallback, P4-T12)
+ *
+ *  The page itself is a live surface (`member.cart:{id}`): the same URL
+ *  answers `X-Live: 1` with the `cart-content` fragment, and every write
+ *  bumps the surface through CartService so the member's other tabs (and
+ *  an open checkout tab) revalidate.
  *
  *  The router owns the guard (member) and the central CSRF check.
  * ============================================================== */
@@ -34,17 +39,122 @@ final class CartController
     {
         $userId  = $this->userId();
         $isAdmin = is_admin();
-        $state   = $this->carts->state($userId, true);
 
-        View::page($isAdmin ? 'admin' : 'member', 'shop/cart', [
+        /* The same URL doubles as the JSON feed for the cart body. The
+         * body renders the quantity forms, so the CSRF token is primed
+         * before the feed releases the session lock. */
+        if (Live::isFeedRequest()) {
+            $this->feed($userId);
+            return;
+        }
+
+        View::page($isAdmin ? 'admin' : 'member', 'shop/cart', $this->cartContext($userId, true) + [
             'page_title'             => 'Cart',
             'current_nav'            => $isAdmin ? 'admin.cart' : 'cart',
             'nav_search_placeholder' => 'Search the shop…',
             'nav_search_url'         => url('shop'),
             'page_css'               => ['assets/css/shop.css'],
-            'state'                  => $state,
-            'shop_open'              => setting_bool('shop_enabled', true),
+            'page_js'                => ['assets/js/admin-live.js'],
+            'live'                   => Live::meta(
+                Live::memberCartSurface($userId),
+                $this->cartScope($userId)
+            ),
         ]);
+    }
+
+    /**
+     * Everything the cart page renders, built once for the page and its
+     * feed. Public so the view tests can assert the real screen data.
+     *
+     * The page refreshes the price snapshots when it is opened (the cart
+     * totals already read the live catalogue); the feed skips that write
+     * because a poll is not a page view.
+     *
+     * @return array{user_id:int, state: array<string, mixed>, shop_open: bool}
+     */
+    public function cartContext(int $userId, bool $refreshPrices = false): array
+    {
+        return [
+            'user_id'   => $userId,
+            'state'     => $this->carts->state($userId, $refreshPrices),
+            'shop_open' => setting_bool('shop_enabled', true),
+        ];
+    }
+
+    /**
+     * ETag scope for the cart page.
+     *
+     * The shop-open setting and the shared catalogue revision are part of
+     * the scope: closing the shop, editing a product or reserving stock
+     * must reach an open cart tab on its next poll without touching every
+     * member's cart revision.
+     */
+    private function cartScope(int $userId): string
+    {
+        return Live::scope($_GET, $userId)
+            . '|shop:' . (setting_bool('shop_enabled', true) ? '1' : '0')
+            . '|catalog:' . Live::revisionOrZero('shop.catalog');
+    }
+
+    /**
+     * JSON feed for the open cart page.
+     *
+     * The 304 check runs before the cart read, so an unchanged cart costs
+     * one revision lookup and no line/stock queries.
+     */
+    private function feed(int $userId): void
+    {
+        csrf_token();
+        session_write_close();
+
+        $surface = Live::memberCartSurface($userId);
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, $this->cartScope($userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->cartContext($userId)));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] cart live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh your cart. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the cart feed. Public so tests can assert the fragment
+     * without going through Live::json()'s exit.
+     *
+     * @param array{user_id:int, state: array<string, mixed>, shop_open: bool} $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        $state  = $data['state'];
+        $totals = $state['totals']
+            ?? ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0];
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::memberCartSurface((int) $data['user_id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'cart-content' => View::capture('shop/cart/_content', [
+                    'state'     => $state,
+                    'shop_open' => (bool) $data['shop_open'],
+                ]),
+            ],
+            'meta'      => [
+                'count'     => (int) $totals['quantity'],
+                'items'     => (int) $totals['items'],
+                'subtotal'  => round((float) $totals['subtotal'], 2),
+                'canonical' => url('cart'),
+            ],
+        ];
     }
 
     /** JSON: { ok, count, items, subtotal, drawer_html } (GET /cart/count). */
@@ -151,10 +261,14 @@ final class CartController
         $message = $successMessage
             ?? ($result['removed'] ? 'Item removed from your cart.' : 'Cart updated.');
 
-        /* An open checkout tab re-prices from the cart. The revision bump is
-         * in CartService; this also publishes when the response is a normal
-         * redirect (the AJAX path's queued key is harmless). */
-        Live::publish([Live::checkoutSurface($userId)]);
+        /* The cart page and an open checkout tab both re-render from these
+         * rows. The revision bump is in CartService; this publishes when the
+         * response is a normal redirect, and the JSON answer carries the
+         * keys so app-cart.js can broadcast them to the member's other tabs
+         * immediately. */
+        $live = [Live::memberCartSurface($userId), Live::checkoutSurface($userId)];
+
+        Live::publish($live);
 
         if ($isAjax) {
             $state  = $this->carts->state($userId);
@@ -170,6 +284,7 @@ final class CartController
                 'item'               => $result['item'] ?? null,
                 'removed'            => (bool) ($result['removed'] ?? false),
                 'drawer_html'        => View::partial('cart_offcanvas_body', ['state' => $state]),
+                'live'               => $live,
             ]);
         }
 

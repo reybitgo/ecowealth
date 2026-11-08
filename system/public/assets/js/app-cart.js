@@ -273,6 +273,9 @@
 
   function lock(form) {
     form.setAttribute('data-cart-busy', '1');
+    /* app-live.js holds its refreshes while any form is posting, so a poll
+     * cannot replace a quantity that is still being saved. */
+    form.setAttribute('data-live-busy', '1');
     form.querySelectorAll('button').forEach(function (button) {
       button.disabled = true;
     });
@@ -280,9 +283,27 @@
 
   function unlock(form) {
     form.removeAttribute('data-cart-busy');
+    form.removeAttribute('data-live-busy');
     form.querySelectorAll('button').forEach(function (button) {
       button.disabled = false;
     });
+  }
+
+  /**
+   * Tell the live layer (and the member's other tabs) that a cart surface
+   * changed. app-live.js is loaded after this script, so the call is
+   * guarded; without it the 30s poll is the fallback.
+   */
+  function publishLive(keys) {
+    if (!Array.isArray(keys) || keys.length === 0) {
+      return;
+    }
+
+    if (window.EcoLive && typeof window.EcoLive.invalidate === 'function') {
+      keys.forEach(function (key) {
+        window.EcoLive.invalidate(String(key));
+      });
+    }
   }
 
   /* ------------------------------------------------------------------
@@ -311,6 +332,7 @@
       }
 
       applyState(payload);
+      publishLive(payload.live);
       showToast(payload.message || 'Added to cart.', 'success');
       openDrawer();
     });
@@ -358,6 +380,10 @@
 
       quantityInput.setAttribute('data-last-qty', String(quantity));
 
+      /* The server confirmed this quantity: make it the field's rendered
+       * value so the live layer no longer treats it as unsaved input. */
+      quantityInput.defaultValue = String(quantity);
+
       if (payload.removed) {
         removeRow(itemId);
       } else if (payload.item) {
@@ -369,6 +395,7 @@
       }
 
       applyState(payload);
+      publishLive(payload.live);
 
       if (payload.count === 0 && document.querySelector('[data-cart-page]')) {
         window.location.reload();
@@ -401,6 +428,7 @@
 
       removeRow(itemId);
       applyState(payload);
+      publishLive(payload.live);
       showToast(payload.message || 'Item removed from your cart.', 'success');
 
       if (payload.count === 0 && document.querySelector('[data-cart-page]')) {
@@ -498,6 +526,34 @@
     if (form) {
       updateFrom(form);
     }
+  });
+
+  /* A cart or checkout surface refreshed by app-live.js (another tab added a
+   * line, the catalogue moved a price, a checkout emptied the cart) leaves
+   * the global drawer stale: the drawer sits outside the page's live
+   * surface. Re-read the badge and the drawer from the server after each
+   * applied payload. */
+  document.addEventListener('ecowealth:live-applied', function (event) {
+    var detail = event.detail || {};
+    var surface = String(detail.surface || '');
+    var tied = surface.indexOf('member.cart:') === 0
+      || surface.indexOf('member.checkout:') === 0;
+
+    if (!detail.changed || !tied) {
+      return;
+    }
+
+    var meta = detail.payload && detail.payload.meta ? detail.payload.meta : null;
+
+    if (meta && typeof meta.count === 'number') {
+      setBadge(meta.count);
+    }
+
+    /* The swapped rows are fresh inputs: remember their server values so a
+     * later refused update can still roll back to a quantity that exists. */
+    seedQuantities(document);
+
+    resync();
   });
 
   /* Seed the last server-confirmed quantity so a refused update can roll

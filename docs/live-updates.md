@@ -5,13 +5,14 @@ order), the wallet monitor (all three tabs and one member's wallet), the
 member directory (list and one member), the activation queue, the
 registration-code list, the commission ledger, the admin package list and
 the member package catalogue, the admin settings page, the member
-dashboard's E-wallet widgets, the member's own membership page, the
+dashboard (the header status pill, the KPI row, the E-wallet, membership,
+recent-orders and earnings cards), the member's own membership page, the
 member's own e-wallet statement and earnings page, the member's genealogy
-and profile pages, the checkout page (saved addresses, order summary and
-payment/wallet card), the member's order history and one order page, and
-the storefront catalogue/product pages update themselves without a full
-page reload. The same pattern is intended for the other list, detail and
-dashboard pages.
+and profile pages, the cart page, the checkout page (saved addresses,
+order summary and payment/wallet card), the member's order history and
+one order page, and the storefront catalogue/product pages update
+themselves without a full page reload. The same pattern is intended for
+the other list, detail and dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -92,7 +93,10 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
 - `memberSurface($id)` / `touchMember($id)` — the `admin.members` directory
   plus one `admin.members:{id}` detail page
 - `memberDashboardSurface($id)` / `touchMemberDashboard($id)` — the member's
-  own `/dashboard`, where the E-wallet KPI and card are live regions
+  own `/dashboard`: the header status pill, the KPI row, the E-wallet card,
+  the membership card, the recent-orders card and the earnings card
+- `memberCartSurface($id)` / `touchCart($id)` — the member's own `/cart`; the
+  same call bumps the checkout picker, because both read the same cart
 - `memberWalletSurface($id)` / `touchMemberWallet($id)` — the member's own
   `/wallet` statement (buckets and ledger)
 - `earningsSurface($id)` / `touchEarnings($id)` — the member's own
@@ -148,7 +152,7 @@ calls `touchWallet()` after every successful balance movement — top-ups,
 commissions, purchases, refunds and payouts — and skips a replayed movement
 because no money moved. The same movement also calls `touchMemberWallet()`,
 `touchMemberDashboard()` and `touchMembership()`, so the member's own `/wallet`
-statement, `/dashboard` E-wallet widgets and `/membership` balance refresh, and
+statement, `/dashboard` wallet widgets and `/membership` balance refresh, and
 `touchMember()` so the member directory's wallet column and that member's page
 show the new buckets. Member-facing writes that change what the monitor shows
 (registration, activation, a status change, a profile name) touch the admin
@@ -196,6 +200,23 @@ deleted, so the form falls back to "Add an address" on the next poll. The ETag
 scope is the query string plus the member; the page has no clock-relative
 label. Address writes call `touchAddressBook()`, which bumps this surface and
 the checkout picker; a full-name or payout save calls `touchProfile()`.
+
+The member's own `/cart` page is `member.cart:{id}`. It renders one
+`cart-content` region: the shop-closed notice, the stock warnings, the
+line table and the order summary are all inside it, so an emptied cart
+swaps to the "Your cart is empty" card (and back) with the same wrapper
+the client already knows. The region owns the quantity and remove forms,
+so it carries `data-live-hold="dirty"`; the page shows the stale banner
+while a typed quantity is kept. The heading and the Continue-shopping
+links stay static. `CartService` calls `touchCart()` after every
+successful add, quantity change, step, removal, clear and the conversion
+that follows a placed order; a refused write (out of stock, someone
+else's line) bumps nothing. The ETag scope adds the shop-open setting and
+the shared `shop.catalog` revision, so a price, status or stock change
+re-renders the lines without touching every member's cart revision. The
+JSON answer to a cart mutation carries the affected surface keys, and
+`app-cart.js` hands them to `EcoLive.invalidate()`, so the member's other
+tabs revalidate immediately instead of waiting for the 30s poll.
 
 The shared `checkoutSurface:{id}` belongs to `/checkout`. It renders three
 regions: the saved-address picker, the order summary and the payment/wallet
@@ -284,7 +305,21 @@ product write.
 
 `/dashboard` is role-dependent: an administrator is delegated to the admin
 dashboard and keeps the `admin.dashboard` surface, while a member gets
-`member.dashboard:{id}` with only those two wallet regions live.
+`member.dashboard:{id}`. The member surface renders six regions: the header
+status pill, the KPI row (membership, E-wallet, commissions and team), the
+E-wallet card, the membership card, the five newest orders with their
+counters, and the earnings card (totals, team figures and recent
+activations). The greeting, the referral card and the static copy stay
+outside them, so a refresh never disturbs the referral copy control.
+
+Every wallet movement bumps the surface through `WalletService::apply()`;
+`Live::touchOrder()` bumps it for the buyer on every order write; an
+activation request, approval or rejection and a member status change call
+`touchMemberDashboard()`. Team counters are shared, so the ETag scope mixes
+the shared `GENEALOGY_TEAM` revision (a registration moves every ancestor)
+instead of walking the tree, and the shared `CONFIG` revision covers a
+package rename. The day is in the scope because "this month" counts from
+`CURDATE()`.
 
 ## Client behaviour
 
@@ -295,8 +330,13 @@ dashboard and keeps the `admin.dashboard` surface, while a member gets
 - patches `tbody` rows by `data-live-key`, so unchanged rows keep their DOM
   nodes, focus and hover state;
 - restores focus to the same `data-live-focus` action after a row replacement;
-- defers swaps while a SweetAlert/Bootstrap modal is open or a live mutation is
-  in flight;
+- defers swaps while a SweetAlert/Bootstrap modal is open, a live mutation is
+  in flight, or a form is posting (`data-live-busy="1"` in the DOM). The cart's
+  AJAX quantity/remove forms set that attribute for the duration of their
+  request, so a poll cannot replace a quantity that is still being saved. A
+  region that had focus is re-fetched when focus leaves it; the stored ETag is
+  dropped first, so the retry is a real `200` and not a `304` for a payload the
+  page never applied;
 - never replaces a region marked `data-live-hold="dirty"` while the user has
   unsaved input in it. It applies the other regions, keeps the form, and reports
   the held keys in `detail.held` so the page can show a stale banner; once every
@@ -309,6 +349,17 @@ dashboard and keeps the `admin.dashboard` surface, while a member gets
 - dispatches `ecowealth:live-applied` after a payload is applied, with
   `detail.surface`, `detail.payload`, `detail.applied`, `detail.deferred` (focus
   was inside) and `detail.held` (unsaved input was kept).
+
+`app-live.js` also exposes `window.EcoLive.invalidate(keys)`, which broadcasts a
+surface key and revalidates the matching local surfaces. `public/assets/js/app-cart.js`
+uses it after a successful AJAX cart mutation: the JSON answer lists
+`member.cart:{id}` and `member.checkout:{id}`, so every other open tab of that member
+revalidates at once instead of waiting for its 30s poll. After a cart or checkout payload
+is applied, the same script re-reads `/cart/count` and patches the global drawer and the
+navbar/sidebar badge — those sit outside the page's `[data-live-surface]` container, so
+they are refreshed by the shell script rather than by a region. A server-confirmed
+quantity also becomes the input's default value, so it is clean input on the next
+payload instead of being mistaken for unsaved typing.
 
 ### Regions that appear later
 
@@ -452,12 +503,13 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `admin.packages` | `/admin/packages` | stats, rows, pagination |
 | `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payment windows, fulfilment & invoices |
-| `member.dashboard:{id}` | `/dashboard` | E-wallet KPI, E-wallet card |
+| `member.dashboard:{id}` | `/dashboard` | header pill, KPI row, E-wallet card, membership, recent orders, earnings |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, statement |
 | `member.earnings:{id}` | `/earnings` | stats, skipped notice, header, rows, pagination |
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |
+| `member.cart:{id}` | `/cart` | cart content (notice, stock warnings, lines, summary, empty state) |
 | `member.checkout:{id}` | `/checkout` | saved addresses, order summary, payment/wallet card |
 | `member.orders:{id}` | `/orders` | rows, pagination |
 | `member.order:{id}` | `/orders/{id}` | header, status, payment attempts, delivery, payment summary, history |
@@ -465,7 +517,10 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `shop.product:{id}` | `/shop/{id}` | heading, shop-closed notice, product card |
 | `shop.packages` | `/packages` | package cards, empty state |
 
-Planned next: the cart page and the remaining dashboard/form widgets.
+Planned next: the shared shell chrome (the navbar cart badge/drawer and the
+notification dropdown) as one optional surface. The cart page already refreshes the
+drawer and badge after its own payloads, but a change made while a page without a
+cart surface is open still waits for the next full navigation.
 
 ## Deployment
 

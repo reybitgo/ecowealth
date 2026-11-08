@@ -554,6 +554,19 @@ If you imported your existing database, use your existing credentials.
     the cart tab: the other checkout tab's order summary should re-price without a
     reload. Top up the wallet: the e-wallet option and balance note should update; if a
     payment method was typed/selected first, the card is held and the banner explains why.
+26. Open `<app-url>/cart` in two tabs (with lines in the cart). Change a quantity or remove
+    a line in one tab: the other tab's table, totals and checkout button should update
+    without a reload. Type a different quantity in one tab and change the cart in the
+    other: the typed quantity must survive and the stale banner must appear. Add a product
+    from `<app-url>/shop` in a third tab and change a product's price/stock in the back
+    office: the cart tab should re-render its lines and badges, and its drawer/badge should
+    follow. Close the shop as an administrator: the closed notice should appear live.
+27. Open `<app-url>/dashboard` in two tabs as a member. Top up the wallet, place an order
+    for that member, or approve their activation: the header status pill, KPI row, E-wallet
+    card, membership card, recent-orders card and earnings card should update without a
+    refresh, while the greeting and the referral card (with its copy button) stay
+    untouched. Register a new member under them: the team/earnings figures should move on
+    the next poll.
 
 If the page works but live updates do not:
 

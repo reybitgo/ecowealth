@@ -398,6 +398,10 @@ final class Member
             Live::touchMember($memberId);
             Live::touchMembership($memberId);
 
+            /* The member's dashboard headline badge and membership KPI
+             * read the same status. */
+            Live::touchMemberDashboard($memberId);
+
             /* The status badge shows in the member's own genealogy self row
              * and in every ancestor's team list. */
             Live::touchGenealogy();

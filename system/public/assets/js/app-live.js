@@ -43,8 +43,16 @@
     Array.prototype.forEach.call(list || [], callback);
   }
 
+  /**
+   * Is a page interaction holding refreshes back?
+   *
+   * A SweetAlert/Bootstrap modal blocks the screen, and a form that is
+   * posting (including the cart's AJAX quantity save) owns the region it
+   * will update when the answer lands. Replacing either now would race
+   * the user, so the payload waits.
+   */
   function uiBlocked() {
-    return !!document.querySelector('.swal2-container, .modal.show');
+    return !!document.querySelector('.swal2-container, .modal.show, [data-live-busy="1"]');
   }
 
   /**
@@ -972,6 +980,11 @@
         document.removeEventListener('focusout', handler, true);
 
         if (!surface.stopped && !uiBlocked()) {
+          /* The payload that arrived while focus was inside was dropped, so
+           * the stored ETag no longer describes what this page shows. Drop
+           * it too and re-fetch; otherwise the deferred region would answer
+           * 304 for ever and keep the stale markup. */
+          surface.etag = '';
           refresh(surface, { force: false });
         }
       }, 120);

@@ -197,13 +197,28 @@ final class Live
     /**
      * The member's own dashboard surface (`member.dashboard:42`).
      *
-     * The member dashboard only exposes the E-wallet KPI and card as live
-     * regions; the surface is per user so one member's balance change never
-     * refreshes another member's open dashboard.
+     * The surface is per user so one member's balance, order, award or
+     * membership change never refreshes another member's open dashboard.
+     * Team counters are shared, so every page also mixes the shared
+     * `GENEALOGY_TEAM` revision into its ETag.
      */
     public static function memberDashboardSurface(int $userId): string
     {
         return 'member.dashboard:' . max(0, $userId);
+    }
+
+    /**
+     * The member's own cart page (`member.cart:42`).
+     *
+     * The page shows the member's lines, the live catalogue prices and the
+     * availability of each product. Every cart write bumps this per-member
+     * surface; price, status and stock changes arrive through the shared
+     * `shop.catalog` revision mixed into the page's ETag scope, so a
+     * catalogue change never fans out to every open cart.
+     */
+    public static function memberCartSurface(int $userId): string
+    {
+        return 'member.cart:' . max(0, $userId);
     }
 
     /**
@@ -247,9 +262,10 @@ final class Live
      * Every write that changes an order row — placement, a proof, a review
      * decision, a fulfilment step, expiry or a member confirmation — calls
      * this after the change so both open pages revalidate. Passing the
-     * buyer's id also bumps their `/orders` history; the member order detail
-     * surface is always bumped, so an order page never goes stale even when
-     * the caller only knows the order id.
+     * buyer's id also bumps their `/orders` history and their `/dashboard`
+     * recent-orders card, which reads the same rows and totals; the member
+     * order detail surface is always bumped, so an order page never goes
+     * stale even when the caller only knows the order id.
      */
     public static function touchOrder(int $orderId, ?int $userId = null): void
     {
@@ -261,6 +277,7 @@ final class Live
 
         if ($userId !== null && $userId > 0) {
             $surfaces[] = self::memberOrdersSurface($userId);
+            $surfaces[] = self::memberDashboardSurface($userId);
         }
 
         self::touch($surfaces);
@@ -339,6 +356,23 @@ final class Live
     public static function touchCheckout(int $userId): void
     {
         self::touch(self::checkoutSurface($userId));
+    }
+
+    /**
+     * Bump one member's cart page.
+     *
+     * Every successful cart write calls this — add, quantity change, step,
+     * removal, clear and the conversion that follows a placed order. A
+     * refused write (out of stock, someone else's line) bumps nothing, so
+     * an open tab never redraws for a change that did not happen.
+     *
+     * The checkout page re-prices from the same cart, so it is bumped in
+     * the same call: an open checkout summary and the cart page can never
+     * disagree after a cart write.
+     */
+    public static function touchCart(int $userId): void
+    {
+        self::touch([self::memberCartSurface($userId), self::checkoutSurface($userId)]);
     }
 
     /**
