@@ -64,7 +64,7 @@ if (is_post()) {
     if (isset($result)) {
         old_clear();
         errors_set([]);
-        Live::publish('admin.dashboard');
+        Live::publish(['admin.dashboard', Live::GENEALOGY_TEAM]);
 
         $package = (string) ($result['package_name'] ?? '');
 

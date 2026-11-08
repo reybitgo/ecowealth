@@ -398,6 +398,10 @@ final class Member
             Live::touchMember($memberId);
             Live::touchMembership($memberId);
 
+            /* The status badge shows in the member's own genealogy self row
+             * and in every ancestor's team list. */
+            Live::touchGenealogy();
+
             if ($owns) {
                 $pdo->commit();
             }

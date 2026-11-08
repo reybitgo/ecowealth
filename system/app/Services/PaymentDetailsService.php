@@ -128,6 +128,9 @@ final class PaymentDetailsService
             $userId,
         ]);
 
+        /* The profile's payout card reads these four columns. */
+        Live::touchProfile($userId);
+
         return array_map(static fn (?string $value): string => (string) $value, $values);
     }
 

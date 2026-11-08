@@ -101,6 +101,51 @@ final class Live
     }
 
     /**
+     * The member's own genealogy surface (`member.genealogy:42`).
+     *
+     * The page key is per user, but every genealogy page also includes
+     * the shared `GENEALOGY_TEAM` revision in its ETag: a team change
+     * moves the ancestors' counters and lists *and* the descendants'
+     * upline chain, so one shared bump is more accurate than walking the
+     * tree in only one direction.
+     */
+    public static function genealogySurface(int $userId): string
+    {
+        return 'member.genealogy:' . max(0, $userId);
+    }
+
+    /**
+     * The shared revision every genealogy page includes in its ETag.
+     *
+     * Bumped by a registration, an activation, a member status change and
+     * a profile-name change.
+     */
+    public const GENEALOGY_TEAM = 'member.genealogy';
+
+    /**
+     * The member's own profile page (`member.profile:42`).
+     *
+     * The page key is per user; the full-name, payout-account and address
+     * forms are held regions, while the address book list is replaced
+     * freely.
+     */
+    public static function profileSurface(int $userId): string
+    {
+        return 'member.profile:' . max(0, $userId);
+    }
+
+    /**
+     * The member's own checkout page (`member.checkout:42`).
+     *
+     * Only the saved-address picker is live; the delivery/payment form is
+     * the member's input and stays outside every region.
+     */
+    public static function checkoutSurface(int $userId): string
+    {
+        return 'member.checkout:' . max(0, $userId);
+    }
+
+    /**
      * The member's own dashboard surface (`member.dashboard:42`).
      *
      * The member dashboard only exposes the E-wallet KPI and card as live
@@ -223,6 +268,53 @@ final class Live
     public static function touchEarnings(int $userId): void
     {
         self::touch(self::earningsSurface($userId));
+    }
+
+    /**
+     * Bump one member's profile page.
+     *
+     * Called after a full-name save, a payout-account save and every
+     * address-book write (through touchAddressBook()).
+     */
+    public static function touchProfile(int $userId): void
+    {
+        self::touch(self::profileSurface($userId));
+    }
+
+    /**
+     * Bump one member's checkout address picker.
+     *
+     * The delivery/payment form is never replaced; only the saved-address
+     * card revalidates when the address book changes.
+     */
+    public static function touchCheckout(int $userId): void
+    {
+        self::touch(self::checkoutSurface($userId));
+    }
+
+    /**
+     * Bump the profile page and the checkout address picker together.
+     *
+     * Every address-book write lands in both places: the profile list and
+     * the checkout picker.
+     */
+    public static function touchAddressBook(int $userId): void
+    {
+        self::touch([self::profileSurface($userId), self::checkoutSurface($userId)]);
+    }
+
+    /**
+     * Bump the shared genealogy revision.
+     *
+     * A team change moves every affected page: a new registration grows
+     * every ancestor's team counters and lists, while an activation, a
+     * status change or a profile-name change also rewrites the upline row
+     * on every descendant's page. Bumping one shared revision keeps both
+     * directions correct instead of walking the whole tree per write.
+     */
+    public static function touchGenealogy(): void
+    {
+        self::touch(self::GENEALOGY_TEAM);
     }
 
     /**

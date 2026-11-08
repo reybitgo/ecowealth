@@ -533,6 +533,17 @@ If you imported your existing database, use your existing credentials.
 19. Open `<app-url>/earnings` in two tabs and approve an activation that pays the member:
     the summary cards, the award count and the rows should update without a refresh. A
     skipped award must reveal the "was skipped" notice live.
+20. Open `<app-url>/genealogy` in two tabs. Register a new member under the signed-in
+    member (or approve an activation in their downline): the "in team" badges, the
+    direct-recruit count and rows, and the team-by-level cards should update without a
+    reload. A status change in the downline should also update the row's status badge.
+21. Open `<app-url>/profile` in two tabs. Save an address in one: the other tab's address
+    book should update without a reload. Type a new full name or payout account in the
+    second tab first; the form must keep the typed value and show the stale banner
+    instead of being replaced.
+22. Open `<app-url>/checkout` and `<app-url>/profile` in two tabs. Add an address on the
+    profile tab: the checkout tab's saved-address card should appear or update without a
+    reload, while the delivery form keeps whatever was typed.
 
 If the page works but live updates do not:
 

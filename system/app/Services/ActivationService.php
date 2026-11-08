@@ -446,6 +446,10 @@ final class ActivationService
         Live::touchMember($userId);
         Live::touchMembership($userId);
 
+        /* The member's status and package now show in their own genealogy
+         * self row and in every ancestor's team list. */
+        Live::touchGenealogy();
+
         return [
             'activation_id' => $activationId,
             'user_id'       => $userId,

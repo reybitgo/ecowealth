@@ -31,14 +31,18 @@ final class ProfileController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $user   = $this->member();
-        $userId = (int) $user['id'];
+        $user    = $this->member();
+        $userId  = (int) $user['id'];
         $isAdmin = is_admin($user);
 
-        $editId  = (int) Request::query('edit', 0);
-        $editing = $editId > 0 ? $this->addresses->find($editId, $userId) : null;
+        /* The same URL doubles as the JSON feed. The surface is per member;
+         * every form region is held while the member has unsaved input. */
+        if (Live::isFeedRequest()) {
+            $this->feed($userId);
+            return;
+        }
 
-        View::page($isAdmin ? 'admin' : 'member', 'member/profile', [
+        View::page($isAdmin ? 'admin' : 'member', 'member/profile', $this->profileContext($user) + [
             'page_title'  => 'Profile',
             'current_nav' => $isAdmin ? 'admin.profile' : 'profile',
             'page_css'    => [
@@ -48,13 +52,129 @@ final class ProfileController
             'page_js'     => [
                 'assets/vendor/libs/sweetalert2/sweetalert2.js',
                 'assets/js/app-confirm.js',
+                'assets/js/admin-live.js',
             ],
-            'user'        => $user,
-            'addresses'   => $this->addresses->forUser($userId),
-            'editing'     => $editing,
-            'payments'    => $this->payments->forUser($userId),
-            'posted'      => old_payload(),
+            'live'        => Live::meta(
+                Live::profileSurface($userId),
+                Live::scope($_GET, $userId)
+            ),
         ]);
+    }
+
+    /**
+     * Everything the profile page renders, built once for the page and its
+     * feed. Public so the view tests can assert the real screen data.
+     *
+     * @param array<string, mixed> $user
+     * @return array<string, mixed>
+     */
+    public function profileContext(array $user): array
+    {
+        $userId = (int) $user['id'];
+        $editId = (int) Request::query('edit', 0);
+
+        return [
+            'user'      => $user,
+            'addresses' => $this->addresses->forUser($userId),
+            'editing'   => $editId > 0 ? $this->addresses->find($editId, $userId) : null,
+            'payments'  => $this->payments->forUser($userId),
+            'posted'    => old_payload(),
+        ];
+    }
+
+    /**
+     * JSON feed for the open profile page.
+     *
+     * The 304 check runs before profileContext(), so an unchanged profile
+     * costs one revision lookup. The form fragments render CSRF fields, so
+     * the token is primed before the session lock is released; old()
+     * and errors_all() stay readable after the close.
+     */
+    private function feed(int $userId): void
+    {
+        csrf_token();
+        session_write_close();
+
+        $surface = Live::profileSurface($userId);
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            $user = Member::find($userId);
+
+            if ($user === null) {
+                Live::jsonError('Member not found.', 404);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->profileContext($user)));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] profile live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh your profile. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the profile payload. Public so tests can assert the fragments
+     * without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        $user = $data['user'];
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::profileSurface((int) $user['id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'profile-name' => View::capture('member/profile/_name', [
+                    'user' => $user,
+                ]),
+                'profile-payments' => View::capture('member/profile/_payments', [
+                    'payments' => $data['payments'],
+                    'posted'   => $data['posted'],
+                ]),
+                'profile-addresses' => View::capture('member/profile/_addresses', [
+                    'addresses' => $data['addresses'],
+                ]),
+                'profile-address-form' => View::capture('member/profile/_address_form', [
+                    'addresses' => $data['addresses'],
+                    'editing'   => $data['editing'],
+                    'posted'    => $data['posted'],
+                ]),
+            ],
+            'meta'      => [
+                'canonical' => $this->canonicalProfileUrl($data['editing']),
+            ],
+        ];
+    }
+
+    /** The profile URL, dropping an `edit` id whose address is gone. */
+    private function canonicalProfileUrl(?array $editing): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        if ($editing === null) {
+            unset($query['edit']);
+        }
+
+        $qs = http_build_query($query);
+
+        return url('profile' . ($qs !== '' ? '?' . $qs : ''));
     }
 
     /** POST /profile/payment — the member's payout accounts. */
@@ -89,6 +209,7 @@ final class ProfileController
         }
 
         old_payload_clear();
+        Live::publish([Live::profileSurface($userId)]);
         flash_set('success', 'Payout details saved.');
         redirect('profile');
     }
@@ -123,6 +244,8 @@ final class ProfileController
         Live::touchWallet((int) $user['id']);
         Live::touchMember((int) $user['id']);
         Live::touchMembership((int) $user['id']);
+        Live::touchGenealogy();
+        Live::touchProfile((int) $user['id']);
         Live::publish([
             'admin.dashboard',
             'admin.wallets',
@@ -130,6 +253,8 @@ final class ProfileController
             Live::walletSurface((int) $user['id']),
             Live::memberSurface((int) $user['id']),
             Live::membershipSurface((int) $user['id']),
+            Live::GENEALOGY_TEAM,
+            Live::profileSurface((int) $user['id']),
         ]);
 
         old_clear();
@@ -178,6 +303,7 @@ final class ProfileController
         }
 
         old_payload_clear();
+        Live::publish([Live::profileSurface($userId), Live::checkoutSurface($userId)]);
         flash_set('success', $id > 0 ? 'Address updated.' : 'Address saved.');
         redirect('profile');
     }
@@ -188,6 +314,10 @@ final class ProfileController
         $user = $this->member();
 
         $removed = $this->addresses->remove((int) ($params['id'] ?? 0), (int) $user['id']);
+
+        if ($removed) {
+            Live::publish([Live::profileSurface((int) $user['id']), Live::checkoutSurface((int) $user['id'])]);
+        }
 
         flash_set(
             $removed ? 'success' : 'danger',
@@ -203,6 +333,10 @@ final class ProfileController
         $user = $this->member();
 
         $ok = $this->addresses->setDefault((int) ($params['id'] ?? 0), (int) $user['id']);
+
+        if ($ok) {
+            Live::publish([Live::profileSurface((int) $user['id']), Live::checkoutSurface((int) $user['id'])]);
+        }
 
         flash_set(
             $ok ? 'success' : 'danger',

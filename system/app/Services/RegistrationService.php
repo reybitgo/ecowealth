@@ -226,6 +226,10 @@ final class RegistrationService
                  * their open detail pages revalidate too. */
                 Live::touchMember($userId);
 
+                /* A new member changes the team counters and lists on every
+                 * ancestor's genealogy page, and sets this member's upline. */
+                Live::touchGenealogy();
+
                 if ((string) ($sponsor['role'] ?? 'member') === 'member') {
                     Live::touch(Live::memberSurface((int) $sponsor['id']));
                 }

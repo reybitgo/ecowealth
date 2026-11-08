@@ -214,7 +214,14 @@ final class AdminActivationController
             redirect('admin/activations');
         }
 
-        $publish = ['admin.dashboard', 'admin.wallets', 'admin.members', 'admin.activations', 'admin.commissions'];
+        $publish = [
+            'admin.dashboard',
+            'admin.wallets',
+            'admin.members',
+            'admin.activations',
+            'admin.commissions',
+            Live::GENEALOGY_TEAM,
+        ];
 
         if ((int) ($result['user_id'] ?? 0) > 0) {
             $publish[] = Live::walletSurface((int) $result['user_id']);

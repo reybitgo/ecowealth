@@ -5,10 +5,11 @@ order), the wallet monitor (all three tabs and one member's wallet), the
 member directory (list and one member), the activation queue, the
 registration-code list, the commission ledger, the member dashboard's
 E-wallet widgets, the member's own membership page, the member's own
-e-wallet statement and earnings page, the member's order history and one
-order page, and the storefront catalogue/product pages update themselves
-without a full page reload. The same pattern is intended for the other
-list, detail and dashboard pages.
+e-wallet statement and earnings page, the member's genealogy and profile
+pages, the checkout page's saved-address picker, the member's order
+history and one order page, and the storefront catalogue/product pages
+update themselves without a full page reload. The same pattern is intended
+for the other list, detail and dashboard pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -94,6 +95,15 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   `/wallet` statement (buckets and ledger)
 - `earningsSurface($id)` / `touchEarnings($id)` — the member's own
   `/earnings` statement (commission awards)
+- `genealogySurface($id)` / `touchGenealogy()` — the member's own
+  `/genealogy` page; the page key is per user and every page also mixes the
+  shared `GENEALOGY_TEAM` revision into its ETag
+- `profileSurface($id)` / `touchProfile($id)` — the member's own `/profile`
+  page (name, payout accounts and address book)
+- `checkoutSurface($id)` / `touchCheckout($id)` — the saved-address picker on
+  `/checkout`
+- `touchAddressBook($id)` — bumps the profile and checkout surfaces together
+  after an address-book write
 - `membershipSurface($id)` / `touchMembership($id)` — the member's own
   `/membership` page (status, package, activation paths and history)
 - `shopProductSurface($id)` / `touchShop($ids)` — the `shop.catalog` grid
@@ -153,6 +163,38 @@ so the first skipped award can appear live. The filter form stays outside the
 regions, so a background refresh never discards an unsubmitted filter. The ETag
 scope includes the hour because the "last award" label is relative and "this
 month" counts from `CURDATE()`.
+
+The member's own `/genealogy` page is `member.genealogy:{id}`. It renders six
+regions: the heading's team badges, the upline card, the direct-recruit count
+badge, its rows, its pagination and the team-by-level card. The referral block
+stays static so a refresh never disturbs the copy control. Unlike the other
+per-user pages, every genealogy page mixes the shared `member.genealogy`
+revision into its ETag: a new registration grows every ancestor's counters and
+lists, while an activation, a status change or a profile-name change also
+rewrites the upline row on every descendant's page. One shared bump is
+therefore more accurate than walking the tree in only one direction. It is
+bumped by `RegistrationService`, `ActivationService::complete()`,
+`Member::setStatus()` and the profile save; the recruits table paginates on
+`page`/`per_page`, and the canonical URL clamps only the page number.
+
+The member's own `/profile` page is `member.profile:{id}`. It renders four
+regions: the full-name form, the payout-account form, the address-book card
+and the add/edit address form. The three forms carry
+`data-live-hold="dirty"` — a background refresh never replaces a typed name,
+payout account or address — while the address-book list has no text input and
+is replaced freely. The canonical URL drops an `edit` id whose address was
+deleted, so the form falls back to "Add an address" on the next poll. The ETag
+scope is the query string plus the member; the page has no clock-relative
+label. Address writes call `touchAddressBook()`, which bumps this surface and
+the checkout picker; a full-name or payout save calls `touchProfile()`.
+
+The shared `checkoutSurface:{id}` belongs to the saved-address picker on
+`/checkout`. Only that card is a region — the delivery, payment and terms form
+stays outside every region so a refresh never disturbs the member's input. The
+wrapper is always present and `hidden` while the book is empty, so the first
+saved address can appear live; the `address` query selects the highlighted
+card, and a stale id falls back to the default and is removed from the
+canonical URL.
 
 The member directory and one member page are two surfaces: `admin.members`
 and `admin.members:{id}`. `touchMember()` bumps both. It is called by
@@ -276,12 +318,13 @@ Three page behaviours keep swapped forms working:
 
 `public/assets/js/admin-live.js` is shared by every live surface with a form
 region — the admin pages, the member's `/membership` page, the member's own
-`/wallet` statement, the member order page and the product page: it consumes
-`detail.held` and reveals the page's `[data-live-stale]` banner (“changed in
-another tab, your unsaved input was kept — reload to see the latest”). The
-banner is only shown when a form region was held back; a payload that applied
-cleanly hides it again. A `[data-live-reload]` link in the banner is pointed at
-the current URL, filters and page included.
+`/wallet` statement, the member's `/profile` page, the member order page and
+the product page: it consumes `detail.held` and reveals the page's
+`[data-live-stale]` banner (“changed in another tab, your unsaved input was
+kept — reload to see the latest”). The banner is only shown when a form region
+was held back; a payload that applied cleanly hides it again. A
+`[data-live-reload]` link in the banner is pointed at the current URL, filters
+and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
@@ -291,11 +334,14 @@ moves at the month boundary. The wallet monitor adds the hour as well, because i
 directory shows a relative “last movement” label; a tab left open therefore revalidates
 on its next poll without a write. The member earnings page adds the hour too, because its
 “last award” label is relative and “this month” counts from `CURDATE()`. The member order
-page adds the hour too, because its payment/correction window labels read the clock. The
-storefront catalogue and product pages include the `shop_enabled` setting for the same
-reason: closing the shop must reach an open tab without a product write. The navbar
-notification dropdown sits outside the dashboard surface and updates on the next full
-navigation; it is a candidate for a future shell surface.
+page adds the hour too, because its payment/correction window labels read the clock. Every
+genealogy page adds the shared team revision instead of a clock: an activation, a status
+change or a profile-name change rewrites the upline row on a descendant's page, so the
+per-page key alone would leave half the tree stale. The storefront catalogue and product
+pages include the `shop_enabled` setting for the same reason: closing the shop must
+reach an open tab without a product write. The navbar notification dropdown sits outside
+the dashboard surface and updates on the next full navigation; it is a candidate for a
+future shell surface.
 
 ### Tabbed pages
 
@@ -370,12 +416,16 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, statement |
 | `member.earnings:{id}` | `/earnings` | stats, skipped notice, header, rows, pagination |
+| `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
+| `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |
+| `member.checkout:{id}` | `/checkout` | saved-address picker |
 | `member.orders:{id}` | `/orders` | rows, pagination |
 | `member.order:{id}` | `/orders/{id}` | header, status, payment attempts, delivery, payment summary, history |
 | `shop.catalog` | `/shop` | heading, result states, quick-view JSON |
 | `shop.product:{id}` | `/shop/{id}` | heading, shop-closed notice, product card |
 
-Planned next: `member.genealogy:{userId}` (team counters).
+Planned next: the admin package list, the admin settings page and the rest of
+the checkout flow.
 
 ## Deployment
 

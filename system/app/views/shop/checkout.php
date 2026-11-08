@@ -20,6 +20,8 @@ declare(strict_types=1);
  * @var array<string, array{label:string, icon:string, hint:string, available:bool}> $payment_methods
  * @var string $terms_version
  * @var string $idempotency_key
+ * @var int $selected_id
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
 $posted = old_payload();
@@ -53,15 +55,31 @@ $saveAddressDefault = array_key_exists('save_address', $posted)
 $key = array_key_exists('idempotency_key', $posted) && (string) $posted['idempotency_key'] !== ''
     ? (string) $posted['idempotency_key']
     : $idempotency_key;
-$selectedId = $selected === null ? 0 : (int) $selected['id'];
+$selectedId = (int) ($selected_id ?? (isset($selected) && $selected !== null ? (int) $selected['id'] : 0));
 $subtotal   = (float) ($state['totals']['subtotal'] ?? 0);
+
+$live = $live ?? [
+    'surface'  => Live::checkoutSurface((int) (auth_user()['id'] ?? 0)),
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
+];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y checkout-page">
+            <div
+              class="container-xxl flex-grow-1 container-p-y checkout-page"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">Checkout</h4>
                   <p class="text-body-secondary mb-0">
                     Review your items, choose how to pay, and tell us where to deliver.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
                 <a href="<?= e(url('cart')) ?>" class="btn btn-label-secondary">
@@ -82,60 +100,10 @@ $subtotal   = (float) ($state['totals']['subtotal'] ?? 0);
 
                 <div class="row g-6">
                   <div class="col-lg-8">
-<?php if ($addresses !== []): ?>
-                    <div class="card mb-6 checkout-card">
-                      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <div>
-                          <h5 class="mb-0">Saved addresses</h5>
-                          <p class="text-body-secondary small mb-0">Pick one to fill the form below, or edit it first.</p>
-                        </div>
-                        <a href="<?= e(url('profile')) ?>" class="btn btn-sm btn-label-primary">
-                          <i class="icon-base bx bx-plus me-1"></i> Manage addresses
-                        </a>
-                      </div>
-                      <div class="card-body">
-                        <div class="row g-3">
-<?php foreach ($addresses as $address): ?>
-<?php $isSelected = (int) $address['id'] === $selectedId; ?>
-                          <div class="col-12 col-md-6">
-                            <a
-                              href="<?= e(url('checkout?address=' . (int) $address['id'])) ?>"
-                              class="checkout-address-card<?= $isSelected ? ' is-selected' : '' ?>"
-                              aria-current="<?= $isSelected ? 'true' : 'false' ?>"
-                            >
-                              <div class="d-flex align-items-start justify-content-between gap-2">
-                                <span class="fw-semibold"><?= e((string) $address['recipient_name']) ?></span>
-                                <span class="d-flex flex-column align-items-end gap-1">
-<?php if ((int) $address['is_default'] === 1): ?>
-                                  <span class="badge bg-label-primary">Default</span>
-<?php endif; ?>
-<?php if ($isSelected): ?>
-                                  <span class="badge bg-label-success">Selected</span>
-<?php endif; ?>
-                                </span>
-                              </div>
-<?php if (trim((string) ($address['label'] ?? '')) !== ''): ?>
-                              <div class="small text-body-secondary"><?= e((string) $address['label']) ?></div>
-<?php endif; ?>
-                              <div class="small text-body-secondary mt-1">
-                                <?= e(implode(', ', array_filter([
-                                    (string) $address['address_line'],
-                                    (string) ($address['barangay'] ?? ''),
-                                    (string) ($address['city'] ?? ''),
-                                    (string) ($address['province'] ?? ''),
-                                    (string) ($address['postal'] ?? ''),
-                                ]))) ?>
-                              </div>
-<?php if (trim((string) ($address['phone'] ?? '')) !== ''): ?>
-                              <div class="small text-body-secondary mt-1"><?= e((string) $address['phone']) ?></div>
-<?php endif; ?>
-                            </a>
-                          </div>
-<?php endforeach; ?>
-                        </div>
-                      </div>
-                    </div>
-<?php endif; ?>
+<?= View::capture('shop/checkout/_addresses', [
+    'addresses'   => $addresses,
+    'selected_id' => $selectedId,
+]) ?>
 
                     <div class="card mb-6 checkout-card">
                       <div class="card-header">

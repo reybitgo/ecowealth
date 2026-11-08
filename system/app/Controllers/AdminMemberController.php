@@ -447,6 +447,7 @@ final class AdminMemberController
             Live::walletSurface($id),
             Live::memberSurface($id),
             Live::membershipSurface($id),
+            Live::GENEALOGY_TEAM,
         ]);
 
         flash_set('success', sprintf(
@@ -487,6 +488,7 @@ final class AdminMemberController
             Live::walletSurface($id),
             Live::memberSurface($id),
             Live::membershipSurface($id),
+            Live::GENEALOGY_TEAM,
         ]);
 
         flash_set('success', sprintf(

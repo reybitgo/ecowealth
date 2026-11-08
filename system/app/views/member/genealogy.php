@@ -8,19 +8,55 @@ declare(strict_types=1);
  * is nearest-first (level 1 = direct sponsor); the team is grouped by
  * level, breadth-first.
  *
+ * One live surface per member (`member.genealogy:{id}`). The heading
+ * badges, upline card, direct-recruit count/rows/pagination and the
+ * team-by-level card are regions; the referral block stays static, and
+ * the shared `member.genealogy` revision in the ETag keeps every
+ * ancestor and descendant page correct after a team change.
+ *
  * @var array<string, mixed>       $member
+ * @var string                     $display_name
  * @var list<array<string, mixed>> $upline       SponsorService::chain()
  * @var list<array<string, mixed>> $direct       level-1 downline
+ * @var Paginator                  $recruits_pager
  * @var array<int, list<array<string, mixed>>> $deeper
  * @var int                        $team_count
  * @var int                        $levels_used
  * @var string                     $referral_code
  * @var string                     $referral_link
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
-$displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['username'];
+$display_name = $display_name ?? (
+    trim((string) ($member['full_name'] ?? '')) !== ''
+        ? (string) $member['full_name']
+        : (string) $member['username']
+);
+$upline         = $upline ?? [];
+$direct         = $direct ?? [];
+$deeper         = $deeper ?? [];
+$team_count     = $team_count ?? 0;
+$levels_used    = $levels_used ?? 0;
+$referral_code  = $referral_code ?? '';
+$referral_link  = $referral_link ?? '';
+$recruits_pager = $recruits_pager ?? Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE);
+
+$live = $live ?? [
+    'surface'  => Live::genealogySurface((int) ($member['id'] ?? 0)),
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
+];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y">
+            <div
+              class="container-xxl flex-grow-1 container-p-y"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <?= flash_render() ?>
 
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
@@ -28,12 +64,13 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                   <h4 class="mb-1">Genealogy</h4>
                   <p class="text-body-secondary mb-0">
                     Your sponsor chain and your team. Commissions follow this chain — one sponsor per member.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
-                <div class="d-flex gap-2 flex-wrap">
-                  <span class="badge rounded-pill bg-label-primary"><?= (int) $team_count ?> in team</span>
-                  <span class="badge rounded-pill bg-label-secondary"><?= (int) $levels_used ?> level<?= (int) $levels_used === 1 ? '' : 's' ?></span>
-                </div>
+<?= View::capture('member/genealogy/_header', [
+    'team_count'  => $team_count,
+    'levels_used' => $levels_used,
+]) ?>
               </div>
 
               <div class="row g-4">
@@ -45,45 +82,11 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                       <small class="text-body-secondary">Nearest sponsor first, up to ten levels.</small>
                     </div>
                     <div class="card-body">
-<?php if ($upline === []): ?>
-                      <div class="alert alert-secondary py-3 mb-0 small">
-                        This account is the top of its chain — it has no sponsor.
-                      </div>
-<?php else: ?>
-                      <div class="genealogy-upline">
-<?php foreach ($upline as $row): ?>
-<?php $sponsor = $row['member']; ?>
-                        <div class="upline-row">
-                          <span class="upline-level">L<?= (int) $row['level'] ?></span>
-                          <div class="flex-grow-1 min-w-0">
-                            <div class="fw-medium text-truncate">
-                              <?= e((string) $sponsor['username']) ?>
-                              <span class="text-body-secondary small">
-                                <?= $sponsor['package_name'] === null ? '· no package' : '· ' . e((string) $sponsor['package_name']) ?>
-                              </span>
-                            </div>
-                            <div class="member-meta">
-                              <?= e(ucfirst(str_replace('_', ' ', (string) $sponsor['member_status']))) ?>
-                              · joined <?= e(format_datetime((string) $sponsor['created_at'])) ?>
-                            </div>
-                          </div>
-                          <?= status_badge((string) $sponsor['member_status']) ?>
-                        </div>
-<?php endforeach; ?>
-                        <div class="upline-row is-self">
-                          <span class="upline-level"><i class="icon-base bx bx-user"></i></span>
-                          <div class="flex-grow-1 min-w-0">
-                            <div class="fw-medium text-truncate">
-                              <?= e($displayName) ?> <span class="text-body-secondary small">· you</span>
-                            </div>
-                            <div class="member-meta">
-                              <?= $member['package_name'] === null ? 'No package' : e((string) $member['package_name']) ?>
-                            </div>
-                          </div>
-                          <?= status_badge((string) $member['member_status']) ?>
-                        </div>
-                      </div>
-<?php endif; ?>
+<?= View::capture('member/genealogy/_upline', [
+    'member'       => $member,
+    'upline'       => $upline,
+    'display_name' => $display_name,
+]) ?>
 
                       <hr class="my-4" />
 
@@ -120,7 +123,7 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                         <h5 class="card-title mb-0">Direct recruits</h5>
                         <small class="text-body-secondary">Level 1 — members you sponsored.</small>
                       </div>
-                      <span class="badge bg-label-primary"><?= count($direct) ?></span>
+<?= View::capture('member/genealogy/_recruits_count', ['recruits_pager' => $recruits_pager]) ?>
                     </div>
                     <div class="table-responsive">
                       <table class="table table-hover align-middle mb-0">
@@ -132,41 +135,10 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                             <th>Joined</th>
                           </tr>
                         </thead>
-                        <tbody>
-<?php if ($direct === []): ?>
-                          <tr>
-                            <td colspan="4" class="py-0">
-<?php
-    echo View::partial('empty_state', [
-        'icon'         => 'bx bx-user-plus',
-        'title'        => 'No direct recruits yet',
-        'text'         => 'Share your referral link — new signups appear here immediately.',
-    ]);
-?>
-                            </td>
-                          </tr>
-<?php endif; ?>
-<?php foreach ($direct as $row): ?>
-                          <tr>
-                            <td>
-                              <span class="fw-medium">@<?= e((string) $row['username']) ?></span>
-                              <?php if (trim((string) ($row['full_name'] ?? '')) !== ''): ?>
-                              <div class="member-meta"><?= e((string) $row['full_name']) ?></div>
-                              <?php endif; ?>
-                            </td>
-                            <td><?= $row['package_name'] === null ? '<span class="text-body-secondary">—</span>' : e((string) $row['package_name']) ?></td>
-                            <td><?= status_badge((string) $row['member_status']) ?></td>
-                            <td class="text-nowrap"><span class="member-meta"><?= e(format_datetime((string) $row['created_at'])) ?></span></td>
-                          </tr>
-<?php endforeach; ?>
-                        </tbody>
+<?= View::capture('member/genealogy/_recruits_rows', ['direct' => $direct]) ?>
                       </table>
                     </div>
-<?php if (isset($recruits_pager) && $recruits_pager instanceof Paginator): ?>
-                    <div class="card-body pt-2">
-<?= View::partial('pagination', ['pager' => $recruits_pager, 'pager_label' => 'Recruits']) ?>
-                    </div>
-<?php endif; ?>
+<?= View::capture('member/genealogy/_recruits_pagination', ['recruits_pager' => $recruits_pager]) ?>
                   </div>
                 </div>
               </div>
@@ -178,37 +150,7 @@ $displayName = trim((string) ($member['full_name'] ?? '')) ?: (string) $member['
                   <small class="text-body-secondary">Breadth-first through sponsor links, up to ten levels.</small>
                 </div>
                 <div class="card-body">
-<?php if ($deeper === []): ?>
-                  <p class="text-body-secondary small mb-0">
-                    No second-level members yet. Your direct recruits' own recruits will show up here.
-                  </p>
-<?php else: ?>
-                  <div class="row g-4">
-<?php foreach ($deeper as $level => $rows): ?>
-                    <div class="col-md-6 col-xl-4">
-                      <div class="border rounded-3 p-3 h-100">
-                        <div class="team-level-chip">
-                          <span class="badge bg-label-primary">Level <?= (int) $level ?></span>
-                          <span class="text-body-secondary small"><?= count($rows) ?> member<?= count($rows) === 1 ? '' : 's' ?></span>
-                        </div>
-                        <ul class="list-unstyled mb-0 small">
-<?php foreach ($rows as $row): ?>
-                          <li class="d-flex align-items-center justify-content-between gap-2 py-1">
-                            <span class="text-truncate">
-                              @<?= e((string) $row['username']) ?>
-                              <?php if ($row['package_name'] !== null): ?>
-                              <span class="text-body-secondary d-block member-meta"><?= e((string) $row['package_name']) ?></span>
-                              <?php endif; ?>
-                            </span>
-                            <?= status_badge((string) $row['member_status']) ?>
-                          </li>
-<?php endforeach; ?>
-                        </ul>
-                      </div>
-                    </div>
-<?php endforeach; ?>
-                  </div>
-<?php endif; ?>
+<?= View::capture('member/genealogy/_team', ['deeper' => $deeper]) ?>
                 </div>
               </div>
             </div>

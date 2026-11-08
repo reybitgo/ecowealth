@@ -16,10 +16,27 @@ declare(strict_types=1);
  *  There is no binary tree anywhere: every row here comes from
  *  users.sponsor_id (plan §1.3). P9-T17 asserts the pages never
  *  mention a binary column.
+ *
+ *  The page is one live surface per member (`member.genealogy:{id}`).
+ *  Header badges, upline card, direct-recruit count/rows/pagination and
+ *  the team-by-level card are regions; the referral block stays static
+ *  so a background refresh never disturbs the copy control.
+ *
+ *  Every genealogy page also includes the shared `member.genealogy`
+ *  revision in its ETag: a team change moves the ancestors' counters and
+ *  lists and the descendants' upline chain, so one shared bump keeps the
+ *  whole tree correct.
  * ============================================================== */
 
 final class GenealogyController
 {
+    private SponsorService $sponsors;
+
+    public function __construct()
+    {
+        $this->sponsors = new SponsorService();
+    }
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -29,16 +46,46 @@ final class GenealogyController
             redirect('login');
         }
 
-        $userId = (int) $user['id'];
+        $userId  = (int) $user['id'];
+        $isAdmin = is_admin($user);
+
+        /* The same URL doubles as the JSON feed. The page key is per user;
+         * the shared team revision is part of the ETag scope. */
+        if (Live::isFeedRequest()) {
+            $this->feed($userId);
+            return;
+        }
+
         $member = Member::find($userId);
 
         if ($member === null) {
             View::error(404);
         }
 
-        $sponsors = new SponsorService();
-        $chain    = $sponsors->chain($userId, SponsorService::MAX_LEVELS);
-        $team     = $sponsors->downline($userId, SponsorService::MAX_LEVELS);
+        View::page($isAdmin ? 'admin' : 'member', 'member/genealogy', $this->genealogyContext($member) + [
+            'page_title'  => 'Genealogy',
+            'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
+            'page_css'    => ['assets/css/membership.css'],
+            'live'        => Live::meta(
+                Live::genealogySurface($userId),
+                $this->genealogyScope($userId)
+            ),
+        ]);
+    }
+
+    /**
+     * Everything the page renders, built once for the page and its feed.
+     * Public so the view tests can assert the real screen data.
+     *
+     * @param array<string, mixed> $member
+     * @return array<string, mixed>
+     */
+    public function genealogyContext(array $member): array
+    {
+        $userId = (int) $member['id'];
+
+        $chain = $this->sponsors->chain($userId, SponsorService::MAX_LEVELS);
+        $team  = $this->sponsors->downline($userId, SponsorService::MAX_LEVELS);
 
         /* Group the downline by level for the template. */
         $byLevel = [];
@@ -50,8 +97,8 @@ final class GenealogyController
         ksort($byLevel);
 
         /* Direct recruits are their own table, so they paginate. */
-        $recruitsPager = Paginator::fromTableRequest($sponsors->countDirectRecruits($userId));
-        $direct        = $sponsors->directRecruits($userId, null, $recruitsPager);
+        $recruitsPager = Paginator::fromTableRequest($this->sponsors->countDirectRecruits($userId));
+        $direct        = $this->sponsors->directRecruits($userId, null, $recruitsPager);
 
         $deeper = [];
 
@@ -63,21 +110,150 @@ final class GenealogyController
             $deeper[$level] = $rows;
         }
 
-        $isAdmin = is_admin($user);
+        $displayName = trim((string) ($member['full_name'] ?? '')) !== ''
+            ? (string) $member['full_name']
+            : (string) $member['username'];
 
-        View::page($isAdmin ? 'admin' : 'member', 'member/genealogy', [
-            'page_title'    => 'Genealogy',
-            'current_nav'   => $isAdmin ? 'admin.genealogy' : 'genealogy',
-            'page_css'      => ['assets/css/membership.css'],
-            'member'        => $member,
-            'upline'        => $chain,
-            'direct'        => $direct,
+        return [
+            'member'         => $member,
+            'display_name'   => $displayName,
+            'upline'         => $chain,
+            'direct'         => $direct,
             'recruits_pager' => $recruitsPager,
-            'deeper'        => $deeper,
-            'team_count'    => count($team),
-            'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),
-            'referral_code' => (string) ($member['referral_code'] ?? ''),
-            'referral_link' => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
-        ]);
+            'deeper'         => $deeper,
+            'team_count'     => count($team),
+            'levels_used'    => $byLevel === [] ? 0 : max(array_keys($byLevel)),
+            'referral_code'  => (string) ($member['referral_code'] ?? ''),
+            'referral_link'  => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
+        ];
+    }
+
+    /**
+     * ETag scope for a genealogy page.
+     *
+     * The query string keeps the recruits page and size; the user keeps
+     * two members' pages apart; the shared team revision makes every
+     * ancestor and descendant revalidate on a team change. A deploy that
+     * lands before migration 013 treats the revision as zero (Live::meta
+     * then switches updates off); it must never fail the page.
+     */
+    private function genealogyScope(int $userId): string
+    {
+        $team = 0;
+
+        try {
+            $team = Live::revision(Live::GENEALOGY_TEAM);
+        } catch (Throwable) {
+            /* Live::meta() reports the missing table once and turns the
+             * surface off; the page must still render. */
+        }
+
+        return Live::scope($_GET, $userId) . '|team:' . $team;
+    }
+
+    /**
+     * JSON feed for the open genealogy page.
+     *
+     * The 304 check runs before genealogyContext(), so an unchanged tree
+     * costs one revision lookup and no traversal. No fragment renders a
+     * POST form, so the session lock is released immediately.
+     */
+    private function feed(int $userId): void
+    {
+        session_write_close();
+
+        $surface = Live::genealogySurface($userId);
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, $this->genealogyScope($userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            $member = Member::find($userId);
+
+            if ($member === null) {
+                Live::jsonError('Member not found.', 404);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->genealogyContext($member)));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] genealogy live feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh your genealogy. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the genealogy payload. Public so tests can assert the
+     * fragments without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        $member = $data['member'];
+        $pager  = $data['recruits_pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::genealogySurface((int) $member['id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'genealogy-header' => View::capture('member/genealogy/_header', [
+                    'team_count'  => $data['team_count'],
+                    'levels_used' => $data['levels_used'],
+                ]),
+                'genealogy-upline' => View::capture('member/genealogy/_upline', [
+                    'member'       => $member,
+                    'upline'       => $data['upline'],
+                    'display_name' => $data['display_name'],
+                ]),
+                'genealogy-recruits-count' => View::capture('member/genealogy/_recruits_count', [
+                    'recruits_pager' => $pager,
+                ]),
+                'genealogy-recruits-rows' => View::capture('member/genealogy/_recruits_rows', [
+                    'direct' => $data['direct'],
+                ]),
+                'genealogy-recruits-pagination' => View::capture('member/genealogy/_recruits_pagination', [
+                    'recruits_pager' => $pager,
+                ]),
+                'genealogy-team' => View::capture('member/genealogy/_team', [
+                    'deeper' => $data['deeper'],
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalGenealogyUrl($pager),
+            ],
+        ];
+    }
+
+    /** The genealogy URL with an out-of-range recruits page clamped. */
+    private function canonicalGenealogyUrl(Paginator $pager): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        unset($query['page']);
+
+        if ($pager->page > 1) {
+            $query['page'] = (string) $pager->page;
+        }
+
+        $qs = http_build_query($query);
+
+        return url('genealogy' . ($qs !== '' ? '?' . $qs : ''));
     }
 }

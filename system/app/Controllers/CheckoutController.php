@@ -30,7 +30,15 @@ final class CheckoutController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $user = $this->member();
+        $user   = $this->member();
+        $userId = (int) $user['id'];
+
+        /* The same URL doubles as the JSON feed for the saved-address
+         * picker. The delivery/payment form is never replaced. */
+        if (Live::isFeedRequest()) {
+            $this->addressFeed($userId);
+            return;
+        }
 
         if (!setting_bool('shop_enabled', true)) {
             flash_set('warning', 'The shop is currently closed. Please try again later.');
@@ -49,8 +57,9 @@ final class CheckoutController
             redirect('cart');
         }
 
-        $addresses = $this->addresses->forUser((int) $user['id']);
-        $selected  = $this->selectedAddress((int) $user['id'], $addresses, (int) Request::query('address', 0));
+        $context   = $this->addressContext($userId);
+        $addresses = $context['addresses'];
+        $selected  = $context['selected'];
         $prefill   = $this->prefill($user, $selected);
 
         $wallet       = Wallet::account((int) $user['id']) ?? [];
@@ -98,13 +107,122 @@ final class CheckoutController
             'state'           => $state,
             'addresses'       => $addresses,
             'selected'        => $selected,
+            'selected_id'     => $context['selected_id'],
             'prefill'         => $prefill,
             'wallet'          => ['balance' => $balance, 'withdrawable' => $withdrawable],
             'payment_methods' => $methods,
             'terms_version'   => OrderService::TERMS_VERSION,
             'idempotency_key' => $this->newIdempotencyKey(),
             'shop_open'       => true,
+            'live'            => Live::meta(
+                Live::checkoutSurface($userId),
+                Live::scope($_GET, $userId)
+            ),
         ]);
+    }
+
+    /**
+     * Everything the address picker renders, built once for the page and
+     * its feed. Public so the view tests can assert the real screen data.
+     *
+     * @return array<string, mixed>
+     */
+    public function addressContext(int $userId): array
+    {
+        $addresses = $this->addresses->forUser($userId);
+        $selected  = $this->selectedAddress($userId, $addresses, (int) Request::query('address', 0));
+
+        return [
+            'user_id'     => $userId,
+            'addresses'   => $addresses,
+            'selected'    => $selected,
+            'selected_id' => $selected === null ? 0 : (int) $selected['id'],
+        ];
+    }
+
+    /**
+     * JSON feed for the open checkout page's address picker.
+     *
+     * The 304 check runs before the address read, so an unchanged picker
+     * costs one revision lookup. The region renders only links, so the
+     * session lock is released immediately.
+     */
+    private function addressFeed(int $userId): void
+    {
+        session_write_close();
+
+        $surface = Live::checkoutSurface($userId);
+
+        try {
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            if (Member::find($userId) === null) {
+                Live::jsonError('Member not found.', 404);
+            }
+
+            Live::json($etag, $this->addressFeedPayload($revision, $etag, $this->addressContext($userId)));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] checkout address feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the saved addresses. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the address-picker payload. Public so tests can assert the
+     * fragment without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function addressFeedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'        => true,
+            'surface'   => Live::checkoutSurface((int) $data['user_id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'checkout-addresses' => View::capture('shop/checkout/_addresses', [
+                    'addresses'   => $data['addresses'],
+                    'selected_id' => $data['selected_id'],
+                ]),
+            ],
+            'meta'      => [
+                'canonical' => $this->canonicalCheckoutUrl($data['selected']),
+            ],
+        ];
+    }
+
+    /**
+     * The checkout URL with a stale `address` id removed.
+     *
+     * The picker falls back to the default when the requested address was
+     * deleted; the URL should not keep pointing at it.
+     */
+    private function canonicalCheckoutUrl(?array $selected): string
+    {
+        $query = [];
+
+        foreach ($_GET as $key => $value) {
+            if (is_scalar($value) && $key !== 'XTransformPort') {
+                $query[(string) $key] = (string) $value;
+            }
+        }
+
+        $requested = isset($query['address']) ? (int) $query['address'] : 0;
+
+        if ($selected === null || ($requested > 0 && $requested !== (int) $selected['id'])) {
+            unset($query['address']);
+        }
+
+        $qs = http_build_query($query);
+
+        return url('checkout' . ($qs !== '' ? '?' . $qs : ''));
     }
 
     /** POST /checkout */
@@ -169,6 +287,13 @@ final class CheckoutController
          * transaction, so another open statement tab must revalidate too. */
         if ((string) ($result['status'] ?? '') === 'paid') {
             $publish[] = Live::memberWalletSurface((int) $user['id']);
+        }
+
+        /* Checkout can append the typed address to the address book, so an
+         * open profile page and another checkout tab revalidate. */
+        if ($input['save_address'] === true) {
+            $publish[] = Live::profileSurface((int) $user['id']);
+            $publish[] = Live::checkoutSurface((int) $user['id']);
         }
 
         Live::publish($publish);

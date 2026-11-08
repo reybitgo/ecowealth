@@ -107,7 +107,7 @@ final class AddressService
 
         $payload = $this->normalise($input);
 
-        return $this->withTransaction(function () use ($userId, $payload, $id): int {
+        $addressId = $this->withTransaction(function () use ($userId, $payload, $id): int {
             $this->lockMember($userId);
 
             $existing = $id !== null && $id > 0 ? Address::findOwned($id, $userId, $this->pdo) : null;
@@ -186,6 +186,12 @@ final class AddressService
 
             return $addressId;
         });
+
+        /* The address book changed: the profile list and the checkout
+         * picker both revalidate. A rolled-back write never reaches here. */
+        Live::touchAddressBook($userId);
+
+        return $addressId;
     }
 
     /**
@@ -215,7 +221,7 @@ final class AddressService
     /** Delete one of the member's addresses. */
     public function remove(int $id, int $userId): bool
     {
-        return $this->withTransaction(function () use ($id, $userId): bool {
+        $removed = $this->withTransaction(function () use ($id, $userId): bool {
             $this->lockMember($userId);
 
             $address = Address::findOwned($id, $userId, $this->pdo);
@@ -232,12 +238,18 @@ final class AddressService
 
             return true;
         });
+
+        if ($removed) {
+            Live::touchAddressBook($userId);
+        }
+
+        return $removed;
     }
 
     /** Mark an address as the member's default (clearing the old one). */
     public function setDefault(int $id, int $userId): bool
     {
-        return $this->withTransaction(function () use ($id, $userId): bool {
+        $ok = $this->withTransaction(function () use ($id, $userId): bool {
             $this->lockMember($userId);
 
             if (Address::findOwned($id, $userId, $this->pdo) === null) {
@@ -250,6 +262,12 @@ final class AddressService
 
             return true;
         });
+
+        if ($ok) {
+            Live::touchAddressBook($userId);
+        }
+
+        return $ok;
     }
 
     /* ----------------------------------------------------------
