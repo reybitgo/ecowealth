@@ -2522,7 +2522,7 @@ monitor gains transfer/top-up tabs. The wallet page links the transfer form and 
 | **Model** | `Commission::LEVEL_MIN`, `exportRows()` (the unpaginated filtered CSV feed) and the existing `levelBreakdown()`; `Package::levels()`/`levelsMap()` accept the service connection |
 | **Member** | `/earnings` gains the **Unilevel breakdown** card (levels 1–10, award count, amount and share bar), a filtered **Export CSV** download (`GET /earnings/export`, member-scoped) and the same live region set as before plus `earnings-levels` |
 | **Back office** | `GET /admin/commissions/export` streams the filtered ledger (recipient, source, type, level, package, amount, status, reason, activation, ledger) and is audited (`commission.export`); the ledger page links the export and already carried the type/level filters from Phase 10 |
-| **Tests** | 14 new `CommissionIndirectTest` cases (P11-T1 … P11-T12, with separate global/package/depth switch cases), the Phase 10 direct-leg cases now pin the package's `indirect_enabled = 0` so their expected money stays direct-only, the phase 9 code-race sponsor is a chainless package-less account, the earnings live/view tests cover the new region and export, the migration test applies 014 and checks the settings, the router table is 71 → 73 routes, suite **559** (14 new P11 cases plus the package-premium migration case) |
+| **Tests** | 14 new `CommissionIndirectTest` cases (P11-T1 … P11-T12, with separate global/package/depth switch cases), the Phase 10 direct-leg cases now pin the package's `indirect_enabled = 0` so their expected money stays direct-only, the phase 9 code-race sponsor is a chainless package-less account, the earnings live/view tests cover the new region and export, the migration test applies 014 and checks the settings, the router table is 71 → 73 routes, suite **560** (14 new P11 cases plus the package-premium migration and genealogy-team tests) |
 | **Smoke** | Phase 11 block: a code registration under `peter` pays peter ₱500 / maria ₱100 / juan ₱50, skips the company root at level 4, proves the wallet credits, the member level breakdown, both CSV exports and the admin type/level filter; the run restores every wallet and removes its awards. **143 checks** |
 | **Docs** | This log, `docs/qa/phase-11-commissions.md`, the QA README/sign-off sheet, `docs/live-updates.md` and both READMEs |
 
@@ -2581,7 +2581,7 @@ monitor gains transfer/top-up tabs. The wallet page links the transfer form and 
 
 - [x] Migration applied to dev DB; `schema.sql` unchanged (no table change) and seeds carry the new keys
 - [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
-- [x] All P11 tests pass (14 new cases; suite **559**)
+- [x] All P11 tests pass (14 new cases; suite **560**)
 - [x] Full regression suite passes (Phases 1–10; direct-leg isolation and the race sponsor documented)
 - [x] Smoke script passes (**143 checks**, 4 new)
 - [x] Headless browser pass (**26 checks**) and 8 reference screenshots in `docs/qa/evidence/phase-11/`
@@ -2618,7 +2618,7 @@ more than Package A at every level** — a deliberate upgrade incentive. Package
 | Migration | `015_package_b_premium_ladder.sql` updates Package B's direct bonus and levels 2–10 only when they still hold the old defaults; an operator-edited package is not overwritten and a re-run is a no-op |
 | Seeds | `database/seeds/004_packages.sql` now seeds B at 600 / 120,60,48,36,24,12,6,6,6; A keeps the base ladder |
 | Dev DB | Migration applied to `ecowealth_sneat`; A = 500 / 100,50,40,30,20,10,5,5,5 and B = 600 / 120,60,48,36,24,12,6,6,6 |
-| Tests | `CommissionIndirectTest` P11-T4 now asserts the premium matrix and a B activation paying 600/120/60; `CommissionTest` P10-T1 expects B's ₱600 direct bonus; `PackageTest` and `MigrationTest` assert the new ladder and the guarded update; suite **559 / 559** |
+| Tests | `CommissionIndirectTest` P11-T4 now asserts the premium matrix and a B activation paying 600/120/60; `CommissionTest` P10-T1 expects B's ₱600 direct bonus; `PackageTest` and `MigrationTest` assert the new ladder and the guarded update; suite **560 / 560** |
 | Docs | `docs/qa/phase-11-commissions.md` (statement, intro, QA11-03), the QA sign-off sheet, the Phase 3 QA guide, `docs/qa/README.md` and `system/README.md` updated |
 
 The HTTP smoke run uses Package A, so its **143 checks** are unaffected; the full PHP suite and the finance
@@ -2626,20 +2626,24 @@ reconciliation were re-run after the change.
 
 ---
 
-## Post-Phase 11 — Genealogy puts the signed-in member first
+## Post-Phase 11 — Genealogy shows the team chain (downline)
 
 **Date:** 2026-11-09 · **Branch:** `feature/shop` · **Status:** complete
 
-The `/genealogy` **Upline chain** card now renders the logged-in member's own "you" row at the **top**,
-followed by the sponsor chain from nearest (L1) to the top. Previously the self row sat below the whole
-chain, which read as if the member were the bottom of the tree. The card subtitle now says
-"You first, then your sponsor chain from nearest to top (up to ten levels)."
+The `/genealogy` left-hand card is now **Team chain**, focused on the member's downline instead of their
+upline: the logged-in member's own "you" row first, then level 1 (their **direct recruits**), level 2
+(their direct recruits' recruits), and so on up to ten levels. Each level shows a count and the first
+names; the Direct recruits table and Team-by-level card carry the full detail. The member page no longer
+renders the upline chain at all (the admin member view still shows it).
 
-- No database change: this is presentation order in `member/genealogy/_upline.php`.
-- `MemberGenealogyLiveTest` asserts the self row appears before `L1` and still renders when the chain is
-  empty (with the "top of its chain" note).
-- Suite **559 / 559** and smoke **143 / 143** re-run clean; the page was checked in a real browser as
-  `sarah` (self → maria L1 → juan L2 → admin L3).
+- No database change: presentation/data selection in `GenealogyController`,
+  `member/genealogy.php`, `_team_chain.php`; the unused `_upline.php` was removed.
+- The live fragment is `genealogy-team-chain`; `genealogy-upline` is gone.
+- `MemberGenealogyLiveTest` asserts the self row leads the team chain, level 1 is labelled Direct
+  recruits, level 2 names the indirect team, and the chain never shows the member's uplines; the empty
+  state is "No team yet".
+- Suite **560 / 560** and smoke **143 / 143** re-run clean; checked in a real browser as `juan` and
+  `sarah`.
 
 
 

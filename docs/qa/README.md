@@ -51,7 +51,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 559   Passed: 559   Failed: 0
+Cases: 560   Passed: 560   Failed: 0
 All good.
 ```
 
@@ -118,7 +118,8 @@ Passed: 143   Failed: 0
   a two-connection race, wallet registration (payer debited once, admin credited, registrar session
   kept), wallet and code activation (hook invoked exactly once), manual proof → approve/reject with
   the reason and the member returning to pending, double activation/approval refusals, the member
-  detail + suspend/restore + audit, genealogy up/down with cycle safety, referral-code uniqueness, and
+  detail + suspend/restore + audit, the team chain (level 1 direct, level 2 their recruits) with cycle
+  safety, referral-code uniqueness, and
   the "no binary column anywhere" source/schema scan. The smoke script walks the registration, code,
   pending, manual-activation, approve/reject, suspend/restore, codes and genealogy paths over HTTP;
   wallet-funded registration/activation are covered by the unit suite (they move real money) — see the

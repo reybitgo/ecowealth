@@ -4,19 +4,19 @@ declare(strict_types=1);
 /**
  * Genealogy page (plan §7 Phase 9; reference views/member/genealogy.php).
  *
- * The sponsor chain only — no binary legs, no placement mode. Upline
- * is nearest-first (level 1 = direct sponsor); the team is grouped by
- * level, breadth-first.
+ * The sponsor chain only — no binary legs, no placement mode. The team
+ * chain is shown from the member's point of view: level 1 = direct
+ * recruits, level 2 = their recruits, and so on, breadth-first.
  *
  * One live surface per member (`member.genealogy:{id}`). The heading
- * badges, upline card, direct-recruit count/rows/pagination and the
+ * badges, team chain, direct-recruit count/rows/pagination and the
  * team-by-level card are regions; the referral block stays static, and
  * the shared `member.genealogy` revision in the ETag keeps every
  * ancestor and descendant page correct after a team change.
  *
  * @var array<string, mixed>       $member
  * @var string                     $display_name
- * @var list<array<string, mixed>> $upline       SponsorService::chain()
+ * @var array<int, list<array<string, mixed>>> $team_levels
  * @var list<array<string, mixed>> $direct       level-1 downline
  * @var Paginator                  $recruits_pager
  * @var array<int, list<array<string, mixed>>> $deeper
@@ -32,7 +32,7 @@ $display_name = $display_name ?? (
         ? (string) $member['full_name']
         : (string) $member['username']
 );
-$upline         = $upline ?? [];
+$team_levels    = $team_levels ?? [];
 $direct         = $direct ?? [];
 $deeper         = $deeper ?? [];
 $team_count     = $team_count ?? 0;
@@ -63,7 +63,8 @@ $live = $live ?? [
                 <div>
                   <h4 class="mb-1">Genealogy</h4>
                   <p class="text-body-secondary mb-0">
-                    Your sponsor chain and your team. Commissions follow this chain — one sponsor per member.
+                    Your team by level — direct recruits at level 1, their recruits at level 2, and so on.
+                    Commissions follow this chain — one sponsor per member.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
@@ -74,17 +75,17 @@ $live = $live ?? [
               </div>
 
               <div class="row g-4">
-                <!-- Upline -->
+                <!-- Team chain -->
                 <div class="col-xl-6">
                   <div class="card h-100">
                     <div class="card-header">
-                      <h5 class="card-title mb-0">Upline chain</h5>
-                      <small class="text-body-secondary">You first, then your sponsor chain from nearest to top (up to ten levels).</small>
+                      <h5 class="card-title mb-0">Team chain</h5>
+                      <small class="text-body-secondary">Your direct recruits at level 1, their recruits at level 2, and so on — up to ten levels.</small>
                     </div>
                     <div class="card-body">
-<?= View::capture('member/genealogy/_upline', [
+<?= View::capture('member/genealogy/_team_chain', [
     'member'       => $member,
-    'upline'       => $upline,
+    'team_levels'  => $team_levels,
     'display_name' => $display_name,
 ]) ?>
 

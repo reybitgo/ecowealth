@@ -2162,14 +2162,15 @@ try {
     Assert-That 'P9-T14' ($genTen.Status -eq 302 -and $batchCount -eq 11 -and $expiredOk -and $exportOk) `
         "ten codes are generated, one expires and the CSV export follows the filter (batch=$batchCount, filter=$expiredOk, csv=$exportOk status=$($export.Status) type=$exportType bytes=$($export.Body.Length) expired=$expireCode)"
 
-    # P9-T17 - maria sees her sponsor chain and team.
+    # P9-T17 - maria sees her team chain (level 1 direct recruits, level 2 their recruits).
     $mariaLogin = Sign-In -Session 'p9e' -Username 'maria' -Password 'Demo@1234'
     $genealogy  = Invoke-App -Path '/genealogy' -Session 'p9e'
-    $genealogyOk = ($genealogy.Status -eq 200) -and ($genealogy.Body -match 'juan') `
+    $genealogyOk = ($genealogy.Status -eq 200) -and ($genealogy.Body -match 'Team chain') `
         -and ($genealogy.Body -match 'peter') -and ($genealogy.Body -match 'Direct recruits') `
+        -and ($genealogy.Body -notmatch 'Upline chain') `
         -and ($genealogy.Body -notmatch 'binary_parent|binary_position')
     Assert-That 'P9-T17' ($mariaLogin -and $genealogyOk) `
-        "GET /genealogy shows the sponsor chain and team (login=$mariaLogin, page=$($genealogy.Status))"
+        "GET /genealogy shows maria's team chain, not her uplines (login=$mariaLogin, page=$($genealogy.Status))"
 
     # ---- Phase 10: direct referral commissions ---------------------------
     # The Phase 9 flows above already paid juan twice over HTTP: the code

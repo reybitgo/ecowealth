@@ -306,7 +306,7 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | GET | `/dashboard` | member | Member dashboard: membership, wallet, referral link, orders, commissions |
 | GET | `/membership` | member | Status, package, activation paths (code / wallet / proof) and history |
 | POST | `/membership/activate` | member | Request an activation (one open request per member) |
-| GET | `/genealogy` | member | Upline chain + direct recruits + team by level (sponsor chain only) |
+| GET | `/genealogy` | member | Team chain (level 1 direct, level 2 their recruits, …) + direct recruits + team by level (sponsor chain only) |
 | GET | `/admin/members` | admin | Member directory with search/status/package filters and stats |
 | GET | `/admin/members/{id}` | admin | Account, membership, wallet, orders, team, activation history, audit |
 | POST | `/admin/members/{id}/status` | admin | Suspend (`is_active=0`) or restore, audited |
@@ -591,11 +591,12 @@ it arrives in Phase 15.
   member restores them to `pending`, not `active`. Every change is audited (`member.status`).
   A standard member is active without a package and cannot self-activate in this build (package
   upgrades are a later phase).
-- **Genealogy and dashboard.** `/genealogy` shows the logged-in member's own row first, then the upline
-  chain (max 10, nearest sponsor first) plus direct recruits and the team grouped by level, cycle-safe.
-  `/dashboard` is the routed member landing page: membership
-  status, both wallet buckets, referral link, recent orders and commission totals, with a link to
-  **Earnings**. Admins keep the back-office dashboard at the same URL.
+- **Genealogy and dashboard.** `/genealogy` focuses on the member's **team chain**: the self row first,
+  then level 1 (direct recruits), level 2 (their recruits), and so on up to ten levels, plus a paginated
+  direct-recruits table and a detailed team-by-level card. It is cycle-safe and never renders uplines on
+  the member page (the admin member view still shows the upline). `/dashboard` is the routed member
+  landing page: membership status, both wallet buckets, referral link, recent orders and commission
+  totals, with a link to **Earnings**. Admins keep the back-office dashboard at the same URL.
 - **Demo data.** `database/seeds/005_demo_tree.sql` creates `admin → juan → maria → peter/sarah/david`
   (david is pending), their mixed wallet balances with matching ledger rows, and three sample codes
   (`DEMO-PKGA-2A7K`, `DEMO-PKGB-3B8L` unused; `DEMO-EXPD-4C9M` expired). Every demo member signs in
@@ -694,7 +695,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (559 cases in Phase 11)
+php tests/run.php                 # full suite (560 cases in Phase 11)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

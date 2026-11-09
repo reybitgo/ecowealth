@@ -42,7 +42,7 @@ Six rules matter most:
   export · P11-T11 the 10-hop walk stays within 20 queries · P11-T12 the workflow example (Juan ₱900,
   Peter ₱1,000, Maria ₱1,500 directs + ₱200 level-2 = ₱1,700).
 - `CommissionIndirectTest` (14 cases), the updated `CommissionTest`/`CommissionViewTest`/
-  `MemberEarningsLiveTest`, `MigrationTest`, `RouterTest` and `SettingsTest` — **559 cases in total**.
+  `MemberEarningsLiveTest`, `MigrationTest`, `RouterTest` and `SettingsTest` — **560 cases in total**.
 - The HTTP smoke script walks a real code registration under `peter`: peter ₱500, maria ₱100, juan ₱50,
   the company root skipped at level 4; it also checks the level breakdown, both CSV exports and the admin
   filter — **143 checks**.
@@ -51,7 +51,7 @@ Six rules matter most:
 > **Before you start:** Phases 1–10 should be signed off, the demo tree must be seeded
 > (`database/seeds/005_demo_tree.sql`) and migrations `014_indirect_commissions.sql` +
 > `015_package_b_premium_ladder.sql` applied. The automated
-> suites must be green: `php tests\run.php` → **559 cases**;
+> suites must be green: `php tests\run.php` → **560 cases**;
 > `powershell -NoProfile -File tests\smoke.ps1` → **143 checks**. Note juan/maria/peter's wallet balances
 > before you start — the checks below move real demo money, so the last check restores them.
 

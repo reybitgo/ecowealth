@@ -6,7 +6,7 @@ still open in each phase of `docs/phase-log.md`.
 
 **Status of this pass (2026-11-07):** Phases 1–10 are recorded as **passed** — **166 / 166**
 manual checks, **427 / 427** PHP cases and **139 / 139** smoke checks; **0 failed, 0 blocked**.
-Phase 11 is automated-complete (**559 / 559** PHP cases, **143 / 143** smoke checks) with its ten
+Phase 11 is automated-complete (**560 / 560** PHP cases, **143 / 143** smoke checks) with its ten
 manual checks still to tick.
 
 **How to use**
@@ -43,7 +43,7 @@ manual checks still to tick.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 559  Passed: 559  Failed: 0` / `All good.` | `Cases: 559   Passed: 559   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 560  Passed: 560  Failed: 0` / `All good.` | `Cases: 560   Passed: 560   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
 | `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 143   Failed: 0` | `Passed: 143   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
@@ -51,7 +51,7 @@ Paste the final lines of each command here:
 ```text
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 559   Passed: 559   Failed: 0
+Cases: 560   Passed: 560   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
@@ -451,7 +451,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 8 | ☑ Yes ☐ No | 19 / 19 checks passed. |
 | Phase 9 | ☑ Yes ☐ No | 16 / 16 checks passed. |
 | Phase 10 | ☑ Yes ☐ No | 10 / 10 checks passed; 427 / 427 PHP cases, 139 / 139 smoke checks and 20 / 20 browser checks green. |
-| Phase 11 | ☐ Yes ☐ No | Automated gate: 559 / 559 PHP cases, 143 / 143 smoke checks and a headless browser pass green; 10 manual checks pending. |
+| Phase 11 | ☐ Yes ☐ No | Automated gate: 560 / 560 PHP cases, 143 / 143 smoke checks and a headless browser pass green; 10 manual checks pending. |
 
 All ten earlier phases are **Approved**. Phase 11 is automated- and headless-complete; its manual
 browser sign-off is pending. No defect is open, so no accepted exception is recorded.

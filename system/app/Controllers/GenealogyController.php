@@ -8,7 +8,7 @@ declare(strict_types=1);
  *  Route (Appendix A): GET /genealogy   guard `member`
  *
  *  Shows:
- *    • the member's own row first, then the upline chain (max 10)
+ *    • the member's own row first, then the team chain (levels 1–10)
  *    • direct recruits (level 1 of the downline)
  *    • the deeper team, grouped by level (max 10)
  *    • the member's own referral link
@@ -18,9 +18,9 @@ declare(strict_types=1);
  *  mention a binary column.
  *
  *  The page is one live surface per member (`member.genealogy:{id}`).
- *  Header badges, upline card, direct-recruit count/rows/pagination and
- *  the team-by-level card are regions; the referral block stays static
- *  so a background refresh never disturbs the copy control.
+ *  Header badges, team-chain rows, direct-recruit count/rows/pagination
+ *  and the team-by-level card are regions; the referral block stays
+ *  static so a background refresh never disturbs the copy control.
  *
  *  Every genealogy page also includes the shared `member.genealogy`
  *  revision in its ETag: a team change moves the ancestors' counters and
@@ -84,10 +84,11 @@ final class GenealogyController
     {
         $userId = (int) $member['id'];
 
-        $chain = $this->sponsors->chain($userId, SponsorService::MAX_LEVELS);
-        $team  = $this->sponsors->downline($userId, SponsorService::MAX_LEVELS);
+        $team = $this->sponsors->downline($userId, SponsorService::MAX_LEVELS);
 
-        /* Group the downline by level for the template. */
+        /* Group the downline by level for the team chain and its detail
+         * card. Level 1 is the direct recruits; level 2 their recruits,
+         * and so on. */
         $byLevel = [];
 
         foreach ($team as $row) {
@@ -117,7 +118,7 @@ final class GenealogyController
         return [
             'member'         => $member,
             'display_name'   => $displayName,
-            'upline'         => $chain,
+            'team_levels'    => $byLevel,
             'direct'         => $direct,
             'recruits_pager' => $recruitsPager,
             'deeper'         => $deeper,
@@ -199,9 +200,9 @@ final class GenealogyController
                     'team_count'  => $data['team_count'],
                     'levels_used' => $data['levels_used'],
                 ]),
-                'genealogy-upline' => View::capture('member/genealogy/_upline', [
+                'genealogy-team-chain' => View::capture('member/genealogy/_team_chain', [
                     'member'       => $member,
-                    'upline'       => $data['upline'],
+                    'team_levels'  => $data['team_levels'],
                     'display_name' => $data['display_name'],
                 ]),
                 'genealogy-recruits-count' => View::capture('member/genealogy/_recruits_count', [

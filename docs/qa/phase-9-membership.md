@@ -68,7 +68,7 @@ your pass):
 | `final-membership-review.png` | an open proof request: "Activation in progress" replaces the forms |
 | `final-membership-active.png` / `final-membership-associate.png` | active memberships with package and referral link |
 | `final-membership-mobile.png` | the membership page at 390 × 844 |
-| `final-genealogy-team.png` | juan's upline and team grouped by level |
+| `final-genealogy-team.png` | juan's team chain, direct recruits and team grouped by level |
 | `final-genealogy-mobile.png` | the genealogy page at 390 × 844 |
 | `final-admin-members.png` | member directory: sponsor, package, status, both wallet buckets |
 | `final-admin-members-mobile.png` | the directory at 390 × 844 |
@@ -390,9 +390,10 @@ your pass):
 
 **Expected**
 
-- juan: upline **admin** (L1), direct recruit **maria**, and the team grouped by level with
-  peter/sarah/david at level 2.
-- maria: upline **juan** (L1) then **admin** (L2); direct recruits peter/sarah/david.
+- juan: **Team chain** with his own row first, then level 1 direct recruit **maria**, level 2
+  peter/sarah/david, plus the paginated Direct recruits table and the Team-by-level card.
+- maria: **Team chain** with her own row first, level 1 direct recruits peter/sarah/david, then their
+  deeper team if any. The member page no longer displays the upline chain.
 - The referral link and code are shown (Copy works).
 - No page mentions binary parent/position, legs, pairs or a placement mode (view source too).
 

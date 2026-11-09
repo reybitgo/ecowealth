@@ -10,9 +10,9 @@ declare(strict_types=1);
  *
  *    · a registration, an activation and a status change bump the
  *      shared revision, so the page ETag moves;
- *    · the feed renders the heading badges, upline card, direct-recruit
+ *    · the feed renders the heading badges, team chain, direct-recruit
  *      count/rows/pagination and the team-by-level card;
- *    · an out-of-range recruits page is clamped and the empty upline /
+ *    · an out-of-range recruits page is clamped and the empty team-chain /
  *      team states render inside their regions;
  *    · the page declares its live surface and regions.
  * ============================================================== */
@@ -93,7 +93,7 @@ return [
         assert_same($before + 1, Live::revision(Live::GENEALOGY_TEAM), 'activation');
     },
 
-    'the genealogy feed renders the upline, recruits and team levels' => function () use ($makeMember): void {
+    'the genealogy feed renders the team chain, recruits and team levels' => function () use ($makeMember): void {
         $juan  = Member::findByUsername('juan');
         $maria = Member::findByUsername('maria');
         assert_not_null($juan);
@@ -124,7 +124,7 @@ return [
             assert_same(
                 [
                     'genealogy-header',
-                    'genealogy-upline',
+                    'genealogy-team-chain',
                     'genealogy-recruits-count',
                     'genealogy-recruits-rows',
                     'genealogy-recruits-pagination',
@@ -134,7 +134,7 @@ return [
             );
 
             $header     = $payload['fragments']['genealogy-header'];
-            $upline     = $payload['fragments']['genealogy-upline'];
+            $teamChain  = $payload['fragments']['genealogy-team-chain'];
             $count      = $payload['fragments']['genealogy-recruits-count'];
             $rows       = $payload['fragments']['genealogy-recruits-rows'];
             $pagination = $payload['fragments']['genealogy-recruits-pagination'];
@@ -144,18 +144,22 @@ return [
             assert_contains('4 in team', $header);
             assert_contains('2 levels', $header);
 
-            assert_contains('data-live-region="genealogy-upline"', $upline);
-            assert_contains('L1', $upline);
-            assert_contains('admin', $upline, 'the company root is the upline');
-            assert_contains('· you', $upline);
-            assert_contains('Juan Dela Cruz', $upline, 'the self row shows the full name');
+            assert_contains('data-live-region="genealogy-team-chain"', $teamChain);
+            assert_contains('· you', $teamChain);
+            assert_contains('Juan Dela Cruz', $teamChain, 'the self row shows the full name');
+            assert_contains('L1', $teamChain);
+            assert_contains('Direct recruits', $teamChain, 'level 1 is the direct leg');
+            assert_contains('L2', $teamChain);
+            assert_contains('peter', $teamChain);
+            assert_contains('sarah', $teamChain);
+            assert_not_contains('admin', $teamChain, 'the team chain never shows the member\'s uplines');
 
-            /* The logged-in member is the first row, above the L1 sponsor. */
-            $selfPos = strpos($upline, 'Juan Dela Cruz');
-            $l1Pos   = strpos($upline, 'L1');
+            /* The logged-in member is the first row, above the level rows. */
+            $selfPos = strpos($teamChain, 'Juan Dela Cruz');
+            $l1Pos   = strpos($teamChain, 'L1');
             assert_true(
                 $selfPos !== false && $l1Pos !== false && $selfPos < $l1Pos,
-                'the member own row sits above the upline chain'
+                'the member own row sits above the team chain'
             );
 
             assert_contains('data-live-region="genealogy-recruits-count"', $count);
@@ -210,15 +214,16 @@ return [
         );
 
         $header = $payload['fragments']['genealogy-header'];
-        $upline = $payload['fragments']['genealogy-upline'];
+        $teamChain = $payload['fragments']['genealogy-team-chain'];
         $count  = $payload['fragments']['genealogy-recruits-count'];
         $rows   = $payload['fragments']['genealogy-recruits-rows'];
         $team   = $payload['fragments']['genealogy-team'];
 
         assert_contains('6 in team', $header);
         assert_contains('1 level', $header);
-        assert_contains('· you', $upline, 'the self row still renders at the top');
-        assert_contains('This account is the top of its chain', $upline);
+        assert_contains('· you', $teamChain, 'the self row still renders at the top');
+        assert_contains('Direct recruits', $teamChain);
+        assert_contains('6 members', $teamChain);
         assert_contains('>6<', $count);
         assert_contains('data-live-key=', $rows);
         assert_not_contains('No direct recruits yet', $rows);
@@ -229,6 +234,29 @@ return [
         assert_same(6, $payload['meta']['total']);
         assert_contains('page=2', (string) $payload['meta']['canonical']);
         assert_contains('per_page=5', (string) $payload['meta']['canonical']);
+    },
+
+    'the team chain shows an empty state for a member with no team' => function () use ($makeMember): void {
+        $viewer   = $makeMember();
+        $viewerId = (int) $viewer['id'];
+
+        test_signed_in_as($viewer);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/genealogy';
+
+        $controller = new GenealogyController();
+        $payload    = $controller->feedPayload(
+            2,
+            '"member.genealogy:' . $viewerId . ':2:abc"',
+            $controller->genealogyContext(Member::find($viewerId))
+        );
+
+        $teamChain = $payload['fragments']['genealogy-team-chain'];
+
+        assert_contains('· you', $teamChain);
+        assert_contains('No team yet', $teamChain);
+        assert_not_contains('Direct recruits', $teamChain, 'no level rows when the team is empty');
     },
 
     'the genealogy page declares its live surface and regions' => function (): void {
@@ -262,7 +290,7 @@ return [
         assert_contains('data-live-enabled="1"', $html);
         assert_contains('data-live-interval="30000"', $html);
         assert_contains('data-live-region="genealogy-header"', $html);
-        assert_contains('data-live-region="genealogy-upline"', $html);
+        assert_contains('data-live-region="genealogy-team-chain"', $html);
         assert_contains('data-live-region="genealogy-recruits-count"', $html);
         assert_contains('data-live-region="genealogy-recruits-rows"', $html);
         assert_contains('data-live-region="genealogy-recruits-pagination"', $html);

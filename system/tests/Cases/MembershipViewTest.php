@@ -330,7 +330,7 @@ return [
 
     /* ---------- Genealogy (P9-T17) -------------------------------- */
 
-    'P9-T17 genealogy renders the upline and the team levels' => function () use ($renderView): void {
+    'P9-T17 genealogy renders the team chain and the team levels' => function () use ($renderView): void {
         $juan = Member::findByUsername('juan');
         assert_not_null($juan);
 
@@ -344,14 +344,15 @@ return [
             $byLevel[(int) $row['level']][] = $row;
         }
 
-        $direct = $byLevel[1] ?? [];
+        $teamLevels = $byLevel;
+        $direct     = $byLevel[1] ?? [];
         unset($byLevel[1]);
 
         $html = $renderView('member', 'member/genealogy', [
             'page_title'    => 'Genealogy',
             'current_nav'   => 'genealogy',
             'member'        => $juan,
-            'upline'        => $sponsors->chain((int) $juan['id']),
+            'team_levels'   => $teamLevels,
             'direct'        => $direct,
             'recruits_pager' => Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE),
             'deeper'        => $byLevel,
@@ -361,9 +362,11 @@ return [
             'referral_link' => absolute_url('register?ref=' . (string) $juan['referral_code']),
         ]);
 
-        assert_contains('Upline chain', $html);
-        assert_contains('admin', $html, 'the company root is the upline');
+        assert_contains('Team chain', $html);
+        assert_contains('Direct recruits', $html);
+        assert_contains('maria', $html);
         assert_contains('L1', $html);
+        assert_not_contains('Upline chain', $html, 'the page now focuses on the downline');
 
         assert_contains('Direct recruits', $html);
         assert_contains('maria', $html);
@@ -400,7 +403,7 @@ return [
                 'page_title'    => 'Genealogy',
                 'current_nav'   => 'genealogy',
                 'member'        => Member::find((int) $juan['id']),
-                'upline'        => [],
+                'team_levels'   => [1 => $team],
                 'direct'        => $team,
                 'deeper'        => [],
                 'team_count'    => count($team),
