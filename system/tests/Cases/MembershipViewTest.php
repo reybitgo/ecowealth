@@ -368,6 +368,13 @@ return [
         assert_contains('L1', $html);
         assert_not_contains('Upline chain', $html, 'the page now focuses on the downline');
 
+        /* The wide table keeps its content inside the card and has a
+         * companion scrollbar at the top of the card. */
+        assert_contains('genealogy-direct-card', $html);
+        assert_contains('data-table-scroll', $html);
+        assert_contains('data-table-scroll-top', $html);
+        assert_contains('data-table-scroll-body', $html);
+
         assert_contains('Direct recruits', $html);
         assert_contains('maria', $html);
         assert_contains('Rows per page', $html, 'the recruits table paginates');

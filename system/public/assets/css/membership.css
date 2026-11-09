@@ -277,6 +277,51 @@
   font-size: 0.8rem;
 }
 
+/* The direct-recruits table is wider than its half-width card. Keep the
+ * table's content inside the rounded card (no border bleed) and give the
+ * scroll area a companion horizontal scrollbar at the top, so the user
+ * does not have to reach the bottom of the card to scroll sideways. */
+.genealogy-direct-card {
+  overflow: hidden;
+}
+
+.genealogy-table-scroll {
+  max-width: 100%;
+}
+
+.genealogy-table-scroll-top {
+  position: relative;
+  overflow: hidden;
+  height: 0.875rem;
+  background: var(--bs-secondary-bg);
+  border-bottom: 1px solid var(--bs-border-color-translucent);
+  cursor: pointer;
+}
+
+.genealogy-table-scroll-top[hidden] {
+  display: none;
+}
+
+.genealogy-table-scroll-thumb {
+  position: absolute;
+  top: 0.2rem;
+  left: 0;
+  height: 0.5rem;
+  min-width: 2.5rem;
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb), 0.55);
+  transition: background-color 0.15s ease;
+}
+
+.genealogy-table-scroll-top:hover .genealogy-table-scroll-thumb,
+.genealogy-table-scroll-top.is-dragging .genealogy-table-scroll-thumb {
+  background: rgba(var(--bs-primary-rgb), 0.8);
+}
+
+.genealogy-table-scroll-body {
+  overflow-x: auto;
+}
+
 .team-level-chip {
   display: inline-flex;
   align-items: center;

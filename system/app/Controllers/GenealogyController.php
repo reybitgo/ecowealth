@@ -66,6 +66,7 @@ final class GenealogyController
             'page_title'  => 'Genealogy',
             'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
             'page_css'    => ['assets/css/membership.css'],
+            'page_js'     => ['assets/js/app-table-scroll.js'],
             'live'        => Live::meta(
                 Live::genealogySurface($userId),
                 $this->genealogyScope($userId)

@@ -280,6 +280,7 @@ return [
                 'page_title'  => 'Genealogy',
                 'current_nav' => 'genealogy',
                 'page_css'    => ['assets/css/membership.css'],
+                'page_js'     => ['assets/js/app-table-scroll.js'],
                 'live'        => Live::meta(Live::genealogySurface($juanId), 'page'),
             ]);
         } finally {
@@ -295,6 +296,9 @@ return [
         assert_contains('data-live-region="genealogy-recruits-rows"', $html);
         assert_contains('data-live-region="genealogy-recruits-pagination"', $html);
         assert_contains('data-live-region="genealogy-team"', $html);
+        assert_contains('app-table-scroll.js', $html);
+        assert_contains('data-table-scroll-top', $html);
+        assert_contains('genealogy-direct-card', $html);
         assert_contains('data-live-status', $html);
         assert_not_contains('data-live-stale', $html, 'the page has no held form region');
         assert_not_contains('data-live-hold', $html);

@@ -118,7 +118,7 @@ $live = $live ?? [
 
                 <!-- Direct recruits -->
                 <div class="col-xl-6">
-                  <div class="card h-100">
+                  <div class="card h-100 genealogy-direct-card">
                     <div class="card-header d-flex align-items-center justify-content-between">
                       <div>
                         <h5 class="card-title mb-0">Direct recruits</h5>
@@ -126,18 +126,23 @@ $live = $live ?? [
                       </div>
 <?= View::capture('member/genealogy/_recruits_count', ['recruits_pager' => $recruits_pager]) ?>
                     </div>
-                    <div class="table-responsive">
-                      <table class="table table-hover align-middle mb-0">
-                        <thead>
-                          <tr>
-                            <th>Member</th>
-                            <th>Package</th>
-                            <th>Status</th>
-                            <th>Joined</th>
-                          </tr>
-                        </thead>
+                    <div class="genealogy-table-scroll" data-table-scroll>
+                      <div class="genealogy-table-scroll-top" data-table-scroll-top aria-hidden="true" hidden>
+                        <div class="genealogy-table-scroll-thumb" data-table-scroll-thumb></div>
+                      </div>
+                      <div class="table-responsive genealogy-table-scroll-body" data-table-scroll-body>
+                        <table class="table table-hover align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th>Member</th>
+                              <th>Package</th>
+                              <th>Status</th>
+                              <th>Joined</th>
+                            </tr>
+                          </thead>
 <?= View::capture('member/genealogy/_recruits_rows', ['direct' => $direct]) ?>
-                      </table>
+                        </table>
+                      </div>
                     </div>
 <?= View::capture('member/genealogy/_recruits_pagination', ['recruits_pager' => $recruits_pager]) ?>
                   </div>

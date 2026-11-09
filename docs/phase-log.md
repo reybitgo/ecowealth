@@ -2642,6 +2642,9 @@ renders the upline chain at all (the admin member view still shows it).
 - `MemberGenealogyLiveTest` asserts the self row leads the team chain, level 1 is labelled Direct
   recruits, level 2 names the indirect team, and the chain never shows the member's uplines; the empty
   state is "No team yet".
+- The Direct recruits table is clipped by its rounded card (`overflow: hidden`) and gets an
+  always-visible top scrollbar (`app-table-scroll.js`) synced with the native horizontal scroll area,
+  so the wide Joined column can be reached without scrolling to the bottom of the card.
 - Suite **560 / 560** and smoke **143 / 143** re-run clean; checked in a real browser as `juan` and
   `sarah`.
 
