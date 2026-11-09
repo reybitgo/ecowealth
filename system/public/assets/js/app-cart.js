@@ -33,61 +33,163 @@
       }
     : null;
 
-  if (!config || !config.addUrl) {
-    return;
+  /* ------------------------------------------------------------------
+   *  Toast notifications
+   *
+   *  The cart and app-live.js both raise these, so the helper sits above
+   *  the cart guard: pages without a cartConfig still get a working
+   *  window.showToast. Each message is one card — a tone-tinted icon, an
+   *  optional title, the message, an optional action button and a close
+   *  control pinned to the card's top-right corner.
+   *
+   *  options = { title, message, action: { label, icon, onClick },
+   *              autohide, delay, key }
+   *    • message replaces the toast text when it differs from the caller's
+   *      own inline message;
+   *    • key de-duplicates notices — several live surfaces can hit a 401
+   *      at the same moment.
+   *
+   *  Server text is inserted with textContent, so a product name that
+   *  reached an error message can never become markup.
+   * ---------------------------------------------------------------- */
+  var TOAST_ICONS = {
+    success: 'bxs-check-circle',
+    danger: 'bxs-error-circle',
+    warning: 'bxs-error',
+    info: 'bxs-info-circle'
+  };
+
+  function toastIcon(name) {
+    var icon = document.createElement('i');
+    icon.className = 'icon-base bx ' + name;
+    icon.setAttribute('aria-hidden', 'true');
+
+    return icon;
   }
 
-  /* ------------------------------------------------------------------
-   *  Toast helper — server text is inserted with textContent, so a product
-   *  name that reached an error message can never become markup.
-   * ---------------------------------------------------------------- */
-  function showToast(message, type) {
+  function showToast(message, type, options) {
+    options = options || {};
+
     var tones = { success: 'success', danger: 'danger', error: 'danger', warning: 'warning', info: 'info' };
     var tone = tones[type] || 'info';
     var host = document.getElementById('toastContainer');
 
     if (!host) {
-      return;
+      return null;
+    }
+
+    var key = String(options.key || '').replace(/[^A-Za-z0-9_-]/g, '');
+    var open = key ? host.querySelector('[data-toast-key="' + key + '"]') : null;
+
+    if (open) {
+      return open;
     }
 
     var el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + tone + ' border-0 mb-2';
+    el.className = 'toast app-toast mb-2';
+    el.setAttribute('data-tone', tone);
     el.setAttribute('role', 'alert');
     el.setAttribute('aria-live', 'assertive');
     el.setAttribute('aria-atomic', 'true');
 
-    var wrap = document.createElement('div');
-    wrap.className = 'd-flex';
-
-    var body = document.createElement('div');
-    body.className = 'toast-body';
-    body.textContent = String(message == null ? '' : message);
+    if (key) {
+      el.setAttribute('data-toast-key', key);
+    }
 
     var close = document.createElement('button');
     close.type = 'button';
-    close.className = 'btn-close btn-close-white me-2 m-auto';
+    close.className = 'btn-close app-toast-close';
     close.setAttribute('data-bs-dismiss', 'toast');
     close.setAttribute('aria-label', 'Close');
 
-    wrap.appendChild(body);
-    wrap.appendChild(close);
-    el.appendChild(wrap);
+    var body = document.createElement('div');
+    body.className = 'toast-body';
+
+    var icon = document.createElement('span');
+    icon.className = 'app-toast-icon';
+    icon.appendChild(toastIcon(TOAST_ICONS[tone] || TOAST_ICONS.info));
+
+    var content = document.createElement('div');
+    content.className = 'app-toast-content';
+
+    if (options.title) {
+      var title = document.createElement('div');
+      title.className = 'app-toast-title';
+      title.textContent = String(options.title);
+      content.appendChild(title);
+    }
+
+    var text = document.createElement('div');
+    text.className = 'app-toast-text';
+    text.textContent = String(options.message != null ? options.message : (message == null ? '' : message));
+    content.appendChild(text);
+
+    var toast = null;
+
+    if (options.action && options.action.label) {
+      var action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'btn btn-sm btn-primary app-toast-action';
+
+      if (options.action.icon) {
+        action.appendChild(toastIcon(options.action.icon));
+      }
+
+      var label = document.createElement('span');
+      label.textContent = String(options.action.label);
+      action.appendChild(label);
+
+      action.addEventListener('click', function () {
+        if (toast) {
+          toast.hide();
+        } else {
+          el.remove();
+        }
+
+        if (typeof options.action.onClick === 'function') {
+          options.action.onClick();
+        }
+      });
+
+      content.appendChild(action);
+    }
+
+    body.appendChild(icon);
+    body.appendChild(content);
+    el.appendChild(close);
+    el.appendChild(body);
     host.appendChild(el);
 
     if (window.bootstrap && window.bootstrap.Toast) {
-      var toast = new window.bootstrap.Toast(el, { delay: 3500 });
+      toast = new window.bootstrap.Toast(el, {
+        autohide: options.autohide !== false,
+        delay: typeof options.delay === 'number' ? options.delay : 3500
+      });
+
       el.addEventListener('hidden.bs.toast', function () {
         el.remove();
       });
       toast.show();
     } else {
-      window.setTimeout(function () {
+      close.addEventListener('click', function () {
         el.remove();
-      }, 3500);
+      });
+
+      if (options.autohide !== false) {
+        window.setTimeout(function () {
+          el.remove();
+        }, typeof options.delay === 'number' ? options.delay : 3500);
+      }
     }
+
+    return el;
   }
 
   window.showToast = window.showToast || showToast;
+
+  if (!config || !config.addUrl) {
+    return;
+  }
 
   /* ------------------------------------------------------------------
    *  Money formatting for optimistic previews only.

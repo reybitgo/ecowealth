@@ -2651,6 +2651,30 @@ renders the upline chain at all (the admin member view still shows it).
 - Suite **560 / 560** and smoke **143 / 143** re-run clean; checked in a real browser as `juan` and
   `sarah`.
 
+---
+
+## Post-Phase 11 — Toast cards, session toast pinned with a Refresh action
+
+**Date:** 2026-11-09 · **Branch:** `feature/shop` · **Status:** complete
+
+Every cart and live toast is now a **card** instead of a coloured bar: a tone-tinted icon and accent edge,
+an optional title, the message, an optional action button, and the close control pinned to the **top-right
+corner**. Previously the ✕ was flex-centred, so a two-line message (the session-expired notice is exactly
+that) left it floating in the middle of the card.
+
+The session-expired notice also gets a title ("Session expired"), a **Refresh page** button and
+`autohide: false`: a 401 stops every live region on the page, so the notice must not disappear before the
+user acts. Concurrent 401s from several surfaces collapse into one card via `data-toast-key`.
+
+- `app-cart.js` renders the card — `showToast(message, type, { title, message, action, autohide, delay, key })` —
+  and now defines `window.showToast` **above** the cart guard, so pages without a `cartConfig` (every admin
+  page) get the same renderer. `app-live.js`'s duplicated fallback is removed; `notify()` forwards the
+  options instead.
+- Styles live in `app.css` (`.app-toast`, `.app-toast-icon`, `.app-toast-title`, `.app-toast-text`,
+  `.app-toast-action`, `.app-toast-close`): theme paper background, tone colours from `data-tone`, and a
+  2rem-square close target in the top-right corner. The toast stays inside the viewport down to 320px.
+- Suite **560 / 560** re-run clean; checked at desktop, 390px, 360px and 320px widths in light and dark mode.
+
 
 
 

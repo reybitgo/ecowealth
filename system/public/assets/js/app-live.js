@@ -36,6 +36,22 @@
   var mutationInFlight  = 0;
   var started           = false;
 
+  /* A 401 means nothing on this page can succeed until the document is
+   * reloaded. This notice therefore never auto-hides, and its button
+   * saves the user a manual refresh; `key` collapses the several live
+   * surfaces that can report the same expiry into one card. */
+  var SESSION_EXPIRED = {
+    key: 'session-expired',
+    title: 'Session expired',
+    message: 'You\u2019ve been signed out. Refresh the page to sign in again.',
+    autohide: false,
+    action: {
+      label: 'Refresh page',
+      icon: 'bx-refresh',
+      onClick: function () { window.location.reload(); }
+    }
+  };
+
   /* ------------------------------------------------------------------
    *  Small helpers
    * ---------------------------------------------------------------- */
@@ -139,49 +155,18 @@
     return 0;
   }
 
-  function notify(message, type) {
+  /* The toast renderer lives in app-cart.js (loaded first) so the cart and
+   * the live regions share one card style. `options` is passed straight
+   * through; see the helper there for the full shape. */
+  function notify(message, type, options) {
     if (typeof window.showToast === 'function') {
-      window.showToast(message, type);
+      window.showToast(message, type, options);
       return;
     }
 
-    var host = document.getElementById('toastContainer');
-
-    if (!host || !window.bootstrap || !window.bootstrap.Toast) {
-      if (window.console && console.error) {
-        console.error('[ecowealth] ' + message);
-      }
-      return;
+    if (window.console && console.error) {
+      console.error('[ecowealth] ' + message);
     }
-
-    var tone = type === 'error' ? 'danger' : (type === 'warning' ? 'warning' : 'success');
-    var el = document.createElement('div');
-    el.className = 'toast align-items-center text-bg-' + tone + ' border-0 mb-2';
-    el.setAttribute('role', 'alert');
-    el.setAttribute('aria-live', 'assertive');
-    el.setAttribute('aria-atomic', 'true');
-
-    var wrap = document.createElement('div');
-    wrap.className = 'd-flex';
-
-    var body = document.createElement('div');
-    body.className = 'toast-body';
-    body.textContent = String(message == null ? '' : message);
-
-    var close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'btn-close btn-close-white me-2 m-auto';
-    close.setAttribute('data-bs-dismiss', 'toast');
-    close.setAttribute('aria-label', 'Close');
-
-    wrap.appendChild(body);
-    wrap.appendChild(close);
-    el.appendChild(wrap);
-    host.appendChild(el);
-
-    var toast = new window.bootstrap.Toast(el, { delay: 3500 });
-    el.addEventListener('hidden.bs.toast', function () { el.remove(); });
-    toast.show();
   }
 
   function setStatus(surface, text, tone) {
@@ -421,7 +406,7 @@
     }, wait);
   }
 
-  function stopSurface(surface, message) {
+  function stopSurface(surface, message, toastOptions) {
     surface.stopped = true;
 
     if (surface.timer) {
@@ -444,7 +429,7 @@
     surface.pending = null;
     surface.lastError = true;
     setStatus(surface, message, 'danger');
-    notify(message, 'error');
+    notify(message, 'error', toastOptions);
   }
 
   /* ------------------------------------------------------------------
@@ -521,7 +506,11 @@
         }
 
         if (response.status === 401) {
-          stopSurface(surface, 'Your session expired. Refresh the page to sign in again.');
+          stopSurface(
+            surface,
+            'Your session expired. Refresh the page to sign in again.',
+            SESSION_EXPIRED
+          );
           return null;
         }
 
@@ -1149,12 +1138,11 @@
         refresh(surface, { force: true });
       })
       .catch(function (error) {
-        notify(
-          error && error.message === 'Session expired'
-            ? 'Your session expired. Refresh the page to sign in again.'
-            : 'Could not reach the server. Please try again.',
-          'error'
-        );
+        if (error && error.message === 'Session expired') {
+          notify('Your session expired.', 'error', SESSION_EXPIRED);
+        } else {
+          notify('Could not reach the server. Please try again.', 'error');
+        }
 
         if (window.console && console.error) {
           console.error('[ecowealth] live form failed:', error);
