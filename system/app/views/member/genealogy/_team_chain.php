@@ -60,7 +60,7 @@ foreach ($team_levels as $rows) {
     $level   = (int) $level;
     $count   = count($rows);
     $names   = [];
-    $shown   = array_slice($rows, 0, 4);
+    $shown   = array_slice($rows, 0, 3);
 
     foreach ($shown as $row) {
         $names[] = '@' . (string) $row['username'];

@@ -256,6 +256,14 @@
   border-radius: 0.5rem;
   margin-left: calc(var(--depth, 0) * 1.35rem);
   background: var(--bs-body-bg);
+  overflow: hidden;
+}
+
+/* The compiled Bootstrap build has no .min-w-0 utility, so the text
+ * column cannot shrink below its content width without this rule. That
+ * is what used to push "+N more" into the card border. */
+.upline-row > .flex-grow-1 {
+  min-width: 0;
 }
 
 .upline-row.is-self {
@@ -286,7 +294,8 @@
 }
 
 .genealogy-table-scroll {
-  max-width: 100%;
+  max-width: calc(100% - 1.5rem);
+  margin-inline: 0.75rem;
 }
 
 .genealogy-table-scroll-top {
