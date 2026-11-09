@@ -112,11 +112,12 @@ return [
         assert_same('member.wallet:' . $id, $payload['surface']);
         assert_same(8, $payload['revision']);
         assert_same(
-            ['member-wallet-buckets', 'member-wallet-statement'],
+            ['member-wallet-buckets', 'member-wallet-transfer', 'member-wallet-statement'],
             array_keys($payload['fragments'])
         );
 
         $buckets   = $payload['fragments']['member-wallet-buckets'];
+        $sendCard  = $payload['fragments']['member-wallet-transfer'];
         $statement = $payload['fragments']['member-wallet-statement'];
 
         assert_contains('data-live-region="member-wallet-buckets"', $buckets);
@@ -126,6 +127,12 @@ return [
         assert_contains(money(1003), $buckets, 'the top-up covered the purchase');
         assert_contains('Non-withdrawable', $buckets);
         assert_contains(money(100), $buckets);
+
+        /* The send-funds card carries the transfer allowance (Phase 12). */
+        assert_contains('data-live-region="member-wallet-transfer"', $sendCard);
+        assert_contains('Send money to another member', $sendCard);
+        assert_contains(url('wallet/transfer'), $sendCard);
+        assert_contains('sent today', $sendCard);
 
         assert_contains('data-live-region="member-wallet-statement"', $statement);
         assert_contains('data-live-hold="dirty"', $statement);

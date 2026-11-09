@@ -4,7 +4,7 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 11 — indirect referral commissions (levels 2–10).**
+**Current status: Phase 12 — e-wallet transfers, limits and monitoring.**
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -30,11 +30,19 @@ Phase 11 adds the **indirect referral** ladder: levels 2–10 are priced by the 
 switches and `commission_indirect_max_levels`, and credit each eligible level in the same activation
 transaction. The member earnings page gains the per-level breakdown and a CSV export; the admin ledger
 gains type/level filters and its own CSV export.
+Phase 12 adds **member-to-member wallet transfers**: `/wallet/transfer` sends money with the sender's
+password as confirmation, an optional note, a configurable minimum and fee (zero for staff), a
+non-withdrawable credit for the recipient and a non-withdrawable fee credit for the primary admin —
+one transfer row and up to three ledger rows in one transaction. Daily and weekly limits are tracked
+on the sender's row and checked under the same lock as the balance; `bin/reset_transfer_limits.php`
+zeroes the counters every midnight (weekly on Monday). The admin wallet monitor gains the **Transfers**
+tab and the float/locked/transfer/top-up cards, and `bin/wallet_reconcile.php` now reconciles transfer
+legs too.
 The expiry job runs from the CLI **and** from a guarded URL
-(`/system/cron/shop_expire.php`); the auto-complete job does the same at
-`/system/cron/order_autocomplete.php`. Both have kill switches on the settings page and log to
-`system/storage/`. E-wallet transfers, payouts and super-login follow in later phases;
-their menu entries stay hidden until their phase lands.
+(`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
+`/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`. All three log to
+`system/storage/`; the first two have kill switches on the settings page. Payouts and super-login
+follow in later phases; their menu entries stay hidden until their phase lands.
 
 | | |
 |---|---|
@@ -328,11 +336,19 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | GET | `/admin/commissions` | admin | Company ledger: credited and skipped awards, filters (member/source/type/level/status/date) and totals |
 | GET | `/admin/commissions/export` | admin | Filtered CSV of the ledger (audited) |
 
+### Phase 12 URLs — wallet transfers
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/wallet/transfer` | member | Send-funds page: recipient, amount, note, password, fee preview, limit meters, recent transfers |
+| POST | `/wallet/transfer` | member | Confirm with the sender's password; one transfer row + up to three ledger rows |
+| GET | `/admin/wallets?tab=transfers` | admin | The monitor's transfer log (the rest of the monitor is Phase 5) |
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`. `/dashboard` became a routed page in Phase 9; the old
-`public/dashboard.php` is now a redirect shim only. The two job entries
-(`/cron/shop_expire.php`, `/cron/order_autocomplete.php` → `public/cron/`) are standalone, guarded
-files too; see [Cron](#cron-jobs).
+`public/dashboard.php` is now a redirect shim only. The three job entries
+(`/cron/shop_expire.php`, `/cron/order_autocomplete.php`, `/cron/reset_transfer_limits.php` →
+`public/cron/`) are standalone, guarded files too; see [Cron](#cron-jobs).
 
 Every route is mirrored in `app/routes_inventory.php`, which maps all 98 reference pages.
 `tests/Cases/ParityTest.php` (P1-T12) fails when a page marked *Port* has no matching
@@ -435,8 +451,41 @@ it arrives in Phase 15.
 - **Reconciliation.** `php bin/wallet_reconcile.php` recomputes both buckets from the ledger and reports
   mismatches (exit 0 clean / 1 mismatched / 2 cannot run, `--json` for tooling). It never repairs.
 - **Presentation.** `/wallet` is the member statement with type/source/date/note filters and page totals;
-  `/admin/wallets` is the monitor (float, withdrawable vs locked, directory, top-up and all-movement tabs)
-  and `/admin/wallets/{id}` is one member's wallet with the top-up form and history.
+  `/admin/wallets` is the monitor (float, withdrawable vs locked, directory, transfer, top-up and
+  all-movement tabs) and `/admin/wallets/{id}` is one member's wallet with the top-up form and history.
+
+---
+
+## Wallet transfers (Phase 12)
+
+- **Send money, password-confirmed.** `/wallet/transfer` takes a recipient username, the amount, an
+  optional note and the sender's **own password**. A wrong password refuses before any row is locked.
+- **The recipient rules.** The account must exist, be enabled and not be suspended, and cannot be the
+  sender. An admin account may still receive (staff accounts default to `member_status = pending`).
+- **The money.** One transaction: insert the transfer row, debit the sender `amount + fee`
+  (non-withdrawable money first), credit the recipient the amount (non-withdrawable), credit the fee to
+  the **primary admin** (non-withdrawable), increment the sender's counters, write the audit row. A
+  refused transfer writes nothing at all.
+- **The fee.** `settings.ewallet_transfer_fee` for members; admin/superadmin pay nothing and are exempt
+  from the limits. When the primary admin is also the recipient the fee leg is written with
+  `ref_id = NULL` and the transfer id in its note — two credits for one account under one
+  `(user_id, ref_type, ref_id, type)` key would collide.
+- **The limits.** `settings.ewallet_min_transfer` (floor), `ewallet_transfer_daily_limit` and
+  `ewallet_transfer_weekly_limit` (0 = unlimited). Usage lives on the sender row
+  (`ewallet_sent_today` / `ewallet_sent_this_week`) and is read and incremented under the same lock as
+  the balance, so concurrent transfers cannot both fit a limit they only fit once.
+- **The reset job.** `bin/reset_transfer_limits.php` (also `/system/cron/reset_transfer_limits.php` and
+  `bin/reset_transfer_limits.cmd`) zeroes the daily counters every run and the weekly counters on Monday;
+  idempotent, with `--dry-run`, `--doctor`, `--week`, `--daily-only` and `--json`.
+- **Superadmin attribution.** A superadmin's transfer books against the primary admin's wallet and ledger
+  (`sender_id`), while `audit_log` keeps the superadmin as the actor.
+- **The monitor.** `/admin/wallets` now carries the **Transfers** tab (sender/recipient links, amount, fee
+  and note, search by member/note and a date range) plus the **Transfers today** card with lifetime volume
+  and fees; the float cards show the withdrawable/locked percentages.
+- **Reconciliation.** `bin/wallet_reconcile.php` gained a **Transfers** section: every completed transfer
+  must have exactly one sender debit of `amount + fee`, one recipient credit of `amount` and its fee
+  credit. Orphan legs (a transfer row removed by an account deletion) are reported as a count, never as a
+  money error.
 
 ---
 
@@ -661,26 +710,31 @@ php bin/wallet_reconcile.php --json
 
 ## Cron jobs
 
-Two scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
+Three scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
 
 | Job | CLI | Web | Windows |
 |---|---|---|---|
 | Shop expiry (cancel unpaid orders) | `bin/shop_expire.php` | `/system/cron/shop_expire.php` | `bin/shop_expire.cmd` |
 | Order auto-complete (close old deliveries) | `bin/order_autocomplete.php` | `/system/cron/order_autocomplete.php` | `bin/order_autocomplete.cmd` |
+| Transfer-limit reset (daily/weekly counters) | `bin/reset_transfer_limits.php` | `/system/cron/reset_transfer_limits.php` | `bin/reset_transfer_limits.cmd` |
 
 - Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `json`, `doctor`, `log-dir` (CLI only),
-  `quiet` (CLI only), `help`; the expiry job also has `from-settings`.
+  `quiet` (CLI only), `help`; the expiry job also has `from-settings`, the reset job `week` and
+  `daily-only`.
 - `--from-settings` recomputes expiry deadlines from the **current** settings instead of the stored
   stamps (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction
   window). The cron itself uses the stamps, so changing a window never retroactively cancels old
   orders.
+- `--week` forces the transfer-limit weekly reset on any weekday (repairing a missed Monday);
+  `--daily-only` never touches the weekly counter.
 - The web entries are trusted on loopback (local testing needs no setup); any other caller needs
   `?key=` matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
-- One run at a time (`CronLock`); monthly logs at `storage/logs/shop_expire-YYYY-MM.log` and
-  `storage/logs/order_autocomplete-YYYY-MM.log`; `--doctor` reports PHP/DB time, settings,
-  candidates, lock and log state.
+- One run at a time (`CronLock`); monthly logs at `storage/logs/shop_expire-YYYY-MM.log`,
+  `storage/logs/order_autocomplete-YYYY-MM.log` and `storage/logs/reset_transfer_limits-YYYY-MM.log`;
+  `--doctor` reports PHP/DB time, settings, candidates, lock and log state.
 - Kill switches: `shop_expiry_enabled` and `shop_autocomplete_enabled` (settings page). Each makes
-  every run of its job exit 0 without changing anything.
+  every run of its job exit 0 without changing anything. The reset job has nothing to switch off — a
+  run only zeroes counters a transfer would have incremented.
 
 ```bash
 php bin/shop_expire.php --doctor
@@ -690,6 +744,10 @@ php bin/shop_expire.php
 php bin/order_autocomplete.php --doctor
 php bin/order_autocomplete.php --dry-run
 php bin/order_autocomplete.php
+
+php bin/reset_transfer_limits.php --doctor
+php bin/reset_transfer_limits.php --dry-run
+php bin/reset_transfer_limits.php
 ```
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
@@ -699,7 +757,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (560 cases in Phase 11)
+php tests/run.php                 # full suite (594 cases in Phase 12)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -714,12 +772,13 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–014 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–016 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
 member account with its wallet, orders, addresses, proofs, shipments and invoices, products with SKU
-prefix `SMOKE-`, packages named `Smoke Package…`, the payment/fulfilment settings it edits, and
+prefix `SMOKE-`, packages named `Smoke Package…`, a member-to-member transfer with its ledger legs and
+the limit counters it moves, the payment/fulfilment/transfer settings it edits, and
 `maintenance_mode`; all restored):
 
 ```powershell
@@ -749,9 +808,15 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `011_membership.sql` | membership columns on `users` (`phone`, `member_status`, `package_id`, `sponsor_id`, `referral_code`, `reg_payment_method`, `reg_code_id`, `reg_paid_by`, `activated_at`), the referral-code backfill, `reg_codes`, `activations` |
 | `012_commissions.sql` | `commissions` (the award ledger and its `(type, source_user_id, user_id, level)` idempotency key) |
 | `013_live_revisions.sql` | `live_revisions` (one monotonic revision per live page surface; see [live updates](../docs/live-updates.md)) |
+| `014_indirect_commissions.sql` | the three settings that steer the indirect ladder (`commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_compression`) |
+| `015_package_b_premium_ladder.sql` | Package B's 20%-higher referral ladder (guarded: only the old defaults are replaced) |
+| `016_transfers.sql` | `users.ewallet_sent_today` + `ewallet_sent_this_week`, `ewallet_transfers`, and the four transfer settings when missing |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
+Transfers are written only by `TransferService` (one transaction per transfer); the limit counters are
+zeroed only by `bin/reset_transfer_limits.php`, and `bin/wallet_reconcile.php` also proves every
+transfer's three ledger legs are present.
 Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
 `stock − reserved` number, and `OrderService` (placement, member cancel), `PaymentService`
 (review, admin cancel, expiry) and `FulfilmentService` (ship deducts, completion has no stock effect)

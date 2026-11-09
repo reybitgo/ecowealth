@@ -7,9 +7,19 @@ declare(strict_types=1);
  * @var array{
  *   total:float, withdrawable:float, locked:float, funded_members:int,
  *   topups:int, topup_total:float, topups_today:int, topup_today_total:float,
+ *   transfers:int, transfer_volume:float, transfer_fees:float,
+ *   transfers_today:int, transfer_today_volume:float,
  *   credits_today:float, debits_today:float
  * } $totals
  */
+
+$withdrawablePercent = (float) $totals['total'] > 0
+    ? round(((float) $totals['withdrawable'] / (float) $totals['total']) * 100, 1)
+    : 0.0;
+
+$lockedPercent = (float) $totals['total'] > 0
+    ? round(((float) $totals['locked'] / (float) $totals['total']) * 100, 1)
+    : 0.0;
 
 $cards = [
     [
@@ -22,23 +32,31 @@ $cards = [
     [
         'label' => 'Withdrawable',
         'value' => money((float) $totals['withdrawable']),
-        'hint'  => 'Cashable by members',
+        'hint'  => $withdrawablePercent . '% of the float — cashable by members',
         'icon'  => 'bx-money-withdraw',
         'tone'  => 'success',
     ],
     [
         'label' => 'Non-withdrawable',
         'value' => money((float) $totals['locked']),
-        'hint'  => 'Spendable in the shop only',
+        'hint'  => $lockedPercent . '% of the float — spendable in the shop only',
         'icon'  => 'bx-lock-alt',
         'tone'  => 'warning',
+    ],
+    [
+        'label' => 'Transfers today',
+        'value' => money((float) $totals['transfer_today_volume']),
+        'hint'  => $totals['transfers_today'] . ' today · ' . money((float) $totals['transfer_volume']) . ' lifetime'
+            . ((float) $totals['transfer_fees'] > 0 ? ' · ' . money((float) $totals['transfer_fees']) . ' fees' : ''),
+        'icon'  => 'bx-transfer',
+        'tone'  => 'info',
     ],
     [
         'label' => 'Top-ups today',
         'value' => money((float) $totals['topup_today_total']),
         'hint'  => $totals['topups_today'] . ' today · ' . money((float) $totals['topup_total']) . ' lifetime',
         'icon'  => 'bx-plus-circle',
-        'tone'  => 'info',
+        'tone'  => 'secondary',
     ],
 ];
 ?>
@@ -62,3 +80,4 @@ $cards = [
                 </div>
 <?php endforeach; ?>
               </div>
+

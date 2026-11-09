@@ -9,9 +9,10 @@ declare(strict_types=1);
  */
 
 $tabs = [
-    'members' => ['label' => 'Members', 'icon' => 'bx-group'],
-    'topups'  => ['label' => 'Top-ups', 'icon' => 'bx-plus-circle'],
-    'ledger'  => ['label' => 'All movements', 'icon' => 'bx-transfer'],
+    'members'   => ['label' => 'Members', 'icon' => 'bx-group'],
+    'transfers' => ['label' => 'Transfers', 'icon' => 'bx-transfer'],
+    'topups'    => ['label' => 'Top-ups', 'icon' => 'bx-plus-circle'],
+    'ledger'    => ['label' => 'All movements', 'icon' => 'bx-list-ul'],
 ];
 ?>
               <ul class="nav nav-pills mb-4 wallet-tabs" role="tablist" data-live-region="wallet-tabs">

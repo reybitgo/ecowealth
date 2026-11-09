@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(73, $live);
+        assert_count(75, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -178,6 +178,10 @@ return [
         /* Phase 11 — the two CSV exports. */
         assert_same('member', $live['GET /earnings/export']);
         assert_same('admin', $live['GET /admin/commissions/export']);
+
+        /* Phase 12 — the member transfer form and its POST. */
+        assert_same('member', $live['GET /wallet/transfer']);
+        assert_same('member', $live['POST /wallet/transfer']);
     },
 
     'Live route table resolves the Phase 1–10 URLs' => function (): void {
@@ -364,6 +368,16 @@ return [
         assert_same(
             AdminCommissionController::class,
             $router->match('GET', '/admin/commissions/export')['route']['handler'][0]
+        );
+
+        /* Phase 12 handlers. */
+        assert_same(
+            TransferController::class,
+            $router->match('GET', '/wallet/transfer')['route']['handler'][0]
+        );
+        assert_same(
+            TransferController::class,
+            $router->match('POST', '/wallet/transfer')['route']['handler'][0]
         );
 
         assert_null($router->match('GET', '/no-such-page'));

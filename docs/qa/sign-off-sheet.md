@@ -1,13 +1,14 @@
-# EcoWealth — QA sign-off sheet (Phases 1–11)
+# EcoWealth — QA sign-off sheet (Phases 1–12)
 
-Fill this sheet while working through the eleven phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the twelve phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
-**Status of this pass (2026-11-07):** Phases 1–10 are recorded as **passed** — **166 / 166**
+**Status of this pass (2026-11-08):** Phases 1–10 are recorded as **passed** — **166 / 166**
 manual checks, **427 / 427** PHP cases and **139 / 139** smoke checks; **0 failed, 0 blocked**.
-Phase 11 is automated-complete (**560 / 560** PHP cases, **143 / 143** smoke checks) with its ten
-manual checks still to tick.
+Phase 11 is automated- and headless-complete (**560 / 560** PHP cases, **143 / 143** smoke checks) with
+its ten manual checks still to tick. Phase 12 is automated-complete (**594 / 594** PHP cases,
+**150 / 150** smoke checks) with its eight manual checks still to tick.
 
 **How to use**
 
@@ -17,8 +18,8 @@ manual checks still to tick.
    lives in `docs/qa/evidence/phase-<n>/`. Phases 1–3 predate the per-phase folders, so their evidence
    lives in the topic folders (`dashboard/`, `errors/`, `shell/`, `shop/`); a check with no screenshot
    cites the automated suite instead.
-4. Log every failure in the *Defect log* (§13) and keep its status up to date.
-5. Complete the *Final decision* (§14) and sign.
+4. Log every failure in the *Defect log* (§14) and keep its status up to date.
+5. Complete the *Final decision* (§15) and sign.
 
 ---
 
@@ -29,7 +30,7 @@ manual checks still to tick.
 | Tester name | Automated QA pass — DeepSeek Harness (DSH) |
 | Date(s) of testing | 2026-11-07 … 2026-11-08 |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11` |
+| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12` |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | Windows 11 Home Single Language 10.0.26200 (build 26200) |
@@ -43,29 +44,29 @@ manual checks still to tick.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 560  Passed: 560  Failed: 0` / `All good.` | `Cases: 560   Passed: 560   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 143   Failed: 0` | `Passed: 143   Failed: 0` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 594  Passed: 594  Failed: 0` / `All good.` | `Cases: 594   Passed: 594   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 150   Failed: 0` | `Passed: 150   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
 ```text
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 560   Passed: 560   Failed: 0
+Cases: 594   Passed: 594   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
   P1-T11 PASS   guest sees the 503 page with Retry-After: 3600 (got 503, retry=3600)
   P1-T11 PASS   admin bypasses maintenance mode (got 200)
 
-Passed: 143   Failed: 0
+Passed: 150   Failed: 0
 ```
 
-Both commands are run from `system\` and exited **0** on 2026-11-08. `bin/wallet_reconcile.php` also
-exits **0** afterwards (both wallet buckets match the ledger **and** every credited commission has its
-ledger movement).
+Both commands are run from `system\` and exited **0** on 2026-11-09. `bin/wallet_reconcile.php` also
+exits **0** afterwards (both wallet buckets match the ledger, every credited commission has its ledger
+movement **and** every transfer has its sender debit, recipient credit and fee credit).
 
-Total manual checks in §2–§11: **166** — 166 passed, 0 failed, 0 blocked.
+Total manual checks in §2–§12: **174** — 166 recorded as passed, the eight Phase 12 checks pending.
 
 ---
 
@@ -421,7 +422,30 @@ Document: [phase-11-commissions.md](phase-11-commissions.md)
 
 ---
 
-## 13. Defect log
+## 13. Phase 12 — E-wallet transfers, limits and monitoring
+
+Document: [phase-12-transfers.md](phase-12-transfers.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA12-01 | A fee-free transfer moves the money, writes two ledger rows and updates the counters | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/member-transfer.png`, `phase-12/member-wallet-after.png` |
+| QA12-02 | A fee is charged and credited to the primary admin (third ledger leg) | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/admin-fee-credit.png`, `phase-12/transfer-row.png` |
+| QA12-03 | The refusals (minimum, balance, self, suspended) write nothing | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/refusals.png` |
+| QA12-04 | A wrong password refuses before anything locks or writes | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T6, smoke P12-T6` |
+| QA12-05 | The daily and weekly limits at their exact boundaries | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/limit-meters.png` |
+| QA12-06 | The reset cron (doctor, dry run, real run, second run, `--week`) | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/reset-cron.png`, `phase-12/reset-log.png` |
+| QA12-07 | Staff transfer free and unlimited; a superadmin is attributed to the primary admin | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/staff-transfer.png`, `phase-12/superadmin-attribution.png` |
+| QA12-08 | The monitor stat cards and transfers tab; the finance report reconciles transfers | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/admin-monitor.png`, `phase-12/reconcile.png` |
+
+| Phase 12 summary | |
+|---|---|
+| Executed | 0 / 8 |
+| Passed / Failed / Blocked | 0 / 0 / 0 |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+
+---
+
+## 14. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -437,7 +461,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 14. Final decision
+## 15. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -452,9 +476,10 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 9 | ☑ Yes ☐ No | 16 / 16 checks passed. |
 | Phase 10 | ☑ Yes ☐ No | 10 / 10 checks passed; 427 / 427 PHP cases, 139 / 139 smoke checks and 20 / 20 browser checks green. |
 | Phase 11 | ☐ Yes ☐ No | Automated gate: 560 / 560 PHP cases, 143 / 143 smoke checks and a headless browser pass green; 10 manual checks pending. |
+| Phase 12 | ☐ Yes ☐ No | Automated gate: 594 / 594 PHP cases, 150 / 150 smoke checks and a clean transfer reconciliation green; 8 manual checks pending. |
 
-All ten earlier phases are **Approved**. Phase 11 is automated- and headless-complete; its manual
-browser sign-off is pending. No defect is open, so no accepted exception is recorded.
+All ten earlier phases are **Approved**. Phases 11 and 12 are automated-complete; their manual browser
+sign-off is pending. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

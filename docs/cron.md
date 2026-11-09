@@ -1,14 +1,16 @@
-# Shop cron jobs
+# Scheduled jobs
 
-Two scheduled jobs keep the shop moving without an administrator watching it:
+Three scheduled jobs keep the platform moving without an administrator watching it:
 
 | Job | What it does | Command | Guide |
 |---|---|---|---|
 | **Shop expiry** | cancels unpaid orders when their payment/correction window closes and releases the stock | `bin/shop_expire.php` | this page, §1 |
 | **Order auto-complete** | completes delivered orders after *n* days when the member never confirms receipt | `bin/order_autocomplete.php` | this page, §2 |
+| **Transfer-limit reset** | zeroes the daily transfer counters every midnight (and the weekly ones on Monday) | `bin/reset_transfer_limits.php` | this page, §3 |
 
-Both are idempotent, safe to run twice, log one line per run and have a kill switch on
-**Admin → Settings**.
+All are idempotent, safe to run twice, log one line per run and share the same access rules, lock and
+log conventions. The first two have a kill switch on **Admin → Settings**; the reset job has nothing
+to switch off — it only zeroes counters a transfer would have incremented.
 
 ---
 
@@ -301,3 +303,104 @@ QA8-11 in [`docs/qa/phase-8-fulfilment.md`](qa/phase-8-fulfilment.md) walks thro
 job from the URL entry: doctor, dry run, the real run, the second idempotent run, the log line, the
 event trail and the kill switch.
 
+
+---
+
+# 3. Transfer-limit reset
+
+Members may send e-wallet money to each other up to a **daily** and a **weekly** limit
+(`ewallet_transfer_daily_limit` = 5000, `ewallet_transfer_weekly_limit` = 20000 by default). The
+service tracks usage in `users.ewallet_sent_today` and `users.ewallet_sent_this_week` **inside the
+same row lock that guards the balance**, so two concurrent transfers can never both fit a limit they
+only fit once. This job zeroes those counters on a schedule.
+
+| Entry | Path | Use |
+|---|---|---|
+| **CLI** | `system/bin/reset_transfer_limits.php` | cron, SSH, CI |
+| **Web** | `/system/cron/reset_transfer_limits.php` → `system/public/cron/reset_transfer_limits.php` | Local testing, or a URL-only host |
+| **Windows** | `system/bin/reset_transfer_limits.cmd` | Task Scheduler, double-click, Laragon terminal |
+
+The logic lives in `TransferService::resetLimits()`; both entries call it, so they cannot disagree.
+
+## What it does
+
+- **Daily counters** (`ewallet_sent_today`) are zeroed on **every** run.
+- **Weekly counters** (`ewallet_sent_this_week`) are zeroed **only when the run's weekday is Monday**
+  (app time zone, `Asia/Manila`).
+- Only accounts with a non-zero counter are updated; the run reports how many it changed.
+- No `audit_log` row is written — a daily job would grow that table forever. The monthly cron log is
+  the record of each run.
+- Running it twice in a row is harmless: the second run changes nothing and logs `0` counters.
+
+| Flag | Effect |
+|---|---|
+| `--week` | force the weekly reset whatever the weekday (repairing a missed Monday) |
+| `--daily-only` | never touch the weekly counter, even on Monday |
+| `--dry-run` | print what would be zeroed, change nothing |
+| `--doctor` | PHP/DB time, the weekday, the counters, the lock and log state |
+| `--json` | machine-readable payload |
+
+## Running it locally
+
+**In a browser:**
+
+```
+http://localhost/ecowealth/system/cron/reset_transfer_limits.php
+```
+
+| URL | What it shows |
+|---|---|
+| `?doctor=1` | the weekday, both counter totals, the lock and log state |
+| `?dry-run=1` | the counters that would be zeroed, changes nothing |
+| `?json=1` | the machine-readable payload |
+| `?week=1` | forces the weekly reset |
+
+**In a terminal:**
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+php bin\reset_transfer_limits.php --doctor
+php bin\reset_transfer_limits.php --dry-run
+php bin\reset_transfer_limits.php
+bin\reset_transfer_limits.cmd --dry-run
+```
+
+## Running it on a live server
+
+Once a day, just after midnight:
+
+```cron
+5 0 * * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/reset_transfer_limits.php >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+```
+
+URL form (same access rules and `CRON_KEY` as the other jobs):
+
+```cron
+5 0 * * * curl -s "https://example.com/ecowealth/system/cron/reset_transfer_limits.php?key=a-long-random-string" > /dev/null
+```
+
+> **If the job misses a Monday**, the weekly counter keeps yesterday's usage; run it once with
+> `--week` (or wait for the next Monday). Limits are always enforced from the counters, never from
+> the clock, so a missed run can only ever make a limit *stricter*, never wider.
+
+## Logs, locks and evidence
+
+| What | Where |
+|---|---|
+| Monthly log | `system/storage/logs/reset_transfer_limits-YYYY-MM.log` |
+| Lock | `system/storage/locks/reset_transfer_limits.lock` (advisory; released automatically) |
+
+One line per run:
+
+```
+[2026-11-09 00:05:01 +08:00] [OK   ] trigger=http day=Mon weekly=yes daily_zeroed=3 weekly_zeroed=3 accounts=26 duration=9ms
+```
+
+`--doctor` is the first thing to run on a new server: it reports PHP/MySQL time, the weekday, how
+many accounts carry usage, the lock state and whether the log folder is writable.
+
+## QA
+
+QA12-06 in [`docs/qa/phase-12-transfers.md`](qa/phase-12-transfers.md) walks through the reset job
+from the URL entry: doctor, dry run, the real run, the second idempotent run and the log line.

@@ -2726,3 +2726,106 @@ level's members off the page, and every card carries its own controls and "Showi
 
 
 
+
+---
+
+## Phase 12 — E-wallet transfers, limits and monitoring
+
+**Date:** 2026-11-09 · **Branch:** `feature/shop` · **Gate tag:** `phase-12` · **Status:** complete
+(manual sign-off pending, as for Phases 1–11).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | Migration `016_transfers.sql` adds `users.ewallet_sent_today` + `ewallet_sent_this_week`, the `ewallet_transfers` table (sender, recipient, amount, fee, net_amount, note, status, created_at; sender/recipient/status indexes; both FKs cascade) and the four transfer settings when they are missing. Both `ALTER`s and the `CREATE TABLE` are guarded, so a re-run is a no-op. `schema.sql` carries the same shape for a fresh install. |
+| **Service** | `TransferService::send()` — the sender's password first (before any lock), the recipient rules, the minimum, the fee, the balance and both limits, then one transaction: transfer row → sender debit (`amount + fee`, non-withdrawable first) → recipient credit (amount, non-withdrawable) → primary-admin fee credit (non-withdrawable) → counter increment → audit row. Plus `limits()`/`usageFor()` (fee, minimum, most you can send, both meters), `resetLimits()`, `pendingResets()` and `reconcile()`. `TransferException` carries reason codes (`password`, `amount`, `minimum`, `balance`, `self`, `recipient`, `inactive`, `daily_limit`, `weekly_limit`, `config`). |
+| **Model** | `Transfer` (reads only): `find()`, `forMember()`, `memberTotals()`, `all()`/`allCount()`/`totals()` with `q`/`from`/`to` filters, and `monitorTotals()` for the stat cards. |
+| **Member** | `GET /wallet/transfer` — recipient, amount, note, password (show/hide), a live fee/total preview, the per-transfer facts (fee, minimum, most you can send), the daily/weekly limit meters and the sent/received history with pagination; `POST /wallet/transfer` confirms with the password. The statement (`/wallet`) gains the **Send funds** card with the limit usage. New **Send funds** menu item in both layouts. |
+| **Back office** | `/admin/wallets` gains the **Transfers** tab (search by sender/recipient/note, a date range, sender → recipient links, amount, fee, note, pagination), a **Transfers today** stat card (lifetime volume and fees), and withdrawable/locked percentages on the float cards. The existing member directory still links each member's filterable statement, which is the per-member ledger search. |
+| **Cron** | `bin/reset_transfer_limits.php` + `bin/reset_transfer_limits.cmd` + `public/cron/reset_transfer_limits.php`: daily counters on every run, weekly counters on Monday (`--week` forces it, `--daily-only` suppresses it), `--dry-run`, `--doctor`, `--json`, `--quiet`, `--log-dir`; `CronLock` + monthly `CronLog` + the shared `CronAccess` web guard. |
+| **Finance** | `bin/wallet_reconcile.php` gains a **Transfers** section: every completed transfer must have one sender debit of `amount + fee`, one recipient credit of `amount` and its fee credit; orphan legs (a transfer row removed by an account deletion) are reported as a count, not a money error. |
+| **Tests** | `TransferTest` (18 cases: P12-T1 … P12-T12 plus recipient rules, the note, the fee-row fallback and orphan legs), `TransferViewTest` (9), `TransferLiveTest` (6); `MigrationTest` applies 016 and compares the new table; router **73 → 75**; suite **594**. |
+| **Smoke** | Phase 12 block: `GET /wallet/transfer` (and the statement's card), a wrong-password refusal, a real ₱200 transfer with an ₱8 fee (three ledger legs, the counters and all three balances), the monitor transfers tab, the reset cron twice from its URL entry, an over-balance refusal and the finance report. **150 checks** in total. |
+| **Docs** | This log, `docs/qa/phase-12-transfers.md`, the QA README + sign-off sheet, `docs/cron.md` (§3), `system/README.md` and the root `README.md`. |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-12/db-post-phase-12-migration.sql` (440,871 bytes) — the dev snapshot taken immediately after the additive migration (git-ignored `backups/`) |
+| Migration | `016_transfers.sql` applied to `ecowealth_sneat`: the two counters, `ewallet_transfers`, and the four settings (`ewallet_transfer_fee=0`, `ewallet_min_transfer=50`, `ewallet_transfer_daily_limit=5000`, `ewallet_transfer_weekly_limit=20000`, already seeded) |
+| Verified | A second run of the migration changes nothing; `MigrationTest` applies 001–016 to the legacy fixture, compares the `users` and `ewallet_transfers` columns with `schema.sql`, and re-runs every migration |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P12-T1 | Transfer ₱500 with zero fee | **PASS** | Sender −500, recipient +500, one transfer row, exactly two ledger rows (debit + credit); the counters read ₱500/₱500 |
+| P12-T2 | Transfer with a fee | **PASS** | Fee ₱10: sender −₱310, recipient +₱300, the primary admin +₱10 (non-withdrawable), three ledger rows, counters count the amount only |
+| P12-T3 | Below `ewallet_min_transfer` | **PASS** | `minimum` refusal for ₱49.99; no transfer row, no ledger row, no counter; the same amount passes once the minimum is 0 |
+| P12-T4 | Above balance | **PASS** | ₱100 with a ₱5 fee (needs ₱105) is refused with `balance`; counters unchanged; exactly ₱95 + ₱5 fits afterwards |
+| P12-T5 | Self-transfer | **PASS** | `self` refusal; balance untouched |
+| P12-T6 | Wrong password | **PASS** | `password` refusal (wrong and empty) with nothing written; the correct password then succeeds — no lock was left behind |
+| P12-T7 | Daily limit boundary | **PASS** | 200 + 100 = 300 allowed at a ₱300 limit; ₱50 more is refused with `daily_limit` and the counter stays at 300; a 0 limit reopens the funnel |
+| P12-T8 | Weekly limit boundary | **PASS** | 300 + 100 = 400 at a ₱400 weekly limit; ₱50 refused with `weekly_limit`; a daily-only reset does not reopen the week |
+| P12-T9 | Reset cron | **PASS** | Daily counters zeroed on every run (2 accounts), weekly only when requested, and a second run reports 0/0 (idempotent) |
+| P12-T10 | Concurrent transfers | **PASS** | Two real connections: the second transfer blocks on the locked sender row (`1205`), then sees the new balance and is refused with `balance`; one transfer row, no negative bucket, transfers reconcile |
+| P12-T11 | Withdrawable preservation | **PASS** | ₱100 withdrawable + ₱100 locked, sending ₱150 leaves ₱50 withdrawable (locked spent first); the recipient's ₱150 is non-withdrawable; the wallets still reconcile |
+| P12-T12 | Admin/superadmin transfer | **PASS** | A ₱100 daily limit is ignored, no fee at a ₱25 setting, no counters; the superadmin's transfer books against the **primary admin** (`sender_id`, ledger debit) while `audit_log.actor_id` stays the superadmin |
+
+### Deviations and decisions
+
+- **"The recipient must be active" means enabled and not suspended.** `is_active = 1` and
+  `member_status <> 'suspended'`. Pending and inactive members still own a wallet (a sponsor may fund a
+  recruit before activation) and staff accounts are seeded with the schema default `pending`, so a
+  stricter reading would block transfers to the admin account. The refusal is exercised for a suspended
+  and a disabled account, and an admin account is proven to receive.
+- **A limit of 0 means unlimited.** An operator who blanks `ewallet_transfer_daily_limit` must not lock
+  every member out of sending money; the meters say "no limit" instead of drawing a 0-of-0 bar.
+- **The fee leg can carry `ref_id = NULL`.** The ledger's `(user_id, ref_type, ref_id, type)`
+  idempotency key cannot hold two credits for one account under one transfer id, which only happens when
+  the primary admin is also the recipient. In that case the fee row keeps `ref_id = NULL` and names the
+  transfer in its note; `TransferService::reconcile()` accepts it and the monitor still lists it.
+- **A refused transfer writes nothing — there is no `failed` row.** The `ewallet_transfers.status` enum
+  keeps `failed` for symmetry with Appendix B, but this build never writes it: plan §5.8 says a refusal
+  writes nothing, and a "failed" row would be dead weight in the log.
+- **No primary admin, no fee.** With a fee configured and no active admin account to receive it, the
+  transfer is refused (`config`) rather than destroying company money. Choosing *which* admin receives
+  the fee is `Member::primaryAdmin()` — the same rule the reference used for company revenue.
+- **Orphan transfer legs are reported, not failed.** Deleting an account cascades its transfer rows away
+  (the app has no delete path, but fixtures and manual cleanups delete accounts), while the counterparty's
+  and the admin's real movements must stay in the ledger. `reconcile()` counts them in `orphans` and
+  `wallet_reconcile.php` prints them as a note; `ok` stays based on the three legs.
+- **The transfer settings are seeded, not editable yet.** §5.8 does not put them on the Phase 12 page and
+  §7 Phase 15 owns the full settings page; `/admin/settings` therefore keeps its four cards. The four keys
+  are seeded and documented in `docs/cron.md` and both READMEs so an operator can change them with SQL
+  until Phase 15 ships the card.
+- **The monitor tabs stay on `/admin/wallets`.** No new admin route: the tab is a query string, which
+  keeps the route table at 75 entries and the parity inventory unchanged.
+- **Two live surfaces, one ETag each.** `member.transfer:{id}` covers the limit meters and the recent
+  list; the page's ETag also mixes the member's wallet revision, so a commission arriving while the page
+  is open refreshes the balance card without a new transfer-specific bump. The form is outside every
+  region, so a background refresh can never wipe a half-typed transfer.
+- **Limits are counters, never the clock** (risk R14). A missed Monday can only make a limit stricter,
+  and `--week` repairs it; no transfer decision reads the wall clock.
+
+### Gate checklist (plan §7 Phase 12)
+
+- [x] Migration applied to dev DB; `schema.sql` carries the same shape and the seeds carry the four keys
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
+- [x] All P12 tests pass (33 new cases; suite **594**)
+- [x] Full regression suite passes (Phases 1–11 green, including the migration and parity checks)
+- [x] Smoke script passes (**150 checks**, 7 new)
+- [x] Finance invariants clean — `bin/wallet_reconcile.php` exits 0 (wallets + commissions + transfers)
+- [x] The reset cron verified twice (CLI and URL entry; the second run reports 0 counters)
+- [x] No member can read another member's transfers; the monitor and the reset entry are guarded
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-12-transfers.md`) — automated and smoke passes complete
+- [x] Docs updated (this log, QA pack + sign-off sheet, `docs/cron.md`, both READMEs)
+- [x] Backup taken; tag `phase-12`
+
+### Next
+
+Phase 13 — payouts: members cash out withdrawable earnings (GCash, Maya, USDT), staff approve,
+complete or reject with a hold/refund, service fees and the USDT net maths are computed server-side,
+and every request is one auditable row with its ledger movements.

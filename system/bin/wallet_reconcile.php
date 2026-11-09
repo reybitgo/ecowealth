@@ -3,16 +3,20 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  EcoWealth — finance reconciliation command (plan §6.8, §7 Phase 5 + 10)
+ *  EcoWealth — finance reconciliation command (plan §6.8, §7 Phase 5,
+ *  10 and 12)
  *
  *      php bin/wallet_reconcile.php [--json]
  *
- *  Two read-only reports:
+ *  Three read-only reports:
  *
  *    1. Wallets — both buckets recomputed from `ewallet_ledger`.
  *    2. Commissions — every credited award against its wallet movement
  *       (plan §6.8: SUM(credited) = SUM(ledger ref_type='commission'),
  *       one ledger row per award, no orphan ledger rows).
+ *    3. Transfers — every transfer row against its three ledger legs
+ *       (sender debit of amount + fee, recipient credit of amount, fee
+ *       credit to the primary admin) plus orphan transfer ledger rows.
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -48,12 +52,13 @@ if (isset($options['help'])) {
 try {
     $wallets     = (new WalletService())->reconcile();
     $commissions = (new CommissionService())->reconcile();
+    $transfers   = (new TransferService())->reconcile();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
 
-$ok = $wallets['ok'] && $commissions['ok'];
+$ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -66,6 +71,7 @@ if (isset($options['json'])) {
             'ok'          => $ok,
         ] + $wallets + [
             'commissions' => $commissions,
+            'transfers'   => $transfers,
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
@@ -161,8 +167,37 @@ if ($commissions['ok']) {
 
 echo PHP_EOL;
 
+echo 'Transfers', PHP_EOL;
+printf("  transfers checked: %d%s", $transfers['checked'], PHP_EOL);
+
+if (($transfers['orphans'] ?? 0) > 0) {
+    printf(
+        "  orphan legs:       %d — a transfer row is gone but its ledger legs remain (an account was deleted)%s",
+        $transfers['orphans'],
+        PHP_EOL
+    );
+}
+
+if ($transfers['ok']) {
+    echo '  OK — every transfer has its sender debit, recipient credit and fee credit.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($transfers['mismatches']), PHP_EOL);
+
+    foreach ($transfers['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] transfer #%d: %s%s",
+            (string) $mismatch['kind'],
+            (int) $mismatch['transfer_id'],
+            (string) $mismatch['message'],
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
 if ($ok) {
-    echo 'All good — wallets and commissions reconcile.', PHP_EOL;
+    echo 'All good — wallets, commissions and transfers reconcile.', PHP_EOL;
     exit(0);
 }
 

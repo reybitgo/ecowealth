@@ -54,6 +54,7 @@ $memberPage = static function (array $account, array $filters = [], int $page = 
         'current_nav'     => 'wallet',
         'page_css'        => ['assets/css/wallet.css'],
         'account'         => $account,
+        'limits'          => (new TransferService())->usageFor($account),
         'ledger'          => $statement['rows'],
         'pager'           => $statement['pager'],
         'totals'          => $statement['totals'],
@@ -66,10 +67,13 @@ $memberPage = static function (array $account, array $filters = [], int $page = 
 
 /** View data for the admin monitor, as AdminWalletController::index builds it. */
 $monitorPage = static function (string $tab = 'members', string $query = '', string $status = ''): array {
-    $totals = Wallet::monitorTotals();
+    $totals = Wallet::monitorTotals() + Transfer::monitorTotals();
 
     $members      = [];
     $membersPager = new Paginator(0);
+    $transfers    = [];
+    $transfersPager = new Paginator(0);
+    $transferFilters = Transfer::filterDefaults();
     $topups       = [];
     $topupsPager  = new Paginator(0);
     $ledger       = [];
@@ -80,6 +84,9 @@ $monitorPage = static function (string $tab = 'members', string $query = '', str
         $filters      = ['q' => $query, 'funded' => '', 'status' => $status];
         $membersPager = Paginator::fromRequest(Wallet::memberCount($filters), 20);
         $members      = Wallet::members($filters, $membersPager);
+    } elseif ($tab === 'transfers') {
+        $transfersPager = Paginator::fromRequest(Transfer::allCount($transferFilters), 20);
+        $transfers      = Transfer::all($transferFilters, $transfersPager);
     } elseif ($tab === 'topups') {
         $filters     = ['q' => $query];
         $topupsPager = Paginator::fromRequest(Wallet::allTopupCount($filters), 20);
@@ -98,15 +105,19 @@ $monitorPage = static function (string $tab = 'members', string $query = '', str
         'totals'         => $totals,
         'tab'            => $tab,
         'tab_counts'     => [
-            'members' => Wallet::memberCount(['q' => '', 'funded' => '']),
-            'topups'  => Wallet::allTopupCount(['q' => '']),
-            'ledger'  => Wallet::ledgerCount(null, Wallet::filterDefaults()),
+            'members'   => Wallet::memberCount(['q' => '', 'funded' => '']),
+            'transfers' => Transfer::allCount(Transfer::filterDefaults()),
+            'topups'    => Wallet::allTopupCount(['q' => '']),
+            'ledger'    => Wallet::ledgerCount(null, Wallet::filterDefaults()),
         ],
         'query'          => $query,
         'funded'         => '',
         'status'         => $status,
         'members'        => $members,
         'members_pager'  => $membersPager,
+        'transfers'      => $transfers,
+        'transfers_pager' => $transfersPager,
+        'transfer_filters' => $transferFilters,
         'topups'         => $topups,
         'topups_pager'   => $topupsPager,
         'ledger'         => $ledger,

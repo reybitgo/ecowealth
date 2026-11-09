@@ -119,6 +119,12 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   scope is being built
 - `membershipSurface($id)` / `touchMembership($id)` — the member's own
   `/membership` page (status, package, activation paths and history)
+- `transferSurface($id)` / `touchTransfer($id)` — the member's own
+  `/wallet/transfer` page (limit meters and the recent sent/received list).
+  A completed transfer bumps both participants; a refused one bumps nothing.
+  The page's ETag also mixes the member's `member.wallet:{id}` revision, so a
+  wallet movement that is not a transfer (a commission, a purchase) still
+  refreshes the balance card
 - `shopProductSurface($id)` / `touchShop($ids)` — the `shop.catalog` grid
   plus one or more `shop.product:{id}` detail pages
 

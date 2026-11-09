@@ -47,6 +47,7 @@ return [
                 'label' => 'Money',
                 'items' => [
                     ['key' => 'wallet', 'label' => 'E-wallet', 'path' => 'wallet', 'icon' => 'bx-wallet', 'guard' => 'member', 'phase' => 5],
+                    ['key' => 'transfer', 'label' => 'Send funds', 'path' => 'wallet/transfer', 'icon' => 'bx-paper-plane', 'guard' => 'member', 'phase' => 12],
                     ['key' => 'payouts', 'label' => 'Payouts', 'path' => 'payouts', 'icon' => 'bx-money-withdraw', 'guard' => 'member', 'phase' => 13],
                 ],
             ],
@@ -108,6 +109,7 @@ return [
                      * /wallet and renders inside the back-office layout for
                      * them (same pattern as admin.cart, Phase 4). */
                     ['key' => 'admin.wallet', 'label' => 'My e-wallet', 'path' => 'wallet', 'icon' => 'bx-credit-card', 'guard' => 'admin', 'phase' => 5],
+                    ['key' => 'admin.transfer', 'label' => 'Send funds', 'path' => 'wallet/transfer', 'icon' => 'bx-paper-plane', 'guard' => 'admin', 'phase' => 12],
                     ['key' => 'admin.payouts', 'label' => 'Payouts', 'path' => 'admin/payouts', 'icon' => 'bx-money-withdraw', 'guard' => 'admin', 'phase' => 13],
                 ],
             ],

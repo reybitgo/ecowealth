@@ -171,9 +171,13 @@ return [
     ['GET',  '/admin/commissions/export',        [AdminCommissionController::class, 'export'],  'admin'],    // extension: ledger CSV
 
     /* ---------- Phase 12 — wallet transfers -------------------------
-    ['GET',  '/wallet/transfer',                 [TransferController::class, 'index'],        'member'],    // ewallet_transfer (guard raised from 'any')
+     * Reference: ewallet_transfer, do_ewallet_transfer. Both pages were
+     * unguarded in the reference; here the `member` guard admits members
+     * and staff (plan §3.4), and the transfer itself needs the sender's
+     * password. The admin monitor tabs live on the existing
+     * GET /admin/wallets (transfers / top-ups / ledger). */
+    ['GET',  '/wallet/transfer',                 [TransferController::class, 'index'],        'member'],    // ewallet_transfer
     ['POST', '/wallet/transfer',                 [TransferController::class, 'send'],         'member'],    // do_ewallet_transfer
-    ----------------------------------------------------------------- */
 
     /* ---------- Phase 13 — payouts ----------------------------------
     ['GET',  '/payouts',                         [PayoutController::class, 'index'],          'member'],    // payout

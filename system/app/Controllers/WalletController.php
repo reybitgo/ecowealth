@@ -9,24 +9,28 @@ declare(strict_types=1);
  *  Route (Appendix A): GET /wallet
  *
  *  The page shows both buckets and the immutable ledger with filters,
- *  a running balance (`balance_after`) and page totals. Admins may
+ *  a running balance (`balance_after`) and page totals. Since Phase 12
+ *  it also carries the "send funds" card, which shows how much of the
+ *  member's daily and weekly transfer allowance is left. Admins may
  *  open it too — the `member` guard admits them (plan §3.4) — and get
  *  their own statement inside the back-office layout.
  *
  *  The page is one per-member live surface (`member.wallet:{id}`).
- *  The same URL doubles as the JSON feed; the buckets and the statement
- *  card are regions. The statement owns the filter form, so it is held
- *  while the member has unsaved input and the page shows the stale
- *  banner.
+ *  The same URL doubles as the JSON feed; the buckets, the send-funds
+ *  card and the statement card are regions. The statement owns the
+ *  filter form, so it is held while the member has unsaved input and
+ *  the page shows the stale banner.
  * ============================================================== */
 
 final class WalletController
 {
     private WalletService $wallet;
+    private TransferService $transfers;
 
     public function __construct()
     {
-        $this->wallet = new WalletService();
+        $this->wallet    = new WalletService();
+        $this->transfers = new TransferService();
     }
 
     /** @param array<string, string> $params */
@@ -95,6 +99,7 @@ final class WalletController
 
         return [
             'account'         => $account,
+            'limits'          => $this->transfers->usageFor($account),
             'ledger'          => $statement['rows'],
             'pager'           => $statement['pager'],
             'totals'          => $statement['totals'],
@@ -159,6 +164,9 @@ final class WalletController
             'fragments' => [
                 'member-wallet-buckets' => View::capture('member/wallet/_buckets', [
                     'account' => $account,
+                ]),
+                'member-wallet-transfer' => View::capture('member/wallet/_transfer_card', [
+                    'limits' => $data['limits'],
                 ]),
                 'member-wallet-statement' => View::capture('member/wallet/_statement', [
                     'filters'         => $data['filters'],

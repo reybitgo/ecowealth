@@ -10,20 +10,23 @@ declare(strict_types=1);
  * paid out. Admin top-ups raise the total only (non-withdrawable), so
  * the explanation under the cards matters.
  *
- * One live surface per member (`member.wallet:{id}`). The bucket cards
- * and the statement card are regions; the statement owns the filter form,
- * so it is held while the member has unsaved input.
+ * One live surface per member (`member.wallet:{id}`). The bucket cards,
+ * the send-funds card and the statement card are regions; the statement
+ * owns the filter form, so it is held while the member has unsaved input.
  *
  * @var array<string, mixed> $account
  * @var list<array<string, mixed>> $ledger
  * @var Paginator $pager
  * @var array{rows:int, credits:float, debits:float, net:float} $totals
  * @var array{type:string, ref_type:string, from:string, to:string, q:string} $filters
+ * @var array<string, mixed> $limits
  * @var string $statement_url
  * @var string $statement_title
  * @var bool $show_member
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
+
+$limits = $limits ?? (new TransferService())->usageFor($account);
 
 $live = $live ?? [
     'surface'  => Live::memberWalletSurface((int) ($account['id'] ?? 0)),
@@ -67,6 +70,8 @@ $live = $live ?? [
               </div>
 
 <?= View::capture('member/wallet/_buckets', ['account' => $account]) ?>
+
+<?= View::capture('member/wallet/_transfer_card', ['limits' => $limits]) ?>
 
               <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-info-circle fs-4"></i>

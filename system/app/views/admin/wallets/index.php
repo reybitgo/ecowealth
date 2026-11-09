@@ -2,13 +2,14 @@
 declare(strict_types=1);
 
 /**
- * Admin e-wallet monitor (plan §5.8, §7 Phase 5; reference
+ * Admin e-wallet monitor (plan §5.8, §7 Phase 5 + Phase 12; reference
  * views/admin/ewallet_monitor.php).
  *
  * Four numbers matter at a glance — total float, how much of it is
- * withdrawable, how much is locked to shop spending, and what was
- * topped up today — then three tabs: the member directory, every
- * admin top-up, and every ledger movement across all wallets.
+ * withdrawable, how much is locked to shop spending, and today's
+ * movement — then four tabs: the member directory, every member
+ * transfer, every admin top-up, and every ledger movement across all
+ * wallets.
  *
  * The page is one live surface. The metric badges, stat cards, tab counts
  * and the active tab's rows are regions; the search/filter forms stay
@@ -20,6 +21,8 @@ declare(strict_types=1);
  * @var array{
  *   total: float, withdrawable: float, locked: float, funded_members: int,
  *   topups: int, topup_total: float, topups_today: int, topup_today_total: float,
+ *   transfers: int, transfer_volume: float, transfer_fees: float,
+ *   transfers_today: int, transfer_today_volume: float,
  *   credits_today: float, debits_today: float
  * } $totals
  * @var string $tab
@@ -29,6 +32,9 @@ declare(strict_types=1);
  * @var string $status
  * @var list<array<string, mixed>> $members
  * @var Paginator $members_pager
+ * @var list<array<string, mixed>> $transfers
+ * @var Paginator $transfers_pager
+ * @var array{q:string, from:string, to:string} $transfer_filters
  * @var list<array<string, mixed>> $topups
  * @var Paginator $topups_pager
  * @var list<array<string, mixed>> $ledger
@@ -136,6 +142,56 @@ $live = $live ?? [
                 </div>
 
 <?= View::capture('admin/wallets/_members_pagination', ['members_pager' => $members_pager]) ?>
+              </div>
+
+<?php elseif ($tab === 'transfers'): ?>
+              <div class="card">
+                <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+                  <div>
+                    <h5 class="mb-0">Transfers</h5>
+                    <p class="text-body-secondary small mb-0">
+                      Member-to-member movements. Each one is one transfer row and three ledger rows
+                      (sender debit, recipient credit, admin fee).
+                    </p>
+                  </div>
+                  <form method="GET" action="<?= e(url('admin/wallets')) ?>" class="d-flex flex-wrap gap-2 wallet-search">
+                    <input type="hidden" name="tab" value="transfers" />
+                    <?= per_page_hidden() ?>
+                    <input
+                      type="search"
+                      name="q"
+                      class="form-control"
+                      value="<?= e($query) ?>"
+                      placeholder="Sender, recipient or note…"
+                      aria-label="Search transfers"
+                    />
+                    <input type="date" name="from" class="form-control" value="<?= e($transfer_filters['from']) ?>" aria-label="From date" />
+                    <input type="date" name="to" class="form-control" value="<?= e($transfer_filters['to']) ?>" aria-label="To date" />
+                    <button type="submit" class="btn btn-label-primary">Filter</button>
+<?php if ($query !== '' || $transfer_filters['from'] !== '' || $transfer_filters['to'] !== ''): ?>
+                    <a href="<?= e(url('admin/wallets?tab=transfers')) ?>" class="btn btn-label-secondary">Clear</a>
+<?php endif; ?>
+                  </form>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Sender</th>
+                        <th scope="col"><span class="visually-hidden">Direction</span></th>
+                        <th scope="col">Recipient</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col" class="text-end">Fee</th>
+                        <th scope="col">Note</th>
+                      </tr>
+                    </thead>
+<?= View::capture('admin/wallets/_transfers', ['transfers' => $transfers]) ?>
+                  </table>
+                </div>
+
+<?= View::capture('admin/wallets/_transfers_pagination', ['transfers_pager' => $transfers_pager]) ?>
               </div>
 
 <?php elseif ($tab === 'topups'): ?>

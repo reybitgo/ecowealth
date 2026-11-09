@@ -28,6 +28,7 @@ $migrations    = [
     $migrationDir . '013_live_revisions.sql',
     $migrationDir . '014_indirect_commissions.sql',
     $migrationDir . '015_package_b_premium_ladder.sql',
+    $migrationDir . '016_transfers.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -87,7 +88,7 @@ return [
             'carts', 'cart_items', 'ewallet_ledger', 'ewallet_admin_topups',
             'addresses', 'shop_orders', 'shop_order_items', 'shop_order_events',
             'shop_payment_proofs', 'shop_shipments', 'shop_invoices', 'shop_invoice_items',
-            'reg_codes', 'activations', 'commissions', 'live_revisions',
+            'reg_codes', 'activations', 'commissions', 'ewallet_transfers', 'live_revisions',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -264,6 +265,7 @@ return [
         assert_same($columnList($fresh, 'reg_codes'), $columnList($migrated, 'reg_codes'), 'reg_codes columns differ from schema.sql');
         assert_same($columnList($fresh, 'activations'), $columnList($migrated, 'activations'), 'activations columns differ from schema.sql');
         assert_same($columnList($fresh, 'commissions'), $columnList($migrated, 'commissions'), 'commissions columns differ from schema.sql');
+        assert_same($columnList($fresh, 'ewallet_transfers'), $columnList($migrated, 'ewallet_transfers'), 'ewallet_transfers columns differ from schema.sql');
         assert_same($columnList($fresh, 'live_revisions'), $columnList($migrated, 'live_revisions'), 'live_revisions columns differ from schema.sql');
     },
 

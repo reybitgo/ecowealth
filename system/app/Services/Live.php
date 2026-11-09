@@ -172,6 +172,31 @@ final class Live
     }
 
     /**
+     * The member's own transfer page (`member.transfer:42`).
+     *
+     * The page shows the two buckets, the limit meters and the recent
+     * transfers. The balances are bumped by WalletService (through
+     * touchMemberWallet); this surface covers the transfer rows and the
+     * counters, which only a transfer changes.
+     */
+    public static function transferSurface(int $userId): string
+    {
+        return 'member.transfer:' . max(0, $userId);
+    }
+
+    /**
+     * Bump one member's `/wallet/transfer` page.
+     *
+     * Called by TransferService after a completed transfer, for both the
+     * sender and the recipient: their recent lists and counters changed.
+     * A refused transfer moves no money and never bumps it.
+     */
+    public static function touchTransfer(int $userId): void
+    {
+        self::touch(self::transferSurface($userId));
+    }
+
+    /**
      * The member's own profile page (`member.profile:42`).
      *
      * The page key is per user; the full-name, payout-account and address

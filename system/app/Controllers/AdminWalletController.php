@@ -2,12 +2,13 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  AdminWalletController — monitor and top-ups (plan §7 Phase 5,
- *  §5.8; reference: AdminController::ewalletMonitor / ewalletTopUp
- *  and views/admin/ewallet_*.php)
+ *  AdminWalletController — monitor and top-ups (plan §7 Phase 5 and
+ *  Phase 12, §5.8; reference: AdminController::ewalletMonitor /
+ *  ewalletTopUp and views/admin/ewallet_*.php)
  *
  *  Routes (Appendix A):
- *      GET  /admin/wallets              float, both buckets, directory
+ *      GET  /admin/wallets              float, both buckets, directory,
+ *                                       transfers, top-ups, ledger
  *      GET  /admin/wallets/{id}         one member's wallet + top-up form
  *      POST /admin/wallets/{id}/credit  audited admin credit
  *
@@ -23,8 +24,8 @@ declare(strict_types=1);
 
 final class AdminWalletController
 {
-    /** Tabs of the monitor page. */
-    private const TABS = ['members', 'topups', 'ledger'];
+    /** Tabs of the monitor page, in display order. */
+    private const TABS = ['members', 'transfers', 'topups', 'ledger'];
 
     private WalletService $wallet;
 
@@ -77,18 +78,22 @@ final class AdminWalletController
             $status = '';
         }
 
-        $totals = Wallet::monitorTotals();
+        $totals = Wallet::monitorTotals() + Transfer::monitorTotals();
 
         /* Tab badges always show the total for that list, not the active
          * tab's paginated/filtered subset. */
         $tabCounts = [
-            'members' => Wallet::memberCount(['q' => '', 'funded' => '']),
-            'topups'  => Wallet::allTopupCount(['q' => '']),
-            'ledger'  => Wallet::ledgerCount(null, Wallet::filterDefaults()),
+            'members'   => Wallet::memberCount(['q' => '', 'funded' => '']),
+            'transfers' => Transfer::allCount(Transfer::filterDefaults()),
+            'topups'    => Wallet::allTopupCount(['q' => '']),
+            'ledger'    => Wallet::ledgerCount(null, Wallet::filterDefaults()),
         ];
 
         $members      = [];
         $membersPager = new Paginator(0);
+        $transfers    = [];
+        $transfersPager = new Paginator(0);
+        $transferFilters = Transfer::filterDefaults();
         $topups       = [];
         $topupsPager  = new Paginator(0);
         $ledger       = [];
@@ -100,6 +105,14 @@ final class AdminWalletController
             $filters      = ['q' => $query, 'funded' => $funded, 'status' => $status];
             $membersPager = Paginator::fromTableRequest(Wallet::memberCount($filters));
             $members      = Wallet::members($filters, $membersPager);
+        } elseif ($tab === 'transfers') {
+            $transferFilters = Transfer::normaliseFilters([
+                'q'    => $query,
+                'from' => Request::string('from'),
+                'to'   => Request::string('to'),
+            ]);
+            $transfersPager = Paginator::fromTableRequest(Transfer::allCount($transferFilters));
+            $transfers      = Transfer::all($transferFilters, $transfersPager);
         } elseif ($tab === 'topups') {
             $filters     = ['q' => $query];
             $topupsPager = Paginator::fromTableRequest(Wallet::allTopupCount($filters));
@@ -126,6 +139,9 @@ final class AdminWalletController
             'status'         => $status,
             'members'        => $members,
             'members_pager'  => $membersPager,
+            'transfers'      => $transfers,
+            'transfers_pager' => $transfersPager,
+            'transfer_filters' => $transferFilters,
             'topups'         => $topups,
             'topups_pager'   => $topupsPager,
             'ledger'         => $ledger,
@@ -216,6 +232,14 @@ final class AdminWalletController
                 'members_pager' => $data['members_pager'],
             ]);
             $pager = $data['members_pager'];
+        } elseif ($tab === 'transfers') {
+            $fragments['wallet-transfers'] = View::capture('admin/wallets/_transfers', [
+                'transfers' => $data['transfers'],
+            ]);
+            $fragments['wallet-transfers-pagination'] = View::capture('admin/wallets/_transfers_pagination', [
+                'transfers_pager' => $data['transfers_pager'],
+            ]);
+            $pager = $data['transfers_pager'];
         } elseif ($tab === 'topups') {
             $fragments['wallet-topups'] = View::capture('admin/wallets/_topups', [
                 'topups' => $data['topups'],

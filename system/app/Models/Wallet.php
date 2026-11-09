@@ -42,7 +42,9 @@ final class Wallet
 
         $stmt = $pdo->prepare(
             'SELECT id, username, email, full_name, role, member_status, is_active,
-                    ewallet_balance, withdrawable_balance, last_login_at, created_at
+                    ewallet_balance, withdrawable_balance,
+                    ewallet_sent_today, ewallet_sent_this_week,
+                    last_login_at, created_at
                FROM users
               WHERE id = ?
               LIMIT 1'

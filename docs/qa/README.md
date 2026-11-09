@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–11)
+# EcoWealth — Manual QA pack (Phases 1–12)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10 and 11. The automated suites are already green; these documents let a tester who has never seen the
+7, 8, 9, 10, 11 and 12. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -26,13 +26,14 @@ sign the phase off.
 | [phase-9-membership.md](phase-9-membership.md) | 9 — registration modes, registration codes, activation, member directory, genealogy | 16 | 60–75 min |
 | [phase-10-commissions.md](phase-10-commissions.md) | 10 — direct referral award, earnings statement, commission ledger | 10 | 35–45 min |
 | [phase-11-commissions.md](phase-11-commissions.md) | 11 — indirect referral ladder, level breakdown, CSV exports | 10 | 35–45 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all eleven | — | 10 min to complete |
+| [phase-12-transfers.md](phase-12-transfers.md) | 12 — member transfers, fees, limits, reset cron, admin monitor | 8 | 25–35 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all twelve | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-11` inside it). Phases 4–11 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-12` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
-`evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png` and
-`evidence/phase-11/*.png`.
+`evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png`,
+`evidence/phase-11/*.png` and (once the browser pass is captured) `evidence/phase-12/*.png`.
 
 ---
 
@@ -51,7 +52,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 560   Passed: 560   Failed: 0
+Cases: 594   Passed: 594   Failed: 0
 All good.
 ```
 
@@ -64,7 +65,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 143   Failed: 0
+Passed: 150   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -145,6 +146,17 @@ Passed: 143   Failed: 0
   admin-only, audited). The smoke script registers a real code under `peter`, proves peter ₱500 / maria
   ₱100 / juan ₱50 with the company root skipped, then checks the level breakdown, both exports and the
   finance report. A headless Chrome pass captures the ledger, the breakdown and the mobile layouts.
+- Phase 12: a fee-free transfer (transfer row + two ledger rows, counters moved), a fee transfer (third
+  leg credited to the primary admin, counters counting only the amount), the refusals (minimum, balance,
+  self, wrong/missing password, unknown/blank/suspended recipient, daily limit, weekly limit) with
+  nothing written, the daily and weekly limit boundaries, the reset job (daily always, weekly on
+  request, idempotent), the non-withdrawable-first spend and non-withdrawable credit, staff fee/limit
+  exemption with superadmin attribution to the primary admin, the fee-row fallback when the admin is
+  also the recipient, the two-connection lock/overdraw test, the reconciliation (legs match, a tampered
+  amount is caught, orphan legs are reported not failed), the send page + monitor transfers tab
+  rendering, and the two live surfaces. The smoke script sets a ₱8 fee, walks the wrong-password
+  refusal and a real ₱200 transfer over HTTP, opens the monitor tab, runs the reset cron twice from its
+  URL entry and re-runs the finance report.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 

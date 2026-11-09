@@ -165,3 +165,51 @@
     font-size: 0.85rem;
   }
 }
+
+/* ---------- Send funds (Phase 12) ---------- */
+.transfer-page .wallet-transfer-balance h2 {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.transfer-facts li {
+  border-color: var(--bs-border-color);
+}
+
+.transfer-preview strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.transfer-page .wallet-limit-meter {
+  height: 0.5rem;
+}
+
+.wallet-limit-card .progress-bar {
+  transition: width 0.25s ease;
+}
+
+.wallet-transfer-history .table td,
+.wallet-transfer-history .table th {
+  vertical-align: middle;
+}
+
+/* The transfer form's password toggle keeps the icon centred at every
+ * height, including the small-screen stacked fields. */
+.transfer-page [data-transfer-password-toggle] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 575.98px) {
+  .transfer-page .wallet-transfer-balance h2 {
+    font-size: 1.6rem;
+  }
+
+  .wallet-transfer-history .table th,
+  .wallet-transfer-history .table td {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.82rem;
+  }
+}

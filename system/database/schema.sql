@@ -25,6 +25,9 @@
 --                package_id, sponsor_id, referral_code,
 --                reg_payment_method, reg_code_id, reg_paid_by,
 --                activated_at), reg_codes, activations.
+--  Phase 10/11 owns: commissions.
+--  Phase 12 owns: users.ewallet_sent_today/ewallet_sent_this_week,
+--                ewallet_transfers.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -72,6 +75,11 @@ CREATE TABLE IF NOT EXISTS users (
   -- writer; withdrawable_balance is always the subset <= ewallet_balance.
   ewallet_balance      DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   withdrawable_balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  -- Transfer limit usage (Phase 12, plan §5.8). Incremented by
+  -- TransferService inside the locked sender row; zeroed by
+  -- bin/reset_transfer_limits.php. Staff never increment them.
+  ewallet_sent_today     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  ewallet_sent_this_week DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   -- Member payout accounts (Phase 6 profile; Phase 13 pays out to them).
   gcash_number        VARCHAR(20)  NULL,
   maya_number         VARCHAR(20)  NULL,
@@ -322,6 +330,41 @@ CREATE TABLE IF NOT EXISTS ewallet_admin_topups (
   KEY idx_topups_recipient (recipient_id, created_at),
   CONSTRAINT fk_topups_admin     FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE RESTRICT,
   CONSTRAINT fk_topups_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- E-wallet transfers — member-to-member movement log (Phase 12,
+-- plan §5.8)
+--
+--  One row per completed transfer. The money itself moves through
+--  `ewallet_ledger` (sender debit, recipient credit, admin fee credit
+--  under ref_type = 'transfer', ref_id = this row's id); this table
+--  records the intent, the fee and the note.
+--
+--  amount      what the recipient receives
+--  fee         what the primary admin receives (0 for staff senders)
+--  net_amount  amount received by the recipient (same as amount in
+--              this build; the payout table uses the same shape)
+--
+--  A refused transfer writes nothing here — there is no failed row.
+--  There is no updated_at column: a completed transfer is never edited.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ewallet_transfers (
+  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  sender_id    INT UNSIGNED  NOT NULL,
+  recipient_id INT UNSIGNED  NOT NULL,
+  amount       DECIMAL(12,2) NOT NULL,
+  fee          DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  net_amount   DECIMAL(12,2) NOT NULL,
+  note         VARCHAR(255)  NULL,
+  status       ENUM('completed','failed') NOT NULL DEFAULT 'completed',
+  created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_transfers_sender (sender_id, created_at),
+  KEY idx_transfers_recipient (recipient_id, created_at),
+  KEY idx_transfers_status (status, created_at),
+  CONSTRAINT fk_transfers_sender    FOREIGN KEY (sender_id)    REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_transfers_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

@@ -232,7 +232,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-11)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-12)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -258,6 +258,15 @@ $p9PendingId   = 0
 $p10CommissionStart = 0
 $p10LedgerStart     = 0
 $p10WalletSnapshot  = @{}
+
+# Phase 12: the transfer this run writes, its ledger legs and its audit rows
+# are deleted in the finally block, and every limit counter is restored (the
+# reset cron zeroes them all during the run).
+$p12LedgerStart     = 0
+$p12TransferStart   = 0
+$p12AuditStart      = 0
+$p12CounterSnapshot = @{}
+$p12Ran             = $false
 
 try {
     $p10CommissionStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM commissions;" | Out-String).Trim())
@@ -2353,6 +2362,139 @@ try {
             -and $p10ReconcileJson.commissions.credited_rows -ge 5) `
         "bin/wallet_reconcile.php reconciles wallets and commissions (exit=$p10ReconcileExit, credited=$($p10ReconcileJson.commissions.credited_rows))"
 
+    # ---- Phase 12: e-wallet transfers ------------------------------------
+    # juan pays peter 200 with the fee set to 8: juan -208, peter +200 and the
+    # primary admin +8, in one transfer row and three ledger rows. The cleanup
+    # below deletes the transfer, its legs and restores every counter, so a
+    # rerun starts from the same state.
+    $p12LedgerStart   = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
+    $p12TransferStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_transfers;" | Out-String).Trim())
+    $p12AuditStart    = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM audit_log;" | Out-String).Trim())
+    $p12Ran           = $true
+
+    foreach ($key in @('ewallet_transfer_fee', 'ewallet_min_transfer', 'ewallet_transfer_daily_limit', 'ewallet_transfer_weekly_limit')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    foreach ($counterRow in @(Invoke-MySql "SELECT CONCAT(username, '|', ewallet_sent_today, '|', ewallet_sent_this_week) FROM users;")) {
+        $counterParts = ([string] $counterRow).Trim().Split('|')
+        if ($counterParts.Count -eq 3) {
+            $p12CounterSnapshot[$counterParts[0]] = "$($counterParts[1])|$($counterParts[2])"
+        }
+    }
+
+    Set-SettingValue 'ewallet_transfer_fee' '8'
+
+    $p12JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p12PeterBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p12AdminBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+
+    # P12-T1 - the send page, the statement's card and the guest guard.
+    $transferPage  = Invoke-App -Path '/wallet/transfer' -Session 'p10a'
+    $transferToken = Get-Csrf $transferPage.Body
+    $walletPage    = Invoke-App -Path '/wallet' -Session 'p10a'
+    $transferGuest = Invoke-App -Path '/wallet/transfer' -Session 'guest'
+    $transferPageOk = ($transferPage.Status -eq 200) -and ($transferPage.Body -match 'Send funds') `
+        -and ($transferPage.Body -match 'name="recipient"') -and ($transferPage.Body -match 'name="amount"') `
+        -and ($transferPage.Body -match 'name="note"') -and ($transferPage.Body -match 'name="password"') `
+        -and ($transferPage.Body -match 'Transfer limits') -and ($transferPage.Body -match 'Sent today') `
+        -and ($transferPage.Body -match 'Send transfer') -and ($transferPage.Body -match 'Transfer fee')
+    $walletCardOk = ($walletPage.Status -eq 200) -and ($walletPage.Body -match 'Send money to another member') `
+        -and ($walletPage.Body -match '/wallet/transfer')
+    Assert-That 'P12-T1' ($transferPageOk -and $walletCardOk -and $transferGuest.Status -eq 302 `
+            -and $transferGuest.Location -match '/login$') `
+        "GET /wallet/transfer renders the password-confirmed form and /wallet links it; guest=$($transferGuest.Status)"
+
+    # P12-T6 - a wrong password is refused before anything is written.
+    $p12Wrong = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'p10a' -Form @{
+        '_csrf'     = $transferToken
+        'recipient' = 'peter'
+        'amount'    = '200.00'
+        'note'      = 'Smoke transfer'
+        'password'  = 'not-the-password'
+    }
+    $p12WrongRows    = [int]((Invoke-MySql "SELECT COUNT(*) FROM ewallet_transfers WHERE id > $p12TransferStart;" | Out-String).Trim())
+    $p12WrongPage    = Invoke-App -Path '/wallet/transfer' -Session 'p10a'
+    $p12WrongBalance = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    Assert-That 'P12-T6' ($p12Wrong.Status -eq 302 -and $p12Wrong.Location -match '/wallet/transfer$' `
+            -and $p12WrongRows -eq 0 -and ($p12WrongPage.Body -match 'password is not correct') `
+            -and [math]::Abs($p12WrongBalance - $p12JuanBefore) -lt 0.005) `
+        "a wrong transfer password is refused and writes nothing (rows=$p12WrongRows, balance=$p12WrongBalance)"
+
+    # P12-T2 - the real transfer: fee 8, three ledger legs, the counter moves.
+    $p12Post = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'p10a' -Form @{
+        '_csrf'     = $transferToken
+        'recipient' = 'peter'
+        'amount'    = '200.00'
+        'note'      = 'Smoke transfer'
+        'password'  = 'Demo@1234'
+    }
+    $p12Row   = (Invoke-MySql "SELECT CONCAT(amount, '|', fee, '|', net_amount, '|', status) FROM ewallet_transfers WHERE id > $p12TransferStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p12Legs  = (Invoke-MySql "SELECT CONCAT(COUNT(*), '|', COUNT(CASE WHEN type = 'credit' THEN 1 END), '|', COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0)) FROM ewallet_ledger WHERE id > $p12LedgerStart AND ref_type = 'transfer';" | Out-String).Trim()
+    $p12JuanNow  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p12PeterNow = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p12AdminNow = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+    $p12Counter  = (Invoke-MySql "SELECT ewallet_sent_today FROM users WHERE username = 'juan';" | Out-String).Trim()
+    $p12MoneyOk  = ([math]::Abs($p12JuanNow - ($p12JuanBefore - 208)) -lt 0.005) `
+        -and ([math]::Abs($p12PeterNow - ($p12PeterBefore + 200)) -lt 0.005) `
+        -and ([math]::Abs($p12AdminNow - ($p12AdminBefore + 8)) -lt 0.005) `
+        -and $p12Counter -eq '200.00'
+    Assert-That 'P12-T2' ($p12Post.Status -eq 302 -and $p12Post.Location -match '/wallet/transfer$' `
+            -and $p12Row -eq '200.00|8.00|200.00|completed' -and $p12Legs -eq '3|2|208.00' -and $p12MoneyOk) `
+        "juan sends 200 to peter with a fee: -208/+200/+8 and 3 ledger rows (row=$p12Row, legs=$p12Legs, counter=$p12Counter)"
+
+    # P12-T10 - the admin monitor lists the transfer, and only admins may look.
+    $p12Monitor = Invoke-App -Path '/admin/wallets?tab=transfers' -Session 'admin'
+    $p12MonitorMember = Invoke-App -Path '/admin/wallets?tab=transfers' -Session 'p10a'
+    $p12MonitorOk = ($p12Monitor.Status -eq 200) -and ($p12Monitor.Body -match 'Member-to-member movements') `
+        -and ($p12Monitor.Body -match '@juan') -and ($p12Monitor.Body -match '@peter') `
+        -and ($p12Monitor.Body -match 'Transfers today') -and ($p12Monitor.Body -match 'name="from"') `
+        -and ($p12Monitor.Body -match 'Smoke transfer')
+    Assert-That 'P12-T10' ($p12MonitorOk -and $p12MonitorMember.Status -eq 403) `
+        "the wallet monitor transfers tab lists the movement; member=$($p12MonitorMember.Status)"
+
+    # P12-T9 - the reset cron from its guarded web entry, twice (idempotent).
+    $p12CronDryRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?dry-run=1&json=1'
+    $p12CronDry    = $null
+    try { $p12CronDry = $p12CronDryRaw.Body | ConvertFrom-Json } catch { }
+
+    $p12CronFirstRaw  = Invoke-App -Path '/cron/reset_transfer_limits.php?json=1'
+    $p12CronSecondRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?json=1'
+    $p12CronFirst     = $null
+    $p12CronSecond    = $null
+    try { $p12CronFirst = $p12CronFirstRaw.Body | ConvertFrom-Json } catch { }
+    try { $p12CronSecond = $p12CronSecondRaw.Body | ConvertFrom-Json } catch { }
+    $p12CounterAfter = (Invoke-MySql "SELECT CONCAT(ewallet_sent_today, '|', ewallet_sent_this_week) FROM users WHERE username = 'juan';" | Out-String).Trim()
+    $p12CronOk = $p12CronDryRaw.Status -eq 200 -and $p12CronDry.ok -eq $true -and $p12CronDry.dry_run -eq $true `
+        -and $p12CronFirstRaw.Status -eq 200 -and $p12CronFirst.ok -eq $true -and $p12CronFirst.daily_zeroed -ge 1 `
+        -and $p12CronSecond.ok -eq $true -and $p12CronSecond.daily_zeroed -eq 0 `
+        -and $p12CounterAfter -eq '0.00|0.00'
+    Assert-That 'P12-T9' $p12CronOk `
+        "the transfer-limit cron zeroes the counters and a second run changes nothing (first=$($p12CronFirst.daily_zeroed), second=$($p12CronSecond.daily_zeroed), juan=$p12CounterAfter)"
+
+    # P12-T4 - an amount the balance cannot cover is refused.
+    $p12TooMuch = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'p10a' -Form @{
+        '_csrf'     = $transferToken
+        'recipient' = 'peter'
+        'amount'    = '999999.00'
+        'note'      = ''
+        'password'  = 'Demo@1234'
+    }
+    $p12TooMuchPage = Invoke-App -Path '/wallet/transfer' -Session 'p10a'
+    $p12TooMuchRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM ewallet_transfers WHERE id > $p12TransferStart;" | Out-String).Trim())
+    Assert-That 'P12-T4' ($p12TooMuch.Status -eq 302 -and $p12TooMuchRows -eq 1 `
+            -and ($p12TooMuchPage.Body -match 'Insufficient wallet balance')) `
+        "a transfer above the balance is refused (rows=$p12TooMuchRows)"
+
+    # P12-T3 - the finance report reconciles the transfer legs too.
+    $p12ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $p12ReconcileExit   = $LASTEXITCODE
+    $p12ReconcileJson   = $null
+    try { $p12ReconcileJson = ($p12ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P12-T3' ($p12ReconcileExit -eq 0 -and $p12ReconcileJson.ok -eq $true `
+            -and $p12ReconcileJson.transfers.ok -eq $true -and $p12ReconcileJson.transfers.checked -ge 1) `
+        "bin/wallet_reconcile.php reconciles transfers (exit=$p12ReconcileExit, checked=$($p12ReconcileJson.transfers.checked))"
+
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
@@ -2418,6 +2560,24 @@ try {
     } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
+    # Phase 12: the transfer, its ledger legs, its audit rows, and every limit
+    # counter the reset cron zeroed during the run. The flag (not the id) decides
+    # whether the block ran: an empty table starts at id 0.
+    try {
+        if ($p12Ran) {
+            Invoke-MySql "DELETE FROM ewallet_ledger WHERE ref_type = 'transfer' AND id > $p12LedgerStart;" | Out-Null
+            Invoke-MySql "DELETE FROM ewallet_transfers WHERE id > $p12TransferStart;" | Out-Null
+        }
+        if ($p12AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p12AuditStart AND action = 'wallet.transfer';" | Out-Null
+        }
+        foreach ($counterName in $p12CounterSnapshot.Keys) {
+            $counterParts = ([string] $p12CounterSnapshot[$counterName]).Split('|')
+            if ($counterParts.Count -eq 2) {
+                Invoke-MySql "UPDATE users SET ewallet_sent_today = $($counterParts[0]), ewallet_sent_this_week = $($counterParts[1]) WHERE username = '$counterName';" | Out-Null
+            }
+        }
+    } catch { }
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM packages WHERE name LIKE 'Smoke Package%';" | Out-Null } catch { }

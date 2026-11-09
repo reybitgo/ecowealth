@@ -1,6 +1,6 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: preliminary.** This guide covers the Phase 11 build plus the live-update
+> **Status: preliminary.** This guide covers the Phase 12 build plus the live-update
 > layer. It will be updated as later phases add migrations, cron jobs or hosting
 > requirements. Hostinger's hPanel labels can change; the steps stay the same.
 >
@@ -69,7 +69,7 @@ You will use only these Hostinger hPanel areas:
 | SSH | **No** | File Manager + phpMyAdmin cover everything. |
 | WebSocket / SSE / Redis / queue | **No** | Live updates use browser `BroadcastChannel` plus a 30-second HTTP poll. |
 | A permanent background process | **No** | Each request is ordinary PHP. |
-| A cron job for live updates | **No** | Cron is only for shop expiry and order auto-complete. |
+| A cron job for live updates | **No** | Cron is only for shop expiry, order auto-complete and the transfer-limit reset. |
 
 In deployment terms, the live-update feature adds two new artifacts you must not forget:
 
@@ -184,9 +184,10 @@ SHOW TABLES LIKE 'live_revisions';
 If the table is missing, the pages still work, but the live-update client switches
 itself off and the feed returns an error. Do not skip this table.
 
-If the dump is older than Phase 11, apply **every missing migration** in
+If the dump is older than Phase 12, apply **every missing migration** in
 `<app>/database/migrations/` in numeric order (for example `012_commissions.sql`,
-`013_live_revisions.sql`, then `014_indirect_commissions.sql`), not just the newest one.
+`013_live_revisions.sql`, `014_indirect_commissions.sql`, `015_package_b_premium_ladder.sql`,
+then `016_transfers.sql`), not just the newest one.
 
 > **Import size limit:** if phpMyAdmin says the file is too large, export as `.sql.gz`
 > (gzip) and import the `.sql.gz`, or split the dump. Hostinger's phpMyAdmin accepts
@@ -635,6 +636,7 @@ The scheduled jobs are for:
 
 - shop payment expiry (`bin/shop_expire.php`);
 - order auto-complete (`bin/order_autocomplete.php`);
+- transfer-limit reset (`bin/reset_transfer_limits.php`) — once a day, just after midnight;
 - optionally `bin/wallet_reconcile.php` for a manual reconciliation audit.
 
 The full guide, access rules, logs and troubleshooting are in [cron.md](cron.md).
