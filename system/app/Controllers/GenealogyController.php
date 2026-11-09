@@ -8,7 +8,7 @@ declare(strict_types=1);
  *  Route (Appendix A): GET /genealogy   guard `member`
  *
  *  Shows:
- *    • the upline chain (max 10) — nearest sponsor first
+ *    • the member's own row first, then the upline chain (max 10)
  *    • direct recruits (level 1 of the downline)
  *    • the deeper team, grouped by level (max 10)
  *    • the member's own referral link

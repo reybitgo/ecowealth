@@ -2624,6 +2624,23 @@ more than Package A at every level** — a deliberate upgrade incentive. Package
 The HTTP smoke run uses Package A, so its **143 checks** are unaffected; the full PHP suite and the finance
 reconciliation were re-run after the change.
 
+---
+
+## Post-Phase 11 — Genealogy puts the signed-in member first
+
+**Date:** 2026-11-09 · **Branch:** `feature/shop` · **Status:** complete
+
+The `/genealogy` **Upline chain** card now renders the logged-in member's own "you" row at the **top**,
+followed by the sponsor chain from nearest (L1) to the top. Previously the self row sat below the whole
+chain, which read as if the member were the bottom of the tree. The card subtitle now says
+"You first, then your sponsor chain from nearest to top (up to ten levels)."
+
+- No database change: this is presentation order in `member/genealogy/_upline.php`.
+- `MemberGenealogyLiveTest` asserts the self row appears before `L1` and still renders when the chain is
+  empty (with the "top of its chain" note).
+- Suite **559 / 559** and smoke **143 / 143** re-run clean; the page was checked in a real browser as
+  `sarah` (self → maria L1 → juan L2 → admin L3).
+
 
 
 

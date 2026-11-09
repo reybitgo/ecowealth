@@ -591,8 +591,9 @@ it arrives in Phase 15.
   member restores them to `pending`, not `active`. Every change is audited (`member.status`).
   A standard member is active without a package and cannot self-activate in this build (package
   upgrades are a later phase).
-- **Genealogy and dashboard.** `/genealogy` shows the upline chain (max 10) plus direct recruits and
-  the team grouped by level, cycle-safe. `/dashboard` is the routed member landing page: membership
+- **Genealogy and dashboard.** `/genealogy` shows the logged-in member's own row first, then the upline
+  chain (max 10, nearest sponsor first) plus direct recruits and the team grouped by level, cycle-safe.
+  `/dashboard` is the routed member landing page: membership
   status, both wallet buckets, referral link, recent orders and commission totals, with a link to
   **Earnings**. Admins keep the back-office dashboard at the same URL.
 - **Demo data.** `database/seeds/005_demo_tree.sql` creates `admin → juan → maria → peter/sarah/david`

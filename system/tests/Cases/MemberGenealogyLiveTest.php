@@ -150,6 +150,14 @@ return [
             assert_contains('· you', $upline);
             assert_contains('Juan Dela Cruz', $upline, 'the self row shows the full name');
 
+            /* The logged-in member is the first row, above the L1 sponsor. */
+            $selfPos = strpos($upline, 'Juan Dela Cruz');
+            $l1Pos   = strpos($upline, 'L1');
+            assert_true(
+                $selfPos !== false && $l1Pos !== false && $selfPos < $l1Pos,
+                'the member own row sits above the upline chain'
+            );
+
             assert_contains('data-live-region="genealogy-recruits-count"', $count);
             assert_contains('>1<', $count);
 
@@ -209,6 +217,7 @@ return [
 
         assert_contains('6 in team', $header);
         assert_contains('1 level', $header);
+        assert_contains('· you', $upline, 'the self row still renders at the top');
         assert_contains('This account is the top of its chain', $upline);
         assert_contains('>6<', $count);
         assert_contains('data-live-key=', $rows);

@@ -79,7 +79,7 @@ $live = $live ?? [
                   <div class="card h-100">
                     <div class="card-header">
                       <h5 class="card-title mb-0">Upline chain</h5>
-                      <small class="text-body-secondary">Nearest sponsor first, up to ten levels.</small>
+                      <small class="text-body-secondary">You first, then your sponsor chain from nearest to top (up to ten levels).</small>
                     </div>
                     <div class="card-body">
 <?= View::capture('member/genealogy/_upline', [
