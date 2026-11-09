@@ -102,14 +102,26 @@ final class GenealogyController
         $recruitsPager = Paginator::fromTableRequest($this->sponsors->countDirectRecruits($userId));
         $direct        = $this->sponsors->directRecruits($userId, null, $recruitsPager);
 
-        $deeper = [];
+        $deeper       = [];
+        $levelPagers  = [];
 
         foreach ($byLevel as $level => $rows) {
             if ($level === 1) {
                 continue;
             }
 
-            $deeper[$level] = $rows;
+            /* Every level card paginates on its own, so each level gets
+             * its own query keys (?level3_page=2&level3_per_page=5). A
+             * shared `page` would move all the cards at once and clash
+             * with the direct-recruits table. */
+            $pager = Paginator::fromTableRequest(
+                count($rows),
+                'level' . $level . '_page',
+                'level' . $level . '_per_page'
+            );
+
+            $deeper[$level]      = array_slice($rows, $pager->offset, $pager->perPage);
+            $levelPagers[$level] = $pager;
         }
 
         $displayName = trim((string) ($member['full_name'] ?? '')) !== ''
@@ -123,6 +135,7 @@ final class GenealogyController
             'direct'         => $direct,
             'recruits_pager' => $recruitsPager,
             'deeper'         => $deeper,
+            'level_pagers'   => $levelPagers,
             'team_count'     => count($team),
             'levels_used'    => $byLevel === [] ? 0 : max(array_keys($byLevel)),
             'referral_code'  => (string) ($member['referral_code'] ?? ''),
@@ -216,7 +229,8 @@ final class GenealogyController
                     'recruits_pager' => $pager,
                 ]),
                 'genealogy-team' => View::capture('member/genealogy/_team', [
-                    'deeper' => $data['deeper'],
+                    'deeper'       => $data['deeper'],
+                    'level_pagers' => $data['level_pagers'],
                 ]),
             ],
             'meta'      => [

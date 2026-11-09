@@ -338,6 +338,34 @@
   margin-bottom: 0.75rem;
 }
 
+/* Team-by-level rows read "@member → @sponsor": a quiet arrow separates
+ * the member from the upline that sponsored them. */
+.team-sponsor-arrow {
+  margin-inline: 0.3rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.9em;
+}
+
+/* A level card is a column so its pager can stick to the card's bottom
+ * edge: cards in the same row line their pagination up, and a short
+ * level leaves its spare height between the list and the pager. */
+.team-level-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.team-level-pagination {
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+/* The shared bar's table-sized top margin would push the pager off the
+ * card's edge; the wrapper above owns the spacing here. */
+.team-level-pagination .pagination-bar {
+  margin-top: 0 !important;
+  gap: 0.5rem !important;
+}
+
 /* ---------- Shared filter bars (members / activations) -------- */
 .membership-filters {
   display: flex;

@@ -50,13 +50,23 @@
       }
     };
 
+    /* Scroll back to the block the user was paging: the nearest explicit
+     * anchor (a compact card with its own pager, such as a level card in
+     * Team by level) wins over the whole section card. */
+    var anchorOf = function (bar) {
+      if (!bar.closest) {
+        return bar;
+      }
+
+      return bar.closest('[data-pagination-anchor]') || bar.closest('.card') || bar;
+    };
+
     var remember = function (bar) {
       if (!bar) {
         return;
       }
 
-      var card = bar.closest ? bar.closest('.card') : null;
-      var anchor = card || bar;
+      var anchor = anchorOf(bar);
 
       try {
         window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -83,8 +93,7 @@
         return;
       }
 
-      var card = bar.closest ? bar.closest('.card') : null;
-      var anchor = card || bar;
+      var anchor = anchorOf(bar);
       var top = anchor.getBoundingClientRect().top + window.scrollY - (saved.offset || 0);
 
       window.scrollTo(0, Math.max(0, top));

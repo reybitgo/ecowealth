@@ -20,6 +20,7 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $direct       level-1 downline
  * @var Paginator                  $recruits_pager
  * @var array<int, list<array<string, mixed>>> $deeper
+ * @var array<int, Paginator>      $level_pagers one pager per team-level card
  * @var int                        $team_count
  * @var int                        $levels_used
  * @var string                     $referral_code
@@ -35,6 +36,7 @@ $display_name = $display_name ?? (
 $team_levels    = $team_levels ?? [];
 $direct         = $direct ?? [];
 $deeper         = $deeper ?? [];
+$level_pagers   = $level_pagers ?? [];
 $team_count     = $team_count ?? 0;
 $levels_used    = $levels_used ?? 0;
 $referral_code  = $referral_code ?? '';
@@ -156,7 +158,10 @@ $live = $live ?? [
                   <small class="text-body-secondary">Breadth-first through sponsor links, up to ten levels.</small>
                 </div>
                 <div class="card-body">
-<?= View::capture('member/genealogy/_team', ['deeper' => $deeper]) ?>
+<?= View::capture('member/genealogy/_team', [
+    'deeper'       => $deeper,
+    'level_pagers' => $level_pagers,
+]) ?>
                 </div>
               </div>
             </div>

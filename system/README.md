@@ -593,10 +593,14 @@ it arrives in Phase 15.
   upgrades are a later phase).
 - **Genealogy and dashboard.** `/genealogy` focuses on the member's **team chain**: the self row first,
   then level 1 (direct recruits), level 2 (their recruits), and so on up to ten levels, plus a paginated
-  direct-recruits table and a detailed team-by-level card. It is cycle-safe and never renders uplines on
-  the member page (the admin member view still shows the upline). `/dashboard` is the routed member
-  landing page: membership status, both wallet buckets, referral link, recent orders and commission
-  totals, with a link to **Earnings**. Admins keep the back-office dashboard at the same URL.
+  direct-recruits table and a detailed team-by-level card. Each team-by-level row reads
+  `@member → @sponsor` — the upline that recruited them — so the chain is visible member by member, and
+  every level card paginates on its own (ten rows by default, with the usual 5/10/15… rows control) under
+  its own `?levelN_page` / `?levelN_per_page` keys, so one crowded level never moves the others. It is
+  cycle-safe and never renders uplines on the member page (the admin member view still shows the upline).
+  `/dashboard` is the routed member landing page: membership status, both wallet buckets, referral link,
+  recent orders and commission totals, with a link to **Earnings**. Admins keep the back-office dashboard
+  at the same URL.
 - **Demo data.** `database/seeds/005_demo_tree.sql` creates `admin → juan → maria → peter/sarah/david`
   (david is pending), their mixed wallet balances with matching ledger rows, and three sample codes
   (`DEMO-PKGA-2A7K`, `DEMO-PKGB-3B8L` unused; `DEMO-EXPD-4C9M` expired). Every demo member signs in

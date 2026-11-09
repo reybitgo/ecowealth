@@ -184,6 +184,18 @@ return [
             assert_contains('david', $team);
             assert_contains('Pending', $team);
 
+            /* Each row names the upline that sponsored it: the member,
+             * an arrow glyph, then the sponsor. Maria is the sponsor of
+             * all three level-2 members and is currently renamed to a
+             * script tag, so this also proves the sponsor is escaped and
+             * that the ASCII "-->" never reaches the page. */
+            assert_contains('team-sponsor-arrow', $team);
+            assert_contains('→', $team, 'the arrow is a glyph, not ASCII art');
+            assert_contains('sponsored by', $team, 'screen readers hear the relationship');
+            assert_contains('&lt;script&gt;alert(1)&lt;/script&gt;', $team, 'the sponsor name is escaped');
+            assert_not_contains('<script>alert(1)</script>', $team);
+            assert_not_contains('-->', $team);
+
             assert_same(url('genealogy'), $payload['meta']['canonical']);
         } finally {
             db()->prepare('UPDATE users SET username = ? WHERE id = ?')->execute(['maria', $mariaId]);
@@ -257,6 +269,97 @@ return [
         assert_contains('· you', $teamChain);
         assert_contains('No team yet', $teamChain);
         assert_not_contains('Direct recruits', $teamChain, 'no level rows when the team is empty');
+    },
+
+    'the team-by-level cards paginate on their own, ten rows by default' => function () use ($makeMember): void {
+        $viewer   = $makeMember();
+        $viewerId = (int) $viewer['id'];
+
+        /* One direct recruit, twelve members under them, and a single
+         * member at level three: the level-2 card needs two pages while
+         * level 3 stays on its only page. */
+        $recruit   = $makeMember();
+        $recruitId = (int) $recruit['id'];
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([$viewerId, $recruitId]);
+
+        $level2    = [];
+        $level2Ids = [];
+
+        for ($i = 1; $i <= 12; $i++) {
+            $member = $makeMember('mgl_pg_' . $i . '_' . bin2hex(random_bytes(2)));
+
+            $level2[$i]    = (string) $member['username'];
+            $level2Ids[$i] = (int) $member['id'];
+
+            db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+                ->execute([$recruitId, $level2Ids[$i]]);
+        }
+
+        $third         = $makeMember('mgl_pg3_' . bin2hex(random_bytes(3)));
+        $thirdUsername = (string) $third['username'];
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([$level2Ids[1], (int) $third['id']]);
+
+        test_signed_in_as($viewer);
+
+        $controller = new GenealogyController();
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/genealogy';
+
+        $team = $controller->feedPayload(
+            1,
+            '"member.genealogy:' . $viewerId . ':1:abc"',
+            $controller->genealogyContext(Member::find($viewerId))
+        )['fragments']['genealogy-team'];
+
+        /* The chip counts the whole level; the footer says which slice. */
+        assert_contains('12 members', $team);
+        assert_contains('Showing 1–10 of 12', $team);
+        assert_contains('<option value="10" selected>10</option>', $team, 'ten rows is the default');
+        assert_contains('name="level2_per_page"', $team, 'the size control is namespaced to level 2');
+        assert_contains('name="level3_per_page"', $team, 'level 3 has its own size control');
+        assert_contains($level2[1], $team);
+        assert_contains($level2[10], $team);
+        assert_not_contains($level2[11], $team, 'the eleventh member waits on page two');
+        assert_contains($thirdUsername, $team);
+        assert_contains('Showing 1–1 of 1', $team);
+
+        /* Five rows a page, second page: rows 6–10 only, and level 3
+         * ignores the level-2 query keys. */
+        $_GET = ['level2_page' => '2', 'level2_per_page' => '5'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/genealogy?level2_page=2&level2_per_page=5';
+
+        $team = $controller->feedPayload(
+            1,
+            '"member.genealogy:' . $viewerId . ':1:def"',
+            $controller->genealogyContext(Member::find($viewerId))
+        )['fragments']['genealogy-team'];
+
+        assert_contains('Showing 6–10 of 12', $team);
+        assert_contains('<option value="5" selected>5</option>', $team);
+        assert_contains($level2[6], $team);
+        assert_contains($level2[10], $team);
+        assert_not_contains($level2[5], $team);
+        assert_not_contains($level2[11], $team);
+        assert_contains('level2_page=1', $team, 'the pager links back to page one');
+        assert_contains($thirdUsername, $team, 'level 3 keeps its own page');
+
+        /* An unoffered size falls back to the default of ten. */
+        $_GET = ['level2_per_page' => '7'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/genealogy?level2_per_page=7';
+
+        $team = $controller->feedPayload(
+            1,
+            '"member.genealogy:' . $viewerId . ':1:ghi"',
+            $controller->genealogyContext(Member::find($viewerId))
+        )['fragments']['genealogy-team'];
+
+        assert_contains('Showing 1–10 of 12', $team);
+        assert_contains('<option value="10" selected>10</option>', $team);
     },
 
     'the genealogy page declares its live surface and regions' => function (): void {

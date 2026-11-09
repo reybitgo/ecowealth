@@ -8,5 +8,9 @@ declare(strict_types=1);
  */
 ?>
                     <div class="card-body pt-2" data-live-region="genealogy-recruits-pagination">
-<?= View::partial('pagination', ['pager' => $recruits_pager, 'pager_label' => 'Recruits']) ?>
+<?= View::partial('pagination', [
+    'pager'            => $recruits_pager,
+    'pager_label'      => 'Recruits',
+    'pagination_label' => 'Direct recruits pagination',
+]) ?>
                     </div>

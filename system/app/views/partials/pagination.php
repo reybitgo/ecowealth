@@ -21,17 +21,19 @@ declare(strict_types=1);
  * @var string    $per_page_param   Rows query key (default "per_page")
  * @var bool      $show_per_page    false for fixed-size lists (catalogue grid)
  * @var string    $form_action      Already resolved URL for the rows form
+ * @var string    $pagination_label Accessible name for the nav (default "Pagination")
  */
 
 if (!isset($pager) || !($pager instanceof Paginator)) {
     return;
 }
 
-$pager_label    = $pager_label ?? '';
-$page_param     = (string) ($page_param ?? 'page');
-$per_page_param = (string) ($per_page_param ?? 'per_page');
-$show_per_page  = (bool) ($show_per_page ?? true);
-$form_action    = (string) ($form_action ?? url(ltrim(Request::path(), '/')));
+$pager_label      = $pager_label ?? '';
+$page_param       = (string) ($page_param ?? 'page');
+$per_page_param   = (string) ($per_page_param ?? 'per_page');
+$show_per_page    = (bool) ($show_per_page ?? true);
+$form_action      = (string) ($form_action ?? url(ltrim(Request::path(), '/')));
+$pagination_label = (string) ($pagination_label ?? 'Pagination');
 
 /* Keep every filter/tab already on the URL; the page resets to 1. */
 $hidden = [];
@@ -92,7 +94,7 @@ $select_id      = 'perPage-' . $pagination_key;
   </div>
 
 <?php if ($pager->pages > 1): ?>
-  <nav aria-label="Pagination">
+  <nav aria-label="<?= e($pagination_label) ?>">
     <ul class="pagination pagination-sm mb-0">
       <li class="page-item <?= $pager->hasPrev() ? '' : 'disabled' ?>">
         <a class="page-link" href="<?= e($pager->url(1, $page_param)) ?>" aria-label="First page">

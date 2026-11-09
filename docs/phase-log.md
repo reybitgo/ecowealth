@@ -2675,6 +2675,49 @@ user acts. Concurrent 401s from several surfaces collapse into one card via `dat
   2rem-square close target in the top-right corner. The toast stays inside the viewport down to 320px.
 - Suite **560 / 560** re-run clean; checked at desktop, 390px, 360px and 320px widths in light and dark mode.
 
+---
+
+## Post-Phase 11 — Team by level names each member's sponsor
+
+**Date:** 2026-11-09 · **Branch:** `feature/shop` · **Status:** complete
+
+Each row in the **Team by level** card now reads `@member → @sponsor`, so a member at any depth shows the
+upline that put them there without leaving the page. The separator is a typographic arrow (`→`) rather
+than ASCII `-->`: it is `aria-hidden`, and a visually-hidden "sponsored by" gives screen readers the
+relationship in words. The member stays at `fw-medium`; the sponsor is muted (`text-body-secondary`).
+
+- `SponsorService::downline()` joins `users sp ON sp.id = u.sponsor_id` and returns `sponsor_username`, so
+  the card needs no query per row and the live `genealogy-team` fragment gets the sponsor for free.
+- A row whose sponsor account is gone (join returns `NULL`) omits the arrow and sponsor instead of
+  rendering a dangling `→ —`.
+- `MemberGenealogyLiveTest` asserts the arrow, the spoken label and the escaping of a hostile sponsor
+  username; `MembershipTest` asserts every downline row carries its sponsor. Suite **560 / 560** re-run
+  clean; checked at desktop and 390px widths.
+
+---
+
+## Post-Phase 11 — Team by level paginates card by card
+
+**Date:** 2026-11-09 · **Branch:** `feature/shop` · **Status:** complete
+
+Each **Team by level** card now paginates its own list: ten rows by default, with the standard
+rows-per-page control offering 5, 10, 15 … 100. One crowded level therefore no longer pushes another
+level's members off the page, and every card carries its own controls and "Showing X–Y of Z" footer.
+
+- Query state is namespaced per level — `?level2_page=2&level2_per_page=5` — so the cards move
+  independently and never collide with the direct-recruits table's `?page=` / `?per_page=`.
+- `GenealogyController::genealogyContext()` builds one `Paginator` per level and slices the downline it
+  already loads, so the change adds no query; the live `genealogy-team` fragment re-renders the pager with
+  the rows, and the level chip keeps counting the whole level (`12 members`) while the footer says
+  "Showing 1–10 of 12". The pager sticks to the card's bottom edge (`margin-top: auto`), so cards in the
+  same row line their controls up.
+- The shared `pagination` partial gives the no-JS Apply button and carries every other card's params as
+  hidden fields. `app.js` now scrolls back to the nearest `[data-pagination-anchor]` — the level card —
+  instead of the whole section card after a page-size or page-number change.
+- `MemberGenealogyLiveTest` covers the default of ten, a five-a-page second page, the level-3 card
+  staying put, and an unoffered size falling back to ten. Suite **561 / 561** re-run clean; checked at
+  desktop and 390px widths.
+
 
 
 

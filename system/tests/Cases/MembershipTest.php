@@ -859,6 +859,18 @@ return [
         assert_same(2, $levels['sarah'] ?? 0);
         assert_same(2, $levels['david'] ?? 0);
 
+        /* The Team by level card labels each row "@member → @sponsor", so
+         * every downline row carries its sponsor's username. */
+        $sponsorOf = [];
+
+        foreach ($team as $row) {
+            $sponsorOf[(string) $row['username']] = $row['sponsor_username'] ?? null;
+        }
+
+        assert_same('juan', $sponsorOf['maria'] ?? null);
+        assert_same('maria', $sponsorOf['peter'] ?? null);
+        assert_same('maria', $sponsorOf['sarah'] ?? null);
+
         $stats = (new SponsorService())->teamStats((int) $juan['id']);
         assert_same(1, $stats['direct']);
         assert_same(4, $stats['team']);
