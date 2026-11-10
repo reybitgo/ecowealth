@@ -1,5 +1,5 @@
 -- =============================================================
---  EcoWealth — MySQL schema (fresh install, Phase 8)
+--  EcoWealth — MySQL schema (fresh install, Phase 14)
 --
 --  Authoritative schema for a NEW database. It deliberately
 --  hard-codes no database name: import it into the schema you
@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 017).
+--  database/migrations/ (apply in order: 001, 002, …, 018).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -29,6 +29,7 @@
 --  Phase 12 owns: users.ewallet_sent_today/ewallet_sent_this_week,
 --                ewallet_transfers.
 --  Phase 13 owns: payout_requests.
+--  Phase 14 owns: impersonation_log.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -758,6 +759,43 @@ CREATE TABLE IF NOT EXISTS commissions (
 ALTER TABLE users
   ADD CONSTRAINT fk_users_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_users_sponsor FOREIGN KEY (sponsor_id) REFERENCES users (id) ON DELETE SET NULL;
+
+-- -------------------------------------------------------------
+-- Impersonation log — super-login sessions (plan §4.2, §4.4,
+-- §7 Phase 14)
+--
+--  One row per S-Login session. The tab carries the raw nonce in
+--  its URL (`?imp=<64 hex>`); only `hash('sha256', $nonce)` is
+--  stored here, so a database read can never recreate a live URL.
+--
+--  superadmin_name / target_username are snapshots taken when the
+--  session opened: the audit trail must still name who acted even
+--  after an account is renamed (the FKs keep the ids linked).
+--
+--  status machine (plan §4.4):
+--      active ──(exit)──────────────────▶ logged_out
+--      active ──(TTL / IP-UA / target)──▶ expired
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS impersonation_log (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  superadmin_id   INT UNSIGNED  NOT NULL,
+  superadmin_name VARCHAR(50)   NOT NULL,
+  target_user_id  INT UNSIGNED  NOT NULL,
+  target_username VARCHAR(50)   NOT NULL,
+  nonce_hash      CHAR(64)      NOT NULL,
+  ip              VARCHAR(45)   NOT NULL,
+  user_agent      VARCHAR(255)  NOT NULL,
+  status          ENUM('active','expired','logged_out') NOT NULL DEFAULT 'active',
+  created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at      DATETIME      NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_imp_nonce (nonce_hash),
+  KEY idx_imp_super (superadmin_id, created_at),
+  KEY idx_imp_target (target_user_id, created_at),
+  KEY idx_imp_status (status, expires_at),
+  CONSTRAINT fk_imp_super  FOREIGN KEY (superadmin_id)  REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_imp_target FOREIGN KEY (target_user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
 -- Live updates: one revision row per live page surface

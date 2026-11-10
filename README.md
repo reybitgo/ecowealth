@@ -37,13 +37,16 @@ withdrawable e-wallet, with the member earnings statement and the admin commissi
 and **Phase 11** indirect referral commissions (levels 2–10 priced by the source package,
 with the earnings level breakdown and the CSV exports), **Phase 12** member-to-member
 e-wallet transfers (password-confirmed, fee + minimum + daily/weekly limits, the reset cron,
-and the transfer log/limits on the admin wallet monitor), and **Phase 13** payouts
+and the transfer log/limits on the admin wallet monitor), **Phase 13** payouts
 (withdrawals by GCash/Maya/USDT with the amount held at request time, a server-side service
-fee and ₱/USDT conversion, and the admin approve → complete/reject queue).
+fee and ₱/USDT conversion, and the admin approve → complete/reject queue), and **Phase 14**
+super-login (a superadmin opens any active member's portal through an audited, 8-hour,
+IP/UA-bound URL-token session without disturbing their own login, with a persistent member
+banner and a full impersonation audit trail).
 The Phase 13 follow-up puts the withdrawal rules on the settings page (**Payout methods**:
 minimum, per-channel fee/switch, ₱/USDT rate and network fees) and makes both payout pages
 follow them live — a rate, fee or channel change reaches an open `/payouts` tab without a
-reload. Super-login follows in Phase 14.
+reload.
 
 The demo tree from Phase 9 (`juan`, `maria`, `peter`, `sarah`, `david`) and its
 wallets/codes are development data: every demo member signs in with `Demo@1234`, and the
@@ -56,7 +59,7 @@ seed is removed or replaced before go-live (see the phase log).
 ## Important
 The landing page is still a static frontend prototype. The application behind it is real
 (login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership,
-registration codes, direct + indirect referral commissions, member wallet transfers and payouts
-as of Phase 13) but the simulator is not connected to it, and super-login is delivered in Phase 14.
-Product information and final compensation terms are not invented here; they should be
-added from verified official material when available.
+registration codes, direct + indirect referral commissions, member wallet transfers, payouts
+and super-login as of Phase 14) but the simulator is not connected to it. Product information
+and final compensation terms are not invented here; they should be added from verified
+official material when available.

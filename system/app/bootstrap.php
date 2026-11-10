@@ -26,8 +26,11 @@ auth_start_session();
 /* Expire idle sessions (keeps the "remember me" cookie working) */
 auth_expire_if_idle();
 
-/* Try a "remember me" auto-login when there is no active session */
-if (empty($_SESSION['user_id']) && !empty($_COOKIE[REMEMBER_COOKIE])) {
+/* Try a "remember me" auto-login when there is no active session.
+ * Never inside an S-Login request: that session is opened from the URL
+ * token, must not inherit the superadmin's cookie identity, and an
+ * invalid token must end at the console, not become a cookie login. */
+if (auth_imp_request_token() === '' && empty($_SESSION['user_id']) && !empty($_COOKIE[REMEMBER_COOKIE])) {
     $remembered = remember_token_consume();
     if ($remembered !== null) {
         session_regenerate_id(true);

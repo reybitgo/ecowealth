@@ -4,7 +4,7 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 13 — payouts.**
+**Current status: Phase 14 — super-login.**
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -45,11 +45,15 @@ rejection and settled on completion without a second debit; one open request per
 queue at `/admin/payouts` approves, rejects (reason required) and completes requests, with status
 tabs, totals and the current rate/fee facts, and `bin/wallet_reconcile.php` now reconciles payout
 holds and refunds as well.
+Phase 14 adds **super-login**: a superadmin opens any active member's portal from `/slogin` through a
+cookie-less, 8-hour, IP/user-agent-bound **URL-token session** (`?imp=<64-hex nonce>`), with a persistent
+banner and an Exit action in the member layout. Only the nonce's SHA-256 is stored in
+`impersonation_log`; every start, refusal and terminal status is audited, and `/admin/impersonations`
+renders the trail. The superadmin's own cookie session is never modified.
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
 `/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`. All three log to
-`system/storage/`; the first two have kill switches on the settings page. Super-login follows in
-Phase 14; its menu entry stays hidden until that phase lands.
+`system/storage/`; the first two have kill switches on the settings page.
 
 | | |
 |---|---|
@@ -362,6 +366,22 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/admin/payouts/{id}/reject` | admin | `pending/approved → rejected`, refunding the hold; a reason is required |
 | POST | `/admin/payouts/{id}/complete` | admin | `approved → completed` after the funds were sent off-platform (no second debit) |
 
+### Phase 14 URLs — super-login
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/slogin` | superadmin | The console: member picker, active sessions, recent sessions, audit link |
+| POST | `/slogin` | superadmin | Validate the target, rate-limit, create the audit row and open the URL-token session |
+| POST | `/slogin/exit` | member (imp) | End the impersonation from the banner / sign-out; marks `logged_out` |
+| GET | `/admin/impersonations` | admin | The impersonation audit trail with status tabs, filters and pagination |
+
+An impersonated request carries `?imp=<64-hex nonce>`, which is the PHP session id of a cookie-less
+session under the `ecowealth_imp` name; `app/auth.php` opens it before `session_start()` and
+`auth_validate_imp_session()` re-validates TTL, IP, user-agent, the hashed nonce and the target before
+any route runs. `url()` appends the token to every same-app link/form/redirect while the session is live
+(static assets, uploads and `absolute_url()` links never carry it). The raw token is never stored: the
+audit row keeps only its SHA-256.
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`. `/dashboard` became a routed page in Phase 9; the old
 `public/dashboard.php` is now a redirect shim only. The three job entries
@@ -555,6 +575,35 @@ it arrives in Phase 15.
 - **Reconciliation.** `bin/wallet_reconcile.php` gained a **Payouts** section: every request must have one
   `payout` debit of its amount, and a rejected request exactly one refund credit; orphan legs are reported as
   a count, never as a money error.
+
+---
+
+## Super-login (Phase 14)
+
+- **No cookie, no password.** `POST /slogin` validates that the caller is a `superadmin` and the target is an
+  active member (staff and suspended/deactivated accounts are refused), draws a 32-byte nonce, records the
+  audit row and redirects to `/dashboard?imp=<nonce>`. `app/auth.php` opens a cookie-less PHP session whose id
+  **is** the nonce, under its own `ecowealth_imp` name, so the superadmin's `ecowealth_sid` session is never
+  read or replaced.
+- **The nonce is stored only as a hash.** `impersonation_log.nonce_hash` is `hash('sha256', $nonce)`;
+  the raw token never reaches the database, the console or the audit page. A lost link cannot be resumed.
+- **Validated on every request.** `auth_validate_imp_session()` runs before routing and refuses a missing,
+  tampered, expired, IP-changed or user-agent-changed session, or a target that has been suspended or deleted.
+  A refusal destroys the session, marks the row `expired` and bounces the tab to `/slogin?expired=1`.
+- **The token follows the tab.** While the session is live, `url()` appends `?imp=<nonce>` to every same-app
+  link, form action and redirect (including the live-refresh feed, which uses the current URL). Static
+  assets, uploaded files and `absolute_url()` referral links never carry it.
+- **The banner is always visible.** The member layout renders `partials/impersonation_banner.php` on every
+  page: the member being viewed, the superadmin who opened it, the TTL, and a CSRF-protected **Exit member
+  session** button that marks the row `logged_out` and returns to the console. Signing out from the member
+  sidebar ends the impersonation the same way.
+- **Audited.** Opening (`slogin.start`), every refusal (`slogin.denied`, with the reason), expiry
+  (`slogin.expire`) and exit (`slogin.stop`) write `audit_log` entries. `/admin/impersonations` lists every
+  session with superadmin, member, IP, device, start, expiry and status; the console shows the live and recent
+  sessions. `Impersonation::expireOverdue()` sweeps rows whose TTL passed without another request.
+- **Rate limit.** Five failed attempts for one target in 15 minutes are refused with
+  `rate_limited`; the counter lives in the superadmin's own session (the reference behaviour), and each
+  refusal is audited.
 
 ---
 
@@ -826,7 +875,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (645 cases in Phase 13)
+php tests/run.php                 # full suite (669 cases in Phase 14)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -841,14 +890,14 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–016 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–018 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
 member account with its wallet, orders, addresses, proofs, shipments and invoices, products with SKU
 prefix `SMOKE-`, packages named `Smoke Package…`, a member-to-member transfer with its ledger legs and
-the limit counters it moves, the payment/fulfilment/transfer settings it edits, and
-`maintenance_mode`; all restored):
+the limit counters it moves, the payment/fulfilment/transfer settings it edits, the super-login sessions
+and audit rows it creates, and `maintenance_mode`; all restored):
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -881,6 +930,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `015_package_b_premium_ladder.sql` | Package B's 20%-higher referral ladder (guarded: only the old defaults are replaced) |
 | `016_transfers.sql` | `users.ewallet_sent_today` + `ewallet_sent_this_week`, `ewallet_transfers`, and the four transfer settings when missing |
 | `017_payouts.sql` | `payout_requests` (the withdrawal queue and its hold/refund trail), the four `users` payout accounts (no-op when 007 already ran) and the eleven payout settings when missing |
+| `018_impersonation.sql` | `impersonation_log` (the S-Login sessions: superadmin/member snapshots, `nonce_hash` unique, IP/user-agent, active/expired/logged_out, TTL) |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
@@ -891,6 +941,9 @@ Payout requests are written and moved through their status machine only by `Payo
 transaction per request and per decision); the hold and the refund are the only wallet movements a
 payout produces, and `bin/wallet_reconcile.php` also proves every request has its hold and every
 rejection its refund.
+Super-login sessions are written and validated only by `ImpersonationService`; `impersonation_log` holds
+a SHA-256 of the URL token (never the token itself), and `auth_validate_imp_session()` is the only path
+that ends an expired or mismatched session.
 Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
 `stock − reserved` number, and `OrderService` (placement, member cancel), `PaymentService`
 (review, admin cancel, expiry) and `FulfilmentService` (ship deducts, completion has no stock effect)

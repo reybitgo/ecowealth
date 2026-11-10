@@ -3,7 +3,8 @@
     EcoWealth HTTP smoke test (Phase 1-11: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
     P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
-    P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12).
+    P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12,
+    P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T12).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -18,7 +19,10 @@
     ineligible upline skipped, the member earnings statement with its
     level breakdown, the admin commission ledger, the two CSV exports
     and the finance report) end to end, including the expiry job from
-    both the CLI and its web entry.
+    both the CLI and its web entry. It also walks Phase 12 transfers, the
+    Phase 13 payout queue and the Phase 14 super-login (a URL-token
+    member session, its token-bearing links, Exit, TTL and user-agent
+    expiry, the superadmin-only guard and the audit trail).
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", registration codes and member
@@ -70,6 +74,7 @@ $script:Jars = @{
     p9f    = Join-Path $script:TempDir 'p9f.jar'
     p10a   = Join-Path $script:TempDir 'p10a.jar'
     p11reg = Join-Path $script:TempDir 'p11reg.jar'
+    p14super = Join-Path $script:TempDir 'p14super.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -232,7 +237,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-13)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-14)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -267,6 +272,12 @@ $p12TransferStart   = 0
 $p12AuditStart      = 0
 $p12CounterSnapshot = @{}
 $p12Ran             = $false
+
+# Phase 14: the impersonation sessions this run opens (and the audit rows
+# they write) are deleted in the finally block; no member data is touched.
+$p14LogStart   = 0
+$p14AuditStart = 0
+$p14Ran        = $false
 
 # Phase 13: the payout requests this run writes, their ledger legs (the hold
 # and the refund) and their audit rows are deleted in the finally block; the
@@ -2687,6 +2698,191 @@ try {
             -and $p13ReconcileJson.payouts.ok -eq $true -and $p13ReconcileJson.payouts.checked -ge 2) `
         "bin/wallet_reconcile.php reconciles payouts (exit=$p13ReconcileExit, checked=$($p13ReconcileJson.payouts.checked), orphans=$($p13ReconcileJson.payouts.orphans))"
 
+    # ---- Phase 14: super-login -------------------------------------------
+    # A superadmin opens juan's portal through a URL-token session, follows
+    # a token-bearing link, exits and proves the token is dead. Then TTL,
+    # user-agent, guards, a non-member target, rate limiting and tampering.
+    # The finally block removes the sessions and their audit rows.
+    $p14LogStart   = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM impersonation_log;" | Out-String).Trim())
+    $p14AuditStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM audit_log;" | Out-String).Trim())
+    $p14Ran        = $true
+
+    $p14SignedIn = Sign-In 'p14super' 'superadmin' 'Super@123'
+    $p14Console  = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14ConsoleToken = Get-Csrf $p14Console.Body
+
+    $p14ConsoleOk = ($p14Console.Status -eq 200) `
+        -and ($p14Console.Body -match 'Open a member session') `
+        -and ($p14Console.Body -match 'name="username"') `
+        -and ($p14Console.Body -match 'Audit trail') `
+        -and ($p14Console.Body -match 'S-Login console')
+
+    $p14Open = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'juan'
+    }
+
+    $p14Nonce = ''
+    if ($p14Open.Location -match 'imp=([0-9a-f]{64})') { $p14Nonce = $matches[1] }
+
+    $p14Dash = if ($p14Nonce -ne '') {
+        Invoke-App -Path "/dashboard?imp=$p14Nonce" -Session 'p14super'
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+
+    $p14Hash = ''
+    if ($p14Nonce -ne '') {
+        $p14Sha      = [System.Security.Cryptography.SHA256]::Create()
+        $p14HashBytes = $p14Sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($p14Nonce))
+        $p14Hash     = -join ($p14HashBytes | ForEach-Object { $_.ToString('x2') })
+    }
+
+    $p14Row = (Invoke-MySql "SELECT CONCAT(status, '|', nonce_hash, '|', target_username) FROM impersonation_log WHERE id > $p14LogStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p14RawLookup = (Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE nonce_hash = '$p14Nonce';" | Out-String).Trim()
+
+    $p14CookieOnImp = $false
+    if ($p14Dash.Headers.ContainsKey('set-cookie')) {
+        $p14CookieOnImp = ([string] $p14Dash.Headers['set-cookie']) -match 'ecowealth_imp='
+    }
+
+    $p14UrlOk = ($p14Open.Status -eq 302) -and ($p14Nonce -ne '') `
+        -and ($p14Dash.Status -eq 200) -and ($p14Dash.Body -match 'Viewing as @juan') `
+        -and ($p14Dash.Body -match 'data-impersonation-banner') `
+        -and ($p14Dash.Body -match 'Exit member session') `
+        -and ($p14Row -eq "active|$p14Hash|juan") `
+        -and ($p14Row -notmatch $p14Nonce) -and ($p14RawLookup -eq '0') `
+        -and (-not $p14CookieOnImp)
+    Assert-That 'P14-T1' ($p14SignedIn -and $p14ConsoleOk -and $p14UrlOk) `
+        "the console opens @juan through a URL token: dashboard banner, hashed-only audit row, no imp cookie (open=$($p14Open.Status), dash=$($p14Dash.Status), row=$p14Row, raw=$p14RawLookup, cookie=$p14CookieOnImp)"
+
+    # P14-T2 — a link rendered inside the impersonated tab keeps the token.
+    $p14Link = ''
+    if ($p14Dash.Body -match 'href="([^"]*/wallet\?imp=[0-9a-f]{64})"') { $p14Link = $matches[1] }
+    $p14LinkPath = $p14Link -replace [regex]::Escape($basePath), ''
+    $p14Wallet = if ($p14LinkPath -ne '') {
+        Invoke-App -Path $p14LinkPath -Session 'p14super'
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+    Assert-That 'P14-T2' ($p14Link -match 'imp=' -and $p14Wallet.Status -eq 200 `
+            -and $p14Wallet.Body -match 'Viewing as @juan' -and $p14Wallet.Body -match 'E-wallet') `
+        "a member link carries the token and stays impersonated (link=$p14LinkPath, status=$($p14Wallet.Status))"
+
+    # P14-T3 — Exit marks the log logged_out and the old URL is dead.
+    $p14ImpToken = Get-Csrf $p14Dash.Body
+    $p14Exit = Invoke-App -Method 'POST' -Path "/slogin/exit?imp=$p14Nonce" -Session 'p14super' -Form @{
+        '_csrf' = $p14ImpToken
+    }
+    $p14AfterExit = Invoke-App -Path '/slogin?exited=1' -Session 'p14super'
+    $p14ExitRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE id > $p14LogStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p14Replay = Invoke-App -Path "/dashboard?imp=$p14Nonce" -Session 'p14super'
+    $p14ReplayRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE id > $p14LogStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p14OwnSession = Invoke-App -Path '/admin' -Session 'p14super'
+    Assert-That 'P14-T3' ($p14Exit.Status -eq 302 -and $p14Exit.Location -match 'slogin\?exited=1' `
+            -and $p14AfterExit.Body -match 'You exited the member session' `
+            -and $p14ExitRow -eq 'logged_out' -and $p14Replay.Status -eq 302 `
+            -and $p14Replay.Location -match 'slogin\?expired=1' -and $p14ReplayRow -eq 'logged_out') `
+        "Exit marks the session logged_out and the token dies (exit=$($p14Exit.Status), replay=$($p14Replay.Status), row=$p14ReplayRow)"
+
+    # P14-T11 — the superadmin's own cookie session survived the round trip.
+    Assert-That 'P14-T11' ($p14OwnSession.Status -eq 200 -and $p14OwnSession.Body -match 'S-Login console') `
+        "the superadmin's own session still opens the back office after impersonating (status=$($p14OwnSession.Status))"
+
+    # P14-T4 — a session past its TTL bounces to the console and is expired.
+    $p14Open2 = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'maria'
+    }
+    $p14Nonce2 = ''
+    if ($p14Open2.Location -match 'imp=([0-9a-f]{64})') { $p14Nonce2 = $matches[1] }
+    if ($p14Nonce2 -ne '') {
+        Invoke-MySql "UPDATE impersonation_log SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE target_username = 'maria' AND status = 'active';" | Out-Null
+    }
+    $p14Expired = if ($p14Nonce2 -ne '') {
+        Invoke-App -Path "/dashboard?imp=$p14Nonce2" -Session 'p14super'
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+    $p14ExpiredRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE target_username = 'maria' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    Assert-That 'P14-T4' ($p14Nonce2 -ne '' -and $p14Expired.Status -eq 302 `
+            -and $p14Expired.Location -match 'expired=1' -and $p14ExpiredRow -eq 'expired') `
+        "a session past its TTL is destroyed and marked expired (status=$($p14Expired.Status), row=$p14ExpiredRow)"
+
+    # P14-T5 — a changed user agent ends the session.
+    $p14Open3 = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Headers @('User-Agent: SmokeUA/1.0') -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'peter'
+    }
+    $p14Nonce3 = ''
+    if ($p14Open3.Location -match 'imp=([0-9a-f]{64})') { $p14Nonce3 = $matches[1] }
+    $p14Ua = if ($p14Nonce3 -ne '') {
+        Invoke-App -Path "/dashboard?imp=$p14Nonce3" -Session 'p14super' -Headers @('User-Agent: SmokeUA/2.0')
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+    $p14UaRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE target_username = 'peter' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    Assert-That 'P14-T5' ($p14Nonce3 -ne '' -and $p14Ua.Status -eq 302 `
+            -and $p14Ua.Location -match 'expired=1' -and $p14UaRow -eq 'expired') `
+        "a changed user agent ends the session (status=$($p14Ua.Status), row=$p14UaRow)"
+
+    # P14-T6 — the console is superadmin-only; the audit list is admin-only.
+    $p14AdminConsole = Invoke-App -Path '/slogin' -Session 'admin'
+    $p14AdminAudit   = Invoke-App -Path '/admin/impersonations' -Session 'admin'
+    $p14MemberAudit  = Invoke-App -Path '/admin/impersonations' -Session 'p10a'
+    $p14Guest        = Invoke-App -Path '/slogin' -Session 'guest'
+    Assert-That 'P14-T6' ($p14AdminConsole.Status -eq 403 -and $p14AdminAudit.Status -eq 200 `
+            -and $p14MemberAudit.Status -eq 403 -and $p14Guest.Status -eq 302 -and $p14Guest.Location -match '/login$') `
+        "an admin gets 403 on /slogin, the audit list is admin-only, a guest is sent to login (admin=$($p14AdminConsole.Status), audit=$($p14AdminAudit.Status), member=$($p14MemberAudit.Status), guest=$($p14Guest.Status))"
+
+    # P14-T7 — an admin account is not a valid target, and the refusal is explained.
+    $p14AdminTarget = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'admin'
+    }
+    $p14AdminTargetPage = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14AdminTargetRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE id > $p14LogStart AND target_username = 'admin';" | Out-String).Trim())
+    Assert-That 'P14-T7' ($p14AdminTarget.Status -eq 302 -and $p14AdminTargetRows -eq 0 `
+            -and ($p14AdminTargetPage.Body -match 'only available for member accounts')) `
+        "an admin account is refused as an S-Login target (rows=$p14AdminTargetRows)"
+
+    # P14-T8 — six attempts for one target in the window are rate-limited.
+    for ($p14Attempt = 1; $p14Attempt -le 6; $p14Attempt++) {
+        Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+            '_csrf'    = $p14ConsoleToken
+            'username' = 'p14_no_such_member'
+        } | Out-Null
+    }
+    $p14RatePage = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14Denied   = [int]((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE id > $p14AuditStart AND action = 'slogin.denied' AND meta_json LIKE '%p14_no_such_member%';" | Out-String).Trim())
+    $p14RateRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE target_username = 'p14_no_such_member';" | Out-String).Trim())
+    Assert-That 'P14-T8' ($p14RatePage.Body -match 'Too many S-Login attempts' -and $p14Denied -eq 6 -and $p14RateRows -eq 0) `
+        "six attempts are rate-limited and every refusal is audited (denied=$p14Denied, sessions=$p14RateRows)"
+
+    # P14-T9/T10 — a tampered token is refused; only the hash is ever stored.
+    $p14Tampered = Invoke-App -Path ('/dashboard?imp=' + ('a' * 64)) -Session 'p14super'
+    $p14TamperRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE id > $p14LogStart;" | Out-String).Trim())
+    $p14HashLength = (Invoke-MySql "SELECT CONCAT(LENGTH(nonce_hash), '|', nonce_hash = '$p14Nonce') FROM impersonation_log WHERE id > $p14LogStart ORDER BY id ASC LIMIT 1;" | Out-String).Trim()
+    Assert-That 'P14-T9' ($p14Tampered.Status -eq 302 -and $p14Tampered.Location -match 'expired=1' -and $p14TamperRows -ge 3) `
+        "a tampered token is refused (status=$($p14Tampered.Status), rows=$p14TamperRows)"
+    Assert-That 'P14-T10' ($p14HashLength -eq '64|0' -and $p14Row -notmatch $p14Nonce) `
+        "the audit stores a 64-character hash, never the raw nonce (length|raw-match=$p14HashLength)"
+
+    # P14-T12 — the audit page lists the sessions and their end states.
+    $p14AuditPage = Invoke-App -Path '/admin/impersonations' -Session 'p14super'
+    $p14ConsoleAfter = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14AuditOk = ($p14AuditPage.Status -eq 200) `
+        -and ($p14AuditPage.Body -match 'Super-login audit') `
+        -and ($p14AuditPage.Body -match '@juan') -and ($p14AuditPage.Body -match '@maria') `
+        -and ($p14AuditPage.Body -match 'Logged out') -and ($p14AuditPage.Body -match 'Expired') `
+        -and ($p14AuditPage.Body -notmatch $p14Nonce) `
+        -and ($p14ConsoleAfter.Body -match 'Recent sessions')
+    Assert-That 'P14-T12' $p14AuditOk `
+        "the audit trail lists the sessions and their end states without a raw token (audit=$($p14AuditPage.Status))"
+
+
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
+
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
@@ -2780,6 +2976,16 @@ try {
         }
         if ($p13AuditStart -gt 0) {
             Invoke-MySql "DELETE FROM audit_log WHERE id > $p13AuditStart AND action LIKE 'payout.%';" | Out-Null
+        }
+    } catch { }
+    # Phase 14: the S-Login sessions and their audit rows. No member data is
+    # touched; the sessions point at demo accounts only.
+    try {
+        if ($p14Ran) {
+            Invoke-MySql "DELETE FROM impersonation_log WHERE id > $p14LogStart;" | Out-Null
+        }
+        if ($p14AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p14AuditStart AND action LIKE 'slogin.%';" | Out-Null
         }
     } catch { }
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }

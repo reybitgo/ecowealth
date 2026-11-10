@@ -31,7 +31,7 @@ defined('APP_ENV') || define('APP_ENV', (string) (getenv('APP_ENV') ?: 'producti
 defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
 
 /* Phase currently under construction — controls which menu items render. */
-defined('APP_PHASE') || define('APP_PHASE', 13);
+defined('APP_PHASE') || define('APP_PHASE', 14);
 
 /* ---------- Database (MySQL) ---------- */
 defined('DB_HOST') || define('DB_HOST', '127.0.0.1');
@@ -110,6 +110,17 @@ defined('APP_URL') || define('APP_URL', (string) (getenv('APP_URL') ?: ''));
 /* ---------- Sessions ---------- */
 defined('SESSION_NAME') || define('SESSION_NAME', 'ecowealth_sid');
 defined('SESSION_IDLE_MAX') || define('SESSION_IDLE_MAX', 30 * 60);   // 30 minutes of inactivity
+
+/* ---------- Super-login (plan §7 Phase 14) ------------------------------------
+ * An impersonated member tab carries its session nonce in the URL
+ * (`?imp=<64 hex>`) instead of a cookie. PHP opens a session whose id IS
+ * that nonce, under its own session name, so the superadmin's cookie
+ * session stays untouched. The nonce is 32 random bytes; only its
+ * SHA-256 is stored in impersonation_log. */
+defined('IMP_SESSION_NAME') || define('IMP_SESSION_NAME', 'ecowealth_imp');
+defined('IMP_SESSION_TTL') || define('IMP_SESSION_TTL', 8 * 60 * 60);          // 8 hours
+defined('IMP_MAX_ATTEMPTS') || define('IMP_MAX_ATTEMPTS', 5);                  // per target …
+defined('IMP_ATTEMPT_WINDOW') || define('IMP_ATTEMPT_WINDOW', 15 * 60);        // … per 15 minutes
 
 /* ---------- "Remember me" ---------- */
 defined('REMEMBER_COOKIE') || define('REMEMBER_COOKIE', 'ecowealth_remember');

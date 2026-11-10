@@ -196,10 +196,15 @@ return [
     ['POST', '/admin/payouts/{id}/complete',     [AdminPayoutController::class, 'complete'],  'admin'],     // admin_payout_action
 
     /* ---------- Phase 14 — super-login ------------------------------
+     * Reference: slogin, do_slogin (logout/exit handling lived in the
+     * reference's Auth::endImpSession). The member session is a URL-token
+     * session, so `POST /slogin/exit` is a `member` route: while
+     * impersonating, the caller is the member. The audit list is the
+     * plan's Appendix A extension. */
     ['GET',  '/slogin',                          [SLoginController::class, 'index'],          'superadmin'], // slogin
     ['POST', '/slogin',                          [SLoginController::class, 'start'],          'superadmin'], // do_slogin
-    ['POST', '/slogin/exit',                     [SLoginController::class, 'stop'],           'member'],     // slogin exit
-    ----------------------------------------------------------------- */
+    ['POST', '/slogin/exit',                     [SLoginController::class, 'stop'],           'member'],     // reference: endImpSession
+    ['GET',  '/admin/impersonations',            [SLoginController::class, 'audit'],          'admin'],      // extension: audit list
 
     /* ---------- Phase 15 — settings & reports -----------------------
     ['GET',  '/admin/settings',                  [AdminSettingsController::class, 'index'],   'admin'],     // admin_settings

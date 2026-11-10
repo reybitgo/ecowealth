@@ -319,5 +319,10 @@ $html_class  = $has_menu
           <!-- Content wrapper -->
           <div class="content-wrapper">
 <?php if ($has_menu): ?>
+<?php if (auth_is_imp()): ?>
+            <div class="container-xxl pt-4">
+<?php require dirname(__DIR__) . '/views/partials/impersonation_banner.php'; ?>
+            </div>
+<?php endif; ?>
 <?php require dirname(__DIR__) . '/views/partials/flash.php'; ?>
 <?php endif; ?>

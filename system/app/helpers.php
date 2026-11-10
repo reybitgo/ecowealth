@@ -88,6 +88,36 @@ function gateway_query(): string
     return $query;
 }
 
+/* ==============================================================
+ *  Super-login transport (plan §7 Phase 14)
+ * ============================================================== */
+
+/**
+ * The nonce of the live impersonation session, or '' when this is a
+ * normal request.
+ *
+ * The value is a 64-character hex string stored in the impersonation
+ * session by ImpersonationService::bind(); it is the same nonce as the
+ * request's `?imp=` token and the PHP session id of that tab. Reading it
+ * from the session (rather than from the query) means every URL built
+ * while impersonating — links, form actions, redirects — keeps the
+ * token, even on a POST whose body is the only input.
+ */
+function imp_token(): string
+{
+    $token = $_SESSION['imp_token'] ?? '';
+
+    return is_string($token) && preg_match('/\A[0-9a-f]{64}\z/', $token) === 1 ? $token : '';
+}
+
+/** `imp=<nonce>` for the current page, or '' outside an S-Login session. */
+function imp_query(): string
+{
+    $token = imp_token();
+
+    return $token === '' ? '' : 'imp=' . $token;
+}
+
 /**
  * Build an application URL.
  *
@@ -96,15 +126,38 @@ function gateway_query(): string
  *                             → '/login?XTransformPort=8080'  (demo gateway)
  *   url('/')                 → app root
  *   url('assets/css/x.css')  → static assets, same rules
+ *
+ * While a superadmin is viewing a member through S-Login, every app URL
+ * carries the tab's `?imp=<nonce>` token; otherwise the next request
+ * would fall back to the cookie session. Static assets and URLs that
+ * leave the app ($withImp = false: asset_url(), absolute_url()) never
+ * carry it, so the bearer token cannot leak into a shared referral link
+ * or a cache key.
  */
-function url(string $path = '/'): string
+function url(string $path = '/', bool $withImp = true): string
 {
     $path = ltrim($path, '/');
     $link = base_url() . $path;
 
-    $gw = gateway_query();
+    $query = [];
+    $gw    = gateway_query();
     if ($gw !== '') {
-        $link .= (str_contains($link, '?') ? '&' : '?') . $gw;
+        $query[] = $gw;
+    }
+
+    /* Media paths are served by the web server, not by a routed page:
+     * an imp token there would be a cache/history artefact, not a session. */
+    $static = str_starts_with($path, 'assets/') || str_starts_with($path, 'uploads/');
+
+    if ($withImp && !$static && preg_match('/(?:^|[?&])imp=/', $link) !== 1) {
+        $imp = imp_query();
+        if ($imp !== '') {
+            $query[] = $imp;
+        }
+    }
+
+    if ($query !== []) {
+        $link .= (str_contains($link, '?') ? '&' : '?') . implode('&', $query);
     }
 
     return $link;
@@ -160,7 +213,7 @@ function absolute_url(string $path = '/'): string
         return $path;
     }
 
-    return app_origin() . url($path);
+    return app_origin() . url($path, false);
 }
 
 /** HTML-escape a value for safe output. */
@@ -202,7 +255,7 @@ function asset_url(string $path): string
 {
     $path = ltrim($path, '/');
     $file = dirname(__DIR__) . '/public/' . $path;
-    $link = url($path);
+    $link = url($path, false);
 
     if (is_file($file)) {
         $link .= (str_contains($link, '?') ? '&' : '?') . 'v=' . filemtime($file);
@@ -451,6 +504,43 @@ function time_ago(?string $value): string
     if ($diff < 86400)   return floor($diff / 3600) . ' hr ago';
     if ($diff < 604800)  return floor($diff / 86400) . ' day(s) ago';
     return date('M j, Y', $ts);
+}
+
+/**
+ * A compact device label for audit tables (full string stays in the
+ * title attribute): "Chrome · Windows", "Safari · iOS", …
+ *
+ * The raw user agent is kept in the audit row; this is only how the
+ * table shows it without a wall of text.
+ */
+function user_agent_label(string $userAgent): string
+{
+    $ua = trim($userAgent);
+
+    if ($ua === '') {
+        return 'Unknown device';
+    }
+
+    $browser = match (true) {
+        str_contains($ua, 'Edg/')                    => 'Edge',
+        str_contains($ua, 'OPR/')                    => 'Opera',
+        str_contains($ua, 'Chrome/')                 => 'Chrome',
+        str_contains($ua, 'Firefox/')                => 'Firefox',
+        str_contains($ua, 'Safari/')                 => 'Safari',
+        str_contains($ua, 'curl/')                   => 'curl',
+        default                                      => 'Browser',
+    };
+
+    $os = match (true) {
+        str_contains($ua, 'Windows NT')              => 'Windows',
+        str_contains($ua, 'Android')                 => 'Android',
+        str_contains($ua, 'iPhone'), str_contains($ua, 'iPad') => 'iOS',
+        str_contains($ua, 'Mac OS X')                => 'macOS',
+        str_contains($ua, 'Linux')                   => 'Linux',
+        default                                      => '',
+    };
+
+    return $os === '' ? $browser : $browser . ' · ' . $os;
 }
 
 /* ==============================================================

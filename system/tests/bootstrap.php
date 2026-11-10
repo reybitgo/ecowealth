@@ -339,6 +339,16 @@ function test_delete_order(int $orderId): void
 
 /** Sign the harness in as the given user row (for layout/guard tests). */
 function test_signed_in_as(?array $user): void{
+    /* Never let an S-Login fixture leak between cases: the transport
+     * keys are part of the session, not of the user row. */
+    foreach ([
+        'imp_session', 'imp_token', 'imp_log_id', 'imp_created_by',
+        'imp_created_by_username', 'imp_target_username', 'imp_expires',
+        'imp_ip', 'imp_ua', 'auth_via', '_slogin_attempts',
+    ] as $key) {
+        unset($_SESSION[$key]);
+    }
+
     if ($user === null) {
         unset($_SESSION['user_id'], $_SESSION['logged_in_at']);
 
@@ -365,7 +375,8 @@ function test_run_isolated(callable $case): void
         $started = true;
     }
 
-    /* Every case starts signed out, with no pending flash/old input. */
+    /* Every case starts signed out, with no pending flash/old input and
+     * no S-Login transport state left over from the previous case. */
     unset(
         $_SESSION['user_id'],
         $_SESSION['logged_in_at'],
@@ -374,6 +385,17 @@ function test_run_isolated(callable $case): void
         $_SESSION['_flash'],
         $_SESSION['_old_payload'],
         $_SESSION['_live_publish'],
+        $_SESSION['imp_session'],
+        $_SESSION['imp_token'],
+        $_SESSION['imp_log_id'],
+        $_SESSION['imp_created_by'],
+        $_SESSION['imp_created_by_username'],
+        $_SESSION['imp_target_username'],
+        $_SESSION['imp_expires'],
+        $_SESSION['imp_ip'],
+        $_SESSION['imp_ua'],
+        $_SESSION['auth_via'],
+        $_SESSION['_slogin_attempts'],
         $GLOBALS['__form_errors'],
         $GLOBALS['__old_payload']
     );

@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(81, $live);
+        assert_count(85, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -190,6 +190,12 @@ return [
         assert_same('admin', $live['POST /admin/payouts/{id}/approve']);
         assert_same('admin', $live['POST /admin/payouts/{id}/reject']);
         assert_same('admin', $live['POST /admin/payouts/{id}/complete']);
+
+        /* Phase 14 — the superadmin console, the URL-token exit and the audit. */
+        assert_same('superadmin', $live['GET /slogin']);
+        assert_same('superadmin', $live['POST /slogin']);
+        assert_same('member', $live['POST /slogin/exit'], 'inside the tab the caller is the member');
+        assert_same('admin', $live['GET /admin/impersonations']);
     },
 
     'Live route table resolves the Phase 1–10 URLs' => function (): void {
@@ -414,6 +420,25 @@ return [
             $router->match('POST', '/admin/payouts/42/complete')['route']['handler'][0]
         );
 
+        /* Phase 14 handlers. */
+        assert_same(
+            SLoginController::class,
+            $router->match('GET', '/slogin')['route']['handler'][0]
+        );
+        assert_same(
+            SLoginController::class,
+            $router->match('POST', '/slogin')['route']['handler'][0]
+        );
+        assert_same(
+            SLoginController::class,
+            $router->match('POST', '/slogin/exit')['route']['handler'][0]
+        );
+        assert_same(
+            SLoginController::class,
+            $router->match('GET', '/admin/impersonations')['route']['handler'][0]
+        );
+        assert_same('stop', $router->match('POST', '/slogin/exit')['route']['handler'][1]);
+
         assert_null($router->match('GET', '/no-such-page'));
         assert_null($router->match('GET', '/admin/products/abc/edit'));
         assert_null($router->match('GET', '/admin/packages/abc/edit'));
@@ -423,7 +448,6 @@ return [
         assert_null($router->match('GET', '/orders/8/invoice/extra'));
 
         /* Not due yet, and the binary-upline endpoints are gone for good. */
-        assert_null($router->match('GET', '/slogin'));
         assert_null($router->match('POST', '/register/check-upline'));
         assert_null($router->match('POST', '/register/auto-select-upline'));
     },

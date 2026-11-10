@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–12)
+# EcoWealth — Manual QA pack (Phases 1–14)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11 and 12. The automated suites are already green; these documents let a tester who has never seen the
+7, 8, 9, 10, 11, 12, 13 and 14. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -28,14 +28,15 @@ sign the phase off.
 | [phase-11-commissions.md](phase-11-commissions.md) | 11 — indirect referral ladder, level breakdown, CSV exports | 10 | 35–45 min |
 | [phase-12-transfers.md](phase-12-transfers.md) | 12 — member transfers, fees, limits, reset cron, admin monitor | 8 | 25–35 min |
 | [phase-13-payouts.md](phase-13-payouts.md) | 13 — payout requests, the hold, fees, USDT conversion, admin queue | 8 | 25–35 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all thirteen | — | 10 min to complete |
+| [phase-14-super-login.md](phase-14-super-login.md) | 14 — super-login console, URL-token impersonation, exit/TTL, audit trail | 8 | 25–35 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all fourteen | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-13` inside it). Phases 4–12 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-14` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
 `evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png`,
-`evidence/phase-11/*.png` and (once the browser passes are captured) `evidence/phase-12/*.png` and
-`evidence/phase-13/*.png`.
+`evidence/phase-11/*.png` and (once the browser passes are captured) `evidence/phase-12/*.png`,
+`evidence/phase-13/*.png` and `evidence/phase-14/*.png`.
 
 ---
 
@@ -54,7 +55,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 645   Passed: 645   Failed: 0
+Cases: 669   Passed: 669   Failed: 0
 All good.
 ```
 
@@ -67,7 +68,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 161   Failed: 0
+Passed: 173   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -170,6 +171,16 @@ Passed: 161   Failed: 0
   two live surfaces. The smoke script sets a 10% fee, walks three refusals and the USDT-closed refusal,
   then a real ₱500 request over HTTP (approve → complete) and a ₱600 request rejected and refunded, and
   re-runs the finance report.
+- Phase 14: the S-Login service and audit (a 32-byte nonce, only its SHA-256 stored, the active row, the
+  start/stop audit entries), the target rules (member only; pending members allowed; admins and suspended
+  accounts refused), the per-target five-attempt/15-minute rate limit with every refusal audited, the
+  validation rules (missing/tampered token, TTL, IP and user-agent binding, deleted audit row, target
+  suspended after opening), the exit transition (first terminal status wins), the URL helper (every app
+  URL keeps `?imp=`, assets/uploads/shared referral links never do), the member-layout banner and its
+  CSRF-protected Exit form, the superadmin-only menu entry and the audit screen with filters, status
+  counts and no hashed nonce in its HTML. The HTTP smoke script opens a real URL-token session over HTTP,
+  follows a token-bearing link, exits, proves the token dead, then exercises TTL expiry, user-agent
+  expiry, the guards, an admin target, six rate-limited attempts, a tampered token and the audit page.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
@@ -191,7 +202,7 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
 | Account | Password | Use it for |
 |---|---|---|
 | `admin` | `Admin@123` | Every back-office check |
-| `superadmin` | `Super@123` | One Phase 1 check (hidden menu item) |
+| `superadmin` | `Super@123` | The S-Login console (Phase 14) and the superadmin-only menu check |
 | `QA_Member_01` | `QaPass!2345` | You create this in Phase 1; reuse it in Phases 2–9 |
 | `QA_Fulfil_01` | `QaFulfil!2345` | Phase 8 evidence fixture: one order in every fulfilment state (optional — see the Phase 8 doc) |
 | `juan` · `maria` · `peter` · `sarah` · `david` | `Demo@1234` | Phase 9 demo tree (seeded): use them as sponsors, recruits and the active/pending examples |

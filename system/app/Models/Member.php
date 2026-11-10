@@ -105,12 +105,36 @@ final class Member
         return $row === false ? null : $row;
     }
 
+    /**
+     * Active member accounts for the S-Login console picker.
+     *
+     * Excludes staff (only `role = 'member'` can be impersonated) and
+     * deactivated accounts; a suspended member is still returned so the
+     * console can show why the service will refuse, but the row carries
+     * `member_status` for the view to flag it.
+     *
+     * @return list<array{id:int|string, username:string, full_name:?string, member_status:string}>
+     */
+    public static function activeOptions(int $limit = 100, ?PDO $pdo = null): array
+    {
+        $pdo   ??= db();
+        $limit   = max(1, min(500, $limit));
+
+        $stmt = $pdo->query(
+            "SELECT id, username, full_name, member_status
+               FROM users
+              WHERE role = 'member' AND is_active = 1
+              ORDER BY username ASC
+              LIMIT " . $limit
+        );
+
+        return $stmt->fetchAll();
+    }
+
     public static function usernameExists(string $username, ?int $ignoreId = null, ?PDO $pdo = null): bool
     {
         return self::exists('username', trim($username), $ignoreId, $pdo);
-    }
-
-    public static function emailExists(string $email, ?int $ignoreId = null, ?PDO $pdo = null): bool
+    }    public static function emailExists(string $email, ?int $ignoreId = null, ?PDO $pdo = null): bool
     {
         return self::exists('email', strtolower(trim($email)), $ignoreId, $pdo);
     }

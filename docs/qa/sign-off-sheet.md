@@ -1,26 +1,27 @@
-# EcoWealth — QA sign-off sheet (Phases 1–13)
+# EcoWealth — QA sign-off sheet (Phases 1–14)
 
-Fill this sheet while working through the thirteen phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the fourteen phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
-**Status of this pass (2026-11-11):** Phases 1–13 are recorded as **passed** — **192 / 192**
-manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 645** PHP cases and
-**143 → 161** smoke checks as Phases 11–13 landed; the current full suite is **645 / 645** PHP
-cases and **161 / 161** smoke checks). The Phase 13 queue was rechecked after the approval /
+**Status of this pass (2026-11-11):** Phases 1–14 are recorded as **passed** — **200 / 200**
+manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 669** PHP cases and
+**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **669 / 669** PHP
+cases and **173 / 173** smoke checks). The Phase 13 queue was rechecked after the approval /
 rejection confirmation-modal change: both decisions ask first, and a rejection reason is typed in
-the modal.
+the modal. Phase 14 adds the super-login contract: a URL-token member session, its banner, Exit/TTL
+and the impersonation audit.
 
 **How to use**
 
 1. Fill the *Environment* block once.
 2. Record the automated results (§1).
-3. For each phase, tick every check in its table. Add the evidence file name; for Phases 4–13 the file
+3. For each phase, tick every check in its table. Add the evidence file name; for Phases 4–14 the file
    lives in `docs/qa/evidence/phase-<n>/`. Phases 1–3 predate the per-phase folders, so their evidence
    lives in the topic folders (`dashboard/`, `errors/`, `shell/`, `shop/`); a check with no screenshot
    cites the automated suite instead.
-4. Log every failure in the *Defect log* (§15) and keep its status up to date.
-5. Complete the *Final decision* (§16) and sign.
+4. Log every failure in the *Defect log* (§16) and keep its status up to date.
+5. Complete the *Final decision* (§17) and sign.
 
 ---
 
@@ -31,7 +32,7 @@ the modal.
 | Tester name | Automated QA pass — DeepSeek Harness (DSH) |
 | Date(s) of testing | 2026-11-07 … 2026-11-11 |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13` |
+| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14` |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` |
 | Operating system | Windows 11 Home Single Language 10.0.26200 (build 26200) |
@@ -45,22 +46,22 @@ the modal.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 645  Passed: 645  Failed: 0` / `All good.` | `Cases: 645   Passed: 645   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 161   Failed: 0` | `Passed: 161   Failed: 0` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 669  Passed: 669  Failed: 0` / `All good.` | `Cases: 669   Passed: 669   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 173   Failed: 0` | `Passed: 173   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
 ```text
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 645   Passed: 645   Failed: 0
+Cases: 669   Passed: 669   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
   P1-T11 PASS   guest sees the 503 page with Retry-After: 3600 (got 503, retry=3600)
   P1-T11 PASS   admin bypasses maintenance mode (got 200)
 
-Passed: 161   Failed: 0
+Passed: 173   Failed: 0
 ```
 
 Both commands are run from `system\` and exited **0** on 2026-11-11. `bin/wallet_reconcile.php` also
@@ -68,7 +69,7 @@ exits **0** afterwards (both wallet buckets match the ledger, every credited com
 movement, every transfer has its sender debit, recipient credit and fee credit, and every payout request
 has its hold with every rejection refunded).
 
-Total manual checks in §2–§14 (all thirteen phases): **192** — **192 recorded as passed**, 0 failed,
+Total manual checks in §2–§15 (all fourteen phases): **200** — **200 recorded as passed**, 0 failed,
 0 blocked.
 
 ---
@@ -487,13 +488,44 @@ corrected in `tests/smoke.ps1` and the full run is green at **161 / 161**.
 
 ---
 
-## 15. Defect log
+## 15. Phase 14 — Super-login
+
+Document: [phase-14-super-login.md](phase-14-super-login.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA14-01 | The console opens `juan` through a URL token, the member banner shows, and only the hash is stored | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T1/T10, smoke P14-T1` |
+| QA14-02 | Every link/form/refresh inside the tab keeps the token and stays impersonated | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T2, smoke P14-T2` |
+| QA14-03 | Exit returns to the console, marks `logged_out`, kills the token and leaves the superadmin signed in | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T3/T11, smoke P14-T3/T11` |
+| QA14-04 | A session past its 8-hour TTL bounces to the console, is marked `expired` and stays dead | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T4, smoke P14-T4` |
+| QA14-05 | A changed user-agent (or IP) ends the session and marks it `expired` | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T5, smoke P14-T5` |
+| QA14-06 | Shared/static URLs never carry the token; the audit page never shows the hash | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T2, ImpersonationViewTest P14-T5` |
+| QA14-07 | Admin/guest guards and the target rules (no staff, no suspended member) | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T6/T7, smoke P14-T6/T7` |
+| QA14-08 | Six failures are rate-limited; the audit lists every session and refusal | ☑ Pass ☐ Fail ☐ Blocked | `automated: P14-T8/T12, ImpersonationViewTest P14-T5/T6, smoke P14-T8/T12` |
+
+| Phase 14 summary | |
+|---|---|
+| Executed | 8 / 8 |
+| Passed / Failed / Blocked | 8 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-11 |
+
+Phase 14 was signed from the automated suite and the HTTP smoke run. The browser screenshots named in
+the phase document's *Evidence* rows were not produced for this pass; the rows above cite the automated
+checks that cover the same behaviour. The smoke run opened a real URL-token session over HTTP, followed a
+token-bearing member link, exited, replayed the dead token, exercised TTL and user-agent expiry, checked
+the admin/member/guest guards, refused an admin target, rate-limited six attempts and opened the audit
+page — **173 / 173** checks green, and the run cleaned up its sessions and audit rows afterwards.
+
+---
+
+## 16. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
 | ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
 |---|---|---|---|---|---|---|
-| — | Phases 1–13 | — | No defects were raised in this pass. | — | — | Closed |
+| — | Phases 1–14 | — | No defects were raised in this pass. | — | — | Closed |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -503,7 +535,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 16. Final decision
+## 17. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -520,8 +552,9 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 11 | ☑ Yes ☐ No | 10 / 10 checks passed; 560 / 560 PHP cases at the phase tag (561 / 561 today), 143 / 143 smoke checks and a headless browser pass green. |
 | Phase 12 | ☑ Yes ☐ No | 8 / 8 checks passed; 594 / 594 PHP cases, 150 / 150 smoke checks and a clean transfer reconciliation green. |
 | Phase 13 | ☑ Yes ☐ No | 8 / 8 checks passed; 645 / 645 PHP cases, 161 / 161 smoke checks, a clean payout reconciliation and the headless-Chrome modal pass green. |
+| Phase 14 | ☑ Yes ☐ No | 8 / 8 checks passed; 669 / 669 PHP cases, 173 / 173 smoke checks and a clean audit trail (hashed nonces only) green. |
 
-Phases 1–13 are **Approved**. No defect is open, so no accepted exception is recorded.
+Phases 1–14 are **Approved**. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

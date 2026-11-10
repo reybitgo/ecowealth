@@ -6,10 +6,11 @@ declare(strict_types=1);
  *
  *  1. pin APP_BASE_URL (critical for deep URLs and asset paths)
  *  2. bootstrap config → helpers → autoload → database → auth
- *  3. maintenance gate (before any route work)
- *  4. match the request against app/routes.php
- *  5. guard + CSRF + dispatch (Router)
- *  6. 404 for no match, branded 500 for anything thrown
+ *  3. validate a super-login (impersonation) token
+ *  4. maintenance gate (before any route work)
+ *  5. match the request against app/routes.php
+ *  6. guard + CSRF + dispatch (Router)
+ *  7. 404 for no match, branded 500 for anything thrown
  *
  *  No business logic here beyond that sequence.
  * ============================================================== */
@@ -29,6 +30,11 @@ require __DIR__ . '/../app/bootstrap.php';
 
 /* 3–6. Dispatch ------------------------------------------------------------- */
 try {
+    /* Super-login: a request carrying `?imp=` is validated (TTL, IP/UA,
+     * target status, hashed nonce) before any route or gate sees it. An
+     * invalid session is destroyed and bounced to /slogin. */
+    auth_validate_imp_session();
+
     MaintenanceGate::handle();
 
     /** @var list<array{0: string, 1: string, 2: array{0: string, 1: string}, 3?: string}> $routes */

@@ -3067,3 +3067,100 @@ both pages live against them.
 
 No migration: all eleven keys are already seeded by `001`/`017`. Full suite **641/641**, `php -l` clean on
 every touched file.
+
+---
+
+## Phase 14 - Super-login
+
+**Date:** 2026-11-11 · **Branch:** `feature/shop` · **Gate tag:** `phase-14` · **Status:** complete
+(manual sign-off recorded from the automated and HTTP passes, as for Phases 1-13).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | Migration `018_impersonation.sql` adds `impersonation_log` (superadmin/member id + name snapshots, `nonce_hash` unique, IP, user-agent, the three-state status, `created_at`, `expires_at`, three indexes and both FKs). `schema.sql` carries the same table for a fresh install. |
+| **Session layer** | `app/auth.php`: `auth_imp_request_token()`, `auth_start_imp_session()` (cookie-less `ecowealth_imp` session whose id is the nonce, set before `session_start()`), `auth_validate_imp_session()` (TTL, IP/UA, hashed nonce, target status, audit-row status), `auth_end_imp_session()` and `auth_is_imp()`. `auth_start_session()` opens the imp session when `?imp=` is present; idle expiry and remember-me are skipped for it. `public/index.php` validates before routing. |
+| **Service** | `ImpersonationService` - `start()` (superadmin/target rules, five-attempts/15-minute per-target rate limit, 32-byte nonce, SHA-256, audit row, `slogin.start`/`slogin.denied` entries), `bind()` (member identity + markers in the fresh session, fresh CSRF), `check()` (missing/tampered/missing-log/TTL/IP/UA/status/target), `exit()` (`logged_out` + `slogin.stop`), `attempts()`/`attemptsLeft()`. `ImpersonationException` carries stable reason codes. |
+| **Model** | `Impersonation` - `record()`, `find()`, `findByNonceHash()`, `mark()` (first terminal status wins), `expireOverdue()`, `active()`, `recent()`, `forSuperadmin()`, `queue()`/`queueCount()` with status/search/date filters, `statusCounts()` and `totals()`. `Member::activeOptions()` feeds the console picker. |
+| **Routes / guards** | `GET /slogin` + `POST /slogin` (`superadmin`), `POST /slogin/exit` (`member` - the impersonated tab is the member), `GET /admin/impersonations` (`admin`). Router **81 -> 85**. APP_PHASE 14 makes the existing **S-Login console** menu entry live for superadmins only. |
+| **Views / UX** | `auth/slogin.php` (member picker with datalist, security notes, active sessions, recent sessions, audit link; `novalidate` so the server explains every refusal), `admin/impersonations/index.php` (stat cards, status tabs, search/date filters, pagination, human-readable device labels, no nonce/hash), `partials/impersonation_banner.php` (always-visible member banner with the target, the superadmin, the TTL and a CSRF-protected **Exit member session**), `app-slogin.js` (disable/pending label). The member layout renders the banner on every page. |
+| **URLs** | `url()` appends `?imp=<nonce>` to every same-app link, form and redirect while impersonating, deduplicates an existing token and combines with the demo gateway; `asset_url()`/`absolute_url()`/asset and upload paths never carry it. `imp_token()`/`imp_query()` are the helpers. |
+| **Tests** | `ImpersonationTest` (17 cases: the plan's P14-T1...T11 plus target rules, model reads, sweep, bind refusal and the real console/audit rendering), `ImpersonationViewTest` (6: banner, no-banner baseline, non-dismissible, superadmin-only menu, audit rows, empty state). `RouterTest` 81 -> 85 routes, `MigrationTest` gains 018 + the impersonation guard case. Suite **645 -> 669**. |
+| **Smoke** | Phase 14 block: real console + `POST /slogin`, dashboard banner and hashed-only row, a token-bearing member link, Exit + dead-token replay, TTL expiry, user-agent expiry, the admin/member/guest guards, an admin target, six rate-limited attempts, a tampered token and the audit page. **161 -> 173 checks**. |
+| **Docs** | This log, `docs/qa/phase-14-super-login.md`, the QA README + sign-off sheet, `docs/deploy.md`, `system/README.md` and the root `README.md`. |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-14/db-pre-phase-14.sql` (1,078,470 bytes) before the migration and `backups/phase-14/db-post-phase-14-migration.sql` (1,081,654 bytes) immediately after it (git-ignored `backups/`) |
+| Migration | `018_impersonation.sql` applied to `ecowealth_sneat`: `impersonation_log` created with the unique `nonce_hash`, the three indexes and both FKs |
+| Verified | A second run is a no-op (`CREATE TABLE IF NOT EXISTS`); `MigrationTest` applies 001-018 to the legacy fixture, compares every `impersonation_log` column with `schema.sql`, and asserts the three-status enum, the unique hash, both cascades and that the raw nonce is never stored |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P14-T1 | Superadmin opens S-Login for a member | **PASS** | Console 200; `POST /slogin` -> 302 `/dashboard?imp=<64 hex>`; dashboard 200 with the banner; row `active|hash|juan`; no `ecowealth_imp` cookie |
+| P14-T2 | Links inside impersonation keep the token | **PASS** | The `/wallet?imp=...` link from the dashboard stayed impersonated; `url()` keeps one token on links/queries, never on assets/uploads/shared referral links |
+| P14-T3 | Exit | **PASS** | 302 `/slogin?exited=1`, flash, row `logged_out`, replay 302 `/slogin?expired=1`, row stays `logged_out` |
+| P14-T4 | TTL expiry (simulated) | **PASS** | A past `expires_at` (and a past `imp_expires`) -> `expired`; request bounced; `expireOverdue()` sweeps orphaned active rows |
+| P14-T5 | IP/UA mismatch | **PASS** | A changed UA (and an IP mismatch, unit-tested) ends the session and marks it `expired` |
+| P14-T6 | Admin (non-superadmin) opens `/slogin` | **PASS** | 403 branded page; the audit list stays admin-only; a guest is redirected to login |
+| P14-T7 | Target is an admin/suspended member | **PASS** | `not_member` and `suspended` refusals, no session row, `slogin.denied` audit entries |
+| P14-T8 | Six attempts in 15 minutes | **PASS** | Five `not_found` + one `rate_limited`; six denied audit entries, zero sessions |
+| P14-T9 | Nonce tampering | **PASS** | `tampered` / `missing_log`; the audit row is unchanged; a random 64-hex token is bounced without a row |
+| P14-T10 | Raw nonce in DB | **PASS** | Only a 64-character SHA-256; a raw-token lookup returns 0 and the raw string appears in no column |
+| P14-T11 | Superadmin's own session | **PASS** | `/admin` still 200 after the round trip; `start()` never touches the cookie session |
+| P14-T12 | Audit screen | **PASS** | Console/audit render the sessions, statuses and device labels; filters and empty state verified; no nonce or hash in the HTML |
+
+### Deviations and decisions
+
+- **`superadmin_name` / `target_username` are VARCHAR(50), not the plan's 40.** `users.username` allows 50
+  characters; 40 would truncate a valid account (and fail under strict mode). The plan's intent - snapshot
+  the names beside the ids - is unchanged.
+- **The token is the PHP session id, and no cookie is issued.** `session.use_cookies=0` plus a dedicated
+  session name keeps the superadmin's cookie session completely out of the impersonated request; the URL is
+  the only key. The raw token is never stored, so the console deliberately cannot re-offer a lost link.
+- **The rate limit is per target inside the superadmin's session.** That is the reference behaviour and the
+  plan's "5 attempts / 15 min per target"; it resets when the superadmin signs in again. Every refusal is
+  audited, so a determined operator is still visible in `audit_log`.
+- **`auth_validate_imp_session()` also checks the audit row.** A token whose row was deleted or already
+  marked `logged_out`/`expired` is refused, even if a session file somehow survived. This is what makes the
+  exit replay test reliable.
+- **The console/audit sweep overdue rows.** A session that expires while no request arrives would otherwise
+  still read `active`; the page marks it `expired` and reports how many it swept. The sweep writes no audit
+  row of its own - the TTL is visible in the row's `expires_at`.
+- **Signing out inside the member tab ends the impersonation, not the superadmin session.** `logout.php`
+  routes an imp request through `ImpersonationService::exit()` and returns to the console; the superadmin's
+  own cookie session is never read or destroyed.
+- **The token follows every app URL through `url()`.** One central helper (rather than editing hundreds of
+  views) means links, form actions, redirects, pagination URLs and the live-refresh feed all stay in the
+  session; `asset_url()`, `absolute_url()` and media paths are explicitly excluded so the bearer token cannot
+  leak into a shared referral link or a cache key.
+- **No new live surface.** The console and audit lists are ordinary pages; Phase 15 owns dashboards/reports.
+  The member pages that are already live keep working because the token rides the current URL.
+- **The `imp` query key is part of the live ETag scope.** That is harmless (it is stable per tab) and keeps a
+  feed response from being shared across sessions.
+
+### Gate checklist (plan §7 Phase 14)
+
+- [x] All P14 tests pass (24 new cases; suite **669**)
+- [x] `php -l` clean (every touched PHP file)
+- [x] Full regression suite passes (Phases 1-13 green, including the migration and parity checks)
+- [x] Migration applied to dev DB; `schema.sql` carries the same shape; a re-run is a no-op
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
+- [x] Smoke script passes (**173 checks**, 12 new)
+- [x] Audit rows verified: hashed-only nonce, `active` -> `logged_out`/`expired`, no raw token anywhere
+- [x] No admin route is reachable from an impersonated tab; a plain admin gets 403 on `/slogin`
+- [x] The superadmin's own session stays valid through the whole round trip
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-14-super-login.md`) - automated and smoke passes complete
+- [x] Docs updated (this log, QA pack + sign-off sheet, `docs/deploy.md`, both READMEs)
+- [x] Backup taken; tag `phase-14`
+
+### Next
+
+Phase 15 - hardening, dashboards, reports, UAT and launch. The super-login audit is already in place for
+the Phase 15 audit report (P15-T12); the remaining work is the dashboard/report surfaces, the full settings
+page, the security/operations review and the signed UAT.

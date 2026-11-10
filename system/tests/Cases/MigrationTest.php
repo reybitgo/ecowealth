@@ -30,6 +30,7 @@ $migrations    = [
     $migrationDir . '015_package_b_premium_ladder.sql',
     $migrationDir . '016_transfers.sql',
     $migrationDir . '017_payouts.sql',
+    $migrationDir . '018_impersonation.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -91,6 +92,7 @@ return [
             'shop_payment_proofs', 'shop_shipments', 'shop_invoices', 'shop_invoice_items',
             'reg_codes', 'activations', 'commissions', 'ewallet_transfers', 'live_revisions',
             'payout_requests',
+            'impersonation_log',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -269,6 +271,7 @@ return [
         assert_same($columnList($fresh, 'commissions'), $columnList($migrated, 'commissions'), 'commissions columns differ from schema.sql');
         assert_same($columnList($fresh, 'ewallet_transfers'), $columnList($migrated, 'ewallet_transfers'), 'ewallet_transfers columns differ from schema.sql');
         assert_same($columnList($fresh, 'payout_requests'), $columnList($migrated, 'payout_requests'), 'payout_requests columns differ from schema.sql');
+        assert_same($columnList($fresh, 'impersonation_log'), $columnList($migrated, 'impersonation_log'), 'impersonation_log columns differ from schema.sql');
         assert_same($columnList($fresh, 'live_revisions'), $columnList($migrated, 'live_revisions'), 'live_revisions columns differ from schema.sql');
     },
 
@@ -755,6 +758,59 @@ return [
             0,
             (int) $pdo->query("SELECT COUNT(*) FROM payout_requests WHERE id = {$payoutId}")->fetchColumn()
         );
+    },
+
+    'migration guards the impersonation audit and its hashed nonce' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $memberId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        $adminId  = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+
+        $nonce = str_repeat('ab', 32);
+        $hash  = hash('sha256', $nonce);
+
+        $insert = static function (PDO $pdo, int $adminId, int $memberId, string $hash, string $status = 'active'): void {
+            $pdo->exec(
+                "INSERT INTO impersonation_log
+                   (superadmin_id, superadmin_name, target_user_id, target_username,
+                    nonce_hash, ip, user_agent, status, expires_at)
+                 VALUES ({$adminId}, 'legacy_admin', {$memberId}, 'legacy_user',
+                         '{$hash}', '127.0.0.1', 'MigrationTest/1.0', '{$status}', DATE_ADD(NOW(), INTERVAL 8 HOUR))"
+            );
+        };
+
+        $insert($pdo, $adminId, $memberId, $hash);
+        $logId = (int) $pdo->lastInsertId();
+
+        $row = $pdo->query("SELECT * FROM impersonation_log WHERE id = {$logId}")->fetch();
+
+        assert_same('active', $row['status']);
+        assert_same($hash, $row['nonce_hash']);
+        assert_same(64, strlen((string) $row['nonce_hash']));
+        assert_not_contains($nonce, (string) json_encode($row), 'the raw nonce must never be stored');
+
+        /* The nonce hash is the unique anchor: one row per URL token. */
+        assert_throws(static fn () => $insert($pdo, $adminId, $memberId, $hash), PDOException::class);
+
+        /* Only the three plan §4.4 states exist. */
+        assert_throws(static fn () => $insert($pdo, $adminId, $memberId, str_repeat('cd', 32), 'closed'), PDOException::class);
+
+        /* Deleting the viewed member removes their sessions. */
+        $pdo->exec("DELETE FROM users WHERE id = {$memberId}");
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM impersonation_log WHERE id = {$logId}")->fetchColumn());
+
+        /* Deleting the superadmin removes their sessions too. */
+        $pdo->exec(
+            "INSERT INTO users (username, email, password_hash, role)
+             VALUES ('fallback_member', 'fallback@test.local', 'x', 'member')"
+        );
+        $fallbackId = (int) $pdo->lastInsertId();
+
+        $insert($pdo, $adminId, $fallbackId, str_repeat('ef', 32));
+        $secondId = (int) $pdo->lastInsertId();
+
+        $pdo->exec("DELETE FROM users WHERE id = {$adminId}");
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM impersonation_log WHERE id = {$secondId}")->fetchColumn());
     },
 
     'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {        $pdo = $buildMigrated();
