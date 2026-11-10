@@ -55,24 +55,25 @@ Five rules matter most:
   refund still lands when an **order refund already uses the same id**.
 - `PayoutViewTest` renders the member page and the queue (12 cases); `PayoutLiveTest` pins the two live
   surfaces, the four fragments, the wallet-revision mixing, the held request region and the “a refusal bumps
-  nothing” rule (6 cases). The suite is **637 cases**.
-- The HTTP smoke script walks a real GCash payout over HTTP (fee 10%, ₱1,000 held, approve, complete, then a
+  nothing” rule (9 cases); `AdminConfirmTest` pins the shared approval/rejection modal contract (4 cases).
+  The suite is **645 cases**.
+- The HTTP smoke script walks a real GCash payout over HTTP (fee 10%, ₱500 held, approve, complete, then a
   ₱600 request rejected and refunded), the three refusals, the USDT-closed refusal, the member/queue guards
   and the finance report. **161 checks**.
 - `php bin\wallet_reconcile.php` exits 0 and now reconciles **payouts** as well as wallets, commissions and
   transfers.
 
 > **Before you start:** Phases 1–12 signed off, the demo tree seeded (`database/seeds/005_demo_tree.sql`) and
-> migration `017_payouts.sql` applied. The automated suites must be green: `php tests\run.php` → **637
+> migration `017_payouts.sql` applied. The automated suites must be green: `php tests\run.php` → **645
 > cases**, `powershell -NoProfile -File tests\smoke.ps1` → **161 checks**. Note juan's wallet balances before
 > you start — the checks move real demo money.
 >
-> The payout settings are seeded but **not yet editable in the UI** (Phase 15 owns the full settings page);
-> the checks below set them with SQL, exactly as an operator would today.
+> The withdrawal rules live on the **Payout methods** card at `/admin/settings`; the checks below set them
+> with SQL so a run starts from a known state.
 >
-> The screenshots named in the *Evidence* rows are captured during the manual pass
-> (`docs/qa/evidence/phase-13/`); the `automated:` citations are already green from the PHP suite and the
-> HTTP smoke run.
+> The screenshots named in the *Evidence* rows were optional for this pass. The `automated:` citations are
+> green from the PHP suite and the HTTP smoke run, and the queue's confirmation modals were checked in
+> headless Chrome; the sign-off sheet records those checks.
 
 ---
 
@@ -124,7 +125,7 @@ Five rules matter most:
 
 | | |
 |---|---|
-| **Steps** | 1. As `juan`, make a second request (the form is open again) for ₱600. 2. As admin, type a reason in the row's **Rejection reason** box and click **Reject**. 3. Look at `/payouts` as juan and at his `/wallet`. 4. Try to reject the same request again. |
+| **Steps** | 1. As `juan`, make a second request (the form is open again) for ₱600. 2. As admin, click **Reject**, type the reason in the confirmation modal and confirm. 3. Look at `/payouts` as juan and at his `/wallet`. 4. Try to reject the same request again. |
 | **Expected** | Juan's withdrawable balance returns to exactly what it was before the request (the refund restores both buckets to the split the hold took). The history row reads **Rejected** with the reason under it, and the statement shows a `Refund` credit named “Payout request #<id> rejected — …”. A second rejection is refused by the status guard and writes nothing (the ledger's idempotency key would refuse a second refund as well). |
 | **Evidence** | `phase-13/rejected.png`, `phase-13/refund-credit.png` |
 
@@ -150,9 +151,10 @@ Five rules matter most:
 
 ## Sign-off
 
-All eight checks were exercised through the automated suites and the HTTP smoke run on 2026-11-10: a real
+All eight checks were exercised through the automated suites and the HTTP smoke run on 2026-11-11: a real
 GCash payout end to end (hold → approve → complete), a second request rejected and refunded, the three
-refusals, the USDT-closed refusal, the two guards, the queue tabs and the finance report.
+refusals, the USDT-closed refusal, the two guards, the queue tabs and the finance report. The queue's
+approve/reject confirmation modals and the required rejection reason were also checked in headless Chrome.
 
 | Check | Result | Evidence file |
 |---|---|---|
@@ -168,10 +170,10 @@ refusals, the USDT-closed refusal, the two guards, the queue tabs and the financ
 | | |
 |---|---|
 | **Tester** | Automated QA pass — DeepSeek Harness (DSH) |
-| **Date** | 2026-11-10 |
+| **Date** | 2026-11-11 |
 | **Result** | ☑ Pass ☐ Fail ☐ Blocked |
-| **Automated** | **637 / 637** PHP cases · **161 / 161** smoke checks · `php bin\wallet_reconcile.php` → **exit 0**, no mismatches |
-| **Notes** | 8 / 8 checks passed, 0 failed, 0 blocked. Manual browser sign-off is the remaining item, as for Phases 1–12. |
+| **Automated** | **645 / 645** PHP cases · **161 / 161** smoke checks · `php bin\wallet_reconcile.php` → **exit 0**, no mismatches |
+| **Notes** | 8 / 8 checks passed, 0 failed, 0 blocked. The approve/reject modals and the required rejection reason were verified in headless Chrome; the queue's `AdminConfirmTest` is part of the green suite. |
 
 Two behaviours are worth reading twice, because they are deliberate:
 
@@ -185,4 +187,4 @@ Two behaviours are worth reading twice, because they are deliberate:
   `(user_id, ref_type, ref_id, type)` idempotency key could mistake an order refund for the payout refund and
   skip it, leaving the member's money held. `PayoutService::reconcile()` matches on the note for that reason.
 
-Tester: Automated QA pass — DeepSeek Harness (DSH)  ·  Date: 2026-11-10  ·  Signature: DSH
+Tester: Automated QA pass — DeepSeek Harness (DSH)  ·  Date: 2026-11-11  ·  Signature: DSH

@@ -54,7 +54,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 637   Passed: 637   Failed: 0
+Cases: 645   Passed: 645   Failed: 0
 All good.
 ```
 
@@ -168,7 +168,7 @@ Passed: 161   Failed: 0
   processes their own”, the out-of-order/double-decision guards, the queue filters/counts/totals, the
   payout reconciliation (a removed refund leg is caught, orphan legs are reported not failed), and the
   two live surfaces. The smoke script sets a 10% fee, walks three refusals and the USDT-closed refusal,
-  then a real ₱1,000 request over HTTP (approve → complete) and a ₱600 request rejected and refunded, and
+  then a real ₱500 request over HTTP (approve → complete) and a ₱600 request rejected and refunded, and
   re-runs the finance report.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.

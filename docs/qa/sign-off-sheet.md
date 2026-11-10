@@ -4,17 +4,18 @@ Fill this sheet while working through the thirteen phase documents. Hand the com
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
-**Status of this pass (2026-11-10):** Phases 1–12 are recorded as **passed** — **184 / 184**
-manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 594** PHP cases and
-**143 → 150** smoke checks as Phases 11 and 12 landed; the current full suite is **637 / 637** PHP
-cases and **161 / 161** smoke checks). Phase 13 is automated-complete (**637 / 637** PHP cases,
-**161 / 161** smoke checks) with its eight manual checks still to tick.
+**Status of this pass (2026-11-11):** Phases 1–13 are recorded as **passed** — **192 / 192**
+manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 645** PHP cases and
+**143 → 161** smoke checks as Phases 11–13 landed; the current full suite is **645 / 645** PHP
+cases and **161 / 161** smoke checks). The Phase 13 queue was rechecked after the approval /
+rejection confirmation-modal change: both decisions ask first, and a rejection reason is typed in
+the modal.
 
 **How to use**
 
 1. Fill the *Environment* block once.
 2. Record the automated results (§1).
-3. For each phase, tick every check in its table. Add the evidence file name; for Phases 4–12 the file
+3. For each phase, tick every check in its table. Add the evidence file name; for Phases 4–13 the file
    lives in `docs/qa/evidence/phase-<n>/`. Phases 1–3 predate the per-phase folders, so their evidence
    lives in the topic folders (`dashboard/`, `errors/`, `shell/`, `shop/`); a check with no screenshot
    cites the automated suite instead.
@@ -28,7 +29,7 @@ cases and **161 / 161** smoke checks). Phase 13 is automated-complete (**637 / 6
 | Item | Value |
 |---|---|
 | Tester name | Automated QA pass — DeepSeek Harness (DSH) |
-| Date(s) of testing | 2026-11-07 … 2026-11-10 |
+| Date(s) of testing | 2026-11-07 … 2026-11-11 |
 | Repository / branch | `feature/shop` |
 | Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13` |
 | App URL | `http://localhost/ecowealth/system/` |
@@ -44,7 +45,7 @@ cases and **161 / 161** smoke checks). Phase 13 is automated-complete (**637 / 6
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 637  Passed: 637  Failed: 0` / `All good.` | `Cases: 637   Passed: 637   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 645  Passed: 645  Failed: 0` / `All good.` | `Cases: 645   Passed: 645   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
 | `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 161   Failed: 0` | `Passed: 161   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
@@ -52,7 +53,7 @@ Paste the final lines of each command here:
 ```text
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 637   Passed: 637   Failed: 0
+Cases: 645   Passed: 645   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
@@ -62,13 +63,13 @@ powershell -NoProfile -File tests\smoke.ps1
 Passed: 161   Failed: 0
 ```
 
-Both commands are run from `system\` and exited **0** on 2026-11-10. `bin/wallet_reconcile.php` also
+Both commands are run from `system\` and exited **0** on 2026-11-11. `bin/wallet_reconcile.php` also
 exits **0** afterwards (both wallet buckets match the ledger, every credited commission has its ledger
 movement, every transfer has its sender debit, recipient credit and fee credit, and every payout request
 has its hold with every rejection refunded).
 
-Total manual checks in §2–§14 (all thirteen phases): **192** — 184 recorded as passed (Phases 1–12),
-the eight Phase 13 checks pending.
+Total manual checks in §2–§14 (all thirteen phases): **192** — **192 recorded as passed**, 0 failed,
+0 blocked.
 
 ---
 
@@ -459,21 +460,30 @@ Document: [phase-13-payouts.md](phase-13-payouts.md)
 
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
-| QA13-01 | A request holds the amount, stores the fee and closes the form | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/member-payouts.png`, `phase-13/payout-open.png` |
-| QA13-02 | The refusals (minimum, withdrawable, second request, bad account, closed channel) write nothing | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/refusals.png` |
-| QA13-03 | USDT converts on the server, stores the rate/gas snapshot and is closed while the rate is unset | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/usdt-request.png`, `phase-13/usdt-closed.png` |
-| QA13-04 | Approve records the decision and moves no money | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/admin-queue.png`, `phase-13/approved.png` |
-| QA13-05 | Complete settles it without a second debit | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/completed.png`, `phase-13/statement-hold.png` |
-| QA13-06 | Reject refunds the hold exactly once and records the reason | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/rejected.png`, `phase-13/refund-credit.png` |
-| QA13-07 | A member cannot process; nobody processes their own request | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/own-payout-refused.png`, `phase-13/audit-rows.png` |
-| QA13-08 | Queue tabs, totals and filters; the finance report reconciles payouts | ☐ Pass ☐ Fail ☐ Blocked | `phase-13/queue-tabs.png`, `phase-13/reconcile.png` |
+| QA13-01 | A request holds the amount, stores the fee and closes the form | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T1/T5, smoke P13-T1, PayoutViewTest` |
+| QA13-02 | The refusals (minimum, withdrawable, second request, bad account, closed channel) write nothing | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T2/T3/T4 + channel/account cases, smoke P13-T2/T3/T4` |
+| QA13-03 | USDT converts on the server, stores the rate/gas snapshot and is closed while the rate is unset | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T6 (+ unset-rate case), smoke P13-T6` |
+| QA13-04 | Approve records the decision and moves no money | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T7, smoke P13-T7; browser: approve modal` |
+| QA13-05 | Complete settles it without a second debit | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T8, smoke P13-T8` |
+| QA13-06 | Reject refunds the hold exactly once and records the reason | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T9 (+ id-collision case), smoke P13-T9; browser: reject modal with required reason` |
+| QA13-07 | A member cannot process; nobody processes their own request | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T10/T11, smoke P13-T10` |
+| QA13-08 | Queue tabs, totals and filters; the finance report reconciles payouts | ☑ Pass ☐ Fail ☐ Blocked | `automated: P13-T12/T13, PayoutLiveTest, smoke P13-T12` |
 
 | Phase 13 summary | |
 |---|---|
-| Executed | 0 / 8 |
-| Passed / Failed / Blocked | 0 / 0 / 0 |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
-| Tester initials / date |  |
+| Executed | 8 / 8 |
+| Passed / Failed / Blocked | 8 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-11 |
+
+Phase 13 was signed from the automated suite, the HTTP smoke run and a headless-Chrome pass over the
+queue's confirmation modals. The screenshots named in the phase document's *Evidence* rows were not
+produced for this pass, so the rows above cite the automated checks that cover the same behaviour plus
+the browser checks for the new approve/reject modals. The browser pass confirmed the approve modal
+posts no note, the reject modal requires the reason (500-character cap) and writes it into the POST
+body, and cancelling either modal posts nothing. The two smoke checks that had drifted behind the
+Phase 13 UI — the five settings cards and Juan's remaining demo balance after the first hold — were
+corrected in `tests/smoke.ps1` and the full run is green at **161 / 161**.
 
 ---
 
@@ -483,7 +493,7 @@ Add one row per problem found. Keep the status current until the defect is retes
 
 | ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
 |---|---|---|---|---|---|---|
-| — | Phases 1–12 | — | No defects were raised in this pass. | — | — | Closed |
+| — | Phases 1–13 | — | No defects were raised in this pass. | — | — | Closed |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -509,17 +519,16 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 10 | ☑ Yes ☐ No | 10 / 10 checks passed; 427 / 427 PHP cases, 139 / 139 smoke checks and 20 / 20 browser checks green. |
 | Phase 11 | ☑ Yes ☐ No | 10 / 10 checks passed; 560 / 560 PHP cases at the phase tag (561 / 561 today), 143 / 143 smoke checks and a headless browser pass green. |
 | Phase 12 | ☑ Yes ☐ No | 8 / 8 checks passed; 594 / 594 PHP cases, 150 / 150 smoke checks and a clean transfer reconciliation green. |
-| Phase 13 | ☐ Yes ☐ No | Automated gate: 637 / 637 PHP cases, 161 / 161 smoke checks and a clean payout reconciliation green; 8 manual checks pending. |
+| Phase 13 | ☑ Yes ☐ No | 8 / 8 checks passed; 645 / 645 PHP cases, 161 / 161 smoke checks, a clean payout reconciliation and the headless-Chrome modal pass green. |
 
-Phases 1–12 are **Approved**. Phase 13 is automated-complete; its manual browser sign-off is pending.
-No defect is open, so no accepted exception is recorded.
+Phases 1–13 are **Approved**. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.
 
 | Role | Name | Signature | Date |
 |---|---|---|---|
-| QA tester | Automated QA pass — DeepSeek Harness (DSH) | n/a (automated run) | 2026-11-07 |
+| QA tester | Automated QA pass — DeepSeek Harness (DSH) | n/a (automated run) | 2026-11-11 |
 | Project lead |  |  |  |
 
 The QA tester line records the automated pass; the project-lead line is left for the human

@@ -1528,7 +1528,7 @@ try {
         $settingsSnapshot[$key] = Get-SettingValue $key
     }
 
-    $sectionForms = ([regex]::Matches($settingsPage.Body, 'name="section" value="(shop|accounts|windows|fulfilment)"')).Count
+    $sectionForms = ([regex]::Matches($settingsPage.Body, 'name="section" value="(shop|accounts|payouts|windows|fulfilment)"')).Count
     $saveButtons  = ([regex]::Matches($settingsPage.Body, 'Save settings')).Count
 
     # 1. Receiving accounts.
@@ -1597,7 +1597,7 @@ try {
             -and $settingsPage.Body -match 'name="seller_name"' `
             -and $settingsPage.Body -match 'name="shop_autocomplete_days"' `
             -and $settingsPage.Body -match 'Fulfilment &amp; invoices' `
-            -and $sectionForms -eq 4 -and $saveButtons -eq 4 `
+            -and $sectionForms -eq 5 -and $saveButtons -eq 5 `
             -and $saveAccounts.Status -eq 302 -and $gcashSaved -eq '0917 123 4567' `
             -and $saveFulfilment.Status -eq 302 -and $sellerSaved -eq 'EcoWealth Smoke Trading' `
             -and $daysSaved -eq '9' -and $autoSaved -eq '1' `
@@ -2510,10 +2510,10 @@ try {
         "bin/wallet_reconcile.php reconciles transfers (exit=$p12ReconcileExit, checked=$($p12ReconcileJson.transfers.checked))"
 
     # ---- Phase 13: payouts ------------------------------------------------
-    # juan asks to withdraw 1000 through GCash with a 10% fee: 1000 is held
-    # (pending, one ledger debit), the fee is 100 and the net is 900. The
-    # admin approves and completes it, then a second request is rejected and
-    # the hold comes back. The finally block deletes the requests, their
+    # juan asks to withdraw 500 through GCash with a 10% fee: 500 is held
+    # (pending, one ledger debit), the fee is 50 and the net is 450. The
+    # admin approves and completes it, then a second 600 request is rejected
+    # and the hold comes back. The finally block deletes the requests, their
     # ledger legs and their audit rows; the Phase 10 snapshot restores every
     # wallet balance.
     $p13LedgerStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
@@ -2588,10 +2588,11 @@ try {
             -and ($p13TooMuchPage.Body -match 'You can withdraw up to')) `
         "an amount above the withdrawable bucket is refused (rows=$p13TooMuchRows)"
 
-    # P13-T1/T5 - the real request: a 1000 hold, a 100 fee, a 900 net.
+    # P13-T1/T5 - the real request: a 500 hold, a 50 fee, a 450 net.
+    # The demo balance leaves room for the separate 600 rejection below.
     $p13Post = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
         '_csrf'         = $payoutToken
-        'amount'        = '1000.00'
+        'amount'        = '500.00'
         'payout_method' = 'gcash'
         'account_gcash' = '0917 123 4567'
     }
@@ -2600,12 +2601,12 @@ try {
     $p13JuanAfter  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
     $p13JuanWithdrawableAfter = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
     $p13PayoutId = [int]((Invoke-MySql "SELECT id FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
-    $p13MoneyOk = ([math]::Abs($p13JuanAfter - ($p13JuanBefore - 1000)) -lt 0.005) `
-        -and ([math]::Abs($p13JuanWithdrawableAfter - ($p13JuanWithdrawable - 1000)) -lt 0.005)
+    $p13MoneyOk = ([math]::Abs($p13JuanAfter - ($p13JuanBefore - 500)) -lt 0.005) `
+        -and ([math]::Abs($p13JuanWithdrawableAfter - ($p13JuanWithdrawable - 500)) -lt 0.005)
     Assert-That 'P13-T1' ($p13Post.Status -eq 302 -and $p13Post.Location -match '/payouts$' `
-            -and $p13Row -eq '1000.00|gcash|09171234567|10.00|100.00|pending' `
-            -and $p13Legs -eq '1|1000.00' -and $p13MoneyOk) `
-        "juan requests 1000 with a 10% fee: held, one ledger debit, net 900 (row=$p13Row, legs=$p13Legs, balance=$p13JuanAfter was $p13JuanBefore)"
+            -and $p13Row -eq '500.00|gcash|09171234567|10.00|50.00|pending' `
+            -and $p13Legs -eq '1|500.00' -and $p13MoneyOk) `
+        "juan requests 500 with a 10% fee: held, one ledger debit, net 450 (row=$p13Row, legs=$p13Legs, balance=$p13JuanAfter was $p13JuanBefore)"
 
     # P13-T4 - the form closes while a request is open, and a second is refused.
     $p13OpenPage = Invoke-App -Path '/payouts' -Session 'p10a'
