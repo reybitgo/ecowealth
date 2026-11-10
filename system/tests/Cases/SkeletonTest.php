@@ -199,6 +199,44 @@ return [
         assert_same([], Validator::check(['sku' => ''], ['sku' => 'nullable|string|min:3']));
     },
 
+    /* A numeric-looking value on a `string` field is text, so min/max
+     * count characters. Letting the value decide made a 4-character
+     * password read "Password must be at most 200" — which looks like
+     * the amount typed beside it — and let `min:8` accept "1234". */
+    'Validator counts characters when a field says string' => function (): void {
+        assert_same([], Validator::check(['password' => '2000'], ['password' => 'required|string|max:200']));
+        assert_same([], Validator::check(['note' => '300'], ['note' => 'nullable|string|max:255']));
+        assert_same([], Validator::check(['phone' => '09171234567'], ['phone' => 'nullable|string|max:40']));
+        assert_same([], Validator::check(['sku' => '123456'], ['sku' => 'nullable|string|max:64']));
+
+        $short = Validator::check(['password' => '1234'], ['password' => 'required|string|min:8|max:100']);
+        assert_contains('at least 8 characters', $short['password'] ?? '');
+
+        /* The sharpest case: one digit used to satisfy min:8 because
+         * 9 >= 8 — an eight-character floor with no floor at all. */
+        $digit = Validator::check(['password' => '9'], ['password' => 'required|string|min:8|max:100']);
+        assert_contains('at least 8 characters', $digit['password'] ?? '');
+
+        $long = Validator::check(
+            ['password' => str_repeat('9', 201)],
+            ['password' => 'required|string|max:200']
+        );
+        assert_contains('at most 200 characters', $long['password'] ?? '');
+    },
+
+    /* An amount is still an amount: the numeric family and an untyped
+     * rule keep min/max as bounds, never as lengths. */
+    'Validator keeps amount semantics on numeric fields' => function (): void {
+        $errors = Validator::check(['quantity' => '50'], ['quantity' => 'required|integer|min:1|max:40']);
+
+        assert_contains('at most 40', $errors['quantity'] ?? '');
+        assert_not_contains('characters', $errors['quantity'] ?? '');
+
+        assert_same([], Validator::check(['price' => '300'], ['price' => 'required|max:1000']));
+        $tooBig = Validator::check(['price' => '2000'], ['price' => 'required|max:1000']);
+        assert_contains('at most 1000', $tooBig['price'] ?? '');
+    },
+
     'Validator unique rule reads the database' => function (): void {
         $errors = Validator::check(['username' => 'admin'], ['username' => 'required|unique:users,username']);
         assert_contains('already taken', $errors['username'] ?? '');

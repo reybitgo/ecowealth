@@ -55,7 +55,10 @@
   font-size: 1.05rem;
 }
 
-/* Long ledger notes stay readable but never stretch the row. */
+/* Long ledger notes stay readable but never stretch the row. Apply the
+ * class to an element *inside* the cell, never to the <td> itself:
+ * `display:-webkit-box` on a table cell takes it out of the table
+ * layout and shifts the whole column off the row's baseline. */
 .wallet-ref-note {
   display: -webkit-box;
   -webkit-line-clamp: 2;

@@ -82,7 +82,9 @@ $userId = (int) ($account['id'] ?? 0);
                           <?= e(money((float) $transfer['amount'], true)) ?>
                         </td>
                         <td class="text-end text-nowrap text-body-secondary small"><?= $fee > 0 ? e(money($fee)) : '—' ?></td>
-                        <td class="small text-body-secondary wallet-ref-note"><?= $note !== '' ? e($note) : '—' ?></td>
+                        <td class="small text-body-secondary">
+                          <div class="wallet-ref-note"><?= $note !== '' ? e($note) : '—' ?></div>
+                        </td>
                       </tr>
 <?php endforeach; ?>
                     </tbody>

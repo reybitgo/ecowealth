@@ -12,6 +12,20 @@ declare(strict_types=1);
  * The member re-enters their password (plan D22: required, reference
  * behaviour) because a transfer is irreversible.
  *
+ * `novalidate` is deliberate, and so is the `min` attribute it switches
+ * off. With the browser's own validation in charge, a below-minimum
+ * amount (10 against a 50 floor) never reached TransferController: the
+ * browser cancelled the POST, put the cursor back in the amount field
+ * and showed nothing the page owned — no flash banner, no
+ * invalid-feedback, nothing but a native bubble this theme cannot
+ * style. The refusal was correct but invisible. With `novalidate`
+ * every submit reaches the server, which answers with the same red
+ * banner and the same `.is-invalid` + `.invalid-feedback` pair every
+ * other form in this app uses — the notification a member already sees
+ * for an amount the balance cannot cover. `min`/`required` stay for
+ * assistive technology and the number spinner; the server owns the
+ * decision, and assets/js/app-transfer.js only previews the cost.
+ *
  * @var array<string, mixed> $limits
  * @var string $transfer_url
  * @var string $prefill_to
@@ -36,6 +50,7 @@ $note      = old('note');
                       action="<?= e($transfer_url) ?>"
                       id="transferForm"
                       data-transfer-form
+                      novalidate
                       data-fee="<?= e((string) $fee) ?>"
                       data-min="<?= e((string) $minimum) ?>"
                       data-max="<?= e((string) $maxSend) ?>"

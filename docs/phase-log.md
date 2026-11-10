@@ -2829,3 +2829,112 @@ level's members off the page, and every card carries its own controls and "Showi
 Phase 13 — payouts: members cash out withdrawable earnings (GCash, Maya, USDT), staff approve,
 complete or reject with a hold/refund, service fees and the USDT net maths are computed server-side,
 and every request is one auditable row with its ledger movements.
+
+---
+
+## Post-Phase 12 — A refused transfer says why
+
+**Date:** 2026-11-10 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 594 PHP cases
+(same count — assertions were added to an existing case).
+
+### Problem
+
+Typing **10** into the amount on `/wallet/transfer` (a ₱50 floor) and submitting produced **no
+notification at all**: the cursor jumped back into the amount control and the page did nothing else.
+The refusal itself was correct — nothing was written — but it was invisible.
+
+The cause was that the form left validation to the browser. Its amount input carried `min="50"` and
+`required`, the form had no `novalidate`, and the browser's constraint validation therefore cancelled
+the POST before `TransferController::send()` ever ran. That is also why nothing the page owns could
+appear: no `flash_set('danger', …)` banner, no `is-invalid`, no `invalid-feedback` — only the browser's
+own transient tooltip (themed by the browser, not by this app, and easy to miss: the member who
+reported it saw no message at all) and the small grey preview hint below the fee card. The server was
+fully prepared to explain the refusal, and `QA12-03` documents it returning to the form with the
+message on the amount field; the browser simply never let that happen.
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **View** | `app/views/member/transfer/_form.php` — the form now carries `novalidate`, so a submit always reaches the server and every refusal is explained by the app: the red flash banner at the top of the content area plus the amount field's `is-invalid` + `invalid-feedback`. That is the same notification the page already shows for an amount the balance cannot cover. `min`/`required` stay for assistive technology and the number spinner; the server still owns the decision. |
+| **Tests** | `tests/Cases/TransferViewTest.php` — P12-T1 now asserts `novalidate` and `data-min="50"` on the real rendered form, so the browser can never silently take the refusal back. |
+| **Evidence** | `docs/qa/evidence/phase-12/refusals.png` — the refusal as a member sees it: the banner and the message under the amount field. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **594 / 594** |
+| Headless Chrome, before the fix | `noValidate=false`; the POST was cancelled (URL unchanged); `focus=transferAmount`; no banner, no `is-invalid`, no field message; only the subtle preview hint |
+| Headless Chrome, after the fix | `noValidate=true`; the POST returns to the form; `.alert-danger` reads *“The minimum transfer is ₱50.00 (you entered ₱10.00).”*; the amount field is `is-invalid` and repeats the message in a visible `invalid-feedback`; the recipient stays filled; **no toast is raised**; the page lands at the top, banner in view |
+| Headless Chrome, `app-transfer.js` blocked | no page script: identical banner and field error, so the notification never depends on JavaScript |
+| Data check | no transfer row, no ledger row and no counter moved during any of the probes (every attempt was a refusal) |
+
+### Decisions
+
+- **The page owns its refusals, not the browser.** Every other form in this app already works this
+  way (`novalidate` on checkout, the profile and the admin product/package forms): the server decides
+  and the view explains. The transfer form was the outlier, and its `min` attribute is what made a
+  correct refusal invisible.
+- **One notification, one shape.** A refusal is the red banner plus the message under the field that
+  caused it — no toast, no second mechanism. A below-minimum amount now looks exactly like an
+  insufficient-balance refusal, which the member already knows how to read.
+- **No client-side gate.** The floor could be repeated in JavaScript, but then the page would need its
+  own banner (or a toast) to announce it, and two mechanisms drift apart. The server answers in one
+  round trip with the wording `TransferService` uses; the while-typing preview stays the only
+  client-side hint.
+- **`min`/`required` were kept.** With `novalidate` they no longer gate the submit, but they still give
+  mobile keyboards and screen readers the floor and keep the number spinner honest.
+
+---
+
+## Post-Phase 12 — A numeric password is text, not an amount
+
+**Date:** 2026-11-10 · **Branch:** `feature/shop` · **Status:** complete · **Tests:** 596 PHP cases
+(2 new).
+
+### Problem
+
+A transfer with a numeric password came back with **“Password must be at most 200.”** under the
+password field while the amount read 200 — it looked as if the amount had leaked into the password
+message. It had not: the rule is `required|string|max:200` (200 *characters*), and the member's
+password was well under it.
+
+`Validator::isNumericField()` decided how `min`/`max` read a field **from the value** before it looked
+at the rules. A numeric string won, so `max:200` compared the number instead of the length, and the
+numeric branch's message has no “characters” in it. Every text field holding digits was affected:
+
+| Field | Rule | Value | Old result |
+|---|---|---|---|
+| Transfer password | `required\|string\|max:200` | `1234` | “Password must be at most 200.” |
+| Profile password | `required\|string\|min:8\|max:100` | `9` | **passed** — 9 ≥ 8 satisfied the eight-character floor |
+| Transfer note | `nullable\|string\|max:255` | `300` | “Note must be at most 255.” (a 3-character note) |
+| Address phone | `nullable\|string\|max:40` | `09171234567` | “Phone must be at most 40.” |
+| Product SKU | `nullable\|string\|max:64` | `123456789` | “Sku must be at most 64.” |
+
+### Changes
+
+| Area | Change |
+|---|---|
+| **Core** | `app/Core/Validator.php` — `isNumericField()` reads the rules first: an explicit `string` rule wins, so `min`/`max` count characters. The numeric family (`numeric`, `integer`, `decimal`, `gt`, `gte`, `lt`, `lte`) keeps amount semantics, and a rule naming no type at all still infers from the value, so `required\|max:1000` remains an amount. |
+| **Tests** | `tests/Cases/SkeletonTest.php` — two cases: numeric-looking text is measured in characters (including the one-digit `min:8` bypass and a 201-character password reading “at most 200 characters”), and numeric fields keep amount bounds. |
+| **Docs** | this entry. |
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `php tests/run.php` | **596 / 596** |
+| Validator, before | password `1234` → “must be at most 200”; note `300` → “must be at most 255”; phone `09171234567` → “must be at most 40”; password `9` satisfied `min:8` |
+| Validator, after | all four pass as text; password `9` and `1234` → “must be at least 8 characters”; a 201-digit password → “must be at most 200 characters”; integer `50` against `max:40` → “at most 40” (a number) |
+| Transfer page, after | numeric password `1234` → **“Your password is not correct. The transfer was not sent.”** on the password field; a note of `300` no longer errors; a 201-character password → “Password must be at most 200 characters.” |
+
+### Decisions
+
+- **The type rule decides, not the value.** A `string` field is measured in characters even when its
+  content is all digits; value inference is kept only for a rule that names no type at all, which is
+  what the existing call sites rely on.
+- **Length messages now say “characters”.** “Password must be at most 200 characters.” cannot be
+  mistaken for the ₱200 amount sitting above it.
+- **One fix, every form.** Phone numbers, notes, SKUs, reference and tracking numbers all go through
+  the same rule engine, and the `min:8` bypass is closed for every password field on the site.

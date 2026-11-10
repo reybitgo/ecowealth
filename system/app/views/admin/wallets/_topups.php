@@ -40,7 +40,9 @@ declare(strict_types=1);
                         </td>
                         <td class="text-end text-nowrap fw-semibold wallet-amount-positive"><?= e(money((float) $topup['amount'], true)) ?></td>
                         <td><span class="badge bg-label-info"><?= e((string) $topup['admin_username']) ?></span></td>
-                        <td class="small text-body-secondary wallet-ref-note"><?= e(trim((string) ($topup['note'] ?? '')) !== '' ? (string) $topup['note'] : '—') ?></td>
+                        <td class="small text-body-secondary">
+                          <div class="wallet-ref-note"><?= e(trim((string) ($topup['note'] ?? '')) !== '' ? (string) $topup['note'] : '—') ?></div>
+                        </td>
                       </tr>
 <?php endforeach; ?>
                     </tbody>

@@ -60,7 +60,9 @@ $amount = static fn (float $value): string => money($value, true);
                         <td class="text-end text-nowrap small <?= $fee > 0 ? 'text-body' : 'text-body-secondary' ?>">
                           <?= $fee > 0 ? e(money($fee)) : '—' ?>
                         </td>
-                        <td class="small text-body-secondary wallet-ref-note"><?= $note !== '' ? e($note) : '—' ?></td>
+                        <td class="small text-body-secondary">
+                          <div class="wallet-ref-note"><?= $note !== '' ? e($note) : '—' ?></div>
+                        </td>
                       </tr>
 <?php endforeach; ?>
                     </tbody>

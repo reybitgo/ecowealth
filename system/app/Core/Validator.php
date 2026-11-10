@@ -257,14 +257,35 @@ final class Validator
         return ucfirst(str_replace(['_', '-'], ' ', $field));
     }
 
-    /** @param list<string> $rules */
+    /**
+     * Do min/max read this field as an amount or as text?
+     *
+     * An explicit `string` rule wins: `required|string|max:200` is a
+     * character limit even when the member typed a numeric password.
+     * The numeric family keeps amount semantics, and a field with no
+     * type rule at all still falls back to the value it happens to
+     * carry (`required|max:1000` means the amount 1,000).
+     *
+     * Reading the value alone used to win over `string`, so a numeric
+     * password, note or phone number was compared against the rule's
+     * limit as a number: a 4-character password hit "Password must be
+     * at most 200" — a message that reads like the amount beside it —
+     * `min:8` let "1234" through, and a phone number "09171234567"
+     * failed "Phone must be at most 40".
+     *
+     * @param list<string> $rules
+     */
     private function isNumericField(array $rules, mixed $value): bool
     {
         foreach ($rules as $rule) {
-            foreach (['numeric', 'integer', 'decimal', 'gt', 'gte', 'lt', 'lte'] as $numericRule) {
-                if ($rule === $numericRule || str_starts_with($rule, $numericRule . ':')) {
-                    return true;
-                }
+            $name = explode(':', $rule, 2)[0];
+
+            if ($name === 'string') {
+                return false;
+            }
+
+            if (in_array($name, ['numeric', 'integer', 'decimal', 'gt', 'gte', 'lt', 'lte'], true)) {
+                return true;
             }
         }
 

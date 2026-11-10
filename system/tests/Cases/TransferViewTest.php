@@ -97,6 +97,15 @@ return [
         assert_contains('name="password"', $html);
         assert_contains('Confirm with your password', $html);
 
+        /* The browser must not own the refusal: with `novalidate` a
+         * below-minimum amount reaches the server, whose flash banner and
+         * invalid-feedback explain it (QA12-03) — the same notification an
+         * insufficient balance already produces. Without it the browser
+         * cancelled the POST and only moved the cursor back to the field.
+         * `min`/`data-min` still print the floor and feed the preview. */
+        assert_contains('novalidate', $html);
+        assert_contains('data-min="50"', $html, 'the minimum the preview prints');
+
         /* The cost of the transfer is visible before it is sent. */
         assert_contains('Transfer fee', $html);
         assert_contains('Minimum transfer', $html);
