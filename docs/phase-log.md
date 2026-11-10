@@ -2938,3 +2938,111 @@ numeric branch's message has no “characters” in it. Every text field holding
   mistaken for the ₱200 amount sitting above it.
 - **One fix, every form.** Phone numbers, notes, SKUs, reference and tracking numbers all go through
   the same rule engine, and the `min:8` bypass is closed for every password field on the site.
+
+---
+
+## Phase 13 — Payouts
+
+**Date:** 2026-11-10 · **Branch:** `feature/shop` · **Gate tag:** `phase-13` · **Status:** complete
+(manual sign-off pending, as for Phases 1–12).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | Migration `017_payouts.sql` adds `payout_requests` (gross amount, method, account, fee pct/amount, USDT rate/gas/amount snapshots, the four-state status, the reason/note, `processed_by`/`processed_at`, the two supporting indexes and both FKs), the four `users` payout accounts as guarded no-ops (007 already adds them) and the eleven payout settings when they are missing. `schema.sql` carries the same table for a fresh install. |
+| **Service** | `PayoutService` — `request()` (the withdrawable check and the one-open-request rule under the account lock, the request row, the `payout` hold through `WalletService::debit()`, the audit row), `approve()`, `reject()` (status guard + refund), `complete()` (no wallet movement), `quote()` (the one fee/USDT calculation), `methodsFor()`/`optionsFor()` (the channels, prefilled accounts, availability and `can_request`), `reconcile()` and the settings readers. `PayoutException` carries reason codes (`amount`, `minimum`, `withdrawable`, `open_request`, `method`, `method_disabled`, `rate`, `account`, `status`, `not_found`, `self`, `admin`, `reason`, `user_missing`). |
+| **Model** | `Payout` (reads only): `find()`, `openFor()`, `forUser()`/`countFor()`, `memberTotals()`, `queue()`/`queueCount()`/`queueTotals()` with status + search + date filters, `statusCounts()` and `totals()`. |
+| **Member** | `GET /payouts` — the withdrawable card (both buckets, the minimum, what an open request holds, the ₱⇄USDT rate), the request form (amount, four channels with their saved account boxes, the fee/USDT preview, `novalidate` so the server explains every refusal), the open-request card, the withdrawal history (gross, fee, net, USDT amount, status, reason) and pagination; `POST /payouts/request` holds the funds. The `/wallet` statement gains the **Withdraw earnings** card. New **Payouts** menu item in both layouts (`My payouts` for staff). |
+| **Back office** | `GET /admin/payouts` — four stat cards (held, waiting, approved/sending, paid out) with the current minimum/rate/gas facts, status tabs with lifetime counts, gross/fee/net totals, search + date filters and the rows with their actions (approve, reject-with-a-reason, mark complete). `POST /admin/payouts/{id}/approve|reject|complete`. |
+| **Finance** | `bin/wallet_reconcile.php` gains a **Payouts** section: every request has exactly one `payout` debit of its amount and every rejection exactly one refund credit; orphan legs are reported as a count. |
+| **Tests** | `PayoutTest` (22 cases: P13-T1 … P13-T13 plus the channel/account/quote/options rules, a two-connection lock test and the order-refund id collision), `PayoutViewTest` (12), `PayoutLiveTest` (6); `MigrationTest` applies 017 and guards the payout status machine; router **75 → 81**; suite **596 → 637**. |
+| **Smoke** | Phase 13 block: the page + wallet card + guest guard, three refusals (minimum, withdrawable, USDT closed while the rate is unset), a real ₱1,000 request with a 10% fee, the one-open-request refusal, the member/admin guards, approve → complete (one debit), a second request rejected and refunded, and the finance report. **161 checks** in total. |
+| **Docs** | This log, `docs/qa/phase-13-payouts.md`, the QA README + sign-off sheet, `docs/live-updates.md`, `system/README.md` and the root `README.md`. |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backup | `backups/phase-13/db-pre-phase-13.sql` (461,423 bytes) before the migration and `backups/phase-13/db-post-phase-13-migration.sql` (510,013 bytes) immediately after it (git-ignored `backups/`) |
+| Migration | `017_payouts.sql` applied to `ecowealth_sneat`: `payout_requests` and the eleven payout settings (already seeded by 001); the four account columns were already present from 007 |
+| Verified | A second run changes nothing; `MigrationTest` applies 001–017 to the legacy fixture, compares the `payout_requests` columns with `schema.sql`, and asserts the status/method enums, the `processed_by` SET NULL and the member cascade |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P13-T1 | Valid request | **PASS** | ₱800 asked: `pending`, one `payout` debit, both buckets −800, the audit row `payout.request`; the page then shows the open card and no form |
+| P13-T2 | Below min payout | **PASS** | `minimum` refusal for ₱499.99, no row, no ledger row; a zero floor opens the funnel |
+| P13-T3 | Above withdrawable | **PASS** | ₱1,000 asked against ₱1,500 total / ₱600 withdrawable → `withdrawable`; exactly ₱600 then fits and leaves the locked money alone |
+| P13-T4 | Second request while one is open | **PASS** | `open_request` for both `pending` and `approved` states; the form reopens after the first is completed |
+| P13-T5 | Service fee calculation | **PASS** | 2.5% of ₱1,000 = ₱25.00, net ₱975.00; 3% of ₱550.55 = ₱16.52 (rounded); the hold is the gross, not amount + fee |
+| P13-T6 | USDT request | **PASS** | ₱56/USDT: net ₱950 − 2.5×56 → **14.4643 USDT**, stored with the rate and gas; a later rate change leaves the row alone; a posted `usdt_rate` is ignored; the channels are refused while the rate is 0 |
+| P13-T7 | Approve | **PASS** | `approved` + `processed_by`/`processed_at`, no wallet movement, the `payout.approve` audit row |
+| P13-T8 | Complete | **PASS** | `completed`; the ledger still holds exactly one debit and the wallets do not move |
+| P13-T9 | Reject | **PASS** | Refund credit of the held amount, both buckets back to the original 600/400 split, the reason stored, a second rejection refused; an order refund under the same id does not swallow the payout refund |
+| P13-T10 | Member cannot process own payout | **PASS** | A member gets `admin`; an admin's own request gets `self`; another admin and a superadmin can process it; a missing id is `not_found` |
+| P13-T11 | Double approve/complete | **PASS** | Complete-before-approve, approve-twice, approve/complete-after-complete and reject-after-complete all refuse with `status` |
+| P13-T12 | Reconciliation | **PASS** | Three well-formed requests reconcile, ₱700 reported as held; a deleted refund leg is caught as `refund`; a removed request leaves an orphan count, not a failure |
+| P13-T13 | Admin queue filters/totals | **PASS** | Counts 1/0/1/1, pending ₱800, completed ₱1,000 (net ₱980, fees ₱20), one ₱500 rejection, held ₱800; the status filter narrows rows and totals; search matches member and account; a bogus status falls back to all |
+
+### Deviations and decisions
+
+- **The hold is the debit (D17).** The reference debited the wallet when an admin marked the payout
+  completed. The port debits at request time through `WalletService::debit()`, so the member cannot spend
+  money already promised; `complete()` therefore moves nothing and only records that the funds were sent.
+- **`refund` is shared with order refunds, and the ids overlap.** Both domains write `ref_type = 'refund'`
+  and `ref_id` comes from two independent sequences, so a member can have an order refund and a payout
+  refund under the same number. When that id is already taken, `PayoutService` writes the payout refund with
+  `ref_id = NULL` and names the request in the note (the same fallback the transfer fee leg uses), and
+  `reconcile()` identifies payout refunds by that note. Without this the ledger's
+  `(user_id, ref_type, ref_id, type)` key would treat the payout refund as a replay and skip it — the
+  member's money would stay held. A dedicated test covers it.
+- **A USDT payout is refused, not guessed, while `usdt_rate` is 0.** The reference asked the browser for
+  the rate; the port refuses with `rate` and shows the channel as unavailable. The gas fee defaults (2.50 /
+  0.05 USDT) come from settings, are clamped to the column widths and are stored per request.
+- **A fee that swallows the net, or a gas fee larger than the payout, is refused** (`amount`) rather than
+  storing a zero-value request that could never be paid.
+- **One open request is a lock, not a unique index.** MySQL has no partial unique index, and the rule is
+  "no `pending`/`approved` row for this member", so the check runs under the account row lock — two
+  concurrent submits serialise, and the second sees the first (a two-connection test proves it).
+- **The payout account is stored per request.** It is prefilled from the profile but copied onto the row, so
+  editing the profile later cannot rewrite the account a request was promised to.
+- **The channel boxes are per channel, not one JS-rewritten field.** Four inputs (`account_gcash`, …) are
+  posted; the controller reads the selected channel's box, so switching channels without JavaScript still
+  submits the right account.
+- **The payout settings are seeded, not editable yet.** §5.9 lists them, but §7 Phase 15 owns the full
+  settings page and Phase 12 set the same precedent for the transfer keys. They are seeded by 001/017,
+  documented in `system/README.md` and the QA pack, and the queue prints the values it is working with so
+  staff can see a closed USDT channel at a glance.
+- **Payout reconciliation lives in `wallet_reconcile.php`.** The finance command now reports all four
+  sections (wallets, commissions, transfers, payouts) and exits 0 only when every one is clean.
+- **The member page is one live surface, and the request card is held while dirty.** The form, the open
+  request and the "cannot request yet" explanation share the `payout-request` region, which carries
+  `data-live-hold=\"dirty\"`; a background refresh can never wipe a half-typed amount.
+- **The smoke script is independent of the operator's transfer settings.** An earlier manual QA session had
+  left `ewallet_transfer_daily_limit = 800` and juan's counters at ₱700, which made the Phase 12 block fail
+  for a reason unrelated to Phase 13. The block now pins the fee and both limits for its own duration (and
+  restores them), and the cron calls pass `week=1`, so the check no longer depends on the weekday. The
+  leftover counters were zeroed with `bin/reset_transfer_limits.php --week` (a supported operation).
+
+### Gate checklist (plan §7 Phase 13)
+
+- [x] All P13 tests pass (41 new cases; suite **637**)
+- [x] `php -l` clean (every touched PHP file)
+- [x] Full regression suite passes (Phases 1–12 green, including the migration and parity checks)
+- [x] Migration applied to dev DB; `schema.sql` carries the same shape; a re-run is a no-op
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
+- [x] Smoke script passes (**161 checks**, 11 new)
+- [x] Finance invariants clean — `bin/wallet_reconcile.php` exits 0 (wallets + commissions + transfers + payouts)
+- [x] No member can read or process another member's payout; the queue is admin-only and self-review is refused
+- [x] Money held exactly once per request, refunded exactly once per rejection, never debited twice
+- [ ] Manual UAT for this phase signed (`docs/qa/phase-13-payouts.md`) — automated and smoke passes complete
+- [x] Docs updated (this log, QA pack + sign-off sheet, `docs/live-updates.md`, both READMEs)
+- [x] Backup taken; tag `phase-13`
+
+### Next
+
+Phase 14 — super-login: a superadmin opens a member's portal through an audited, expiring URL-token
+session (IP/UA bound, 8 h TTL, hashed nonce in `impersonation_log`), with the member-layout banner and the
+exit action, without disturbing their own session.

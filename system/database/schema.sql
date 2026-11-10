@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 010).
+--  database/migrations/ (apply in order: 001, 002, …, 017).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -28,6 +28,7 @@
 --  Phase 10/11 owns: commissions.
 --  Phase 12 owns: users.ewallet_sent_today/ewallet_sent_this_week,
 --                ewallet_transfers.
+--  Phase 13 owns: payout_requests.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -365,6 +366,55 @@ CREATE TABLE IF NOT EXISTS ewallet_transfers (
   KEY idx_transfers_status (status, created_at),
   CONSTRAINT fk_transfers_sender    FOREIGN KEY (sender_id)    REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_transfers_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Payout requests — the withdrawal queue (Phase 13, plan §5.9)
+--
+--  One row per withdrawal request. The funds are HELD at request time
+--  (D17): `amount` leaves the member's wallet in the same transaction
+--  that inserts this row, as a `payout` debit in `ewallet_ledger`
+--  (ref_id = this row's id). Rejection writes the matching `refund`
+--  row; completion moves no money at all — it records that staff sent
+--  the funds off-platform.
+--
+--  amount              gross the member asked for (what is held)
+--  service_fee_pct     settings.service_fee_<method> at request time
+--  service_fee_amount  amount × pct / 100
+--  usdt_rate           ₱ per 1 USDT at request time (settings, never
+--                      the browser — plan §2.3)
+--  usdt_gas_fee        network fee in USDT at request time
+--  usdt_amount         USDT actually sent:
+--                      (net − gas × rate) / rate
+--  payout_account      the number/address to send to; copied from the
+--                      profile when the request is made so a later
+--                      profile edit cannot rewrite history
+--
+--  status: pending → approved → completed, or pending/approved →
+--  rejected (which refunds the hold). There is no updated_at column:
+--  a request is never edited, only moved through its status machine.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payout_requests (
+  id                  INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  user_id             INT UNSIGNED  NOT NULL,
+  amount              DECIMAL(12,2) NOT NULL,
+  payout_method       ENUM('gcash','maya','usdt_trc20','usdt_bep20') NOT NULL DEFAULT 'gcash',
+  payout_account      VARCHAR(120)  NOT NULL DEFAULT '',
+  service_fee_pct     DECIMAL(5,2)  NOT NULL DEFAULT 0.00,
+  service_fee_amount  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  usdt_rate           DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
+  usdt_gas_fee        DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+  usdt_amount         DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
+  status              ENUM('pending','approved','completed','rejected') NOT NULL DEFAULT 'pending',
+  admin_note          VARCHAR(500)  NULL,
+  processed_by        INT UNSIGNED  NULL,
+  requested_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at        DATETIME      NULL,
+  PRIMARY KEY (id),
+  KEY idx_payouts_user_status (user_id, status),
+  KEY idx_payouts_status (status, requested_at),
+  CONSTRAINT fk_payouts_user  FOREIGN KEY (user_id)      REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_payouts_admin FOREIGN KEY (processed_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

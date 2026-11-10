@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(75, $live);
+        assert_count(81, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -182,6 +182,14 @@ return [
         /* Phase 12 — the member transfer form and its POST. */
         assert_same('member', $live['GET /wallet/transfer']);
         assert_same('member', $live['POST /wallet/transfer']);
+
+        /* Phase 13 — the member payout page and the admin queue. */
+        assert_same('member', $live['GET /payouts']);
+        assert_same('member', $live['POST /payouts/request']);
+        assert_same('admin', $live['GET /admin/payouts']);
+        assert_same('admin', $live['POST /admin/payouts/{id}/approve']);
+        assert_same('admin', $live['POST /admin/payouts/{id}/reject']);
+        assert_same('admin', $live['POST /admin/payouts/{id}/complete']);
     },
 
     'Live route table resolves the Phase 1–10 URLs' => function (): void {
@@ -380,6 +388,32 @@ return [
             $router->match('POST', '/wallet/transfer')['route']['handler'][0]
         );
 
+        /* Phase 13 handlers. */
+        assert_same(
+            PayoutController::class,
+            $router->match('GET', '/payouts')['route']['handler'][0]
+        );
+        assert_same(
+            PayoutController::class,
+            $router->match('POST', '/payouts/request')['route']['handler'][0]
+        );
+        assert_same(
+            AdminPayoutController::class,
+            $router->match('GET', '/admin/payouts')['route']['handler'][0]
+        );
+        assert_same(
+            AdminPayoutController::class,
+            $router->match('POST', '/admin/payouts/42/approve')['route']['handler'][0]
+        );
+        assert_same(
+            AdminPayoutController::class,
+            $router->match('POST', '/admin/payouts/42/reject')['route']['handler'][0]
+        );
+        assert_same(
+            AdminPayoutController::class,
+            $router->match('POST', '/admin/payouts/42/complete')['route']['handler'][0]
+        );
+
         assert_null($router->match('GET', '/no-such-page'));
         assert_null($router->match('GET', '/admin/products/abc/edit'));
         assert_null($router->match('GET', '/admin/packages/abc/edit'));
@@ -389,8 +423,6 @@ return [
         assert_null($router->match('GET', '/orders/8/invoice/extra'));
 
         /* Not due yet, and the binary-upline endpoints are gone for good. */
-        assert_null($router->match('GET', '/payouts'));
-        assert_null($router->match('POST', '/payouts/request'));
         assert_null($router->match('GET', '/slogin'));
         assert_null($router->match('POST', '/register/check-upline'));
         assert_null($router->match('POST', '/register/auto-select-upline'));

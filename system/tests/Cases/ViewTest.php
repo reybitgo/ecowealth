@@ -113,8 +113,10 @@ return [
         assert_contains('<div>Codes</div>', $html);
         assert_contains('href="' . url('admin/codes') . '"', $html);
 
-        /* Unbuilt screens are left out of the menu entirely. */
-        assert_not_contains('Payouts', $html);
+        /* Unbuilt screens are left out of the menu entirely; the payout
+         * queue arrived in Phase 13 and is now a live entry. */
+        assert_contains('href="' . url('admin/payouts') . '"', $html);
+        assert_contains('href="' . url('payouts') . '"', $html, 'admins may withdraw their own earnings too');
         assert_not_contains('Soon', $html);
 
         /* The dashboard is one live surface with five replaceable regions. */

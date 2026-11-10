@@ -35,10 +35,12 @@ genealogy and the member/codes/activation back office, **Phase 10** direct refer
 commissions (the package's direct bonus paid to the sponsor exactly once, into the
 withdrawable e-wallet, with the member earnings statement and the admin commission ledger),
 and **Phase 11** indirect referral commissions (levels 2–10 priced by the source package,
-with the earnings level breakdown and the CSV exports), and **Phase 12** member-to-member
+with the earnings level breakdown and the CSV exports), **Phase 12** member-to-member
 e-wallet transfers (password-confirmed, fee + minimum + daily/weekly limits, the reset cron,
-and the transfer log/limits on the admin wallet monitor).
-Payouts and super-login follow in later phases.
+and the transfer log/limits on the admin wallet monitor), and **Phase 13** payouts
+(withdrawals by GCash/Maya/USDT with the amount held at request time, a server-side service
+fee and ₱/USDT conversion, and the admin approve → complete/reject queue).
+Super-login follows in Phase 14.
 
 The demo tree from Phase 9 (`juan`, `maria`, `peter`, `sarah`, `david`) and its
 wallets/codes are development data: every demo member signs in with `Demo@1234`, and the
@@ -51,7 +53,7 @@ seed is removed or replaced before go-live (see the phase log).
 ## Important
 The landing page is still a static frontend prototype. The application behind it is real
 (login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership,
-registration codes, direct + indirect referral commissions and member wallet transfers as of Phase 12)
-but the simulator is not connected to it, and payouts and super-login are delivered in later phases.
+registration codes, direct + indirect referral commissions, member wallet transfers and payouts
+as of Phase 13) but the simulator is not connected to it, and super-login is delivered in Phase 14.
 Product information and final compensation terms are not invented here; they should be
 added from verified official material when available.

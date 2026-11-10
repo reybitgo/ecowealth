@@ -180,13 +180,20 @@ return [
     ['POST', '/wallet/transfer',                 [TransferController::class, 'send'],         'member'],    // do_ewallet_transfer
 
     /* ---------- Phase 13 — payouts ----------------------------------
+     * Reference: payout, request_payout, admin_payouts, admin_payout_action
+     * (the reference's one action page is three explicit routes here, so
+     * each decision has its own guard-able endpoint).
+     *
+     * The funds are held when the member asks (D17), so `/payouts/request`
+     * is a money mutation: the router's `member` guard plus the central
+     * CSRF check apply, and PayoutService re-checks every rule under the
+     * account lock. */
     ['GET',  '/payouts',                         [PayoutController::class, 'index'],          'member'],    // payout
     ['POST', '/payouts/request',                 [PayoutController::class, 'request'],        'member'],    // request_payout
     ['GET',  '/admin/payouts',                   [AdminPayoutController::class, 'index'],     'admin'],     // admin_payouts
     ['POST', '/admin/payouts/{id}/approve',      [AdminPayoutController::class, 'approve'],   'admin'],     // admin_payout_action
     ['POST', '/admin/payouts/{id}/reject',       [AdminPayoutController::class, 'reject'],    'admin'],     // admin_payout_action
     ['POST', '/admin/payouts/{id}/complete',     [AdminPayoutController::class, 'complete'],  'admin'],     // admin_payout_action
-    ----------------------------------------------------------------- */
 
     /* ---------- Phase 14 — super-login ------------------------------
     ['GET',  '/slogin',                          [SLoginController::class, 'index'],          'superadmin'], // slogin

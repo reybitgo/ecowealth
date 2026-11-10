@@ -184,10 +184,10 @@ SHOW TABLES LIKE 'live_revisions';
 If the table is missing, the pages still work, but the live-update client switches
 itself off and the feed returns an error. Do not skip this table.
 
-If the dump is older than Phase 12, apply **every missing migration** in
+If the dump is older than Phase 13, apply **every missing migration** in
 `<app>/database/migrations/` in numeric order (for example `012_commissions.sql`,
 `013_live_revisions.sql`, `014_indirect_commissions.sql`, `015_package_b_premium_ladder.sql`,
-then `016_transfers.sql`), not just the newest one.
+`016_transfers.sql`, then `017_payouts.sql`), not just the newest one.
 
 > **Import size limit:** if phpMyAdmin says the file is too large, export as `.sql.gz`
 > (gzip) and import the `.sql.gz`, or split the dump. Hostinger's phpMyAdmin accepts

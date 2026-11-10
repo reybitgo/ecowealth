@@ -412,13 +412,14 @@ Three page behaviours keep swapped forms working:
 
 `public/assets/js/admin-live.js` is shared by every live surface with a form
 region — the admin pages, the member's `/membership` page, the member's own
-`/wallet` statement, the member's `/profile` page, the admin settings page,
-the checkout page, the member order page and the product page: it consumes
-`detail.held` and reveals the page's `[data-live-stale]` banner (“changed in
-another tab, your unsaved input was kept — reload to see the latest”). The
-banner is only shown when a form region was held back; a payload that applied
-cleanly hides it again. A `[data-live-reload]` link in the banner is pointed at
-the current URL, filters and page included.
+`/wallet` statement, the member's `/profile` page, the member's `/payouts` page,
+the admin settings page, the checkout page, the member order page and the
+product page: it consumes `detail.held` and reveals the page's
+`[data-live-stale]` banner (“changed in another tab, your unsaved input was
+kept — reload to see the latest”). The banner is only shown when a form region
+was held back; a payload that applied cleanly hides it again. A
+`[data-live-reload]` link in the banner is pointed at the current URL, filters
+and page included.
 
 The dashboard's ETag scope also includes the current date: its 30/60-day account windows
 change at midnight even when no row is written. The order desk does the same because its
@@ -510,10 +511,12 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.codes` | `/admin/codes` | stats, rows, pagination |
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `admin.packages` | `/admin/packages` | stats, rows, pagination |
+| `admin.payouts` | `/admin/payouts` | stats, tab counts, rows, pagination |
 | `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payment windows, fulfilment & invoices |
 | `member.dashboard:{id}` | `/dashboard` | header pill, KPI row, E-wallet card, membership, recent orders, earnings |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
-| `member.wallet:{id}` | `/wallet` | buckets, statement |
+| `member.wallet:{id}` | `/wallet` | buckets, send-funds card, withdraw card, statement |
+| `member.payouts:{id}` | `/payouts` | withdrawable card, request card (form / open request, held while dirty), history, pagination |
 | `member.earnings:{id}` | `/earnings` | stats, level breakdown, skipped notice, header, rows, pagination |
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |

@@ -40,10 +40,14 @@ final class Wallet
     {
         $pdo ??= db();
 
+        /* The four payout-account columns travel with the row: the payout
+         * page prefills its channel boxes from this one read (Phase 13),
+         * exactly like the profile form's saved details. */
         $stmt = $pdo->prepare(
             'SELECT id, username, email, full_name, role, member_status, is_active,
                     ewallet_balance, withdrawable_balance,
                     ewallet_sent_today, ewallet_sent_this_week,
+                    gcash_number, maya_number, usdt_trc20_address, usdt_bep20_address,
                     last_login_at, created_at
                FROM users
               WHERE id = ?

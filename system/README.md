@@ -4,7 +4,7 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 12 — e-wallet transfers, limits and monitoring.**
+**Current status: Phase 13 — payouts.**
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -38,11 +38,18 @@ on the sender's row and checked under the same lock as the balance; `bin/reset_t
 zeroes the counters every midnight (weekly on Monday). The admin wallet monitor gains the **Transfers**
 tab and the float/locked/transfer/top-up cards, and `bin/wallet_reconcile.php` now reconciles transfer
 legs too.
+Phase 13 adds **payouts**: a member cashes out the withdrawable bucket at `/payouts` through GCash,
+Maya or USDT (TRC20/BEP20), with a server-side service-fee percentage and — for USDT — a server-side
+₱/USDT rate and network fee. The funds are **held at request time** (one `payout` debit), refunded on
+rejection and settled on completion without a second debit; one open request per member. The admin
+queue at `/admin/payouts` approves, rejects (reason required) and completes requests, with status
+tabs, totals and the current rate/fee facts, and `bin/wallet_reconcile.php` now reconciles payout
+holds and refunds as well.
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
 `/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`. All three log to
-`system/storage/`; the first two have kill switches on the settings page. Payouts and super-login
-follow in later phases; their menu entries stay hidden until their phase lands.
+`system/storage/`; the first two have kill switches on the settings page. Super-login follows in
+Phase 14; its menu entry stays hidden until that phase lands.
 
 | | |
 |---|---|
@@ -344,6 +351,17 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/wallet/transfer` | member | Confirm with the sender's password; one transfer row + up to three ledger rows |
 | GET | `/admin/wallets?tab=transfers` | admin | The monitor's transfer log (the rest of the monitor is Phase 5) |
 
+### Phase 13 URLs — payouts
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/payouts` | member | Withdrawable balance, the request form (four channels, prefilled accounts), fee/USDT preview, the open request, and the withdrawal history |
+| POST | `/payouts/request` | member | Create the request and **hold** the amount (one `payout` debit, one pending row) |
+| GET | `/admin/payouts` | admin | The queue: status tabs, totals, rate/fee facts, search + date filters, per-row actions |
+| POST | `/admin/payouts/{id}/approve` | admin | `pending → approved` (no wallet movement — the money is already held) |
+| POST | `/admin/payouts/{id}/reject` | admin | `pending/approved → rejected`, refunding the hold; a reason is required |
+| POST | `/admin/payouts/{id}/complete` | admin | `approved → completed` after the funds were sent off-platform (no second debit) |
+
 Standalone pages (outside the router this build, all routed through Apache rewrites):
 `/login`, `/register`, `/logout`. `/dashboard` became a routed page in Phase 9; the old
 `public/dashboard.php` is now a redirect shim only. The three job entries
@@ -368,7 +386,11 @@ Phase 8 the same page edits the invoice seller block (`seller_name/address/tin/p
 auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The page is four
 independent cards — **Shop**, **Receiving accounts**, **Payment windows**, **Fulfilment & invoices** —
 each with its own form and **Save settings** button; the controller only validates, writes and audits
-the submitted card's keys, so one save can never overwrite another card. The full settings page
+the submitted card's keys, so one save can never overwrite another card. The payout settings
+(`min_payout`, `service_fee_<method>`, `usdt_rate`, `usdt_*_gas_fee`, `payout_*_enabled`) and the
+transfer settings (`ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`,
+`ewallet_transfer_weekly_limit`) are seeded and read by their services but are not editable in the UI
+yet — an operator changes them with SQL until Phase 15 expands this page. The full settings page
 expands in Phase 15.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
@@ -489,6 +511,39 @@ it arrives in Phase 15.
 
 ---
 
+## Payouts (Phase 13)
+
+- **Held at request time (D17).** `PayoutService::request()` takes the account row lock, checks the
+  **withdrawable** bucket (not the total balance), the one-open-request rule and the amount floor, then
+  inserts the request and debits the wallet (`ref_type = 'payout'`, both buckets) in one transaction. The
+  member cannot spend money already promised to the payout.
+- **The maths is server-side only.** `service_fee_<method>` percent is deducted to produce the net; for the
+  two USDT channels the net is converted at `usdt_rate` after subtracting `usdt_*_gas_fee`:
+  `net_usdt = (net − gas × usdt_rate) / usdt_rate`. The rate and the gas fee are stored on the request as a
+  snapshot, so a later settings change cannot rewrite a queued request. Without a rate the USDT channels
+  refuse (they are shown as unavailable on the page) — the browser never supplies a rate (plan §2.3).
+- **One open request.** `pending` and `approved` both hold the money, so both refuse a new request; the
+  check runs under the account lock, so two concurrent submits serialise.
+- **The queue.** `/admin/payouts` defaults to the **Pending** tab, with tabs, counts, gross/fee/net totals
+  and the current minimum, rate and gas facts. Approve records the staff account and moment; reject requires
+  a reason and refunds the hold (`ref_type = 'refund'`, both buckets restored to the split the hold took);
+  complete records that the funds were sent off-platform and moves no money. A status change is a conditional
+  `UPDATE … WHERE status IN (…)` whose row count must be 1, so a double-clicked approve cannot approve twice,
+  and nobody can process their own request.
+- **Audit and live surfaces.** `payout.request`, `payout.approve`, `payout.reject` and `payout.complete`
+  entries carry the before/after status, the amount, the method and the note. The member page
+  (`member.payouts:{id}`) and the queue (`admin.payouts`) refresh in place; the request card is held while it
+  has unsaved input.
+- **Refund id collision.** `refund` is shared with Phase 7's order refunds and the two id sequences overlap,
+  so a payout refund whose `ref_id` is already taken for that member is written with `ref_id = NULL` and
+  named in its note (the same fallback the transfer fee uses). The ledger's idempotency key can therefore
+  never mistake an order refund for a payout refund and skip it.
+- **Reconciliation.** `bin/wallet_reconcile.php` gained a **Payouts** section: every request must have one
+  `payout` debit of its amount, and a rejected request exactly one refund credit; orphan legs are reported as
+  a count, never as a money error.
+
+---
+
 ## Checkout and orders (Phase 6)
 
 - **Checkout is one transaction.** `OrderService::placeFromCart()` locks the member (serialising their own
@@ -514,9 +569,9 @@ it arrives in Phase 15.
 - **Member pages.** `/orders` lists the member's orders with filters; `/orders/{id}` shows the status panel,
   line snapshots, delivery, payment, the event timeline and a cancel form for unpaid orders only.
 - **Profile & payout accounts.** `/profile` holds the full name, the address book and the member's payout
-  accounts (GCash, Maya, USDT TRC20/BEP20). The company pays withdrawals to those accounts in Phase 13; the
-  GCash/Maya/bank details printed on an order are the **company's** receiving accounts (settings), not the
-  member's.
+  accounts (GCash, Maya, USDT TRC20/BEP20). `/payouts` prefills its channel boxes from those accounts and
+  pays withdrawals to them (Phase 13); the GCash/Maya/bank details printed on an order are the **company's**
+  receiving accounts (settings), not the member's.
 - **Order desk.** `/admin/orders` shows the stats, filters and every order; `/admin/orders/{id}` shows the
   member's wallet link, items, delivery snapshot, history and the Phase 7 payment-review pane.
 - **Order numbers** are `EW` + `yymmdd` + the 5-digit id; the id is what makes them unique.
@@ -757,7 +812,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (594 cases in Phase 12)
+php tests/run.php                 # full suite (637 cases in Phase 13)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -811,12 +866,17 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `014_indirect_commissions.sql` | the three settings that steer the indirect ladder (`commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_compression`) |
 | `015_package_b_premium_ladder.sql` | Package B's 20%-higher referral ladder (guarded: only the old defaults are replaced) |
 | `016_transfers.sql` | `users.ewallet_sent_today` + `ewallet_sent_this_week`, `ewallet_transfers`, and the four transfer settings when missing |
+| `017_payouts.sql` | `payout_requests` (the withdrawal queue and its hold/refund trail), the four `users` payout accounts (no-op when 007 already ran) and the eleven payout settings when missing |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
 Transfers are written only by `TransferService` (one transaction per transfer); the limit counters are
 zeroed only by `bin/reset_transfer_limits.php`, and `bin/wallet_reconcile.php` also proves every
 transfer's three ledger legs are present.
+Payout requests are written and moved through their status machine only by `PayoutService` (one
+transaction per request and per decision); the hold and the refund are the only wallet movements a
+payout produces, and `bin/wallet_reconcile.php` also proves every request has its hold and every
+rejection its refund.
 Order stock lives in `shop_order_items.reservation_state`; `StockService` is the only reader of the
 `stock − reserved` number, and `OrderService` (placement, member cancel), `PaymentService`
 (review, admin cancel, expiry) and `FulfilmentService` (ship deducts, completion has no stock effect)

@@ -272,7 +272,7 @@ return [
         assert_contains('E-wallet monitor', $nav);
         assert_contains('My e-wallet', $nav);
         assert_contains('menu-item active', $nav);
-        assert_not_contains('Payouts', $nav, 'Phase 13 is still hidden');
+        assert_contains('href="' . url('admin/payouts') . '"', $nav, 'Phase 13 makes the payout queue live');
     },
 
     'P5-T7 the monitor filters members by status' => function () use ($render, $makeMember, $monitorPage): void {

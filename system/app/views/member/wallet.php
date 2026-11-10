@@ -20,6 +20,7 @@ declare(strict_types=1);
  * @var array{rows:int, credits:float, debits:float, net:float} $totals
  * @var array{type:string, ref_type:string, from:string, to:string, q:string} $filters
  * @var array<string, mixed> $limits
+ * @var array<string, mixed> $payout
  * @var string $statement_url
  * @var string $statement_title
  * @var bool $show_member
@@ -27,6 +28,7 @@ declare(strict_types=1);
  */
 
 $limits = $limits ?? (new TransferService())->usageFor($account);
+$payout = $payout ?? (new PayoutService())->optionsFor($account);
 
 $live = $live ?? [
     'surface'  => Live::memberWalletSurface((int) ($account['id'] ?? 0)),
@@ -72,6 +74,8 @@ $live = $live ?? [
 <?= View::capture('member/wallet/_buckets', ['account' => $account]) ?>
 
 <?= View::capture('member/wallet/_transfer_card', ['limits' => $limits]) ?>
+
+<?= View::capture('member/wallet/_payout_card', ['payout' => $payout]) ?>
 
               <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-info-circle fs-4"></i>

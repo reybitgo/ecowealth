@@ -26,11 +26,13 @@ final class WalletController
 {
     private WalletService $wallet;
     private TransferService $transfers;
+    private PayoutService $payouts;
 
     public function __construct()
     {
         $this->wallet    = new WalletService();
         $this->transfers = new TransferService();
+        $this->payouts   = new PayoutService();
     }
 
     /** @param array<string, string> $params */
@@ -100,6 +102,7 @@ final class WalletController
         return [
             'account'         => $account,
             'limits'          => $this->transfers->usageFor($account),
+            'payout'          => $this->payouts->optionsFor($account),
             'ledger'          => $statement['rows'],
             'pager'           => $statement['pager'],
             'totals'          => $statement['totals'],
@@ -167,6 +170,9 @@ final class WalletController
                 ]),
                 'member-wallet-transfer' => View::capture('member/wallet/_transfer_card', [
                     'limits' => $data['limits'],
+                ]),
+                'member-wallet-payout' => View::capture('member/wallet/_payout_card', [
+                    'payout' => $data['payout'],
                 ]),
                 'member-wallet-statement' => View::capture('member/wallet/_statement', [
                     'filters'         => $data['filters'],

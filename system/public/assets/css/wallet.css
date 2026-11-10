@@ -216,3 +216,69 @@
     font-size: 0.82rem;
   }
 }
+
+/* ---------- Payouts (Phase 13) ---------- */
+.payout-page .payout-balance h2 {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.payout-facts li {
+  border-color: var(--bs-border-color);
+}
+
+.payout-preview strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.payout-method {
+  height: 100%;
+  padding: 0.75rem 0.75rem 0.75rem 2.4rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+}
+
+.payout-method:has(.form-check-input:checked) {
+  border-color: var(--bs-primary);
+  background-color: rgba(var(--bs-primary-rgb), 0.04);
+}
+
+.payout-method .form-check-input {
+  margin-left: -1.65rem;
+}
+
+.payout-method-disabled {
+  opacity: 0.6;
+}
+
+.payout-form-card .payout-account-group[hidden] {
+  display: none !important;
+}
+
+.payout-history-table .table td,
+.payout-history-table .table th,
+.payout-queue-table td,
+.payout-queue-table th {
+  vertical-align: middle;
+}
+
+.payout-queue-table .payout-reject-form .form-control {
+  min-width: 9rem;
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 575.98px) {
+  .payout-page .payout-balance h2 {
+    font-size: 1.6rem;
+  }
+
+  .payout-history-table .table th,
+  .payout-history-table .table td {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .payout-queue-table .payout-reject-form .form-control {
+    min-width: 7rem;
+  }
+}

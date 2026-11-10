@@ -208,6 +208,38 @@ final class Live
         return 'member.profile:' . max(0, $userId);
     }
 
+    /* ----------------------------------------------------------
+     *  Payouts (Phase 13)
+     * ---------------------------------------------------------- */
+
+    /** The admin payout queue surface (`admin.payouts`). */
+    public const ADMIN_PAYOUTS = 'admin.payouts';
+
+    /**
+     * The member's own payout page (`member.payouts:42`).
+     *
+     * The page shows the withdrawable bucket, the open request and the
+     * member's withdrawal history. The bucket itself is bumped by
+     * WalletService (through touchMemberWallet); this surface covers the
+     * request rows, which only a payout action changes.
+     */
+    public static function payoutSurface(int $userId): string
+    {
+        return 'member.payouts:' . max(0, $userId);
+    }
+
+    /**
+     * Bump one member's `/payouts` page and the shared admin queue.
+     *
+     * Called by PayoutService after a request, an approval, a rejection
+     * and a completion: both sides of the queue show the new state. A
+     * refusal moves nothing and never bumps it.
+     */
+    public static function touchPayout(int $userId): void
+    {
+        self::touch([self::payoutSurface($userId), self::ADMIN_PAYOUTS]);
+    }
+
     /**
      * The member's own checkout page (`member.checkout:42`).
      *

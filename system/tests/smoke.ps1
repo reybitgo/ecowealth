@@ -232,7 +232,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-12)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-13)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -267,6 +267,14 @@ $p12TransferStart   = 0
 $p12AuditStart      = 0
 $p12CounterSnapshot = @{}
 $p12Ran             = $false
+
+# Phase 13: the payout requests this run writes, their ledger legs (the hold
+# and the refund) and their audit rows are deleted in the finally block; the
+# wallet balances are restored by the Phase 10 snapshot above.
+$p13LedgerStart = 0
+$p13PayoutStart = 0
+$p13AuditStart  = 0
+$p13Ran         = $false
 
 try {
     $p10CommissionStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM commissions;" | Out-String).Trim())
@@ -2383,7 +2391,11 @@ try {
         }
     }
 
+    # The limits are pinned for the block (and restored in the finally block):
+    # an operator who tightened them for manual QA must not break the run.
     Set-SettingValue 'ewallet_transfer_fee' '8'
+    Set-SettingValue 'ewallet_transfer_daily_limit' '5000'
+    Set-SettingValue 'ewallet_transfer_weekly_limit' '20000'
 
     $p12JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
     $p12PeterBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
@@ -2454,12 +2466,14 @@ try {
         "the wallet monitor transfers tab lists the movement; member=$($p12MonitorMember.Status)"
 
     # P12-T9 - the reset cron from its guarded web entry, twice (idempotent).
+    # `week=1` forces the weekly reset too, so this check does not depend on
+    # the weekday the run happens on.
     $p12CronDryRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?dry-run=1&json=1'
     $p12CronDry    = $null
     try { $p12CronDry = $p12CronDryRaw.Body | ConvertFrom-Json } catch { }
 
-    $p12CronFirstRaw  = Invoke-App -Path '/cron/reset_transfer_limits.php?json=1'
-    $p12CronSecondRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?json=1'
+    $p12CronFirstRaw  = Invoke-App -Path '/cron/reset_transfer_limits.php?week=1&json=1'
+    $p12CronSecondRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?week=1&json=1'
     $p12CronFirst     = $null
     $p12CronSecond    = $null
     try { $p12CronFirst = $p12CronFirstRaw.Body | ConvertFrom-Json } catch { }
@@ -2494,6 +2508,183 @@ try {
     Assert-That 'P12-T3' ($p12ReconcileExit -eq 0 -and $p12ReconcileJson.ok -eq $true `
             -and $p12ReconcileJson.transfers.ok -eq $true -and $p12ReconcileJson.transfers.checked -ge 1) `
         "bin/wallet_reconcile.php reconciles transfers (exit=$p12ReconcileExit, checked=$($p12ReconcileJson.transfers.checked))"
+
+    # ---- Phase 13: payouts ------------------------------------------------
+    # juan asks to withdraw 1000 through GCash with a 10% fee: 1000 is held
+    # (pending, one ledger debit), the fee is 100 and the net is 900. The
+    # admin approves and completes it, then a second request is rejected and
+    # the hold comes back. The finally block deletes the requests, their
+    # ledger legs and their audit rows; the Phase 10 snapshot restores every
+    # wallet balance.
+    $p13LedgerStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
+    $p13PayoutStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM payout_requests;" | Out-String).Trim())
+    $p13AuditStart  = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM audit_log;" | Out-String).Trim())
+    $p13Ran         = $true
+
+    foreach ($key in @('min_payout', 'service_fee_gcash', 'usdt_rate', 'payout_gcash_enabled')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    Set-SettingValue 'min_payout' '500'
+    Set-SettingValue 'service_fee_gcash' '10'
+    Set-SettingValue 'usdt_rate' '0'
+    Set-SettingValue 'payout_gcash_enabled' '1'
+
+    $p13JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13JuanWithdrawable = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+
+    # P13-T1 - the payout page, its cross-link from the wallet, and the guard.
+    $payoutPage    = Invoke-App -Path '/payouts' -Session 'p10a'
+    $payoutToken   = Get-Csrf $payoutPage.Body
+    $walletPageP13 = Invoke-App -Path '/wallet' -Session 'p10a'
+    $payoutGuest   = Invoke-App -Path '/payouts' -Session 'guest'
+    $payoutPageOk = ($payoutPage.Status -eq 200) -and ($payoutPage.Body -match 'Withdrawable') `
+        -and ($payoutPage.Body -match 'name="amount"') -and ($payoutPage.Body -match 'name="payout_method"') `
+        -and ($payoutPage.Body -match 'name="account_gcash"') -and ($payoutPage.Body -match 'Request payout') `
+        -and ($payoutPage.Body -match 'Withdrawal history') -and ($payoutPage.Body -match 'novalidate')
+    $walletPayoutCardOk = ($walletPageP13.Status -eq 200) -and ($walletPageP13.Body -match 'Withdraw earnings') `
+        -and ($walletPageP13.Body -match '/payouts')
+    Assert-That 'P13-T1' ($payoutPageOk -and $walletPayoutCardOk -and $payoutGuest.Status -eq 302 `
+            -and $payoutGuest.Location -match '/login$') `
+        "GET /payouts renders the request form and /wallet links it; guest=$($payoutGuest.Status)"
+
+    # P13-T2 - below the minimum is refused and writes nothing.
+    $p13Low = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '100.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13LowRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    $p13LowPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    Assert-That 'P13-T2' ($p13Low.Status -eq 302 -and $p13Low.Location -match '/payouts$' -and $p13LowRows -eq 0 `
+            -and ($p13LowPage.Body -match 'The minimum payout is')) `
+        "a below-minimum payout is refused and writes nothing (rows=$p13LowRows)"
+
+    # P13-T6 - USDT is closed while the rate is unset (no client rate accepted).
+    $p13Usdt = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'           = $payoutToken
+        'amount'          = '1000.00'
+        'payout_method'   = 'usdt_trc20'
+        'account_usdt_trc20' = ('T' + ('1' * 33))
+        'usdt_rate'       = '1'
+    }
+    $p13UsdtRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    $p13UsdtPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    Assert-That 'P13-T6' ($p13Usdt.Status -eq 302 -and $p13UsdtRows -eq 0 `
+            -and ($p13UsdtPage.Body -match 'USDT payouts are unavailable')) `
+        "a USDT payout is refused while the rate is unset, ignoring a posted rate (rows=$p13UsdtRows)"
+
+    # P13-T3 - above the withdrawable bucket is refused.
+    $p13TooMuch = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '999999.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13TooMuchRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    $p13TooMuchPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    Assert-That 'P13-T3' ($p13TooMuch.Status -eq 302 -and $p13TooMuchRows -eq 0 `
+            -and ($p13TooMuchPage.Body -match 'You can withdraw up to')) `
+        "an amount above the withdrawable bucket is refused (rows=$p13TooMuchRows)"
+
+    # P13-T1/T5 - the real request: a 1000 hold, a 100 fee, a 900 net.
+    $p13Post = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '1000.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '0917 123 4567'
+    }
+    $p13Row = (Invoke-MySql "SELECT CONCAT(amount, '|', payout_method, '|', payout_account, '|', service_fee_pct, '|', service_fee_amount, '|', status) FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p13Legs = (Invoke-MySql "SELECT CONCAT(COUNT(*), '|', COALESCE(SUM(amount), 0)) FROM ewallet_ledger WHERE id > $p13LedgerStart AND ref_type = 'payout';" | Out-String).Trim()
+    $p13JuanAfter  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13JuanWithdrawableAfter = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13PayoutId = [int]((Invoke-MySql "SELECT id FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $p13MoneyOk = ([math]::Abs($p13JuanAfter - ($p13JuanBefore - 1000)) -lt 0.005) `
+        -and ([math]::Abs($p13JuanWithdrawableAfter - ($p13JuanWithdrawable - 1000)) -lt 0.005)
+    Assert-That 'P13-T1' ($p13Post.Status -eq 302 -and $p13Post.Location -match '/payouts$' `
+            -and $p13Row -eq '1000.00|gcash|09171234567|10.00|100.00|pending' `
+            -and $p13Legs -eq '1|1000.00' -and $p13MoneyOk) `
+        "juan requests 1000 with a 10% fee: held, one ledger debit, net 900 (row=$p13Row, legs=$p13Legs, balance=$p13JuanAfter was $p13JuanBefore)"
+
+    # P13-T4 - the form closes while a request is open, and a second is refused.
+    $p13OpenPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    $p13Second = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '600.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13SecondRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    Assert-That 'P13-T4' ($p13OpenPage.Status -eq 200 -and ($p13OpenPage.Body -match 'Withdrawal in progress') `
+            -and ($p13OpenPage.Body -notmatch 'action="[^"]*/payouts/request"') `
+            -and $p13Second.Status -eq 302 -and $p13SecondRows -eq 1) `
+        "one open request closes the form and refuses a second (rows=$p13SecondRows)"
+
+    # P13-T10 - the queue is admin-only, and it lists the request.
+    $p13QueueMember = Invoke-App -Path '/admin/payouts' -Session 'p10a'
+    # The bare URL must open the pending work queue, not "all requests".
+    $p13Queue       = Invoke-App -Path '/admin/payouts' -Session 'admin'
+    $p13AdminToken  = Get-Csrf $p13Queue.Body
+    $p13PendingActive = ($p13Queue.Body -match 'href="[^"]*admin/payouts\?status=pending"[^>]*aria-selected="true"') `
+        -and ($p13Queue.Body -match 'data-live-surface="admin.payouts"')
+    $p13QueueOk = ($p13Queue.Status -eq 200) -and ($p13Queue.Body -match '@juan') `
+        -and ($p13Queue.Body -match 'Pending review') -and ($p13Queue.Body -match 'Approve') `
+        -and ($p13Queue.Body -match 'Rejection reason') -and ($p13Queue.Body -match 'Held in open requests') `
+        -and ($p13Queue.Body -match 'All requests') -and $p13PendingActive
+    Assert-That 'P13-T10' ($p13QueueOk -and $p13QueueMember.Status -eq 403 -and $p13AdminToken -ne '') `
+        "the admin queue lists juan's request and a member cannot open it (member=$($p13QueueMember.Status), defaultTab=$p13PendingActive)"
+
+    # P13-T7 - approve records the admin.
+    $p13AdminId = [int]((Invoke-MySql "SELECT id FROM users WHERE username = 'admin';" | Out-String).Trim())
+    $p13Approve = Invoke-App -Method 'POST' -Path "/admin/payouts/$p13PayoutId/approve" -Session 'admin' -Form @{
+        '_csrf' = $p13AdminToken
+    }
+    $p13ApprovedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN processed_by = $p13AdminId THEN 1 ELSE 0 END, '|', CASE WHEN processed_at IS NULL THEN 0 ELSE 1 END) FROM payout_requests WHERE id = $p13PayoutId;" | Out-String).Trim()
+    Assert-That 'P13-T7' ($p13Approve.Status -eq 302 -and $p13ApprovedRow -eq 'approved|1|1') `
+        "an admin approves the request and is recorded (row=$p13ApprovedRow)"
+
+    # P13-T8 - complete settles it without a second debit.
+    $p13Complete = Invoke-App -Method 'POST' -Path "/admin/payouts/$p13PayoutId/complete" -Session 'admin' -Form @{
+        '_csrf' = $p13AdminToken
+    }
+    $p13CompletedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN processed_by = $p13AdminId THEN 1 ELSE 0 END) FROM payout_requests WHERE id = $p13PayoutId;" | Out-String).Trim()
+    $p13LegsAfter = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE id > $p13LedgerStart AND ref_type = 'payout';" | Out-String).Trim()
+    $p13BalanceAfterComplete = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    Assert-That 'P13-T8' ($p13Complete.Status -eq 302 -and $p13CompletedRow -eq 'completed|1' `
+            -and ($p13LegsAfter.Trim() -eq '1') -and ([math]::Abs($p13BalanceAfterComplete - $p13JuanAfter) -lt 0.005)) `
+        "completing the payout moves no money a second time (row=$p13CompletedRow, legs=$($p13LegsAfter.Trim()))"
+
+    # P13-T9 - a rejection refunds the hold exactly once.
+    $p13RejectRequest = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '600.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13RejectId = [int]((Invoke-MySql "SELECT id FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $p13BeforeReject = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13Reject = Invoke-App -Method 'POST' -Path "/admin/payouts/$p13RejectId/reject" -Session 'admin' -Form @{
+        '_csrf' = $p13AdminToken
+        'note'  = 'Smoke rejection'
+    }
+    $p13RejectedRow = (Invoke-MySql "SELECT CONCAT(status, '|', admin_note) FROM payout_requests WHERE id = $p13RejectId;" | Out-String).Trim()
+    $p13Refunds = (Invoke-MySql "SELECT CONCAT(COUNT(*), '|', COALESCE(SUM(amount), 0)) FROM ewallet_ledger WHERE id > $p13LedgerStart AND ref_type = 'refund' AND note LIKE 'Payout request #%';" | Out-String).Trim()
+    $p13WithdrawableAfterReject = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13RejectOk = ($p13Reject.Status -eq 302) -and ($p13RejectedRow -eq 'rejected|Smoke rejection') `
+        -and ($p13Refunds -eq '1|600.00') `
+        -and ([math]::Abs($p13WithdrawableAfterReject - ($p13BeforeReject + 600)) -lt 0.005)
+    Assert-That 'P13-T9' $p13RejectOk `
+        "a rejected payout refunds the hold once (row=$p13RejectedRow, refunds=$p13Refunds, withdrawable=$p13WithdrawableAfterReject was $p13BeforeReject)"
+
+    # P13-T12 - the finance report reconciles the payout legs too.
+    $p13ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $p13ReconcileExit   = $LASTEXITCODE
+    $p13ReconcileJson   = $null
+    try { $p13ReconcileJson = ($p13ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P13-T12' ($p13ReconcileExit -eq 0 -and $p13ReconcileJson.ok -eq $true `
+            -and $p13ReconcileJson.payouts.ok -eq $true -and $p13ReconcileJson.payouts.checked -ge 2) `
+        "bin/wallet_reconcile.php reconciles payouts (exit=$p13ReconcileExit, checked=$($p13ReconcileJson.payouts.checked), orphans=$($p13ReconcileJson.payouts.orphans))"
 
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
@@ -2576,6 +2767,18 @@ try {
             if ($counterParts.Count -eq 2) {
                 Invoke-MySql "UPDATE users SET ewallet_sent_today = $($counterParts[0]), ewallet_sent_this_week = $($counterParts[1]) WHERE username = '$counterName';" | Out-Null
             }
+        }
+    } catch { }
+    # Phase 13: the payout requests, their ledger legs (hold + refund) and their
+    # audit rows. The wallets were put back by the Phase 10 snapshot above, so
+    # only the rows this run added are removed here.
+    try {
+        if ($p13Ran) {
+            Invoke-MySql "DELETE FROM ewallet_ledger WHERE id > $p13LedgerStart AND (ref_type = 'payout' OR (ref_type = 'refund' AND note LIKE 'Payout request #%'));" | Out-Null
+            Invoke-MySql "DELETE FROM payout_requests WHERE id > $p13PayoutStart;" | Out-Null
+        }
+        if ($p13AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p13AuditStart AND action LIKE 'payout.%';" | Out-Null
         }
     } catch { }
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }

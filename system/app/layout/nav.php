@@ -111,6 +111,10 @@ return [
                     ['key' => 'admin.wallet', 'label' => 'My e-wallet', 'path' => 'wallet', 'icon' => 'bx-credit-card', 'guard' => 'admin', 'phase' => 5],
                     ['key' => 'admin.transfer', 'label' => 'Send funds', 'path' => 'wallet/transfer', 'icon' => 'bx-paper-plane', 'guard' => 'admin', 'phase' => 12],
                     ['key' => 'admin.payouts', 'label' => 'Payouts', 'path' => 'admin/payouts', 'icon' => 'bx-money-withdraw', 'guard' => 'admin', 'phase' => 13],
+                    /* Admins may withdraw their own earnings too; the member
+                     * page renders inside the back-office layout for them
+                     * (same pattern as admin.wallet / admin.transfer). */
+                    ['key' => 'admin.my_payouts', 'label' => 'My payouts', 'path' => 'payouts', 'icon' => 'bx-credit-card-front', 'guard' => 'admin', 'phase' => 13],
                 ],
             ],
             [

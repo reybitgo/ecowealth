@@ -112,12 +112,13 @@ return [
         assert_same('member.wallet:' . $id, $payload['surface']);
         assert_same(8, $payload['revision']);
         assert_same(
-            ['member-wallet-buckets', 'member-wallet-transfer', 'member-wallet-statement'],
+            ['member-wallet-buckets', 'member-wallet-transfer', 'member-wallet-payout', 'member-wallet-statement'],
             array_keys($payload['fragments'])
         );
 
         $buckets   = $payload['fragments']['member-wallet-buckets'];
         $sendCard  = $payload['fragments']['member-wallet-transfer'];
+        $payoutCard = $payload['fragments']['member-wallet-payout'];
         $statement = $payload['fragments']['member-wallet-statement'];
 
         assert_contains('data-live-region="member-wallet-buckets"', $buckets);
@@ -133,6 +134,11 @@ return [
         assert_contains('Send money to another member', $sendCard);
         assert_contains(url('wallet/transfer'), $sendCard);
         assert_contains('sent today', $sendCard);
+
+        /* The withdraw card points at the payout page (Phase 13). */
+        assert_contains('data-live-region="member-wallet-payout"', $payoutCard);
+        assert_contains('Withdraw earnings', $payoutCard);
+        assert_contains(url('payouts'), $payoutCard);
 
         assert_contains('data-live-region="member-wallet-statement"', $statement);
         assert_contains('data-live-hold="dirty"', $statement);

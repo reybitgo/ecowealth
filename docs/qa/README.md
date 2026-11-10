@@ -27,13 +27,15 @@ sign the phase off.
 | [phase-10-commissions.md](phase-10-commissions.md) | 10 — direct referral award, earnings statement, commission ledger | 10 | 35–45 min |
 | [phase-11-commissions.md](phase-11-commissions.md) | 11 — indirect referral ladder, level breakdown, CSV exports | 10 | 35–45 min |
 | [phase-12-transfers.md](phase-12-transfers.md) | 12 — member transfers, fees, limits, reset cron, admin monitor | 8 | 25–35 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all twelve | — | 10 min to complete |
+| [phase-13-payouts.md](phase-13-payouts.md) | 13 — payout requests, the hold, fees, USDT conversion, admin queue | 8 | 25–35 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all thirteen | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-12` inside it). Phases 4–12 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-13` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
 `evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png`,
-`evidence/phase-11/*.png` and (once the browser pass is captured) `evidence/phase-12/*.png`.
+`evidence/phase-11/*.png` and (once the browser passes are captured) `evidence/phase-12/*.png` and
+`evidence/phase-13/*.png`.
 
 ---
 
@@ -52,7 +54,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 594   Passed: 594   Failed: 0
+Cases: 637   Passed: 637   Failed: 0
 All good.
 ```
 
@@ -65,7 +67,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 150   Failed: 0
+Passed: 161   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -157,6 +159,17 @@ Passed: 150   Failed: 0
   rendering, and the two live surfaces. The smoke script sets a ₱8 fee, walks the wrong-password
   refusal and a real ₱200 transfer over HTTP, opens the monitor tab, runs the reset cron twice from its
   URL entry and re-runs the finance report.
+- Phase 13: a payout request that holds the amount (one `payout` debit, a pending row) and closes the
+  form, the refund-free refusals (below the minimum, above the **withdrawable** bucket, a second request
+  while one is open, an unknown/disabled channel, a malformed account), the service-fee arithmetic, the
+  USDT conversion with the stored rate/gas snapshot (and the closed channels while the rate is unset),
+  approve without a wallet movement, complete without a second debit, rejection refunding the hold once
+  and recording the reason, the two-connection lock test, “no member processes a payout and nobody
+  processes their own”, the out-of-order/double-decision guards, the queue filters/counts/totals, the
+  payout reconciliation (a removed refund leg is caught, orphan legs are reported not failed), and the
+  two live surfaces. The smoke script sets a 10% fee, walks three refusals and the USDT-closed refusal,
+  then a real ₱1,000 request over HTTP (approve → complete) and a ₱600 request rejected and refunded, and
+  re-runs the finance report.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 

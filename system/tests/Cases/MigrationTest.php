@@ -29,6 +29,7 @@ $migrations    = [
     $migrationDir . '014_indirect_commissions.sql',
     $migrationDir . '015_package_b_premium_ladder.sql',
     $migrationDir . '016_transfers.sql',
+    $migrationDir . '017_payouts.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -89,6 +90,7 @@ return [
             'addresses', 'shop_orders', 'shop_order_items', 'shop_order_events',
             'shop_payment_proofs', 'shop_shipments', 'shop_invoices', 'shop_invoice_items',
             'reg_codes', 'activations', 'commissions', 'ewallet_transfers', 'live_revisions',
+            'payout_requests',
         ] as $table) {
             assert_true(in_array($table, $tables, true), $table . ' table missing');
         }
@@ -266,6 +268,7 @@ return [
         assert_same($columnList($fresh, 'activations'), $columnList($migrated, 'activations'), 'activations columns differ from schema.sql');
         assert_same($columnList($fresh, 'commissions'), $columnList($migrated, 'commissions'), 'commissions columns differ from schema.sql');
         assert_same($columnList($fresh, 'ewallet_transfers'), $columnList($migrated, 'ewallet_transfers'), 'ewallet_transfers columns differ from schema.sql');
+        assert_same($columnList($fresh, 'payout_requests'), $columnList($migrated, 'payout_requests'), 'payout_requests columns differ from schema.sql');
         assert_same($columnList($fresh, 'live_revisions'), $columnList($migrated, 'live_revisions'), 'live_revisions columns differ from schema.sql');
     },
 
@@ -688,8 +691,73 @@ return [
         );
     },
 
-    'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {        $pdo = $buildMigrated();
+    'migration guards the payout status machine and its cascades' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
 
+        $userId  = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        $adminId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+
+        $insert = static function (PDO $pdo, int $userId, string $status, string $method = 'gcash'): void {
+            $pdo->exec(
+                "INSERT INTO payout_requests (user_id, amount, payout_method, payout_account, status)
+                 VALUES ({$userId}, 500.00, '{$method}', '09171234567', '{$status}')"
+            );
+        };
+
+        /* A pending request is the default state, with every derived
+         * number defaulting to zero until the service fills them in. */
+        $pdo->exec(
+            "INSERT INTO payout_requests (user_id, amount, payout_account)
+             VALUES ({$userId}, 800.00, '09171234567')"
+        );
+        $payoutId = (int) $pdo->lastInsertId();
+
+        $row = $pdo->query("SELECT * FROM payout_requests WHERE id = {$payoutId}")->fetch();
+
+        assert_same('pending', $row['status']);
+        assert_same('gcash', $row['payout_method']);
+        assert_same('0.00', (string) $row['service_fee_amount']);
+        assert_same('0.0000', (string) $row['usdt_amount']);
+        assert_null($row['processed_by']);
+        assert_null($row['processed_at']);
+
+        /* Only the four states and four methods of plan §4.4/§5.9 exist. */
+        assert_throws(static fn () => $insert($pdo, $userId, 'paid'), PDOException::class);
+        assert_throws(static fn () => $insert($pdo, $userId, 'pending', 'bank'), PDOException::class);
+
+        /* The admin who processed a request is recorded, and losing that
+         * account must not lose the request (SET NULL, not CASCADE). */
+        $pdo->exec(
+            "UPDATE payout_requests
+                SET status = 'completed', processed_by = {$adminId}, processed_at = NOW()
+              WHERE id = {$payoutId}"
+        );
+
+        assert_same('completed', $pdo->query("SELECT status FROM payout_requests WHERE id = {$payoutId}")->fetchColumn());
+        assert_same(
+            $adminId,
+            (int) $pdo->query("SELECT processed_by FROM payout_requests WHERE id = {$payoutId}")->fetchColumn()
+        );
+
+        $pdo->exec("DELETE FROM users WHERE id = {$adminId}");
+
+        assert_same(
+            1,
+            (int) $pdo->query("SELECT COUNT(*) FROM payout_requests WHERE id = {$payoutId}")->fetchColumn(),
+            'the request survives its processor'
+        );
+        assert_null($pdo->query("SELECT processed_by FROM payout_requests WHERE id = {$payoutId}")->fetchColumn());
+
+        /* Deleting the member takes their requests with them. */
+        $pdo->exec("DELETE FROM users WHERE id = {$userId}");
+
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM payout_requests WHERE id = {$payoutId}")->fetchColumn()
+        );
+    },
+
+    'migrated schema rejects the old user role value' => function () use ($buildMigrated): void {        $pdo = $buildMigrated();
         assert_throws(
             static fn () => $pdo->exec(
                 "INSERT INTO users (username, email, password_hash, role)
