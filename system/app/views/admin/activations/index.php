@@ -9,9 +9,9 @@ declare(strict_types=1);
  * exactly once — all inside ActivationService.
  *
  * One live surface. The heading badge, the four counters, the status tabs,
- * the rows and the pagination are regions. The rows region holds unsaved
- * rejection reasons: the client keeps the table and the page shows a stale
- * banner instead of replacing a row mid-edit.
+ * the rows and the pagination are regions. Approve and reject open a
+ * confirmation modal; the rejection reason is typed there, so the rows
+ * carry no unsaved inline input.
  *
  * @var array{total:int, review:int, approved:int, rejected:int, amount_review:float, amount_approved:float} $stats
  * @var array{status:string, method:string, q:string} $filters
@@ -52,23 +52,6 @@ $live = $live ?? [
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
               <?= flash_render() ?>
-
-              <div
-                class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none"
-                data-live-stale
-                role="status"
-                aria-live="polite"
-              >
-                <i class="icon-base bx bx-error-circle fs-5"></i>
-                <div>
-                  <strong>The activation queue changed in another tab.</strong>
-                  Your unsaved rejection reason was kept, so the queue may be out of date.
-                  <a href="<?= e(url('admin/activations')) ?>" class="alert-link" data-live-reload>
-                    Reload the queue
-                  </a>
-                  to see the latest.
-                </div>
-              </div>
 
 <?= View::capture('admin/activations/_header', ['stats' => $stats]) ?>
 

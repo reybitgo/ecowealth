@@ -48,8 +48,14 @@ final class AdminPayoutController
         View::page('admin', 'admin/payouts/index', $this->queueContext($tab) + [
             'page_title'  => 'Payouts',
             'current_nav' => 'admin.payouts',
-            'page_css'    => ['assets/css/wallet.css'],
-            'page_js'     => ['assets/js/admin-live.js'],
+            'page_css'    => [
+                'assets/css/wallet.css',
+                'assets/vendor/libs/sweetalert2/sweetalert2.css',
+            ],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
             'live'        => $this->liveMeta(),
         ]);
     }

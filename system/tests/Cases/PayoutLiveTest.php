@@ -349,7 +349,10 @@ return [
             assert_contains('All requests', $tabs);
 
             assert_contains('data-live-region="payout-rows"', $rows);
-            assert_contains('data-live-hold="dirty"', $rows);
+            assert_not_contains('data-live-hold', $rows, 'the reason lives in the confirmation modal');
+            assert_contains('data-confirm-prompt="note"', $rows);
+            assert_contains('data-confirm-title="Approve this payout?"', $rows);
+            assert_contains('data-confirm-title="Reject this payout?"', $rows);
             assert_contains('data-live-key=', $rows);
             assert_contains('@' . $member['username'], $rows);
             assert_contains(money(800), $rows);

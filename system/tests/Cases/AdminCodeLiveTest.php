@@ -150,8 +150,15 @@ return [
             View::page('admin', 'admin/codes/index', $data + [
                 'page_title'  => 'Registration codes',
                 'current_nav' => 'admin.codes',
-                'page_css'    => ['assets/css/membership.css'],
-                'page_js'     => ['assets/js/app-codes.js'],
+                'page_css'    => [
+                    'assets/css/membership.css',
+                    'assets/vendor/libs/sweetalert2/sweetalert2.css',
+                ],
+                'page_js'     => [
+                    'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                    'assets/js/app-confirm.js',
+                    'assets/js/app-codes.js',
+                ],
                 'live'        => Live::meta('admin.codes', 'page'),
             ]);
         } finally {
@@ -166,6 +173,8 @@ return [
         assert_contains('data-live-region="code-pagination"', $html);
         assert_contains('data-live-status', $html);
         assert_contains('data-code-package', $html, 'the issue form is still on the page');
+        assert_contains('data-confirm-title="Generate these registration codes?"', $html, 'a batch asks before it is issued');
+        assert_contains('app-confirm.js', $html);
         assert_not_contains('data-live-stale', $html, 'no form region is held on this page');
     },
 ];

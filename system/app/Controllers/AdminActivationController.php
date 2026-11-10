@@ -50,7 +50,6 @@ final class AdminActivationController
             'page_js'     => [
                 'assets/vendor/libs/sweetalert2/sweetalert2.js',
                 'assets/js/app-confirm.js',
-                'assets/js/admin-live.js',
             ],
             'live'        => $this->listLiveMeta(),
         ]);

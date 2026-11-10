@@ -33,7 +33,10 @@ final class AdminProductController
             'current_nav' => 'admin.products',
             'live'        => $this->liveMeta(),
             'page_css'    => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
-            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js'],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
         ]);
     }
 

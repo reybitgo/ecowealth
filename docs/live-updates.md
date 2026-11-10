@@ -264,9 +264,9 @@ list pages with no detail page. The activation queue is touched by a manual
 request, an approval and a rejection (approval also touches the member's list
 and detail surfaces); the code list by a batch issue, a redemption and an
 expiry sweep; the commission ledger by every credited or skipped award. The
-activation queue's `<tbody>` is a held region: the rejection reason is typed
-directly into the table, so the client keeps the rows while that input is
-dirty and the page shows its stale banner.
+activation queue's approve and reject buttons open a confirmation modal; the
+rejection reason is typed there, not in the table, so the rows are not a held
+region and a background refresh never races an unsaved reason.
 
 The admin package list is `admin.packages`. The counters, keyed rows and
 pagination are regions; the search/status form stays outside them, and the
@@ -295,7 +295,9 @@ The member's `/payouts` page is `member.payouts:{id}` and the admin queue is
 (both buckets, the minimum, what an open request holds and the ₱/USDT rate),
 the request card (the form, or the open request; held while dirty), the history
 and its pagination. The queue renders the stat cards with their facts line, the
-tab counts, the rows and the pagination. Three things move the member page
+tab counts, the rows and the pagination. Approve, reject and complete each open
+a confirmation modal; a rejection requires its reason in that modal, so no
+reason input lives in the rows. Three things move the member page
 besides a payout action, and its ETag mixes all of them: the wallet revision
 (a commission or purchase refreshes the withdrawable card), the profile
 revision (the form prefills the saved payout accounts) and
@@ -377,8 +379,8 @@ package rename. The day is in the scope because "this month" counts from
   unsaved input in it. It applies the other regions, keeps the form, and reports
   the held keys in `detail.held` so the page can show a stale banner; once every
   held field is clean again it forces one refresh and applies the newer form.
-  A `<tbody data-live-hold="dirty">` is held the same way: the activation
-  queue's rejection-reason field lives inside its rows.
+  A `<tbody data-live-hold="dirty">` is held the same way when a table row owns
+  an editable field.
 - updates `history.replaceState()` when a page is clamped to the last page;
 - broadcasts after a successful live mutation and forces one local refresh;
 - uses a `localStorage`/`storage` fallback when `BroadcastChannel` is missing;
@@ -436,7 +438,10 @@ Three page behaviours keep swapped forms working:
   fulfilment card is replaced, because the ship form can be swapped in.
 - `public/assets/js/app-confirm.js` listens on `document` (delegated submit) instead of
   binding each form at load, so a verify/reject/ship/cancel form that a swap inserted
-  still asks for confirmation before it posts.
+  still asks for confirmation before it posts. A form with `data-confirm-prompt` asks
+  for its required reason in the modal and writes it into a hidden field only after
+  the administrator confirms; `requestSubmit()` lets a live status form perform its
+  AJAX mutation once the answer is in.
 - `public/assets/js/app-payout.js` re-binds its fee/USDT preview and channel toggle
   through `init()` when the `payout-request` region is applied, because a settings
   change (a new fee, rate or minimum) can replace the whole request form with fresh
@@ -447,11 +452,11 @@ Three page behaviours keep swapped forms working:
   static, so replacing the whole product grid never leaves a card's button without a
   working quick view. The add-to-cart forms are delegated by `app-cart.js`.
 
-`public/assets/js/admin-live.js` is shared by every live surface with a form
-region — the admin pages, the member's `/membership` page, the member's own
-`/wallet` statement, the member's `/profile` page, the member's `/payouts` page,
-the admin payout queue, the admin settings page, the checkout page, the member
-order page and the product page: it consumes `detail.held` and reveals the
+`public/assets/js/admin-live.js` is shared by every live surface with a held
+form region — the admin order desk, member directory, settings page and wallet
+monitor, the member's `/membership` page, the member's own `/wallet` statement,
+the member's `/profile` page, the member's `/payouts` page, the checkout page,
+the member order page and the product page: it consumes `detail.held` and reveals the
 page's `[data-live-stale]` banner (“changed in another tab, your unsaved input
 was kept — reload to see the latest”). The banner is only shown when a form
 region was held back; a payload that applied cleanly hides it again. A

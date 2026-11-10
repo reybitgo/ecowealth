@@ -101,8 +101,14 @@ $queuePage = static function (string $tab = 'pending'): array {
     return (new AdminPayoutController())->queueContext($tab) + [
         'page_title'  => 'Payouts',
         'current_nav' => 'admin.payouts',
-        'page_css'    => ['assets/css/wallet.css'],
-        'page_js'     => ['assets/js/admin-live.js'],
+        'page_css'    => [
+            'assets/css/wallet.css',
+            'assets/vendor/libs/sweetalert2/sweetalert2.css',
+        ],
+        'page_js'     => [
+            'assets/vendor/libs/sweetalert2/sweetalert2.js',
+            'assets/js/app-confirm.js',
+        ],
     ];
 };
 
@@ -431,7 +437,6 @@ return [
 
             assert_contains('data-live-surface="admin.payouts"', $html);
             assert_contains('data-live-config="config"', $html, 'a settings save reaches the queue');
-            assert_contains('data-live-stale', $html, 'held rows are announced');
             assert_contains('data-live-region="payout-stats"', $html);
             assert_contains('data-live-region="payout-tabs"', $html);
             assert_contains('data-live-region="payout-rows"', $html);
@@ -458,14 +463,25 @@ return [
             assert_contains('Pending review', $html);
             assert_contains('#' . (int) $result['payout_id'], $html);
 
-            /* The actions: approve and reject-with-a-reason. */
+            /* Both decisions open their own confirmation modal. */
             assert_contains('action="' . url('admin/payouts/' . (int) $result['payout_id'] . '/approve') . '"', $html);
             assert_contains('action="' . url('admin/payouts/' . (int) $result['payout_id'] . '/reject') . '"', $html);
+            assert_contains('data-confirm-title="Approve this payout?"', $html);
+            assert_contains('data-confirm-title="Reject this payout?"', $html);
+            assert_contains('data-confirm-prompt="note"', $html);
+            assert_contains('data-confirm-prompt-label="Rejection reason"', $html);
+            assert_contains('data-confirm-prompt-max="500"', $html);
+            assert_contains('data-confirm-tone="danger"', $html);
             assert_contains('name="note"', $html);
-            assert_contains('Rejection reason', $html);
+            assert_not_contains('placeholder="Rejection reason"', $html, 'the reason is typed in the modal, not the row');
             assert_contains('Approve', $html);
             assert_contains('Reject', $html);
             assert_not_contains('/complete"', $html, 'a pending request cannot complete yet');
+
+            /* The confirmation engine is loaded on the queue itself. */
+            assert_contains('sweetalert2.js', $html);
+            assert_contains('app-confirm.js', $html);
+            assert_not_contains('admin-live.js', $html, 'the rejected reason is no longer an inline field');
 
             /* The filter form is outside the regions. */
             assert_contains('name="from"', $html);

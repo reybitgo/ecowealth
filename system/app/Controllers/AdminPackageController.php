@@ -27,7 +27,10 @@ final class AdminPackageController
             'page_title'  => 'Packages',
             'current_nav' => 'admin.packages',
             'page_css'    => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
-            'page_js'     => ['assets/vendor/libs/sweetalert2/sweetalert2.js'],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
             'live'        => Live::meta('admin.packages', Live::scope($_GET, (int) (auth_user()['id'] ?? 0))),
         ]);
     }

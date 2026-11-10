@@ -4,10 +4,9 @@ declare(strict_types=1);
 /**
  * Admin activation queue — rows.
  *
- * Each row is keyed by activation id. The rejection reason is typed inside
- * this region, so the tbody is marked `data-live-hold="dirty"`: while any
- * reason is unsaved the client keeps the whole table (and the page shows
- * its stale banner) instead of replacing a row mid-edit.
+ * Each row is keyed by activation id. Approving and rejecting both open a
+ * confirmation modal; the rejection reason is typed there, never in the
+ * table, so a live refresh cannot race an unsaved reason.
  *
  * @var list<array<string, mixed>> $activations
  * @var array{status:string, method:string, q:string} $filters
@@ -17,7 +16,7 @@ $hasFilters = (string) $filters['status'] !== ''
     || (string) $filters['method'] !== ''
     || (string) $filters['q'] !== '';
 ?>
-                    <tbody data-live-region="activation-rows" data-live-hold="dirty">
+                    <tbody data-live-region="activation-rows">
 <?php if ($activations === []): ?>
                       <tr>
                         <td colspan="7" class="py-0">
@@ -95,7 +94,8 @@ $hasFilters = (string) $filters['status'] !== ''
                               data-confirm
                               data-confirm-title="Approve this activation?"
                               data-confirm-text="The member becomes active with <?= e((string) $activation['package_name']) ?> and the commission hook runs once."
-                              data-confirm-button="Approve"
+                              data-confirm-button="Approve activation"
+                              data-confirm-cancel="Keep reviewing"
                             >
                               <?= csrf_field() ?>
                               <button type="submit" class="btn btn-sm btn-success" data-live-focus="approve">
@@ -107,22 +107,22 @@ $hasFilters = (string) $filters['status'] !== ''
                               method="POST"
                               action="<?= e(url('admin/activations/' . $id . '/reject')) ?>"
                               class="activation-reject-form"
+                              data-confirm
+                              data-confirm-title="Reject this activation?"
+                              data-confirm-text="The request returns to pending and the member can try again. They see the reason you type below."
+                              data-confirm-button="Reject activation"
+                              data-confirm-cancel="Keep reviewing"
+                              data-confirm-tone="danger"
+                              data-confirm-prompt="reason"
+                              data-confirm-prompt-label="Rejection reason"
+                              data-confirm-prompt-placeholder="Explain what is wrong with the proof"
+                              data-confirm-prompt-max="160"
                             >
                               <?= csrf_field() ?>
-                              <div class="input-group input-group-sm">
-                                <input
-                                  type="text"
-                                  class="form-control"
-                                  name="reason"
-                                  placeholder="Rejection reason"
-                                  maxlength="160"
-                                  required
-                                  aria-label="Rejection reason"
-                                  style="min-width: 0"
-                                  data-live-focus="reject"
-                                />
-                                <button type="submit" class="btn btn-outline-danger">Reject</button>
-                              </div>
+                              <input type="hidden" name="reason" value="" />
+                              <button type="submit" class="btn btn-sm btn-outline-danger" data-live-focus="reject">
+                                <i class="icon-base bx bx-x me-1"></i> Reject
+                              </button>
                             </form>
                           </div>
 <?php else: ?>

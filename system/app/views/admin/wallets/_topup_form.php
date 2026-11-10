@@ -24,7 +24,15 @@ declare(strict_types=1);
                       </p>
                     </div>
                     <div class="card-body">
-                      <form method="POST" action="<?= e(url('admin/wallets/' . (int) $member['id'] . '/credit')) ?>">
+                      <form
+                        method="POST"
+                        action="<?= e(url('admin/wallets/' . (int) $member['id'] . '/credit')) ?>"
+                        data-confirm
+                        data-confirm-title="Credit this wallet?"
+                        data-confirm-text="The amount is added to the non-withdrawable balance immediately and recorded in the ledger and audit log. Check the amount and note before continuing."
+                        data-confirm-button="Credit wallet"
+                        data-confirm-cancel="Not yet"
+                      >
                         <?= csrf_field() ?>
 
                         <div class="mb-4">

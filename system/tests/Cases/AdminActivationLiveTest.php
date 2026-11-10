@@ -175,14 +175,20 @@ return [
         assert_contains('Awaiting review', $tabs);
 
         assert_contains('data-live-region="activation-rows"', $rows);
-        assert_contains('data-live-hold="dirty"', $rows);
+        assert_not_contains('data-live-hold', $rows, 'the reason lives in the confirmation modal');
         assert_contains('&lt;b&gt;y&lt;/b&gt;', $rows);
         assert_not_contains('<b>y</b>', $rows);
         assert_contains(money(4498), $rows);
         assert_contains('/approve', $rows);
         assert_contains('/reject', $rows);
         assert_contains('name="_csrf"', $rows);
-        assert_contains('name="reason"', $rows);
+        assert_contains('name="reason"', $rows, 'the hidden field the modal fills');
+        assert_contains('data-confirm-title="Approve this activation?"', $rows);
+        assert_contains('data-confirm-title="Reject this activation?"', $rows);
+        assert_contains('data-confirm-prompt="reason"', $rows);
+        assert_contains('data-confirm-prompt-label="Rejection reason"', $rows);
+        assert_contains('data-confirm-prompt-max="160"', $rows);
+        assert_not_contains('placeholder="Rejection reason"', $rows, 'the reason is typed in the modal');
         assert_not_contains('membership-filters', $rows, 'the filter form never travels in a row fragment');
 
         assert_contains('data-live-region="activation-pagination"', $pages);
@@ -224,8 +230,14 @@ return [
             View::page('admin', 'admin/activations/index', $data + [
                 'page_title'  => 'Activations',
                 'current_nav' => 'admin.activations',
-                'page_css'    => ['assets/css/membership.css'],
-                'page_js'     => ['assets/js/admin-live.js'],
+                'page_css'    => [
+                    'assets/css/membership.css',
+                    'assets/vendor/libs/sweetalert2/sweetalert2.css',
+                ],
+                'page_js'     => [
+                    'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                    'assets/js/app-confirm.js',
+                ],
                 'live'        => Live::meta('admin.activations', 'page'),
             ]);
         } finally {
@@ -240,9 +252,11 @@ return [
         assert_contains('data-live-region="activation-tabs"', $html);
         assert_contains('data-live-region="activation-rows"', $html);
         assert_contains('data-live-region="activation-pagination"', $html);
-        assert_contains('data-live-hold="dirty"', $html);
+        assert_not_contains('data-live-hold', $html);
+        assert_not_contains('data-live-stale', $html, 'there is no unsaved inline input to announce');
         assert_contains('data-live-status', $html);
-        assert_contains('data-live-stale', $html);
-        assert_contains('admin-live.js', $html);
+        assert_contains('sweetalert2.js', $html);
+        assert_contains('app-confirm.js', $html);
+        assert_not_contains('admin-live.js', $html);
     },
 ];

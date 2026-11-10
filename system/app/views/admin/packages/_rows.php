@@ -70,7 +70,19 @@ $hasFilters = $query !== '' || $status !== '';
                               data-live-focus="edit"
                             ><i class="icon-base bx bx-edit"></i></a>
 
-                            <form method="POST" action="<?= e(url('admin/packages/' . $id . '/status')) ?>" class="d-inline">
+                            <form
+                              method="POST"
+                              action="<?= e(url('admin/packages/' . $id . '/status')) ?>"
+                              class="d-inline"
+                              data-confirm
+                              data-confirm-title="<?= $isActive ? 'Disable this package?' : 'Enable this package?' ?>"
+                              data-confirm-text="<?= $isActive
+                                  ? 'It is hidden from the packages page and cannot be chosen for a new activation. Existing memberships keep their package.'
+                                  : 'It becomes visible to members and can be chosen for an activation again.' ?>"
+                              data-confirm-button="<?= $isActive ? 'Disable package' : 'Enable package' ?>"
+                              data-confirm-cancel="Keep as is"
+                              data-confirm-tone="<?= $isActive ? 'danger' : '' ?>"
+                            >
                               <?= csrf_field() ?>
                               <input type="hidden" name="status" value="<?= $isActive ? 'inactive' : 'active' ?>" />
                               <button

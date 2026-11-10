@@ -41,8 +41,15 @@ final class AdminCodeController
         View::page('admin', 'admin/codes/index', $this->listContext() + [
             'page_title'  => 'Registration codes',
             'current_nav' => 'admin.codes',
-            'page_css'    => ['assets/css/membership.css'],
-            'page_js'     => ['assets/js/app-codes.js'],
+            'page_css'    => [
+                'assets/css/membership.css',
+                'assets/vendor/libs/sweetalert2/sweetalert2.css',
+            ],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+                'assets/js/app-codes.js',
+            ],
             'live'        => $this->listLiveMeta(),
         ]);
     }

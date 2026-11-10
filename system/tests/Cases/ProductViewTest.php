@@ -213,6 +213,11 @@ return [
                 2 => ['orders' => 0, 'carts' => 0, 'packages' => 3],
             ],
             'available'  => [1 => 50, 2 => 0],
+            'page_css'   => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
+            'page_js'    => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
             'live'       => [
                 'surface'  => 'admin.products',
                 'enabled'  => true,
@@ -227,6 +232,8 @@ return [
         assert_contains('Inactive Item', $html);
         assert_contains(url('admin/products/1/edit'), $html);
         assert_contains(url('admin/products/1/status'), $html);
+        assert_contains('data-confirm-title="Disable this product?"', $html, 'the toggle asks before hiding it');
+        assert_contains('data-confirm-title="Enable this product?"', $html, 'and before showing it again');
         assert_contains('This product appears in a member’s cart.', $html);
         assert_contains('This product appears in a package.', $html);
         assert_contains('Showing 1–2 of 2', $html);

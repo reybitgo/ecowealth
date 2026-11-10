@@ -13,8 +13,10 @@ declare(strict_types=1);
  * The page is one live surface. The stat cards, the tab counts and the
  * active tab's rows are regions; the filter form stays outside them so a
  * background refresh never steals focus or discards an unsubmitted
- * search. The facts line reads the payout settings, so the surface also
- * follows the settings fingerprint (`data-live-config`).
+ * search. Decisions open a confirmation modal (the rejection reason is
+ * typed there), so the rows carry no unsaved inline input. The facts line
+ * reads the payout settings, so the surface also follows the settings
+ * fingerprint (`data-live-config`).
  *
  * @var string $tab
  * @var array<string, mixed> $filters
@@ -45,18 +47,6 @@ $live = $live ?? [
               data-live-interval="<?= (int) $live['interval'] ?>"
               data-live-config="config"
             >
-              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
-                <i class="icon-base bx bx-error-circle fs-5"></i>
-                <div>
-                  <strong>The queue changed in another tab.</strong>
-                  A rejection reason you were typing was kept, so these rows may be out of date.
-                  <a href="<?= e(url('admin/payouts')) ?>" class="alert-link" data-live-reload>
-                    Reload the page
-                  </a>
-                  to see the latest.
-                </div>
-              </div>
-
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">Payouts</h4>

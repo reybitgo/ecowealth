@@ -262,10 +262,6 @@
   vertical-align: middle;
 }
 
-.payout-queue-table .payout-reject-form .form-control {
-  min-width: 9rem;
-}
-
 /* ---------- Small screens ---------- */
 @media (max-width: 575.98px) {
   .payout-page .payout-balance h2 {
@@ -276,9 +272,5 @@
   .payout-history-table .table td {
     padding: 0.55rem 0.4rem;
     font-size: 0.82rem;
-  }
-
-  .payout-queue-table .payout-reject-form .form-control {
-    min-width: 7rem;
   }
 }

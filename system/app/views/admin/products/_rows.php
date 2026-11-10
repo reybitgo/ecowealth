@@ -107,6 +107,14 @@ $hasFilters = $query !== '' || $status !== '';
                                 action="<?= e(url('admin/products/' . $id . '/status')) ?>"
                                 class="d-inline"
                                 data-live-action="status"
+                                data-confirm
+                                data-confirm-title="<?= $isActive ? 'Disable this product?' : 'Enable this product?' ?>"
+                                data-confirm-text="<?= $isActive
+                                    ? 'It disappears from the shop and cannot be added to a cart. Existing orders keep their snapshot.'
+                                    : 'It appears in the shop again and can be added to a cart.' ?>"
+                                data-confirm-button="<?= $isActive ? 'Disable product' : 'Enable product' ?>"
+                                data-confirm-cancel="Keep as is"
+                                data-confirm-tone="<?= $isActive ? 'danger' : '' ?>"
                               >
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="status" value="<?= $isActive ? 'inactive' : 'active' ?>" />

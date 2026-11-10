@@ -454,8 +454,15 @@ return [
             View::page('admin', 'admin/wallets/show', $detail + [
                 'page_title'  => 'Wallet — ' . (string) $member['username'],
                 'current_nav' => 'admin.wallets',
-                'page_css'    => ['assets/css/wallet.css'],
-                'page_js'     => ['assets/js/admin-live.js'],
+                'page_css'    => [
+                    'assets/css/wallet.css',
+                    'assets/vendor/libs/sweetalert2/sweetalert2.css',
+                ],
+                'page_js'     => [
+                    'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                    'assets/js/app-confirm.js',
+                    'assets/js/admin-live.js',
+                ],
                 'live'        => Live::meta('admin.wallets:' . $id, 'page'),
             ]);
         } finally {
@@ -473,6 +480,8 @@ return [
         assert_contains('data-live-status', $detailHtml);
         assert_contains('data-live-stale', $detailHtml);
         assert_contains('admin-live.js', $detailHtml);
+        assert_contains('app-confirm.js', $detailHtml);
         assert_contains('action="' . url('admin/wallets/' . $id . '/credit') . '"', $detailHtml);
+        assert_contains('data-confirm-title="Credit this wallet?"', $detailHtml, 'the top-up asks before it posts');
     },
 ];

@@ -4,10 +4,10 @@ declare(strict_types=1);
 /**
  * Admin payout queue — rows.
  *
- * Each row is keyed by request id. The rejection reason is typed inside
- * this region, so the tbody is marked `data-live-hold="dirty"`: while a
- * reason is unsaved the client keeps the table (and the page shows its
- * stale banner) instead of replacing a row mid-edit.
+ * Each row is keyed by request id. Every decision opens a confirmation
+ * modal: the rejection reason is typed there, never in the table, so a
+ * live refresh cannot race an unsaved reason and the rows are not a held
+ * region.
  *
  * The amount shown is the gross the member asked for — the number that is
  * held, refunded on rejection and reported by the queue totals. "Sends"
@@ -26,7 +26,7 @@ $badges = [
     'rejected'  => ['Rejected', 'danger'],
 ];
 ?>
-                    <tbody data-live-region="payout-rows" data-live-hold="dirty">
+                    <tbody data-live-region="payout-rows">
 <?php if ($queue === []): ?>
                       <tr>
                         <td colspan="8" class="py-0">
@@ -121,7 +121,8 @@ $badges = [
                                   PayoutService::label($method),
                                   (string) $request['payout_account']
                               )) ?>"
-                              data-confirm-button="Approve"
+                              data-confirm-button="Approve payout"
+                              data-confirm-cancel="Keep pending"
                             >
                               <?= csrf_field() ?>
                               <button type="submit" class="btn btn-sm btn-success">
@@ -134,22 +135,27 @@ $badges = [
                               method="POST"
                               action="<?= e($payoutUrl . '/reject') ?>"
                               class="payout-reject-form"
+                              data-confirm
+                              data-confirm-title="Reject this payout?"
+                              data-confirm-text="<?= e(sprintf(
+                                  '%s is refunded to @%s immediately. They see the reason you type below; this cannot be undone.',
+                                  money($amount),
+                                  (string) $request['member_username']
+                              )) ?>"
+                              data-confirm-button="Reject payout"
+                              data-confirm-cancel="Keep reviewing"
+                              data-confirm-tone="danger"
+                              data-confirm-prompt="note"
+                              data-confirm-prompt-label="Rejection reason"
+                              data-confirm-prompt-placeholder="Tell the member why this request is being rejected"
+                              data-confirm-prompt-max="500"
                             >
                               <?= csrf_field() ?>
                               <input type="hidden" name="page" value="<?= (int) Request::query('page', 1) ?>" />
-                              <div class="input-group input-group-sm">
-                                <input
-                                  type="text"
-                                  class="form-control"
-                                  name="note"
-                                  placeholder="Rejection reason"
-                                  maxlength="500"
-                                  required
-                                  aria-label="Rejection reason"
-                                  style="min-width: 0"
-                                />
-                                <button type="submit" class="btn btn-outline-danger">Reject</button>
-                              </div>
+                              <input type="hidden" name="note" value="" />
+                              <button type="submit" class="btn btn-sm btn-outline-danger" data-live-focus="reject">
+                                <i class="icon-base bx bx-x me-1"></i> Reject
+                              </button>
                             </form>
 <?php endif; ?>
 <?php if ($status === 'approved'): ?>
@@ -164,6 +170,7 @@ $badges = [
                                   (string) $request['payout_account']
                               )) ?>"
                               data-confirm-button="Mark complete"
+                              data-confirm-cancel="Keep approved"
                             >
                               <?= csrf_field() ?>
                               <button type="submit" class="btn btn-sm btn-primary">

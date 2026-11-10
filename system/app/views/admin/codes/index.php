@@ -74,7 +74,16 @@ $live = $live ?? [
                       <h5 class="card-title mb-0">Issue a batch</h5>
                       <small class="text-body-secondary">One to 500 codes, all bound to the same package and expiry.</small>
                     </div>
-                    <form method="POST" action="<?= e(url('admin/codes/generate')) ?>" class="card-body">
+                    <form
+                      method="POST"
+                      action="<?= e(url('admin/codes/generate')) ?>"
+                      class="card-body"
+                      data-confirm
+                      data-confirm-title="Generate these registration codes?"
+                      data-confirm-text="The batch is issued immediately and cannot be undone. The package, quantity and price above will be used."
+                      data-confirm-button="Generate codes"
+                      data-confirm-cancel="Not yet"
+                    >
                       <?= csrf_field() ?>
                       <div class="row g-3">
                         <div class="col-md-6">

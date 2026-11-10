@@ -717,9 +717,9 @@
       }
 
       if (key === 'product-rows' || current.tagName === 'TBODY') {
-        /* A table body can own a form too (the activation queue's
-         * rejection reason). Keep the rows while a field differs from its
-         * rendered value; the page shows its stale banner instead. */
+        /* A table body can own a form too. Keep the rows while a held
+         * field differs from its rendered value; the page shows its stale
+         * banner instead. */
         if (current.getAttribute('data-live-hold') !== null && hasUnsavedInput(current)) {
           surface.held = true;
           held.push(key);
@@ -1227,6 +1227,14 @@
     var form = event.target;
 
     if (!form || !form.matches || !form.matches('[data-live-action]')) {
+      return;
+    }
+
+    /* app-confirm.js owns a form that still needs its modal. Once the
+     * administrator approves, it re-fires the submit event with
+     * data-confirm-approved set and this handler performs the mutation. */
+    if (form.matches('form[data-confirm]')
+      && form.getAttribute('data-confirm-approved') !== '1') {
       return;
     }
 

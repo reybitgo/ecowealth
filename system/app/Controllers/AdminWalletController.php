@@ -315,8 +315,15 @@ final class AdminWalletController
         View::page('admin', 'admin/wallets/show', $this->walletContext($member) + [
             'page_title'  => 'Wallet — ' . (string) $member['username'],
             'current_nav' => 'admin.wallets',
-            'page_css'    => ['assets/css/wallet.css'],
-            'page_js'     => ['assets/js/admin-live.js'],
+            'page_css'    => [
+                'assets/css/wallet.css',
+                'assets/vendor/libs/sweetalert2/sweetalert2.css',
+            ],
+            'page_js'     => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+                'assets/js/admin-live.js',
+            ],
             'live'        => Live::meta(
                 Live::walletSurface($userId),
                 Live::scope($_GET, (int) (auth_user()['id'] ?? 0))

@@ -104,6 +104,11 @@ return [
             'stats'    => ['total' => 1, 'active' => 1, 'inactive' => 0],
             'levels'   => [$id => Package::levels($id)],
             'contents' => [$id => Package::contents($id)],
+            'page_css' => ['assets/vendor/libs/sweetalert2/sweetalert2.css'],
+            'page_js'  => [
+                'assets/vendor/libs/sweetalert2/sweetalert2.js',
+                'assets/js/app-confirm.js',
+            ],
         ]);
 
         assert_contains('Associate packages', $html);
@@ -113,6 +118,7 @@ return [
         assert_contains('9 paying levels', $html);
         assert_contains(url('admin/packages/' . $id . '/edit'), $html);
         assert_contains(url('admin/packages/' . $id . '/status'), $html);
+        assert_contains('data-confirm-title="Disable this package?"', $html, 'the toggle asks before hiding it');
     },
 
     'P3-T5 the admin form renders 9 editable levels and a read-only level 1' => function () use ($render): void {
