@@ -9,6 +9,10 @@
  *     (no separate feed route, so pagination links stay correct);
  *   • a successful mutation broadcasts the surface key on
  *     BroadcastChannel, and the other open tabs revalidate;
+ *   • a surface can also follow a *shared* revision it mixes into its
+ *     ETag by declaring `data-live-config="config"` (comma-separated for
+ *     more than one), so a settings save reaches pages whose own surface
+ *     key did not change;
  *   • a visible tab also polls its ETag every 30s as a safety net for
  *     changes made in another browser or by a CLI job.
  *
@@ -206,6 +210,29 @@
       || messageKey.indexOf(surfaceKey + ':') === 0;
   }
 
+  /**
+   * Does a broadcast key name a shared revision this surface depends on?
+   *
+   * A page that mixes a shared revision into its ETag declares it with
+   * `data-live-config="config"` — the two payout pages do, for the payout
+   * settings they hash. Without this a settings save would only reach
+   * those pages through their next 30s poll, because their own surface
+   * key never changes.
+   */
+  function configMatches(surface, messageKeys) {
+    if (!surface.config || surface.config.length === 0) {
+      return false;
+    }
+
+    for (var i = 0; i < messageKeys.length; i++) {
+      if (surface.config.indexOf(String(messageKeys[i])) !== -1) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /* ------------------------------------------------------------------
    *  Cross-tab bus
    * ---------------------------------------------------------------- */
@@ -279,14 +306,16 @@
       return;
     }
 
+    var keys = message.keys.map(String);
+
     each(surfaces, function (surface) {
       if (!surface.enabled || surface.stopped) {
         return;
       }
 
-      var matched = message.keys.some(function (key) {
-        return keyMatches(surface.key, String(key));
-      });
+      var matched = keys.some(function (key) {
+        return keyMatches(surface.key, key);
+      }) || configMatches(surface, keys);
 
       if (matched) {
         invalidate(surface);
@@ -344,9 +373,18 @@
       interval = 30000;
     }
 
+    var depends = (el.getAttribute('data-live-config') || '').split(',');
+
+    depends = depends.map(function (part) {
+      return String(part).trim();
+    }).filter(function (part) {
+      return part !== '';
+    });
+
     var surface = {
       el: el,
       key: key,
+      config: depends,
       enabled: el.getAttribute('data-live-enabled') !== '0',
       interval: interval,
       feedUrl: el.getAttribute('data-live-feed') || window.location.href,
@@ -1353,7 +1391,7 @@
       invalidate: function (key) {
         broadcast([key]);
         each(surfaces, function (surface) {
-          if (keyMatches(surface.key, key)) {
+          if (keyMatches(surface.key, key) || configMatches(surface, [key])) {
             invalidate(surface);
           }
         });

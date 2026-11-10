@@ -16,7 +16,9 @@ declare(strict_types=1);
  * One live surface per member (`member.payouts:{id}`). The balance card,
  * the request card, the history and its pagination are regions. The
  * request card is held while it has unsaved input, so a background
- * refresh can never wipe a half-typed form.
+ * refresh can never wipe a half-typed form. The surface also follows the
+ * payout-settings fingerprint (`data-live-config`), so an admin changing
+ * the minimum, a fee or the ₱/USDT rate refreshes it without a reload.
  *
  * @var array<string, mixed> $account
  * @var array<string, mixed> $options
@@ -44,7 +46,20 @@ $live = $live ?? [
               data-live-revision="<?= (int) $live['revision'] ?>"
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
+              data-live-config="config"
             >
+              <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
+                <i class="icon-base bx bx-error-circle fs-5"></i>
+                <div>
+                  <strong>Your payout page changed in another tab.</strong>
+                  Your unsaved request was kept, so the amount, fee or rate shown may be out of date.
+                  <a href="<?= e(url('payouts')) ?>" class="alert-link" data-live-reload>
+                    Reload the page
+                  </a>
+                  to see the latest.
+                </div>
+              </div>
+
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">Payouts</h4>

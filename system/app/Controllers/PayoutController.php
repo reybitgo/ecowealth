@@ -16,11 +16,12 @@ declare(strict_types=1);
  *  picks the response.
  *
  *  The page is one live surface per member (`member.payouts:{id}`). The
- *  balance card, the open-request card, the history table and its
- *  pagination are regions; the request form is outside every region, so
- *  a background refresh can never wipe what the member is typing. Admins
- *  get the same page inside the back-office layout (the `member` guard
- *  admits them, plan §3.4).
+ *  balance card, the request card (the form, or the open request), the
+ *  history table and its pagination are regions. The request card carries
+ *  `data-live-hold="dirty"`, so a background refresh never wipes a
+ *  half-typed amount; `app-payout.js` re-binds the fee/rate preview after
+ *  the card was replaced. Admins get the same page inside the back-office
+ *  layout (the `member` guard admits them, plan §3.4).
  * ============================================================== */
 
 final class PayoutController
@@ -216,17 +217,27 @@ final class PayoutController
     /**
      * ETag scope for the payout page.
      *
-     * The buckets move on every wallet movement, not only on a payout, so
-     * the member's wallet revision is mixed into the scope: a commission
-     * or a purchase refreshes the withdrawable card even though it does
-     * not bump the payout surface itself.
+     * Three things move this page besides a payout action:
+     *
+     *   · the buckets — every wallet movement (a commission, a purchase)
+     *     refreshes the withdrawable card without bumping the payout
+     *     surface, so the member's wallet revision is mixed in;
+     *   · the saved payout accounts the form prefills — the profile page
+     *     writes them in another tab, so its revision is mixed in too;
+     *   · the withdrawal rules — the minimum, each channel's switch and
+     *     fee, and the ₱/USDT rate with its network fees. Those come from
+     *     the admin's **Payout methods** card (or from SQL), and the
+     *     fingerprint catches every writer, not only one that touches a
+     *     revision.
      *
      * Public so the live tests can prove the mixing without a request.
      */
     public function pageScope(int $userId): string
     {
         return Live::scope($_GET, $userId)
-            . '|wallet:' . Live::revisionOrZero(Live::memberWalletSurface($userId));
+            . '|wallet:' . Live::revisionOrZero(Live::memberWalletSurface($userId))
+            . '|profile:' . Live::revisionOrZero(Live::profileSurface($userId))
+            . '|payouts:' . PayoutService::settingsFingerprint();
     }
 
     /**

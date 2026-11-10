@@ -430,6 +430,8 @@ return [
             $html = $render('admin', 'admin/payouts/index', $queuePage('pending'));
 
             assert_contains('data-live-surface="admin.payouts"', $html);
+            assert_contains('data-live-config="config"', $html, 'a settings save reaches the queue');
+            assert_contains('data-live-stale', $html, 'held rows are announced');
             assert_contains('data-live-region="payout-stats"', $html);
             assert_contains('data-live-region="payout-tabs"', $html);
             assert_contains('data-live-region="payout-rows"', $html);

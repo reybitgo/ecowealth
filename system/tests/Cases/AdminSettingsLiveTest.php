@@ -4,9 +4,10 @@ declare(strict_types=1);
 /* ==============================================================
  *  AdminSettingsLiveTest — the settings page
  *
- *  One surface (`admin.settings`) with five regions: the placeholder
- *  notice and the four card bodies. The bodies are held regions; the
- *  forms, headers and footers stay static.
+ *  One surface (`admin.settings`) with six regions: the placeholder
+ *  notice and the five card bodies (shop, receiving accounts, payout
+ *  methods, payment windows, fulfilment). The bodies are held regions;
+ *  the forms, headers and footers stay static.
  * ============================================================== */
 
 $makeAdmin = static function (): array {
@@ -50,7 +51,7 @@ return [
         assert_not_same($etag, $nextEtag, 'a config move changes a membership ETag');
     },
 
-    'the settings feed renders the notice and four held card bodies' => function () use ($makeAdmin): void {
+    'the settings feed renders the notice and five held card bodies' => function () use ($makeAdmin): void {
         $admin = $makeAdmin();
 
         test_signed_in_as($admin);
@@ -68,6 +69,7 @@ return [
                 'settings-notice',
                 'settings-shop',
                 'settings-accounts',
+                'settings-payouts',
                 'settings-windows',
                 'settings-fulfilment',
             ],
@@ -77,6 +79,7 @@ return [
         $notice     = $payload['fragments']['settings-notice'];
         $shop       = $payload['fragments']['settings-shop'];
         $accounts   = $payload['fragments']['settings-accounts'];
+        $payouts    = $payload['fragments']['settings-payouts'];
         $windows    = $payload['fragments']['settings-windows'];
         $fulfilment = $payload['fragments']['settings-fulfilment'];
 
@@ -89,6 +92,15 @@ return [
         assert_contains('data-live-hold="dirty"', $accounts);
         assert_contains('name="payment_gcash_number"', $accounts);
         assert_contains('name="payment_bank_account_number"', $accounts);
+
+        assert_contains('data-live-region="settings-payouts"', $payouts);
+        assert_contains('data-live-hold="dirty"', $payouts);
+        assert_contains('name="min_payout"', $payouts);
+        assert_contains('name="usdt_rate"', $payouts);
+        assert_contains('name="payout_usdt_trc20_enabled"', $payouts);
+        assert_contains('name="service_fee_usdt_trc20"', $payouts);
+        assert_contains('name="usdt_trc20_gas_fee"', $payouts);
+        assert_contains('name="usdt_bep20_gas_fee"', $payouts);
 
         assert_contains('data-live-region="settings-windows"', $windows);
         assert_contains('data-live-hold="dirty"', $windows);
@@ -132,6 +144,67 @@ return [
         assert_not_contains('<b>Hostile Seller</b>', $hostile['fragments']['settings-fulfilment']);
     },
 
+    'the payout card follows a settings change and warns while the USDT rate is unset' => function () use ($makeAdmin): void {
+        $admin = $makeAdmin();
+
+        test_signed_in_as($admin);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/settings';
+
+        $controller = new AdminSettingsController();
+
+        $before = setting('usdt_rate');
+        $beforeMin = setting('min_payout');
+        $beforeTrc = setting('payout_usdt_trc20_enabled');
+        $beforeGas = setting('usdt_trc20_gas_fee');
+
+        try {
+            setting_set('usdt_rate', '0');
+            setting_set('min_payout', '250');
+            setting_set('payout_usdt_trc20_enabled', '0');
+            setting_set('usdt_trc20_gas_fee', '3.5');
+            setting_cache_clear();
+
+            $closed = $controller->feedPayload(10, '"admin.settings:10:pqr"', $controller->settingsContext());
+            $card   = $closed['fragments']['settings-payouts'];
+
+            assert_contains('USDT payouts are closed', $card);
+            assert_contains('name="usdt_rate"', $card);
+            assert_contains('value="250"', $card);
+            assert_contains('value="3.5"', $card);
+
+            /* The channel switch renders unchecked while the channel is off. */
+            $open = null;
+
+            preg_match('/<input[^>]*name="payout_usdt_trc20_enabled"[^>]*>/s', $card, $open);
+            assert_true(isset($open[0]) && !str_contains($open[0], 'checked'), 'a closed channel renders unchecked');
+
+            setting_set('usdt_rate', '56');
+            setting_set('payout_usdt_trc20_enabled', '1');
+            setting_cache_clear();
+
+            $live = $controller->feedPayload(11, '"admin.settings:11:stu"', $controller->settingsContext());
+            $card = $live['fragments']['settings-payouts'];
+
+            assert_not_contains('USDT payouts are closed', $card);
+            assert_contains('value="56"', $card);
+
+            preg_match('/<input[^>]*name="payout_usdt_trc20_enabled"[^>]*>/s', $card, $open);
+            assert_true(isset($open[0]) && str_contains($open[0], 'checked'), 'an open channel renders checked');
+
+            /* The controls stay inside their own card. */
+            assert_not_contains('name="usdt_rate"', $live['fragments']['settings-accounts']);
+            assert_not_contains('name="min_payout"', $live['fragments']['settings-windows']);
+        } finally {
+            setting_set('usdt_rate', (string) $before);
+            setting_set('min_payout', (string) $beforeMin);
+            setting_set('payout_usdt_trc20_enabled', (string) $beforeTrc);
+            setting_set('usdt_trc20_gas_fee', (string) $beforeGas);
+            setting_cache_clear();
+        }
+    },
+
     'the settings page declares its live surface and regions' => function () use ($makeAdmin, $renderPage): void {
         $admin = $makeAdmin();
 
@@ -149,13 +222,14 @@ return [
         assert_contains('data-live-region="settings-notice"', $html);
         assert_contains('data-live-region="settings-shop"', $html);
         assert_contains('data-live-region="settings-accounts"', $html);
+        assert_contains('data-live-region="settings-payouts"', $html);
         assert_contains('data-live-region="settings-windows"', $html);
         assert_contains('data-live-region="settings-fulfilment"', $html);
-        assert_same(4, substr_count($html, 'data-live-hold="dirty"'), 'one held body per card');
+        assert_same(5, substr_count($html, 'data-live-hold="dirty"'), 'one held body per card');
         assert_contains('data-live-status', $html);
         assert_contains('data-live-stale', $html);
         assert_contains('admin-live.js', $html);
-        assert_same(4, substr_count($html, 'Save settings'), 'one save button per card');
-        assert_same(4, substr_count($html, 'name="section"'), 'one section marker per form');
+        assert_same(5, substr_count($html, 'Save settings'), 'one save button per card');
+        assert_same(5, substr_count($html, 'name="section"'), 'one section marker per form');
     },
 ];

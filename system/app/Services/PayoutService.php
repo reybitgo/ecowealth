@@ -139,6 +139,39 @@ final class PayoutService
             && setting_bool('payout_' . $method . '_enabled', true);
     }
 
+    /**
+     * A short fingerprint of the settings both payout pages print.
+     *
+     * `/payouts` and `/admin/payouts` render the floor, each channel's
+     * switch and fee, and the ₱/USDT rate with its network fees. The
+     * fingerprint is mixed into both pages' ETags so a settings change
+     * revalidates an open tab on its next poll — including one written by
+     * a migration, a CLI job or a direct database edit, which never calls
+     * `Live::touch()` and so never moves the revision table.
+     *
+     * The *effective* values are hashed (clamped and rounded the way the
+     * page formats them), so a cosmetic save — "5" written as "5.00" —
+     * does not churn every open payout page.
+     */
+    public static function settingsFingerprint(): string
+    {
+        $values = ['min' => number_format(self::minPayout(), 2, '.', '')];
+
+        foreach (self::METHODS as $method) {
+            $values[$method] = implode(':', [
+                self::methodEnabled($method) ? '1' : '0',
+                number_format(self::serviceFeePct($method), 2, '.', ''),
+                number_format(self::gasFee($method), 4, '.', ''),
+            ]);
+        }
+
+        $values['usdt_rate'] = number_format(self::usdtRate(), 4, '.', '');
+
+        $encoded = json_encode($values, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return substr(hash('sha256', $encoded === false ? '' : $encoded), 0, 10);
+    }
+
     public static function isUsdt(string $method): bool
     {
         return in_array($method, self::USDT_METHODS, true);

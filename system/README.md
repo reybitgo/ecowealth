@@ -297,7 +297,7 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/orders/{id}/proof` | member | Upload a payment proof (JPG/PNG/WebP/PDF ≤ 5 MB) |
 | GET | `/admin/proofs/{id}` | admin | Stream one stored proof (never a public URL) |
 | POST | `/admin/orders/{id}/transition` | admin | Verify (`paid`), reject (`payment_failed`) or cancel; Phase 8 also pack (`packing`) and ready (`ready_to_ship`) |
-| GET | `/admin/settings` | admin | Payment accounts, payment/correction windows, seller block, expiry/auto-complete switches |
+| GET | `/admin/settings` | admin | Payment accounts, payout methods, payment/correction windows, seller block, expiry/auto-complete switches |
 | POST | `/admin/settings` | admin | Validated, audited save (`settings.update`) |
 
 ### Phase 8 URLs — fulfilment and invoices
@@ -383,15 +383,19 @@ e-wallet transfer limits; later phases read them without further migrations. Sin
 payment accounts and the three payment windows (`shop_payment_deadline_hours`,
 `shop_correction_window_hours`, `shop_max_proof_attempts`) are editable at `/admin/settings`; since
 Phase 8 the same page edits the invoice seller block (`seller_name/address/tin/phone`) and the
-auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The page is four
-independent cards — **Shop**, **Receiving accounts**, **Payment windows**, **Fulfilment & invoices** —
-each with its own form and **Save settings** button; the controller only validates, writes and audits
-the submitted card's keys, so one save can never overwrite another card. The payout settings
-(`min_payout`, `service_fee_<method>`, `usdt_rate`, `usdt_*_gas_fee`, `payout_*_enabled`) and the
-transfer settings (`ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`,
-`ewallet_transfer_weekly_limit`) are seeded and read by their services but are not editable in the UI
-yet — an operator changes them with SQL until Phase 15 expands this page. The full settings page
-expands in Phase 15.
+auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The Phase 13
+follow-up adds **Payout methods**: the floor (`min_payout`), each channel's fee and switch
+(`service_fee_<method>`, `payout_<method>_enabled`) and the USDT rail (`usdt_rate`,
+`usdt_trc20_gas_fee`, `usdt_bep20_gas_fee`). The page is five independent cards — **Shop**,
+**Receiving accounts**, **Payout methods**, **Payment windows**, **Fulfilment & invoices** — each
+with its own form and **Save settings** button; the controller only validates, writes and audits
+the submitted card's keys, so one save can never overwrite another card. Money values keep their
+column precision (`decimal:2` for the floor and fees, `decimal:4` for the rate and gas) and a
+percentage is capped at 100 so the service never has to clamp a saved value. The transfer settings
+(`ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`,
+`ewallet_transfer_weekly_limit`) are still seeded and read by their service but not editable in
+the UI yet — an operator changes them with SQL until Phase 15 expands this page. The full
+settings page expands in Phase 15.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.
@@ -530,10 +534,20 @@ it arrives in Phase 15.
   complete records that the funds were sent off-platform and moves no money. A status change is a conditional
   `UPDATE … WHERE status IN (…)` whose row count must be 1, so a double-clicked approve cannot approve twice,
   and nobody can process their own request.
+- **The withdrawal rules are editable.** `/admin/settings` → **Payout methods** writes
+  `min_payout`, `service_fee_<method>`, `payout_<method>_enabled`, `usdt_rate` and
+  `usdt_*_gas_fee`, validated (money precision, a percentage capped at 100, a rate of 0 meaning
+  "USDT closed") and audited as `settings.update`. A rate left at 0 keeps both USDT channels
+  unavailable and tells the member why; the card warns the admin while it is unset.
 - **Audit and live surfaces.** `payout.request`, `payout.approve`, `payout.reject` and `payout.complete`
   entries carry the before/after status, the amount, the method and the note. The member page
   (`member.payouts:{id}`) and the queue (`admin.payouts`) refresh in place; the request card is held while it
-  has unsaved input.
+  has unsaved input. The member page's ETag also mixes the wallet revision (a commission refreshes the
+  withdrawable card), the profile revision (the form prefills the saved payout accounts) and
+  `PayoutService::settingsFingerprint()`, a hash of the effective withdrawal rules — so a settings save, a
+  migration or a direct SQL edit reaches an open tab on its next poll. Both surfaces declare
+  `data-live-config="config"`, so the settings save's broadcast refreshes them at once in the same browser,
+  and `app-payout.js` re-binds the fee/USDT preview when the request card is replaced.
 - **Refund id collision.** `refund` is shared with Phase 7's order refunds and the two id sequences overlap,
   so a payout refund whose `ref_id` is already taken for that member is written with `ref_id = NULL` and
   named in its note (the same fallback the transfer fee uses). The ledger's idempotency key can therefore

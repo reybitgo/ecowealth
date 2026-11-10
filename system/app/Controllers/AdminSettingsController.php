@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  AdminSettingsController — payment accounts, payment windows,
- *  fulfilment and invoices (plan §7 Phases 7–8; expanded into the
- *  full settings page in Phase 15; reference
+ *  AdminSettingsController — payment accounts, payout methods,
+ *  payment windows, fulfilment and invoices (plan §7 Phases 7–8;
+ *  expanded into the full settings page in Phase 15; reference
  *  AdminController::settings/saveSettings)
  *
  *  Routes:
@@ -101,6 +101,73 @@ final class AdminSettingsController
     ];
 
     /**
+     * The withdrawal rules members cash out under: the floor and the
+     * ₱/USDT conversion. `PayoutService` reads exactly these keys, so the
+     * member's `/payouts` page and the admin queue print what is saved
+     * here.
+     */
+    private const PAYOUT_FIELDS = [
+        [
+            'key'    => 'min_payout',
+            'label'  => 'Minimum payout',
+            'hint'   => 'The smallest withdrawal a member may request.',
+            'step'   => '0.01',
+            'suffix' => CURRENCY_SYMBOL,
+        ],
+        [
+            'key'    => 'usdt_rate',
+            'label'  => 'USDT rate',
+            'hint'   => 'Pesos for 1 USDT. While this is 0 the two USDT channels stay closed and members are told why.',
+            'step'   => '0.0001',
+            'suffix' => CURRENCY_SYMBOL . ' / USDT',
+        ],
+    ];
+
+    /**
+     * The four payout channels, in display order. `toggle` is the
+     * channel's own switch, `fee` its service-fee percentage and `gas`
+     * its network fee in USDT (empty for the two peso channels).
+     */
+    private const PAYOUT_CHANNELS = [
+        [
+            'key'    => 'gcash',
+            'title'  => 'GCash',
+            'icon'   => 'bx-mobile-alt',
+            'usdt'   => false,
+            'toggle' => 'payout_gcash_enabled',
+            'fee'    => 'service_fee_gcash',
+            'gas'    => '',
+        ],
+        [
+            'key'    => 'maya',
+            'title'  => 'Maya',
+            'icon'   => 'bx-mobile',
+            'usdt'   => false,
+            'toggle' => 'payout_maya_enabled',
+            'fee'    => 'service_fee_maya',
+            'gas'    => '',
+        ],
+        [
+            'key'    => 'usdt_trc20',
+            'title'  => 'USDT (TRC20)',
+            'icon'   => 'bx-dollar-circle',
+            'usdt'   => true,
+            'toggle' => 'payout_usdt_trc20_enabled',
+            'fee'    => 'service_fee_usdt_trc20',
+            'gas'    => 'usdt_trc20_gas_fee',
+        ],
+        [
+            'key'    => 'usdt_bep20',
+            'title'  => 'USDT (BEP20)',
+            'icon'   => 'bx-coin-stack',
+            'usdt'   => true,
+            'toggle' => 'payout_usdt_bep20_enabled',
+            'fee'    => 'service_fee_usdt_bep20',
+            'gas'    => 'usdt_bep20_gas_fee',
+        ],
+    ];
+
+    /**
      * The independently saveable cards on /admin/settings. Every card
      * has its own form and its own **Save settings** button, and only
      * the submitted section is validated, written and audited — so a
@@ -109,6 +176,7 @@ final class AdminSettingsController
     private const SECTIONS = [
         'shop'       => 'Shop',
         'accounts'   => 'Receiving accounts',
+        'payouts'    => 'Payout methods',
         'windows'    => 'Payment windows',
         'fulfilment' => 'Fulfilment & invoices',
     ];
@@ -143,6 +211,8 @@ final class AdminSettingsController
         return [
             'settings'          => setting_all(),
             'account_groups'    => self::ACCOUNT_GROUPS,
+            'payout_fields'     => self::PAYOUT_FIELDS,
+            'payout_channels'   => self::PAYOUT_CHANNELS,
             'window_fields'     => self::WINDOW_FIELDS,
             'seller_fields'     => self::SELLER_FIELDS,
             'fulfilment_fields' => self::FULFILMENT_FIELDS,
@@ -206,6 +276,11 @@ final class AdminSettingsController
                 'settings-accounts' => View::capture('admin/settings/_accounts', [
                     'settings'       => $data['settings'],
                     'account_groups' => $data['account_groups'],
+                ]),
+                'settings-payouts' => View::capture('admin/settings/_payouts', [
+                    'settings'        => $data['settings'],
+                    'payout_fields'   => $data['payout_fields'],
+                    'payout_channels' => $data['payout_channels'],
                 ]),
                 'settings-windows' => View::capture('admin/settings/_windows', [
                     'settings'       => $data['settings'],
@@ -289,7 +364,11 @@ final class AdminSettingsController
         if ($changes !== []) {
             /* The settings page itself and every page whose regions read a
              * setting (membership channels, order payment instructions)
-             * revalidate from the shared config revision. */
+             * revalidate from the shared config revision. The two payout
+             * pages mix `PayoutService::settingsFingerprint()` instead, so
+             * the new minimum / fees / USDT rate reaches them on their next
+             * poll; this broadcast (and the client's `data-live-config`)
+             * makes an open one revalidate at once. */
             Live::touchSettings();
             Live::publish(['admin.settings', Live::CONFIG]);
 
@@ -317,6 +396,12 @@ final class AdminSettingsController
             flash_set('info', 'No changes to save.');
         }
 
+        /* The submitted card was valid (or unchanged), so drop any input
+         * kept from an earlier failed save. Without this the next render —
+         * including the live feed's card replacements — would keep showing
+         * the stale attempt instead of the values just stored. */
+        old_clear();
+
         redirect($back);
     }
 
@@ -337,6 +422,20 @@ final class AdminSettingsController
             foreach (self::ACCOUNT_GROUPS as $group) {
                 foreach ($group['fields'] as $field) {
                     $keys[] = (string) $field['key'];
+                }
+            }
+        }
+
+        if ($section === 'payouts') {
+            foreach (self::PAYOUT_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
+
+            foreach (self::PAYOUT_CHANNELS as $channel) {
+                $keys[] = (string) $channel['fee'];
+
+                if ((string) $channel['gas'] !== '') {
+                    $keys[] = (string) $channel['gas'];
                 }
             }
         }
@@ -365,6 +464,10 @@ final class AdminSettingsController
     {
         return match ($section) {
             'shop'       => ['shop_enabled'],
+            'payouts'    => array_map(
+                static fn (array $channel): string => (string) $channel['toggle'],
+                self::PAYOUT_CHANNELS
+            ),
             'windows'    => ['shop_expiry_enabled'],
             'fulfilment' => ['shop_autocomplete_enabled'],
             default      => [],
@@ -402,6 +505,21 @@ final class AdminSettingsController
             }
         }
 
+        /* The withdrawal rules. Percentages stop at 100 so a saved value
+         * can never be silently clamped by PayoutService, and the rate and
+         * gas fees keep the precision their DECIMAL columns store. */
+        $rules['min_payout'] = 'required|numeric|gte:0|lte:' . PayoutService::MAX_AMOUNT . '|decimal:2';
+        $rules['usdt_rate']  = 'required|numeric|gte:0|lte:' . PayoutService::MAX_RATE . '|decimal:4';
+
+        foreach (self::PAYOUT_CHANNELS as $channel) {
+            $rules[(string) $channel['toggle']] = 'required|in:0,1';
+            $rules[(string) $channel['fee']]    = 'required|numeric|gte:0|lte:100|decimal:2';
+
+            if ((string) $channel['gas'] !== '') {
+                $rules[(string) $channel['gas']] = 'required|numeric|gte:0|lte:' . PayoutService::MAX_GAS . '|decimal:4';
+            }
+        }
+
         foreach (self::WINDOW_FIELDS as $key => $field) {
             $rules[(string) $key] = (string) $field['rule'];
         }
@@ -432,6 +550,19 @@ final class AdminSettingsController
         foreach (self::ACCOUNT_GROUPS as $group) {
             foreach ($group['fields'] as $field) {
                 $labels[(string) $field['key']] = (string) $group['title'] . ' ' . $field['label'];
+            }
+        }
+
+        foreach (self::PAYOUT_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::PAYOUT_CHANNELS as $channel) {
+            $labels[(string) $channel['toggle']] = (string) $channel['title'] . ' payouts';
+            $labels[(string) $channel['fee']]    = (string) $channel['title'] . ' service fee (%)';
+
+            if ((string) $channel['gas'] !== '') {
+                $labels[(string) $channel['gas']] = (string) $channel['title'] . ' network fee (USDT)';
             }
         }
 

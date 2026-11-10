@@ -3046,3 +3046,24 @@ numeric branch's message has no “characters” in it. Every text field holding
 Phase 14 — super-login: a superadmin opens a member's portal through an audited, expiring URL-token
 session (IP/UA bound, 8 h TTL, hashed nonce in `impersonation_log`), with the member-layout banner and the
 exit action, without disturbing their own session.
+
+---
+
+## Post-Phase 13 — payout methods on the settings page, live
+
+The withdrawal rules were seeded but SQL-only (Phase 15 was to expose them), and neither payout page
+revalidated when they changed: `member.payouts:{id}` mixed only the member's wallet revision and
+`admin.payouts` only the hour. A USDT rate change therefore left an open `/payouts` tab showing a closed
+channel, the old fee and the old minimum until a manual reload. This follow-up makes the rules editable and
+both pages live against them.
+
+| Piece | What changed |
+|---|---|
+| **Settings** | `/admin/settings` gains a fifth card, **Payout methods** (`section=payouts`): `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee` and the four `payout_*_enabled` switches. It validates with the columns' precision (`decimal:2` money and a percentage capped at 100, `decimal:4` rate and gas), audits as `settings.update` with a per-key before/after, and writes only its own card's keys. The card warns while `usdt_rate` is 0 ("USDT payouts are closed"). A successful save also drops input kept from an earlier failed save, so the form no longer keeps displaying the failed attempt (and the live card feed no longer keeps re-rendering it). |
+| **Live scopes** | `PayoutService::settingsFingerprint()` hashes the effective withdrawal rules. `PayoutController::pageScope()` mixes the wallet revision, the profile revision (the prefilled payout accounts) and the fingerprint; `AdminPayoutController::queueScope()` mixes the fingerprint and is public for the tests. Because the hash reflects the stored values, a settings save written by SQL or a migration moves it too — not only a save through the card. |
+| **Client** | `app-live.js` understands `data-live-config="config"`: a `config` broadcast revalidates any surface that declares it, and both payout pages do. `app-payout.js` re-binds its fee/USDT preview and channel toggle after the `payout-request` region is replaced, so a new rate reaches the visible preview, not just the markup. Both payout pages also gained the `[data-live-stale]` banner, so a held request card (or a typed rejection reason) says the page may be behind. |
+| **Tests** | `PayoutLiveTest` +3 (the profile revision, the fingerprint on both surfaces, a USDT settings change seen through the feed), `AdminSettingsLiveTest` +1 (the payout card follows a change and warns while the rate is unset); `SettingsPageTest` and the settings live test now expect five cards. Suite **637 → 641**. |
+| **Verified** | Over HTTP: `/payouts` answered **304** to its conditional feed; a save through the card (`usdt_rate` 56 → 57.25, TRC20 fee 5 → 6, gas 2.50 → 2.75, minimum 500 → 300) audited exactly four keys, and the same feed then answered **200** with `data-fee-pct="6"`, `data-gas="2.75"` and `₱1.00 = 0.0175 USDT`. The queue's feed moved 304 → 200 with the new minimum. In headless Chrome the open `/payouts` tab picked the change up from a `config` broadcast and re-rendered the withdrawable card (0.0179 → 0.0175 USDT), and the swapped request form was re-bound (fee 6%, preview ₱60.00 on ₱1,000 → 13.6692 USDT). An invalid save (rate `abc`, fee 150, minimum −5) kept the card's values, showed the three field errors and wrote nothing. The dev database was restored to its original values afterwards. Evidence: `docs/qa/evidence/post-phase-13/settings-payout-methods.png`, `docs/qa/evidence/post-phase-13/member-payouts.png`. |
+
+No migration: all eleven keys are already seeded by `001`/`017`. Full suite **641/641**, `php -l` clean on
+every touched file.

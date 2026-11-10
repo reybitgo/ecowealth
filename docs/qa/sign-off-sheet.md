@@ -4,18 +4,17 @@ Fill this sheet while working through the thirteen phase documents. Hand the com
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
-**Status of this pass (2026-11-10):** Phases 1–10 are recorded as **passed** — **166 / 166**
-manual checks, **427 / 427** PHP cases and **139 / 139** smoke checks; **0 failed, 0 blocked**.
-Phase 11 is automated- and headless-complete (**560 / 560** PHP cases, **143 / 143** smoke checks) with
-its ten manual checks still to tick. Phase 12 is automated-complete (**594 / 594** PHP cases,
-**150 / 150** smoke checks) with its eight manual checks still to tick. Phase 13 is automated-complete
-(**637 / 637** PHP cases, **161 / 161** smoke checks) with its eight manual checks still to tick.
+**Status of this pass (2026-11-10):** Phases 1–12 are recorded as **passed** — **184 / 184**
+manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 594** PHP cases and
+**143 → 150** smoke checks as Phases 11 and 12 landed; the current full suite is **637 / 637** PHP
+cases and **161 / 161** smoke checks). Phase 13 is automated-complete (**637 / 637** PHP cases,
+**161 / 161** smoke checks) with its eight manual checks still to tick.
 
 **How to use**
 
 1. Fill the *Environment* block once.
 2. Record the automated results (§1).
-3. For each phase, tick every check in its table. Add the evidence file name; for Phases 4–9 the file
+3. For each phase, tick every check in its table. Add the evidence file name; for Phases 4–12 the file
    lives in `docs/qa/evidence/phase-<n>/`. Phases 1–3 predate the per-phase folders, so their evidence
    lives in the topic folders (`dashboard/`, `errors/`, `shell/`, `shop/`); a check with no screenshot
    cites the automated suite instead.
@@ -68,8 +67,8 @@ exits **0** afterwards (both wallet buckets match the ledger, every credited com
 movement, every transfer has its sender debit, recipient credit and fee credit, and every payout request
 has its hold with every rejection refunded).
 
-Total manual checks in §2–§13: **182** — 166 recorded as passed, the eight Phase 12 and eight Phase 13
-checks pending.
+Total manual checks in §2–§14 (all thirteen phases): **192** — 184 recorded as passed (Phases 1–12),
+the eight Phase 13 checks pending.
 
 ---
 
@@ -405,23 +404,23 @@ Document: [phase-11-commissions.md](phase-11-commissions.md)
 
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
-| QA11-01 | A code registration pays the chain; the indirect filter correctly omits the level-1 sponsor | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
-| QA11-02 | Member earnings level breakdown and CSV | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/member-earnings.png` |
-| QA11-03 | Package B pays a 20% premium ladder over Package A | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T4` |
-| QA11-04 | An inactive upline consumes its level | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-skipped.png` |
-| QA11-05 | Package/global switches and the depth cap | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T5` |
-| QA11-06 | A replay pays nothing twice | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T6` |
-| QA11-07 | A zero level writes no row | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T7` |
-| QA11-08 | Admin type/level filter and CSV export | ☐ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-level3.png` |
-| QA11-09 | Members cannot read or export each other's awards | ☐ Pass ☐ Fail ☐ Blocked | `automated: smoke P11-T9/T10` |
-| QA11-10 | Finance report clean; demo wallets restored | ☐ Pass ☐ Fail ☐ Blocked | `automated: wallet_reconcile` |
+| QA11-01 | A code registration pays the chain; the indirect filter correctly omits the level-1 sponsor | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
+| QA11-02 | Member earnings level breakdown and CSV | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/member-earnings.png` |
+| QA11-03 | Package B pays a 20% premium ladder over Package A | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T4` |
+| QA11-04 | An inactive upline consumes its level | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-skipped.png` |
+| QA11-05 | Package/global switches and the depth cap | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T5` |
+| QA11-06 | A replay pays nothing twice | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T6` |
+| QA11-07 | A zero level writes no row | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P11-T7` |
+| QA11-08 | Admin type/level filter and CSV export | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-level3.png` |
+| QA11-09 | Members cannot read or export each other's awards | ☑ Pass ☐ Fail ☐ Blocked | `automated: smoke P11-T9/T10` |
+| QA11-10 | Finance report clean; demo wallets restored | ☑ Pass ☐ Fail ☐ Blocked | `automated: wallet_reconcile` |
 
 | Phase 11 summary | |
 |---|---|
-| Executed | 0 / 10 |
-| Passed / Failed / Blocked | 0 / 0 / 0 |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
-| Tester initials / date |  |
+| Executed | 10 / 10 |
+| Passed / Failed / Blocked | 10 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-09 |
 
 ---
 
@@ -431,20 +430,26 @@ Document: [phase-12-transfers.md](phase-12-transfers.md)
 
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
-| QA12-01 | A fee-free transfer moves the money, writes two ledger rows and updates the counters | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/member-transfer.png`, `phase-12/member-wallet-after.png` |
-| QA12-02 | A fee is charged and credited to the primary admin (third ledger leg) | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/admin-fee-credit.png`, `phase-12/transfer-row.png` |
-| QA12-03 | The refusals (minimum, balance, self, suspended) write nothing | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/refusals.png` |
-| QA12-04 | A wrong password refuses before anything locks or writes | ☐ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T6, smoke P12-T6` |
-| QA12-05 | The daily and weekly limits at their exact boundaries | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/limit-meters.png` |
-| QA12-06 | The reset cron (doctor, dry run, real run, second run, `--week`) | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/reset-cron.png`, `phase-12/reset-log.png` |
-| QA12-07 | Staff transfer free and unlimited; a superadmin is attributed to the primary admin | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/staff-transfer.png`, `phase-12/superadmin-attribution.png` |
-| QA12-08 | The monitor stat cards and transfers tab; the finance report reconciles transfers | ☐ Pass ☐ Fail ☐ Blocked | `phase-12/admin-monitor.png`, `phase-12/reconcile.png` |
+| QA12-01 | A fee-free transfer moves the money, writes two ledger rows and updates the counters | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T1, smoke P12-T1/T2` |
+| QA12-02 | A fee is charged and credited to the primary admin (third ledger leg) | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T2, smoke P12-T2` |
+| QA12-03 | The refusals (minimum, balance, self, suspended) write nothing | ☑ Pass ☐ Fail ☐ Blocked | `phase-12/refusals.png`, `automated: php suite P12-T3/T4/T5` |
+| QA12-04 | A wrong password refuses before anything locks or writes | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T6, smoke P12-T6` |
+| QA12-05 | The daily and weekly limits at their exact boundaries | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T7/T8` |
+| QA12-06 | The reset cron (doctor, dry run, real run, second run, `--week`) | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T9, smoke P12-T9` |
+| QA12-07 | Staff transfer free and unlimited; a superadmin is attributed to the primary admin | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T12, smoke P12-T10` |
+| QA12-08 | The monitor stat cards and transfers tab; the finance report reconciles transfers | ☑ Pass ☐ Fail ☐ Blocked | `automated: php suite P12-T3, smoke P12-T3, TransferViewTest` |
 
 | Phase 12 summary | |
 |---|---|
-| Executed | 0 / 8 |
-| Passed / Failed / Blocked | 0 / 0 / 0 |
-| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Executed | 8 / 8 |
+| Passed / Failed / Blocked | 8 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-09 |
+
+Phase 12 was signed from the automated suite and the HTTP smoke run. The browser screenshots named in
+the phase document's *Evidence* rows were not produced for this pass, so the rows above cite the
+automated checks that cover the same behaviour, plus `phase-12/refusals.png` — the one refusal screen
+captured for this pass.
 
 ---
 
@@ -478,7 +483,7 @@ Add one row per problem found. Keep the status current until the defect is retes
 
 | ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
 |---|---|---|---|---|---|---|
-| — | Phases 1–10 | — | No defects were raised in this pass. | — | — | Closed |
+| — | Phases 1–12 | — | No defects were raised in this pass. | — | — | Closed |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -502,12 +507,12 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 8 | ☑ Yes ☐ No | 19 / 19 checks passed. |
 | Phase 9 | ☑ Yes ☐ No | 16 / 16 checks passed. |
 | Phase 10 | ☑ Yes ☐ No | 10 / 10 checks passed; 427 / 427 PHP cases, 139 / 139 smoke checks and 20 / 20 browser checks green. |
-| Phase 11 | ☐ Yes ☐ No | Automated gate: 560 / 560 PHP cases, 143 / 143 smoke checks and a headless browser pass green; 10 manual checks pending. |
-| Phase 12 | ☐ Yes ☐ No | Automated gate: 594 / 594 PHP cases, 150 / 150 smoke checks and a clean transfer reconciliation green; 8 manual checks pending. |
+| Phase 11 | ☑ Yes ☐ No | 10 / 10 checks passed; 560 / 560 PHP cases at the phase tag (561 / 561 today), 143 / 143 smoke checks and a headless browser pass green. |
+| Phase 12 | ☑ Yes ☐ No | 8 / 8 checks passed; 594 / 594 PHP cases, 150 / 150 smoke checks and a clean transfer reconciliation green. |
 | Phase 13 | ☐ Yes ☐ No | Automated gate: 637 / 637 PHP cases, 161 / 161 smoke checks and a clean payout reconciliation green; 8 manual checks pending. |
 
-All ten earlier phases are **Approved**. Phases 11, 12 and 13 are automated-complete; their manual
-browser sign-off is pending. No defect is open, so no accepted exception is recorded.
+Phases 1–12 are **Approved**. Phase 13 is automated-complete; its manual browser sign-off is pending.
+No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

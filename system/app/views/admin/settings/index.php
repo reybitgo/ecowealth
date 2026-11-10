@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * Admin — settings: shop, payment accounts, payment windows, fulfilment and
- * the invoice seller block (plan §7 Phases 7–8; the full settings page
- * expands in Phase 15).
+ * Admin — settings: shop, payment accounts, payout methods, payment
+ * windows, fulfilment and the invoice seller block (plan §7 Phases 7–8;
+ * the full settings page expands in Phase 15).
  *
  * Each card is its own form and saves on its own. The hidden `section`
  * field tells AdminSettingsController::save() which card's keys to
@@ -17,6 +17,8 @@ declare(strict_types=1);
  *
  * @var array<string, mixed> $settings
  * @var list<array{title:string, icon:string, method:string, fields:list<array{key:string,label:string,placeholder:string}>}> $account_groups
+ * @var list<array{key:string,label:string,hint:string,step:string,suffix:string}> $payout_fields
+ * @var list<array{key:string,title:string,icon:string,usdt:bool,toggle:string,fee:string,gas:string}> $payout_channels
  * @var array<string, array{label:string, rule:string, hint:string}> $window_fields
  * @var list<array{key:string,label:string,placeholder:string,type:string}> $seller_fields
  * @var array<string, array{label:string, rule:string, hint:string}> $fulfilment_fields
@@ -29,6 +31,8 @@ declare(strict_types=1);
 
 $settings         = $settings ?? [];
 $accountGroups    = $account_groups ?? [];
+$payoutFields     = $payout_fields ?? [];
+$payoutChannels   = $payout_channels ?? [];
 $windowFields     = $window_fields ?? [];
 $sellerFields     = $seller_fields ?? [];
 $fulfilmentFields = $fulfilment_fields ?? [];
@@ -68,12 +72,13 @@ $action = url('admin/settings');
                 <div>
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
-                    Where buyers send manual payments, how long they have to pay, and what appears on the
-                    printed invoice. Each card saves on its own and every change is recorded in the audit log.
+                    Where buyers send manual payments, how withdrawals are paid out, how long a buyer has to pay,
+                    and what appears on the printed invoice. Each card saves on its own and every change is
+                    recorded in the audit log.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
-                <span class="badge bg-label-primary">Payments, fulfilment &amp; invoices</span>
+                <span class="badge bg-label-primary">Payments, payouts, fulfilment &amp; invoices</span>
               </div>
 
 <?= View::capture('admin/settings/_notice', ['manual_open' => $manualOpen]) ?>
@@ -115,6 +120,30 @@ $action = url('admin/settings');
                         Buyers copy these details on the checkout and order pages.
                       </span>
                       <button type="submit" class="btn btn-primary" aria-label="Save receiving accounts">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
+                    </div>
+                  </form>
+
+                  <!-- Payout methods -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-payouts" class="card mb-6 settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="payouts" />
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <h5 class="mb-0">Payout methods</h5>
+                      <span class="small text-body-secondary">Shown on the member&rsquo;s payout page</span>
+                    </div>
+<?= View::capture('admin/settings/_payouts', [
+    'settings'        => $settings,
+    'payout_fields'   => $payoutFields,
+    'payout_channels' => $payoutChannels,
+]) ?>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-money-withdraw me-1"></i>
+                        The payout page and the queue pick these up on their next refresh.
+                      </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save payout methods">
                         <i class="icon-base bx bx-save me-1"></i> Save settings
                       </button>
                     </div>
@@ -179,6 +208,19 @@ $action = url('admin/settings');
                             <p class="text-body-secondary small mb-0">
                               The GCash / Maya / bank details appear when the member chooses a manual method.
                               E-wallet checkout does not use them.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="settings-note">
+                        <div class="d-flex gap-2">
+                          <i class="icon-base bx bx-money-withdraw text-primary mt-1"></i>
+                          <div>
+                            <div class="fw-medium">Withdrawals</div>
+                            <p class="text-body-secondary small mb-0">
+                              Payout methods are the withdrawal side: the minimum, each channel&rsquo;s fee and
+                              switch, and the ₱/USDT rate. Members see them on <code>/payouts</code>; a rate left
+                              at 0 keeps both USDT channels closed.
                             </p>
                           </div>
                         </div>

@@ -114,11 +114,18 @@ final class AdminPayoutController
      *
      * The stat cards include “today” figures only indirectly, but the
      * rows say “x minutes ago”, so the hour is part of the scope: a tab
-     * left open revalidates without a write.
+     * left open revalidates without a write. The facts line under the
+     * cards prints the minimum, the ₱/USDT rate and the fees, so the
+     * payout-settings fingerprint is mixed in as well — a settings save,
+     * or a CLI/SQL edit of the same keys, moves it.
+     *
+     * Public so the live tests can prove the mixing without a request.
      */
-    private function queueScope(int $userId): string
+    public function queueScope(int $userId): string
     {
-        return Live::scope($_GET, $userId) . '|hour:' . date('Y-m-d H');
+        return Live::scope($_GET, $userId)
+            . '|hour:' . date('Y-m-d H')
+            . '|payouts:' . PayoutService::settingsFingerprint();
     }
 
     /** @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int} */

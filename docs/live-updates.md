@@ -32,6 +32,10 @@ in one place.
 - A successful mutation broadcasts its surface key on `BroadcastChannel`.
   Other tabs revalidate immediately. A visible tab also polls every 30s as a
   fallback for changes made in another browser or by a CLI job.
+- A surface can depend on a *shared* revision it mixes into its ETag by
+  declaring `data-live-config="config"` (comma-separated for more than one).
+  A broadcast of that key revalidates it even though its own surface key did
+  not change.
 - A hidden tab marks itself dirty and waits for `visibilitychange`; it makes no
   polling requests.
 
@@ -117,6 +121,10 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
 - `CONFIG` / `revisionOrZero($surface)` — the shared configuration revision
   mixed into the membership and order ETags, and a safe read used while a
   scope is being built
+- `PayoutService::settingsFingerprint()` — a short hash of the effective
+  withdrawal rules (`min_payout`, the four fees, `usdt_rate`, both gas fees and
+  the four channel switches), mixed into the `/payouts` and `/admin/payouts`
+  ETags; a settings write, a migration or a direct SQL edit all move it
 - `membershipSurface($id)` / `touchMembership($id)` — the member's own
   `/membership` page (status, package, activation paths and history)
 - `transferSurface($id)` / `touchTransfer($id)` — the member's own
@@ -270,15 +278,35 @@ activation options read the active packages. The member package page renders
 one `package-cards` region (the grid or the empty state); the heading and the
 explanatory alert stay static.
 
-The admin settings page is `admin.settings`. It renders five regions: the
-placeholder-accounts notice and the four card bodies (shop, receiving
-accounts, payment windows, fulfilment & invoices). Each body is held while the
-admin has typed into that card, and the card headers, footers and Save buttons
-stay static. A settings save calls `touchSettings()`, which bumps this surface
-and the shared `CONFIG` revision; the membership and order pages include that
-revision in their ETags because their activation channels and payment
-instructions read the receiving accounts. A `shop_enabled` change also keeps
-the existing `touchShop()` call.
+The admin settings page is `admin.settings`. It renders six regions: the
+placeholder-accounts notice and the five card bodies (shop, receiving
+accounts, payout methods, payment windows, fulfilment & invoices). Each body is
+held while the admin has typed into that card, and the card headers, footers and
+Save buttons stay static. A settings save calls `touchSettings()`, which bumps
+this surface and the shared `CONFIG` revision; the membership and order pages
+include that revision in their ETags because their activation channels and
+payment instructions read the receiving accounts. A `shop_enabled` change also
+keeps the existing `touchShop()` call. The **Payout methods** card writes the
+withdrawal rules (`min_payout`, `service_fee_<method>`, `usdt_rate`,
+`usdt_*_gas_fee`, `payout_*_enabled`); the two payout pages below read them.
+
+The member's `/payouts` page is `member.payouts:{id}` and the admin queue is
+`admin.payouts`. The member page renders four regions — the withdrawable card
+(both buckets, the minimum, what an open request holds and the ₱/USDT rate),
+the request card (the form, or the open request; held while dirty), the history
+and its pagination. The queue renders the stat cards with their facts line, the
+tab counts, the rows and the pagination. Three things move the member page
+besides a payout action, and its ETag mixes all of them: the wallet revision
+(a commission or purchase refreshes the withdrawable card), the profile
+revision (the form prefills the saved payout accounts) and
+`PayoutService::settingsFingerprint()` — a hash of the effective withdrawal
+rules. The queue mixes the hour and the same fingerprint. The fingerprint is
+used instead of a revision row because those settings can also be written by a
+migration, a CLI job or a direct SQL edit, which never call `Live::touch()`;
+the card still revalidates on its next poll. Both pages declare
+`data-live-config="config"`, so the settings save's `config` broadcast
+revalidates an open tab at once instead of waiting for the poll.
+
 
 The member's own `/membership` page is `member.membership:{id}`. It renders
 four regions: the heading with the status badge, the current-membership card,
@@ -356,7 +384,11 @@ package rename. The day is in the scope because "this month" counts from
 - uses a `localStorage`/`storage` fallback when `BroadcastChannel` is missing;
 - dispatches `ecowealth:live-applied` after a payload is applied, with
   `detail.surface`, `detail.payload`, `detail.applied`, `detail.deferred` (focus
-  was inside) and `detail.held` (unsaved input was kept).
+  was inside) and `detail.held` (unsaved input was kept);
+- revalidates a surface whose container declares `data-live-config="config"`
+  when a `config` broadcast arrives, so a settings save reaches an open page
+  whose own surface key did not change (the two payout pages use this for the
+  withdrawal rules).
 
 `app-live.js` also exposes `window.EcoLive.invalidate(keys)`, which broadcasts a
 surface key and revalidates the matching local surfaces. `public/assets/js/app-cart.js`
@@ -405,6 +437,11 @@ Three page behaviours keep swapped forms working:
 - `public/assets/js/app-confirm.js` listens on `document` (delegated submit) instead of
   binding each form at load, so a verify/reject/ship/cancel form that a swap inserted
   still asks for confirmation before it posts.
+- `public/assets/js/app-payout.js` re-binds its fee/USDT preview and channel toggle
+  through `init()` when the `payout-request` region is applied, because a settings
+  change (a new fee, rate or minimum) can replace the whole request form with fresh
+  `data-*` rules. A `data-payout-bound` marker keeps the current form from being
+  bound twice.
 - The catalogue's quick view is delegated too: the click handler reads the
   `shop-catalog-quickview` JSON region afresh on every open, and the modal element is
   static, so replacing the whole product grid never leaves a card's button without a
@@ -413,11 +450,11 @@ Three page behaviours keep swapped forms working:
 `public/assets/js/admin-live.js` is shared by every live surface with a form
 region — the admin pages, the member's `/membership` page, the member's own
 `/wallet` statement, the member's `/profile` page, the member's `/payouts` page,
-the admin settings page, the checkout page, the member order page and the
-product page: it consumes `detail.held` and reveals the page's
-`[data-live-stale]` banner (“changed in another tab, your unsaved input was
-kept — reload to see the latest”). The banner is only shown when a form region
-was held back; a payload that applied cleanly hides it again. A
+the admin payout queue, the admin settings page, the checkout page, the member
+order page and the product page: it consumes `detail.held` and reveals the
+page's `[data-live-stale]` banner (“changed in another tab, your unsaved input
+was kept — reload to see the latest”). The banner is only shown when a form
+region was held back; a payload that applied cleanly hides it again. A
 `[data-live-reload]` link in the banner is pointed at the current URL, filters
 and page included.
 
@@ -484,6 +521,10 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
   the user reloads when ready. A field that was merely pre-filled is clean.
 - **One timer per surface, one request at a time.** Keep the single-flight,
   jitter, hidden-tab pause and exponential backoff.
+- **A shared revision travels in the scope.** A page that reads a setting another
+  page writes must mix that setting into its ETag (a revision, the
+  `settingsFingerprint()` hash, or the value itself) and declare it with
+  `data-live-config`, so the writer's broadcast reaches it.
 - **No polling on hidden tabs.** They receive the broadcast, mark dirty, and
   revalidate once when they become visible.
 - **304 before data.** The revision check must run before the list queries.
@@ -511,12 +552,12 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.codes` | `/admin/codes` | stats, rows, pagination |
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `admin.packages` | `/admin/packages` | stats, rows, pagination |
-| `admin.payouts` | `/admin/payouts` | stats, tab counts, rows, pagination |
-| `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payment windows, fulfilment & invoices |
+| `admin.payouts` | `/admin/payouts` | stats + facts, tab counts, rows, pagination (also follows the payout-settings fingerprint) |
+| `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payout methods, payment windows, fulfilment & invoices |
 | `member.dashboard:{id}` | `/dashboard` | header pill, KPI row, E-wallet card, membership, recent orders, earnings |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, send-funds card, withdraw card, statement |
-| `member.payouts:{id}` | `/payouts` | withdrawable card, request card (form / open request, held while dirty), history, pagination |
+| `member.payouts:{id}` | `/payouts` | withdrawable card, request card (form / open request, held while dirty), history, pagination (also follows the payout-settings fingerprint) |
 | `member.earnings:{id}` | `/earnings` | stats, level breakdown, skipped notice, header, rows, pagination |
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |

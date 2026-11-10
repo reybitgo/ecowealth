@@ -24,6 +24,8 @@ $render = static function (array $overrides = []): string {
         'page_css'          => ['assets/css/orders.css'],
         'settings'          => setting_all(),
         'account_groups'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('ACCOUNT_GROUPS'),
+        'payout_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('PAYOUT_FIELDS'),
+        'payout_channels'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('PAYOUT_CHANNELS'),
         'window_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('WINDOW_FIELDS'),
         'seller_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('SELLER_FIELDS'),
         'fulfilment_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('FULFILMENT_FIELDS'),
@@ -71,6 +73,7 @@ return [
         $cards = [
             'settings-shop'       => 'shop',
             'settings-accounts'   => 'accounts',
+            'settings-payouts'    => 'payouts',
             'settings-windows'    => 'windows',
             'settings-fulfilment' => 'fulfilment',
         ];
@@ -85,12 +88,13 @@ return [
             assert_contains('action="' . url('admin/settings') . '"', $scope);
         }
 
-        assert_same(4, substr_count($html, 'Save settings'), 'one save button per card');
-        assert_same(4, substr_count($html, 'name="section"'), 'one section marker per form');
+        assert_same(5, substr_count($html, 'Save settings'), 'one save button per card');
+        assert_same(5, substr_count($html, 'name="section"'), 'one section marker per form');
 
-        /* Screen-reader labels distinguish the four buttons. */
+        /* Screen-reader labels distinguish the five buttons. */
         assert_contains('aria-label="Save shop settings"', $html);
         assert_contains('aria-label="Save receiving accounts"', $html);
+        assert_contains('aria-label="Save payout methods"', $html);
         assert_contains('aria-label="Save payment windows"', $html);
         assert_contains('aria-label="Save fulfilment and invoice settings"', $html);
     },
@@ -102,6 +106,7 @@ return [
 
         $shop       = $form($html, 'settings-shop');
         $accounts   = $form($html, 'settings-accounts');
+        $payouts    = $form($html, 'settings-payouts');
         $windows    = $form($html, 'settings-windows');
         $fulfilment = $form($html, 'settings-fulfilment');
 
@@ -113,12 +118,28 @@ return [
         assert_contains('name="payment_bank_account_number"', $accounts);
         assert_not_contains('name="shop_payment_deadline_hours"', $accounts);
         assert_not_contains('name="seller_name"', $accounts);
+        assert_not_contains('name="min_payout"', $accounts);
+
+        /* The payout card owns the withdrawal rules, not the receiving
+         * accounts or the shop windows. */
+        assert_contains('name="min_payout"', $payouts);
+        assert_contains('name="usdt_rate"', $payouts);
+        assert_contains('name="payout_gcash_enabled"', $payouts);
+        assert_contains('name="service_fee_gcash"', $payouts);
+        assert_contains('name="payout_usdt_trc20_enabled"', $payouts);
+        assert_contains('name="service_fee_usdt_trc20"', $payouts);
+        assert_contains('name="usdt_trc20_gas_fee"', $payouts);
+        assert_contains('name="usdt_bep20_gas_fee"', $payouts);
+        assert_not_contains('name="payment_gcash_number"', $payouts);
+        assert_not_contains('name="shop_payment_deadline_hours"', $payouts);
+        assert_not_contains('name="seller_name"', $payouts);
 
         assert_contains('name="shop_payment_deadline_hours"', $windows);
         assert_contains('name="shop_correction_window_hours"', $windows);
         assert_contains('name="shop_expiry_enabled"', $windows);
         assert_not_contains('name="seller_name"', $windows);
         assert_not_contains('name="shop_autocomplete_days"', $windows);
+        assert_not_contains('name="usdt_rate"', $windows);
 
         assert_contains('name="seller_name"', $fulfilment);
         assert_contains('name="seller_address"', $fulfilment);
@@ -172,13 +193,14 @@ return [
         $html = $render();
 
         assert_not_contains('class="row g-6 settings-form"', $html, 'no form wraps the whole grid');
-        assert_same(4, preg_match_all('/<form\b[^>]*class="[^"]*settings-form/', $html), 'four card forms');
+        assert_same(5, preg_match_all('/<form\b[^>]*class="[^"]*settings-form/', $html), 'five card forms');
     },
 
     /* ---------- The section catalogue behind the save ------------- */
 
     'P7-T4 the field catalog is partitioned by section' => function () use ($sectionMethod): void {
         $accounts   = $sectionMethod('sectionKeys', 'accounts');
+        $payouts    = $sectionMethod('sectionKeys', 'payouts');
         $windows    = $sectionMethod('sectionKeys', 'windows');
         $fulfilment = $sectionMethod('sectionKeys', 'fulfilment');
         $shop       = $sectionMethod('sectionKeys', 'shop');
@@ -188,6 +210,24 @@ return [
         assert_true(in_array('payment_bank_account_number', $accounts, true));
         assert_same([], array_intersect($accounts, $windows), 'no window key in accounts');
         assert_same([], array_intersect($accounts, $fulfilment), 'no seller key in accounts');
+        assert_same([], array_intersect($accounts, $payouts), 'no payout key in accounts');
+
+        assert_same(
+            [
+                'min_payout',
+                'usdt_rate',
+                'service_fee_gcash',
+                'service_fee_maya',
+                'service_fee_usdt_trc20',
+                'usdt_trc20_gas_fee',
+                'service_fee_usdt_bep20',
+                'usdt_bep20_gas_fee',
+            ],
+            $payouts,
+            'the payout card owns the floor, every fee, and both USDT gas fees'
+        );
+        assert_same([], array_intersect($payouts, $windows), 'no window key in payouts');
+        assert_same([], array_intersect($payouts, $fulfilment), 'no seller key in payouts');
 
         assert_same(
             ['shop_payment_deadline_hours', 'shop_correction_window_hours', 'shop_max_proof_attempts'],
@@ -206,6 +246,16 @@ return [
 
     'P7-T4 each section validates and saves only its own keys' => function () use ($sectionMethod): void {
         assert_same(['shop_enabled'], $sectionMethod('sectionToggles', 'shop'));
+        assert_same(
+            [
+                'payout_gcash_enabled',
+                'payout_maya_enabled',
+                'payout_usdt_trc20_enabled',
+                'payout_usdt_bep20_enabled',
+            ],
+            $sectionMethod('sectionToggles', 'payouts'),
+            'one switch per payout channel'
+        );
         assert_same(['shop_expiry_enabled'], $sectionMethod('sectionToggles', 'windows'));
         assert_same(['shop_autocomplete_enabled'], $sectionMethod('sectionToggles', 'fulfilment'));
         assert_same([], $sectionMethod('sectionToggles', 'accounts'));
@@ -240,10 +290,35 @@ return [
         assert_false(array_key_exists('payment_gcash_number', $fulfilmentRules));
         assert_false(array_key_exists('shop_payment_deadline_hours', $fulfilmentRules));
 
+        /* The payout card validates its own keys only, with the money and
+         * precision rules the columns store. */
+        $payoutRules = $sectionMethod('sectionRules', 'payouts');
+        assert_same('required|in:0,1', $payoutRules['payout_usdt_trc20_enabled'] ?? '');
+        assert_contains('gte:0', $payoutRules['min_payout'] ?? '');
+        assert_contains('decimal:2', $payoutRules['min_payout'] ?? '');
+        assert_contains('decimal:4', $payoutRules['usdt_rate'] ?? '');
+        assert_contains('lte:100', $payoutRules['service_fee_usdt_trc20'] ?? '');
+        assert_contains('decimal:4', $payoutRules['usdt_trc20_gas_fee'] ?? '');
+        assert_false(array_key_exists('payment_gcash_number', $payoutRules));
+        assert_false(array_key_exists('shop_enabled', $payoutRules));
+        assert_false(array_key_exists('seller_name', $payoutRules));
+        assert_same([], array_diff(array_keys($payoutRules), array_merge(
+            $sectionMethod('sectionKeys', 'payouts'),
+            $sectionMethod('sectionToggles', 'payouts')
+        )), 'the payout card validates nothing it does not own');
+
         /* Labels follow the same partition, so messages name the right field. */
         $labels = $sectionMethod('sectionLabels', 'fulfilment');
         assert_same('Invoice Registered business name', $labels['seller_name'] ?? '');
         assert_same('Automatic completion', $labels['shop_autocomplete_enabled'] ?? '');
         assert_false(array_key_exists('payment_gcash_number', $labels));
+
+        $payoutLabels = $sectionMethod('sectionLabels', 'payouts');
+        assert_same('Minimum payout', $payoutLabels['min_payout'] ?? '');
+        assert_same('USDT rate', $payoutLabels['usdt_rate'] ?? '');
+        assert_same('USDT (TRC20) payouts', $payoutLabels['payout_usdt_trc20_enabled'] ?? '');
+        assert_same('USDT (TRC20) service fee (%)', $payoutLabels['service_fee_usdt_trc20'] ?? '');
+        assert_same('USDT (BEP20) network fee (USDT)', $payoutLabels['usdt_bep20_gas_fee'] ?? '');
+        assert_false(array_key_exists('seller_name', $payoutLabels));
     },
 ];

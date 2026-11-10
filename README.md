@@ -40,7 +40,10 @@ e-wallet transfers (password-confirmed, fee + minimum + daily/weekly limits, the
 and the transfer log/limits on the admin wallet monitor), and **Phase 13** payouts
 (withdrawals by GCash/Maya/USDT with the amount held at request time, a server-side service
 fee and ₱/USDT conversion, and the admin approve → complete/reject queue).
-Super-login follows in Phase 14.
+The Phase 13 follow-up puts the withdrawal rules on the settings page (**Payout methods**:
+minimum, per-channel fee/switch, ₱/USDT rate and network fees) and makes both payout pages
+follow them live — a rate, fee or channel change reaches an open `/payouts` tab without a
+reload. Super-login follows in Phase 14.
 
 The demo tree from Phase 9 (`juan`, `maria`, `peter`, `sarah`, `david`) and its
 wallets/codes are development data: every demo member signs in with `Demo@1234`, and the

@@ -207,6 +207,113 @@ return [
         assert_not_same($etagBefore, $etagAfter, 'a changed wallet must change the ETag');
     },
 
+    'the payout page also revalidates when the saved payout accounts change' => function () use ($makeMember): void {
+        $member = $makeMember();
+        $id     = (int) $member['id'];
+
+        test_signed_in_as($member);
+
+        $_GET = [];
+
+        $controller = new PayoutController();
+        $before     = $controller->pageScope($id);
+
+        /* The profile page saves the GCash/Maya/USDT accounts the request
+         * form prefills, and it bumps `member.profile:{id}`. */
+        Live::touchProfile($id);
+
+        assert_not_same($before, $controller->pageScope($id), 'a saved payout account refreshes the prefilled form');
+    },
+
+    'the payout settings fingerprint reaches both payout surfaces' => function () use ($makeMember, $withSettings, $defaults): void {
+        $member = $makeMember();
+        $id     = (int) $member['id'];
+
+        test_signed_in_as($member);
+
+        $_GET = [];
+
+        $withSettings($defaults, function () use ($id): void {
+            $page  = new PayoutController();
+            $queue = new AdminPayoutController();
+
+            $fingerprint = PayoutService::settingsFingerprint();
+            $pageBefore  = $page->pageScope($id);
+            $queueBefore = $queue->queueScope(99);
+            $etagBefore  = Live::etag(Live::payoutSurface($id), 0, $pageBefore);
+
+            /* A setting the payout pages do not print must not churn them. */
+            setting_set('seller_name', 'Other Seller');
+            setting_cache_clear();
+
+            assert_same($fingerprint, PayoutService::settingsFingerprint(), 'an unrelated setting is not in the fingerprint');
+            assert_same($pageBefore, $page->pageScope($id));
+            assert_same($queueBefore, $queue->queueScope(99));
+
+            /* Every withdrawal rule moves it — the USDT ones included. */
+            $changes = [
+                'usdt_rate'               => '56',
+                'min_payout'              => '250',
+                'service_fee_usdt_trc20'  => '7.5',
+                'usdt_trc20_gas_fee'      => '3',
+                'payout_usdt_bep20_enabled' => '0',
+            ];
+
+            foreach ($changes as $key => $value) {
+                $previous = PayoutService::settingsFingerprint();
+
+                setting_set($key, $value);
+                setting_cache_clear();
+
+                assert_not_same($previous, PayoutService::settingsFingerprint(), $key . ' must move the fingerprint');
+            }
+
+            assert_not_same($pageBefore, $page->pageScope($id), 'the page ETag scope moved');
+            assert_not_same($queueBefore, $queue->queueScope(99), 'the queue ETag scope moved');
+            assert_not_same(
+                $etagBefore,
+                Live::etag(Live::payoutSurface($id), 0, $page->pageScope($id)),
+                'the page ETag moved'
+            );
+        });
+    },
+
+    'a USDT settings change reaches the open payout page without a reload' => function () use ($makeMember, $fund, $withSettings, $defaults): void {
+        $withSettings(['usdt_rate' => '0'] + $defaults, function () use ($makeMember, $fund): void {
+            $member = $makeMember();
+            $id     = (int) $member['id'];
+
+            $fund($id, '2000.00');
+
+            test_signed_in_as($member);
+
+            $_GET = [];
+
+            $controller = new PayoutController();
+            $account    = Wallet::account($id);
+            $closed     = $controller->feedPayload(0, '"x"', $controller->payoutContext($account));
+
+            assert_contains(
+                'Unavailable until the ₱ per USDT rate is set.',
+                $closed['fragments']['payout-request'],
+                'both USDT channels explain themselves while the rate is 0'
+            );
+            assert_not_contains('USDT rate', $closed['fragments']['payout-balance']);
+
+            /* The admin sets the rate and a fee on the settings card. */
+            setting_set('usdt_rate', '56');
+            setting_set('service_fee_usdt_trc20', '5');
+            setting_cache_clear();
+
+            $open = $controller->feedPayload(0, '"x"', $controller->payoutContext($account));
+
+            assert_not_contains('Unavailable until the ₱ per USDT rate is set.', $open['fragments']['payout-request']);
+            assert_contains('data-fee-pct="5"', $open['fragments']['payout-request'], 'the new fee is in the form');
+            assert_contains('USDT rate', $open['fragments']['payout-balance']);
+            assert_contains('0.0179', $open['fragments']['payout-balance'], '₱1.00 = 1/56 USDT');
+        });
+    },
+
     'the queue feed renders the stats, tabs and rows' => function () use ($makeMember, $fund, $withSettings, $defaults): void {
         $withSettings(['service_fee_gcash' => '2'] + $defaults, function () use ($makeMember, $fund): void {
             $admin  = test_user('pl_queue_admin', 'admin');
@@ -294,6 +401,8 @@ return [
         assert_contains('data-live-enabled="1"', $html);
         assert_contains('data-live-revision="' . (int) $live['revision'] . '"', $html);
         assert_contains('data-live-etag="' . e((string) $live['etag']) . '"', $html);
+        assert_contains('data-live-config="config"', $html, 'the settings broadcast reaches this page');
+        assert_contains('data-live-stale', $html, 'a held request card is announced');
         assert_contains('app-payout.js', $html, 'the fee preview script is loaded');
         assert_contains('data-payout-form', $html);
     },
