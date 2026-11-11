@@ -506,6 +506,27 @@ final class Live
         self::touch($surfaces);
     }
 
+    /* ----------------------------------------------------------
+     *  Super-login console (Phase 14)
+     * ---------------------------------------------------------- */
+
+    /** The S-Login console surface (`admin.slogin`). */
+    public const SLOGIN = 'admin.slogin';
+
+    /**
+     * Bump the super-login console.
+     *
+     * The console renders the sessions that are active right now, the
+     * recent sessions and both counts, so every write to
+     * `impersonation_log` moves it: a session opening (record), ending
+     * (mark) and the overdue sweep. A superseded call — a row already in
+     * a terminal state — changes nothing and never bumps it.
+     */
+    public static function touchSLogin(): void
+    {
+        self::touch(self::SLOGIN);
+    }
+
     /** Current revision for a surface; a missing row means revision 0. */
     public static function revision(string $surface): int
     {

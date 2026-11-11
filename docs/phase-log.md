@@ -3139,8 +3139,9 @@ every touched file.
   views) means links, form actions, redirects, pagination URLs and the live-refresh feed all stay in the
   session; `asset_url()`, `absolute_url()` and media paths are explicitly excluded so the bearer token cannot
   leak into a shared referral link or a cache key.
-- **No new live surface.** The console and audit lists are ordinary pages; Phase 15 owns dashboards/reports.
-  The member pages that are already live keep working because the token rides the current URL.
+- **No new live surface at sign-off.** The console and audit lists were ordinary pages; Phase 15 owns
+  dashboards/reports. The console later became an `admin.slogin` live surface — see the addendum below. The
+  member pages that are already live keep working because the token rides the current URL.
 - **The `imp` query key is part of the live ETag scope.** That is harmless (it is stable per tab) and keeps a
   feed response from being shared across sessions.
 
@@ -3158,6 +3159,24 @@ every touched file.
 - [ ] Manual UAT for this phase signed (`docs/qa/phase-14-super-login.md`) - automated and smoke passes complete
 - [x] Docs updated (this log, QA pack + sign-off sheet, `docs/deploy.md`, both READMEs)
 - [x] Backup taken; tag `phase-14`
+
+### Addendum — the console is a live surface
+
+The console was signed off as a static page (see the deviation above). It is now the `admin.slogin` live
+surface: the **Active sessions** and **Recent sessions** cards are regions returned from the same URL under
+`X-Live: 1`, and the member picker, the explainer and the heading stay outside them, so a poll never discards
+a typed username. `Impersonation::record()` bumps the surface when a session opens, `Impersonation::mark()`
+only when it actually moves a row (`logged_out` / `expired`), and `Impersonation::expireOverdue()` only when
+its sweep expires something. The console and the audit page sweep on load, and the feed sweeps *before* the
+revision check, so a poll that expires a session answers 200 with the new lists instead of a 304 for the list
+the tab already had. The ETag mixes the hour because the "Started" column is relative, and `POST /slogin`
+queues `Live::publish()` inside the member session so the dashboard's first render broadcasts the surface to
+any other open console tab. The audit list remains an ordinary page.
+
+A superadmin who switches back to the console therefore sees a session that opened, ended or expired in
+another tab without reloading. `SLoginLiveTest` adds six cases (suite **675**, all green); the smoke script
+gains **P14-T13** (173 -> 174 checks) for the feed and its 304 contract. `docs/live-updates.md`, the README
+and this log are updated.
 
 ### Next
 

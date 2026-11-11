@@ -39,16 +39,17 @@ Five rules matter most:
   hashed-only audit rows, the target rules, the six-attempt rate limit, tampering (`tampered`,
   `missing_log`), TTL, IP and user-agent changes, target suspension after opening, a deleted log row,
   `bind()` refusals, the console picker, the banner/Exit form, URL token propagation and the audit screen.
-  The suite is **669 cases**.
+  The suite is **675 cases**; `SLoginLiveTest` adds six of them for the console's `admin.slogin` live surface
+  (the revision bumps on open/exit/expiry, the feed's two cards and the 200/304 contract).
 - The HTTP smoke script walks a real session over HTTP: console, `POST /slogin` for `juan`, dashboard
   banner, a token-bearing member link, Exit, dead-token replay, TTL expiry, user-agent expiry, the
   admin/member/guest guards, an admin target, six rate-limited attempts, a tampered token and the audit
-  page. **173 checks**.
+  page. **174 checks** (P14-T13 is the console's X-Live feed and its 304 revalidation).
 - `php bin\wallet_reconcile.php` is untouched by Phase 14 and still exits 0; the phase moves no money.
 
 > **Before you start:** Phases 1–13 signed off, the demo tree seeded (`database/seeds/005_demo_tree.sql`)
 > and migration `018_impersonation.sql` applied. The automated suites must be green:
-> `php tests\run.php` → **669 cases**, `powershell -NoProfile -File tests\smoke.ps1` → **173 checks**.
+> `php tests\run.php` → **675 cases**, `powershell -NoProfile -File tests\smoke.ps1` → **174 checks**.
 >
 > Use a private browser window for the superadmin checks so your ordinary member session (if any) does not
 > confuse the "own session survives" step. The S-Login tab and the superadmin tab are different surfaces

@@ -78,7 +78,14 @@ final class Impersonation
             $expiresAt,
         ]);
 
-        return (int) $pdo->lastInsertId();
+        /* Read the id before touching the console: the revision upsert
+         * runs on the same connection and would move lastInsertId(). */
+        $id = (int) $pdo->lastInsertId();
+
+        /* A new active row moves the console's active list and counts. */
+        Live::touchSLogin();
+
+        return $id;
     }
 
     /**
@@ -100,7 +107,16 @@ final class Impersonation
         );
         $stmt->execute([$status, $id]);
 
-        return $stmt->rowCount() === 1;
+        if ($stmt->rowCount() !== 1) {
+            /* Already terminal: the row did not move, so an open console
+             * keeps the payload it already has. */
+            return false;
+        }
+
+        /* The session left the active list and changed its recent label. */
+        Live::touchSLogin();
+
+        return true;
     }
 
     /**
@@ -108,15 +124,24 @@ final class Impersonation
      *
      * Called when the console / audit list is opened: a session that
      * was never used again would otherwise still read `active` in the
-     * trail even though its URL is dead. Idempotent.
+     * trail even though its URL is dead. Idempotent: only a sweep that
+     * moved at least one row bumps the console.
      */
     public static function expireOverdue(?PDO $pdo = null): int
     {
         $pdo ??= db();
 
-        return (int) $pdo->exec(
+        $swept = (int) $pdo->exec(
             "UPDATE impersonation_log SET status = 'expired' WHERE status = 'active' AND expires_at <= NOW()"
         );
+
+        if ($swept > 0) {
+            /* An open console must drop the expired tab on its next poll
+             * even though no request of that tab wrote the row itself. */
+            Live::touchSLogin();
+        }
+
+        return $swept;
     }
 
     /* ----------------------------------------------------------

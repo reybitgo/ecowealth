@@ -17,9 +17,29 @@ declare(strict_types=1);
  * @var array{active:int, expired:int, logged_out:int, all:int, overdue:int} $counts
  * @var string $notice     '' | expired | exited
  * @var string $audit_url
+ * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
+ *
+ * One live surface (`admin.slogin`): the active and recent cards are the
+ * regions. The member picker, the explainer and the page heading stay
+ * outside them, so a background refresh never discards a typed username.
  */
+
+$live = $live ?? [
+    'surface'  => 'admin.slogin',
+    'enabled'  => false,
+    'revision' => 0,
+    'etag'     => '',
+    'interval' => 30000,
+];
 ?>
-            <div class="container-xxl flex-grow-1 container-p-y sl-login-page">
+            <div
+              class="container-xxl flex-grow-1 container-p-y sl-login-page"
+              data-live-surface="<?= e($live['surface']) ?>"
+              data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
+              data-live-revision="<?= (int) $live['revision'] ?>"
+              data-live-etag="<?= e((string) $live['etag']) ?>"
+              data-live-interval="<?= (int) $live['interval'] ?>"
+            >
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
                 <div>
                   <h4 class="mb-1">
@@ -30,9 +50,12 @@ declare(strict_types=1);
                     expiring URL-token session. Your own session stays signed in.
                   </p>
                 </div>
-                <a href="<?= e($audit_url) ?>" class="btn btn-label-primary">
-                  <i class="icon-base bx bx-history me-1"></i> Audit trail
-                </a>
+                <div class="d-flex align-items-center gap-3">
+                  <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
+                  <a href="<?= e($audit_url) ?>" class="btn btn-label-primary">
+                    <i class="icon-base bx bx-history me-1"></i> Audit trail
+                  </a>
+                </div>
               </div>
 
 <?php if ($notice === 'expired'): ?>
@@ -144,87 +167,11 @@ declare(strict_types=1);
 
               <div class="row g-6">
                 <div class="col-12 col-xl-6">
-                  <div class="card h-100">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                      <div>
-                        <h5 class="mb-0">Active sessions</h5>
-                        <p class="text-body-secondary small mb-0">Live, not-yet-expired tabs</p>
-                      </div>
-                      <span class="badge rounded-pill bg-label-success"><?= (int) $counts['active'] ?></span>
-                    </div>
-<?php if ($active === []): ?>
-                    <div class="card-body text-body-secondary">
-                      No member session is open right now.
-                    </div>
-<?php else: ?>
-                    <div class="table-responsive">
-                      <table class="table table-sm align-middle mb-0">
-                        <thead>
-                          <tr>
-                            <th scope="col">Member</th>
-                            <th scope="col">Opened by</th>
-                            <th scope="col">Started</th>
-                            <th scope="col">Ends</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-<?php foreach ($active as $row): ?>
-                          <tr>
-                            <td><span class="fw-medium">@<?= e((string) $row['target_username']) ?></span></td>
-                            <td class="small">@<?= e((string) $row['superadmin_name']) ?></td>
-                            <td class="small text-nowrap"><?= e(time_ago((string) $row['created_at'])) ?></td>
-                            <td class="small text-nowrap"><?= e(format_datetime((string) $row['expires_at'])) ?></td>
-                          </tr>
-<?php endforeach; ?>
-                        </tbody>
-                      </table>
-                    </div>
-<?php endif; ?>
-                  </div>
+<?= View::capture('auth/slogin/_active', ['active' => $active, 'counts' => $counts]) ?>
                 </div>
 
                 <div class="col-12 col-xl-6">
-                  <div class="card h-100">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                      <div>
-                        <h5 class="mb-0">Recent sessions</h5>
-                        <p class="text-body-secondary small mb-0">Newest first</p>
-                      </div>
-                      <span class="badge rounded-pill bg-label-secondary"><?= (int) $counts['all'] ?> total</span>
-                    </div>
-<?php if ($recent === []): ?>
-                    <div class="card-body text-body-secondary">
-                      No super-login has been used yet.
-                    </div>
-<?php else: ?>
-                    <div class="table-responsive">
-                      <table class="table table-sm align-middle mb-0">
-                        <thead>
-                          <tr>
-                            <th scope="col">Member</th>
-                            <th scope="col">Started</th>
-                            <th scope="col">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-<?php foreach ($recent as $row): ?>
-                          <tr>
-                            <td>
-                              <span class="fw-medium">@<?= e((string) $row['target_username']) ?></span>
-                              <small class="d-block text-body-secondary">by @<?= e((string) $row['superadmin_name']) ?></small>
-                            </td>
-                            <td class="small text-nowrap"><?= e(time_ago((string) $row['created_at'])) ?></td>
-                            <td><?= status_badge((string) $row['status']) ?></td>
-                          </tr>
-<?php endforeach; ?>
-                        </tbody>
-                      </table>
-                    </div>
-<?php endif; ?>
-                    <div class="card-footer text-end">
-                      <a href="<?= e($audit_url) ?>" class="btn btn-sm btn-label-primary">Open the full audit trail</a>
-                    </div>
-                  </div>
+<?= View::capture('auth/slogin/_recent', ['recent' => $recent, 'counts' => $counts, 'audit_url' => $audit_url]) ?>
                 </div>
               </div>
             </div>

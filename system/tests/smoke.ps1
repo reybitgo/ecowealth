@@ -4,7 +4,7 @@
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
     P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
     P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12,
-    P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T12).
+    P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -22,7 +22,8 @@
     both the CLI and its web entry. It also walks Phase 12 transfers, the
     Phase 13 payout queue and the Phase 14 super-login (a URL-token
     member session, its token-bearing links, Exit, TTL and user-agent
-    expiry, the superadmin-only guard and the audit trail).
+    expiry, the superadmin-only guard, the audit trail and the console's
+    X-Live feed with its 304 revalidation).
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", registration codes and member
@@ -2714,6 +2715,9 @@ try {
     $p14ConsoleOk = ($p14Console.Status -eq 200) `
         -and ($p14Console.Body -match 'Open a member session') `
         -and ($p14Console.Body -match 'name="username"') `
+        -and ($p14Console.Body -match 'data-live-surface="admin.slogin"') `
+        -and ($p14Console.Body -match 'data-live-region="slogin-active"') `
+        -and ($p14Console.Body -match 'data-live-region="slogin-recent"') `
         -and ($p14Console.Body -match 'Audit trail') `
         -and ($p14Console.Body -match 'S-Login console')
 
@@ -2879,6 +2883,50 @@ try {
         -and ($p14ConsoleAfter.Body -match 'Recent sessions')
     Assert-That 'P14-T12' $p14AuditOk `
         "the audit trail lists the sessions and their end states without a raw token (audit=$($p14AuditPage.Status))"
+
+    # P14-T13 — the console is a live surface: the X-Live feed returns both
+    # cards and its own ETag revalidates with a 304 (no page queries).
+    $p14Feed     = Invoke-App -Path '/slogin' -Session 'p14super' -Headers @('X-Live: 1', 'Accept: application/json')
+    $p14FeedJson = $null
+    try { $p14FeedJson = ($p14Feed.Body | Out-String) | ConvertFrom-Json } catch { }
+
+    $p14FeedEtag = ''
+    if ($null -ne $p14FeedJson -and $p14FeedJson.etag) { $p14FeedEtag = [string] $p14FeedJson.etag }
+
+    $p14Revalidate = if ($p14FeedEtag -ne '') {
+        Invoke-App -Path '/slogin' -Session 'p14super' -Headers @('X-Live: 1', 'Accept: application/json', "If-None-Match: $p14FeedEtag")
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+
+    # An hour boundary between the two calls moves the scope (the "started"
+    # column is relative); retry once with the fresh ETag, as a client would.
+    if ($p14Revalidate.Status -eq 200) {
+        $p14RetryJson = $null
+        try { $p14RetryJson = ($p14Revalidate.Body | Out-String) | ConvertFrom-Json } catch { }
+
+        if ($null -ne $p14RetryJson -and $p14RetryJson.etag) {
+            $p14Revalidate = Invoke-App -Path '/slogin' -Session 'p14super' -Headers @('X-Live: 1', 'Accept: application/json', "If-None-Match: $([string] $p14RetryJson.etag)")
+        }
+    }
+
+    $p14ActiveFragment = ''
+    $p14RecentFragment = ''
+    if ($null -ne $p14FeedJson -and $null -ne $p14FeedJson.fragments) {
+        $p14ActiveFragment = [string] $p14FeedJson.fragments.'slogin-active'
+        $p14RecentFragment = [string] $p14FeedJson.fragments.'slogin-recent'
+    }
+
+    $p14HasEtag = $p14Feed.Headers.ContainsKey('etag')
+
+    Assert-That 'P14-T13' ($p14Feed.Status -eq 200 -and $null -ne $p14FeedJson `
+            -and $p14FeedJson.ok -eq $true -and $p14FeedJson.surface -eq 'admin.slogin' `
+            -and $p14HasEtag `
+            -and $p14ActiveFragment -match 'data-live-region="slogin-active"' `
+            -and $p14RecentFragment -match 'data-live-region="slogin-recent"' `
+            -and $p14ActiveFragment -notmatch $p14Nonce `
+            -and $p14Revalidate.Status -eq 304) `
+        "the console feed returns both cards and revalidates with its own ETag (feed=$($p14Feed.Status), etag=$p14HasEtag, revalidate=$($p14Revalidate.Status))"
 
 
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null

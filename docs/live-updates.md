@@ -10,9 +10,10 @@ recent-orders and earnings cards), the member's own membership page, the
 member's own e-wallet statement and earnings page, the member's genealogy
 and profile pages, the cart page, the checkout page (saved addresses,
 order summary and payment/wallet card), the member's order history and
-one order page, and the storefront catalogue/product pages update
-themselves without a full page reload. The same pattern is intended for
-the other list, detail and dashboard pages.
+one order page, the storefront catalogue/product pages and the S-Login
+console's active and recent session cards update themselves without a full page
+reload. The same pattern is intended for the other list, detail and dashboard
+pages.
 
 This is **not** a client-side renderer. The server still owns every query,
 permission check and HTML fragment; the browser only decides which existing
@@ -135,6 +136,10 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
   refreshes the balance card
 - `shopProductSurface($id)` / `touchShop($ids)` — the `shop.catalog` grid
   plus one or more `shop.product:{id}` detail pages
+- `SLOGIN` / `touchSLogin()` — the S-Login console (`admin.slogin`), bumped by
+  `Impersonation::record()` when a session opens, by `Impersonation::mark()`
+  when one ends or expires, and by `Impersonation::expireOverdue()` when its
+  sweep actually moves a row
 
 `Product::save()`, `Product::setStatus()` and `Product::delete()` touch
 `admin.products` after a successful change. A surface must be touched by
@@ -359,6 +364,24 @@ instead of walking the tree, and the shared `CONFIG` revision covers a
 package rename. The day is in the scope because "this month" counts from
 `CURDATE()`.
 
+The S-Login console is one surface, `admin.slogin`. It renders two regions —
+the **Active sessions** card and the **Recent sessions** card — each carrying
+its own count badge, so a badge can never disagree with the rows it labels.
+The member picker, the security explainer and the page heading stay outside
+them, so a poll never discards a typed username. Every write to
+`impersonation_log` bumps the surface: `Impersonation::record()` when a
+session opens, `Impersonation::mark()` when it is logged out or expired, and
+`Impersonation::expireOverdue()` when a sweep actually moves a row (a
+superseded `mark()` — a row already terminal — moves nothing and never
+bumps). The console and the audit page both sweep on load, and the feed
+sweeps before the revision check, so a poll that expires a session answers
+`200` with the new lists instead of a `304` for the list the tab already had.
+The ETag scope adds the hour because the **Started** column is a relative
+label. `POST /slogin` also queues the surface with `Live::publish()` inside
+the member session it creates, so the dashboard's first render broadcasts it
+and another open console tab revalidates at once instead of waiting for its
+poll. The audit list (`/admin/impersonations`) remains an ordinary page.
+
 ## Client behaviour
 
 `public/assets/js/app-live.js` fills `[data-live-surface]` containers. It:
@@ -559,6 +582,7 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.packages` | `/admin/packages` | stats, rows, pagination |
 | `admin.payouts` | `/admin/payouts` | stats + facts, tab counts, rows, pagination (also follows the payout-settings fingerprint) |
 | `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payout methods, payment windows, fulfilment & invoices |
+| `admin.slogin` | `/slogin` | active sessions card, recent sessions card |
 | `member.dashboard:{id}` | `/dashboard` | header pill, KPI row, E-wallet card, membership, recent orders, earnings |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, send-funds card, withdraw card, statement |

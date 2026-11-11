@@ -599,8 +599,13 @@ it arrives in Phase 15.
   sidebar ends the impersonation the same way.
 - **Audited.** Opening (`slogin.start`), every refusal (`slogin.denied`, with the reason), expiry
   (`slogin.expire`) and exit (`slogin.stop`) write `audit_log` entries. `/admin/impersonations` lists every
-  session with superadmin, member, IP, device, start, expiry and status; the console shows the live and recent
-  sessions. `Impersonation::expireOverdue()` sweeps rows whose TTL passed without another request.
+  session with superadmin, member, IP, device, start, expiry and status; the console shows the active and
+  recent sessions. `Impersonation::expireOverdue()` sweeps rows whose TTL passed without another request.
+- **The console is live.** `/slogin` is the `admin.slogin` surface: the active and recent cards revalidate
+  from the same URL under `X-Live: 1`, and every `impersonation_log` write bumps the revision (a superseded
+  mark does not). A superadmin who switches back to the tab sees the sessions that opened or ended meanwhile
+  without a reload, and a poll that expires a session is answered with the fresh lists, not a 304. The audit
+  list stays an ordinary page. See [live updates](../docs/live-updates.md).
 - **Rate limit.** Five failed attempts for one target in 15 minutes are refused with
   `rate_limited`; the counter lives in the superadmin's own session (the reference behaviour), and each
   refusal is audited.

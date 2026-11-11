@@ -16,6 +16,12 @@ declare(strict_types=1);
  *  central CSRF check. This controller only moves between the
  *  superadmin's cookie session and the cookie-less URL-token session:
  *  it never copies the superadmin's session into the member one.
+ *
+ *  The console is one live surface (`admin.slogin`): the active and recent
+ *  cards are regions, while the member picker and the explainer stay
+ *  outside them. Every write to `impersonation_log` bumps it, so a
+ *  superadmin who switches back to the console sees what opened, ended or
+ *  expired while the tab was away — no reload.
  * ============================================================== */
 
 final class SLoginController
@@ -34,6 +40,13 @@ final class SLoginController
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
+        /* The same URL doubles as the JSON feed: X-Live: 1 returns the
+         * active and recent cards instead of the layout. */
+        if (Live::isFeedRequest()) {
+            $this->consoleFeed();
+            return;
+        }
+
         $user = auth_user();
 
         if ($user === null) {
@@ -44,25 +57,131 @@ final class SLoginController
             View::error(403);
         }
 
-        /* A session whose TTL passed without another request would still
-         * read `active`; sweep it so the console and the audit agree. */
-        Impersonation::expireOverdue();
+        $this->sweep();
 
         $notice = Request::string('expired') !== ''
             ? 'expired'
             : (Request::string('exited') !== '' ? 'exited' : '');
 
-        View::page('admin', 'auth/slogin', [
+        View::page('admin', 'auth/slogin', $this->consoleContext() + [
             'page_title'  => 'Super-login',
             'current_nav' => 'admin.slogin',
             'members'     => Member::activeOptions(200),
-            'active'      => Impersonation::active(20),
-            'recent'      => Impersonation::recent(8),
-            'counts'      => Impersonation::statusCounts(),
             'notice'      => $notice,
-            'audit_url'   => url('admin/impersonations'),
             'page_js'     => ['assets/js/app-slogin.js'],
+            'live'        => $this->consoleLiveMeta(),
         ]);
+    }
+
+    /**
+     * A session whose TTL passed without another request would still read
+     * `active`; sweep it so the console, its counts and the audit agree.
+     * The sweep bumps the surface only when it actually expires a row.
+     */
+    private function sweep(): void
+    {
+        Impersonation::expireOverdue();
+    }
+
+    /**
+     * Everything the console's live cards render, built once for the page
+     * and the feed so the two cannot drift.
+     *
+     * @return array<string, mixed>
+     */
+    public function consoleContext(): array
+    {
+        return [
+            'active'    => Impersonation::active(20),
+            'recent'    => Impersonation::recent(8),
+            'counts'    => Impersonation::statusCounts(),
+            'audit_url' => url('admin/impersonations'),
+        ];
+    }
+
+    /**
+     * ETag scope for the console.
+     *
+     * The console has no filters or pagination, so the signed-in superadmin
+     * is the only request dimension. The hour joins it because the "started"
+     * column is a relative label: a tab left open revalidates on its next
+     * poll without waiting for an impersonation write.
+     */
+    public function consoleScope(int $userId): string
+    {
+        return Live::scope($_GET, $userId) . '|hour:' . date('Y-m-d H');
+    }
+
+    /** @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int} */
+    private function consoleLiveMeta(): array
+    {
+        return Live::meta(Live::SLOGIN, $this->consoleScope((int) (auth_user()['id'] ?? 0)));
+    }
+
+    /**
+     * JSON feed for the open console.
+     *
+     * The sweep and the 304 check run before consoleContext(), so an
+     * unchanged console costs one indexed sweep and one revision lookup,
+     * and a poll that expires a session returns the fresh payload instead
+     * of a 304 for the list the client already has.
+     */
+    private function consoleFeed(): void
+    {
+        $userId = (int) (auth_user()['id'] ?? 0);
+
+        /* No fragment renders a CSRF field, but release the lock before any
+         * query work: two tabs must not serialize on it. */
+        session_write_close();
+
+        $surface = Live::SLOGIN;
+
+        try {
+            $this->sweep();
+
+            $revision = Live::revision($surface);
+            $etag     = Live::etag($surface, $revision, $this->consoleScope($userId));
+
+            if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+                Live::notModified($etag);
+            }
+
+            Live::json($etag, $this->feedPayload($revision, $etag, $this->consoleContext()));
+        } catch (Throwable $e) {
+            error_log('[ecowealth] S-Login console feed failed: ' . $e->getMessage());
+            Live::jsonError('Could not refresh the S-Login console. Please try again.', 500);
+        }
+    }
+
+    /**
+     * Render the console payload. Public so tests can assert the fragments
+     * without going through Live::json()'s exit.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function feedPayload(int $revision, string $etag, array $data): array
+    {
+        return [
+            'ok'        => true,
+            'surface'   => Live::SLOGIN,
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'slogin-active' => View::capture('auth/slogin/_active', [
+                    'active' => $data['active'],
+                    'counts' => $data['counts'],
+                ]),
+                'slogin-recent' => View::capture('auth/slogin/_recent', [
+                    'recent'    => $data['recent'],
+                    'counts'    => $data['counts'],
+                    'audit_url' => $data['audit_url'],
+                ]),
+            ],
+            'meta'      => [
+                'canonical' => url('slogin'),
+            ],
+        ];
     }
 
     /* ----------------------------------------------------------
@@ -126,6 +245,11 @@ final class SLoginController
 
             flash_set('success', sprintf('You are now viewing the member portal as @%s.', (string) $issued['target']['username']));
             csrf_token();
+
+            /* The member dashboard this tab renders next broadcasts the
+             * console surface, so another console tab revalidates at once
+             * instead of waiting for its poll. */
+            Live::publish(Live::SLOGIN);
 
             session_write_close();
         } catch (Throwable $e) {
