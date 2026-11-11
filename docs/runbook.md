@@ -47,7 +47,7 @@ limit can only get *stricter* in the meantime, never wider. Run
 
 ---
 
-## 3. Backups
+## 3. Backups, install, reset and restore
 
 ### What to back up
 
@@ -113,6 +113,50 @@ copy. The scratch schema was dropped afterwards.
 **Recovery point:** a dump taken with `--single-transaction` is consistent to the instant it
 started. A full restore on this machine took under ten seconds. Restoring onto a different host
 also needs `config.local.php`, the uploads folder and the `system/storage` folders.
+
+### Install a fresh database
+
+Every install path ends at the same state: **27 tables, 48 settings, 2 staff accounts, 7
+products, 2 packages, 18 ladder levels, 10 package contents, 0 members, 0 codes**. None of
+them may be run against a schema that already holds data — `install.sql` is fresh-install only,
+and an existing database is upgraded with `database/migrations/NNN_*.sql` ([§5](#5-deploying-an-update)).
+
+**Local (Laragon) through the MySQL client** — fastest and exact:
+
+```powershell
+# once: create the schema and user (system/README.md quick start has the SQL)
+mysql -u root ecowealth_sneat < database/install.sql
+
+# verify
+mysql -u root ecowealth_sneat -e "SHOW TABLES; SELECT COUNT(*) FROM settings;"
+```
+
+**Local with operator-chosen staff passwords** (imports the same bundle, verifies it, writes
+`storage/install.lock`):
+
+```powershell
+php bin/db_install.php --check
+php bin/db_install.php --database=ecowealth_sneat --force `
+  --admin-email=owner@example.com --admin-password-stdin `
+  --superadmin-email=owner+super@example.com --superadmin-password-stdin
+```
+
+**Online through phpMyAdmin (no SSH):** create the empty database and user in hPanel, select
+the schema in phpMyAdmin, **Import** → `database/install.sql` → **Stop on error** → **Go**, and
+read the footer counts.
+
+**Online through the browser installer (no SSH):** upload the app, create
+`config.local.php` with `APP_ENV=production` and a 32+ character `INSTALL_KEY`, then open
+`https://…/system/install.php`, resolve every red preflight row, fill the site name and both
+staff credentials, paste the key, and type `INSTALL`. The success page lists the accounts
+(never their passwords), the verification counts and the lock path; delete `public/install.php`
+immediately afterwards.
+
+After any install: sign in, change both staff passwords if the static bundle was used (it seeds
+`Admin@123` / `Super@123`), run the verification pack in [deploy.md §11.6](deploy.md#116-check-the-database),
+and retire the tools ([§7](#7-go-live-checklist-plan-96)). If an import fails midway, do **not**
+re-run the bundle: drop the schema, recreate it and import again (or restore the pre-install
+dump).
 
 ### Reset a development/QA database
 
@@ -237,7 +281,8 @@ Full instructions are in [`deploy.md`](deploy.md). The short version:
 3. Apply migrations in order — the Phase 15 build is at **019_audit_and_reporting.sql**.
    `php bin` has no migration runner; import with the MySQL client, then compare with
    `database\schema.sql` (`php tests\run.php Migration` does that automatically on a scratch
-   schema).
+   schema). Never import `database/install.sql` into an existing database: it is fresh-install
+   only and its guard stops the import.
 4. Visit `/admin/reports` and `/admin/audit`; both must render.
 5. Run `php bin\wallet_reconcile.php`; exit 0.
 6. Run the smoke test if the machine has PHP and curl:
@@ -302,9 +347,18 @@ database dump before investigating further.
 
 ## 7. Go-live checklist (plan §9.6)
 
-- [ ] Production database created and migrated to `019`; `schema.sql` matches.
+- [ ] Production database created and migrated to `019`; `schema.sql` matches. A fresh install
+      was verified with the pack in [deploy.md §11.6](deploy.md#116-check-the-database):
+      **27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
 - [ ] Seeds replaced or removed: **only one admin and one superadmin**, no demo members, codes,
-      orders or wallets (the `005_demo_tree.sql` data is demo only).
+      orders or wallets (the `005_demo_tree.sql` data is demo only). The two demo queries in
+      [deploy.md §12](deploy.md#12-secure-and-clean-up) both return `0`.
+- [ ] Install/reset tools retired (see [Retire the tools](#retire-the-tools-installphp-resetphp)
+      below): `public/install.php` and `public/reset.php` deleted and both URLs 404;
+      `database/install.sql` / `bin/db_install.php` removed when they were uploaded;
+      `INSTALL_KEY` removed or rotated; `DB_RESET_ENABLED` absent or `false`;
+      `storage/install.lock` present for a guided install (absent for a static import) and not
+      web-readable.
 - [ ] `config.local.php` set; `APP_ENV=production`; `APP_DEBUG` off; PHP error display off (the
       bootstrap also forces it off when `APP_DEBUG` is false).
 - [ ] HTTPS enabled; HSTS is sent only over TLS.
@@ -312,12 +366,42 @@ database dump before investigating further.
 - [ ] Security headers verified on `/login` and `/admin` (see §8).
 - [ ] Cron scheduled and verified (three jobs, §2); one run appears in the log.
 - [ ] A backup has been taken **and restored** (§3).
-- [ ] Admin and superadmin passwords changed; payment accounts, transfer fee/limits, payout
-      methods/fees/USDT rate and invoice seller block set on **Settings**.
+- [ ] Admin and superadmin passwords changed and neither is a documented default
+      (`Admin@123`, `Super@123`); payment accounts, transfer fee/limits, payout methods/fees/USDT
+      rate and invoice seller block set on **Settings**.
 - [ ] The repo-root `index.html` front door links into `/ecowealth/system/`.
 - [ ] Finance health is **All clear** and `wallet_reconcile.php` exits 0.
-- [ ] UAT signed (`docs/qa/phase-15-launch.md`).
+- [ ] UAT signed (`docs/qa/phase-15-launch.md` and `docs/qa/phase-16-install-reset.md`).
+- [ ] A post-launch database backup was taken after the checklist.
 - [ ] Release tag `v1.0-complete` created.
+
+### Retire the tools (`install.php`, `reset.php`)
+
+Both tools are standalone files, not routes: deleting the file is the whole removal. Do it in a
+change window after the last install/reset, then confirm the URLs and the config.
+
+```powershell
+# 1. Delete the tools (and the bundle/CLI installer if they were uploaded)
+Remove-Item public\install.php, public\reset.php -ErrorAction SilentlyContinue
+Remove-Item database\install.sql, bin\db_install.php, bin\db_reset.php -ErrorAction SilentlyContinue
+
+# 2. Both URLs must now return 404 (the branded page, never the tool)
+curl.exe -s -o NUL -w "install.php %{http_code}`n" https://example.com/ecowealth/system/install.php
+curl.exe -s -o NUL -w "reset.php   %{http_code}`n" https://example.com/ecowealth/system/reset.php
+```
+
+```bash
+rm -f public/install.php public/reset.php database/install.sql bin/db_install.php bin/db_reset.php
+curl -s -o /dev/null -w 'install.php %{http_code}\n' https://example.com/ecowealth/system/install.php
+curl -s -o /dev/null -w 'reset.php   %{http_code}\n' https://example.com/ecowealth/system/reset.php
+```
+
+Then, in `config.local.php`: remove `INSTALL_KEY` (or rotate it) and make sure
+`DB_RESET_ENABLED` is absent or `false`. Keep `storage/install.lock` when a guided installer
+created it — it is the proof of the install, it sits outside `public/`, and `storage/.htaccess`
+denies it. The services (`DatabaseInstaller`, `DatabaseResetService`, `DemoDataService`) and
+`public/assets/css/db-tools.css` may stay: they are unreachable without the pages. The full
+matrix by environment is in `dmp/plan-ecowealth-install-reset.md` §11.4.
 
 ---
 
@@ -329,6 +413,8 @@ database dump before investigating further.
 | Response headers | `curl -sI http://localhost/ecowealth/system/login` — `X-Content-Type-Options`, `X-Frame-Options: DENY`, CSP `frame-ancestors 'none'`, `Referrer-Policy`, `Permissions-Policy`, `X-Robots-Tag` |
 | Upload hardening | `curl -o NUL -w "%{http_code}" http://localhost/ecowealth/system/uploads/proofs/x.php` → **403** |
 | Error pages | `/no-such-page` → 404; a member opening `/admin/reports` → 403; both branded |
+| Tool retirement | `/system/install.php` and `/system/reset.php` → **404** on production (deleted, or a 404 from `DB_RESET_ENABLED`) |
+| Install lock | `storage/install.lock` exists for a guided install and is not web-readable |
 | Money-form throttles | checkout 20 / 10 min · proof 10 / 15 min · transfer 10 / 15 min · payout 10 / 1 h (session-scoped) |
 | Rate-limited login | 5 failed attempts / 15 min per session |
 | Audit | **Admin → Audit log**, filter by action/subject/actor/date |
@@ -340,12 +426,14 @@ Cron access, lock and log conventions are shared; see [`cron.md`](cron.md).
 
 ## 9. Release process
 
-1. Full suite: `php tests\run.php` — must be green.
-2. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green.
-3. Reconciliation: `php bin\wallet_reconcile.php` — exit 0.
-4. Phase gate checklist in `docs\phase-log.md` signed; QA doc updated.
-5. Commit with the phase summary; tag `phase-15` for the build and `v1.0-complete` at launch.
-6. Take a post-release backup and keep the previous release's files for one day.
+1. Bundle: `php bin\build_install_sql.php --check` — exit 0 (the committed `install.sql` matches
+   `schema.sql` + seeds 001–004; rebuild with `php bin\build_install_sql.php` after editing a source).
+2. Full suite: `php tests\run.php` — must be green (816 cases after the install/reset workstream).
+3. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green (195 checks).
+4. Reconciliation: `php bin\wallet_reconcile.php` — exit 0.
+5. Phase gate checklist in `docs\phase-log.md` signed; QA doc updated.
+6. Commit with the phase summary; tag `phase-15` for the build and `v1.0-complete` at launch.
+7. Take a post-release backup and keep the previous release's files for one day.
 
 ---
 

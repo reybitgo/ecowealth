@@ -4,8 +4,9 @@ Evidence for the IR workstream (`dmp/plan-ecowealth-install-reset.md`). This fol
 single place the IR phase gates look for proof; every manual gate item names one of the
 files below.
 
-> `docs/qa/` is for the application's Phases 1–15. This folder is the follow-on
-> install/reset workstream (IR-0 … IR-8). Do not mix the two.
+> `docs/qa/` is for the application's Phases 1–16. This folder is the follow-on
+> install/reset workstream (IR-0 … IR-8). Do not mix the two; Phase 16's QA document
+> (`docs/qa/phase-16-install-reset.md`) cites the files below.
 
 ## Rules
 
@@ -126,8 +127,12 @@ files below.
 
 | File | What it proves |
 |---|---|
-| `go-live-tools-404.png` | `install.php` and `reset.php` return 404 on the deployed tree after deletion. |
-| `go-live-checklist.txt` | Signed go-live checklist: tools removed, lock present, passwords changed, backups verified. |
+| `ir8-security-review.txt` | The IR-8-T1 checklist with its evidence: both tool pages carry the shared nosniff/frame-deny/CSP/referrer/permissions/no-store headers and an HttpOnly/SameSite session cookie; neither page prints a password, DSN, bcrypt hash or install key; `storage/install.lock` is outside `public/`; the tools appear in no route, nav or `routes.php`; the uploads/storage `.htaccess` guards and the hardened application session are in place; `DB_RESET_ENABLED` is false and `INSTALL_KEY` empty in this development config (both documented for the production copy). |
+| `go-live-tools-404.png` | Both tool files deleted and requested on a production-env copy: `/system/install.php` and `/system/reset.php` return the branded 404, never the tool. Headless Chrome, 1440×900. |
+| `go-live-checklist.txt` | The signed go-live checklist against a scratch production-like install: the Appendix E verification pack (27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0), the two demo-leakage queries at 0, the default-password check, `storage/install.lock` present and not web-readable, `INSTALL_KEY` removed, `DB_RESET_ENABLED` absent/false, and the tool-404 results. |
+| `final-verification.txt` | The IR-8-T4 command transcript in order: `build_install_sql --check`, a scratch `mysql` import with the footer counts and app boot, a CLI install + lock, a web-installer run on another fresh schema, a CLI reset + `wallet_reconcile` exit 0, and the phpMyAdmin attestation for the same bundle bytes. |
+| `ir8-suite.log` | Full `php tests/run.php` output behind the IR-8 gate: `Cases: 816   Passed: 816   Failed: 0`, exit 0 (no new cases in IR-8). |
+| `ir8-smoke.log` | Full `tests/smoke.ps1` run against the Apache app behind the IR-8 gate: `Passed: 195   Failed: 0`, exit 0. |
 
 ## Capture template for a text log
 

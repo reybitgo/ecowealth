@@ -5,7 +5,10 @@ framework and no Composer. This folder is the backend application; the public ma
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
 **Current status: Phase 15 — hardening, dashboards, UAT and launch. The build is feature-complete
-for this scope.**
+for this scope.** Phase 16 (the IR-1 … IR-8 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`)
+adds the production install bundle, the CLI and browser installers, and the guarded development reset;
+it changes no application route or page, and both tools are deleted before go-live.
+
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -109,7 +112,7 @@ The expiry job runs from the CLI **and** from a guarded URL
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 27 tables, the 45 settings, both staff accounts,
+   `database/install.sql` creates the 27 tables, the 48 settings, both staff accounts,
    the seven starter products and the two packages. It seeds **no** demo members, demo
    codes or demo wallets, and it refuses to run against a non-empty schema.
 
@@ -347,6 +350,32 @@ No terminal? The same engine runs behind a standalone console at
 The console is **not** a route: it is a standalone file, it is not in any navigation and it
 does not appear in `routes.php`. All SQL still lives in `DatabaseResetService`.
 
+### Retire the tools (go-live)
+
+`install.php` and `reset.php` are development/QA tools. Before a production site goes live,
+delete them and confirm the URLs no longer answer:
+
+```bash
+rm public/install.php public/reset.php
+rm database/install.sql        # optional: the bundle is not read at runtime
+```
+
+```powershell
+Remove-Item public\install.php, public\reset.php
+Remove-Item database\install.sql -ErrorAction SilentlyContinue   # optional: not read at runtime
+```
+
+- `https://…/system/install.php` and `https://…/system/reset.php` must return **404**.
+- Keep `storage/install.lock` when a guided installer created it: it proves the install and
+  lives outside `public/`, under the deny-all `storage/.htaccess`.
+- Remove `INSTALL_KEY` from `config.local.php` (or rotate it) and confirm
+  `DB_RESET_ENABLED` is absent or `false`.
+- The services (`DatabaseInstaller`, `DatabaseResetService`, `DemoDataService`) and
+  `assets/css/db-tools.css` may stay: they are unreachable without the pages.
+
+The full checklist, with the verification queries and the backup step, is in
+[`docs/deploy.md` §12](../docs/deploy.md) and [`docs/runbook.md` §7](../docs/runbook.md).
+
 ---
 
 ## Configuration
@@ -360,7 +389,7 @@ does not appear in `routes.php`. All SQL still lives in `DatabaseResetService`.
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `10` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `15` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
@@ -424,14 +453,18 @@ system/
 │   ├── migrations/            001_settings_roles … 019_audit_and_reporting
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
-    ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures
+    ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures, the
+    │                          scratch-schema and information_schema helpers
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P9-T17)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5)
     ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, View, Upload,
     │                          Migration, Product, ProductView, Package, PackageView, Cart,
     │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
     │                          PaymentView, PaymentDetails, Fulfilment, FulfilmentView, Invoice,
-    │                          Cron, Membership, MembershipView, Live
+    │                          Cron, Membership, MembershipView, Live, Commission, Transfer,
+    │                          Payout, Impersonation, Report, AuditLog, Hardening, Launch and the
+    │                          install/reset groups SqlScript, DbTarget, SeedParity, InstallSql,
+    │                          Install, DbReset, DbToolAccess
     └── fixtures/              legacy schema fixture for the migration test
 ```
 
@@ -1158,7 +1191,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (722 cases in Phase 15)
+php tests/run.php                 # full suite (816 cases after the install/reset workstream)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -1184,7 +1217,26 @@ and audit rows it creates, the reports exports and settings saves it audits, `ma
 restored). Phase 15 adds 11 HTTP checks: security headers, uploads/ PHP denial, the reports/audit
 guards, the branded 404, the eight settings cards and their validation, the reports desk and its
 window, the reports performance budget, the CSV exports and their audit rows, the audit filters and the
-transfer throttle.
+transfer throttle. The install/reset workstream adds ten more — `IR4-T1…T5` for the web installer's
+refusal states, hardening headers, GET/POST side effects and shared stylesheet, and `IR6-T1…T5` for the
+reset console's guest redirect, member 403, admin form with no secret, three refusals that change
+nothing, and its stylesheet — for **195** HTTP checks in all.
+
+The install/reset groups run without a browser and without the application connection:
+
+| Group | File | What it proves |
+|---|---|---|
+| `SqlScript` | `Cases/SqlScriptTest.php` | Statement splitting (quotes, comments, backticks), line numbers, `DELIMITER`/database-switch rejection, failure context, checksum, `schema.sql` import |
+| `DbTarget` | `Cases/DbTargetTest.php` | Connection/database probing, identifier validation, `information_schema` table listing, operator hints without a DSN |
+| `SeedParity` | `Cases/SeedParityTest.php` | Every setting a migration inserts exists in seed 001 and in `install.sql`; no duplicate keys; no executable database switch |
+| `InstallSql` | `Cases/InstallSqlTest.php` | The bundle is current (`--check`), imports into an empty scratch schema, matches the fresh schema/seed data by natural key, and is refused by a non-empty one |
+| `Install` | `Cases/InstallTest.php` | Installer preflight, install + lock, re-run/non-empty refusals, password policy, `verify()`, JSON shape, install-key gate |
+| `DbReset` | `Cases/DbResetTest.php` | Preview/dry-run, the transactional reset, staff defaults, audit kept/cleared, catalogue reset, codes, rollback, uploads, live revisions, AUTO_INCREMENT, the refusal matrix, demo/parity |
+| `DbToolAccess` | `Cases/DbToolAccessTest.php` | Install-key and reset visibility/actor/phrase matrices, S-Login refusal |
+
+They share two pre-provisioned scratch schemas (`ecowealth_sneat_tool_a_test`,
+`ecowealth_sneat_tool_b_test`) that each case recreates; no tool test targets `ecowealth_sneat`.
+The one-time grant is in `docs/qa/evidence/install-reset/ir1-plumbing.txt`.
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -1194,8 +1246,14 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 
 ## Migrations
 
-- Fresh install: `database/schema.sql` (no database name hard-coded), then `database/seeds/*.sql`.
-- Existing install: apply `database/migrations/NNN_*.sql` in order, then the phase seeds.
+- Fresh install: import `database/install.sql` (the generated bundle — schema + seeds 001–004 +
+  install metadata; no database name, fresh-install only), or use `bin/db_install.php` /
+  `public/install.php` to choose the staff passwords and write `storage/install.lock`.
+  `database/schema.sql` and `database/seeds/*.sql` remain the editable sources — rebuild the bundle
+  with `php bin/build_install_sql.php` after changing them.
+- Existing install: apply `database/migrations/NNN_*.sql` in order, then the phase's seed. Never
+  import the bundle over an existing schema; the guard refuses it and a phpMyAdmin run that
+  continues past the error must be recovered by dropping and recreating the schema.
 - Before every phase gate: `mysqldump` the database to a backup outside the repo.
 
 | Migration | Adds |

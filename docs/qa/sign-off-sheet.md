@@ -1,16 +1,20 @@
-# EcoWealth — QA sign-off sheet (Phases 1–15)
+# EcoWealth — QA sign-off sheet (Phases 1–16)
 
-Fill this sheet while working through the fourteen phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the sixteen phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
-**Status of this pass (2026-11-11):** Phases 1–14 are recorded as **passed** — **200 / 200**
+**Status of this pass (2026-11-12):** Phases 1–14 are recorded as **passed** — **200 / 200**
 manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 669** PHP cases and
-**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **669 / 669** PHP
-cases and **173 / 173** smoke checks). The Phase 13 queue was rechecked after the approval /
-rejection confirmation-modal change: both decisions ask first, and a rejection reason is typed in
-the modal. Phase 14 adds the super-login contract: a URL-token member session, its banner, Exit/TTL
-and the impersonation audit.
+**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **816 / 816** PHP
+cases and **195 / 195** smoke checks after Phase 16). The Phase 13 queue was rechecked after the
+approval / rejection confirmation-modal change: both decisions ask first, and a rejection reason is
+typed in the modal. Phase 14 adds the super-login contract: a URL-token member session, its banner,
+Exit/TTL and the impersonation audit. Phase 15 adds the reports desk, the eight settings cards, the
+audit desk and the hardening pass. Phase 16 is the install/reset workstream (IR-1 … IR-8): the
+production bundle, the CLI and browser installers, the guarded reset and the go-live tool
+retirement, signed from the automated suite, the smoke run and the `evidence/install-reset/`
+folder.
 
 **How to use**
 
@@ -30,11 +34,11 @@ and the impersonation audit.
 | Item | Value |
 |---|---|
 | Tester name | Automated QA pass — DeepSeek Harness (DSH) |
-| Date(s) of testing | 2026-11-07 … 2026-11-11 |
+| Date(s) of testing | 2026-11-07 … 2026-11-12 |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14` |
+| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14`, `phase-15`, `ir-0` … `ir-8` |
 | App URL | `http://localhost/ecowealth/system/` |
-| Database | `ecowealth_sneat` |
+| Database | `ecowealth_sneat` (Phases 1–15) · scratch `*_test` / `*_manual` schemas (Phase 16) |
 | Operating system | Windows 11 Home Single Language 10.0.26200 (build 26200) |
 | Browser + version | Google Chrome 156.0.8078.80 |
 | Screen size(s) | 1440 × 900 · 390 × 844 (mobile emulation) |
@@ -46,30 +50,34 @@ and the impersonation audit.
 
 | Command | Expected | Actual | Result |
 |---|---|---|---|
-| `php tests\run.php` | `Cases: 669  Passed: 669  Failed: 0` / `All good.` | `Cases: 669   Passed: 669   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 173   Failed: 0` | `Passed: 173   Failed: 0` | ☑ Pass ☐ Fail |
+| `php bin\build_install_sql.php --check` | exit 0, no output | exit 0, no output | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 816  Passed: 816  Failed: 0` / `All good.` | `Cases: 816   Passed: 816   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 195   Failed: 0` | `Passed: 195   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
 ```text
+php bin\build_install_sql.php --check
+(no output; exit 0)
+
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 669   Passed: 669   Failed: 0
+Cases: 816   Passed: 816   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
   P1-T11 PASS   guest sees the 503 page with Retry-After: 3600 (got 503, retry=3600)
   P1-T11 PASS   admin bypasses maintenance mode (got 200)
 
-Passed: 173   Failed: 0
+Passed: 195   Failed: 0
 ```
 
-Both commands are run from `system\` and exited **0** on 2026-11-11. `bin/wallet_reconcile.php` also
+All three commands were run from `system\` and exited **0** on 2026-11-12. `bin/wallet_reconcile.php` also
 exits **0** afterwards (both wallet buckets match the ledger, every credited commission has its ledger
 movement, every transfer has its sender debit, recipient credit and fee credit, and every payout request
 has its hold with every rejection refunded).
 
-Total manual checks in §2–§15 (all fourteen phases): **200** — **200 recorded as passed**, 0 failed,
+Total manual checks in §2–§16 (all sixteen phases): **216** — **216 recorded as passed**, 0 failed,
 0 blocked.
 
 ---
@@ -554,13 +562,56 @@ HTTP evidence that covers the same behaviour.
 
 ---
 
-## 17. Defect log
+## 17. Phase 16 — Install, reset and go-live tools
+
+Document: [phase-16-install-reset.md](phase-16-install-reset.md)
+
+Phase 16 is the install/reset workstream (IR-1 … IR-8). Every check below runs on a scratch schema
+(`*_test` / `*_manual`), never on `ecowealth_sneat`; the evidence is in `evidence/install-reset/`.
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA16-01 | `mysql < install.sql` on an empty schema reaches 27/48/2/0/7/2/18/10/0 and the seeded admin signs in | ☑ Pass ☐ Fail ☐ Blocked | `install-sql-mysql.txt`, `ir2-suite.log` |
+| QA16-02 | A non-empty schema is refused by the bundle guard (ERROR 1146 naming the empty-database table, exit 1) | ☑ Pass ☐ Fail ☐ Blocked | `install-sql-guard.txt`, `ir2-suite.log` |
+| QA16-03 | The CLI installer's 15-check preflight, verified install, lock JSON, re-run/non-empty refusals and one-document `--json` | ☑ Pass ☐ Fail ☐ Blocked | `install-cli-check.txt`, `install-cli-success.txt`, `install-cli-success.json`, `install-cli-refused.txt`, `ir3-suite.log` |
+| QA16-04 | phpMyAdmin imports the same 54-query bundle into an empty schema | ☑ Pass ☐ Fail ☐ Blocked | `install-sql-phpmyadmin.png`, `install-sql-phpmyadmin-import.png` |
+| QA16-05 | The web installer's locked, non-empty, preflight, success and mobile states; GET/CSRF-less POST write nothing | ☑ Pass ☐ Fail ☐ Blocked | `install-preflight.png`, `install-preflight-details.png`, `install-success.png`, `install-locked.png`, `install-nonempty.png`, `install-mobile.png`, `install-web.txt`, `ir4-suite.log` |
+| QA16-06 | `db_reset --dry-run` prints the target, counts and plan with `writes: 0` and changes nothing | ☑ Pass ☐ Fail ☐ Blocked | `reset-cli-preview.txt`, `ir5-suite.log` |
+| QA16-07 | The CLI reset exits 0 with every step and all verification checks green, five codes, `wallet_reconcile` exit 0 and an app that signs in | ☑ Pass ☐ Fail ☐ Blocked | `reset-cli-success.txt`, `reset-cli-success.json`, `reset-app-smoke.txt`, `ir5-suite.log` |
+| QA16-08 | A second reset is idempotent: every business-data step reports 0 deleted (the previous run's generated codes are inventory) and verification stays green | ☑ Pass ☐ Fail ☐ Blocked | `final-verification.txt`, `ir5-suite.log` |
+| QA16-09 | Wrong phrase, missing backup acknowledgement and missing CSRF each re-render with an error and change nothing | ☑ Pass ☐ Fail ☐ Blocked | `reset-form.png`, `reset-validation.png`, `reset-web.txt`, `ir6-smoke.log` |
+| QA16-10 | A valid console submit produces the report (steps, verification, before/after, codes) and refresh never re-runs | ☑ Pass ☐ Fail ☐ Blocked | `reset-success.png`, `reset-web.txt`, `ir6-suite.log` |
+| QA16-11 | A member session and an S-Login (impersonated) tab both get 403; a guest is redirected to login | ☑ Pass ☐ Fail ☐ Blocked | `reset-member-403.png`, `reset-impersonation-403.png`, `ir6-suite.log` |
+| QA16-12 | Production without `DB_RESET_ENABLED` renders the branded 404 for every role | ☑ Pass ☐ Fail ☐ Blocked | `reset-production-404.png` |
+| QA16-13 | Production with `DB_RESET_ENABLED=true`: admin 403, superadmin form with the database name as the phrase and no demo option | ☑ Pass ☐ Fail ☐ Blocked | `reset-production-form.png`, `reset-production-admin-403.png` |
+| QA16-14 | A production install with no `INSTALL_KEY` is refused with the exact hint; a wrong key is throttled; a crafted POST writes nothing | ☑ Pass ☐ Fail ☐ Blocked | `install-key-refused.png`, `install-key-refused-full.png`, `install-key-wrong.png`, `install-key-throttle.png`, `ir6-suite.log` |
+| QA16-15 | Both parity comparisons match by natural key (reset ≡ fresh install; reset+catalogue+demo ≡ fresh QA install) and the demo tree renders | ☑ Pass ☐ Fail ☐ Blocked | `parity-reset-vs-install.txt`, `reset-demo.txt`, `reset-demo-genealogy.png`, `reset-demo-earnings.png`, `ir7-suite.log` |
+| QA16-16 | Go-live: both tool URLs 404 after deletion, the verification pack prints the expected counts, no demo/default credential survives and the security review is green | ☑ Pass ☐ Fail ☐ Blocked | `go-live-tools-404.png`, `go-live-checklist.txt`, `ir8-security-review.txt`, `final-verification.txt`, `ir8-suite.log`, `ir8-smoke.log` |
+
+| Phase 16 summary | |
+|---|---|
+| Executed | 16 / 16 |
+| Passed / Failed / Blocked | 16 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-12 |
+
+Phase 16 was signed from the automated suite (**816 / 816**), the HTTP smoke run (**195 / 195**),
+the `build_install_sql --check` gate, the IR-2 … IR-7 evidence (the local `mysql` and phpMyAdmin
+imports, the CLI and web installers, the CLI and web reset, the demo fixtures) and the IR-8 final
+verification pass, whose tool-retirement capture proves both pages are gone on the production copy.
+No defect was raised; the deviations are the documented ones in `docs/phase-log.md` (the
+installer's pre-bundle demo/catalogue limitation, the Windows lock-file ACL and the
+`--reset-catalogue` + customized-seed residual case).
+
+---
+
+## 18. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
 | ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
 |---|---|---|---|---|---|---|
-| — | Phases 1–15 | — | No defects were raised in this pass. | — | — | Closed |
+| — | Phases 1–16 | — | No defects were raised in this pass. | — | — | Closed |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -570,7 +621,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 18. Final decision
+## 19. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -589,15 +640,16 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 13 | ☑ Yes ☐ No | 8 / 8 checks passed; 645 / 645 PHP cases, 161 / 161 smoke checks, a clean payout reconciliation and the headless-Chrome modal pass green. |
 | Phase 14 | ☑ Yes ☐ No | 8 / 8 checks passed; 669 / 669 PHP cases, 173 / 173 smoke checks and a clean audit trail (hashed nonces only) green. |
 | Phase 15 | ☑ Yes ☐ No | 12 / 12 checks passed; 722 / 722 PHP cases, 185 / 185 smoke checks, a launch-scale report pass, a 7/7 health card and an executed restore drill green. |
+| Phase 16 | ☑ Yes ☐ No | 16 / 16 checks passed; 816 / 816 PHP cases, 195 / 195 smoke checks, `build_install_sql --check` exit 0, both installs (mysql/phpMyAdmin/CLI/web), both resets (CLI/web), the demo parity cases and the go-live tool-retirement capture green. |
 
-Phases 1–15 are **Approved**. No defect is open, so no accepted exception is recorded.
+Phases 1–16 are **Approved**. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.
 
 | Role | Name | Signature | Date |
 |---|---|---|---|
-| QA tester | Automated QA pass — DeepSeek Harness (DSH) | n/a (automated run) | 2026-11-11 |
+| QA tester | Automated QA pass — DeepSeek Harness (DSH) | n/a (automated run) | 2026-11-12 |
 | Project lead |  |  |  |
 
 The QA tester line records the automated pass; the project-lead line is left for the human

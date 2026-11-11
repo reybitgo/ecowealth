@@ -169,7 +169,7 @@ Import **one file**, `database/install.sql`, through phpMyAdmin:
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
    | 27 | 48 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
-The bundle creates the schema, the 45 settings, both staff accounts, the seven starter
+The bundle creates the schema, the 48 settings, both staff accounts, the seven starter
 products and the two packages in one pass. It contains no `CREATE DATABASE` or `USE`, so
 it installs into whichever schema you selected.
 
@@ -334,6 +334,12 @@ You **do** need the hidden `.htaccess` files:
 
 If your ZIP or FTP client hides dotfiles, the app will be missing its rewrite rules or
 its upload protection. Check after uploading.
+
+**Install/reset tool files.** A *first* install may also upload `database/install.sql` (for
+5B-A), and/or `public/install.php` (for 5B-B) with `bin/db_install.php` if you use 5D. They are
+temporary: delete them from the server after the install (§12). A site that installs through
+phpMyAdmin does not need `install.php` or `bin/db_install.php` at all. Never upload
+`public/reset.php` to a production site.
 
 ### 6B. Upload with File Manager
 
@@ -695,15 +701,39 @@ go-live. A one-off warning during the first request is still worth reading.
 
 ### 11.6 Check the database
 
-In phpMyAdmin:
+Open phpMyAdmin → select the database → **SQL** and run the verification pack from
+`dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
 
 ```sql
+-- 1. 27 tables and 48 settings on a fresh production install
+SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
+       (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
+       (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
+       (SELECT COUNT(*) FROM users WHERE role = 'member')                              AS members_rows,
+       (SELECT COUNT(*) FROM products)                                                 AS products_rows,
+       (SELECT COUNT(*) FROM packages)                                                 AS packages_rows,
+       (SELECT COUNT(*) FROM package_levels)                                           AS levels_rows,
+       (SELECT COUNT(*) FROM package_products)                                         AS contents_rows,
+       (SELECT COUNT(*) FROM reg_codes)                                                AS codes_rows;
+
+-- 2. No demo leakage: both must be 0
+SELECT COUNT(*) AS demo_users FROM users
+ WHERE username IN ('juan','maria','peter','sarah','david');
+SELECT COUNT(*) AS demo_codes FROM reg_codes WHERE code LIKE 'DEMO-%';
+
+-- 3. Install/reset metadata and the live surfaces
+SELECT key_name, value FROM settings
+ WHERE key_name IN ('install_version','install_channel','install_completed_at',
+                    'last_reset_at','last_reset_by')
+ ORDER BY key_name;
+SELECT COUNT(*) AS surfaces FROM live_revisions;
 SHOW TABLES LIKE 'live_revisions';
-SELECT * FROM live_revisions;
 ```
 
-The table may be empty until the first product/order write. That is normal. After a
-product change, it should have a row for `admin.products`.
+A fresh production install prints **27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
+is empty after a static `install.sql` import; it may hold a row for `admin.products` after the
+first product change, and a reset leaves 18 standard surfaces. Record the output with the
+go-live evidence (§12).
 
 ---
 
@@ -716,18 +746,28 @@ Before calling the site live:
 
 - [ ] Delete `public/install.php`; confirm `https://example.com/ecowealth/system/install.php`
       returns 404 (not the installer page).
-- [ ] If the web installer was used, confirm `storage/install.lock` exists and cannot be
-      read over the web, then remove `INSTALL_KEY` from `config.local.php` (or rotate it).
-- [ ] Delete `public/reset.php` if the reset console was ever uploaded; confirm
-      `https://example.com/ecowealth/system/reset.php` returns 404 (the branded page, not the
-      console). A production site keeps `DB_RESET_ENABLED` absent or `false`, so even a
-      forgotten file answers 404; deletion is the second lock. If the console was enabled for
-      a change window, set the constant back to `false` in the same step.
+- [ ] Delete `public/reset.php`; confirm `https://example.com/ecowealth/system/reset.php`
+      returns 404 (the branded page, not the console). A production site keeps
+      `DB_RESET_ENABLED` absent or `false`, so even a forgotten file answers 404; deletion is
+      the second lock. If the console was enabled for a change window, set the constant back to
+      `false` in the same step.
+- [ ] Delete `database/install.sql` from the server (and `bin/db_install.php` if it was
+      uploaded); a static import needs neither at runtime.
+- [ ] Confirm `storage/install.lock` exists when a guided installer (CLI or web) was used and
+      cannot be read over the web (`https://example.com/ecowealth/system/storage/install.lock`
+      must be 403/404). A **static** `install.sql` import has no lock file — that is expected:
+      the populated schema and the deleted tools are the guard. Then remove `INSTALL_KEY` from
+      `config.local.php` (or rotate it).
+- [ ] Confirm `DB_RESET_ENABLED` is absent or `false` in `config.local.php`.
 - [ ] Change the `admin` password. Use **Profile → Change password**.
-- [ ] Sign in as `superadmin` and change that password too.
+- [ ] Sign in as `superadmin` and change that password too. Neither password may still be a
+      documented default (`Admin@123`, `Super@123`): a fresh `install.sql` import seeds both,
+      so this step is mandatory on that path.
 - [ ] Confirm no demo data leaked into production:
       `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
       and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
+- [ ] Run the verification pack (§11.6) and file its output: 27 tables, 48 settings, 2 staff,
+      0 members, 7 products, 2 packages, 18 levels, 10 contents, 0 codes.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
 - [ ] Remove `system/tests/`, `docs/`, `dmp/` and `backups/` from the server if they
@@ -736,7 +776,8 @@ Before calling the site live:
       should be a 404, not the file contents).
 - [ ] Confirm `https://example.com/ecowealth/system/storage/logs/` is denied.
 - [ ] Confirm `https://example.com/ecowealth/system/public/uploads/` does not execute PHP.
-- [ ] Export a database backup and download a copy of `public/uploads/`.
+- [ ] Export a database backup and download a copy of `public/uploads/` **after** the checklist.
+- [ ] Re-run `php bin/wallet_reconcile.php` if the host gives you SSH; exit `0`.
 - [ ] If you use the URL cron form, set a long random `CRON_KEY`.
 
 ### Remove the demo data
@@ -862,7 +903,7 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 ## 16. Final checklist
 
 - [ ] Database created; user attached; credentials recorded.
-- [ ] Database imported (existing dump or `schema.sql` + seeds).
+- [ ] Database imported (existing dump, or `database/install.sql` for a fresh install).
 - [ ] `live_revisions` table exists.
 - [ ] Application uploaded to the chosen layout.
 - [ ] The required `.htaccess` files are present.
@@ -876,11 +917,15 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 - [ ] Two-tab live update works.
 - [ ] Default passwords changed; no demo users (`juan`, `maria`, `peter`, `sarah`, `david`)
       and no `DEMO-%` codes (the two queries in §12 return `0`).
-- [ ] `public/install.php` and `public/reset.php` deleted; both tool URLs return 404.
-- [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a guided installer was used.
-- [ ] Database and uploads backed up.
+- [ ] `public/install.php` and `public/reset.php` deleted; both tool URLs return 404, and
+      `database/install.sql` removed from the server.
+- [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a
+      guided installer was used (absent for a static import).
+- [ ] `DB_RESET_ENABLED` absent or `false`.
+- [ ] Verification pack (§11.6) run and filed: 27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
+- [ ] Database and uploads backed up **after** the checklist.
 - [ ] Error log reviewed.
-- [ ] Optional cron jobs created and tested with `--doctor`.
+- [ ] Optional cron jobs created and tested with `--doctor`; `wallet_reconcile.php` exits 0.
 
 ---
 
@@ -893,8 +938,12 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | App folder | `<app>` (contains `app/`, `public/`, `storage/`) |
 | Config | `<app>/app/config.local.php` |
 | Schema | `<app>/database/schema.sql` |
+| Install bundle | `<app>/database/install.sql` (generated; delete after a production install) |
 | Seeds | `<app>/database/seeds/` |
 | Migrations | `<app>/database/migrations/` |
+| CLI installer / reset | `<app>/bin/db_install.php`, `<app>/bin/db_reset.php` (delete after go-live) |
+| Web installer / reset console | `<app>/public/install.php`, `<app>/public/reset.php` (delete after go-live) |
+| Install lock | `<app>/storage/install.lock` (guided installs; never web-readable) |
 | Cron scripts | `<app>/bin/` |
 | Runtime storage | `<app>/storage/` |
 | Uploads | `<app>/public/uploads/` |
@@ -924,6 +973,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-07 | Initial preliminary guide for the Phase 10 build plus live updates. |
 | 2026-11-08 | Phase 11: add migration 014 and note the indirect-commission settings. |
 | 2026-11-11 | Phases 12–15: migrations 015–019, transfer/payout settings, S-Login, and the Phase 15 hardening/reports addendum below. |
+| 2026-11-12 | Install/reset workstream (IR-1 … IR-8): §5B becomes the one-file `install.sql` bundle plus the key-gated web installer and the optional CLI installer; §6 lists the temporary tool files; §7 documents `INSTALL_KEY` and `DB_RESET_ENABLED`; §11.6 is the verification pack; §12/§16 add tool deletion, lock, key, demo, default-password and verification checks. |
 
 ---
 

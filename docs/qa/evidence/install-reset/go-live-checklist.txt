@@ -1,0 +1,39 @@
+IR-8 go-live checklist — signed on a scratch production-like install
+2026-11-12 06:50:20 +08:00
+Host: Windows 11 26200 · PHP 8.3.16 · MySQL 8.4.3
+Target: ecowealth_sneat_ir8_live (scratch, created as root; the application schema ecowealth_sneat was not touched)
+Environment: APP_ENV=production via a temporary router wrapper (config.local.php not edited);
+             INSTALL_KEY supplied with ECO_INSTALL_KEY (35 characters, never written to a file or the database);
+             DB_RESET_ENABLED absent (the constant defaults to false).
+
+[x] public/install.php deleted          -> GET /install.php  = 404 (branded "Page not found")
+[x] public/reset.php deleted            -> GET /reset.php    = 404 (branded "Page not found")
+[x] database/install.sql not needed at runtime (the web installer imported it; no copy served)
+[x] storage/install.lock present        -> written by the web installer (channel "web", bundle sha256 3e94fd28…)
+[x] lock is not web-readable            -> PHP server docroot public/ 404 · Apache /system/storage/… 403 (storage/.htaccess deny-all)
+[x] INSTALL_KEY removed/rotated         -> the key was passed via the environment for this run only; config.local.php has none
+[x] DB_RESET_ENABLED absent or false    -> not defined locally; app/config.php default false; /reset.php 404 before deletion too
+[x] neither staff password is a default -> password_verify('Admin@123'|'Super@123') = no for both rows;
+                                           the operator passwords chosen on the install form verify = yes
+[x] no demo users                       -> SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david') = 0
+[x] no DEMO-% codes                     -> SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%' = 0
+[x] verification pack (Appendix E)      -> 27 tables · 48 settings · 2 staff · 0 members · 7 products · 2 packages ·
+                                           18 levels · 10 contents · 0 codes · 0 demo users · 0 demo codes
+[x] finance reconciliation              -> php bin/wallet_reconcile.php (ECO_DB_NAME=ecowealth_sneat_ir8_live) exit 0
+[x] post-launch backup                  -> mysqldump --single-transaction --routines --triggers, exit 0,
+                                           101,086 bytes, sha256 322FC8507650D88EE578FCF8D6E1C0575DDA1B1B9DE1D8D4A10A1D7B552CB686
+
+Evidence for each line:
+  docs/qa/evidence/install-reset/final-verification.txt §[7] (install, counts, passwords) and §[8] (retirement, lock)
+  docs/qa/evidence/install-reset/go-live-tools-404.png  (the branded 404 the retired URLs answer)
+  docs/qa/evidence/install-reset/ir8-security-review.txt (headers, secrets, lock, routes, guards, sessions)
+
+Notes
+- A static install.sql import has no storage/install.lock: the populated schema and the deleted tools are
+  the guard. This run used the guided web installer, which writes the lock — the stronger state.
+- The two tool files were restored to the development tree after the capture; a production copy deletes them.
+- The development config (app/config.local.php) defines APP_ENV=development, no INSTALL_KEY and no
+  DB_RESET_ENABLED. The production checklist in docs/deploy.md §12 / docs/runbook.md §7 is what an operator
+  signs on the real host; this transcript proves the same checks pass on an identical build.
+
+Signed: DSH · 2026-11-12

@@ -3800,3 +3800,52 @@ on every natural key — with and without the demo tree.
 
 IR-8 — hardening, documentation, go-live and sign-off: the full doc pass (README/deploy/
 runbook/QA), the security review, the go-live checklist and the sign-off sheet.
+
+---
+
+## IR-8 — Hardening, documentation, go-live and sign-off (2026-11-12)
+
+**Status:** complete · **Tags:** `ir-8`, `ir-8-install-reset-complete` · **Branch:** `feature/shop` · **Documentation and verification only; no route, controller, view, service or test changed.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-8, §9.3, §11 and Appendix G. This phase closes the
+install/reset workstream: the security review, the full operator documentation, the go-live checklist
+additions, the final verification pass and the sign-off. It adds no feature and no automated case.
+
+| Item | Record |
+|---|---|
+| **Security review** | `docs/qa/evidence/install-reset/ir8-security-review.txt`. Both tool pages carry the shared headers (nosniff, frame-deny + `frame-ancestors`, referrer, permissions, COOP, noindex) plus `no-store`; the install page's locked response contains no DB password, `mysql:host`, bcrypt hash or key; `storage/install.lock` resolves outside `public/` and is written 0600-then-renamed (NTFS ignores POSIX mode — the file holds no secret and the folder is deny-all); neither tool appears in `routes.php`, `routes_inventory.php`, the layout or a controller; the uploads/storage `.htaccess` guards and the hardened sessions (HttpOnly, SameSite=Lax, Secure on TLS, strict mode) were confirmed; `DB_RESET_ENABLED` is `false` and `INSTALL_KEY` empty in the development config, with the production rules documented. No finding required a code change. |
+| **Documentation** | `system/README.md` (F-10 `APP_PHASE` 10 → 15, 45 → 48 settings, 722 → 816 cases, the 195-check smoke figure, the seven tool test groups, the one-bundle install and upgrade note, and a new "Retire the tools (go-live)" section); `docs/deploy.md` (§5B 48 settings, §6 temporary tool files, §11.6 the verification pack, §12/§16 the tool/lock/key/demo/default-password/verification items, Appendix A paths and Appendix C status); `docs/runbook.md` (§3 install + reset + restore, §5 "never install.sql over an existing database", §7 expanded go-live with a "Retire the tools" procedure, §8 tool/lock checks, §9 release gates); `docs/qa/phase-16-install-reset.md` (new, 16 checks A–H); `docs/qa/README.md` and `docs/qa/sign-off-sheet.md` (Phase 16 row, 216 checks, current counts, final decision); `docs/qa/evidence/install-reset/README.md` (the IR-8 files); `dmp/plan-ecowealth-cart-system.md` (one-line cross-reference); this plan (status line, Appendix G and the IR-8 sign-off appended). The IR-1 … IR-8 entries in this log are the plan §11.3 "Phase 16.1 … 16.7" record: 16.1 = IR-1 + IR-2, 16.2 = IR-3, 16.3 = IR-4, 16.4 = IR-5, 16.5 = IR-6, 16.6 = IR-7, 16.7 = IR-8. |
+| **Go-live** | `go-live-checklist.txt` signed on a scratch production-like install: both tool URLs 404 after deletion, the lock present and not web-readable (PHP docroot 404, Apache 403), `INSTALL_KEY` supplied only through the environment for the run, `DB_RESET_ENABLED` absent/false, neither staff hash matching a published default, 0 demo users/codes, the Appendix E counts and a post-launch dump (101,086 bytes, sha256 `322fc850…`). `go-live-tools-404.png` captures the branded 404. |
+| **Final verification** | `final-verification.txt`: `build_install_sql --check` exit 0 on bundle sha256 `3e94fd28…`; a `mysql` import + demo tree on `ecowealth_sneat_ir8_reset` (27/48/2/5/7/2/18/10/3 before the reset); the CLI reset with five codes (12/12 verification) and `wallet_reconcile` exit 0; the idempotent second reset (only the five codes it created were deleted); the browser installer on an empty `ecowealth_sneat_ir8_live` in a production environment with a 35-character key (success, lock JSON `channel: web`, operator passwords verify and neither default does, 27/48/2/0/7/2/18/10/0); and the tool-retirement capture (both 404, files restored to the development tree afterwards). The phpMyAdmin import is the IR-2 capture (`install-sql-phpmyadmin-import.png`); IR-8 proves the bundle is byte-identical, so that capture is the same artefact. |
+| **Tests** | `php tests/run.php` → **Cases: 816   Passed: 816   Failed: 0**, exit 0 (no new cases). `tests/smoke.ps1` → **Passed: 195   Failed: 0**, exit 0. Evidence: `docs/qa/evidence/install-reset/ir8-suite.log`, `ir8-smoke.log`. |
+| **Sign-off** | Appendix G of the plan filled for IR-0…IR-8; the Phase 16 QA document signed 16/16; the QA sign-off sheet carries the Phase 16 row and approves all sixteen phases. |
+| **Gate** | Full suite and smoke green; evidence folder complete; the go-live checklist signed; the two tools absent (404) on the production copy; no default credential on any installer path; a fresh install and a reset both verify clean. |
+
+### Notes and deviations
+
+- **The bundle did not change.** `build_install_sql.php --check` exited 0 on the committed
+  `database/install.sql` (sha256 `3e94fd28…`), so IR-8 rebuilt nothing; the IR-2 phpMyAdmin capture
+  and the IR-1/IR-2 import captures therefore refer to the same bytes verified here.
+- **The go-live capture used a temporary production wrapper.** A router file defined
+  `APP_ENV=production` before the app booted (config.local.php uses `defined() || define()`, so no
+  file was edited), served with `php -S`; it was deleted after the run and the two tool files were
+  moved back. The first capture was unstyled because an included router cannot `return false` on the
+  wrapper's behalf; the wrapper now streams static files itself and the retaken screenshot is the
+  branded 404.
+- **The Windows lock ACL is inherited, not 0600.** NTFS does not honour POSIX mode; `icacls` shows
+  the storage folder's inherited ACL. The lock carries no secret, the folder is outside the web root
+  and deny-all, and the Linux writer still applies 0600. Recorded in the security review rather than
+  hidden.
+- **The reset idempotency transcript is literal.** The second run deleted the five codes the first
+  run generated (registration codes are inventory, not business data); every business table step
+  reported 0. The automated case (no codes) reports 0 in every step.
+- **No application file changed.** The edits are documentation, the plan status/sign-off and evidence.
+  `app/`, `public/*.php`, `database/` and `tests/` are byte-identical to IR-7; the temporary router
+  was removed before the commit.
+
+### Workstream complete
+
+IR-0 … IR-8 are complete: the production install bundle, the shared plumbing, the CLI and browser
+installers, the reset engine/CLI/console, the demo fixtures and parity, and the hardening,
+documentation and go-live sign-off. The application itself remains Phase 15; Phase 16 added no
+route or page, and both tools are retired by deleting two files and removing two constants.

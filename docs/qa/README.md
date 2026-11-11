@@ -1,9 +1,13 @@
-# EcoWealth — Manual QA pack (Phases 1–15)
+# EcoWealth — Manual QA pack (Phases 1–16)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11, 12, 13, 14 and 15. The automated suites are already green; these documents let a tester who has never seen the
+7, 8, 9, 10, 11, 12, 13, 14, 15 and 16. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
+
+> **Phase 16 is the install/reset workstream** (`dmp/plan-ecowealth-install-reset.md`, IR-1 … IR-8),
+> not an application phase. Its checks run on scratch schemas and its evidence lives in
+> `evidence/install-reset/`, not `evidence/phase-16/`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -30,14 +34,17 @@ sign the phase off.
 | [phase-13-payouts.md](phase-13-payouts.md) | 13 — payout requests, the hold, fees, USDT conversion, admin queue | 8 | 25–35 min |
 | [phase-14-super-login.md](phase-14-super-login.md) | 14 — super-login console, URL-token impersonation, exit/TTL, audit trail | 8 | 25–35 min |
 | [phase-15-launch.md](phase-15-launch.md) | 15 — dashboards, reports/exports, the eight settings cards, audit desk, hardening, UAT and launch | 12 | 40–55 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all fifteen | — | 10 min to complete |
+| [phase-16-install-reset.md](phase-16-install-reset.md) | 16 — install bundle, CLI/web installers, CLI/web reset, demo + parity, production gates, go-live | 16 | 90–120 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all sixteen | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
 `evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png`,
 `evidence/phase-11/*.png` and (once the browser passes are captured) `evidence/phase-12/*.png`,
-`evidence/phase-13/*.png`, `evidence/phase-14/*.png` and `evidence/phase-15/*.png`.
+`evidence/phase-13/*.png`, `evidence/phase-14/*.png` and `evidence/phase-15/*.png`. Phase 16 keeps
+its screenshots and terminal transcripts in `evidence/install-reset/`, indexed by that folder's
+`README.md`.
 
 ---
 
@@ -56,7 +63,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 722   Passed: 722   Failed: 0
+Cases: 816   Passed: 816   Failed: 0
 All good.
 ```
 
@@ -69,7 +76,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 185   Failed: 0
+Passed: 195   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -193,6 +200,16 @@ Passed: 185   Failed: 0
   the reports/audit guards, a branded 404, all eight settings cards with a refusal and an effective brand change,
   the reports desk and window, the CSV downloads with their audit rows, the audit filters and the transfer
   throttle.
+- Phase 16 (install/reset workstream): the SQL statement parser (quotes/comments, line numbers, `DELIMITER` and
+  database-switch rejection, failure context, checksum), `DbTarget` connection/probing and identifier safety,
+  seed/migration parity and the generated bundle's drift check, importing the bundle into an empty scratch schema
+  and refusing a non-empty one, the CLI installer (preflight, install + lock, re-run/non-empty refusals, password
+  policy, JSON, production key), the same gates for the web installer (lock, non-empty, key + throttle, CSRF,
+  no secrets), the reset engine (preview/dry-run, one transaction, staff defaults, audit kept/cleared, catalogue
+  reset, codes, rollback, uploads, live revisions, AUTO_INCREMENT, the full refusal matrix), the reset console
+  (visibility/actor/phrase matrix, PRG, refusals), and the demo fixtures plus both reset ≡ fresh-install parity
+  comparisons by natural key. The HTTP smoke script adds the installer and console probes (`IR4-T1…T5`,
+  `IR6-T1…T5`).
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
@@ -413,8 +430,9 @@ failed check afterwards and updates the row to **Closed**.
 ## 8. Sign-off flow
 
 1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
-2. Work through the ten phase documents in order (Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10). Each phase assumes the
-   previous one is done.
+2. Work through the phase documents in order (Phase 1 → 16). Each phase assumes the
+   previous one is done. Phase 16 runs on scratch schemas and can be done without touching the
+   development database.
 3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
    decision.
 4. Hand the sheet plus the `evidence/` folder to the project lead.
@@ -474,6 +492,11 @@ docs/qa/
 ├── phase-9-membership.md              ← manual checks for Phase 9
 ├── phase-10-commissions.md            ← manual checks for Phase 10
 ├── phase-11-commissions.md            ← manual checks for Phase 11
+├── phase-12-transfers.md              ← manual checks for Phase 12
+├── phase-13-payouts.md                ← manual checks for Phase 13
+├── phase-14-super-login.md            ← manual checks for Phase 14
+├── phase-15-launch.md                 ← manual checks for Phase 15
+├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-└── evidence/                          ← your screenshots (phase-1/ … phase-11/)
+├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + install-reset/)
 ```

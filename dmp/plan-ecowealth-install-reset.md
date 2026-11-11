@@ -12,7 +12,7 @@
 | **Related documents** | `system/README.md`, `docs/deploy.md`, `docs/runbook.md`, `docs/phase-log.md`, `docs/qa/` |
 | **Baseline captured at** | commit `0ced89e` · PHP 8.3.16 · MySQL 8.4.3 · schema `ecowealth_sneat` · 27 tables |
 
-> **Status: implementation plan.** No application code has been changed by writing this document. It fixes the scope, files, decisions, phase order and gates; IR-1 is the first phase that writes code. The reference files remain untouched.
+> **Status: implemented and signed off (2026-11-12).** IR-1 … IR-8 landed in order against the gates below; the plan keeps its original scope, decisions and phase text, and the IR-8 sign-off at the end of this document records the final evidence, the test counts and the go-live sign-off. Writing the plan changed no application code; the reference files remain untouched.
 
 > **How to use this document.** The work is split into nine **IR phases** (IR-0 … IR-8). Each phase is a vertical, testable slice: it adds files, tests and a gate, and the *next* phase starts only when the current gate is green. `IR-` is used instead of a bare "Phase" to avoid colliding with the application's Phase 1–15 numbering. Every phase lists the exact files it delivers, the commands that prove it, and what to do if it has to be backed out.
 >
@@ -2793,22 +2793,22 @@ Expected after a **default reset**: 27 tables; settings kept plus `last_reset_at
 
 | Phase | Gate evidence | Result | Initials | Date |
 |---|---|---|---|---|
-| IR-0 | `baseline.txt`, restored dump, green suite | ☐ | | |
-| IR-1 | `SqlScript`/`DbTarget` groups + full suite | ☐ | | |
-| IR-2 | `build_install_sql --check`, `InstallSql`/`SeedParity`, local mysql + phpMyAdmin imports | ☐ | | |
-| IR-3 | `db_install --check`, fresh CLI install, lock JSON, refusal cases | ☐ | | |
-| IR-4 | Web installer preflight/success/refusal screenshots + smoke | ☐ | | |
-| IR-5 | Reset CLI transcript, `wallet_reconcile` exit 0, `DbReset` group | ☐ | | |
-| IR-6 | Ten-state browser matrix screenshots + `DbToolAccess` group | ☐ | | |
-| IR-7 | Demo install/reset screenshots + both parity cases | ☐ | | |
-| IR-8 | Full suite + smoke + online import + go-live checklist + docs review | ☐ | | |
+| IR-0 | `baseline.txt`, restored dump, green suite | ☑ | DSH | 2026-11-11 |
+| IR-1 | `SqlScript`/`DbTarget` groups + full suite | ☑ | DSH | 2026-11-11 |
+| IR-2 | `build_install_sql --check`, `InstallSql`/`SeedParity`, local mysql + phpMyAdmin imports | ☑ | DSH | 2026-11-11 |
+| IR-3 | `db_install --check`, fresh CLI install, lock JSON, refusal cases | ☑ | DSH | 2026-11-11 |
+| IR-4 | Web installer preflight/success/refusal screenshots + smoke | ☑ | DSH | 2026-11-11 |
+| IR-5 | Reset CLI transcript, `wallet_reconcile` exit 0, `DbReset` group | ☑ | DSH | 2026-11-11 |
+| IR-6 | Ten-state browser matrix screenshots + `DbToolAccess` group | ☑ | DSH | 2026-11-11 |
+| IR-7 | Demo install/reset screenshots + both parity cases | ☑ | DSH | 2026-11-12 |
+| IR-8 | Full suite + smoke + online import + go-live checklist + docs review | ☑ | DSH | 2026-11-12 |
 
 Final sign-off:
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
-| Implementation lead | | Accepted / rejected | |
-| QA | | Accepted / rejected | |
+| Implementation lead | DSH (automated implementation pass) | Accepted | 2026-11-12 |
+| QA | DSH (automated QA pass, `docs/qa/sign-off-sheet.md`) | Accepted | 2026-11-12 |
 | Operations/owner | | Accepted / rejected | |
 
 ### Appendix H — Glossary
@@ -2845,4 +2845,33 @@ Final sign-off:
 **Baseline correction (IR-0-F1).** The suite reports **724** cases, not the 722 written in §1.3/§2.3/IR-0: commit `0ced89e` added two `SettingsPageTest` cases after the plan's count was taken (`docs/phase-log.md`, "Suite 722 → 724"). Later phases treat **724** as the existing-case count. The stale `722` references in `system/README.md` and `docs/qa/README.md` are IR-8 documentation work; historical Phase 15 evidence is not rewritten.
 
 **Contract sign-off.** The file names and the CLI/report shapes above are accepted as the implementation contract. A rename or flag change after IR-1 starts requires a new decision entry in this document and a re-run of the IR-0 gate.
+
+---
+
+## IR-8 sign-off — install/reset workstream complete (2026-11-12)
+
+**Status:** IR-8 complete and the workstream closed — security review, full documentation pass, go-live checklist and sign-off. No application runtime file changed in this phase: the edits are documentation, the plan itself and the evidence.
+
+| Item | Record |
+|---|---|
+| **Security review** | `docs/qa/evidence/install-reset/ir8-security-review.txt`: shared hardening headers and `no-store` on both tool pages; no password, DSN, bcrypt hash or install key in the HTML or JSON; `storage/install.lock` outside `public/` and 0600 where the platform allows (NTFS inherits the folder ACL — documented); no route, navigation or `routes_inventory.php` entry; uploads/storage `.htaccess` guards; HttpOnly/SameSite=Lax/Secure-on-TLS sessions; `DB_RESET_ENABLED` false and `INSTALL_KEY` empty in the development config. No code change was required. |
+| **Documentation** | `system/README.md` (F-10 fixed: `APP_PHASE` 15; 48 settings; 816 cases; 195 smoke checks; the seven tool test groups; one-bundle install + upgrade; the "Retire the tools (go-live)" section). `docs/deploy.md` (§5B, §6, §7, §11.6 verification pack, §12, §16, Appendix A/C). `docs/runbook.md` (§3 install/reset/restore, §5 upgrade rule, §7 go-live + retire-the-tools, §8 checks, §9 release gates). `docs/qa/phase-16-install-reset.md` (new, 16 checks A–H). `docs/qa/README.md` and `docs/qa/sign-off-sheet.md` (Phase 16 row, 216 checks, current counts, final decision). `docs/qa/evidence/install-reset/README.md`, `dmp/plan-ecowealth-cart-system.md` (one-line cross-reference). |
+| **Go-live** | `go-live-checklist.txt` and `go-live-tools-404.png` from a scratch production-like install: both tool URLs 404 after deletion; lock present and not web-readable (404 via the PHP docroot, 403 via Apache); `INSTALL_KEY` never persisted; `DB_RESET_ENABLED` absent/false; neither staff hash matches `Admin@123`/`Super@123`; 0 demo users and 0 `DEMO-%` codes; the Appendix E counts; a post-launch dump (101,086 bytes, sha256 `322fc850…`). |
+| **Final verification** | `final-verification.txt`: bundle `--check` exit 0 (sha256 `3e94fd28…`); `mysql` import + demo tree; the CLI reset with five codes (12/12 verification) and `wallet_reconcile` exit 0; the second reset idempotent; the browser installer in a production environment with a 35-character key (success, lock `channel: web`, operator passwords, 27/48/2/0/7/2/18/10/0); the tool-retirement capture. The phpMyAdmin import is the IR-2 capture for the same bundle bytes. |
+| **Automated gates** | `php bin/build_install_sql.php --check` → exit 0 · `php tests/run.php` → **816 / 816 / 0**, exit 0 · `tests/smoke.ps1` → **195 / 195**, exit 0. Evidence: `ir8-suite.log`, `ir8-smoke.log`. |
+| **QA sign-off** | `docs/qa/phase-16-install-reset.md` → **16 / 16** checks passed; `docs/qa/sign-off-sheet.md` §17 approves Phase 16 and §19 approves all sixteen phases. |
+| **Sign-off sheet** | Appendix G above: every IR phase ticked; Implementation lead and QA accepted 2026-11-12; the Operations/owner line is left for the human countersignature. |
+| **Tags** | `ir-8` and `ir-8-install-reset-complete` on the completing commit. |
+| **Release artefact** | `system/database/install.sql` — committed, generated, byte-stable, sha256 `3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb` (54 statements, 63,695 bytes). |
+
+**Exit criteria (IR-8).** All nine phase gates are green in order; `install.php`/`reset.php` are absent (404) on the production checklist copy; the documentation answers "How do I install locally?", "How do I install online?", "How do I reset?" and "How do I remove the tools?"; no default credential remains on a production path; a fresh install and a reset both verify clean.
+
+**Deviations accepted and documented.**
+
+1. The Windows lock file inherits the NTFS folder ACL instead of POSIX `0600`; it holds no secret and the folder is outside `public/` and deny-all.
+2. The phpMyAdmin install is evidenced by the IR-2 capture; IR-8 proves the bundle is byte-identical to the imported file.
+3. The manual reset-idempotency transcript deletes the five codes generated by the preceding reset (registration codes are inventory); every business-data step reports 0, matching the automated case.
+4. The reset/install tools live in `system/public/` (served as `/system/…`), not at the app root like the reference, because the document root is `public/`.
+
+**Workstream closure.** IR-0 … IR-8 are complete: the production install bundle and its generator, `DbTarget`/`SqlScript`/`DatabaseToolException`, the CLI and browser installers with the install lock and `INSTALL_KEY`, the reset engine with the CLI and the authenticated console, the demo fixtures with reset ≡ fresh-install parity, and the hardening/documentation/go-live sign-off. The application remains Phase 15; Phase 16 added no route or page, and the tools are retired by deleting two files and removing two constants.
 

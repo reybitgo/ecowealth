@@ -16,6 +16,8 @@
 
 > **How to use this document.** Work top to bottom. Each phase has a *Gate* — a list of automatable and manual checks. Do not start the next phase until the current gate is green (all tests pass, no regression in earlier phases, demo data seeded, commit tagged). Estimates assume one experienced PHP developer; AI-assisted implementation typically compresses them 30–50%.
 
+> **Install, reset and go-live tooling.** The production `install.sql` bundle, the CLI and browser installers, the guarded database reset and the tool-retirement checklist are specified in the companion plan [`plan-ecowealth-install-reset.md`](plan-ecowealth-install-reset.md) (IR-0 … IR-8). They are not phases of this document.
+
 ---
 
 ## 1. Executive summary
