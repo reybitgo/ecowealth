@@ -114,6 +114,57 @@ copy. The scratch schema was dropped afterwards.
 started. A full restore on this machine took under ten seconds. Restoring onto a different host
 also needs `config.local.php`, the uploads folder and the `system/storage` folders.
 
+### Reset a development/QA database
+
+A reset returns a **scratch or development** schema to the clean install state and keeps both
+staff accounts and the configuration. It is the supported way to clear test members, orders,
+wallets and codes; it is **not** a restore, a backup or an uninstall.
+
+```powershell
+# 0. It has no undo: take the dump above, or make sure the schema is disposable.
+$env:ECO_DB_NAME = 'ecowealth_sneat_qa'
+
+# 1. Look first. --dry-run writes nothing and prints the statement plan.
+php bin\db_reset.php --dry-run
+
+# 2. Reset. Type the database name at the prompt.
+php bin\db_reset.php
+
+#    Non-interactive form (CI, scripts): --force skips only the prompt.
+php bin\db_reset.php --force --confirm=$env:ECO_DB_NAME --codes=5 --code-package=1
+
+# 3. Prove it: the same four reconciliations the reset itself runs.
+php bin\wallet_reconcile.php          # exit 0
+
+# 4. Point the app at the schema and sign in as admin (password unchanged).
+#    Confirm /admin/members = 0, /admin/orders = 0 and the catalogue is intact.
+Remove-Item Env:ECO_DB_NAME
+```
+
+What it does, in one transaction: deletes S-Login and remember-me sessions, orders and their
+children, carts, addresses, ledger, top-ups, transfers, payouts, commissions, activations,
+codes and finally the **members** (staff rows survive); resets both staff rows to the install
+defaults; optionally deletes and re-seeds the catalogue (`--reset-catalogue`); optionally
+clears the audit log (`--clear-audit`); bumps every live revision; writes
+`last_reset_at`/`last_reset_by` and one `system.db_reset` audit row. After the commit it resets
+the AUTO_INCREMENT counters of empty tables and deletes proof images under
+`public/uploads/proofs/` (unless `--keep-uploads`). It then verifies the result and exits `1`
+if any check fails.
+
+| Rule | Why |
+|---|---|
+| **Never run it on production without an approved change window** | `APP_ENV=production` needs `--allow-production`; the web console (IR-6) is off by default |
+| **Never run it on a schema you cannot lose** | The only recovery is the dump from §3 |
+| **Never patch `users` balances by hand after a failure** | Read the verification detail and restore the backup; the services are the only writers |
+| **The confirmation is a database name, not `y`** | It makes the target explicit and cannot be satisfied by an accidental Enter |
+| **`--keep-uploads` still deletes the rows** | It only leaves the image files behind (they become orphans) |
+
+If the transaction fails, the report says nothing was deleted — re-run after fixing the
+cause. If the reset commits but verification fails, the data is reset: run
+`php bin\wallet_reconcile.php`, read the failing check, and restore the pre-reset dump if real
+money was involved. Full engine detail: `dmp/plan-ecowealth-install-reset.md` §7; CLI flags:
+`php bin\db_reset.php --help`.
+
 ---
 
 ## 4. Money: what to check and what never to do

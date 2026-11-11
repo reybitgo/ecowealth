@@ -1,0 +1,42 @@
+2026-11-11 22:15:27 +08:00 — IR-5 reset engine and CLI
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3 · schema ecowealth_sneat_reset_manual (scratch, created as root)
+Fixture: database/install.sql then database/seeds/005_demo_tree.sql
+         => 5 members · 2 staff · 3 demo codes · 3 ledger rows · 7 products · 2 packages
+Command: php bin\db_reset.php --dry-run
+Exit: 0
+
+EcoWealth database reset
+  target : ecowealth_sneat_reset_manual at 127.0.0.1:3306 (8.4.3)
+  mode   : dry run — no writes
+  rows   : 5 members · 2 staff · 0 orders · 3 ledger · 3 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (0 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: never
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Plan (46 statement(s), 0 writes)
+  lock                  Acquire the advisory lock                            1
+  preflight             Preflight check (read-only)                          0
+  counts                Snapshot the row counts (read-only)                  0
+  impersonation         S-Login sessions                                     1
+  orders                Shop orders, payments, invoices and fulfilment       7
+  carts                 Carts and cart lines                                 2
+  addresses             Address book                                         1
+  wallet                Wallet ledger, transfers and admin top-ups           3
+  payouts               Payout requests                                      1
+  commissions           Commissions and activations                          2
+  codes                 Registration codes                                   1
+  sessions              Remember-me sessions (all users)                     1
+  members               Delete the member accounts                           1
+  staff                 Reset the staff accounts                             1
+  catalogue             Keep the existing catalogue                          0
+  audit_clear           Keep the audit log                                   0
+  live                  Bump the live revisions                              2
+  settings              Write the reset metadata                             2
+  audit                 Append the reset audit row                           1
+  auto_increment        Reset the AUTO_INCREMENT counters (after commit)     19
+  uploads               Delete the orphaned upload files (after commit)      0
+  codes_generate        Generate registration codes (after commit)           0
+  verify                Verify the reset (read-only)                         0
+
+Dry run complete — nothing was written.

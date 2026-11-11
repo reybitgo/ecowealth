@@ -86,11 +86,13 @@ files below.
 
 | File | What it proves |
 |---|---|
-| `reset-cli-preview.txt` | `--dry-run` preview: counts, staff, catalogue, `"writes": 0`, exit 0. |
-| `reset-cli-success.txt` | Real reset on a scratch schema: step log, counts before/after, verification checklist, exit 0. |
-| `reset-cli-success.json` | The same run with `--json`: `tool: db_reset`, `"ok": true`, codes/verify blocks. |
-| `reset-cli-refused.txt` | Wrong `--confirm` / missing `--allow-production` / `--demo` in production: refused before any delete, exit 3. |
-| `reset-cli-production.txt` | Production guard exercised through `options['env']` in the suite (not a real production database). |
+| `reset-cli-preview.txt` | `--dry-run` on the fresh QA fixture: counts, staff, catalogue, the 46-statement plan, `writes: 0`, exit 0, nothing changed. |
+| `reset-cli-success.txt` | Real reset (`--force --confirm=… --codes=5`) on a scratch schema: step log, counts before/after, 12/12 verification checks, five fresh codes, exit 0; then `wallet_reconcile.php` exit 0 and the state query (0 members · 2 staff · 5 codes · 0 orders · 7 products). |
+| `reset-cli-success.json` | A second scratch run with `php bin/db_reset.php --force --confirm=ecowealth_sneat_reset_manual --codes=2 --json` (exit 0): one JSON document, `tool: db_reset`, `"ok": true`, the codes and verification blocks. |
+| `reset-cli-refused.txt` | Refusals that write nothing: `--force` without `--confirm` (exit 2), a wrong confirmation (exit 3), `--demo` before IR-7 (exit 2); the state query is unchanged after all three. |
+| `reset-cli-production.txt` | The production guard exercised through `options['env']` (the `DbResetTest` case) — the local `APP_ENV` is `development`, so no real production database is involved. |
+| `reset-app-smoke.txt` | After the reset: the app boots against the scratch schema, the seeded admin signs in (HTTP 302), and `/dashboard`, `/admin`, `/admin/members` ("No members yet"), `/admin/orders` ("No orders yet"), `/admin/codes`, `/shop`, `/admin/packages` and `/admin/products` (7 SKUs) all return 200. |
+| `ir5-suite.log` | Full `php tests/run.php` output behind the gate: `Cases: 803   Passed: 803   Failed: 0`, exit 0 (781 existing + 22 `DbResetTest`). |
 
 ### IR-6 — reset web console
 

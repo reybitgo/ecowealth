@@ -3588,3 +3588,80 @@ result and writes `storage/install.lock`. It never creates a database and never 
 IR-5 — reset engine and CLI: `DatabaseResetService`, `bin/db_reset.php`, preview/dry-run,
 the transactional FK-safe reset, catalogue re-seed, codes, upload cleanup and the
 reset/install parity groundwork.
+
+---
+
+## IR-5 — Reset engine and CLI (2026-11-11)
+
+**Status:** complete · **Tag:** `ir-5` · **Branch:** `feature/shop` · **No route or controller touched.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-5 and §7. This phase adds the one implementation
+of "return this database to a clean install state" — preview, dry run, one transactional
+FK-safe reset, the staff reset, an optional catalogue re-seed, opt-in registration codes,
+proof cleanup, audit and live revisions, mandatory verification and a JSON report — and the
+CLI that drives it. The web console is IR-6; demo fixtures are IR-7.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/app/Services/DatabaseResetService.php` (the engine), `system/bin/db_reset.php` (the CLI), `system/tests/Cases/DbResetTest.php` (22 cases), `system/app/Services/CommissionService.php` (`reconcile()` reads its baseline through its own PDO), `system/tests/Cases/WalletTest.php` (the ledger-immutability scan gains one documented allow-list entry), `system/README.md` ("Reset a development database"), `docs/runbook.md` §3 (the reset procedure). |
+| **Engine** | `preview()` is read-only (counts for all 27 tables, staff, packages, catalogue, `last_reset_at`); `dryRun()` adds the ordered 23-step statement plan and `writes: 0` without starting a transaction; `run()` executes the reset and returns the Appendix-D report; `verify()` is public so the console/tests can re-prove the result. Every query uses the injected PDO — the class never calls `db()`, reads a superglobal or renders HTML. |
+| **Safety gates** | Typed confirmation (`--confirm=<database>`, or the prompt), an `APP_ENV=production` refusal without `--allow-production`, invalid quantities/packages refused before any delete, a preflight that requires all 27 tables and at least one staff row, the connection must actually be using the named database, and `GET_LOCK('ecowealth:reset:<sha1(db)[0..15]>', 5)` serialises two runs. |
+| **Transaction** | One DML transaction: S-Login sessions → shop children → orders → carts → addresses → ledger/transfers/top-ups → payouts → commissions → activations → codes → remember-me tokens → members → staff reset → optional catalogue delete + re-seed → optional audit clear → live revision bump → reset metadata → `system.db_reset` audit row. No `SET FOREIGN_KEY_CHECKS` anywhere; a failure rolls the whole block back and the exception says nothing was deleted. Catalogue, audit and live writes are inside the same transaction, so a rollback restores them too. |
+| **Staff** | Both roles are kept by id (username, email, password hash, profile, payout accounts); package/sponsor/registration/referral fields cleared, `member_status='active'`, `is_active=1`, both wallet buckets and both transfer counters `0.00`, `last_login_at` NULL. The in-transaction assertion after the UPDATE refuses to commit if a staff row is not in that state. |
+| **Catalogue** | Kept by default. `--reset-catalogue` deletes `package_products`/`package_levels`/`packages`/`products` and re-runs the real `003_products.sql` + `004_packages.sql` inside the transaction; the seven SKUs, both package slugs, 18 levels and 10 contents are compared by natural key. A customized seed that drops `package-a`/`package-b` is a warning, not a failed reset (plan 7.5). |
+| **Codes** | `--codes=N` (0–50, default 0) in its own post-commit transaction, reusing only `CodeService::randomCode()`; 40-attempt uniqueness, price copied from the package, `created_by` = the primary admin, one `code.generate` audit row, and the list in the report. No active package is a warning and generates none; the reset still succeeds. |
+| **Post-commit steps** | `AUTO_INCREMENT = 1` only on the empty tables of the 19-table list (never `users`; `audit_log` and the catalogue are excluded; `reg_codes` is skipped when a batch was inserted); proof files deleted from `UPLOAD_ROOT/proofs` (or `public/uploads/proofs`) with `.gitkeep`/`.htaccess` kept, no directories and no symlinks; `--keep-uploads` skips them. Upload failures are warnings, not a failed reset (plan 7.7). |
+| **Audit, settings, live** | `last_reset_at` / `last_reset_by` upserted with two positional placeholders (no deprecated `VALUES()`), one `system.db_reset` audit row with options + counts before/after + duration, and live revisions bumped (`revision + 1` for existing rows, the 18 standard surfaces inserted at 1). The audit meta's `counts_after` is the near-final snapshot taken just before the row is inserted. |
+| **Verification** | Members 0, 19 business tables + members at 0, staff zeroed/active, catalogue kept-or-reseeded, codes count/state, audit delta, `WalletService`/`CommissionService`/`TransferService`/`PayoutService::reconcile()` on the same PDO, 18 live surfaces and the AUTO_INCREMENT values. A failing check makes `ok=false` and the CLI exits 1; verification is never disabled. |
+| **CLI** | `--dry-run`, `--force`, `--confirm=`, `--keep-`/`--reset-catalogue`, `--codes`, `--code-package`, `--demo`, `--keep-`/`--clear-audit`, `--keep-uploads`, `--allow-production`, `--json`, `--help`; exit 0 reset+verified, 1 committed-but-unverified, 2 usage/preflight, 3 aborted/refused. `--force` skips only the prompt — it still requires `--confirm`. Human output: preview, one line per step, the verification checklist, the fresh codes and the staff sign-ins; `--json` prints one document on STDOUT. |
+| **CommissionService** | `reconcile()` now reads `settings.commission_ledger_since` through its own PDO instead of `setting()`, with a `Throwable` fallback for a pre-migration database. Behaviour on the app connection is unchanged; the reset's injected-PDO reconciliation is now correct. |
+| **Tests** | `php tests/run.php DbReset` → **22/22**; `php tests/run.php Commission` → **50/50**; full suite → **Cases: 803   Passed: 803   Failed: 0** (781 existing + 22 new), exit 0. Evidence: `docs/qa/evidence/install-reset/ir5-suite.log`. The group covers preview, dry run, the default reset, the staff defaults, audit kept/cleared, catalogue reset, codes, invalid options, idempotency, an injected rollback, uploads, live revisions, AUTO_INCREMENT, verification, the confirmation/no-staff/missing-table/production gates, the report shape, the CommissionService baseline and codes across a catalogue reset. |
+| **Manual acceptance** | A `ecowealth_sneat_reset_manual` scratch schema (created as root, `install.sql` + `seeds/005_demo_tree.sql`): `wallet_reconcile` exit 0 before and after, `--dry-run` exit 0 with `writes: 0`, the reset exit 0 with 12/12 checks and five codes, and the three refusals exit 2/3/2 with the state unchanged. The app then booted against the schema (`php -S`, `ECO_DB_NAME`) and the seeded admin signed in: `/dashboard`, `/admin`, `/admin/members` ("No members yet"), `/admin/orders` ("No orders yet"), `/admin/codes`, `/shop`, `/admin/packages` and `/admin/products` (7 SKUs) all returned 200. Evidence: `reset-cli-preview.txt`, `reset-cli-success.txt`, `reset-cli-success.json`, `reset-cli-refused.txt`, `reset-cli-production.txt`, `reset-app-smoke.txt`. The scratch schema was dropped afterwards. |
+| **Gate** | The default reset leaves a staff-only, reconciled database; the catalogue is kept by default and reproduced by natural key when reset; a forced failure inside the transaction rolls every row back; FK checks stay on and the delete order is covered; the CLI refuses production, a wrong confirmation, missing staff and missing tables; the report and exit codes match Appendix C/D. |
+
+### Notes and deviations
+
+- **`WalletTest` P5-T10 learned about the reset engine.** The ledger-immutability guard scans
+  `app/` for `DELETE FROM ewallet_ledger`; the reset engine legitimately clears the ledger as
+  one step of a database-wide maintenance transaction. The case now allow-lists exactly
+  `app/Services/DatabaseResetService.php` (normalised path) and stays strict for every other
+  file, so the invariant keeps its meaning: no request path deletes a ledger row.
+- **Codes are re-resolved by slug after a catalogue reset.** The manual smoke found that the
+  package id validated before the delete no longer exists after the re-seed (ids continue from
+  the old `AUTO_INCREMENT`, D-IR-15), so the code batch would have failed its foreign key. The
+  engine validates the operator's choice before any delete, then resolves the package by
+  `slug` for the batch. `DbResetTest` case 22 locks this in: `--reset-catalogue --codes=3
+  --code-package=<old id>` binds the codes to the re-seeded row.
+- **The advisory lock spans the post-commit steps.** `GET_LOCK` is taken before the
+  preflight and released only after the AUTO_INCREMENT/upload/code steps and the
+  verification, so a second reset cannot start while the first is still writing its code
+  batch or reading its result. An exception anywhere releases it on the way out.
+- **Option interactions are covered, not just assumed.** Reviewing the 7.2 matrix found
+  two combinations the plan's 21 cases did not exercise: a catalogue reset combined with
+  code generation (fixed by the slug re-resolution and covered by case 22) and a cleared
+  audit log combined with code generation (the batch appends its own `code.generate` row,
+  so the cleared-log check allows exactly that action alongside the `system.db_reset` row;
+  case 6 now asserts the combination). Both were real failures before the fix.
+- **The audit meta's `counts_after` is computed inside T1.** The row cannot contain the
+  final post-commit counts (the code batch runs after), so the meta takes a snapshot after the
+  deletes/live bump and adds the audit row itself. The report's `counts_after` is the
+  authoritative post-run snapshot; both are documented rather than conflated.
+- **`zero_transactional` reports 19 tables.** `reg_codes` is verified by its own `codes` check
+  (count + `unused` + package-bound), so the plan's "20 tables" figure is split across two
+  checks instead of double-counting the code inventory.
+- **`audit_log` is not in the AUTO_INCREMENT list.** The reset row always remains, so the
+  counter can never be 1 after a reset; `reg_codes` is skipped when a generated batch holds
+  rows, and the verification detail says so. Empty counters are cosmetic (D-IR-15).
+- **`--demo` still refuses.** `DemoDataService` is IR-7; the CLI flag exists and exits 2 with
+  the same notice the installers give. The reset path never seeds demo data implicitly.
+- **The CLI does not boot `app/bootstrap.php`.** It needs only `config.php` + the autoloader,
+  so there is no session, no `setting()` cache and no `Live::publish()` in that process; IR-6's
+  console will call `setting_cache_clear()` and publish the bumped surfaces.
+- **No application runtime file changed beyond `CommissionService.php`.** The engine and the
+  CLI are new files; `app/routes.php`, the controllers, views and layout are untouched
+  (D-IR-17), so the route inventory and the parity tests are unaffected.
+
+### Next
+
+IR-6 — reset web console: `public/reset.php`, `DB_RESET_ENABLED`, the `DbToolAccess` reset
+gates, the ten-state browser matrix and HTTP smoke probes, reusing this engine unchanged.

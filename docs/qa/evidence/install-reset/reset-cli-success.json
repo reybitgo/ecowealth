@@ -1,0 +1,379 @@
+{
+    "tool": "db_reset",
+    "version": 1,
+    "ok": true,
+    "mode": "reset",
+    "database": "ecowealth_sneat_reset_manual",
+    "server_version": "8.4.3",
+    "started_at": "2026-11-11T22:35:34+08:00",
+    "duration_ms": 1527,
+    "options": {
+        "env": "development",
+        "keep_catalogue": true,
+        "reset_catalogue": false,
+        "code_qty": 2,
+        "code_package": null,
+        "demo": false,
+        "keep_audit": true,
+        "clear_audit": false,
+        "keep_uploads": false,
+        "allow_production": false,
+        "tool": "cli",
+        "actor_id": null,
+        "actor_role": "system"
+    },
+    "steps": [
+        {
+            "key": "lock",
+            "label": "Advisory lock acquired",
+            "status": "ok",
+            "ms": 1,
+            "rows": 0
+        },
+        {
+            "key": "preflight",
+            "label": "Preflight check",
+            "status": "ok",
+            "ms": 5,
+            "rows": 2
+        },
+        {
+            "key": "counts",
+            "label": "Snapshot the row counts",
+            "status": "ok",
+            "ms": 70,
+            "rows": 0
+        },
+        {
+            "key": "impersonation",
+            "label": "S-Login sessions",
+            "status": "ok",
+            "ms": 2,
+            "deleted": 0
+        },
+        {
+            "key": "orders",
+            "label": "Shop orders, payments, invoices and fulfilment",
+            "status": "ok",
+            "ms": 11,
+            "deleted": 0
+        },
+        {
+            "key": "carts",
+            "label": "Carts and cart lines",
+            "status": "ok",
+            "ms": 3,
+            "deleted": 0
+        },
+        {
+            "key": "addresses",
+            "label": "Address book",
+            "status": "ok",
+            "ms": 2,
+            "deleted": 0
+        },
+        {
+            "key": "wallet",
+            "label": "Wallet ledger, transfers and admin top-ups",
+            "status": "ok",
+            "ms": 5,
+            "deleted": 0
+        },
+        {
+            "key": "payouts",
+            "label": "Payout requests",
+            "status": "ok",
+            "ms": 4,
+            "deleted": 0
+        },
+        {
+            "key": "commissions",
+            "label": "Commissions and activations",
+            "status": "ok",
+            "ms": 4,
+            "deleted": 0
+        },
+        {
+            "key": "codes",
+            "label": "Registration codes",
+            "status": "ok",
+            "ms": 5,
+            "deleted": 2
+        },
+        {
+            "key": "sessions",
+            "label": "Remember-me sessions (all users)",
+            "status": "ok",
+            "ms": 2,
+            "deleted": 0
+        },
+        {
+            "key": "members",
+            "label": "Member accounts",
+            "status": "ok",
+            "ms": 2,
+            "deleted": 0
+        },
+        {
+            "key": "staff",
+            "label": "Reset the staff accounts",
+            "status": "ok",
+            "ms": 6,
+            "rows": 2
+        },
+        {
+            "key": "catalogue",
+            "label": "Keep the existing catalogue",
+            "status": "skip",
+            "ms": 0,
+            "rows": 0
+        },
+        {
+            "key": "audit_clear",
+            "label": "Keep the audit log",
+            "status": "skip",
+            "ms": 0,
+            "rows": 0
+        },
+        {
+            "key": "live",
+            "label": "Bump live revisions",
+            "status": "ok",
+            "ms": 4,
+            "rows": 18
+        },
+        {
+            "key": "settings",
+            "label": "Write the reset metadata",
+            "status": "ok",
+            "ms": 3,
+            "rows": 2
+        },
+        {
+            "key": "audit",
+            "label": "Append the reset audit row",
+            "status": "ok",
+            "ms": 75,
+            "rows": 1
+        },
+        {
+            "key": "auto_increment",
+            "label": "Reset AUTO_INCREMENT counters",
+            "status": "ok",
+            "ms": 772,
+            "rows": 19
+        },
+        {
+            "key": "uploads",
+            "label": "Delete orphaned upload files",
+            "status": "ok",
+            "ms": 2,
+            "rows": 0
+        },
+        {
+            "key": "codes_generate",
+            "label": "Generate registration codes",
+            "status": "ok",
+            "ms": 27,
+            "rows": 2
+        },
+        {
+            "key": "verify",
+            "label": "Verify the reset",
+            "status": "ok",
+            "ms": 437,
+            "rows": 12
+        }
+    ],
+    "counts_before": {
+        "members": 0,
+        "addresses": 0,
+        "activations": 0,
+        "audit_log": 2,
+        "cart_items": 0,
+        "carts": 0,
+        "commissions": 0,
+        "ewallet_admin_topups": 0,
+        "ewallet_ledger": 0,
+        "ewallet_transfers": 0,
+        "impersonation_log": 0,
+        "live_revisions": 18,
+        "package_levels": 18,
+        "package_products": 10,
+        "packages": 2,
+        "payout_requests": 0,
+        "products": 7,
+        "reg_codes": 2,
+        "remember_tokens": 0,
+        "settings": 50,
+        "shop_invoice_items": 0,
+        "shop_invoices": 0,
+        "shop_order_events": 0,
+        "shop_order_items": 0,
+        "shop_orders": 0,
+        "shop_payment_proofs": 0,
+        "shop_shipments": 0,
+        "users": 2
+    },
+    "counts_after": {
+        "members": 0,
+        "addresses": 0,
+        "activations": 0,
+        "audit_log": 4,
+        "cart_items": 0,
+        "carts": 0,
+        "commissions": 0,
+        "ewallet_admin_topups": 0,
+        "ewallet_ledger": 0,
+        "ewallet_transfers": 0,
+        "impersonation_log": 0,
+        "live_revisions": 18,
+        "package_levels": 18,
+        "package_products": 10,
+        "packages": 2,
+        "payout_requests": 0,
+        "products": 7,
+        "reg_codes": 2,
+        "remember_tokens": 0,
+        "settings": 50,
+        "shop_invoice_items": 0,
+        "shop_invoices": 0,
+        "shop_order_events": 0,
+        "shop_order_items": 0,
+        "shop_orders": 0,
+        "shop_payment_proofs": 0,
+        "shop_shipments": 0,
+        "users": 2
+    },
+    "staff": {
+        "reset": 2,
+        "usernames": [
+            "admin",
+            "superadmin"
+        ]
+    },
+    "audit": {
+        "kept": true,
+        "rows_before": 2,
+        "cleared": false,
+        "rows_after": 4
+    },
+    "auto_increment": {
+        "reset": 19,
+        "failed": 0,
+        "tables": []
+    },
+    "uploads": {
+        "deleted": 0,
+        "failed": 0,
+        "directories": [
+            "proofs"
+        ]
+    },
+    "codes": {
+        "generated": 2,
+        "expected": 2,
+        "package": "Package A",
+        "package_id": 1,
+        "list": [
+            "C9AV-GN4S-VAHK",
+            "DLCG-B2JL-YS8B"
+        ]
+    },
+    "demo": {
+        "installed": false,
+        "members": 0,
+        "codes": 0,
+        "credentials": []
+    },
+    "verification": {
+        "ok": true,
+        "checks": [
+            {
+                "key": "members",
+                "label": "Member accounts",
+                "ok": true,
+                "detail": "0 member row(s) (expected 0)",
+                "hint": "Members are deleted by a reset; a remaining row means the delete order or a fixture is wrong."
+            },
+            {
+                "key": "zero_transactional",
+                "label": "Business rows",
+                "ok": true,
+                "detail": "0 rows across 19 tables (all zero)",
+                "hint": "Every child table must be deleted before its parent, and a reset must leave no business rows. Foreign-key checks stay on precisely so a bad order fails loudly."
+            },
+            {
+                "key": "staff",
+                "label": "Staff accounts",
+                "ok": true,
+                "detail": "2 staff, balances zero, package/sponsor null, active",
+                "hint": "A reset keeps both staff identities and passwords; it only returns their counters and membership fields to the install defaults."
+            },
+            {
+                "key": "catalogue",
+                "label": "Catalogue",
+                "ok": true,
+                "detail": "7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)",
+                "hint": "The default reset keeps the catalogue. A catalogue reset re-runs the real seed files, so the result matches a fresh install by natural key (slug/sku), not by id."
+            },
+            {
+                "key": "codes",
+                "label": "Registration codes",
+                "ok": true,
+                "detail": "2 code row(s) (expected 2)",
+                "hint": "Codes are sellable inventory: a reset only creates the count the operator asked for, all unused and bound to a package."
+            },
+            {
+                "key": "audit",
+                "label": "Audit trail",
+                "ok": true,
+                "detail": "2 system.db_reset row(s) (expected 2)",
+                "hint": "The reset records itself. A kept log grows by exactly one system.db_reset row; a cleared log starts with it."
+            },
+            {
+                "key": "wallets",
+                "label": "Wallet reconciliation",
+                "ok": true,
+                "detail": "WalletService::reconcile clean",
+                "hint": "A reset that leaves money inconsistent is a failure. Run php bin/wallet_reconcile.php for the detail and restore the pre-reset backup if real data was lost."
+            },
+            {
+                "key": "commissions",
+                "label": "Commission reconciliation",
+                "ok": true,
+                "detail": "CommissionService::reconcile clean",
+                "hint": "A reset that leaves money inconsistent is a failure. Run php bin/wallet_reconcile.php for the detail and restore the pre-reset backup if real data was lost."
+            },
+            {
+                "key": "transfers",
+                "label": "Transfer reconciliation",
+                "ok": true,
+                "detail": "TransferService::reconcile clean",
+                "hint": "A reset that leaves money inconsistent is a failure. Run php bin/wallet_reconcile.php for the detail and restore the pre-reset backup if real data was lost."
+            },
+            {
+                "key": "payouts",
+                "label": "Payout reconciliation",
+                "ok": true,
+                "detail": "PayoutService::reconcile clean",
+                "hint": "A reset that leaves money inconsistent is a failure. Run php bin/wallet_reconcile.php for the detail and restore the pre-reset backup if real data was lost."
+            },
+            {
+                "key": "live",
+                "label": "Live revisions",
+                "ok": true,
+                "detail": "18 of 18 standard surfaces (existing incremented, missing at 1)",
+                "hint": "Every standard surface must exist so an open page sees a changed revision and revalidates."
+            },
+            {
+                "key": "auto_increment",
+                "label": "AUTO_INCREMENT counters",
+                "ok": true,
+                "detail": "18 counter(s) at 1 (1 table(s) hold rows, so their counter continues)",
+                "hint": "Counters are cosmetic (D-IR-15): a failed ALTER is a warning, not a failed reset, and ids are never compared by tests."
+            }
+        ]
+    },
+    "warnings": []
+}

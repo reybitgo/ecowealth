@@ -1,0 +1,101 @@
+2026-11-11 22:49:58 +08:00 — IR-5 reset engine and CLI
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3 · schema ecowealth_sneat_reset_manual (scratch, created as root)
+Fixture: database/install.sql then database/seeds/005_demo_tree.sql
+         => 5 members · 2 staff · 3 demo codes · 3 ledger rows · 7 products · 2 packages
+
+Command: php bin\db_reset.php --force --confirm=ecowealth_sneat_reset_manual --codes=5
+Exit: 0
+
+EcoWealth database reset
+  target : ecowealth_sneat_reset_manual at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 5 members · 2 staff · 0 orders · 3 ledger · 3 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (0 rows) · codes 5 (package #auto) · uploads proofs deleted · demo no
+  last reset: never
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Reset
+   OK   lock              Advisory lock acquired                             0 rows (1 ms)
+   OK   preflight         Preflight check                                    2 rows (4 ms)
+   OK   counts            Snapshot the row counts                            0 rows (45 ms)
+   OK   impersonation     S-Login sessions                                   0 deleted (1 ms)
+   OK   orders            Shop orders, payments, invoices and fulfilment     0 deleted (3 ms)
+   OK   carts             Carts and cart lines                               0 deleted (2 ms)
+   OK   addresses         Address book                                       0 deleted (1 ms)
+   OK   wallet            Wallet ledger, transfers and admin top-ups         3 deleted (3 ms)
+   OK   payouts           Payout requests                                    0 deleted (2 ms)
+   OK   commissions       Commissions and activations                        0 deleted (4 ms)
+   OK   codes             Registration codes                                 3 deleted (1 ms)
+   OK   sessions          Remember-me sessions (all users)                   0 deleted (1 ms)
+   OK   members           Member accounts                                    5 deleted (4 ms)
+   OK   staff             Reset the staff accounts                           2 rows (4 ms)
+  SKIP  catalogue         Keep the existing catalogue                        0 rows (0 ms)
+  SKIP  audit_clear       Keep the audit log                                 0 rows (0 ms)
+   OK   live              Bump live revisions                               18 rows (3 ms)
+   OK   settings          Write the reset metadata                           2 rows (2 ms)
+   OK   audit             Append the reset audit row                         1 rows (71 ms)
+   OK   auto_increment    Reset AUTO_INCREMENT counters                     19 rows (612 ms)
+   OK   uploads           Delete orphaned upload files                       0 rows (2 ms)
+   OK   codes_generate    Generate registration codes                        5 rows (23 ms)
+   OK   verify            Verify the reset                                  12 rows (182 ms)
+
+Verification
+   OK   Member accounts            0 member row(s) (expected 0)
+   OK   Business rows              0 rows across 19 tables (all zero)
+   OK   Staff accounts             2 staff, balances zero, package/sponsor null, active
+   OK   Catalogue                  7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)
+   OK   Registration codes         5 code row(s) (expected 5)
+   OK   Audit trail                1 system.db_reset row(s) (expected 1)
+   OK   Wallet reconciliation      WalletService::reconcile clean
+   OK   Commission reconciliation  CommissionService::reconcile clean
+   OK   Transfer reconciliation    TransferService::reconcile clean
+   OK   Payout reconciliation      PayoutService::reconcile clean
+   OK   Live revisions             18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters    18 counter(s) at 1 (1 table(s) hold rows, so their counter continues)
+
+  deleted: 11 rows · members 5 → 0 · orders 0 → 0 · ledger 3 → 0 · codes 3 → 5
+  catalogue: 7 products / 2 packages · audit 2 rows · live 18 surfaces · counters reset 19
+
+Registration codes (Package A)
+  WYMX-SSRE-XZQL   5EQC-HHDU-AFH3   7Y2K-N98E-72GZ   U223-36U3-RACB
+  PF4K-N3D7-ERC2
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+
+Command: php bin\wallet_reconcile.php
+Exit: 0
+
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat_reset_manual (127.0.0.1)
+  accounts checked:  2
+  accounts with ledger: 0
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  ledger total:      0.00
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 0
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  0
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+All good — wallets, commissions, transfers and payouts reconcile.
+
+Command: mysql -u root -e "SELECT ... FROM ecowealth_sneat_reset_manual"
+Exit: 0
+
+members	staff	codes	orders	products	settings_rows
+0	2	5	0	7	50

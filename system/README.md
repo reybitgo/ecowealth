@@ -198,6 +198,92 @@ pages (login, register, logout) keep their scripts, everything else goes to the 
 
 ---
 
+## Reset a development database
+
+`bin/db_reset.php` returns a **development or QA** database to the state a fresh install
+produces, while keeping the operator's configuration and both staff identities. It is the
+supported way to clear test orders, members, wallets and codes between runs. It is not an
+uninstall (the schema and settings stay) and it never undoes a migration.
+
+| Kept | Reset or deleted |
+|---|---|
+| `settings` (plus `last_reset_at` / `last_reset_by`) | every member account |
+| both staff rows: username, email, password, profile, payout accounts | orders, payments, proofs, invoices, shipments |
+| the catalogue (default) | carts, addresses |
+| the audit log (default; one `system.db_reset` row is appended) | wallet ledger, top-ups, transfers, payouts |
+| install metadata (`install_version`, `install_channel`, …) | commissions, activations, registration codes |
+| | S-Login and remember-me sessions |
+| | staff package/sponsor/registration/wallet/transfer counters |
+
+```bash
+# what would be deleted? (read-only; also prints the statement plan)
+php bin/db_reset.php --dry-run
+
+# the usual QA reset: type the database name at the prompt
+php bin/db_reset.php
+
+# non-interactive: --force only skips the prompt, never the confirmation
+php bin/db_reset.php --force --confirm=ecowealth_sneat
+
+# optionally: five fresh codes, or replace the catalogue with the starter seeds
+php bin/db_reset.php --force --confirm=ecowealth_sneat --codes=5 --code-package=1
+php bin/db_reset.php --force --confirm=ecowealth_sneat --reset-catalogue
+
+# clear the audit log first, then append the reset row
+php bin/db_reset.php --force --confirm=ecowealth_sneat --clear-audit
+
+# one machine-readable report for CI
+php bin/db_reset.php --force --confirm=ecowealth_sneat --codes=5 --json
+```
+
+The target is `DB_NAME` — `ecowealth_sneat` locally, or whatever `ECO_DB_NAME` selects:
+
+```powershell
+$env:ECO_DB_NAME = 'ecowealth_sneat'
+php bin/db_reset.php --force --confirm=$env:ECO_DB_NAME
+```
+
+```bash
+export ECO_DB_NAME=ecowealth_sneat
+php bin/db_reset.php --force --confirm="$ECO_DB_NAME"
+```
+
+Safety rules, all enforced by the engine and covered by `tests/Cases/DbResetTest.php`:
+
+- **Back up first.** A reset has no undo; it is for a database you can afford to lose.
+  `docs/runbook.md` §3 has the `mysqldump` command.
+- **The confirmation is always required** — `--confirm=<database>` or the typed name at
+  the prompt. `--force` only makes a run non-interactive; it never skips the confirmation.
+- **One transaction.** Every delete, the staff reset, the catalogue re-seed and the audit
+  row run in one transaction; a failure rolls back completely and the report says nothing
+  was deleted.
+- **Foreign-key checks stay on.** Children are deleted before parents in an explicit
+  order; there is no `SET FOREIGN_KEY_CHECKS = 0` anywhere.
+- **Production is gated.** `APP_ENV=production` additionally requires `--allow-production`,
+  and the confirmation is still the database name.
+- **The target is proved, not assumed.** The connection must actually be using the
+  database named on the command line; the engine refuses a mismatch.
+- **Verification is mandatory.** Afterwards it runs the `WalletService`,
+  `CommissionService`, `TransferService` and `PayoutService` reconciliations plus
+  zero-count, staff, catalogue, live-revision and counter checks. A reset that cannot
+  prove its result exits `1` instead of reporting success.
+
+Exit codes: `0` reset + verified · `1` reset committed but verification failed ·
+`2` usage/preflight · `3` aborted/refused. `--help` lists every flag.
+
+The catalogue is kept by default; `--reset-catalogue` replaces it with the real
+`seeds/003_products.sql` + `seeds/004_packages.sql` values, so a reset catalogue matches a
+fresh install by natural key (`sku`/`slug`, never by id). Registration codes are
+inventory: the default is `--codes=0`, the allowed range is `0–50`, and a generated batch
+is audited with a `code.generate` row. `--demo` belongs to plan phase IR-7 and currently
+refuses with a clear message.
+
+**After a reset:** sign in as `admin` (the staff password is unchanged), confirm
+`/admin/members` and `/admin/orders` are empty, and note the fresh codes if any were
+generated. Never run a reset against data you have not backed up.
+
+---
+
 ## Configuration
 
 | File | Purpose |
@@ -246,11 +332,11 @@ system/
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
 │   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService,
 │   │                          PaymentService, FulfilmentService, FulfilmentException, InvoiceService,
-│   │                          InvoiceNumber, DatabaseInstaller, DatabaseToolException
+│   │                          InvoiceNumber, DatabaseInstaller, DatabaseResetService, DatabaseToolException
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
-│                              wallet_reconcile.php, build_install_sql.php, db_install.php
+│                              wallet_reconcile.php, build_install_sql.php, db_install.php, db_reset.php
 ├── storage/                   cron logs/ and locks/ + install.lock (outside public/, ignored,
 │                              deny-all .htaccess)
 ├── public/                    docroot

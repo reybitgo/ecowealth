@@ -426,13 +426,27 @@ return [
         )->fetchColumn();
         assert_same(0, (int) $triggers);
 
-        /* 4. No application code updates or deletes a ledger row. */
+        /* 4. No application code updates or deletes a ledger row.
+         *
+         *    One documented exception (plan IR-5): the database reset
+         *    engine clears the ledger as part of wiping every business
+         *    row in one database-wide transaction. It is a maintenance
+         *    tool reached only through bin/db_reset.php and, from IR-6,
+         *    an authenticated console — never a request path that moves
+         *    member money. Every other file stays strict. */
         $offenders = [];
         $root      = dirname(__DIR__, 2) . '/app/';
+        $allowed   = [str_replace('\\', '/', (string) realpath($root . 'Services/DatabaseResetService.php'))];
         $iterator  = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
 
         foreach ($iterator as $file) {
             if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $path = str_replace('\\', '/', $file->getPathname());
+
+            if (in_array($path, $allowed, true)) {
                 continue;
             }
 

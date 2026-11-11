@@ -575,8 +575,24 @@ final class CommissionService
             ];
         }
 
-        $since = trim((string) setting('commission_ledger_since', ''));
-        $args  = $since === '' ? [] : [$since];
+        /* Read the baseline through this service's own connection (plan
+         * IR-5-T10): the reset engine constructs the service on the
+         * injected target, and the global setting() would read the
+         * application database instead — a mismatch no test could see.
+         * Behaviour on the app connection is unchanged. */
+        $since = '';
+
+        try {
+            $sinceStmt = $pdo->prepare('SELECT value FROM settings WHERE key_name = ? LIMIT 1');
+            $sinceStmt->execute(['commission_ledger_since']);
+            $since = trim((string) ($sinceStmt->fetchColumn() ?: ''));
+            $sinceStmt->closeCursor();
+        } catch (Throwable $e) {
+            /* A pre-migration database has no settings table; keep the old default. */
+            error_log('[ecowealth] commission ledger baseline unavailable: ' . $e->getMessage());
+        }
+
+        $args = $since === '' ? [] : [$since];
 
         $awards = $pdo->query(
             "SELECT COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_rows,
