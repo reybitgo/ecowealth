@@ -103,23 +103,49 @@ The expiry job runs from the CLI **and** from a guarded URL
    GRANT ALL PRIVILEGES ON ecowealth_sneat.* TO 'ecowealth'@'localhost', 'ecowealth'@'127.0.0.1';
    ```
 
-3. **Import the schema and seeds**
+3. **Import the production bundle** (one file, empty schema only)
 
    ```bash
-   mysql -u root ecowealth_sneat < database/schema.sql
-   mysql -u root ecowealth_sneat < database/seeds/001_settings.sql
-   mysql -u root ecowealth_sneat < database/seeds/002_accounts.sql
-   mysql -u root ecowealth_sneat < database/seeds/003_products.sql
-   mysql -u root ecowealth_sneat < database/seeds/004_packages.sql
-   mysql -u root ecowealth_sneat < database/seeds/005_demo_tree.sql
+   mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   (`005_demo_tree.sql` is demo data — the sponsor tree `admin → juan → maria → peter/sarah/david`,
-   their wallets and three sample registration codes. Drop it from a production install.)
+   `database/install.sql` creates the 27 tables, the 45 settings, both staff accounts,
+   the seven starter products and the two packages. It seeds **no** demo members, demo
+   codes or demo wallets, and it refuses to run against a non-empty schema.
+
+   Prefer phpMyAdmin? Select the schema → **Import** → choose `database/install.sql` →
+   select **Stop on error** → **Go**. The footer prints the verification counts.
+
+   Expected after a fresh install:
+
+   | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
+   |---:|---:|---:|---:|---:|---:|---:|---:|---:|
+   | 27 | 48 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+
+   The bundle is **generated** from `database/schema.sql` and seeds 001–004. Edit those
+   sources, then rebuild and verify:
+
+   ```bash
+   php bin/build_install_sql.php          # regenerate database/install.sql
+   php bin/build_install_sql.php --check  # CI/drift gate: exit 0 when current
+   ```
+
+   **Want demo data?** After the install, import `database/seeds/005_demo_tree.sql`
+   (the demo sponsor tree `admin → juan → maria → peter/sarah/david`, their wallets and
+   three sample registration codes). It is never part of the production bundle — keep it
+   out of production.
+
+   > **Fresh install only.** Existing databases are upgraded with
+   > `database/migrations/NNN_*.sql` in numeric order; never re-import the bundle over
+   > an existing schema. A failed/partial import is recovered by dropping and recreating
+   > the schema, not by running the bundle again.
 
 4. **Open** `http://localhost/ecowealth/system/` and sign in.
 
 ### Demo accounts
+
+The bundle always seeds the two staff accounts. The five members appear only after you
+import `seeds/005_demo_tree.sql` (optional, test sites only):
 
 | Username | Password | Role |
 |---|---|---|
@@ -191,7 +217,8 @@ system/
 │   │                          InvoiceNumber
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
-├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd, wallet_reconcile.php
+├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
+│                              wallet_reconcile.php, build_install_sql.php
 ├── storage/                   cron logs/ and locks/ (outside public/, ignored, deny-all .htaccess)
 ├── public/                    docroot
 │   ├── index.php              front controller
@@ -203,8 +230,10 @@ system/
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
 ├── database/
+│   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
+│   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 013_live_revisions
+│   ├── migrations/            001_settings_roles … 019_audit_and_reporting
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures

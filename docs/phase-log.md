@@ -3399,3 +3399,58 @@ application's behaviour is unchanged.
 IR-2 — production install bundle: `database/install.sql` generated from `schema.sql` + seeds
 001–004, the F-01/F-09 seed fixes, `seed parity`/`install.sql` tests, `.gitattributes`, and the
 local/online import documentation. Still no runtime application file changes.
+
+---
+
+## IR-2 — Production install bundle, seed fixes and parity tests (2026-11-11)
+
+**Status:** complete · **Tag:** `ir-2` · **Branch:** `feature/shop` · **No application runtime file changed.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-2. This phase delivers the one-file production
+install and proves it installs the same schema and data the application's own fresh build
+(`schema.sql` + seeds) produces. It also fixes the two seed defects the plan found (F-01, F-09)
+and adds the drift gates that keep the generated bundle honest.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/database/install/header.sql`, `system/database/install/footer.sql`, `system/database/install.sql` (generated, committed), `system/bin/build_install_sql.php`, `system/tests/Cases/SeedParityTest.php`, `system/tests/Cases/InstallSqlTest.php`, `.gitattributes`. |
+| **Seed fixes** | **F-01:** `seeds/001_settings.sql` adds `commission_ledger_since` with `DATE_FORMAT(NOW(), …)`, so a fresh install matches migration 012 (44 → 45 seed keys). **F-09:** `seeds/002_accounts.sql` writes `member_status = 'active'` for both staff rows, so a fresh install matches the reset state (7.4). `tests/Cases/TransferTest.php`'s stale "defaults to pending" comment now says the fixture inserts active. |
+| **Bundle** | 54 statements, **63,695 bytes** (< 100 KB, under phpMyAdmin's default import limit), sha256 `3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb`. Seven sections: SCHEMA, SETTINGS, STAFF ACCOUNTS, STARTER PRODUCTS, PACKAGES, INSTALL METADATA, VERIFICATION; each source section carries a `-- source: <path> sha256=<hash>` line. No `CREATE DATABASE`, no `USE`, no `DELIMITER`, no source timestamp. The header guard refuses a non-empty schema; the footer seeds the three `install_*` settings and prints the verification pack. |
+| **Builder** | `php bin/build_install_sql.php` (no flag) writes the bundle; `--check` is silent on success and exits 1 with the first differing line; `--stdout` prints; `--help` exits 0; unknown/combined flags exit 2. It validates every source through `SqlScript` (no database switch, no `DELIMITER`, non-empty seed inserts, a `CREATE TABLE` schema, the header guard, exactly one footer marker) and never connects to MySQL. |
+| **Tests** | `php tests/run.php SeedParity` → **4/4**; `php tests/run.php InstallSql` → **6/6**; full suite → **Cases: 761   Passed: 761   Failed: 0**, exit 0 (751 existing + 10 new). Evidence: `docs/qa/evidence/install-reset/ir2-suite.log`. |
+| **Manual acceptance** | `mysql` import into `ecowealth_sneat_install_manual_test`: footer counts **27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0**, exit 0; the app booted against that schema and the seeded `admin` signed in (dashboard, 7 products, 2 packages, 0 members). phpMyAdmin 5.2.2 imported the same bundle into `ecowealth_sneat_install_pma_test` ("Import has been successfully finished, 54 queries executed") and rendered the same counts. Evidence: `install-sql-mysql.txt`, `install-sql-phpmyadmin-import.png`, `install-sql-phpmyadmin.png`. |
+| **Guard** | A second import into the non-empty manual schema fails with `ERROR 1146 … ecowealth_install_requires_an_empty_database` at line 101, exit 1, and leaves the 27 tables / 48 settings / 2 staff intact. The suite asserts the same refusal through `SqlScript`. Evidence: `install-sql-guard.txt`. |
+| **Drift gate** | `.gitattributes` pins `*.sql text eol=lf`; `InstallSqlTest` compares the committed bundle byte-for-byte with a fresh build; the bundle rebuild restores the exact hash; a fresh `git clone` on Windows checks the bundle out as LF and passes `--check` with no fix-up. Evidence: `build-install-check.txt`. |
+| **Docs** | `system/README.md` quick start is now one bundle import (Path A `mysql`, Path B phpMyAdmin), with the expected counts, the demo-data note and the rebuild/`--check` workflow; the directory layout lists `database/install.sql` and `database/install/`. `docs/deploy.md` §5B is one phpMyAdmin import + counts + guard note, and "Import order matters" explains bundle-vs-migrations. |
+
+### Notes and deviations
+
+- **F-01 was reproduced before the fix.** `SeedParityTest` was written first and run against the
+  old seed: `FAIL … seed 001 is missing migration settings keys: commission_ledger_since
+  (012_commissions.sql)` and `FAIL … seed 001 seeds at least 45 settings (got 44)`. After the
+  seed edit it passes 4/4. The seed then changed the bundle source hash, and the rebuilt bundle
+  is the committed one.
+- **Evidence names follow the IR-0 README, not the plan's T9 filenames.** The plan's
+  `install-mysql.png` / `install-phpmyadmin.png` are filed as `install-sql-mysql.txt` (a
+  transcript, which captures the terminal output more faithfully than a screenshot) and
+  `install-sql-phpmyadmin*.png`.
+- **Scratch schema suffix.** The plan names `ecowealth_sneat_install_manual`; the phase uses
+  `ecowealth_sneat_install_manual_test` and `ecowealth_sneat_install_pma_test` so D-IR-16 holds
+  for every schema the IR work creates.
+- **Two phpMyAdmin screenshots, one gate.** phpMyAdmin 5.2.2's import result page shows the
+  success banner but not the footer SELECT output, so `install-sql-phpmyadmin-import.png` records
+  the import and `install-sql-phpmyadmin.png` records the verification query and its counts on
+  the same database. Both were captured in headless Chrome at 1440×900 (README rule 6 allows
+  headless and asks that it be stated; the viewport has no OS address bar).
+- **Stale simulation.** The `--check` failure was produced by appending one line to
+  `install.sql`; the appended line carried CRLF, so the checker also reported "The committed file
+  uses CRLF". The pre-test and restored SHA-256 hashes match, and `--check` is silent/0 again.
+- **`grant ALL` for the manual schema.** The app user (`ecowealth`) has per-schema grants only,
+  so the manual schema was created and granted as root, exactly like the IR-1 scratch schemas.
+- **No runtime file changed.** `system/app`, `system/public`, `app/routes.php` and every
+  controller/view/service are untouched; the seed files are database sources, not app code.
+
+### Next
+
+IR-3 — CLI installer: `DatabaseInstaller`, `bin/db_install.php`, operator-chosen credentials,
+the install lock and `InstallTest`, building on the bundle this phase committed.

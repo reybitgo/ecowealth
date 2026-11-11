@@ -783,7 +783,7 @@ return [
             assert_same('inactive', $inactive->reason);
             assert_same(500.0, $wallet()->balance($senderId), 'nothing was written');
 
-            /* An admin account (member_status defaults to pending) may still
+            /* An admin account (the fixture inserts it as active) may still
              * receive: the rule is "enabled and not suspended". */
             $admin     = $makeMember('admin');
             $result    = $service->send($senderId, (string) $admin['username'], '100.00', '', 'Member@123');

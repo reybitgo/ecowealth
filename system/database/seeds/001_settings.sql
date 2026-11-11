@@ -50,6 +50,12 @@ INSERT INTO settings (key_name, value) VALUES
   ('commission_requires_active_sponsor','1'),
   ('free_registration_enabled',        '1'),
 
+  -- Commission award-history start (F-01). Migration 012 adds this key to an
+  -- upgraded database; a fresh install must carry it too, or the two diverge.
+  -- A new install has no earlier award history, so "now" is the correct mark;
+  -- an existing value is never overwritten (ON DUPLICATE … no-op below).
+  ('commission_ledger_since',          DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),

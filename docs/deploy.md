@@ -152,20 +152,38 @@ before importing.
 
 ### 5B. Fresh install
 
-Import these files **in order** through phpMyAdmin:
+Import **one file**, `database/install.sql`, through phpMyAdmin:
 
-1. `<app>/database/schema.sql`
-2. `<app>/database/seeds/001_settings.sql`
-3. `<app>/database/seeds/002_accounts.sql`
-4. `<app>/database/seeds/003_products.sql`
-5. `<app>/database/seeds/004_packages.sql`
+1. Select the new **empty** database in phpMyAdmin.
+2. Choose **Import** → choose `<app>/database/install.sql` → select **Stop on error** →
+   **Go**.
+3. Read the output at the bottom. A correct import prints the verification pack:
+
+   | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
+   |---:|---:|---:|---:|---:|---:|---:|---:|---:|
+   | 27 | 48 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+
+The bundle creates the schema, the 45 settings, both staff accounts, the seven starter
+products and the two packages in one pass. It contains no `CREATE DATABASE` or `USE`, so
+it installs into whichever schema you selected.
+
+It is **fresh-install only**: a non-empty schema is refused by a guard
+(`ERROR 1146` naming `ecowealth_install_requires_an_empty_database`) before any table is
+created. If phpMyAdmin was allowed to continue after that error, drop the database and
+recreate it rather than re-running the bundle.
 
 Do **not** import `<app>/database/seeds/005_demo_tree.sql` on a production site. It
 creates the demo sponsor tree (`juan`, `maria`, `peter`, `sarah`, `david`), demo wallets
 and sample registration codes. Import it only on a test site, then remove the demo data
 before go-live.
 
-The fresh `schema.sql` already contains the `live_revisions` table.
+The staff accounts start with the published defaults (`admin` / `Admin@123`,
+`superadmin` / `Super@123`). Change both passwords immediately after the first sign-in
+(§12).
+
+`database/install.sql` is generated from `database/schema.sql` + seeds 001–004. When those
+sources change, rebuild it with `php bin/build_install_sql.php` (and check it with
+`--check`); never hand-edit the bundle.
 
 ### 5C. If your dump is older than the live-update change
 
@@ -195,9 +213,10 @@ If the dump is older than Phase 14, apply **every missing migration** in
 
 ### Import order matters
 
-`database/schema.sql` creates the tables. The seeds fill them. Import the schema first,
-then the seeds in numeric order. If you import a seed before its parent tables exist,
-foreign keys will fail.
+`database/install.sql` is self-contained: schema, settings, accounts, catalogue and
+packages are concatenated in dependency order, so a fresh install is one import. Existing
+databases never import the bundle — apply `database/migrations/NNN_*.sql` in numeric order
+instead (schema first in a fresh path, migrations in an upgrade).
 
 ---
 

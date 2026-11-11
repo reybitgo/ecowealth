@@ -46,10 +46,12 @@ files below.
 
 | File | What it proves |
 |---|---|
-| `install-sql-mysql.txt` | `mysql <db> < database/install.sql` transcript: guard passed, footer counts 27/48/2/7/2/18/10, exit 0. |
-| `install-sql-phpmyadmin.png` | phpMyAdmin import of the same bundle, footer verification output visible. |
-| `install-sql-guard.txt` | Re-import into a non-empty schema fails with `ecowealth_install_requires_an_empty_database` (exit 1). |
-| `build-install-check.txt` | `php bin/build_install_sql.php --check` exit 0; stale-bundle simulation exits 1. |
+| `install-sql-mysql.txt` | `mysql <db> < database/install.sql` transcript: guard passed, footer counts 27/48/2/0/7/2/18/10/0, exit 0; then the app boots against that schema and the seeded admin signs in (7 products / 2 packages / 0 members on the pages). |
+| `install-sql-phpmyadmin-import.png` | phpMyAdmin 5.2.2 imported the same bundle into `ecowealth_sneat_install_pma_test`: "Import has been successfully finished, 54 queries executed. (install.sql)". Headless Chrome, 1440×900. |
+| `install-sql-phpmyadmin.png` | phpMyAdmin ran the footer verification pack and rendered the counts 27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0 on the same database. Headless Chrome, 1440×900. |
+| `install-sql-guard.txt` | Re-import into a non-empty schema fails with `ecowealth_install_requires_an_empty_database` (ERROR 1146, exit 1) and the 27/48/2 state is unchanged. |
+| `build-install-check.txt` | `php bin/build_install_sql.php --check` exit 0; a stale-bundle simulation exits 1 with the first differing line; the rebuild restores the exact bytes. |
+| `ir2-suite.log` | Full `php tests/run.php` output behind the gate: `Cases: 761   Passed: 761   Failed: 0`, exit 0 (751 existing + 10 new). |
 
 ### IR-3 — CLI installer
 
