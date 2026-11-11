@@ -94,6 +94,7 @@ Five rules matter most:
 |---|---|
 | **Steps** | 1. Open a fresh session for `maria`. 2. In phpMyAdmin (or the SQL console), run:<br>`UPDATE impersonation_log SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE target_username = 'maria' AND status = 'active';` 3. Reload the impersonated tab. |
 | **Expected** | The tab is bounced to `/slogin?expired=1`; the row is `expired`; the audit page's **Expired** tab lists it. The old token is dead on every later request. |
+| **Why the SQL** | The TTL is enforced per request, not by a scheduled job: back-dating `expires_at` only skips the 8-hour wait, and the reload in step 3 is what marks the row `expired`. No cron is involved. |
 | **Evidence** | `phase-14/expired.png` |
 
 ### QA14-05 — A different browser or network ends the session
@@ -147,6 +148,6 @@ The demo accounts are unchanged by this phase; no wallet or order data is touche
 ## Sign-off criteria
 
 - All eight checks pass; the screenshots (or the automated citations) are attached.
-- `php tests\run.php` → **669 / 669**; `powershell -NoProfile -File tests\smoke.ps1` → **173 / 173**.
+- `php tests\run.php` → **675 / 675**; `powershell -NoProfile -File tests\smoke.ps1` → **174 / 174**.
 - The audit trail has no raw token and every session has a terminal status (or is visibly active).
 - The superadmin's own session is still signed in after the Exit check.
