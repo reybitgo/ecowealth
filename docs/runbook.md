@@ -141,6 +141,26 @@ php bin\wallet_reconcile.php          # exit 0
 Remove-Item Env:ECO_DB_NAME
 ```
 
+#### Through the web console (development/QA)
+
+When there is no terminal, use `http://localhost/ecowealth/system/reset.php`:
+
+1. Sign in as an `admin` or `superadmin` first; a member gets **403** and an S-Login
+   (impersonated) tab gets **403**.
+2. Check the preview counts and the "what will be cleared" list.
+3. Tick the backup acknowledgement, type `RESET`, choose the catalogue/audit/upload/code
+   options, and submit. The Reset button is disabled until the phrase and the
+   acknowledgement are present; the server re-checks both.
+4. Read the report page: step log, verification checklist, warnings, before/after counts and
+   the fresh codes (click to copy). Refresh re-renders the report and never runs again;
+   **Done** clears it from the session.
+5. Take the same post-reset checks as the CLI path (`/admin/members` = 0, `/admin/orders` = 0,
+   catalogue intact, `php bin\wallet_reconcile.php` exit 0 when CLI is available).
+
+Do **not** put this page on a production host. Production returns the branded **404**
+unless `DB_RESET_ENABLED` is explicitly `true`; even then only a superadmin may use it and
+the confirmation is the database name. Delete `public/reset.php` after the QA round.
+
 What it does, in one transaction: deletes S-Login and remember-me sessions, orders and their
 children, carts, addresses, ledger, top-ups, transfers, payouts, commissions, activations,
 codes and finally the **members** (staff rows survive); resets both staff rows to the install

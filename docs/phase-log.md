@@ -3665,3 +3665,71 @@ CLI that drives it. The web console is IR-6; demo fixtures are IR-7.
 
 IR-6 — reset web console: `public/reset.php`, `DB_RESET_ENABLED`, the `DbToolAccess` reset
 gates, the ten-state browser matrix and HTTP smoke probes, reusing this engine unchanged.
+
+---
+
+## IR-6 — Reset web console (2026-11-11)
+
+**Status:** complete · **Tag:** `ir-6` · **Branch:** `feature/shop` · **No route or controller touched.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-6, §5.8, §7.14–7.15. This phase puts the IR-5
+reset engine behind the reference's operator experience — a dark, self-contained console with
+current-state stats, the "what will be cleared" list, typed confirmation, options, a per-step
+log, the verification checklist and copyable fresh codes — hardened with authentication, CSRF,
+production gating and PRG.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/app/Core/DbToolAccess.php` (reset visibility/actor/phrase/impersonation gates), `system/app/config.php` (`DB_RESET_ENABLED`, default `false`), `system/public/reset.php` (standalone console), `system/public/assets/css/db-tools.css` (console grid, dot list, step log, code chips, toast), `system/tests/Cases/DbToolAccessTest.php` (5 reset cases), `system/tests/smoke.ps1` (IR6-T1…T5), `system/README.md` (console section + constant), `docs/deploy.md` (§7 constant, §12 retirement), `docs/runbook.md` (web-console procedure), `docs/qa/evidence/install-reset/` (screenshots + transcript + logs). |
+| **Config** | `defined('DB_RESET_ENABLED') || define('DB_RESET_ENABLED', false);` — a constant, deliberately with no environment fallback: a production site must opt in explicitly. Development/QA never needs it. |
+| **Gates** | Ordered after bootstrap: `resetVisible()` (production without the constant → branded 404, even for a signed-in superadmin) → `isImpersonating()` (403) → `resetActorAllowed()` (guest is redirected by the app; a member is 403; production needs a superadmin) → `require_admin()` and, in production, `require_superadmin()`. The engine's own production refusal and typed-confirmation check remain the second gate. |
+| **Pre-bootstrap check** | `DbTarget::fromConfig()->connect(DB_NAME)` runs **before** `app/bootstrap.php`; on failure the page renders a standalone "Database unavailable" card with the typed hint instead of `db()`'s bare 500/exit (R-13). |
+| **Preview** | `DatabaseResetService::preview()` and `preflight()` only — no SQL in the page. Stats: members, staff kept, orders, ledger rows, codes, products; the "what will be cleared" list uses red/amber/green dots and reflects the submitted catalogue/audit/upload choices. A failing preflight disables the form with the exact reason. |
+| **Form and validation** | Typed phrase (`RESET` in development, the database name in production), backup acknowledgement, CSRF token, catalogue/audit/upload checkboxes, `code_qty` 0–50, a package select validated against the preview's real ids, and a demo checkbox that stays disabled with the IR-7 notice (a crafted `demo=1` is a field error). The client disables the Reset button until the phrase and the acknowledgement are present; every rule is re-checked on the server. |
+| **Execution and PRG** | A valid POST clears the old report, calls `DatabaseResetService::run()`, calls `setting_cache_clear()`, queues `Live::publish(STANDARD_SURFACES)` and stores the report in `$_SESSION['db_reset_report']`, then redirects to `reset.php?done=1`. Validation failures re-render the form; engine failures store the same-shaped failure report and redirect to the same view. `?done=1` never re-runs; `?clear=1` (the "Done" action) removes the report. |
+| **Report** | Green "Reset complete and verified" / amber "committed, verification failed" / red "Reset failed" banner; the 23-step log with per-step counts and ms; the mandatory verification checklist; warnings; before/after counts; and fresh codes as click-to-copy chips. Failure reports show the engine's safe message, kind and hint, plus "nothing was deleted" when the transaction rolled back; raw driver text goes to `error_log()` only. |
+| **Security** | `no-store` plus the shared nosniff/frame-deny/referrer-policy/permissions headers; CSRF on every POST; no password, DSN, SQLSTATE or stack trace in HTML (checked in the gate); the report lives only in the session; no route, nav link or `routes.php` entry (D-IR-17), so deleting `public/reset.php` retires the tool. |
+| **Tests** | `php tests/run.php DbToolAccess` → **12/12** (7 installer + 5 reset: visibility, actor matrix, phrase per environment, phrase matcher, S-Login refusal); full suite → **Cases: 808   Passed: 808   Failed: 0** (803 existing + 5 new), exit 0. Evidence: `docs/qa/evidence/install-reset/ir6-suite.log`. HTTP smoke against Apache → **Passed: 195   Failed: 0** (190 existing + 5 IR6), exit 0. Evidence: `ir6-smoke.log`. |
+| **Browser acceptance** | Ten-state matrix captured with headless Chrome through the DevTools protocol: guest redirect, member 403, admin form (stats 24/2/16/48/19/10), impersonated-superadmin 403, production-disabled 404, production-enabled admin 403, production-enabled superadmin form with the database-name phrase and no demo option, wrong-phrase validation, a successful scratch reset (12/12 checks, five codes), and a refresh that re-renders without re-running. Extra captures: the full production form and the production admin 403; a true 390×844 mobile viewport. `reset-web.txt` records every URL/status, the three refusals with unchanged counts, the refresh proof, the headers and the cleanup. |
+| **Gate** | A member and an S-Login tab can never see the form; production without `DB_RESET_ENABLED` is a 404 for every role; wrong phrase, missing backup ack and missing CSRF write nothing; a successful reset verifies 12/12 and shows its codes; refresh cannot reset twice; all SQL stays in the engine. |
+
+### Notes and deviations
+
+- **The production 404 is checked before authentication.** `resetVisible()` runs before
+  `require_admin()`/`require_superadmin()`, so a production site with the constant off answers
+  404 to guests and staff alike — the page is indistinguishable from an unknown URL, which is
+  the point (plan 7.14). The manual matrix verified both anonymous and superadmin requests.
+- **The page normalises the phrase after validating it.** `DbToolAccess::resetPhraseMatches()`
+  trims, and in development compares case-insensitively (a mobile keyboard capitalises); the
+  page then passes the canonical phrase as `confirm`/`confirmation_phrase` to the engine.
+  The engine's `hash_equals()` check still runs, so a direct caller cannot bypass it; this
+  page only avoids rejecting ` reset ` after its own matcher accepted it.
+- **`code_package` existence is validated before the run.** The plan's T5 asks for it; the page
+  checks the posted id against `preview()['packages']`, so a stale package is an inline field
+  error rather than an engine refusal after the confirmation. A numeric id that is not in the
+  list never reaches `run()`.
+- **The demo checkbox is present but disabled.** IR-7 owns `DemoDataService`; the page refuses
+  a crafted `demo=1` with a field error exactly as the installer refuses `with_demo`. The
+  layout is already in place for IR-7 to enable the option and wire the call.
+- **`reset.php` is standalone but boots the application.** Unlike `install.php` (no accounts
+  exist yet), the reset console needs the application session and the `require_*` guards, so
+  it requires `app/bootstrap.php` after the DbTarget pre-check. It still renders its own HTML
+  and never uses the app layout.
+- **The two 403 screenshots are visually identical.** The member and impersonation refusals
+  both render `View::error(403)` in the plain layout. A screenshot cannot carry the URL in
+  headless Chrome, so `reset-web.txt` records the exact `reset.php?imp=<64-hex nonce>` request
+  and its 403 beside the images; the helper's own refusal is also covered by
+  `DbToolAccessTest`.
+- **The mobile capture uses CDP device metrics.** Headless Chrome on Windows enforces a 500 px
+  minimum window width, so `--window-size=390,844` does not give a 390 px layout. The
+  screenshot uses `Emulation.setDeviceMetricsOverride`, and the transcript states it, matching
+  the IR-4 evidence.
+- **No application runtime path changed.** The only application edits are the config constant,
+  the reset gates in `DbToolAccess`, the new standalone page and the shared stylesheet;
+  `app/routes.php`, the controllers, the views and the layout are untouched, so the route
+  inventory and the parity tests are unaffected.
+
+### Next
+
+IR-7 — demo fixtures and parity: `DemoDataService`, the `--demo` / checkbox wiring on both
+installers and the reset console, and the reset ≡ fresh-install natural-key comparisons.

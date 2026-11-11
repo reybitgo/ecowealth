@@ -1,0 +1,140 @@
+2026-11-11 23:22:14 +08:00 — IR-6 reset web console gate
+Host: Windows NT 10.0.26200.0 · PHP 8.3.16 · MySQL 8.4.3 · Apache (development states) and php -S (scratch states)
+Plan: dmp/plan-ecowealth-install-reset.md §IR-6, §5.8, §7.14–7.15
+
+Targets
+  ecowealth_sneat                    development database (read-only states 1–4, 8)
+  ecowealth_sneat_reset_web_test     scratch: install.sql + seeds/005_demo_tree.sql (state 9/10)
+  ecowealth_sneat_reset_prod_test    scratch: install.sql, no demo (states 5–7)
+
+The two scratch schemas were created as root and granted to the application user. The
+production states ran through a temporary router wrapper that defines APP_ENV=production
+(and, for the enabled states, DB_RESET_ENABLED=true) before app/config.php boots;
+app/config.local.php was NOT edited and no application file was changed for the evidence.
+
+Browser capture: headless Chrome through the DevTools protocol. The screenshots are
+1440 px wide (except reset-mobile.png, a true 390×844 CDP device-metrics viewport) and
+contain no OS address bar; this matches the IR-4 evidence convention. The state matrix
+below records the exact URL and status behind every screenshot.
+
+== State matrix (plan IR-6-T9) ==
+
+#   Environment          Actor                         URL                                   Expected       Observed
+1   development          guest                         /reset.php                            302 login      302 -> /ecowealth/system/login
+2   development          member juan                   /reset.php                            403            403
+3   development          admin                         /reset.php                            200 form       200, PREVIEW CONFIRM RESULT, stats 24/2/16/48/19/10
+4   development          superadmin, S-Login as juan   /reset.php?imp=<64-hex nonce>         403            403 (nonce redacted here; the URL was built by POST /slogin)
+5   production, off      superadmin (also anonymous)   /reset.php                            404            404 (branded 404; the visibility gate runs before auth)
+6   production, on       admin                         /reset.php                            403            403
+7   production, on       superadmin                    /reset.php                            200 form       200, phrase "ecowealth_sneat_reset_prod_test", PRODUCTION band, no demo option
+8   development          admin                         POST /reset.php confirm=WRONG         200 + error    200, "Nothing was reset"; DEV counts unchanged (24/16/48/19/0)
+9   development scratch  admin                         POST /reset.php + ?done=1             302 then 200  302 Location /reset.php?done=1; report "Reset complete and verified", 12/12 checks, 5 codes
+10  development scratch  admin                         GET /reset.php?done=1 twice           200 twice     last_reset_at=2026-11-11 23:21:56 and reset-audit rows=3 before and after
+
+HTTP probes (curl; session cookies are not printed):
+
+  guest    GET /reset.php              -> 302 Location: http://localhost/ecowealth/system/login
+  member   GET /reset.php              -> 403
+  admin    GET /reset.php              -> 200
+  imp      GET /reset.php?imp=<nonce>  -> 403
+  prod-off GET /reset.php              -> 404   (anonymous AND signed-in superadmin)
+  prod-on  GET /reset.php as admin     -> 403
+  prod-on  GET /reset.php as super     -> 200, data-phrase="ecowealth_sneat_reset_prod_test"
+
+Development database counts before the read-only states and after them:
+
+  members=24  orders=16  ledger=48  codes=19  system.db_reset rows=0
+  members=24  orders=16  ledger=48  codes=19  system.db_reset rows=0
+
+Refusals that write nothing (all against the development database):
+
+  POST wrong phrase (confirm=WRONG, backup ack ticked)
+    -> 200, alert "Nothing was reset", field error "Type RESET exactly to confirm. Nothing was reset."
+  POST correct phrase, no backup acknowledgement
+    -> 200, alert "Nothing was reset", field error "Tick the backup acknowledgement..."
+  POST correct phrase + acknowledgement, no CSRF token
+    -> 200, alert "Nothing was reset", "Your session expired before the form was submitted."
+  Members, orders and system.db_reset rows were the same before and after all three.
+
+Successful reset (ecowealth_sneat_reset_web_test; install.sql + demo tree, then a reset):
+
+  GET  /reset.php              -> 200, CSRF field present, preview shows 5 members / 3 codes / 3 ledger rows
+  POST /reset.php              -> 302 Location: /reset.php?done=1
+       (confirm=RESET, backup_ack=1, keep_catalogue=1, keep_audit=1, code_qty=5, code_package=1)
+  GET  /reset.php?done=1       -> 200, 1440x3256 report page (reset-success.png)
+       banner "Reset complete and verified", 23-step log, 12/12 verification checks green,
+       five click-to-copy codes, before/after counts, "what now" actions
+  State after the report:
+       members=0  codes=5  orders=0  ledger=0  live_revisions=18  system.db_reset rows=3
+       (the screenshot was taken after run 2; the third run below only re-proves refresh)
+
+Refresh does not re-run (PRG):
+
+  POST /reset.php              -> 302 Location: /reset.php?done=1
+  after POST: last_reset_at=2026-11-11 23:21:56  system.db_reset rows=3
+  GET ?done=1 (1st)            -> 200
+  after GET 1: last_reset_at=2026-11-11 23:21:56  system.db_reset rows=3
+  GET ?done=1 (2nd)            -> 200
+  after GET 2: last_reset_at=2026-11-11 23:21:56  system.db_reset rows=3
+
+Report interaction (headless Chrome, same session):
+
+  report chips=5, disabled=null, first codes ["MYTY-D4HL-ZQXM","E2C9-MJV2-M75W"]
+  click first chip -> toast hidden=false, text="Copied MYTY-D4HL-ZQXM"
+
+Failure report (scratch, temporarily renamed payout_requests, then restored):
+
+  GET  /reset.php              -> 200 with "The reset form is disabled" (preflight red)
+  POST /reset.php              -> 302 Location: /reset.php?done=1
+  GET  /reset.php?done=1       -> 200: "Reset failed", "required tables are missing",
+                                  "Nothing was deleted"; members=0 and reset-audit rows=3 unchanged
+
+No secrets in the form response (development admin):
+
+  SECRET_SCAN=0 for Admin@123|Super@123|DB_PASS|mysql:host|SQLSTATE|password_hash
+  CSRF_FIELDS=1 (one 64-hex hidden token per form)
+
+Database-unavailable path (php -S with ECO_DB_NAME pointing at a missing schema):
+
+  GET /reset.php -> 200, standalone "Database unavailable" / "Nothing was changed"
+  The page shows the typed DbTarget hint (DB_NAME/DB_USER, MySQL error 1044) and never a
+  DSN, SQLSTATE or stack trace; the app never reached db()'s bare 500/exit.
+
+Response headers on the console:
+
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  Pragma: no-cache
+  Expires: 0
+
+Automated gates (files in this folder):
+
+  php tests/run.php              Cases: 808   Passed: 808   Failed: 0    -> ir6-suite.log
+  powershell tests/smoke.ps1     Passed: 195   Failed: 0              -> ir6-smoke.log
+    IR6-T1 guest redirect, IR6-T2 member 403, IR6-T3 admin form with no secret,
+    IR6-T4 wrong phrase + missing ack + missing CSRF run nothing with unchanged counts,
+    IR6-T5 the reset stylesheet is served.
+
+Screenshots filed from this run:
+
+  reset-form.png                  state 3, full page
+  reset-validation.png            state 8
+  reset-success.png               state 9, full page
+  reset-production-404.png        state 5
+  reset-member-403.png            state 2
+  reset-impersonation-403.png     state 4 (visually identical to state 2 by design; URL above)
+  reset-production-form.png       state 7
+  reset-production-admin-403.png  state 6
+  reset-mobile.png                state 3 at 390x844
+
+Cleanup:
+  The three php -S servers were stopped, both scratch schemas were dropped, and the
+  temporary router wrapper / browser profiles were removed. The development database
+  was left at 24 members / 16 orders / 48 ledger / 19 codes and no system.db_reset row.
+  No route, navigation entry, config.local.php or application file was added for the
+  evidence.

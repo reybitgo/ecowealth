@@ -449,6 +449,7 @@ define('DB_PASS', 'paste-the-database-password-here');
 | `DB_TIMEZONE` | Defaults to `+08:00`. Keep it aligned with `APP_TIMEZONE`. |
 | `CRON_KEY` | Optional. Required only if you use the **URL** cron form. |
 | `INSTALL_KEY` | Optional. Required only if you run a guided installer on a production site: `bin/db_install.php` (SSH) or `public/install.php` (browser, §5B-B). At least 32 random characters. Both installers refuse to run in production when it is empty, and neither ever prints, stores or returns it. |
+| `DB_RESET_ENABLED` | **Leave absent or `false`.** The reset console (`public/reset.php`) is a development/QA tool; in production it is a branded 404 unless this is explicitly `true`, and even then it requires a superadmin and the database name. If you ever enable it for an approved change window, delete `public/reset.php` and set it back to `false` immediately afterwards (§12). |
 
 > **About `DB_NAME`:** the [repository README](../system/README.md) says a local
 > `config.local.php` should not define `DB_NAME`, because the local test runner switches
@@ -716,7 +717,10 @@ Before calling the site live:
 - [ ] If the web installer was used, confirm `storage/install.lock` exists and cannot be
       read over the web, then remove `INSTALL_KEY` from `config.local.php` (or rotate it).
 - [ ] Delete `public/reset.php` if the reset console was ever uploaded; confirm
-      `https://example.com/ecowealth/system/reset.php` returns 404.
+      `https://example.com/ecowealth/system/reset.php` returns 404 (the branded page, not the
+      console). A production site keeps `DB_RESET_ENABLED` absent or `false`, so even a
+      forgotten file answers 404; deletion is the second lock. If the console was enabled for
+      a change window, set the constant back to `false` in the same step.
 - [ ] Change the `admin` password. Use **Profile → Change password**.
 - [ ] Sign in as `superadmin` and change that password too.
 - [ ] Remove demo members if you imported `005_demo_tree.sql`.

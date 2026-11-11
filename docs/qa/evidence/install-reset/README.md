@@ -98,12 +98,18 @@ files below.
 
 | File | What it proves |
 |---|---|
-| `reset-form.png` | Ready state: stats, "what will be cleared", options, typed confirmation, disabled Reset until confirmation + backup ack. |
-| `reset-success.png` | Success state: green banner, step log, verification checklist, generated code chips. |
-| `reset-validation.png` | POST with a wrong typed phrase / no backup ack re-renders the form with errors and does not execute. |
-| `reset-production-404.png` | Production without `DB_RESET_ENABLED` returns the branded 404. |
-| `reset-member-403.png` | A signed-in member (and an impersonation session) is refused. |
-| `reset-mobile.png` | The console at 390×844. |
+| `reset-form.png` | Ready state on `ecowealth_sneat` as `admin`: stats (24 members / 16 orders / 48 ledger / 19 codes / 10 products), "what will be cleared" with red/amber/green dots, options, typed `RESET` confirmation, disabled Reset button. Full page. Headless Chrome via DevTools protocol, 1440 px wide. |
+| `reset-validation.png` | A crafted POST with `confirm=WRONG` and the backup ack ticked re-renders the form with "Nothing was reset" and "Type RESET exactly to confirm"; no row changes. Headless Chrome, 1440×1624 (full page). |
+| `reset-success.png` | Success report on `ecowealth_sneat_reset_web_test`: green banner, 23-step log, 12/12 verification checks, five click-to-copy codes, before/after counts and the "what now" actions. Full page. |
+| `reset-production-404.png` | Production with `DB_RESET_ENABLED` left `false`: the branded 404, not the console. Headless Chrome, 1440×900. |
+| `reset-member-403.png` | A signed-in member (`juan`) gets 403 "Access denied" and never sees the form. Headless Chrome, 1440×900. |
+| `reset-impersonation-403.png` | An S-Login tab (superadmin viewing `juan`, URL `reset.php?imp=<nonce>`) gets 403 before any preview or form. Visually identical to the member 403 by design; the transcript records the exact URL and status. Headless Chrome, 1440×900. |
+| `reset-production-form.png` | Production with `DB_RESET_ENABLED=true`, signed in as `superadmin`: the PRODUCTION band, the database name (`ecowealth_sneat_reset_prod_test`) as the confirmation phrase, and the demo checkbox absent. Full page. |
+| `reset-production-admin-403.png` | The same production-enabled setup signed in as `admin` (not superadmin) is refused with 403. Headless Chrome, 1440×900. |
+| `reset-mobile.png` | The ready console at a true 390×844 viewport (CDP device metrics); header, stats and the start of the cleared list stack without horizontal overflow. |
+| `reset-web.txt` | The ten-state matrix with exact URLs/statuses, the wrong-phrase / missing-ack / missing-CSRF refusals, the successful scratch reset, the refresh-does-not-rerun proof, the HTTP and database counts, and the cleanup. |
+| `ir6-suite.log` | Full `php tests/run.php` output behind the gate: `Cases: 808   Passed: 808   Failed: 0`, exit 0 (803 existing + 5 new `DbToolAccess` cases). |
+| `ir6-smoke.log` | Full `tests/smoke.ps1` run against the Apache app: `Passed: 195   Failed: 0`, exit 0, including IR6-T1…T5 (guest redirect, member 403, admin form with no secret, three refusals with unchanged counts, reset console stylesheet). |
 
 ### IR-7 — demo fixtures and parity
 

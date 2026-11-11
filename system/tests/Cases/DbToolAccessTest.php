@@ -90,4 +90,89 @@ return [
         assert_false(str_starts_with(DbToolAccess::KEY_ATTEMPT_BUCKET, 'auth.'), 'not an auth bucket');
         assert_false(str_starts_with(DbToolAccess::KEY_ATTEMPT_BUCKET, 'wallet.'), 'not a money bucket');
     },
+
+    /* ==========================================================
+     *  IR-6 — reset console gates
+     * ========================================================== */
+
+    'the reset console is visible outside production, and only enabled in production' => function (): void {
+        foreach (['development', 'test', 'staging', 'local', ''] as $env) {
+            assert_true(
+                DbToolAccess::resetVisible($env, false),
+                '"' . $env . '" sees the console without DB_RESET_ENABLED'
+            );
+        }
+
+        assert_false(DbToolAccess::resetVisible('production', false), 'production is hidden by default');
+        assert_true(DbToolAccess::resetVisible(' Production ', true), 'production is visible when enabled');
+        assert_true(DbToolAccess::resetVisible('production', true));
+        assert_true(DbToolAccess::resetVisible('development', false), 'the flag is irrelevant outside production');
+    },
+
+    'the reset actor is admin in development and superadmin in production' => function (): void {
+        $admin = ['id' => 1, 'username' => 'admin', 'role' => 'admin'];
+        $super = ['id' => 2, 'username' => 'superadmin', 'role' => 'superadmin'];
+        $member = ['id' => 3, 'username' => 'juan', 'role' => 'member'];
+
+        assert_false(DbToolAccess::resetActorAllowed(null, 'development'), 'a guest is refused');
+        assert_false(DbToolAccess::resetActorAllowed(null, 'production'), 'a guest is refused in production');
+        assert_false(DbToolAccess::resetActorAllowed($member, 'development'), 'a member is never allowed');
+        assert_false(DbToolAccess::resetActorAllowed($member, 'production'), 'a member is never allowed in production');
+        assert_true(DbToolAccess::resetActorAllowed($admin, 'development'), 'an admin may reset a dev database');
+        assert_false(DbToolAccess::resetActorAllowed($admin, 'production'), 'production needs a superadmin');
+        assert_true(DbToolAccess::resetActorAllowed($super, 'development'), 'a superadmin may reset a dev database');
+        assert_true(DbToolAccess::resetActorAllowed($super, 'production'), 'a superadmin may reset production when enabled');
+        assert_true(DbToolAccess::resetActorAllowed($admin, 'test'), 'the test environment behaves like development');
+    },
+
+    'the reset phrase is RESET in development and the database name in production' => function (): void {
+        assert_same('RESET', DbToolAccess::RESET_PHRASE);
+        assert_same('RESET', DbToolAccess::confirmationPhrase('development', 'ecowealth_sneat'));
+        assert_same('RESET', DbToolAccess::confirmationPhrase('test', 'ecowealth_sneat'));
+        assert_same('RESET', DbToolAccess::confirmationPhrase('staging', 'u123_ecowealth'));
+        assert_same('ecowealth_sneat', DbToolAccess::confirmationPhrase('production', 'ecowealth_sneat'));
+        assert_same('u123_ecowealth', DbToolAccess::confirmationPhrase(' Production ', ' u123_ecowealth '));
+        assert_same('', DbToolAccess::confirmationPhrase('production', ' '), 'an empty production phrase is empty');
+    },
+
+    'the reset phrase matcher is forgiving in development and exact in production' => function (): void {
+        foreach (['RESET', ' reset ', 'Reset', "RESET\n"] as $typed) {
+            assert_true(
+                DbToolAccess::resetPhraseMatches('development', 'ecowealth_sneat', $typed),
+                '"' . trim($typed) . '" is accepted in development'
+            );
+        }
+
+        foreach (['', '   ', 'INSTALL', 'RESET NOW', 'RESE'] as $typed) {
+            assert_false(
+                DbToolAccess::resetPhraseMatches('development', 'ecowealth_sneat', $typed),
+                '"' . $typed . '" is refused in development'
+            );
+        }
+
+        assert_true(DbToolAccess::resetPhraseMatches('production', 'ecowealth_sneat', 'ecowealth_sneat'));
+        assert_true(DbToolAccess::resetPhraseMatches('production', 'ecowealth_sneat', " ecowealth_sneat\n"));
+        assert_false(DbToolAccess::resetPhraseMatches('production', 'ecowealth_sneat', 'ECOWEALTH_SNEAT'));
+        assert_false(DbToolAccess::resetPhraseMatches('production', 'ecowealth_sneat', 'RESET'));
+        assert_false(DbToolAccess::resetPhraseMatches('production', '', ''));
+        assert_false(DbToolAccess::resetPhraseMatches('development', 'ecowealth_sneat', ''));
+    },
+
+    'an S-Login tab can never open the reset console' => function (): void {
+        assert_false(DbToolAccess::isImpersonating(), 'a normal request is not impersonating');
+
+        $_SESSION['imp_token'] = str_repeat('a', 64);
+
+        assert_true(DbToolAccess::isImpersonating(), 'the helper reads the S-Login transport token');
+        assert_false(
+            DbToolAccess::resetActorAllowed(['id' => 2, 'username' => 'superadmin', 'role' => 'superadmin'], 'development'),
+            'even a superadmin is refused while impersonating'
+        );
+        assert_false(
+            DbToolAccess::resetActorAllowed(['id' => 2, 'username' => 'superadmin', 'role' => 'superadmin'], 'production'),
+            'the impersonation refusal crosses environments'
+        );
+
+        unset($_SESSION['imp_token']);
+    },
 ];

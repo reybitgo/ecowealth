@@ -3185,6 +3185,85 @@ try {
     Assert-That 'IR4-T5' ($installCss.Status -eq 200 -and $installCss.Body -match '\.dbt-body' -and $installCss.Body -match '\.dbt-card') `
         "the shared db-tools.css is served (status=$($installCss.Status))"
 
+    # ---- IR-6: reset web console (guards and refusals; no reset here) ----
+    # The smoke app runs in development against the QA database, so the
+    # console is visible. A successful reset would wipe the database this
+    # run is using, so the checks stop at the refusals: the guest redirect,
+    # the member 403, the admin form, and three POSTs that must write nothing.
+    $resetMembersBefore = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE role = 'member';" | Out-String).Trim())
+    $resetOrdersBefore  = [int]((Invoke-MySql "SELECT COUNT(*) FROM shop_orders;" | Out-String).Trim())
+    $resetAuditBefore   = [int]((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'system.db_reset';" | Out-String).Trim())
+
+    $resetGuest = Invoke-App -Path '/reset.php'
+    Assert-That 'IR6-T1' ($resetGuest.Status -eq 302 -and $resetGuest.Location -match '/login$') `
+        "GET /reset.php as guest -> 302 login (got $($resetGuest.Status) $($resetGuest.Location))"
+
+    $resetMember = Invoke-App -Path '/reset.php' -Session 'member'
+    Assert-That 'IR6-T2' ($resetMember.Status -eq 403 -and $resetMember.Body -match 'Access denied') `
+        "GET /reset.php as a member -> 403 (got $($resetMember.Status))"
+
+    $resetAdmin  = Invoke-App -Path '/reset.php' -Session 'admin'
+    $resetToken  = Get-Csrf $resetAdmin.Body
+    $resetSafe   = $resetAdmin.Body -notmatch '(?i)(Admin@123|Super@123|DB_PASS|mysql:host|password_hash|SQLSTATE)'
+    $resetFormOk = $resetAdmin.Status -eq 200 `
+        -and $resetAdmin.Body -match 'What will be cleared' `
+        -and $resetAdmin.Body -match 'data-reset-form' `
+        -and $resetAdmin.Body -match 'Type <code>RESET</code>' `
+        -and $resetAdmin.Body -match 'name="backup_ack"' `
+        -and $resetToken -ne ''
+    Assert-That 'IR6-T3' ($resetFormOk -and $resetSafe) `
+        "GET /reset.php as admin -> 200 with the preview, form, RESET phrase and no secret (status=$($resetAdmin.Status), safe=$resetSafe)"
+
+    $resetWrong = Invoke-App -Method 'POST' -Path '/reset.php' -Session 'admin' -Form @{
+        '_csrf'          = $resetToken
+        'confirm'        = 'WRONG'
+        'backup_ack'     = '1'
+        'keep_catalogue' = '1'
+        'keep_audit'     = '1'
+        'code_qty'       = '0'
+    }
+    $resetWrongOk = $resetWrong.Status -eq 200 `
+        -and $resetWrong.Body -match 'Nothing was reset' `
+        -and $resetWrong.Body -match 'Type RESET exactly'
+
+    $resetNoAck = Invoke-App -Method 'POST' -Path '/reset.php' -Session 'admin' -Form @{
+        '_csrf'          = $resetToken
+        'confirm'        = 'RESET'
+        'keep_catalogue' = '1'
+        'keep_audit'     = '1'
+        'code_qty'       = '0'
+    }
+    $resetNoAckOk = $resetNoAck.Status -eq 200 -and $resetNoAck.Body -match 'Tick the backup acknowledgement'
+
+    $resetNoCsrf = Invoke-App -Method 'POST' -Path '/reset.php' -Session 'admin' -Form @{
+        'confirm'        = 'RESET'
+        'backup_ack'     = '1'
+        'keep_catalogue' = '1'
+        'keep_audit'     = '1'
+        'code_qty'       = '0'
+    }
+    $resetNoCsrfOk = $resetNoCsrf.Status -eq 200 `
+        -and $resetNoCsrf.Body -match 'session expired' `
+        -and $resetNoCsrf.Body -match 'Nothing was reset'
+
+    $resetMembersAfter = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE role = 'member';" | Out-String).Trim())
+    $resetOrdersAfter  = [int]((Invoke-MySql "SELECT COUNT(*) FROM shop_orders;" | Out-String).Trim())
+    $resetAuditAfter   = [int]((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'system.db_reset';" | Out-String).Trim())
+    $resetUnchanged    = $resetMembersAfter -eq $resetMembersBefore `
+        -and $resetOrdersAfter -eq $resetOrdersBefore `
+        -and $resetAuditAfter -eq $resetAuditBefore
+
+    Assert-That 'IR6-T4' ($resetWrongOk -and $resetNoAckOk -and $resetNoCsrfOk -and $resetUnchanged) `
+        ("wrong phrase, missing ack and missing CSRF run nothing (members {0}->{1}, orders {2}->{3}, audit {4}->{5})" -f `
+            $resetMembersBefore, $resetMembersAfter, $resetOrdersBefore, $resetOrdersAfter, $resetAuditBefore, $resetAuditAfter)
+
+    $resetCss = Invoke-App -Path '/assets/css/db-tools.css'
+    Assert-That 'IR6-T5' ($resetCss.Status -eq 200 `
+            -and $resetCss.Body -match '\.dbt-console-grid' `
+            -and $resetCss.Body -match '\.dbt-dot--red' `
+            -and $resetCss.Body -match '\.dbt-chip') `
+        "the reset console stylesheet is served with its new classes (status=$($resetCss.Status))"
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'

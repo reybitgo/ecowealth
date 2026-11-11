@@ -77,6 +77,13 @@ defined('UPLOAD_MAX_BYTES') || define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);   //
  * nor the web installer ever prints it back. */
 defined('INSTALL_KEY') || define('INSTALL_KEY', (string) (getenv('ECO_INSTALL_KEY') ?: ''));
 
+/* ---------- Web reset console (plan IR-6, §7.14) ------------------------------
+ * Deliberately false: the reset console is a development/QA tool. A
+ * production operator must opt in explicitly in config.local.php — and then
+ * delete public/reset.php after use. The page and the engine both refuse a
+ * production reset that has not been enabled here. */
+defined('DB_RESET_ENABLED') || define('DB_RESET_ENABLED', false);
+
 /* ---------- Runtime storage (cron logs + locks) -------------------------------
  * Outside public/, so nothing stored here is web-readable. The test harness
  * pins its own temp folder before this file is loaded (tests/bootstrap.php). */

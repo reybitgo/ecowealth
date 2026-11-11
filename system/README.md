@@ -282,6 +282,35 @@ refuses with a clear message.
 `/admin/members` and `/admin/orders` are empty, and note the fresh codes if any were
 generated. Never run a reset against data you have not backed up.
 
+### Reset through the web console (development/QA)
+
+No terminal? The same engine runs behind a standalone console at
+`http://localhost/ecowealth/system/reset.php`:
+
+- **Development/QA:** sign in as an `admin` (or `superadmin`) and the console is available.
+  It shows the current counts, the "what will be cleared" list, the options, and a form.
+  The typed confirmation is `RESET`; a backup-acknowledgement checkbox and the CSRF token
+  are required. The Reset button stays disabled until both the phrase and the acknowledgement
+  are present, but the server re-checks everything (and the engine re-checks again).
+- **Production:** the page is a branded **404** unless `DB_RESET_ENABLED` is explicitly
+  `true` in `config.local.php`; even then it requires a **superadmin** and the **database
+  name** (not `RESET`) as the typed phrase. It is not a production feature: use the CLI in
+  an approved change window, then delete `public/reset.php` and set the constant back to
+  `false`.
+- **Members and S-Login sessions** can never open it: a member gets 403 and an impersonated
+  tab (even a superadmin's) gets 403 before the form is rendered.
+- **Refresh is safe:** the POST stores the report in the session and redirects to
+  `reset.php?done=1`; refreshing re-renders the same report and never runs the reset twice.
+  "Done" clears the report from the session.
+- **The report** shows the step log, the mandatory verification checklist, warnings, the
+  before/after counts and the fresh codes (click to copy). The code list exists only in
+  that session and under `/admin/codes`.
+- **Files:** delete `public/reset.php` (and optionally `db-tools.css` if the installer is
+  gone too) when the QA round ends. `storage/install.lock` is unrelated to the reset tool.
+
+The console is **not** a route: it is a standalone file, it is not in any navigation and it
+does not appear in `routes.php`. All SQL still lives in `DatabaseResetService`.
+
 ---
 
 ## Configuration
@@ -300,6 +329,7 @@ generated. Never run a reset against data you have not backed up.
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
 | `INSTALL_KEY` | empty | Key the guided installers require in production. Set a long random string in `config.local.php` (or `ECO_INSTALL_KEY`); an empty value makes `bin/db_install.php` and `public/install.php` refuse when `APP_ENV=production`. The web installer asks for the same value in its form. Never printed, stored in the database or written to `config.local.php` |
+| `DB_RESET_ENABLED` | `false` | Makes the reset console reachable when `APP_ENV=production`. It is a development/QA tool: leave this `false` on a production site (the page is a 404) and delete `public/reset.php` after use. Development/QA sees the console without setting it |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
 | `UPLOAD_MAX_BYTES` | 5 MB | Upload cap |
 
@@ -346,6 +376,7 @@ system/
 │   ├── cron/order_autocomplete.php  guarded web entry for the auto-complete job
 │   ├── login.php register.php logout.php   (standalone this build)
 │   ├── install.php            standalone web installer (IR-4; delete after use)
+│   ├── reset.php              standalone reset console (IR-6; development/QA only)
 │   ├── dashboard.php          legacy redirect shim → the routed /dashboard
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
 │   └── assets/                EcoWealth theme (Sneat 3.x) + product photos + css/db-tools.css
