@@ -35,6 +35,13 @@ files below.
 | `baseline-suite.log` | Full `php tests/run.php` output behind the gate: `Cases: 724   Passed: 724   Failed: 0`, exit 0. |
 | `db-backup.txt` | Pre-work dump command/checksum and the restore drill (27/27 tables, 4,287/4,287 rows). |
 
+### IR-1 — shared database plumbing and test harness
+
+| File | What it proves |
+|---|---|
+| `ir1-plumbing.txt` | One-time provisioning of `ecowealth_sneat_tool_a_test` / `ecowealth_sneat_tool_b_test` and their grants, the two filtered gate runs (`SqlScript`, `DbTarget`, exit 0) and `SHOW DATABASES LIKE 'ecowealth_sneat_tool_%_test'` after the tool runs: both schemas still exist, recreated rather than dropped. |
+| `ir1-suite.log` | Full `php tests/run.php` output behind the gate: the new groups pass and the suite ends `Cases: 751   Passed: 751   Failed: 0`, exit 0. |
+
 ### IR-2 — production install bundle
 
 | File | What it proves |

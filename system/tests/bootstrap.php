@@ -10,6 +10,12 @@ declare(strict_types=1);
  *  database/schema.sql + the seeds, points the app at it, and
  *  exposes the assertion helpers the cases use.
  *
+ *  It also exposes the IR-1 database-tool helpers: two pre-provisioned
+ *  scratch schemas (test_scratch_database) and information_schema
+ *  introspection used to compare an import with a fresh schema
+ *  (test_table_list / test_column_list / test_index_list /
+ *  test_foreign_key_list).
+ *
  *  A test run never touches the development database: the schema
  *  is dropped and rebuilt, and the name must end in "_test".
  * ============================================================== */
@@ -225,6 +231,238 @@ function test_recreate_database(PDO $pdo, string $database): void
     $pdo->exec('DROP DATABASE IF EXISTS `' . $database . '`');
     $pdo->exec('CREATE DATABASE `' . $database . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
     $pdo->exec('USE `' . $database . '`');
+}
+
+/* --------------------------------------------------------------
+ *  Scratch schemas for the database tools (plan IR-1-T4)
+ *
+ *  The application user has ALL on a few named schemas but no global
+ *  CREATE DATABASE, so the install/reset tests cannot make a schema of
+ *  their own. Two schemas are provisioned once by an admin account
+ *  (ecowealth_sneat_tool_a_test / _tool_b_test) and recreated by the
+ *  helper below; they are never dropped at shutdown, because that would
+ *  remove the grants and break the next run.
+ * -------------------------------------------------------------- */
+
+/**
+ * Recreate one of the two pre-provisioned scratch schemas.
+ *
+ * @param string $slot tool_a | tool_b
+ * @return array{0: PDO, 1: string} the connection (already USE-d) and the schema name
+ */
+function test_scratch_database(string $slot = 'tool_a'): array
+{
+    if (!in_array($slot, ['tool_a', 'tool_b'], true)) {
+        fail('Unknown scratch slot: ' . $slot);
+    }
+
+    $name = 'ecowealth_sneat_' . $slot . '_test';
+    $pdo  = test_pdo();
+
+    try {
+        test_recreate_database($pdo, $name);
+    } catch (PDOException $e) {
+        fail(
+            'Cannot recreate ' . $name . ': ' . $e->getMessage() . "\n"
+            . 'Provision it once (see plan IR-1-T4) and grant ALL to ' . DB_USER . '.'
+        );
+    }
+
+    return [$pdo, $name];
+}
+
+/** The schema the connection currently has selected. */
+function test_current_database(PDO $pdo): string
+{
+    $database = $pdo->query('SELECT DATABASE()')->fetchColumn();
+
+    if (!is_string($database) || $database === '') {
+        fail('The connection has no database selected; pass $database explicitly.');
+    }
+
+    return $database;
+}
+
+/**
+ * Base tables in a schema, sorted.
+ *
+ * information_schema is used instead of SHOW TABLE STATUS so the output
+ * is identical on MySQL and MariaDB minor versions.
+ *
+ * @return list<string>
+ */
+function test_table_list(PDO $pdo, ?string $database = null): array
+{
+    $database ??= test_current_database($pdo);
+
+    $statement = $pdo->prepare(
+        "SELECT table_name FROM information_schema.tables
+          WHERE table_schema = ? AND table_type = 'BASE TABLE'"
+    );
+    $statement->execute([$database]);
+
+    $tables = array_map('strval', $statement->fetchAll(PDO::FETCH_COLUMN));
+    sort($tables, SORT_STRING);
+
+    return $tables;
+}
+
+/**
+ * Every column in the schema, keyed by table, in ordinal order.
+ *
+ * @return array<string, list<array{
+ *     name:string, type:string, nullable:string, default:?string,
+ *     extra:string, collation:?string
+ * }>>
+ */
+function test_column_list(PDO $pdo, ?string $database = null): array
+{
+    $database ??= test_current_database($pdo);
+
+    /* MySQL 8 returns information_schema labels in upper case unless they
+     * are aliased; alias every column so the arrays are identical on MySQL
+     * and MariaDB. */
+    $statement = $pdo->prepare(
+        'SELECT table_name AS table_name, column_name AS column_name,
+                column_type AS column_type, is_nullable AS is_nullable,
+                column_default AS column_default, extra AS extra,
+                collation_name AS collation_name
+           FROM information_schema.columns
+          WHERE table_schema = ?
+          ORDER BY table_name, ordinal_position'
+    );
+    $statement->execute([$database]);
+
+    $columns = [];
+
+    foreach ($statement->fetchAll() as $row) {
+        $columns[(string) $row['table_name']][] = [
+            'name'      => (string) $row['column_name'],
+            'type'      => (string) $row['column_type'],
+            'nullable'  => (string) $row['is_nullable'],
+            'default'   => $row['column_default'] === null ? null : (string) $row['column_default'],
+            'extra'     => (string) $row['extra'],
+            'collation' => $row['collation_name'] === null ? null : (string) $row['collation_name'],
+        ];
+    }
+
+    ksort($columns, SORT_STRING);
+
+    return $columns;
+}
+
+/**
+ * Every index in the schema, keyed by table and sorted by index name.
+ *
+ * @return array<string, list<array{
+ *     name:string, unique:bool, type:string,
+ *     columns:list<array{column:string, prefix:?int}>
+ * }>>
+ */
+function test_index_list(PDO $pdo, ?string $database = null): array
+{
+    $database ??= test_current_database($pdo);
+
+    $statement = $pdo->prepare(
+        'SELECT table_name AS table_name, index_name AS index_name,
+                non_unique AS non_unique, seq_in_index AS seq_in_index,
+                column_name AS column_name, sub_part AS sub_part,
+                index_type AS index_type
+           FROM information_schema.statistics
+          WHERE table_schema = ?
+          ORDER BY table_name, index_name, seq_in_index'
+    );
+    $statement->execute([$database]);
+
+    /** @var array<string, array<string, array{name:string, unique:bool, type:string, columns:list<array{column:string, prefix:?int}>}>> $indexes */
+    $indexes = [];
+
+    foreach ($statement->fetchAll() as $row) {
+        $table = (string) $row['table_name'];
+        $name  = (string) $row['index_name'];
+
+        $indexes[$table][$name] ??= [
+            'name'    => $name,
+            'unique'  => (int) $row['non_unique'] === 0,
+            'type'    => (string) $row['index_type'],
+            'columns' => [],
+        ];
+
+        $indexes[$table][$name]['columns'][] = [
+            'column' => (string) $row['column_name'],
+            'prefix' => $row['sub_part'] === null ? null : (int) $row['sub_part'],
+        ];
+    }
+
+    $result = [];
+
+    foreach ($indexes as $table => $byName) {
+        ksort($byName, SORT_STRING);
+        $result[(string) $table] = array_values($byName);
+    }
+
+    ksort($result, SORT_STRING);
+
+    return $result;
+}
+
+/**
+ * Every foreign key in the schema, keyed by table and sorted by name.
+ *
+ * @return array<string, list<array{
+ *     name:string, columns:list<string>, referenced_table:string,
+ *     referenced_columns:list<string>, delete_rule:string, update_rule:string
+ * }>>
+ */
+function test_foreign_key_list(PDO $pdo, ?string $database = null): array
+{
+    $database ??= test_current_database($pdo);
+
+    $statement = $pdo->prepare(
+        'SELECT k.table_name AS table_name, k.constraint_name AS constraint_name,
+                k.column_name AS column_name, k.referenced_table_name AS referenced_table_name,
+                k.referenced_column_name AS referenced_column_name,
+                r.delete_rule AS delete_rule, r.update_rule AS update_rule
+           FROM information_schema.key_column_usage AS k
+           JOIN information_schema.referential_constraints AS r
+             ON r.constraint_schema = k.constraint_schema
+            AND r.constraint_name   = k.constraint_name
+          WHERE k.table_schema = ?
+            AND k.referenced_table_name IS NOT NULL
+          ORDER BY k.table_name, k.constraint_name, k.ordinal_position'
+    );
+    $statement->execute([$database]);
+
+    /** @var array<string, array<string, array{name:string, columns:list<string>, referenced_table:string, referenced_columns:list<string>, delete_rule:string, update_rule:string}>> $keys */
+    $keys = [];
+
+    foreach ($statement->fetchAll() as $row) {
+        $table = (string) $row['table_name'];
+        $name  = (string) $row['constraint_name'];
+
+        $keys[$table][$name] ??= [
+            'name'               => $name,
+            'columns'            => [],
+            'referenced_table'   => (string) $row['referenced_table_name'],
+            'referenced_columns' => [],
+            'delete_rule'        => (string) $row['delete_rule'],
+            'update_rule'        => (string) $row['update_rule'],
+        ];
+
+        $keys[$table][$name]['columns'][]            = (string) $row['column_name'];
+        $keys[$table][$name]['referenced_columns'][] = (string) $row['referenced_column_name'];
+    }
+
+    $result = [];
+
+    foreach ($keys as $table => $byName) {
+        ksort($byName, SORT_STRING);
+        $result[(string) $table] = array_values($byName);
+    }
+
+    ksort($result, SORT_STRING);
+
+    return $result;
 }
 
 function test_reset_app_database(): void

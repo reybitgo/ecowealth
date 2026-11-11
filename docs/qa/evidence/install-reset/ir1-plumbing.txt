@@ -1,0 +1,120 @@
+2026-11-11 19:17:00 +08:00 - IR-1 shared database plumbing and test harness (gate)
+Host: Windows 10.0.26200.0 - PHP 8.3.16 (ZTS) - MySQL 8.4.3 - schema ecowealth_sneat_test
+Plan: dmp/plan-ecowealth-install-reset.md, IR-1 (tasks T1-T6)
+Exit: 0 (every command below)
+
+This transcript covers the three parts of the IR-1 gate that are not a PHP case:
+the one-time scratch-schema provisioning (IR-1-T4), the two filtered groups (IR-1-T5)
+and the manual check that both scratch schemas still exist after a run (they are
+recreated per case, never dropped, because the grant belongs to the schema).
+The full suite log is ir1-suite.log.
+
+--------------------------------------------------------------------------------
+1. One-time provisioning - the app user cannot CREATE DATABASE
+--------------------------------------------------------------------------------
+Command: "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" -u root < tests/tmp/ir1-provision.sql
+Exit: 0
+
+SQL run (idempotent; also quoted in plan IR-1-T4):
+
+-- One-time provisioning for the IR-1 scratch schemas (plan IR-1-T4).
+-- Run as root (Laragon) or a MySQL admin account; idempotent.
+CREATE DATABASE IF NOT EXISTS ecowealth_sneat_tool_a_test
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS ecowealth_sneat_tool_b_test
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON ecowealth_sneat_tool_a_test.* TO 'ecowealth'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON ecowealth_sneat_tool_b_test.* TO 'ecowealth'@'127.0.0.1';
+FLUSH PRIVILEGES;
+SHOW DATABASES LIKE 'ecowealth_sneat_tool_%_test';
+SHOW GRANTS FOR 'ecowealth'@'127.0.0.1';
+
+Output:
+
+Database (ecowealth_sneat_tool_%_test)
+ecowealth_sneat_tool_a_test
+ecowealth_sneat_tool_b_test
+Grants for ecowealth@127.0.0.1
+GRANT USAGE ON *.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat_migration_test`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat_migtest`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat_restore_test`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat_test`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat_tool_a_test`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `ecowealth_sneat_tool_b_test`.* TO `ecowealth`@`127.0.0.1`
+GRANT ALL PRIVILEGES ON `if0_42820471_ew1_db`.* TO `ecowealth`@`127.0.0.1`
+
+--------------------------------------------------------------------------------
+2. Parser/runner group
+--------------------------------------------------------------------------------
+Command: php tests/run.php SqlScript     (from system/)
+Exit: 0
+
+EcoWealth test suite
+PHP 8.3.16 · schema ecowealth_sneat_test · phase 15
+
+SqlScriptTest
+  PASS  plain statements split with their starting line numbers
+  PASS  a semicolon inside a quoted string never splits the statement
+  PASS  doubled quotes and backslash escapes stay inside the string
+  PASS  -- is a comment only when followed by whitespace
+  PASS  # and block comments are stripped and keep the line numbers
+  PASS  a DELIMITER block is rejected with a clear message
+  PASS  a truncated script cannot end inside a string or a comment
+  PASS  containsDatabaseSwitch sees statements, never comments or strings
+  PASS  a failing statement names its index, line and driver code
+  PASS  schema.sql imports through the runner into a scratch schema
+  PASS  the application SQL sources contain no executable database switch
+  PASS  checksum ignores line endings and trailing whitespace but not content
+  PASS  run reports the statement count and calls the progress hook
+  PASS  a missing SQL file is a usage error
+  PASS  the statement cap stops a runaway script
+
+----------------------------------------------------------------
+Cases: 15   Passed: 15   Failed: 0
+All good.
+
+--------------------------------------------------------------------------------
+3. Connection/probing group
+--------------------------------------------------------------------------------
+Command: php tests/run.php DbTarget      (from system/)
+Exit: 0
+
+EcoWealth test suite
+PHP 8.3.16 · schema ecowealth_sneat_test · phase 15
+
+DbTargetTest
+  PASS  fromConfig connects at server level and to one schema
+  PASS  exists reports a real schema and a missing one
+  PASS  tables and tableCount read information_schema in sorted order
+  PASS  the information_schema helpers describe the harness schema
+  PASS  a pre-provisioned scratch schema is recreated empty and then listed
+  PASS  recreating the scratch schema removes the previous case tables
+  PASS  create makes a missing schema and leaves it empty
+  PASS  create maps an existing schema and a refused name to hints
+  PASS  unsafe database names are rejected before any SQL
+  PASS  an unknown database maps to a create-it-first hint and leaks nothing
+  PASS  bad credentials map to a 1045 hint and never echo the password
+  PASS  an unreachable server maps to a not-reachable hint
+
+----------------------------------------------------------------
+Cases: 12   Passed: 12   Failed: 0
+All good.
+
+--------------------------------------------------------------------------------
+4. Manual gate - the scratch schemas survive a run
+--------------------------------------------------------------------------------
+Command: "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" -u root -e "SHOW DATABASES LIKE 'ecowealth_sneat_tool_%_test'; SELECT ... COUNT(*) ..."
+Exit: 0
+
+Database (ecowealth_sneat_tool_%_test)
+ecowealth_sneat_tool_a_test
+ecowealth_sneat_tool_b_test
+table_schema	tables
+ecowealth_sneat_tool_a_test	0
+ecowealth_sneat_tool_b_test	0
+
+Both schemas exist after the filtered runs and both hold 0 tables: the two groups
+recreate the schemas they use, and no case removes a schema (the GRANT would be lost).
+The full-suite run leaves the same two schemas in place; see ir1-suite.log.

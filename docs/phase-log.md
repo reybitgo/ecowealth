@@ -3347,3 +3347,55 @@ before any later phase writes PHP. IR-1 is the first phase with code.
 
 IR-1 — shared database plumbing (`DbTarget`, `SqlScript`, `DatabaseToolException`, scratch-DB test
 helpers); no application behaviour changes.
+
+
+---
+
+## IR-1 — Shared database plumbing and test harness (2026-11-11)
+
+**Status:** complete · **Tag:** `ir-1` · **Branch:** `feature/shop` · **No application behaviour changed.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-1. This phase adds the two shared classes every
+later IR phase runs on — a safe connection/probing target and a quote-aware SQL-file runner — plus
+the typed exception they throw and the scratch-schema test harness. Nothing calls them yet, so the
+application's behaviour is unchanged.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/app/Core/DbTarget.php`, `system/app/Core/SqlScript.php`, `system/app/Services/DatabaseToolException.php`, `system/tests/Cases/SqlScriptTest.php`, `system/tests/Cases/DbTargetTest.php`. |
+| **Harness** | `system/tests/bootstrap.php` gains `test_scratch_database()` (slot `tool_a` / `tool_b`) and `test_table_list()`, `test_column_list()`, `test_index_list()`, `test_foreign_key_list()` — all via `information_schema`, sorted, keyed by table. |
+| **Scratch schemas** | `ecowealth_sneat_tool_a_test` / `ecowealth_sneat_tool_b_test` provisioned once as root and granted to `ecowealth` (the app user cannot `CREATE DATABASE`). Each case recreates its slot; no case drops a schema, because the grant would be lost. Evidence: `docs/qa/evidence/install-reset/ir1-plumbing.txt`. |
+| **`SqlScript`** | State-machine parser: `'…'`, `"…"`, backticks, doubled quotes, backslash escapes, `--` only before whitespace/EOL, `#` at line start, `/* … */` and `/*! … */` comments; line numbers preserved; `DELIMITER` rejected; a script ending inside a string/comment rejected; empty statements dropped; BOM stripped; 20 000-statement cap. `run()` stops at the first error with statement index, line, SQLSTATE/driver code and a 200-character snippet; SELECT results are drained so later statements do not hit MySQL 2014. `checksum()` normalises BOM/line endings/trailing whitespace; `containsDatabaseSwitch()` ignores comments and string literals. |
+| **`DbTarget`** | Server-level and database-level PDO with `app/database.php`'s options plus `ATTR_TIMEOUT = 5`; `SET NAMES utf8mb4` + `SET time_zone`; `exists()`/`create()`/`tables()`/`tableCount()`; `/^[A-Za-z0-9_]{1,64}$/` is the only path from a name to a DSN or DDL. Driver failures map to operator hints (1045 credentials, 1049 missing schema → "create it first", 2002/1130 unreachable, 1044 no privilege, 1007 exists); the raw MySQL text goes to `error_log()` only. |
+| **`DatabaseToolException`** | Kinds `usage`, `preflight`, `refused`, `locked`, `not_empty`, `sql`, `verify`, `invalid_name`, each with a `context` array and an optional `hint`. Messages carry no DSN and no password. |
+| **Tests** | `php tests/run.php SqlScript` → **15/15**, `php tests/run.php DbTarget` → **12/12**, full suite → **Cases: 751   Passed: 751   Failed: 0**, exit 0 (724 existing + 27 new). Evidence: `docs/qa/evidence/install-reset/ir1-suite.log`. |
+| **Gate** | Both filtered groups green; full suite green; `schema.sql` imports through `SqlScript` into `tool_a` (27 tables) inside the suite; after a run `SHOW DATABASES LIKE 'ecowealth_sneat_tool_%_test'` still lists both schemas with 0 tables. No `db()` call, no HTML and no superglobal in the new classes; no runtime file touched. |
+
+### Notes and deviations
+
+- **Case count.** §9.2 estimated ~12 parser + ~8 connection cases; the phase ships **15 + 12 = 27**
+  new cases (724 → 751). The extra parser case covers truncated scripts, the extra connection case
+  covers the `information_schema` helpers and their ordering, which IR-2 relies on.
+- **`run()` uses `PDO::query()` + `closeCursor()`, not `PDO::exec()`,** for every statement. The
+  plan's §5.5 note says `exec()` accepts one statement at a time; that stays true, but the install
+  bundle's footer ends with verification SELECTs and a SELECT run through `exec()` leaves its result
+  pending, so the next statement fails with MySQL 2014 ("commands out of sync"). The contract
+  (statement index/line/driver code in the exception) is unchanged and now covered by a case that
+  runs two SELECTs on one connection.
+- **Truncated scripts are rejected.** A file ending inside a string or block comment throws instead
+  of running its earlier statements silently; not in the plan's rule table, added as a safety rule
+  with its own case.
+- **MySQL 8 information_schema labels are upper-case** unless aliased, so the four helpers alias
+  every selected column explicitly; the arrays are then identical on MySQL and MariaDB.
+- **1044 before 1049.** MySQL answers "access denied to database" (1044) for a *missing* schema the
+  user has no grant on, before it ever reports 1049. The `create it first` (1049) case therefore
+  drops a granted scratch schema to reach the hint, and the 1044 branch now has distinct
+  connect/create wording. The operator-facing behaviour is the same: a clear hint, never a DSN.
+- **IR-0-F3 closed:** both scratch schemas are provisioned; `ir1-plumbing.txt` records the
+  idempotent provisioning SQL, the grants and the post-run check.
+
+### Next
+
+IR-2 — production install bundle: `database/install.sql` generated from `schema.sql` + seeds
+001–004, the F-01/F-09 seed fixes, `seed parity`/`install.sql` tests, `.gitattributes`, and the
+local/online import documentation. Still no runtime application file changes.
