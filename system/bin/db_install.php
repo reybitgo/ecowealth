@@ -63,7 +63,7 @@ Usage: php bin/db_install.php [options]
   --superadmin-password=PASS  Superadmin password.
   --superadmin-password-stdin Read the superadmin password as one line from STDIN.
   --site-name=NAME            settings.site_name, 1–80 characters (default: EcoWealth).
-  --with-demo                 Seed the demo tree (not available yet — plan phase IR-7).
+  --with-demo                 Also seed the demo tree (development/QA only; never production).
   --key=KEY                   INSTALL_KEY; required when APP_ENV is production.
   --force                     Skip the interactive confirmation only — never the preflight.
   --json                      Print one JSON report on STDOUT and nothing else.
@@ -483,6 +483,11 @@ function db_install_print_report(array $report): void
             fwrite(STDOUT, '  sign in: ' . (string) $account['username'] . ' (' . (string) $account['role'] . ')' . PHP_EOL);
         }
 
+        if (!empty($report['demo']['installed'])) {
+            fwrite(STDOUT, '  demo:    5 members · 3 codes · 3 ledger rows — '
+                . 'sign in as juan / ' . (string) $report['demo']['credentials'] . PHP_EOL);
+        }
+
         fwrite(
             STDOUT,
             '  next:    change both staff passwords, then delete bin/db_install.php and database/install.sql'
@@ -549,6 +554,7 @@ function db_install_error_report(Throwable $e, string $database, string $mode): 
         'staff'        => ['reset' => false, 'usernames' => [], 'accounts' => []],
         'lock'         => ['path' => null, 'written' => false, 'contents' => null, 'error' => null],
         'install_sql'  => [],
+        'demo'         => ['installed' => false, 'members' => 0, 'codes' => 0, 'ledger_rows' => 0, 'wallets' => [], 'credentials' => []],
         'verification' => ['ok' => false, 'checks' => []],
         'checks'       => [],
         'warnings'     => [],
@@ -675,6 +681,7 @@ function db_install_cli(array $argv): int
                     'staff'        => ['reset' => false, 'usernames' => [], 'accounts' => []],
                     'lock'         => ['path' => null, 'written' => false, 'contents' => null, 'error' => null],
                     'install_sql'  => [],
+                    'demo'         => ['installed' => false, 'members' => 0, 'codes' => 0, 'ledger_rows' => 0, 'wallets' => [], 'credentials' => []],
                     'verification' => ['ok' => (bool) $preflight['ok'], 'checks' => $preflight['checks']],
                     'checks'       => $preflight['checks'],
                     'warnings'     => [],
@@ -729,6 +736,7 @@ function db_install_cli(array $argv): int
                     'staff'        => ['reset' => false, 'usernames' => [], 'accounts' => []],
                     'lock'         => ['path' => null, 'written' => false, 'contents' => null, 'error' => null],
                     'install_sql'  => [],
+                    'demo'         => ['installed' => false, 'members' => 0, 'codes' => 0, 'ledger_rows' => 0, 'wallets' => [], 'credentials' => []],
                     'verification' => ['ok' => false, 'checks' => $preflight['checks']],
                     'checks'       => $preflight['checks'],
                     'warnings'     => [],

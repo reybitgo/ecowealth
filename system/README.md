@@ -130,10 +130,12 @@ The expiry job runs from the CLI **and** from a guarded URL
    php bin/build_install_sql.php --check  # CI/drift gate: exit 0 when current
    ```
 
-   **Want demo data?** After the install, import `database/seeds/005_demo_tree.sql`
-   (the demo sponsor tree `admin → juan → maria → peter/sarah/david`, their wallets and
-   three sample registration codes). It is never part of the production bundle — keep it
-   out of production.
+   **Want demo data?** Pass `--with-demo` to the CLI installer or tick **Seed the demo
+   tree** in the web installer (development/QA only — both refuse in production). They run
+   the real `database/seeds/005_demo_tree.sql` after the bundle: the sponsor tree
+   `admin → juan → maria → peter/sarah/david`, three funded wallets and three sample
+   registration codes. A plain `mysql`/phpMyAdmin import can also import that seed by hand
+   afterwards. It is never part of the production bundle — keep it out of production.
 
    > **Fresh install only.** Existing databases are upgraded with
    > `database/migrations/NNN_*.sql` in numeric order; never re-import the bundle over
@@ -174,8 +176,10 @@ The expiry job runs from the CLI **and** from a guarded URL
 
 ### Demo accounts
 
-The bundle always seeds the two staff accounts. The five members appear only after you
-import `seeds/005_demo_tree.sql` (optional, test sites only):
+The bundle always seeds the two staff accounts. The five members appear only after an
+explicit demo install (`--with-demo` / the installer's demo option) or a manual
+`seeds/005_demo_tree.sql` import — never in the production bundle and never in production
+(the tools refuse it):
 
 | Username | Password | Role |
 |---|---|---|
@@ -275,8 +279,37 @@ The catalogue is kept by default; `--reset-catalogue` replaces it with the real
 `seeds/003_products.sql` + `seeds/004_packages.sql` values, so a reset catalogue matches a
 fresh install by natural key (`sku`/`slug`, never by id). Registration codes are
 inventory: the default is `--codes=0`, the allowed range is `0–50`, and a generated batch
-is audited with a `code.generate` row. `--demo` belongs to plan phase IR-7 and currently
-refuses with a clear message.
+is audited with a `code.generate` row. `--demo` adds the QA demo tree after the reset; it
+is refused in production and needs the two default packages.
+
+#### Local QA: add demo data
+
+Demo fixtures are opt-in on **every** path and only exist outside production
+(`APP_ENV !== 'production'`, or the installer/reset is refused before writing a row):
+
+| Path | How | Result |
+|---|---|---|
+| CLI install | `php bin/db_install.php … --with-demo` | the bundle + the demo tree in one run |
+| Web install | tick **Seed the demo tree** on `/system/install.php` | same, with operator-chosen staff passwords |
+| CLI reset | `php bin/db_reset.php --force --confirm=<db> --demo` | the reset, then a fresh demo tree |
+| Web reset | tick **Seed the demo tree** on `/system/reset.php` (development only) | same, from the console |
+| Manual | `mysql <db> < database/seeds/005_demo_tree.sql` | the seed on its own |
+
+```bash
+# a QA reset that keeps the catalogue and reloads the demo tree
+php bin/db_reset.php --force --confirm=ecowealth_sneat --demo
+
+# or: reset the catalogue too, then load the tree (a full "fresh QA install")
+php bin/db_reset.php --force --confirm=ecowealth_sneat --reset-catalogue --demo
+```
+
+Expected after `--demo`: 5 members (`juan`, `maria`, `peter`, `sarah`, `david`), 3 demo
+codes (`DEMO-*`), 3 adjustment ledger rows, wallets 2000/1500, 1000/800 and 500/400
+(total/withdrawable), and `david` still `pending`. Every demo member signs in with
+`Demo@1234`. The step is a single transaction: a failure leaves no demo row behind, and a
+database that already holds members or business rows is refused instead of merged. A
+catalogue without `package-a`/`package-b` is refused too — the seed would otherwise create
+active members with no package.
 
 **After a reset:** sign in as `admin` (the staff password is unchanged), confirm
 `/admin/members` and `/admin/orders` are empty, and note the fresh codes if any were
@@ -299,6 +332,9 @@ No terminal? The same engine runs behind a standalone console at
   `false`.
 - **Members and S-Login sessions** can never open it: a member gets 403 and an impersonated
   tab (even a superadmin's) gets 403 before the form is rendered.
+- **Demo fixtures** are one checkbox in development ("Seed the demo tree"); production
+  never renders it, and a crafted `demo=1` POST is a field error. It is the same
+  `DemoDataService` the CLI uses, with the same production and catalogue refusals.
 - **Refresh is safe:** the POST stores the report in the session and redirects to
   `reset.php?done=1`; refreshing re-renders the same report and never runs the reset twice.
   "Done" clears the report from the session.
@@ -362,7 +398,8 @@ system/
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
 │   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService,
 │   │                          PaymentService, FulfilmentService, FulfilmentException, InvoiceService,
-│   │                          InvoiceNumber, DatabaseInstaller, DatabaseResetService, DatabaseToolException
+│   │                          InvoiceNumber, DatabaseInstaller, DatabaseResetService,
+│   │                          DemoDataService, DatabaseToolException
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,

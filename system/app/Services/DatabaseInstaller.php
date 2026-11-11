@@ -15,10 +15,16 @@ declare(strict_types=1);
  *    (PHP version, extensions, config file, server, schema, bundle,
  *    storage, lock, production INSTALL_KEY);
  *  • the install itself: empty-database guard, the bundle import through
- *    SqlScript, operator-chosen staff credentials, install metadata and
- *    the `storage/install.lock` that prevents a second run;
+ *    SqlScript, the optional demo tree (IR-7), operator-chosen staff
+ *    credentials, install metadata and the `storage/install.lock` that
+ *    prevents a second run;
  *  • the post-install verification: the §6.5 counts, the staff sign-in
  *    check and the zero-row pack from Appendix E.
+ *
+ *  Demo fixtures are opt-in (`with_demo`) and refused in production. The
+ *  preconditions are checked before the bundle runs and again right
+ *  before DemoDataService writes a row, so a refused request never
+ *  creates a member with no package (D-IR-13, plan IR-7-T2).
  *
  *  What it must not do (plan §5.1): authenticate a user, emit HTML, read
  *  CLI flags or touch the global db() connection. Every query uses the
@@ -427,7 +433,7 @@ final class DatabaseInstaller
      *   admin           array   {username, email, password, password_confirm?}
      *   superadmin      array   same shape
      *   site_name       string  settings.site_name (1–80 chars); '' keeps the bundle value
-     *   with_demo       bool    refused until IR-7 ships DemoDataService
+     *   with_demo       bool    install the demo tree after the bundle (never production)
      *   install_sql     string  alternative bundle path (absolute, or relative to the app root)
      *   channel         string  'cli' (default) or 'web' — recorded in settings + the lock
      *   install_key     string  the key the operator supplied; checked only in production
@@ -443,6 +449,18 @@ final class DatabaseInstaller
         /** @var list<array<string, mixed>> $steps */
         $steps    = [];
         $warnings = [];
+
+        /** Demo result for the report; stays "not installed" unless with_demo succeeded. */
+        $demo = [
+            'installed'   => false,
+            'members'     => 0,
+            'codes'       => 0,
+            'ledger_rows' => 0,
+            'wallets'     => [],
+            'credentials' => [],
+            'statements'  => 0,
+            'ms'          => 0,
+        ];
 
         $record = static function (
             string $key,
@@ -473,14 +491,7 @@ final class DatabaseInstaller
             );
         }
 
-        if (!empty($options['with_demo'])) {
-            throw DatabaseToolException::usage(
-                'Demo fixtures are not available on the installer path yet.',
-                ['with_demo' => true],
-                'The demo tree (seeds/005_demo_tree.sql) is wired into the installers in plan phase IR-7. '
-                    . 'Run the install without demo data and import the seed by hand on a test site if you need it now.'
-            );
-        }
+        $withDemo = !empty($options['with_demo']);
 
         $siteName = trim((string) ($options['site_name'] ?? ''));
 
@@ -579,6 +590,11 @@ final class DatabaseInstaller
 
             $record('guard', 'Target schema is empty', 'ok', 0, self::ms($t));
 
+            /* ---- Demo preconditions, before the bundle runs ----------- */
+            if ($withDemo) {
+                $this->assertDemoRequestAllowed($database);
+            }
+
             /* ---- Import the bundle ----------------------------------- */
             $t          = microtime(true);
             $bundlePath = $this->installSqlPath($options);
@@ -617,6 +633,38 @@ final class DatabaseInstaller
                 $run['statements'],
                 self::ms($t)
             );
+
+            /* ---- Optional demo tree (plan IR-7-T2) ------------------- */
+            if ($withDemo) {
+                $t           = microtime(true);
+                $demoService = new DemoDataService($this->appRoot, $this->env);
+
+                /* Re-check on the imported schema: the packages exist now,
+                 * and a customized bundle without the two default packages
+                 * must refuse before a single demo row is written. */
+                $availability = $demoService->available($pdo, true, false);
+
+                if (!$availability['ok']) {
+                    throw DatabaseToolException::refused(
+                        $availability['reason'],
+                        ['database' => $database, 'with_demo' => true],
+                        'The bundle was imported, so the schema exists, but no demo row was written. Drop and '
+                            . 'recreate the schema and install again without --with-demo (or with a catalogue that '
+                            . 'contains the default packages).'
+                    );
+                }
+
+                $demo = $demoService->install($pdo);
+                $demo['installed'] = true;
+
+                $record(
+                    'demo',
+                    'Install the demo tree (members, wallets and codes)',
+                    'ok',
+                    $demo['members'] + $demo['codes'] + $demo['ledger_rows'],
+                    self::ms($t)
+                );
+            }
 
             /* ---- Staff credentials ----------------------------------- */
             $t        = microtime(true);
@@ -700,6 +748,7 @@ final class DatabaseInstaller
                 'admin'      => $credentials['admin'],
                 'superadmin' => $credentials['superadmin'],
                 'channel'    => $channel,
+                'with_demo'  => $withDemo,
             ]);
 
             $record(
@@ -770,11 +819,12 @@ final class DatabaseInstaller
                     'sha256'  => $script->checksum(),
                     'bytes'   => (int) (@filesize($bundlePath) ?: 0),
                 ],
+                $demo,
                 [
                     'database'        => $database,
                     'create_database' => !empty($options['create_database']),
                     'site_name'       => $siteName,
-                    'with_demo'       => false,
+                    'with_demo'       => $withDemo,
                     'channel'         => $channel,
                     'install_sql'     => $this->relativePath($bundlePath),
                     'install_key_set' => trim((string) ($options['install_key'] ?? '')) !== '',
@@ -1008,6 +1058,8 @@ final class DatabaseInstaller
                 $counts['ledger_rows'] . ' of ' . $expected['ledger_rows'] . ' demo ledger rows',
                 'The demo seed writes one ledger row per funded demo wallet (juan, maria, peter).'
             );
+
+            $checks[] = $this->demoWalletCheck($pdo);
         }
 
         $checks[] = self::check(
@@ -1255,6 +1307,7 @@ final class DatabaseInstaller
      * @param array<string,mixed> $staff
      * @param array<string,mixed> $lock
      * @param array<string,mixed> $bundle
+     * @param array<string,mixed> $demo
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
@@ -1270,6 +1323,7 @@ final class DatabaseInstaller
         array $staff,
         array $lock,
         array $bundle,
+        array $demo,
         array $options
     ): array {
         $verificationOk = true;
@@ -1300,6 +1354,7 @@ final class DatabaseInstaller
             ],
             'lock'         => $lock,
             'install_sql'  => $bundle,
+            'demo'         => $demo,
             'verification' => ['ok' => $verificationOk, 'checks' => $checks],
             'checks'       => $checks,
             'warnings'     => $warnings,
@@ -1363,6 +1418,99 @@ final class DatabaseInstaller
         }
 
         return self::check('install_key', 'INSTALL_KEY', true, 'present and matched');
+    }
+
+    /**
+     * Refuse an impossible demo request before a single row is written
+     * (plan IR-7-T2, D-IR-13).
+     *
+     * The target is empty by contract, so this checks the environment,
+     * the seed file and — when the schema already exists — that it really
+     * holds no business rows. The catalogue check cannot run here (the
+     * bundle seeds the packages); it re-runs after the import.
+     */
+    private function assertDemoRequestAllowed(string $database): void
+    {
+        $service = new DemoDataService($this->appRoot, $this->env);
+
+        if ($this->env === 'production') {
+            throw DatabaseToolException::refused(
+                'Demo fixtures cannot be installed in production (APP_ENV=production).',
+                ['env' => $this->env, 'with_demo' => true],
+                'Install without demo data; database/seeds/005_demo_tree.sql is a QA fixture and must never be '
+                    . 'imported into production.'
+            );
+        }
+
+        if (!is_file($service->seedPath())) {
+            throw DatabaseToolException::refused(
+                'The demo seed ' . DemoDataService::SEED_FILE . ' is missing.',
+                ['path' => $service->seedPath()],
+                'Restore the file from the repository; the production bundle never contains demo data.'
+            );
+        }
+
+        if (!$this->target->exists($database)) {
+            /* The bundle creates an empty schema next; there is nothing to
+             * inspect and nothing to merge. */
+            return;
+        }
+
+        $pdo          = $this->target->connect($database);
+        $availability = $service->available($pdo, true, false);
+
+        if (!$availability['ok']) {
+            throw DatabaseToolException::refused(
+                $availability['reason'],
+                ['database' => $database, 'with_demo' => true],
+                'No table or row was written: the demo preconditions failed before the bundle ran. Drop and '
+                    . 'recreate the schema, or install again without --with-demo.'
+            );
+        }
+    }
+
+    /**
+     * The demo wallet/tree check used by verify() when with_demo was set.
+     *
+     * Delegates to DemoDataService so the installer and the reset engine
+     * accept exactly the same tree (plan IR-3-T5, IR-7-T1).
+     */
+    private function demoWalletCheck(PDO $pdo): array
+    {
+        try {
+            $verified = (new DemoDataService($this->appRoot, $this->env))->verify($pdo);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] installer demo verification failed: ' . $e->getMessage());
+
+            return self::check(
+                'demo_wallets',
+                'Demo wallets and tree',
+                false,
+                'the demo verification could not run; see the PHP error log',
+                'Re-run the install with --with-demo after dropping the schema.'
+            );
+        }
+
+        $byKey = [];
+
+        foreach ($verified['checks'] as $check) {
+            $byKey[(string) $check['key']] = $check;
+        }
+
+        $wallets = $byKey['wallets'] ?? null;
+        $pending = $byKey['pending_member'] ?? null;
+
+        $ok = is_array($wallets) && $wallets['ok'] === true
+            && is_array($pending) && $pending['ok'] === true;
+
+        return self::check(
+            'demo_wallets',
+            'Demo wallets and tree',
+            $ok,
+            (is_array($wallets) ? (string) $wallets['detail'] : 'no wallet data')
+                . ' · david ' . (is_array($pending) && $pending['ok'] ? 'pending' : 'not in the expected state'),
+            'The demo tree funds juan 2000/1500, maria 1000/800 and peter 500/400, and leaves david pending.'
+        );
     }
 
     /**

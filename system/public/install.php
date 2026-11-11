@@ -101,6 +101,7 @@ $old = [
     'admin_email'         => (string) ($_POST['admin_email'] ?? ''),
     'superadmin_username' => (string) ($_POST['superadmin_username'] ?? 'superadmin'),
     'superadmin_email'    => (string) ($_POST['superadmin_email'] ?? ''),
+    'with_demo'           => !empty($_POST['with_demo']),
 ];
 
 try {
@@ -233,13 +234,12 @@ try {
                         $fieldErrors['site_name'] = 'The site name must be 1–80 characters.';
                     }
 
-                    /* IR-7 owns the demo fixtures; refuse now, exactly as
-                     * the CLI refuses --with-demo. The checkbox is also
-                     * disabled in the markup, so this guards a crafted
-                     * POST rather than a normal click. */
-                    if ($withDemo) {
-                        $fieldErrors['with_demo'] = 'Demo fixtures are not available on this installer yet. '
-                            . 'Install without demo data, then import database/seeds/005_demo_tree.sql on a test site.';
+                    /* IR-7 owns the demo fixtures. The checkbox is not
+                     * rendered in production, so this only guards a
+                     * crafted POST; the service refuses as well. */
+                    if ($withDemo && $env === 'production') {
+                        $fieldErrors['with_demo'] = 'Demo fixtures cannot be installed in production. '
+                            . 'They are a development/QA fixture; leave the option off on a live site.';
                     }
 
                     if ($fieldErrors !== []) {
@@ -264,7 +264,7 @@ try {
                                 'password' => $superadmin['password'],
                             ],
                             'site_name'   => $siteName,
-                            'with_demo'   => false,
+                            'with_demo'   => $withDemo,
                             'install_key' => $submittedKey,
                         ]);
 
@@ -769,14 +769,17 @@ function install_render_form(array $context): void
                     </div>
 
                     <?php if ($env !== 'production'): ?>
-                        <div class="dbt-check dbt-check--disabled dbt-mt-3">
-                            <input type="checkbox" id="f-with_demo" name="with_demo" value="1" disabled>
+                        <div class="dbt-check dbt-mt-3">
+                            <input type="checkbox" id="f-with_demo" name="with_demo" value="1"
+                                <?= !empty($old['with_demo']) ? 'checked' : '' ?>
+                                <?= $disabled ? 'disabled' : '' ?>>
                             <div class="dbt-check__text">
                                 <label for="f-with_demo">Seed the demo tree</label>
                                 <small>
-                                    Demo members, wallets and codes are available in the next phase (IR-7).
-                                    This build refuses the option; import <code>database/seeds/005_demo_tree.sql</code>
-                                    on a test site instead.
+                                    Development/QA only: creates the demo sponsor tree
+                                    (<code>juan</code>, <code>maria</code>, <code>peter</code>,
+                                    <code>sarah</code>, <code>david</code>), their wallets and three sample codes.
+                                    Every demo member signs in with <code>Demo@1234</code>. Never use it on a live site.
                                 </small>
                             </div>
                         </div>
@@ -917,6 +920,7 @@ function install_render_report(array $context): void
     $accounts = (array) ($report['staff']['accounts'] ?? []);
     $lock     = (array) ($report['lock'] ?? []);
     $bundle   = (array) ($report['install_sql'] ?? []);
+    $demo     = (array) ($report['demo'] ?? []);
     $ok       = (bool) ($report['ok'] ?? false);
 
     $countLabels = [
@@ -1013,6 +1017,27 @@ function install_render_report(array $context): void
             </p>
         </div>
     </section>
+
+    <?php if (!empty($demo['installed'])): ?>
+        <section class="dbt-card" aria-labelledby="demo-title">
+            <div class="dbt-card__head">
+                <h2 class="dbt-card__title" id="demo-title">Demo fixtures</h2>
+                <span class="dbt-badge dbt-badge--info">Development only</span>
+            </div>
+            <div class="dbt-card__body">
+                <?php install_alert(
+                    'info',
+                    'The demo tree was installed',
+                    (int) ($demo['members'] ?? 0) . ' members, ' . (int) ($demo['codes'] ?? 0)
+                        . ' registration codes and ' . (int) ($demo['ledger_rows'] ?? 0) . ' ledger rows were created. '
+                        . 'Every demo member signs in with <code>' . install_e((string) ($demo['credentials'] ?? ''))
+                        . '</code>; the sponsor chain is admin &rarr; juan &rarr; maria &rarr; peter/sarah/david.',
+                    'This is QA data. Reset the database without demo data (or re-install without the option) '
+                        . 'before showing the site to real users.'
+                ); ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <section class="dbt-card" aria-labelledby="verify-title">
         <div class="dbt-card__head">

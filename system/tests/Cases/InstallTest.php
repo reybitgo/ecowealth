@@ -18,6 +18,7 @@ declare(strict_types=1);
  *      report       the JSON shape, no password and no key inside
  *      web channel  install_channel/lock record 'web' (IR-4)
  *      web page     standalone, SQL-free, never writes config.local.php
+ *      demo         with_demo seeds the tree and verifies it (IR-7)
  *
  *  The lock lives under STORAGE_PATH (tests/bootstrap.php pins it to a
  *  temp folder), so a case never leaves state in system/storage and
@@ -241,6 +242,144 @@ return [
         } finally {
             $clearLock();
         }
+    },
+
+    'a demo install seeds the tree, wallets and codes and verifies it' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database, [], ['with_demo' => true]));
+
+            assert_true(
+                $report['ok'],
+                'the demo install reports ok: ' . json_encode($report['verification']['checks'])
+            );
+
+            /* The report block (plan IR-7-T3 / Appendix D). */
+            assert_same(true, $report['demo']['installed']);
+            assert_same(5, $report['demo']['members']);
+            assert_same(3, $report['demo']['codes']);
+            assert_same(3, $report['demo']['ledger_rows']);
+            assert_same('Demo@1234', $report['demo']['credentials']);
+            assert_same(
+                ['juan' => ['balance' => '2000.00', 'withdrawable' => '1500.00']],
+                ['juan' => $report['demo']['wallets']['juan']],
+                'the report carries the funded wallet strings'
+            );
+            assert_same(true, $report['options']['with_demo']);
+
+            /* The counts the §6.5 pack prints. */
+            assert_same(5, $report['counts']['members_rows']);
+            assert_same(3, $report['counts']['codes_rows']);
+            assert_same(3, $report['counts']['ledger_rows']);
+            assert_same(27, $report['counts']['tables_created']);
+
+            /* The database itself, not just the report. */
+            $usernames = $pdo->query(
+                "SELECT username FROM users WHERE role = 'member' ORDER BY username"
+            )->fetchAll(PDO::FETCH_COLUMN);
+
+            assert_same(['david', 'juan', 'maria', 'peter', 'sarah'], $usernames);
+
+            $david = $pdo->query(
+                "SELECT member_status, package_id FROM users WHERE username = 'david'"
+            )->fetch();
+            assert_same('pending', (string) $david['member_status']);
+            assert_null($david['package_id']);
+
+            foreach (DemoDataService::WALLETS as $username => [$balance, $withdrawable]) {
+                $wallet = $pdo->query(
+                    "SELECT ewallet_balance, withdrawable_balance FROM users WHERE username = '$username'"
+                )->fetch();
+
+                assert_same($balance, number_format((float) $wallet['ewallet_balance'], 2, '.', ''), $username);
+                assert_same($withdrawable, number_format((float) $wallet['withdrawable_balance'], 2, '.', ''), $username);
+            }
+
+            $codes = $pdo->query('SELECT code, status FROM reg_codes ORDER BY code')->fetchAll(PDO::FETCH_KEY_PAIR);
+            assert_same(
+                [
+                    'DEMO-EXPD-4C9M' => 'expired',
+                    'DEMO-PKGA-2A7K' => 'unused',
+                    'DEMO-PKGB-3B8L' => 'unused',
+                ],
+                $codes
+            );
+
+            assert_same(3, (int) $pdo->query(
+                "SELECT COUNT(*) FROM ewallet_ledger
+                  WHERE ref_type = 'adjustment' AND ref_id IN (9001, 9002, 9003)"
+            )->fetchColumn());
+
+            /* The staff rename still happened after the demo import: a
+             * demo install must not skip the operator's credentials. */
+            assert_same('admin', (string) $pdo->query(
+                "SELECT username FROM users WHERE role = 'admin'"
+            )->fetchColumn());
+
+            /* verify() accepts the demo tree and carries the wallet check. */
+            $verify = $installer()->verify($pdo, [
+                'database'  => $database,
+                'with_demo' => true,
+                'admin'     => ['username' => 'admin', 'password' => 'AdminPassw0rd!23'],
+            ]);
+
+            assert_true($verify['ok'], json_encode($verify['checks']));
+
+            $keys = array_column($verify['checks'], 'key');
+            assert_true(in_array('demo_rows', $keys, true), 'verify carries the demo row check');
+            assert_true(in_array('demo_wallets', $keys, true), 'verify carries the demo wallet check');
+
+            /* DemoDataService alone has the production gate. */
+            $availability = (new DemoDataService(null, 'production'))->available($pdo, true, false);
+            assert_false($availability['ok'], 'production refuses demo data');
+            assert_contains('production', $availability['reason']);
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'demo data is refused when the tree already exists' => function (): void {
+        /* A seeded QA database already holds the five demo members and
+         * business rows: the installer-style guard (requireEmpty) must
+         * refuse instead of merging a second tree. */
+        [$pdo, $database] = test_scratch_database('tool_b');
+
+        foreach ([
+            'database/schema.sql',
+            'database/seeds/001_settings.sql',
+            'database/seeds/002_accounts.sql',
+            'database/seeds/003_products.sql',
+            'database/seeds/004_packages.sql',
+            'database/seeds/005_demo_tree.sql',
+        ] as $file) {
+            test_run_sql_file($pdo, dirname(__DIR__, 2) . '/' . $file);
+        }
+
+        $service      = new DemoDataService();
+        $availability = $service->available($pdo, true, false);
+
+        assert_false($availability['ok'], 'an existing demo tree is refused');
+        assert_contains('demo members already exist', $availability['reason']);
+        assert_same(5, (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn());
+
+        /* A missing default package refuses before any row is written. */
+        $pdo->exec("DELETE FROM package_products");
+        $pdo->exec("DELETE FROM reg_codes");
+        $pdo->exec("DELETE FROM ewallet_ledger");
+        $pdo->exec("DELETE FROM users WHERE role = 'member'");
+        $pdo->exec("DELETE FROM packages WHERE slug = 'package-b'");
+
+        $availability = $service->available($pdo, true, false);
+
+        assert_false($availability['ok'], 'a missing package is refused');
+        assert_contains('package-b', $availability['reason']);
+
+        $error = assert_throws(static fn (): array => $service->install($pdo), DatabaseToolException::class);
+        assert_same(DatabaseToolException::KIND_REFUSED, $error->kind);
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn());
     },
 
     'verify re-checks an installed schema and its lock' => function () use ($installer, $clearLock, $options): void {

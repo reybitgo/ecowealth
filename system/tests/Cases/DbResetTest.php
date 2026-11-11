@@ -209,6 +209,279 @@ $populate = static function (PDO $pdo): void {
                    '127.0.0.1', 'fixture', DATE_ADD(NOW(), INTERVAL 1 HOUR))");
 };
 
+/**
+ * Build one scratch schema from an explicit list of source files.
+ *
+ * @param list<string> $files paths relative to the application root
+ * @return array{0: PDO, 1: string}
+ */
+$build = static function (string $slot, array $files) use ($appRoot): array {
+    [$pdo, $database] = test_scratch_database($slot);
+
+    foreach ($files as $file) {
+        test_run_sql_file($pdo, $appRoot . '/' . $file);
+    }
+
+    return [$pdo, $database];
+};
+
+/**
+ * A natural-key snapshot of everything a reset must reproduce.
+ *
+ * Ids, timestamps and the excluded tables are deliberately absent: the
+ * parity cases compare sku/slug/level/username/code, exactly like a
+ * human comparing two screens (plan IR-7-T4, D-IR-15). `audit_log` and
+ * `live_revisions` are excluded because a reset appends an audit row and
+ * bumps 18 surfaces while a fresh build has neither; `last_reset_*` and
+ * the dynamic `commission_ledger_since` are excluded from settings for
+ * the same reason.
+ *
+ * @param bool $withDemo include the demo members, codes and ledger rows
+ * @return array<string, array<string, mixed>>
+ */
+$naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
+    $money = static fn (mixed $value): string => number_format((float) $value, 2, '.', '');
+
+    $staff = [];
+
+    foreach ($pdo->query(
+        "SELECT username, role, email, full_name, member_status, is_active, reg_payment_method,
+                package_id, sponsor_id, referral_code, last_login_at,
+                ewallet_balance, withdrawable_balance, ewallet_sent_today, ewallet_sent_this_week
+           FROM users WHERE role IN ('admin','superadmin') ORDER BY username"
+    )->fetchAll() as $row) {
+        $staff[(string) $row['username']] = [
+            'role'             => (string) $row['role'],
+            'email'            => (string) $row['email'],
+            'full_name'        => (string) $row['full_name'],
+            'member_status'    => (string) $row['member_status'],
+            'is_active'        => (int) $row['is_active'],
+            'payment_method'   => (string) $row['reg_payment_method'],
+            'package_id'       => $row['package_id'] === null ? null : (int) $row['package_id'],
+            'sponsor_id'       => $row['sponsor_id'] === null ? null : (int) $row['sponsor_id'],
+            'referral_code'    => $row['referral_code'] === null ? null : (string) $row['referral_code'],
+            'last_login_at'    => $row['last_login_at'] === null ? null : (string) $row['last_login_at'],
+            'balance'          => $money($row['ewallet_balance']),
+            'withdrawable'     => $money($row['withdrawable_balance']),
+            'sent_today'       => $money($row['ewallet_sent_today']),
+            'sent_this_week'   => $money($row['ewallet_sent_this_week']),
+        ];
+    }
+
+    $settings = $pdo->query('SELECT key_name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since'] as $dynamic) {
+        unset($settings[$dynamic]);
+    }
+
+    ksort($settings, SORT_STRING);
+    $settings = array_map(static fn (mixed $value): string => (string) $value, $settings);
+
+    $products = [];
+
+    foreach ($pdo->query(
+        'SELECT sku, name, price, pv, stock, status, sort_order FROM products ORDER BY sku'
+    )->fetchAll() as $row) {
+        $products[(string) $row['sku']] = [
+            'name'       => (string) $row['name'],
+            'price'      => $money($row['price']),
+            'pv'         => $money($row['pv']),
+            'stock'      => (int) $row['stock'],
+            'status'     => (string) $row['status'],
+            'sort_order' => (int) $row['sort_order'],
+        ];
+    }
+
+    $packages = [];
+
+    foreach ($pdo->query(
+        'SELECT slug, name, price, product_value, direct_referral_bonus, indirect_enabled, status, sort_order
+           FROM packages ORDER BY slug'
+    )->fetchAll() as $row) {
+        $packages[(string) $row['slug']] = [
+            'name'                   => (string) $row['name'],
+            'price'                  => $money($row['price']),
+            'product_value'          => $money($row['product_value']),
+            'direct_referral_bonus'  => $money($row['direct_referral_bonus']),
+            'indirect_enabled'       => (int) $row['indirect_enabled'],
+            'status'                 => (string) $row['status'],
+            'sort_order'             => (int) $row['sort_order'],
+        ];
+    }
+
+    $levels = [];
+
+    foreach ($pdo->query(
+        'SELECT p.slug AS package_slug, l.level, l.amount
+           FROM package_levels l JOIN packages p ON p.id = l.package_id
+          ORDER BY p.slug, l.level'
+    )->fetchAll() as $row) {
+        $levels[(string) $row['package_slug'] . '#L' . (int) $row['level']] = $money($row['amount']);
+    }
+
+    $contents = [];
+
+    foreach ($pdo->query(
+        'SELECT p.slug AS package_slug, pr.sku, pp.quantity
+           FROM package_products pp
+           JOIN packages p ON p.id = pp.package_id
+           JOIN products pr ON pr.id = pp.product_id
+          ORDER BY p.slug, pr.sku'
+    )->fetchAll() as $row) {
+        $contents[(string) $row['package_slug'] . '#' . (string) $row['sku']] = (int) $row['quantity'];
+    }
+
+    $countTables = [
+        'addresses', 'activations', 'cart_items', 'carts', 'commissions',
+        'ewallet_admin_topups', 'ewallet_transfers', 'impersonation_log',
+        'payout_requests', 'remember_tokens', 'shop_invoice_items', 'shop_invoices',
+        'shop_order_events', 'shop_order_items', 'shop_orders', 'shop_payment_proofs',
+        'shop_shipments', 'reg_codes', 'ewallet_ledger',
+    ];
+
+    $counts = [
+        'members' => (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn(),
+    ];
+
+    foreach ($countTables as $table) {
+        $counts[$table] = (int) $pdo->query('SELECT COUNT(*) FROM `' . $table . '`')->fetchColumn();
+    }
+
+    $snapshot = [
+        'staff'    => $staff,
+        'settings' => $settings,
+        'products' => $products,
+        'packages' => $packages,
+        'levels'   => $levels,
+        'contents' => $contents,
+        'counts'   => $counts,
+    ];
+
+    if (!$withDemo) {
+        return $snapshot;
+    }
+
+    $demoMembers = [];
+
+    foreach ($pdo->query(
+        "SELECT u.username, u.role, u.member_status, u.is_active, u.referral_code,
+                sponsor.username AS sponsor_username, pkg.slug AS package_slug,
+                u.ewallet_balance, u.withdrawable_balance
+           FROM users u
+           LEFT JOIN users sponsor ON sponsor.id = u.sponsor_id
+           LEFT JOIN packages pkg ON pkg.id = u.package_id
+          WHERE u.role = 'member'
+          ORDER BY u.username"
+    )->fetchAll() as $row) {
+        $demoMembers[(string) $row['username']] = [
+            'role'          => (string) $row['role'],
+            'member_status' => (string) $row['member_status'],
+            'is_active'     => (int) $row['is_active'],
+            'referral_code' => $row['referral_code'] === null ? null : (string) $row['referral_code'],
+            'sponsor'       => $row['sponsor_username'] === null ? null : (string) $row['sponsor_username'],
+            'package'       => $row['package_slug'] === null ? null : (string) $row['package_slug'],
+            'balance'       => $money($row['ewallet_balance']),
+            'withdrawable'  => $money($row['withdrawable_balance']),
+        ];
+    }
+
+    $demoCodes = [];
+
+    foreach ($pdo->query(
+        "SELECT c.code, c.status, c.code_type, p.slug AS package_slug, c.price,
+                CASE WHEN c.expires_at IS NULL THEN 'none'
+                     WHEN c.expires_at < CURDATE() THEN 'past'
+                     ELSE 'future' END AS expiry
+           FROM reg_codes c JOIN packages p ON p.id = c.package_id
+          ORDER BY c.code"
+    )->fetchAll() as $row) {
+        $demoCodes[(string) $row['code']] = [
+            'status'   => (string) $row['status'],
+            'type'     => (string) $row['code_type'],
+            'package'  => (string) $row['package_slug'],
+            'price'    => $money($row['price']),
+            'expiry'   => (string) $row['expiry'],
+        ];
+    }
+
+    $demoLedger = [];
+
+    foreach ($pdo->query(
+        'SELECT u.username, l.type, l.amount, l.balance_after, l.withdrawable_after, l.ref_type, l.ref_id
+           FROM ewallet_ledger l JOIN users u ON u.id = l.user_id
+          ORDER BY u.username, l.ref_id'
+    )->fetchAll() as $row) {
+        $demoLedger[] = [
+            'user'          => (string) $row['username'],
+            'type'          => (string) $row['type'],
+            'amount'        => $money($row['amount']),
+            'balance_after' => $money($row['balance_after']),
+            'withdrawable'  => $money($row['withdrawable_after']),
+            'ref_type'      => (string) $row['ref_type'],
+            'ref_id'        => (int) $row['ref_id'],
+        ];
+    }
+
+    $snapshot['demo_members'] = $demoMembers;
+    $snapshot['demo_codes']   = $demoCodes;
+    $snapshot['demo_ledger']  = $demoLedger;
+
+    return $snapshot;
+};
+
+/**
+ * Compare two snapshots section by section and print the differences.
+ *
+ * A bare "arrays differ" is useless for a parity gate; the failure names
+ * the section and the expected/actual natural keys (plan IR-7-T4).
+ *
+ * @param array<string, array<string, mixed>> $fresh
+ * @param array<string, array<string, mixed>> $reset
+ */
+$compareSnapshots = static function (array $fresh, array $reset, string $label): void {
+    foreach ($fresh as $section => $expected) {
+        $actual = $reset[$section] ?? null;
+
+        if ($actual === $expected) {
+            continue;
+        }
+
+        if (!is_array($actual)) {
+            fail($label . ': the reset build has no "' . $section . '" section');
+        }
+
+        $diff = [];
+        $keys = array_unique(array_merge(array_keys($expected), array_keys($actual)));
+
+        foreach ($keys as $key) {
+            $hasExpected = array_key_exists($key, $expected);
+            $hasActual   = array_key_exists($key, $actual);
+
+            if (!$hasExpected) {
+                $diff[] = 'extra "' . $key . '" = ' . json_encode($actual[$key]);
+                continue;
+            }
+
+            if (!$hasActual) {
+                $diff[] = 'missing "' . $key . '" (expected ' . json_encode($expected[$key]) . ')';
+                continue;
+            }
+
+            if ($expected[$key] !== $actual[$key]) {
+                $diff[] = '"' . $key . '": expected ' . json_encode($expected[$key])
+                    . ', got ' . json_encode($actual[$key]);
+            }
+        }
+
+        fail(
+            $label . ' — section "' . $section . '" differs ('
+                . count($diff) . ' difference' . (count($diff) === 1 ? '' : 's') . '): '
+                . implode('; ', array_slice($diff, 0, 6))
+                . (count($diff) > 6 ? ' …' : '')
+        );
+    }
+};
+
 return [
     /* ==========================================================
      *  1. Preview
@@ -982,5 +1255,267 @@ return [
 
         assert_same([$newId], $bound, 'every generated code is bound to the re-seeded package');
         assert_same(3, (int) $pdo->query('SELECT COUNT(*) FROM reg_codes')->fetchColumn());
+    },
+
+    /* ==========================================================
+     *  23. Demo reset (IR-7)
+     * ========================================================== */
+    'a demo reset installs the documented tree, wallets and codes' => function () use ($fresh, $service, $byKey): void {
+        [$pdo, $database] = $fresh();
+
+        /* The QA fixture already holds the demo tree: the reset deletes
+         * it with every other member row and installs a fresh copy. That
+         * is the routine the QA box needs between runs. */
+        $report = $service($pdo, $database, ['demo' => true])->run();
+
+        assert_true($report['ok'], json_encode($report['verification']['checks']));
+
+        assert_same(true, $report['demo']['installed']);
+        assert_same(DemoDataService::EXPECTED_MEMBERS, $report['demo']['members']);
+        assert_same(DemoDataService::EXPECTED_CODES, $report['demo']['codes']);
+        assert_same(DemoDataService::EXPECTED_LEDGER_ROWS, $report['demo']['ledger_rows']);
+        assert_same(DemoDataService::PASSWORD, $report['demo']['credentials']);
+        assert_same(
+            ['balance' => '2000.00', 'withdrawable' => '1500.00'],
+            $report['demo']['wallets']['juan']
+        );
+        assert_same(true, $report['options']['demo']);
+
+        assert_same(5, $report['counts_after']['members']);
+        assert_same(3, $report['counts_after']['reg_codes']);
+        assert_same(3, $report['counts_after']['ewallet_ledger']);
+
+        /* The step log carries the demo step. */
+        $steps = [];
+
+        foreach ($report['steps'] as $step) {
+            $steps[(string) $step['key']] = $step;
+        }
+
+        assert_same('ok', $steps['demo']['status']);
+        assert_same(11, (int) $steps['demo']['rows']);
+
+        /* The database itself: tree, wallets, codes and the pending user. */
+        $members = $pdo->query(
+            "SELECT username, role, member_status FROM users WHERE role = 'member' ORDER BY username"
+        )->fetchAll();
+
+        assert_same(
+            ['david', 'juan', 'maria', 'peter', 'sarah'],
+            array_column($members, 'username')
+        );
+
+        $david = $pdo->query("SELECT member_status, package_id FROM users WHERE username = 'david'")->fetch();
+        assert_same('pending', (string) $david['member_status']);
+        assert_null($david['package_id']);
+
+        foreach (DemoDataService::WALLETS as $username => [$balance, $withdrawable]) {
+            $wallet = $pdo->query(
+                'SELECT ewallet_balance, withdrawable_balance FROM users WHERE username = ' . $pdo->quote($username)
+            )->fetch();
+
+            assert_same($balance, number_format((float) $wallet['ewallet_balance'], 2, '.', ''), $username);
+            assert_same($withdrawable, number_format((float) $wallet['withdrawable_balance'], 2, '.', ''), $username);
+        }
+
+        $codes = $pdo->query('SELECT code, status FROM reg_codes ORDER BY code')->fetchAll(PDO::FETCH_KEY_PAIR);
+        assert_same(
+            [
+                'DEMO-EXPD-4C9M' => 'expired',
+                'DEMO-PKGA-2A7K' => 'unused',
+                'DEMO-PKGB-3B8L' => 'unused',
+            ],
+            $codes
+        );
+
+        /* The demo verification check exists and passes. */
+        $checks = $byKey($report['verification']['checks']);
+        assert_true(isset($checks['demo']), 'verification carries the demo check');
+        assert_true($checks['demo']['ok'], 'the demo check passes');
+
+        /* The audit row records that demo data was requested. */
+        $meta = json_decode((string) $pdo->query(
+            "SELECT meta_json FROM audit_log WHERE action = 'system.db_reset' ORDER BY id DESC LIMIT 1"
+        )->fetchColumn(), true);
+
+        assert_same(true, $meta['demo']);
+    },
+
+    /* ==========================================================
+     *  24. Demo + codes coexist, and a later plain reset clears it
+     * ========================================================== */
+    'demo codes and generated codes coexist and a plain reset clears both' => function () use ($fresh, $service): void {
+        [$pdo, $database] = $fresh();
+
+        $report = $service($pdo, $database, ['demo' => true, 'code_qty' => 2])->run();
+
+        assert_true($report['ok'], json_encode($report['verification']['checks']));
+        assert_same(2, $report['codes']['generated']);
+        assert_same(2, count($report['codes']['list']));
+        assert_same(5, (int) $pdo->query('SELECT COUNT(*) FROM reg_codes')->fetchColumn());
+
+        $demoCodes = (int) $pdo->query("SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%'")->fetchColumn();
+        assert_same(3, $demoCodes, 'the three demo codes survive the generated batch');
+
+        foreach ($report['codes']['list'] as $code) {
+            assert_same(1, (int) $pdo->query(
+                'SELECT COUNT(*) FROM reg_codes WHERE code = ' . $pdo->quote($code)
+            )->fetchColumn());
+        }
+
+        /* A plain reset afterwards removes the demo tree too: reset ->
+         * demo -> reset leaves no demo row (IR-7-T5). */
+        $plain = $service($pdo, $database)->run();
+
+        assert_true($plain['ok'], json_encode($plain['verification']['checks']));
+        assert_same(false, $plain['demo']['installed']);
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn());
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM reg_codes')->fetchColumn());
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn());
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david')")->fetchColumn());
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%'")->fetchColumn());
+    },
+
+    /* ==========================================================
+     *  25. Demo refusals write nothing
+     * ========================================================== */
+    'a demo reset is refused in production before any delete' => function () use ($fresh, $service, $tableCounts): void {
+        [$pdo, $database] = $fresh();
+
+        $before = $tableCounts($pdo);
+
+        $error = assert_throws(
+            static fn (): array => $service($pdo, $database, [
+                'demo'             => true,
+                'env'              => 'production',
+                'allow_production' => true,
+            ])->run(),
+            DatabaseToolException::class
+        );
+
+        assert_same(DatabaseToolException::KIND_REFUSED, $error->kind);
+        assert_contains('production', $error->getMessage());
+        assert_same($before, $tableCounts($pdo), 'nothing may change when demo data is refused');
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM audit_log')->fetchColumn());
+    },
+
+    'a demo reset is refused when the default packages are missing' => function () use ($fresh, $service): void {
+        [$pdo, $database] = $fresh();
+
+        /* Keep the catalogue option and remove package-b (its codes must
+         * go first — fk_reg_codes_package is RESTRICT). */
+        $pdo->exec('DELETE FROM reg_codes');
+        $pdo->exec("DELETE FROM packages WHERE slug = 'package-b'");
+
+        $before = [
+            'members' => (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn(),
+            'ledger'  => (int) $pdo->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn(),
+            'packages'=> (int) $pdo->query('SELECT COUNT(*) FROM packages')->fetchColumn(),
+        ];
+
+        $error = assert_throws(
+            static fn (): array => $service($pdo, $database, ['demo' => true])->run(),
+            DatabaseToolException::class
+        );
+
+        assert_same(DatabaseToolException::KIND_REFUSED, $error->kind);
+        assert_contains('package-b', $error->getMessage());
+        assert_same($before, [
+            'members' => (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn(),
+            'ledger'  => (int) $pdo->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn(),
+            'packages'=> (int) $pdo->query('SELECT COUNT(*) FROM packages')->fetchColumn(),
+        ], 'a refused demo request deletes nothing');
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM audit_log')->fetchColumn());
+
+        /* DemoDataService refuses the same catalogue on its own, so the
+         * installer path cannot write active members with a NULL package. */
+        $availability = (new DemoDataService())->available($pdo, false, false);
+
+        assert_false($availability['ok']);
+        assert_contains('package-b', $availability['reason']);
+    },
+
+    /* ==========================================================
+     *  26. Parity: reset == fresh production install (IR-7-T4)
+     * ========================================================== */
+    'reset parity: a default reset equals a fresh production install' => function () use ($build, $service, $naturalSnapshot, $compareSnapshots): void {
+        $productionSeeds = [
+            'database/schema.sql',
+            'database/seeds/001_settings.sql',
+            'database/seeds/002_accounts.sql',
+            'database/seeds/003_products.sql',
+            'database/seeds/004_packages.sql',
+        ];
+
+        [$pdoFresh, $freshDb] = $build('tool_a', $productionSeeds);
+        [$pdoReset, $resetDb] = $build('tool_b', $productionSeeds);
+
+        assert_same('ecowealth_sneat_tool_a_test', $freshDb);
+        assert_same('ecowealth_sneat_tool_b_test', $resetDb);
+
+        $before = $naturalSnapshot($pdoReset);
+
+        /* The reset must change nothing the natural keys can see. */
+        assert_same(
+            0,
+            $before['counts']['members'],
+            'the fresh production install starts without members'
+        );
+
+        $report = $service($pdoReset, $resetDb)->run();
+
+        assert_true($report['ok'], json_encode($report['verification']['checks']));
+
+        $fresh = $naturalSnapshot($pdoFresh);
+        $after = $naturalSnapshot($pdoReset);
+
+        $compareSnapshots($fresh, $after, 'reset vs fresh production install');
+
+        /* Every transactional table is empty in the reset build; the
+         * excluded audit_log/live_revisions are not part of the snapshot. */
+        foreach ($after['counts'] as $table => $count) {
+            assert_same(0, $count, $table . ' must be empty after a reset without demo data');
+        }
+    },
+
+    /* ==========================================================
+     *  27. Parity: reset(catalogue+demo) == fresh QA install
+     * ========================================================== */
+    'reset parity: a catalogue+demo reset equals a fresh QA install' => function () use ($build, $service, $naturalSnapshot, $compareSnapshots): void {
+        [$pdoFresh, $freshDb] = $build('tool_a', [
+            'database/schema.sql',
+            'database/seeds/001_settings.sql',
+            'database/seeds/002_accounts.sql',
+            'database/seeds/003_products.sql',
+            'database/seeds/004_packages.sql',
+            'database/seeds/005_demo_tree.sql',
+        ]);
+
+        [$pdoReset, $resetDb] = $build('tool_b', [
+            'database/schema.sql',
+            'database/seeds/001_settings.sql',
+            'database/seeds/002_accounts.sql',
+            'database/seeds/003_products.sql',
+            'database/seeds/004_packages.sql',
+        ]);
+
+        $report = $service($pdoReset, $resetDb, [
+            'reset_catalogue' => true,
+            'demo'            => true,
+        ])->run();
+
+        assert_true($report['ok'], json_encode($report['verification']['checks']));
+        assert_same(true, $report['demo']['installed']);
+
+        $fresh = $naturalSnapshot($pdoFresh, true);
+        $after = $naturalSnapshot($pdoReset, true);
+
+        $compareSnapshots($fresh, $after, 'reset(catalogue+demo) vs fresh QA install');
+
+        assert_same(5, $after['counts']['members']);
+        assert_same(3, $after['counts']['reg_codes']);
+        assert_same(3, $after['counts']['ewallet_ledger']);
+        assert_same(0, $after['counts']['shop_orders'], 'the demo seed creates no shop order');
+        assert_same(0, $after['counts']['commissions'], 'the demo seed creates no commission');
     },
 ];

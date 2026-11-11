@@ -60,7 +60,7 @@ Usage: php bin/db_reset.php [options]
   --reset-catalogue           Delete and re-seed the starter catalogue (003/004).
   --codes=N                   Generate 0–50 unused registration codes (default 0).
   --code-package=ID           Package bound to the generated codes (default: first active).
-  --demo                      Seed the demo tree (not available yet — plan phase IR-7).
+  --demo                      Also install the demo tree (development/QA only; never production).
   --keep-audit                Keep the audit log (default); the reset row is appended.
   --clear-audit               Delete the audit log before appending the reset row.
   --keep-uploads              Leave proof images on disk (the rows are still deleted).
@@ -283,7 +283,7 @@ function db_reset_print_preview(array $data, bool $dryRun): void
         (int) ($options['code_qty'] ?? 0),
         !empty($options['code_qty']) ? ' (package #' . (string) ($options['code_package'] ?? 'auto') . ')' : '',
         !empty($options['keep_uploads']) ? 'kept' : 'proofs deleted',
-        'no'
+        !empty($options['demo']) ? 'yes' : 'no'
     ));
 
     $lastResetAt = $data['last_reset_at'] ?? null;
@@ -422,6 +422,17 @@ function db_reset_print_report(array $report): void
         foreach (array_chunk($report['codes']['list'], 4) as $chunk) {
             fwrite(STDOUT, '  ' . implode('   ', $chunk) . PHP_EOL);
         }
+    }
+
+    if (!empty($report['demo']['installed'])) {
+        fwrite(STDOUT, PHP_EOL . 'Demo fixtures (development/QA only)' . PHP_EOL);
+        fwrite(STDOUT, sprintf(
+            '  members: %d · codes: %d · ledger rows: %d' . PHP_EOL,
+            (int) ($report['demo']['members'] ?? 0),
+            (int) ($report['demo']['codes'] ?? 0),
+            (int) ($report['demo']['ledger_rows'] ?? 0)
+        ));
+        fwrite(STDOUT, '  sign in: juan / ' . (string) ($report['demo']['credentials'] ?? '') . PHP_EOL);
     }
 
     foreach ($report['warnings'] as $warning) {

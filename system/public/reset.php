@@ -128,6 +128,7 @@ $submitted   = [
     'keep_audit'     => true,
     'keep_uploads'   => false,
     'backup_ack'     => false,
+    'demo'           => false,
 ];
 
 /* "Done" clears the stored report and returns to a clean console. */
@@ -169,6 +170,7 @@ try {
                     'reset_catalogue' => !$submitted['keep_catalogue'],
                     'clear_audit'     => !$submitted['keep_audit'],
                     'keep_uploads'    => (bool) $submitted['keep_uploads'],
+                    'demo'            => (bool) $submitted['demo'],
                 ]);
 
                 unset($_SESSION['db_reset_report']);
@@ -315,6 +317,7 @@ function reset_validate(string $env, string $database, string $expected, array $
         'keep_audit'     => !empty($_POST['keep_audit']),
         'keep_uploads'   => !empty($_POST['keep_uploads']),
         'backup_ack'     => !empty($_POST['backup_ack']),
+        'demo'           => !empty($_POST['demo']),
     ];
 
     if (!csrf_verify(isset($_POST['_csrf']) && is_string($_POST['_csrf']) ? $_POST['_csrf'] : null)) {
@@ -343,9 +346,8 @@ function reset_validate(string $env, string $database, string $expected, array $
         }
     }
 
-    if (!empty($_POST['demo'])) {
-        $errors['demo'] = 'Demo fixtures are not available on the reset path yet (plan phase IR-7). '
-            . 'Run the reset without demo data.';
+    if (!empty($_POST['demo']) && strtolower(trim($env)) === 'production') {
+        $errors['demo'] = 'The demo fixtures cannot be installed in production. Leave the option off on a live site.';
     }
 
     if ($errors !== [] && !isset($errors['_form'])) {
@@ -374,6 +376,7 @@ function reset_submitted_values(array $preview): array
         'keep_audit'     => true,
         'keep_uploads'   => false,
         'backup_ack'     => false,
+        'demo'           => false,
     ];
 
     if (!is_post()) {
@@ -388,6 +391,7 @@ function reset_submitted_values(array $preview): array
         'keep_audit'     => !empty($_POST['keep_audit']),
         'keep_uploads'   => !empty($_POST['keep_uploads']),
         'backup_ack'     => !empty($_POST['backup_ack']),
+        'demo'           => !empty($_POST['demo']),
     ];
 }
 
@@ -449,7 +453,14 @@ function reset_failure_report(string $database, DatabaseToolException $e): array
         'auto_increment' => ['reset' => 0, 'failed' => 0, 'tables' => []],
         'uploads'        => ['deleted' => 0, 'failed' => 0, 'directories' => []],
         'codes'          => ['generated' => 0, 'expected' => 0, 'package' => null, 'package_id' => null, 'list' => []],
-        'demo'           => ['installed' => false, 'members' => 0, 'codes' => 0, 'credentials' => []],
+        'demo'           => [
+            'installed'   => false,
+            'members'     => 0,
+            'codes'       => 0,
+            'ledger_rows' => 0,
+            'wallets'     => [],
+            'credentials' => [],
+        ],
         'verification'   => ['ok' => false, 'checks' => []],
         'warnings'       => [],
         'error'          => [
@@ -739,9 +750,16 @@ function reset_render_console(array $context): void
 
                 <ul class="dbt-dot-list">
                     <li class="dbt-dot dbt-dot--green">settings are kept (plus <code>last_reset_at</code> / <code>last_reset_by</code>)</li>
-                    <li class="dbt-dot dbt-dot--green">
-                        <?= $resetCatalogue ? 'the catalogue is deleted and re-seeded from 003/004' : 'the catalogue is kept as it is' ?>
-                    </li>
+                    <?php if ($resetCatalogue): ?>
+                        <li class="dbt-dot dbt-dot--green">the catalogue is deleted and re-seeded from 003/004</li>
+                    <?php else: ?>
+                        <li class="dbt-dot dbt-dot--green">the catalogue is kept as it is</li>
+                    <?php endif; ?>
+                    <?php if (!empty($submitted['demo'])): ?>
+                        <li class="dbt-dot dbt-dot--green">
+                            the demo tree is installed after the reset (5 members, 3 codes, 3 ledger rows)
+                        </li>
+                    <?php endif; ?>
                     <li class="dbt-dot dbt-dot--green">
                         <?= $clearAudit ? 'the audit log is cleared, then the reset row is written' : 'the audit log is kept, plus one <code>system.db_reset</code> row' ?>
                     </li>
@@ -905,14 +923,18 @@ function reset_render_console(array $context): void
                         </div>
 
                         <?php if (!$production): ?>
-                            <div class="dbt-check dbt-check--disabled">
-                                <input type="checkbox" id="f-demo" name="demo" value="1" disabled>
+                            <div class="dbt-check">
+                                <input type="checkbox" id="f-demo" name="demo" value="1"
+                                    <?= !empty($submitted['demo']) ? 'checked' : '' ?>
+                                    <?= !$ready ? 'disabled' : '' ?>>
                                 <div class="dbt-check__text">
                                     <label for="f-demo">Seed the demo tree</label>
                                     <small>
-                                        Demo members, wallets and codes arrive in plan phase IR-7. This build refuses
-                                        the option; import <code>database/seeds/005_demo_tree.sql</code> on a test site
-                                        instead.
+                                        Development/QA only. After the reset, installs the demo sponsor tree
+                                        (<code>juan</code> &rarr; <code>maria</code> &rarr; <code>peter</code> /
+                                        <code>sarah</code> / <code>david</code>), three wallets with their ledger rows
+                                        and three sample codes. Every demo member signs in with <code>Demo@1234</code>.
+                                        Requires the default packages; refused in production.
                                     </small>
                                 </div>
                             </div>
@@ -1026,6 +1048,7 @@ function reset_render_report(array $report, string $database, string $env, strin
     $warnings      = (array) ($report['warnings'] ?? []);
     $codes         = (array) ($report['codes'] ?? []);
     $codeList      = (array) ($codes['list'] ?? []);
+    $demo          = (array) ($report['demo'] ?? []);
     $countsBefore  = (array) ($report['counts_before'] ?? []);
     $countsAfter   = (array) ($report['counts_after'] ?? []);
     $staffNames    = array_values(array_map('strval', (array) ($report['staff']['usernames'] ?? [])));
@@ -1099,6 +1122,27 @@ function reset_render_report(array $report, string $database, string $env, strin
             </dl>
         </div>
     </section>
+
+    <?php if (!empty($demo['installed'])): ?>
+        <section class="dbt-card" aria-labelledby="demo-title">
+            <div class="dbt-card__head">
+                <h2 class="dbt-card__title" id="demo-title">&#127793; Demo fixtures</h2>
+                <span class="dbt-badge dbt-badge--info">Development only</span>
+            </div>
+            <div class="dbt-card__body">
+                <?php reset_alert(
+                    'info',
+                    'The demo tree was installed',
+                    (int) ($demo['members'] ?? 0) . ' members, ' . (int) ($demo['codes'] ?? 0)
+                        . ' registration codes and ' . (int) ($demo['ledger_rows'] ?? 0) . ' ledger rows were created. '
+                        . 'The sponsor chain is admin &rarr; juan &rarr; maria &rarr; peter/sarah/david; david stays '
+                        . 'pending for the activation tests.',
+                    'Every demo member signs in with <code>' . reset_e((string) ($demo['credentials'] ?? ''))
+                        . '</code>. Never leave this data on a production site.'
+                ); ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <?php if ($steps !== []): ?>
         <section class="dbt-card" aria-labelledby="steps-title">

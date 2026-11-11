@@ -115,8 +115,12 @@ files below.
 
 | File | What it proves |
 |---|---|
-| `reset-demo.txt` | `--demo` run: 5 members, 3 codes, 3 ledger rows created; refused in production. |
-| `parity-reset-vs-install.txt` | Natural-key comparison of a reset schema against a fresh install bundle (staff, settings, catalogue, packages). |
+| `reset-demo.txt` | `--demo` run on a clean scratch install: the demo step creates 5 members / 3 codes / 3 ledger rows, the verification's Demo fixtures row passes (wallets 2000/1500, 1000/800, 500/400; david pending), the production request is refused before any delete with the state unchanged, and the same refusals are asserted in `ir7-suite.log`. |
+| `parity-reset-vs-install.txt` | Natural-key comparison of a reset schema against a fresh install bundle: both cases (reset ≡ fresh production install, reset(catalogue+demo) ≡ fresh QA install) match on staff, settings, products, packages, levels, contents and — in case 2 — the demo members, codes and ledger rows, with the excluded keys named. |
+| `reset-demo-genealogy.png` | `juan` (the documented demo password) signed in after the reset: `/genealogy` renders the tree `juan → maria → peter/sarah/david` with david pending and package A. Headless Chrome, 1440 px wide. |
+| `reset-demo-earnings.png` | The same demo session on `/earnings`: the unilevel breakdown and the empty awards table (the demo seed funds wallets and codes, not commissions). Headless Chrome, 1440 px wide. |
+| `ir7-suite.log` | Full `php tests/run.php` output behind the gate: `Cases: 816   Passed: 816   Failed: 0`, exit 0 (808 existing + 2 `InstallTest` + 6 `DbResetTest` new cases). |
+| `ir7-smoke.log` | Full `tests/smoke.ps1` run against the Apache app after the demo changes: `Passed: 195   Failed: 0`, exit 0, including the IR-4/IR-6 tool probes (the pages gained only the demo option/report card; no gate changed). |
 
 ### IR-8 — hardening, docs and go-live
 

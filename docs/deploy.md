@@ -178,10 +178,12 @@ It is **fresh-install only**: a non-empty schema is refused by a guard
 created. If phpMyAdmin was allowed to continue after that error, drop the database and
 recreate it rather than re-running the bundle.
 
-Do **not** import `<app>/database/seeds/005_demo_tree.sql` on a production site. It
-creates the demo sponsor tree (`juan`, `maria`, `peter`, `sarah`, `david`), demo wallets
-and sample registration codes. Import it only on a test site, then remove the demo data
-before go-live.
+Do **not** import `<app>/database/seeds/005_demo_tree.sql` on a production site, and never
+pass `--with-demo` / tick the demo option when the environment is production: both
+installers and the reset console refuse it. The seed creates the demo sponsor tree
+(`juan`, `maria`, `peter`, `sarah`, `david`), demo wallets and sample registration codes
+(`DEMO-*`). Import it only on a test site; the go-live checklist (§12) checks that no demo
+user or `DEMO-%` code survived.
 
 The staff accounts start with the published defaults (`admin` / `Admin@123`,
 `superadmin` / `Super@123`). Change both passwords immediately after the first sign-in
@@ -723,7 +725,9 @@ Before calling the site live:
       a change window, set the constant back to `false` in the same step.
 - [ ] Change the `admin` password. Use **Profile → Change password**.
 - [ ] Sign in as `superadmin` and change that password too.
-- [ ] Remove demo members if you imported `005_demo_tree.sql`.
+- [ ] Confirm no demo data leaked into production:
+      `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
+      and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
 - [ ] Remove `system/tests/`, `docs/`, `dmp/` and `backups/` from the server if they
@@ -737,10 +741,12 @@ Before calling the site live:
 
 ### Remove the demo data
 
-If you imported `005_demo_tree.sql` for testing, do not leave the demo accounts and
-wallets on the production site. The cleanest approach is to rebuild the database from
-`schema.sql` + seeds **without** `005_demo_tree.sql`, then import only the real data.
-Deleting demo rows by hand is possible but easy to get wrong because of foreign keys.
+If demo fixtures were installed for testing (`--with-demo`, the installer checkbox, a reset
+with `--demo`, or a manual `005_demo_tree.sql` import), do not leave the demo accounts and
+wallets on the production site. A reset **without** `--demo` clears them together with
+every other member row; the alternative is to rebuild the database from `schema.sql` +
+seeds **without** `005_demo_tree.sql`, then import only the real data. Deleting demo rows by
+hand is possible but easy to get wrong because of foreign keys.
 
 ---
 
@@ -868,7 +874,8 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 - [ ] Login works; admin dashboard opens.
 - [ ] Product list opens; image upload and save work.
 - [ ] Two-tab live update works.
-- [ ] Default passwords changed; demo data removed.
+- [ ] Default passwords changed; no demo users (`juan`, `maria`, `peter`, `sarah`, `david`)
+      and no `DEMO-%` codes (the two queries in §12 return `0`).
 - [ ] `public/install.php` and `public/reset.php` deleted; both tool URLs return 404.
 - [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a guided installer was used.
 - [ ] Database and uploads backed up.

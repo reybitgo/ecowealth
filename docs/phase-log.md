@@ -3733,3 +3733,70 @@ production gating and PRG.
 
 IR-7 — demo fixtures and parity: `DemoDataService`, the `--demo` / checkbox wiring on both
 installers and the reset console, and the reset ≡ fresh-install natural-key comparisons.
+
+---
+
+## IR-7 — Demo fixtures and reset/install parity (2026-11-12)
+
+**Status:** complete · **Tag:** `ir-7` · **Branch:** `feature/shop` · **No route or controller touched.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-7, D-IR-13, §7.5. This phase turns the
+demo seed from "one import away from production" (F-07) into a deliberate, gated option on
+both installers and the reset engine, and proves that a reset reproduces a fresh install
+on every natural key — with and without the demo tree.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/app/Services/DemoDataService.php` (preconditions, seed import, tree/wallet/code verification); `system/app/Services/DatabaseInstaller.php` (`with_demo` pre-bundle gate, post-import demo step, `demo_rows`/`demo_wallets` verification, report `demo` block); `system/app/Services/DatabaseResetService.php` (`--demo` preflight before any delete, post-commit demo step in its own transaction, demo-aware verification/codes expectations/audit/plan/report); `system/bin/db_install.php` + `system/bin/db_reset.php` (help, demo report lines); `system/public/install.php` (enabled checkbox + demo card); `system/public/reset.php` (enabled checkbox, production guard, demo report card); `system/tests/Cases/InstallTest.php` (+2); `system/tests/Cases/DbResetTest.php` (+6); `system/README.md`, `docs/deploy.md`; evidence under `docs/qa/evidence/install-reset/`. |
+| **One seed, no copy** | `DemoDataService::install()` runs the real `database/seeds/005_demo_tree.sql` (17 statements) through `SqlScript`; `003_products.sql` / `004_packages.sql` are still the only catalogue source. No demo value is duplicated in PHP. |
+| **Gates** | `available()` refuses production, a missing seed, a catalogue without `package-a`/`package-b` (unless the caller is about to re-seed it) and — when the caller asks — a database that already holds demo usernames, any member row or any business row. `audit_log` and `live_revisions` are excluded because a reset writes them itself. The installer calls it before the bundle (environment/seed/emptiness) and again on the imported schema (catalogue) before writing a row; the reset calls it in the preflight, before the first `DELETE`. |
+| **Demo step** | After the main commit and before code generation, in its own transaction (T2, plan §5.11): a failure rolls the demo batch back, records `demo: fail`, adds a warning and leaves verification expecting the non-demo state. A refused precondition in that re-check (the `--reset-catalogue` + customized-seed residual case) is a warning, never a half tree. |
+| **Report** | The `demo` block on both tools: `installed`, `members`, `codes`, `ledger_rows`, `wallets` (balance/withdrawable per username), `credentials` (`Demo@1234`). The CLI prints a demo summary; the web console and the installer render a blue "demo fixtures" card with the credentials. Passwords never appear. |
+| **Verification** | A reset without demo still asserts zero members/codes/ledger rows. With demo it expects 5 members, 3 codes (the generated batch adds to them), 3 ledger rows and adds a `demo` verification row that re-checks the tree, wallets, pending `david` and the code states through `DemoDataService::verify()`. The installer adds `demo_wallets` beside the existing `demo_rows`. |
+| **Parity** | Two automated cases compare by natural key (ids/timestamps never): **reset ≡ fresh production install** (staff, settings, products, packages, levels, contents, zero transactional rows) and **reset(catalogue+demo) ≡ fresh QA install** (those plus the five demo members, three codes and three ledger rows). `audit_log`, `live_revisions`, `last_reset_*` and the dynamic `commission_ledger_since` are excluded by design. A differing section prints the expected/actual natural-key map in the failure message. |
+| **Tests** | `php tests/run.php DbReset` → **28/28**; `php tests/run.php Install` → **15/15**; full suite → **Cases: 816   Passed: 816   Failed: 0**, exit 0 (808 existing + 8 new). Evidence: `docs/qa/evidence/install-reset/ir7-suite.log`. |
+| **Manual acceptance** | `reset-demo.txt`: a `--reset-catalogue --demo` reset on a clean scratch install creates 5 members / 3 codes / 3 ledger rows, the 13-check verification passes including "Demo fixtures", the production request is refused with the state unchanged, and `juan` / `Demo@1234` opens `/genealogy` (tree `juan → maria → peter/sarah/david`, david pending) and `/earnings` — `reset-demo-genealogy.png`, `reset-demo-earnings.png`. `parity-reset-vs-install.txt`: both natural-key comparisons match (44 settings, 7 products, 2 packages, 18 levels, 10 contents, 5 members, 3 codes, 3 ledger rows). |
+| **Gate** | Demo data appears only through `--demo` / the checkbox and only outside production; a reset without demo leaves no member, code or ledger row; both parity cases pass by natural key; an inconsistent catalogue is refused instead of writing active members with a NULL package. |
+
+### Notes and deviations
+
+- **The installer cannot check the catalogue before the bundle.** A fresh target has no
+  `packages` table yet (and may not exist at all with `--create-database`), so the
+  pre-bundle gate checks the environment, the seed file and — when the schema exists —
+  that it holds no business rows. The catalogue check re-runs on the imported schema, and
+  a missing default package refuses there before any demo row (plan IR-7-T2). A refused
+  install at that point has a schema but no lock; the documented recovery is drop and
+  re-install.
+- **`available()` treats "no packages table" as "the bundle will provide them".** That is
+  what makes the pre-bundle call work; an installed database that lost a default package
+  is still refused, which is the exit criterion ("refuses an inconsistent catalogue
+  instead of writing active members with a NULL package").
+- **`users` is part of the emptiness test, not only the five usernames.** A target holding
+  any member row is refused, so a second `--demo` cannot merge into an existing tree
+  (IR-7-T5). The reset does not use that mode (`requireEmpty=false`): it has just deleted
+  every member and authenticated the staff rows.
+- **The demo step is post-commit, not inside T1.** Plan §5.11 classifies the demo install
+  as a T2 post-step; it therefore has its own transaction and cannot un-reset the
+  database. A failure reports "reset succeeded; demo not installed" and verification
+  falls back to the non-demo expectations.
+- **Generated codes and demo codes coexist.** `codes_expected` becomes
+  `requested + 3` when the demo installed, and the "all unused/package-bound" assertion is
+  skipped for the demo run because `DEMO-EXPD-4C9M` is deliberately `expired`. The
+  automated case proves 3 demo + 2 generated = 5 rows.
+- **Parity excludes two dynamic settings.** `commission_ledger_since` is written with
+  `NOW()` by seed 001 and `install_completed_at` (when the bundle is used as the build
+  source) would differ by seconds; both are excluded and named in the evidence transcript.
+  Catalogue/seed comparisons use `sku`/`slug`/`level`/`username`/`code` only — never ids
+  (D-IR-15).
+- **The web checkbox is rendered only outside production.** A crafted `with_demo`/`demo`
+  POST in production is a field error *and* the service refuses; the production reset
+  console has no demo control at all. The reset console validates `demo` before the
+  confirmation, so a refused request writes nothing.
+- **No application runtime path changed.** The edits are the two services, the two CLI
+  front-ends, the two standalone tool pages, the tests and the docs; `app/routes.php`,
+  the controllers, the views and the layout are untouched (D-IR-17).
+
+### Next
+
+IR-8 — hardening, documentation, go-live and sign-off: the full doc pass (README/deploy/
+runbook/QA), the security review, the go-live checklist and the sign-off sheet.

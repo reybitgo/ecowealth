@@ -29,8 +29,9 @@ declare(strict_types=1);
  *    • audit is kept and one `system.db_reset` row is appended;
  *    • live revisions are bumped inside the transaction so every open
  *      page sees a change after a committed reset;
- *    • AUTO_INCREMENT, upload cleanup and registration codes run after
- *      the commit and are reported separately, never mixed into it;
+ *    • AUTO_INCREMENT, upload cleanup, the optional demo tree (IR-7) and
+ *      registration codes run after the commit and are reported
+ *      separately, never mixed into it;
  *    • verification (four reconciliations + invariants) is mandatory:
  *      a reset that cannot prove its result reports ok=false.
  *
@@ -395,6 +396,20 @@ final class DatabaseResetService
                 . 'DB_RESET_ENABLED=true.';
         }
 
+        if ($options['demo']) {
+            try {
+                $availability = (new DemoDataService($this->appRoot))
+                    ->available($this->pdo, false, $options['reset_catalogue'], $options['env']);
+
+                if (!$availability['ok']) {
+                    $warnings[] = 'The demo fixtures cannot be installed: ' . $availability['reason'];
+                }
+            } catch (Throwable $e) {
+                error_log('[ecowealth] reset preview demo check failed: ' . $e->getMessage());
+                $warnings[] = 'The demo fixtures could not be checked; see the PHP error log.';
+            }
+        }
+
         if (!$options['keep_uploads']) {
             $proofs = $this->uploadsRoot() . '/proofs';
 
@@ -599,6 +614,21 @@ final class DatabaseResetService
                 );
             }
 
+            /* ---- Demo preconditions, before any delete ------------ */
+            if ($options['demo']) {
+                $availability = (new DemoDataService($this->appRoot))
+                    ->available($this->pdo, false, $options['reset_catalogue'], $options['env']);
+
+                if (!$availability['ok']) {
+                    throw DatabaseToolException::refused(
+                        'The demo fixtures cannot be installed: ' . $availability['reason'] . ' Nothing was deleted.',
+                        ['database' => $database, 'demo' => true],
+                        'Fix the environment or the catalogue, or run the reset without --demo. A demo request '
+                            . 'never merges into an existing tree.'
+                    );
+                }
+            }
+
             /* ---- Resolve the code package before any delete ------ */
             [$codePackage, $codeWarnings] = $this->resolveCodePackage($options);
             $this->warnings = array_merge($this->warnings, $codeWarnings);
@@ -720,6 +750,75 @@ final class DatabaseResetService
                 }
             }
 
+            /* ---- 22: demo tree (after the commit, before the codes) --- */
+            $t    = microtime(true);
+            $demo = [
+                'installed'   => false,
+                'members'     => 0,
+                'codes'       => 0,
+                'ledger_rows' => 0,
+                'wallets'     => [],
+                'credentials' => [],
+            ];
+
+            if (!$options['demo']) {
+                $this->beginStep('demo', 'Install the demo tree');
+                $this->recordStep('demo', 'Install the demo tree', 'skip', 0, self::ms($t));
+            } else {
+                $this->beginStep('demo', 'Install the demo tree');
+
+                try {
+                    $demoService  = new DemoDataService($this->appRoot);
+                    $availability = $demoService->available(
+                        $this->pdo,
+                        false,
+                        $options['reset_catalogue'],
+                        $options['env']
+                    );
+
+                    /* The preflight above trusted the catalogue reset to
+                     * provide the packages. If a customized seed set did
+                     * not, this re-check refuses before a single demo row
+                     * is written: the reset stays committed and the demo
+                     * step reports a warning (plan 7.5). */
+                    if (!$availability['ok']) {
+                        throw DatabaseToolException::refused(
+                            $availability['reason'],
+                            ['database' => $database, 'demo' => true],
+                            'The database is reset; no demo row was written. Import the standard catalogue '
+                                . '(003/004) or run the reset again with --reset-catalogue.'
+                        );
+                    }
+
+                    $demo              = $demoService->install($this->pdo);
+                    $demo['installed'] = true;
+
+                    $this->recordStep(
+                        'demo',
+                        'Install the demo tree',
+                        'ok',
+                        $demo['members'] + $demo['codes'] + $demo['ledger_rows'],
+                        self::ms($t)
+                    );
+                } catch (Throwable $e) {
+                    error_log('[ecowealth] reset demo step failed: ' . $e->getMessage());
+
+                    $this->warnings[] = 'The reset succeeded, but the demo fixtures could not be installed: '
+                        . $e->getMessage() . ' No demo row was left behind.';
+
+                    $this->recordStep('demo', 'Install the demo tree', 'fail', 0, self::ms($t), 'See warnings.');
+
+                    $demo = [
+                        'installed'   => false,
+                        'members'     => 0,
+                        'codes'       => 0,
+                        'ledger_rows' => 0,
+                        'wallets'     => [],
+                        'credentials' => [],
+                    ];
+                }
+            }
+
             /* ---- 23: registration codes (own transaction) ------------ */
             $t = microtime(true);
 
@@ -760,14 +859,17 @@ final class DatabaseResetService
             }
 
             /* ---- 24: verification ------------------------------------ */
+            $demoInstalled = (bool) $demo['installed'];
+
             $this->lastRun = [
-                'members_expected'   => 0,
-                'codes_expected'     => $codeTarget === null ? 0 : $options['code_qty'],
+                'members_expected'   => $demoInstalled ? DemoDataService::EXPECTED_MEMBERS : 0,
+                'codes_expected'     => ($codeTarget === null ? 0 : $options['code_qty'])
+                    + ($demoInstalled ? DemoDataService::EXPECTED_CODES : 0),
                 'catalogue_reset'    => $options['reset_catalogue'],
                 'catalogue_before'   => $this->state['catalogue_before'] ?? null,
                 'reset_audit_before' => $this->state['reset_audit_before'] ?? null,
                 'audit_cleared'      => $options['clear_audit'],
-                'demo'               => false,
+                'demo'               => $demoInstalled,
             ];
 
             $t = microtime(true);
@@ -818,7 +920,7 @@ final class DatabaseResetService
                 ],
                 'uploads'        => $uploads,
                 'codes'          => $codes,
-                'demo'           => ['installed' => false, 'members' => 0, 'codes' => 0, 'credentials' => []],
+                'demo'           => $demo,
                 'verification'   => ['ok' => $verification['ok'], 'checks' => $verification['checks']],
                 'warnings'       => array_values(array_unique($this->warnings)),
             ];
@@ -964,7 +1066,7 @@ final class DatabaseResetService
             'counts_after'   => $countsForAudit,
             'catalogue_reset' => (bool) $options['reset_catalogue'],
             'codes'          => (int) $options['code_qty'],
-            'demo'           => false,
+            'demo'           => (bool) $options['demo'],
             'audit_cleared'  => (bool) $options['clear_audit'],
             'duration_ms'    => self::ms($started),
         ];
@@ -1441,6 +1543,32 @@ final class DatabaseResetService
                 . 'and bound to a package.'
         );
 
+        /* ---- Demo fixtures (plan IR-7-T1) ------------------------- */
+        if ($demo) {
+            $demoOk     = false;
+            $demoDetail = 'the demo verification could not run';
+
+            try {
+                $demoVerify = (new DemoDataService($this->appRoot))->verify($this->pdo);
+                $demoOk     = $demoVerify['ok'];
+                $demoDetail = implode('; ', array_map(
+                    static fn (array $check): string => (string) $check['detail'],
+                    $demoVerify['checks']
+                ));
+            } catch (Throwable $e) {
+                error_log('[ecowealth] reset demo verification failed: ' . $e->getMessage());
+            }
+
+            $checks[] = self::check(
+                'demo',
+                'Demo fixtures',
+                $demoOk,
+                $demoDetail,
+                'The demo tree must hold five members (juan, maria, peter, sarah, david), three demo codes, '
+                    . 'three ledger rows and the funded wallets; david stays pending.'
+            );
+        }
+
         /* ---- Audit ------------------------------------------------ */
         $auditRows  = in_array('audit_log', $tables, true) ? $this->countRows('audit_log') : 0;
         $resetRows  = $this->countResetAuditRows();
@@ -1678,15 +1806,6 @@ final class DatabaseResetService
      */
     private function assertRunnable(array $options, string $database): void
     {
-        if ($options['demo']) {
-            throw DatabaseToolException::usage(
-                'Demo fixtures are not available on the reset path yet.',
-                ['demo' => true],
-                'The demo tree (seeds/005_demo_tree.sql) is wired into the tools in plan phase IR-7. '
-                    . 'Run the reset without demo data and import the seed by hand on a test site if you need it now.'
-            );
-        }
-
         if ($options['code_qty'] < 0 || $options['code_qty'] > self::MAX_CODES) {
             throw DatabaseToolException::usage(
                 'The registration-code quantity must be between 0 and ' . self::MAX_CODES . '.',
@@ -1860,7 +1979,7 @@ final class DatabaseResetService
             'reset_catalogue'  => $options['reset_catalogue'],
             'code_qty'         => $options['code_qty'],
             'code_package'     => $options['code_package'],
-            'demo'             => false,
+            'demo'             => $options['demo'],
             'keep_audit'       => $options['keep_audit'],
             'clear_audit'      => $options['clear_audit'],
             'keep_uploads'     => $options['keep_uploads'],
@@ -1939,6 +2058,13 @@ final class DatabaseResetService
             'statements' => 0,
         ];
         $plan[] = [
+            'key'        => 'demo',
+            'label'      => $options['demo']
+                ? 'Install the demo tree (after commit)'
+                : 'Do not install the demo tree',
+            'statements' => $options['demo'] ? $this->demoStatementCount() : 0,
+        ];
+        $plan[] = [
             'key'        => 'codes_generate',
             'label'      => 'Generate registration codes (after commit)',
             'statements' => $options['code_qty'] + ($options['code_qty'] > 0 ? 1 : 0),
@@ -1946,6 +2072,24 @@ final class DatabaseResetService
         $plan[] = ['key' => 'verify', 'label' => 'Verify the reset (read-only)', 'statements' => 0];
 
         return $plan;
+    }
+
+    /**
+     * The statements the demo seed contains, for the dry-run plan.
+     *
+     * A missing/unreadable seed is not fatal to a dry run: the demo step
+     * would refuse at run time, so the plan shows zero and the preview
+     * warning explains it.
+     */
+    private function demoStatementCount(): int
+    {
+        try {
+            return count(SqlScript::fromFile((new DemoDataService($this->appRoot))->seedPath())->statements());
+        } catch (Throwable $e) {
+            error_log('[ecowealth] reset plan could not read the demo seed: ' . $e->getMessage());
+
+            return 0;
+        }
     }
 
     /* ==========================================================
