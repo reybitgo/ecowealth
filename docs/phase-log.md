@@ -3305,3 +3305,45 @@ areas but there was no way to jump to one, and the **Fulfilment & invoices** car
 No migration. The card forms, their `section` markers and the live regions are unchanged; the menu
 is static markup outside every form and held region.
 
+
+---
+
+## IR-0 — Contract, baseline and safety rails (2026-11-11)
+
+**Status:** complete · **Baseline commit:** `0ced89e` · **Tag:** `ir-0` · **Branch:** `feature/shop` · **No application code changed.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-0. This is the first phase of the install/reset
+workstream (IR-0 … IR-8); it records the exact starting point and protects the development database
+before any later phase writes PHP. IR-1 is the first phase with code.
+
+| Item | Record |
+|---|---|
+| **Baseline** | `docs/qa/evidence/install-reset/baseline.txt` — Windows 11 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3 · `ecowealth_sneat` · 27 tables · 4,287 rows · 45 settings · 19 migrations · HEAD `0ced89e`. |
+| **Test suite** | `php tests/run.php` (from `system/`) → **Cases: 724   Passed: 724   Failed: 0**, exit 0, 18:24:40–18:29:49 +08:00. Raw log: `docs/qa/evidence/install-reset/baseline-suite.log`. |
+| **Backup** | `backups/pre-install-reset-20261111.sql` — 588,383 bytes, sha256 `8d89eab7…`, `mysqldump --single-transaction --routines --triggers --no-tablespaces`, exit 0. Git-ignored; never uploaded. |
+| **Restore drill** | Rebuilt `ecowealth_sneat_restore_test`, imported with `mysql … SOURCE` (exit 0): 27/27 tables, 4,287/4,287 rows, identical column counts; scratch schema dropped after the drill. Transcript: `docs/qa/evidence/install-reset/db-backup.txt`. |
+| **Contract freeze** | D-IR-01 … D-IR-18 reviewed unchanged; file names (§5.2), CLI flags/exit codes (Appendix C) and report/lock shapes (Appendix D) frozen. Sign-off appended to the plan under "IR-0 sign-off — contract freeze". |
+| **Evidence convention** | `docs/qa/evidence/install-reset/README.md` fixes the IR-2…IR-8 file names and the "one file per gate state" rule. |
+| **Ignore rule** | `.gitignore` now ignores `system/storage/install.lock` (the installer writes it from IR-3). |
+| **Gate** | Suite green; dump verified; baseline committed; `system/app`, `bin`, `public`, `database` and `tests` untouched (`git status` empty for those paths). |
+
+### Baseline deviations (recorded, not fixed)
+
+- **IR-0-F1 — 724 cases, not 722.** The plan's expected baseline says 722, but commit `0ced89e`
+  ("admin menu nav tabs") added two `SettingsPageTest` cases after that count was taken; the
+  Post-Phase 15 entry above records "Suite 722 → 724". Later IR phases use **724** as the existing
+  count. Stale "722" strings in `system/README.md` and `docs/qa/README.md` are IR-8 documentation
+  work; Phase 15 evidence is not rewritten.
+- **IR-0-F2 — the development schema is a QA database, not a fresh install.** It holds 10 products /
+  4 packages / 36 levels / 12 contents / 24 members / 16 orders / 19 codes / 1,814 audit rows. The
+  reset work (IR-5/IR-6) must run on a scratch `_test` schema, never on `ecowealth_sneat`.
+- **IR-0-F3 — scratch tool schemas do not exist yet.** `ecowealth_sneat_tool_a_test` /
+  `ecowealth_sneat_tool_b_test` must be provisioned once by an admin account for IR-1-T4: the
+  `ecowealth` user has `ALL` on individual schemas but no `CREATE DATABASE` privilege.
+- **F-01 reproduced.** Development settings 45 vs seed settings 44, and `commission_ledger_since`
+  exists only in the development schema (migration 012, not seed 001) — the parity fix lands in IR-2.
+
+### Next
+
+IR-1 — shared database plumbing (`DbTarget`, `SqlScript`, `DatabaseToolException`, scratch-DB test
+helpers); no application behaviour changes.

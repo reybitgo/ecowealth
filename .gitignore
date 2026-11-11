@@ -17,10 +17,16 @@ system/storage/logs/*
 system/storage/locks/*
 !system/storage/locks/.gitkeep
 
+# Install lock written by the CLI/web installers (IR-3); runtime state, never committed
+system/storage/install.lock
+
 # Logs and one-off dumps
 *.log
 backup_*.sql
 backups/
+
+# Exception: committed QA evidence transcripts are evidence, not runtime logs
+!docs/qa/evidence/**/*.log
 
 # Test scratch space
 tests/tmp/
