@@ -1,0 +1,154 @@
+2026-11-11 21:20:00 +08:00 — IR-4 web installer acceptance
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+App: system/ · plan dmp/plan-ecowealth-install-reset.md §IR-4
+Screenshots: headless Chrome 157.0.8103.40 through the DevTools protocol
+  · 1440×900 viewport captures, plus tall full-page captures where noted
+  · 390×844 mobile capture uses Emulation.setDeviceMetricsOverride (Chrome's
+    --window-size cannot go below 500 px on Windows; the device override is
+    the only way to get a true 390 px layout)
+  · The headless window has no OS address bar; the URL is recorded here.
+Driver: local CDP scripts (capture.mjs, submit.mjs, throttle.mjs) run from the
+  system temp folder; they are not part of the repository. Every page and POST
+  below answered HTTP 200. The successful install reported "Installation
+  complete"; every refused POST reported "Nothing was written".
+
+Scratch schemas (manual, created as root and granted to the app user)
+  ecowealth_sneat_install_web_test       development evidence, empty then installed
+  ecowealth_sneat_install_web_prod_test  production-mode evidence, kept empty
+Neither is ecowealth_sneat or ecowealth_sneat_test.
+
+----------------------------------------------------------------
+1. Preflight on an empty schema (development)
+----------------------------------------------------------------
+GET http://127.0.0.1:8099/install.php
+Exit: 0 · HTTP 200 · 15 preflight checks, all PASS
+  PHP version              8.3.16
+  pdo_mysql extension      loaded
+  fileinfo extension       loaded
+  mbstring extension       loaded
+  json extension           loaded
+  config.local.php         app/config.local.php is readable
+  MySQL server             connected — MySQL 8.4.3
+  Database name            ecowealth_sneat_install_web_test
+  Database exists          ecowealth_sneat_install_web_test exists
+  Database empty           no tables — ready for the bundle
+  install.sql              54 statements, 63,695 bytes
+  Storage writable         storage is writable
+  Lock directory           storage is writable
+  Install lock             storage/install.lock is absent
+  INSTALL_KEY              not required outside production
+
+Evidence: install-preflight.png (1440×900, checks 1–12 visible),
+          install-preflight-details.png (1440×1500, all 15 checks + form),
+          install-mobile.png (390×844), install-mobile-full.png (390×full page).
+
+----------------------------------------------------------------
+2. Install through the browser (development)
+----------------------------------------------------------------
+The page's own form was submitted in a browser session (site name
+"EcoWealth Web Install"; operator-chosen admin and superadmin usernames,
+emails and 16-character passwords). The submitted key is not required
+outside production and is not recorded in this log.
+
+HTTP 200 · "Installation complete" · VERIFIED
+  tables      27
+  settings    48
+  staff        2
+  members      0
+  products     7
+  packages     2
+  levels      18
+  contents    10
+  codes        0
+Verification: 10/10 PASS (tables, settings, staff accounts, staff sign-in,
+members, catalogue, registration codes, transactional emptiness, install
+metadata, install lock).
+Database after the run: 27 tables · 48 settings · 2 users.
+Settings: install_channel = web · install_completed_at = 2026-11-11 21:19:58.
+storage/install.lock:
+{
+    "installed_at": "2026-11-11T21:19:59+08:00",
+    "database": "ecowealth_sneat_install_web_test",
+    "app_version": "1.0.0",
+    "install_sql_sha256": "3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb",
+    "staff": ["admin", "superadmin"],
+    "channel": "web"
+}
+The success page lists both account usernames and emails, never the
+passwords. It contains no DSN, no password, no install key, no SQLSTATE.
+
+Evidence: install-success.png (1440×900), install-success-full.png
+          (1440×2153: counts, accounts, verification, next steps).
+
+----------------------------------------------------------------
+3. Reopening the installer
+----------------------------------------------------------------
+GET http://127.0.0.1:8099/install.php
+HTTP 200 · "Already installed" · "This installation is already locked"
+No form is rendered. The lock's database, installed_at, channel, app
+version, staff list and bundle checksum are shown. Reopening the URL did
+not install again and did not change the lock.
+
+Evidence: install-locked.png (1440×900).
+
+----------------------------------------------------------------
+4. Non-empty database with the lock removed
+----------------------------------------------------------------
+storage/install.lock was moved aside; the schema stayed installed.
+GET http://127.0.0.1:8099/install.php
+HTTP 200 · "Database not empty" · "This database is already installed"
+"The fresh-install bundle was not run" / "already contains tables (27 tables)".
+No form is rendered; the page points at the migrations and at a drop/recreate.
+The 27-table schema was not modified by the request.
+
+Evidence: install-nonempty.png (1440×900).
+
+----------------------------------------------------------------
+5. Production without INSTALL_KEY
+----------------------------------------------------------------
+APP_ENV was pinned to production by a temporary wrapper router that
+defines APP_ENV/APP_DEBUG before requiring public/router.php; config.local.php
+was not edited. ECO_INSTALL_KEY was not set.
+GET http://127.0.0.1:8098/install.php
+HTTP 200 · environment PRODUCTION · red PRODUCTION badge
+  FAIL INSTALL_KEY — "INSTALL_KEY is empty"
+  Alert: "INSTALL_KEY is not configured" with the exact config.local.php hint.
+  The four fieldsets and the submit button carry the disabled attribute;
+  "Form disabled" explains that nothing can be submitted.
+A crafted POST with a valid CSRF token, valid credentials and `INSTALL`
+was still refused ("The preflight checks must pass ... Nothing was written").
+After both requests: 0 tables in the schema, no storage/install.lock.
+
+Evidence: install-key-refused.png (1440×900),
+          install-key-refused-full.png (1440×1500, red key row + alert + disabled form).
+
+----------------------------------------------------------------
+6. Production with a key, wrong key and throttle
+----------------------------------------------------------------
+A second server used the same production wrapper and set ECO_INSTALL_KEY
+to a 37-character evidence value (not recorded here). The key is read from
+the environment, never from the page.
+One wrong key (fresh browser session): the form re-renders with
+  "The install key does not match INSTALL_KEY. 4 attempts left."
+  and the key row fails. No database write.
+Five wrong keys in the same session: the page then shows
+  "Too many install-key attempts. Wait 15 minutes before trying again."
+  and the key row still fails. The throttle is session-scoped (5 attempts
+  per 15 minutes); a correct key clears it.
+After all attempts: 0 tables, no storage/install.lock.
+No password, key or DSN appears in either page.
+
+Evidence: install-key-wrong.png (1440×1400),
+          install-key-throttle.png (1440×1400).
+
+----------------------------------------------------------------
+7. Static checks and cleanup
+----------------------------------------------------------------
+GET /assets/css/db-tools.css → 200, contains .dbt-body and .dbt-card.
+The CSS is shared with the reset console (IR-6).
+Responses carry X-Content-Type-Options: nosniff, X-Frame-Options: DENY,
+Referrer-Policy: strict-origin-when-cross-origin and
+Cache-Control: no-store, no-cache, must-revalidate, max-age=0.
+The production servers were stopped; ecowealth_sneat_install_web_prod_test
+was dropped. The development evidence schema and its web-channel install
+lock were left in place, matching the success state above.

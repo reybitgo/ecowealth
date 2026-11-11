@@ -159,6 +159,17 @@ The expiry job runs from the CLI **and** from a guarded URL
    Passwords are 12–72 characters and may not be a published default; each
    `--…-password-stdin` reads one line, admin first.
 
+   **No SSH (shared hosting)?** Open
+   `http://localhost/ecowealth/system/install.php` in the browser. The page runs the
+   same preflight, imports the same bundle and writes the same lock, but asks for the
+   site name and both staff passwords in a form. It refuses a non-empty schema and an
+   existing lock, and it never creates the database: create the empty schema in the
+   hosting panel first. On a **production** site the page additionally requires
+   `INSTALL_KEY` to be set in `app/config.local.php` (or the `ECO_INSTALL_KEY`
+   environment variable) and typed into the form; an empty key means the installer
+   refuses to run. The key is never displayed, stored or written to the database.
+   After a successful install, delete `public/install.php` and remove the key.
+
 4. **Open** `http://localhost/ecowealth/system/` and sign in.
 
 ### Demo accounts
@@ -202,7 +213,7 @@ pages (login, register, logout) keep their scripts, everything else goes to the 
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
-| `INSTALL_KEY` | empty | Key the guided installers require in production. Set a long random string in `config.local.php` (or `ECO_INSTALL_KEY`); an empty value makes `bin/db_install.php` refuse when `APP_ENV=production`. Never printed or stored |
+| `INSTALL_KEY` | empty | Key the guided installers require in production. Set a long random string in `config.local.php` (or `ECO_INSTALL_KEY`); an empty value makes `bin/db_install.php` and `public/install.php` refuse when `APP_ENV=production`. The web installer asks for the same value in its form. Never printed, stored in the database or written to `config.local.php` |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
 | `UPLOAD_MAX_BYTES` | 5 MB | Upload cap |
 
@@ -225,7 +236,8 @@ system/
 │   ├── routes.php             the live route table (Phase 1 … 10 routes)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate,
-│   │                          CronAccess, CronLock, CronLog, InvoicePage
+│   │                          CronAccess, CronLock, CronLog, InvoicePage, DbTarget, SqlScript,
+│   │                          DbToolAccess (install/reset gates)
 │   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, AdminDashboard,
 │   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, AdminSettings,
 │   │                          Profile
@@ -234,7 +246,7 @@ system/
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
 │   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService,
 │   │                          PaymentService, FulfilmentService, FulfilmentException, InvoiceService,
-│   │                          InvoiceNumber
+│   │                          InvoiceNumber, DatabaseInstaller, DatabaseToolException
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
@@ -247,9 +259,10 @@ system/
 │   ├── cron/shop_expire.php   guarded web entry for the expiry job (local/URL cron)
 │   ├── cron/order_autocomplete.php  guarded web entry for the auto-complete job
 │   ├── login.php register.php logout.php   (standalone this build)
+│   ├── install.php            standalone web installer (IR-4; delete after use)
 │   ├── dashboard.php          legacy redirect shim → the routed /dashboard
 │   ├── uploads/               products/, packages/, proofs/ — PHP execution disabled
-│   └── assets/                EcoWealth theme (Sneat 3.x) + product photos
+│   └── assets/                EcoWealth theme (Sneat 3.x) + product photos + css/db-tools.css
 ├── database/
 │   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
 │   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php

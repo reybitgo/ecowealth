@@ -3528,3 +3528,63 @@ and writes the `storage/install.lock` that refuses a second run. The SQL still l
 IR-4 — web installer: `public/install.php` plus `DbToolAccess`/`db-tools.css`, reusing
 `DatabaseInstaller` for the preflight, the install and the lock, with the `INSTALL_KEY`
 gate and browser evidence for the shared-hosting path.
+
+---
+
+## IR-4 — Web installer (2026-11-11)
+
+**Status:** complete · **Tag:** `ir-4` · **Branch:** `feature/shop` · **No route or controller touched.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-4. This phase makes the IR-3 installer
+usable on shared hosting with no SSH: a standalone page runs the same preflight, imports
+the same `database/install.sql`, sets operator-chosen staff credentials, verifies the
+result and writes `storage/install.lock`. It never creates a database and never writes
+`app/config.local.php`.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/public/install.php` (standalone preflight → form → run → report), `system/app/Core/DbToolAccess.php` (install-key/phrase/throttle gates), `system/public/assets/css/db-tools.css` (shared dark tool styling for IR-4/IR-6), `system/tests/Cases/DbToolAccessTest.php` (7 cases), `system/tests/Cases/InstallTest.php` (+3 cases), `system/tests/smoke.ps1` (+5 HTTP checks). Docs: `docs/deploy.md` §5B-B/§7/§12/§16, `system/README.md` quick start + config + layout. |
+| **Shell** | Deliberately not `app/bootstrap.php`: the page requires only `app/config.php`, `app/helpers.php` and `app/autoload.php`, then pins `APP_BASE_URL` (Apache sub-folder or `php -S`), sets `APP_TIMEZONE`, starts its own `ecowealth_install` session (HttpOnly, SameSite=Lax, Secure on HTTPS) and sends `nosniff`/frame-deny/`Referrer-Policy`/`no-store` plus the shared `SecurityHeaders`. No `setting()`, `auth_*()` or layout call is made, because the schema may not exist yet. |
+| **States** | Preflight + enabled form; disabled form when a required check fails; "Already installed" (lock exists, with the lock facts and no form); "Database not empty" (non-empty schema without a lock, no form); success report; failure report. The lock and database state are re-read on every request, so the form POST is single-use and a refresh after success cannot install twice. |
+| **Install** | `DatabaseInstaller::install(['channel' => 'web', …])`: 27 tables / 48 settings / 2 active staff / 0 members / 7 products / 2 packages / 18 levels / 10 contents / 0 codes, `install_channel=web`, lock `channel=web`, `installed_at` in Asia/Manila. The page prints the created usernames and emails but never a password, DSN, key, SQLSTATE or stack trace. |
+| **Key gate** | `DbToolAccess::installKeyRequired(APP_ENV)` (production only); `installKeyMatches()` uses `hash_equals()` and an empty configured key never matches; the page never echoes the key (input is a blank `type=password`). Five wrong keys per 15-minute session window throttle with a generic message; a correct key clears the counter. On GET in production the key row shows as `pending` instead of a red CLI-style failure; the key is validated on submit and again inside `install()`. |
+| **Validation** | Reuses `DatabaseInstaller::validateStaffInput()`: usernames 3–50, valid and distinct emails, passwords 12–72 and not a published default, both confirmations checked. Server-side `INSTALL` phrase (trimmed, case-insensitive), CSRF token on every POST, and a crafted `with_demo=1` is refused with the IR-7 notice. Client hints are cosmetic only. |
+| **Security** | Dedicated session name; CSRF via `csrf_field()`/`csrf_verify()`; `DbTarget`/the service owns every SQL query (the page contains none); raw driver text goes to `error_log()` only; the page never writes `config.local.php`; no route, nav link or `routes.php` entry (D-IR-17). The CSS is loaded from `public/assets/css/db-tools.css` and is not part of the app layout. |
+| **Tests** | `php tests/run.php DbToolAccess` → **7/7**; `php tests/run.php InstallTest` → **13/13**; `php tests/run.php Install` → **28/28**; full suite → **Cases: 781   Passed: 781   Failed: 0** (771 existing + 10 new), exit 0. Evidence: `docs/qa/evidence/install-reset/ir4-suite.log`. HTTP smoke against Apache → **Passed: 190   Failed: 0**, exit 0, including IR4-T1…T5. Evidence: `ir4-smoke.log`. |
+| **Browser acceptance** | Six states captured with headless Chrome through the DevTools protocol: preflight (all 15 checks), success (counts, no passwords, 10/10 verification), locked, non-empty, production without `INSTALL_KEY` (form disabled), production wrong key + five-attempt throttle; plus a true 390×844 mobile layout and a full-page mobile capture. `install-web.txt` records the commands, HTTP results, lock JSON and cleanup. The production states used a temporary router wrapper that defines `APP_ENV=production` — `config.local.php` was not edited — and the key came from `ECO_INSTALL_KEY`, never from a file in the repository. |
+| **Gate** | The page refuses a locked tree and a non-empty schema independently; a production install without `INSTALL_KEY` is refused with the actionable hint and a crafted POST writes nothing; the success page prints no password/DSN/key; the CSS is served; the suite and smoke are green. |
+
+### Notes and deviations
+
+- **The form stays enabled while the key row is "pending".** The service's key check needs
+  the value the operator has not typed yet, so only non-key failures block the form.
+  Security is unchanged: the key is compared on submit and again inside
+  `DatabaseInstaller::install()`, and a wrong key never reaches the bundle.
+- **The demo checkbox is rendered disabled.** IR-7 owns `DemoDataService`; the page refuses
+  a crafted `with_demo` exactly as the CLI refuses `--with-demo`. The checkbox and its
+  explanation are already in the layout, so IR-7 only has to enable it and wire the call.
+- **`DbToolAccess` has more than the two documented methods.** It also carries the
+  `INSTALL` phrase matcher and the session-scoped attempt helpers, so the page does not
+  reimplement throttle policy. IR-6 extends the same class with the reset visibility,
+  actor and confirmation gates.
+- **The page does not create a database.** Shared hosting usually grants `ALL` on one
+  prefixed schema but not `CREATE DATABASE`; `preflight()` is called with
+  `$willCreate = false` and a missing schema is a red check with the hPanel hint. The CLI
+  keeps `--create-database` for hosts that allow it.
+- **`storage/install.lock` now points at the IR-4 evidence schema**
+  (`ecowealth_sneat_install_web_test`, channel `web`). It is runtime state and git-ignored;
+  IR-5's reset tests use `STORAGE_PATH` scratch space and never read it. Delete it only if
+  a later manual install really needs the tree unlocked.
+- **The 390 px evidence needed CDP.** Headless Chrome on Windows enforces a 500 px minimum
+  window width, so `--window-size=390,844` produced a clipped 500 px layout. The mobile
+  screenshots use `Emulation.setDeviceMetricsOverride`; the transcript states this.
+- **The smoke gate runs against Apache, not `php -S`.** The `php -S` router only maps flat
+  `*.php` pages, so the existing cron/upload checks (`/cron/...`, `uploads/...`) return 404
+  there. The five IR-4 checks pass under both servers; the recorded 190/190 run is the
+  Apache run, matching the plan's smoke target.
+
+### Next
+
+IR-5 — reset engine and CLI: `DatabaseResetService`, `bin/db_reset.php`, preview/dry-run,
+the transactional FK-safe reset, catalogue re-seed, codes, upload cleanup and the
+reset/install parity groundwork.

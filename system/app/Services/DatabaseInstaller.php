@@ -1221,16 +1221,19 @@ final class DatabaseInstaller
      *
      * A configured-but-empty key never matches, even against an empty
      * submission: an empty INSTALL_KEY must not turn the production gate
-     * into a no-op (plan IR-4-T5). `$expected` exists so the web
-     * installer's key gate (IR-4) and the tests can exercise the comparison
-     * without redefining the constant; the installer itself always passes
-     * the configured key.
+     * into a no-op (plan IR-4-T5). `$expected` exists so the tests can
+     * exercise the comparison without redefining the constant; the
+     * installer itself always passes the configured key. The actual
+     * comparison lives in DbToolAccess so the CLI and the web page share
+     * one implementation.
      */
     public static function installKeyMatches(string $submitted, ?string $expected = null): bool
     {
         $expected ??= self::configuredInstallKey();
 
-        return $expected !== '' && hash_equals($expected, $submitted);
+        /* One implementation, in DbToolAccess (IR-4). The argument order
+         * stays as documented for the CLI: (submitted, expected). */
+        return DbToolAccess::installKeyMatches($expected, $submitted);
     }
 
     /* ==========================================================

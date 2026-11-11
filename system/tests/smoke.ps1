@@ -24,7 +24,9 @@
     Phase 13 payout queue and the Phase 14 super-login (a URL-token
     member session, its token-bearing links, Exit, TTL and user-agent
     expiry, the superadmin-only guard, the audit trail and the console's
-    X-Live feed with its 304 revalidation).
+    X-Live feed with its 304 revalidation), and the IR-4 web installer's
+    refusal states (locked/non-empty tree, hardening headers, no lock
+    written by a GET or a CSRF-less POST, the shared stylesheet).
     Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", registration codes and member
@@ -3135,6 +3137,53 @@ try {
         "the transfer form is rate-limited (last=$($p15LastAttempt.Status), flash=$($p15ThrottleFlash.Body -match 'Too many transfer attempts'))"
 
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
+
+    # ---- IR-4: web installer (standalone, locked/non-empty in this app) --
+    # The smoke app runs against an already-populated database, so
+    # install.php must show its refusal state and never offer the form.
+    # The assertion also covers the lock: a GET or a POST must not create
+    # or replace storage/install.lock (plan IR-4-T7).
+    $installLockPath   = Join-Path (Split-Path -Parent $PSScriptRoot) 'storage\install.lock'
+    $installLockBefore = Test-Path $installLockPath
+
+    $installPage = Invoke-App -Path '/install.php'
+    $installSafe = $installPage.Body -notmatch '(?i)(DB_PASS|SQLSTATE|mysql:host|password_hash|Admin@123|Super@123)'
+    $installRefused = $installPage.Status -eq 200 `
+        -and $installPage.Body -match '(?i)already installed' `
+        -and $installPage.Body -notmatch 'Install details' `
+        -and $installPage.Body -notmatch 'Installation complete'
+
+    Assert-That 'IR4-T1' ($installRefused -and $installSafe) `
+        "GET /install.php refuses an installed tree with no form and no secret (status=$($installPage.Status), refused=$installRefused, safe=$installSafe)"
+
+    $installHeadersOk = $installPage.Headers.ContainsKey('x-content-type-options') `
+        -and $installPage.Headers['x-content-type-options'] -match 'nosniff' `
+        -and $installPage.Headers.ContainsKey('x-frame-options') `
+        -and $installPage.Headers['x-frame-options'] -match 'DENY' `
+        -and $installPage.Headers.ContainsKey('referrer-policy') `
+        -and $installPage.Headers.ContainsKey('cache-control') `
+        -and $installPage.Headers['cache-control'] -match 'no-store'
+
+    Assert-That 'IR4-T2' $installHeadersOk `
+        "install.php sends nosniff, frame-deny, referrer-policy and no-store"
+
+    $installLockAfterGet = Test-Path $installLockPath
+    Assert-That 'IR4-T3' ($installLockAfterGet -eq $installLockBefore) `
+        "GET /install.php does not create or replace storage/install.lock (before=$installLockBefore, after=$installLockAfterGet)"
+
+    # No CSRF token: a reachable form would refuse before any SQL; the
+    # installed tree refuses at the state gate. Either way nothing runs.
+    $installPost = Invoke-App -Method POST -Path '/install.php' -Form @{ confirm = 'INSTALL'; admin_username = 'admin' }
+    $installPostSafe = $installPost.Body -notmatch 'Installation complete' `
+        -and $installPost.Body -match '(?i)(already installed|session expired|Nothing was written)'
+    $installLockAfterPost = Test-Path $installLockPath
+
+    Assert-That 'IR4-T4' ($installPost.Status -eq 200 -and $installPostSafe -and $installLockAfterPost -eq $installLockBefore) `
+        "a POST without a CSRF token runs nothing and leaves the lock unchanged (status=$($installPost.Status))"
+
+    $installCss = Invoke-App -Path '/assets/css/db-tools.css'
+    Assert-That 'IR4-T5' ($installCss.Status -eq 200 -and $installCss.Body -match '\.dbt-body' -and $installCss.Body -match '\.dbt-card') `
+        "the shared db-tools.css is served (status=$($installCss.Status))"
 
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'

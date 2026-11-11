@@ -66,12 +66,21 @@ files below.
 
 | File | What it proves |
 |---|---|
-| `install-preflight.png` | Preflight page: every check green, database name shown. |
-| `install-success.png` | Success page: verification counts, both account usernames, no passwords, "delete install.php" instruction. |
-| `install-locked.png` | Reopening the installer after success shows "already installed" and refuses. |
-| `install-nonempty.png` | Non-empty target refused on the form, no write performed. |
-| `install-key-refused.png` | Production without/with a wrong `INSTALL_KEY` refused; throttle message after repeated attempts. |
-| `install-mobile.png` | The preflight/form/results at 390×844. |
+| `install-preflight.png` | Preflight page on the empty `ecowealth_sneat_install_web_test`: every visible check green, database name shown, form below. Headless Chrome, 1440×900. |
+| `install-preflight-details.png` | All 15 preflight checks (including storage, lock and `INSTALL_KEY`) plus the enabled install form. Headless Chrome, 1440×1500 (checks + form do not fit in 900 px). |
+| `install-success.png` | Success page: "Installation complete", VERIFIED badge, the §6.5 counts and the lock facts. Headless Chrome, 1440×900. |
+| `install-success-full.png` | The whole success page: counts, both account usernames/emails (**no passwords**), the 10-check verification table, warnings and next steps. Headless Chrome, 1440×2153. |
+| `install-locked.png` | Reopening the installer after success shows "Already installed" and the lock details, with no form. Headless Chrome, 1440×900. |
+| `install-nonempty.png` | The lock removed, the schema still populated: "Database not empty", no form, no write. Headless Chrome, 1440×900. |
+| `install-key-refused.png` | Production with no `INSTALL_KEY`: the red PRODUCTION badge and the start of the preflight. The failing key row and the disabled form are in the full capture below. Headless Chrome, 1440×900. |
+| `install-key-refused-full.png` | The full production refusal: the `FAIL INSTALL_KEY` row, the "INSTALL_KEY is not configured" alert and the disabled form. Headless Chrome, 1440×1500. |
+| `install-key-wrong.png` | Production with a key configured: a wrong key re-renders the form with "does not match … 4 attempts left" and writes nothing. Headless Chrome, 1440×1400. |
+| `install-key-throttle.png` | Five wrong keys in one session: "Too many install-key attempts. Wait 15 minutes before trying again." Headless Chrome, 1440×1400. |
+| `install-mobile.png` | The preflight/form at a true 390×844 viewport (DevTools device override; Chrome's `--window-size` floor is 500 px). |
+| `install-mobile-full.png` | The whole installer at 390 px: all checks, every form field and the disabled demo option. |
+| `install-web.txt` | The acceptance transcript: commands, HTTP results, counts, lock JSON, the production wrapper (no `config.local.php` edit), the throttle and the cleanup. |
+| `ir4-suite.log` | Full `php tests/run.php` output behind the gate: `Cases: 781   Passed: 781   Failed: 0`, exit 0 (771 existing + 7 `DbToolAccess` + 3 `InstallTest`). |
+| `ir4-smoke.log` | Full `tests/smoke.ps1` run against the Apache app: `Passed: 190   Failed: 0`, exit 0, including IR4-T1…T5 (installer refusal, hardening headers, no lock writes, CSRF-less POST, stylesheet). |
 
 ### IR-5 — reset engine and CLI
 

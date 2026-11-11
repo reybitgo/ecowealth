@@ -152,6 +152,12 @@ before importing.
 
 ### 5B. Fresh install
 
+You have two paths on shared hosting. **A** is the phpMyAdmin import; **B** is the
+browser installer for an owner who wants to choose the staff passwords instead of using
+the published defaults. Both import the same bundle into the same empty schema.
+
+#### 5B-A. Import `install.sql` through phpMyAdmin
+
 Import **one file**, `database/install.sql`, through phpMyAdmin:
 
 1. Select the new **empty** database in phpMyAdmin.
@@ -184,6 +190,49 @@ The staff accounts start with the published defaults (`admin` / `Admin@123`,
 `database/install.sql` is generated from `database/schema.sql` + seeds 001–004. When those
 sources change, rebuild it with `php bin/build_install_sql.php` (and check it with
 `--check`); never hand-edit the bundle.
+
+#### 5B-B. Install through the web installer (guided credentials, no SSH)
+
+Use this path when you want to choose the staff passwords in a browser instead of
+importing the bundle and then changing the published defaults. It imports the same
+`install.sql`, verifies the result and writes `storage/install.lock`.
+
+1. Create the **empty** database and user in hPanel (Step 4). The web installer never
+   creates a database: shared hosting usually grants `ALL` on one prefixed schema but not
+   the global `CREATE DATABASE` privilege.
+2. Upload the application **without** your local `app/config.local.php`, then create the
+   production one (Step 7) with `APP_ENV=production`, the database credentials,
+   `APP_URL`, and a new line:
+
+   ```php
+   define('INSTALL_KEY', 'paste-at-least-32-random-characters-here');
+   ```
+
+   The key must be non-empty in production; the page refuses to run without it. Keep it
+   in a password manager, not in the repository.
+3. Open `https://example.com/ecowealth/system/install.php`.
+4. Read the preflight table. Every row must pass; the form stays disabled until it does.
+   If "INSTALL_KEY" is red, the constant is missing from `config.local.php`.
+5. Enter the site name, both staff usernames/emails/passwords, the `INSTALL_KEY`, and
+   type `INSTALL`. Submit.
+6. The success page lists the created accounts (**never their passwords**), the
+   verification counts and the lock path. It does not print the key or the DSN.
+7. **Delete `public/install.php` immediately**, remove `INSTALL_KEY` from
+   `config.local.php` (or rotate it), and sign in with the admin account.
+8. Reopening the URL before deleting it shows "already installed": the lock and the
+   non-empty schema both refuse a second run.
+
+| Limit | What to do |
+|---|---|
+| `max_execution_time` below 30 s | The page asks PHP for 120 s; if the host ignores it, install through phpMyAdmin (5B-A) instead. |
+| The page says the database does not exist | Create it in hPanel first; the web installer never creates one. |
+| The page says the database is not empty | It is a fresh-install tool. Drop/recreate the schema (after a backup), or upgrade the existing database with migrations. |
+| A WAF blocks `install.php` | Use phpMyAdmin + 5B-A and delete the file. |
+| You lost the lock or need to re-install | Delete `storage/install.lock`, drop/recreate the database, then install again. Treat this as a change window. |
+
+> **Never leave `install.php` online after go-live.** It refuses a second run, but it is a
+> tool, not a page: delete it together with `reset.php` and confirm both URLs return 404
+> (§12).
 
 ### 5C. If your dump is older than the live-update change
 
@@ -220,7 +269,7 @@ instead (schema first in a fresh path, migrations in an upgrade).
 
 ### 5D. CLI installer (only if your host gives you SSH)
 
-Most shared plans have no SSH — use 5B (phpMyAdmin). If yours does, `bin/db_install.php`
+Most shared plans have no SSH — use 5B-A (phpMyAdmin) or 5B-B (the web installer). If yours does, `bin/db_install.php`
 imports the same bundle, replaces both seeded passwords with ones you choose, verifies the
 result and writes `storage/install.lock`:
 
@@ -382,7 +431,7 @@ define('DB_PASS', 'paste-the-database-password-here');
 // define('APP_TIMEZONE', 'Asia/Manila');   // change only if the business is elsewhere
 // define('DB_TIMEZONE', '+08:00');         // keep aligned with APP_TIMEZONE
 // define('CRON_KEY', 'a-long-random-string'); // only for the URL cron form
-// define('INSTALL_KEY', 'a-long-random-string'); // only if you will run a guided installer
+// define('INSTALL_KEY', 'a-long-random-string'); // only for a guided installer (CLI or install.php)
 ```
 
 ### What each value means
@@ -399,7 +448,7 @@ define('DB_PASS', 'paste-the-database-password-here');
 | `APP_TIMEZONE` | Defaults to `Asia/Manila`. Change only if the business runs elsewhere. |
 | `DB_TIMEZONE` | Defaults to `+08:00`. Keep it aligned with `APP_TIMEZONE`. |
 | `CRON_KEY` | Optional. Required only if you use the **URL** cron form. |
-| `INSTALL_KEY` | Optional. Required only if you run a guided installer on a production site (`bin/db_install.php` today; the web installer in the next phase). At least 32 random characters. The installer refuses to run in production when it is empty, and never prints it. |
+| `INSTALL_KEY` | Optional. Required only if you run a guided installer on a production site: `bin/db_install.php` (SSH) or `public/install.php` (browser, §5B-B). At least 32 random characters. Both installers refuse to run in production when it is empty, and neither ever prints, stores or returns it. |
 
 > **About `DB_NAME`:** the [repository README](../system/README.md) says a local
 > `config.local.php` should not define `DB_NAME`, because the local test runner switches
@@ -662,6 +711,12 @@ another layout.
 
 Before calling the site live:
 
+- [ ] Delete `public/install.php`; confirm `https://example.com/ecowealth/system/install.php`
+      returns 404 (not the installer page).
+- [ ] If the web installer was used, confirm `storage/install.lock` exists and cannot be
+      read over the web, then remove `INSTALL_KEY` from `config.local.php` (or rotate it).
+- [ ] Delete `public/reset.php` if the reset console was ever uploaded; confirm
+      `https://example.com/ecowealth/system/reset.php` returns 404.
 - [ ] Change the `admin` password. Use **Profile → Change password**.
 - [ ] Sign in as `superadmin` and change that password too.
 - [ ] Remove demo members if you imported `005_demo_tree.sql`.
@@ -810,6 +865,8 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 - [ ] Product list opens; image upload and save work.
 - [ ] Two-tab live update works.
 - [ ] Default passwords changed; demo data removed.
+- [ ] `public/install.php` and `public/reset.php` deleted; both tool URLs return 404.
+- [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a guided installer was used.
 - [ ] Database and uploads backed up.
 - [ ] Error log reviewed.
 - [ ] Optional cron jobs created and tested with `--doctor`.

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  InstallTest — the CLI installer's engine (plan IR-3-T8)
+ *  InstallTest — the installer engine, CLI + web (plan IR-3-T8, IR-4-T7)
  *
  *  Every case runs the production DatabaseInstaller against the
  *  pre-provisioned scratch schema ecowealth_sneat_tool_a_test (and
@@ -16,6 +16,8 @@ declare(strict_types=1);
  *      guard        a table appearing mid-import is translated, not raw
  *      production   INSTALL_KEY required; the comparison itself
  *      report       the JSON shape, no password and no key inside
+ *      web channel  install_channel/lock record 'web' (IR-4)
+ *      web page     standalone, SQL-free, never writes config.local.php
  *
  *  The lock lives under STORAGE_PATH (tests/bootstrap.php pins it to a
  *  temp folder), so a case never leaves state in system/storage and
@@ -563,5 +565,86 @@ return [
         } finally {
             $clearLock();
         }
+    },
+
+    'the web channel is recorded in settings and the lock' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database, [], ['channel' => 'web']));
+
+            assert_true($report['ok'], 'the web-channel install reports ok');
+            assert_same('web', $report['channel']);
+            assert_same('web', $report['options']['channel']);
+
+            $channel = (string) $pdo->query(
+                "SELECT value FROM settings WHERE key_name = 'install_channel'"
+            )->fetchColumn();
+            assert_same('web', $channel, 'settings.install_channel records the web path');
+
+            $lock = DatabaseInstaller::readLock();
+            assert_true($lock !== null, 'the lock exists');
+            assert_same('web', $lock['channel'], 'the lock records the web path');
+            assert_same($database, $lock['database']);
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'the installer page is standalone, SQL-free and writes no config' => function () use ($appRoot): void {
+        $page = (string) file_get_contents($appRoot . '/public/install.php');
+
+        /* It may not boot the application: no schema exists yet, so
+         * bootstrap's db()/session/require_* calls would fail. */
+        assert_contains("__DIR__ . '/../app/config.php'", $page);
+        assert_contains("__DIR__ . '/../app/helpers.php'", $page);
+        assert_contains("__DIR__ . '/../app/autoload.php'", $page);
+        assert_not_contains("'/../app/bootstrap.php'", $page, 'bootstrap.php is never required');
+        assert_same(
+            0,
+            preg_match('/^\s*require_(?:admin|superadmin)\s*\(/m', $page),
+            'no authentication guard is called from the installer'
+        );
+
+        /* The page owns its session, CSRF and gates through the shared
+         * classes rather than reimplementing them. */
+        assert_contains('DbToolAccess::INSTALL_SESSION_NAME', $page);
+        assert_contains('session_name(', $page);
+        assert_contains('csrf_field()', $page);
+        assert_contains('csrf_verify(', $page);
+        assert_contains('DbToolAccess::installKeyMatches', $page);
+        assert_contains('DbToolAccess::installPhraseMatches', $page);
+        assert_contains('SecurityHeaders::send()', $page);
+
+        /* No SQL and no schema assumptions: all work goes through the
+         * service (plan §5.1 / IR-6 exit criterion, applied here too). */
+        foreach (['INSERT INTO', 'DELETE FROM', 'UPDATE ', 'SELECT ', '->query(', '->prepare(', '->exec('] as $sql) {
+            assert_not_contains($sql, $page, 'the page contains no SQL (' . $sql . ')');
+        }
+
+        /* No secrets in the page and no way to write the config file. */
+        foreach (['Admin@123', 'Super@123', 'DB_PASS', 'file_put_contents', 'fwrite(', 'fopen('] as $secret) {
+            assert_not_contains($secret, $page, 'the page does not contain ' . $secret);
+        }
+
+        /* The key is rendered as a blank password field, never echoed. */
+        assert_contains("install_field('install_key'", $page, 'the form has a key field');
+        assert_contains("'type'         => 'password'", $page, 'the key input is a password field');
+    },
+
+    'the shared tool stylesheet exists and carries the dark shell' => function () use ($appRoot): void {
+        $cssPath = $appRoot . '/public/assets/css/db-tools.css';
+
+        assert_true(is_file($cssPath), 'public/assets/css/db-tools.css exists');
+
+        $css = (string) file_get_contents($cssPath);
+
+        foreach (['.dbt-body', '.dbt-card', '.dbt-table', '.dbt-button', '.dbt-alert', '.dbt-input', '.dbt-form'] as $selector) {
+            assert_contains($selector, $css, 'the stylesheet styles ' . $selector);
+        }
+
+        assert_contains('@media (max-width: 620px)', $css, 'the stylesheet is responsive');
     },
 ];
