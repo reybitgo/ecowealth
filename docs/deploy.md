@@ -797,6 +797,66 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 |---|---|
 | 2026-11-07 | Initial preliminary guide for the Phase 10 build plus live updates. |
 | 2026-11-08 | Phase 11: add migration 014 and note the indirect-commission settings. |
+| 2026-11-11 | Phases 12–15: migrations 015–019, transfer/payout settings, S-Login, and the Phase 15 hardening/reports addendum below. |
+
+---
+
+## Phase 15 addendum — hardening, reports and the audit desk
+
+The launch build adds **no new hosting requirement**. Everything below is PHP, an index or a page.
+
+### Migration 019
+
+Apply `database/migrations/019_audit_and_reporting.sql` after `018`. It adds the report indexes
+(`shop_orders.paid_at`, `audit_log.action`, `commissions.level`, …) and re-creates `audit_log` if a
+very old install skipped it. Applying it twice is a no-op; every `ALTER` is guarded by an
+`information_schema` lookup.
+
+### Security headers
+
+Every PHP response now carries the shared headers from `app/Core/SecurityHeaders.php` (sent from the
+bootstrap): `X-Content-Type-Options`, `X-Frame-Options: DENY`, a CSP with `frame-ancestors 'none'`,
+`Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `X-Robots-Tag` and, only over
+TLS, HSTS. An Apache front end must not strip them; a proxy that rewrites headers should preserve
+them.
+
+A strict content policy is deliberately not used: the EcoWealth layout ships inline theme and page
+scripts, so a nonce-based policy is a later frontend task (documented in the class).
+
+### Uploads and errors
+
+- `public/uploads/.htaccess` denies every script extension and switches the PHP engine off. Verify
+  after deployment: a `.php` file placed under `uploads/proofs/` must answer **403**.
+- In production (`APP_DEBUG` off) PHP error display is forced off by the bootstrap; error pages stay
+  branded and never show a trace. `error_log` keeps the detail.
+- `.gitignore` keeps `config.local.php`, `backups/`, uploads, logs and locks out of the repository.
+
+### New pages to smoke-test after an upgrade
+
+| Page | Expect |
+|---|---|
+| `/admin/reports` | every report + the **Finance health** card; CSV export menu |
+| `/admin/reports/export?type=sales` | `text/csv` download |
+| `/admin/audit` | the append-only audit list with filters |
+| `/admin/settings` | eight independently saving cards (General, Shop, Accounts, Payouts, Windows, Fulfilment, Commissions, Transfers) |
+
+### Cron
+
+The three jobs and their Windows Task Scheduler registration are documented in
+[`cron.md` §4](cron.md). Register them once on the host; a missed run only ever makes a limit
+stricter, never wider.
+
+### Backups
+
+A real backup → restore drill was executed for the launch gate; the commands and the recorded result
+are in [`runbook.md` §3](runbook.md). Take a dump before applying `019` and before any later
+migration.
+
+### Go-live
+
+Use the checklist in [`runbook.md` §7](runbook.md); it extends this guide's §16 with the health,
+headers, uploads, cron and restore checks.
+
 
 When a later phase adds a migration, a cron job or a new hosting requirement, update
 [Step 5](#5-import-the-database), [Step 8](#8-set-the-php-version-and-extensions),

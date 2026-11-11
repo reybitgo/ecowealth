@@ -108,6 +108,15 @@ final class PayoutController
         $userId = (int) $user['id'];
         $back   = 'payouts';
 
+        /* Abuse guard (plan §3.7): ten withdrawal requests per hour. A
+         * member may legitimately retry a below-minimum or USDT-closed
+         * refusal a few times, so the cap is loose; the service still
+         * enforces "one open request" and the withdrawable balance. */
+        if (!Throttle::hit('payout:' . $userId, 10, 3600)) {
+            flash_set('danger', 'Too many withdrawal requests. Please try again later.');
+            redirect($back);
+        }
+
         $method = strtolower(Request::string('payout_method'));
         $amount = Request::string('amount');
 

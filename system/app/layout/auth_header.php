@@ -1,6 +1,8 @@
 <?php
 /** Shared header for the authentication (guest) pages — Sneat template. */
-$page_title = $page_title ?? APP_NAME . ' — Auth';
+$site_name  = trim((string) setting('site_name', APP_NAME));
+$brand_name = $site_name === '' ? APP_NAME : $site_name;
+$page_title = $page_title ?? $brand_name . ' — Auth';
 ?>
 <!doctype html>
 <!-- beautify ignore:start -->
@@ -20,7 +22,7 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
       content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
     />
     <meta name="robots" content="noindex, nofollow" />
-    <title><?= e($page_title) ?> | <?= e(APP_NAME) ?></title>
+    <title><?= e($page_title) ?> | <?= e($brand_name) ?></title>
     <!-- Favicon -->
     <link
       rel="icon"

@@ -17,6 +17,7 @@ declare(strict_types=1);
  * @var array{labels: list<string>, values: list<float>, stock: list<int>} $chart
  * @var array{healthy: int, low: int, out: int} $stock
  * @var list<array<string, mixed>> $attention
+ * @var array<string, mixed> $commerce
  * @var array{catalogue: array{labels: list<string>, values: list<float>}, stock: array{labels: list<string>, values: list<int>}} $chart_data
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
@@ -45,6 +46,7 @@ $stats = array_merge([
 $packages  = $packages ?? [];
 $recent    = $recent ?? [];
 $attention = $attention ?? [];
+$commerce  = $commerce ?? [];
 $chart     = array_merge(['labels' => [], 'values' => [], 'stock' => []], $chart ?? []);
 $stock     = array_merge(['healthy' => 0, 'low' => 0, 'out' => 0], $stock ?? []);
 
@@ -123,6 +125,8 @@ $roleTone = static fn (string $role): string => match ($role) {
 
 <?= View::capture('admin/dashboard/_kpis', ['stats' => $stats]) ?>
 
+<?= View::capture('admin/dashboard/_commerce', ['commerce' => $commerce]) ?>
+
               <!-- Charts -->
               <div class="row g-6 mb-6">
 <?= View::capture('admin/dashboard/_catalogue', ['stats' => $stats, 'chart' => $chart]) ?>
@@ -131,6 +135,16 @@ $roleTone = static fn (string $role): string => match ($role) {
     'stock'     => $stock,
     'attention' => $attention,
 ]) ?>
+              </div>
+
+              <!-- Commerce detail -->
+              <div class="row g-6 mb-6">
+                <div class="col-12 col-xl-7">
+<?= View::capture('admin/dashboard/_order_status', ['commerce' => $commerce]) ?>
+                </div>
+                <div class="col-12 col-xl-5">
+<?= View::capture('admin/dashboard/_top_products', ['commerce' => $commerce]) ?>
+                </div>
               </div>
 
               <!-- Accounts + packages -->

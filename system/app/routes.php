@@ -206,8 +206,11 @@ return [
     ['POST', '/slogin/exit',                     [SLoginController::class, 'stop'],           'member'],     // reference: endImpSession
     ['GET',  '/admin/impersonations',            [SLoginController::class, 'audit'],          'admin'],      // extension: audit list
 
-    /* ---------- Phase 15 — settings & reports -----------------------
-    ['GET',  '/admin/settings',                  [AdminSettingsController::class, 'index'],   'admin'],     // admin_settings
-    ['POST', '/admin/settings',                  [AdminSettingsController::class, 'save'],    'admin'],     // admin_save_settings
-    ----------------------------------------------------------------- */
+    /* ---------- Phase 15 — reports, audit & launch ------------------
+     * The plan's Appendix A extension: GET /admin/reports plus its CSV
+     * exports, and the audit desk. Settings already has its two routes
+     * from Phase 7; this phase expands the page, not the table. */
+    ['GET',  '/admin/reports',                   [AdminReportController::class, 'index'],      'admin'],     // extension
+    ['GET',  '/admin/reports/export',            [AdminReportController::class, 'export'],     'admin'],     // extension
+    ['GET',  '/admin/audit',                     [AdminAuditController::class, 'index'],       'admin'],     // extension
 ];

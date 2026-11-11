@@ -39,10 +39,15 @@ with the earnings level breakdown and the CSV exports), **Phase 12** member-to-m
 e-wallet transfers (password-confirmed, fee + minimum + daily/weekly limits, the reset cron,
 and the transfer log/limits on the admin wallet monitor), **Phase 13** payouts
 (withdrawals by GCash/Maya/USDT with the amount held at request time, a server-side service
-fee and ₱/USDT conversion, and the admin approve → complete/reject queue), and **Phase 14**
+fee and ₱/USDT conversion, and the admin approve → complete/reject queue), **Phase 14**
 super-login (a superadmin opens any active member's portal through an audited, 8-hour,
 IP/UA-bound URL-token session without disturbing their own login, with a persistent member
-banner and a full impersonation audit trail).
+banner and a full impersonation audit trail), and **Phase 15** the launch build: dashboards
+with the commerce/finance roll-up, the reports desk (sales by day, commissions by level,
+wallet statement, payout register, code revenue, the Finance health widget and five CSV
+exports), the full eight-card settings page, the append-only audit desk and the finishing
+security/operations pass (headers, throttles, uploads hardening, cron docs, a restore drill
+and the runbook).
 The Phase 13 follow-up puts the withdrawal rules on the settings page (**Payout methods**:
 minimum, per-channel fee/switch, ₱/USDT rate and network fees) and makes both payout pages
 follow them live — a rate, fee or channel change reaches an open `/payouts` tab without a
@@ -54,12 +59,14 @@ seed is removed or replaced before go-live (see the phase log).
 
 - Application notes, setup and tests: [`system/README.md`](system/README.md)
 - Deployment guide for shared hosting / Hostinger: [`docs/deploy.md`](docs/deploy.md)
+- Operations runbook (daily checks, backups/restore, incidents, go-live): [`docs/runbook.md`](docs/runbook.md)
+- Admin quick guide: [`docs/admin-guide.md`](docs/admin-guide.md)
 - Running log of decisions, migrations and test results: [`docs/phase-log.md`](docs/phase-log.md)
 
 ## Important
 The landing page is still a static frontend prototype. The application behind it is real
 (login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership,
-registration codes, direct + indirect referral commissions, member wallet transfers, payouts
-and super-login as of Phase 14) but the simulator is not connected to it. Product information
+registration codes, direct + indirect referral commissions, member wallet transfers, payouts,
+super-login and the reports/audit desk as of Phase 15) but the simulator is not connected to it. Product information
 and final compensation terms are not invented here; they should be added from verified
 official material when available.

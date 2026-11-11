@@ -27,7 +27,11 @@ declare(strict_types=1);
 $layout      = in_array($layout ?? 'member', ['member', 'admin', 'plain'], true) ? ($layout ?? 'member') : 'member';
 $me          = $user ?? auth_user();
 $user        = $me;   /* sidebar.php reads $user */
-$page_title  = $page_title ?? APP_NAME;
+/* The brand comes from settings (Phase 15 "General" card), falling back
+ * to the compile-time APP_NAME for a fresh install. */
+$site_name   = trim((string) setting('site_name', APP_NAME));
+$brand_name  = $site_name === '' ? APP_NAME : $site_name;
+$page_title  = $page_title ?? $brand_name;
 $page_css    = $page_css ?? [];
 $page_js     = $page_js ?? [];
 $page_styles = $page_styles ?? '';
@@ -76,7 +80,7 @@ $html_class  = $has_menu
       content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
     />
     <meta name="robots" content="noindex, nofollow" />
-    <title><?= e($page_title) ?> | <?= e(APP_NAME) ?></title>
+    <title><?= e($page_title) ?> | <?= e($brand_name) ?></title>
     <!-- Favicon -->
     <link
       rel="icon"
@@ -128,7 +132,7 @@ $html_class  = $has_menu
             <a
               href="<?= e(url($layout === 'admin' ? 'admin' : 'dashboard')) ?>"
               class="app-brand-link"
-              aria-label="<?= e(APP_NAME) ?> <?= $layout === 'admin' ? 'back office' : 'dashboard' ?>"
+              aria-label="<?= e($brand_name) ?> <?= $layout === 'admin' ? 'back office' : 'dashboard' ?>"
             >
               <?php $brand_mark = true; ?>
               <?php require __DIR__ . '/logo.php'; ?>

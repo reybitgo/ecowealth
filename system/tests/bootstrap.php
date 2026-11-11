@@ -396,9 +396,11 @@ function test_run_isolated(callable $case): void
         $_SESSION['imp_ua'],
         $_SESSION['auth_via'],
         $_SESSION['_slogin_attempts'],
+        $_SESSION['_throttle'],
         $GLOBALS['__form_errors'],
         $GLOBALS['__old_payload']
     );
+    unset($GLOBALS['__throttle']);
     auth_cache_reset();
 
     try {

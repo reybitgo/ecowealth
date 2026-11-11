@@ -404,3 +404,56 @@ many accounts carry usage, the lock state and whether the log folder is writable
 
 QA12-06 in [`docs/qa/phase-12-transfers.md`](qa/phase-12-transfers.md) walks through the reset job
 from the URL entry: doctor, dry run, the real run, the second idempotent run and the log line.
+
+---
+
+# 4. Registering the Windows tasks (Phase 15)
+
+The three jobs run from Laragon on Windows. Register them once in Task Scheduler with these
+commands (run an **elevated** PowerShell; adapt the app path if it is not `C:\laragon\www\ecowealth`):
+
+```powershell
+$php = 'C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe'
+$app = 'C:\laragon\www\ecowealth\system'
+
+# Shop expiry - every 15 minutes.
+schtasks /Create /F /SC MINUTE /MO 15 /TN "EcoWealth - shop expiry" ^
+  /TR "\"$php\" \"$app\bin\shop_expire.php\" --limit=200"
+
+# Delivered-order auto-complete - every hour.
+schtasks /Create /F /SC HOURLY /MO 1 /TN "EcoWealth - order auto-complete" ^
+  /TR "\"$php\" \"$app\bin\order_autocomplete.php\""
+
+# Transfer-limit reset - every midnight.
+schtasks /Create /F /SC DAILY /ST 00:00 /TN "EcoWealth - transfer limit reset" ^
+  /TR "\"$php\" \"$app\bin\reset_transfer_limits.php\""
+```
+
+The three launchers (`bin\shop_expire.cmd`, `bin\order_autocomplete.cmd`,
+`bin\reset_transfer_limits.cmd`) exist for a machine where PHP is not on `PATH`; point the task at
+the `.cmd` file instead if you prefer:
+
+```powershell
+schtasks /Create /F /SC MINUTE /MO 15 /TN "EcoWealth - shop expiry (cmd)" ^
+  /TR "C:\laragon\www\ecowealth\system\bin\shop_expire.cmd --limit=200"
+```
+
+## Verify a task
+
+```powershell
+schtasks /Query /TN "EcoWealth - shop expiry" /V /FO LIST
+schtasks /Run   /TN "EcoWealth - shop expiry"      # run it once now
+schtasks /Delete /TN "EcoWealth - shop expiry" /F  # remove it
+```
+
+Every run appends one line to `system\storage\logs\<job>-YYYY-MM.log` and takes an advisory lock.
+A second copy started while the first is running logs `[SKIP ]` and exits 0, so an overlapping
+schedule is harmless.
+
+## Task Scheduler checklist
+
+- [ ] The account running the task can write `system\storage\logs` and `system\storage\locks`.
+- [ ] `php -v` works for that account (Laragon's PHP path is absolute, not a `PATH` entry).
+- [ ] The expiry job answered `--doctor` correctly before the first real run.
+- [ ] The first scheduled run appears in the monthly log within the expected window.
+- [ ] `php bin\wallet_reconcile.php` stays clean after a day of scheduled runs.

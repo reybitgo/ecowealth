@@ -64,7 +64,7 @@ return [
         assert_same($before + 1, Live::revision('admin.dashboard'));
     },
 
-    'the dashboard feed renders five regions and chart data' => function (): void {
+    'the dashboard feed renders eight regions and chart data' => function (): void {
         test_signed_in_as(test_user('catalog_admin', 'admin'));
 
         $now = date('Y-m-d H:i:s');
@@ -118,6 +118,35 @@ return [
                 'stock' => 5,
             ]],
             'notes' => [],
+            'commerce' => [
+                'sales_today' => ['orders' => 2, 'amount' => 1500.0, 'average' => 750.0],
+                'sales_30d' => ['orders' => 9, 'amount' => 12345.0, 'average' => 1371.67],
+                'sales_all' => ['orders' => 20, 'amount' => 30000.0, 'average' => 1500.0],
+                'open_orders' => 3,
+                'orders_by_status' => [
+                    ['status' => 'paid', 'count' => 1, 'amount' => 500.0],
+                    ['status' => 'pending', 'count' => 2, 'amount' => 900.0],
+                ],
+                'top_products' => [
+                    ['name' => 'Coffee <script>alert(3)</script>', 'sku' => 'COF-1', 'units' => 7, 'amount' => 2100.0],
+                ],
+                'commissions' => [
+                    'amount' => 500.0, 'count' => 1, 'skipped' => 0,
+                    'recipients' => 1, 'all_time' => 900.0, 'this_month' => 500.0,
+                ],
+                'wallet' => [
+                    'accounts' => 5, 'float' => 3000.0, 'withdrawable' => 2500.0,
+                    'credited_today' => 0.0, 'debited_today' => 0.0, 'movements_today' => 0,
+                ],
+                'payouts' => [
+                    'by_status' => [], 'by_method' => [], 'held' => 500.0,
+                    'held_requests' => 1, 'completed_amount' => 0.0, 'completed_fees' => 0.0,
+                ],
+                'members' => [
+                    'total' => 10, 'members' => 8, 'active' => 6, 'pending' => 2,
+                    'suspended' => 0, 'new_30d' => 3,
+                ],
+            ],
             'chart_data' => [
                 'catalogue' => [
                     'labels' => ['Coffee'],
@@ -142,8 +171,11 @@ return [
         assert_same(
             [
                 'dashboard-kpis',
+                'dashboard-commerce',
                 'dashboard-catalogue',
                 'dashboard-stock',
+                'dashboard-order-status',
+                'dashboard-top-products',
                 'dashboard-recent',
                 'dashboard-packages',
             ],
@@ -151,14 +183,35 @@ return [
         );
 
         $kpis      = $payload['fragments']['dashboard-kpis'];
+        $commerce  = $payload['fragments']['dashboard-commerce'];
         $catalogue = $payload['fragments']['dashboard-catalogue'];
         $stock     = $payload['fragments']['dashboard-stock'];
+        $orders    = $payload['fragments']['dashboard-order-status'];
+        $top       = $payload['fragments']['dashboard-top-products'];
         $recent    = $payload['fragments']['dashboard-recent'];
         $packages  = $payload['fragments']['dashboard-packages'];
 
         assert_contains('data-live-region="dashboard-kpis"', $kpis);
         assert_contains('Total accounts', $kpis);
         assert_contains('Inventory value', $kpis);
+
+        /* Phase 15: the commerce and finance roll-up. */
+        assert_contains('data-live-region="dashboard-commerce"', $commerce);
+        assert_contains('Sales today', $commerce);
+        assert_contains('₱1,500.00', $commerce);
+        assert_contains('Sales · 30 days', $commerce);
+        assert_contains('Commissions · 30 days', $commerce);
+        assert_contains('Wallet float', $commerce);
+
+        assert_contains('data-live-region="dashboard-order-status"', $orders);
+        assert_contains('Payment review, packing, ready, shipped', $commerce);
+        assert_contains('Paid', $orders);
+        assert_contains('Pending', $orders);
+
+        assert_contains('data-live-region="dashboard-top-products"', $top);
+        assert_contains('Coffee &lt;script&gt;alert(3)&lt;/script&gt;', $top);
+        assert_not_contains('<script>alert(3)</script>', $top);
+        assert_contains('7 units', $top);
 
         assert_contains('data-live-region="dashboard-catalogue"', $catalogue);
         assert_contains('id="catalogueValueChart"', $catalogue);

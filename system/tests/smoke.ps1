@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-    EcoWealth HTTP smoke test (Phase 1-11: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    EcoWealth HTTP smoke test (Phase 1-15: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
     P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
     P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
     P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12,
-    P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13).
+    P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13,
+    P15-T1 ... P15-T12).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -238,7 +239,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-14)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-15)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -279,6 +280,12 @@ $p12Ran             = $false
 $p14LogStart   = 0
 $p14AuditStart = 0
 $p14Ran        = $false
+
+# Phase 15: the reports exports and settings saves write audit rows (and the
+# settings snapshot above restores the values); the finally block removes the
+# rows this run added and any upload probe file.
+$p15AuditStart = 0
+$p15Ran        = $false
 
 # Phase 13: the payout requests this run writes, their ledger legs (the hold
 # and the refund) and their audit rows are deleted in the finally block; the
@@ -1540,7 +1547,7 @@ try {
         $settingsSnapshot[$key] = Get-SettingValue $key
     }
 
-    $sectionForms = ([regex]::Matches($settingsPage.Body, 'name="section" value="(shop|accounts|payouts|windows|fulfilment)"')).Count
+    $sectionForms = ([regex]::Matches($settingsPage.Body, 'name="section" value="(general|shop|accounts|payouts|windows|fulfilment|commissions|transfers)"')).Count
     $saveButtons  = ([regex]::Matches($settingsPage.Body, 'Save settings')).Count
 
     # 1. Receiving accounts.
@@ -1609,7 +1616,10 @@ try {
             -and $settingsPage.Body -match 'name="seller_name"' `
             -and $settingsPage.Body -match 'name="shop_autocomplete_days"' `
             -and $settingsPage.Body -match 'Fulfilment &amp; invoices' `
-            -and $sectionForms -eq 5 -and $saveButtons -eq 5 `
+            -and $settingsPage.Body -match 'name="site_name"' `
+            -and $settingsPage.Body -match 'name="commission_direct_enabled"' `
+            -and $settingsPage.Body -match 'name="ewallet_transfer_fee"' `
+            -and $sectionForms -eq 8 -and $saveButtons -eq 8 `
             -and $saveAccounts.Status -eq 302 -and $gcashSaved -eq '0917 123 4567' `
             -and $saveFulfilment.Status -eq 302 -and $sellerSaved -eq 'EcoWealth Smoke Trading' `
             -and $daysSaved -eq '9' -and $autoSaved -eq '1' `
@@ -2934,6 +2944,198 @@ try {
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
+    # ---- Phase 15: hardening, reports, settings, audit and launch ------
+    $p15Ran = $true
+    $p15AuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+    $p15Brand = 'Smoke Brand Co'
+
+    foreach ($key in @(
+            'site_name', 'site_tagline', 'ewallet_transfer_fee', 'ewallet_min_transfer',
+            'ewallet_transfer_daily_limit', 'ewallet_transfer_weekly_limit', 'commission_direct_enabled')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) {
+            $settingsSnapshot[$key] = Get-SettingValue $key
+        }
+    }
+
+    # P15-T2 — the shared response headers reach every surface.
+    $p15Guest   = Invoke-App -Path '/login' -Session 'guest'
+    $p15Headers = $p15Guest.Headers
+    $p15HeaderOk = $p15Guest.Status -eq 200 `
+        -and $p15Headers['x-content-type-options'] -eq 'nosniff' `
+        -and $p15Headers['x-frame-options'] -eq 'DENY' `
+        -and $p15Headers['content-security-policy'] -match "frame-ancestors 'none'" `
+        -and $p15Headers['referrer-policy'] -eq 'strict-origin-when-cross-origin' `
+        -and $p15Headers['permissions-policy'] -match 'camera=\(\)' `
+        -and $p15Headers['x-robots-tag'] -match 'noindex'
+    Assert-That 'P15-T2' $p15HeaderOk `
+        "security headers are sent on a public page (nosniff=$($p15Headers['x-content-type-options']), frame=$($p15Headers['x-frame-options']))"
+
+    # A PHP file dropped into uploads/ is refused by the directory policy.
+    $p15ProbeRelative = 'uploads/proofs/smoke-probe-' + (Get-Random -Minimum 1000 -Maximum 9999) + '.php'
+    $p15ProbeAbsolute = Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'public') ($p15ProbeRelative -replace '/', '\')
+    Set-Content -Path $p15ProbeAbsolute -Value '<?php echo "executed";' -Encoding ASCII
+    $p15Probe = Invoke-App -Path ('/' + $p15ProbeRelative)
+    Remove-Item $p15ProbeAbsolute -Force -ErrorAction SilentlyContinue
+    Assert-That 'P15-T2' ($p15Probe.Status -eq 403 -and $p15Probe.Body -notmatch 'executed') `
+        "uploads/ refuses to execute PHP (status=$($p15Probe.Status))"
+
+    # Guards: guests bounce to /login, members get the branded 403.
+    $p15GuestAdmin   = Invoke-App -Path '/admin/reports'
+    $p15MemberReports = Invoke-App -Path '/admin/reports' -Session 'other'
+    $p15MemberAudit   = Invoke-App -Path '/admin/audit' -Session 'other'
+    $p15MemberExport  = Invoke-App -Path '/admin/reports/export?type=sales' -Session 'other'
+    $p15GuestExpired  = Invoke-App -Path '/admin/audit' -Session 'guest'
+    Assert-That 'P15-T2' ($p15MemberReports.Status -eq 403 -and $p15MemberReports.Body -match 'Access denied' `
+            -and $p15MemberAudit.Status -eq 403 -and $p15MemberExport.Status -eq 403 `
+            -and $p15GuestAdmin.Status -eq 302 -and $p15GuestAdmin.Location -match '/login' `
+            -and $p15GuestExpired.Status -eq 302) `
+        "reports and audit stay admin-only (member=$($p15MemberReports.Status), guest=$($p15GuestAdmin.Status))"
+
+    # P15-T8 — the error pages are branded, never a stack trace.
+    $p15NotFound = Invoke-App -Path '/phase-15-no-such-page'
+    Assert-That 'P15-T8' ($p15NotFound.Status -eq 404 -and $p15NotFound.Body -match 'Page not found' `
+            -and $p15NotFound.Body -notmatch 'Stack trace' -and $p15NotFound.Body -notmatch 'Fatal error') `
+        "an unknown URL renders the branded 404 (status=$($p15NotFound.Status))"
+
+    # P15-T7 — the settings page saves the new cards, validates pairs and audits.
+    $p15Settings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p15SettingsOk = $p15Settings.Status -eq 200 `
+        -and $p15Settings.Body -match 'name="site_name"' `
+        -and $p15Settings.Body -match 'name="commission_direct_enabled"' `
+        -and $p15Settings.Body -match 'name="ewallet_transfer_fee"' `
+        -and $p15Settings.Body -match 'Maintenance mode'
+
+    $p15SettingsToken = Get-Csrf $p15Settings.Body
+    $p15Save = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'            = $p15SettingsToken
+        'section'          = 'general'
+        'site_name'        = $p15Brand
+        'site_tagline'     = 'Smoke tagline'
+        'maintenance_mode' = '0'
+    }
+    $p15BrandSaved = (Get-SettingValue 'site_name') -eq $p15Brand
+
+    $p15GuestBrand = Invoke-App -Path '/login' -Session 'guest'
+    $p15BrandRendered = $p15GuestBrand.Body -match [regex]::Escape($p15Brand)
+
+    $p15ClientSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                        = $p15SettingsToken
+        'section'                      = 'transfers'
+        'ewallet_transfer_fee'         = '7.50'
+        'ewallet_min_transfer'         = '60.00'
+        'ewallet_transfer_daily_limit' = '4100.00'
+        'ewallet_transfer_weekly_limit' = '9000.00'
+    }
+    $p15ClientSaved = (Get-SettingValue 'ewallet_transfer_fee') -eq '7.50' `
+        -and (Get-SettingValue 'ewallet_transfer_daily_limit') -eq '4100.00' `
+        -and (Get-SettingValue 'ewallet_min_transfer') -eq '60.00'
+
+    $p15BadLimits = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                        = $p15SettingsToken
+        'section'                      = 'transfers'
+        'ewallet_transfer_fee'         = '7.50'
+        'ewallet_min_transfer'         = '60.00'
+        'ewallet_transfer_daily_limit' = '500.00'
+        'ewallet_transfer_weekly_limit' = '100.00'
+    }
+    $p15LimitError = Invoke-App -Path '/admin/settings#settings-transfers' -Session 'admin'
+    $p15BadRefused = (Get-SettingValue 'ewallet_transfer_daily_limit') -eq '4100.00' `
+        -and $p15LimitError.Body -match 'cannot be below the daily limit'
+
+    $p15CommissionSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                            = $p15SettingsToken
+        'section'                          = 'commissions'
+        'commission_indirect_max_levels'   = '10'
+        'commission_indirect_enabled'      = '1'
+        'commission_requires_active_sponsor' = '1'
+        'free_registration_enabled'        = '1'
+    }
+    $p15CommissionsOff = (Get-SettingValue 'commission_direct_enabled') -eq '0'
+
+    $p15SettingsAudit = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'settings.update' AND id > $p15AuditStart AND meta_json LIKE '%site_name%' ORDER BY id DESC LIMIT 1;" | Out-String)
+    Assert-That 'P15-T7' ($p15SettingsOk -and $p15Save.Status -eq 302 -and $p15BrandSaved -and $p15BrandRendered `
+            -and $p15ClientSave.Status -eq 302 -and $p15ClientSaved -and $p15BadRefused `
+            -and $p15CommissionSave.Status -eq 302 -and $p15CommissionsOff `
+            -and $p15SettingsAudit -match 'site_name') `
+        "each settings card saves, audits and is effective (brand=$p15BrandSaved, rendered=$p15BrandRendered, limits=$p15ClientSaved, refused=$p15BadRefused)"
+
+    # P15 — the reports desk renders every report and the health widget.
+    $p15Reports = Invoke-App -Path '/admin/reports' -Session 'admin'
+    $p15ReportsOk = $p15Reports.Status -eq 200 `
+        -and $p15Reports.Body -match 'Sales by day' `
+        -and $p15Reports.Body -match 'Commissions by level' `
+        -and $p15Reports.Body -match 'Payout register' `
+        -and $p15Reports.Body -match 'Registration-code revenue' `
+        -and $p15Reports.Body -match 'Finance health' `
+        -and $p15Reports.Body -match 'All clear' `
+        -and $p15Reports.Body -match 'type=sales'
+    Assert-That 'P15-T1' $p15ReportsOk `
+        "the reports desk renders every report and the reconciliation widget (status=$($p15Reports.Status))"
+
+    $p15Window = Invoke-App -Path '/admin/reports?from=2026-01-05&to=2026-01-10' -Session 'admin'
+    Assert-That 'P15-T1' ($p15Window.Status -eq 200 -and $p15Window.Body -match '6 days' `
+            -and $p15Window.Body -match 'value="2026-01-05"') `
+        "the report window is applied and echoed (status=$($p15Window.Status))"
+
+    # P15-T3 — a heavy report stays inside the launch budget.
+    $p15Timer = & curl.exe -s -o NUL -w '%{time_total}' --cookie $script:Jars['admin'] --cookie-jar $script:Jars['admin'] "$base/admin/reports"
+    $p15Seconds = 0.0
+    [void][double]::TryParse((($p15Timer -join '').Trim()), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref] $p15Seconds)
+    Assert-That 'P15-T3' ($p15Seconds -gt 0 -and $p15Seconds -lt 2.0) `
+        ("the reports page answers in {0:N3}s (budget 2.000s)" -f $p15Seconds)
+
+    # P15-T1 / T4 — the CSV exports match their report and are audited.
+    $p15SalesCsv = Invoke-App -Path '/admin/reports/export?type=sales&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15CommCsv = Invoke-App -Path '/admin/reports/export?type=commissions&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15WalletCsv = Invoke-App -Path '/admin/reports/export?type=wallet&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15PayoutCsv = Invoke-App -Path '/admin/reports/export?type=payouts&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15CodeCsv = Invoke-App -Path '/admin/reports/export?type=codes&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15ExportAudit = [int] ((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'report.export' AND id > $p15AuditStart;" | Out-String).Trim())
+
+    Assert-That 'P15-T1' ($p15SalesCsv.Status -eq 200 -and $p15SalesCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p15SalesCsv.Body -match 'Date,Orders,Sales' `
+            -and $p15CommCsv.Status -eq 200 -and $p15CommCsv.Body -match 'Level,Type,Awards' `
+            -and $p15WalletCsv.Status -eq 200 -and $p15WalletCsv.Body -match 'Ledger,Date,Member' `
+            -and $p15PayoutCsv.Status -eq 200 -and $p15PayoutCsv.Body -match 'Request,"Requested at",Member' `
+            -and $p15CodeCsv.Status -eq 200 -and $p15CodeCsv.Body -match 'ID,Code,Package' `
+            -and $p15ExportAudit -ge 5) `
+        "the five CSV exports download and are audited (sales=$($p15SalesCsv.Status), audit=$p15ExportAudit)"
+
+    # P15-T12 — the audit desk lists the settings change and the exports.
+    $p15AuditPage = Invoke-App -Path '/admin/audit' -Session 'admin'
+    $p15AuditFiltered = Invoke-App -Path '/admin/audit?action=settings.update' -Session 'admin'
+    Assert-That 'P15-T12' ($p15AuditPage.Status -eq 200 -and $p15AuditPage.Body -match 'Audit log' `
+            -and $p15AuditFiltered.Status -eq 200 -and $p15AuditFiltered.Body -match 'settings.update' `
+            -and $p15AuditFiltered.Body -notmatch 'No audit entries match') `
+        "the audit desk lists and filters the run's actions (all=$($p15AuditPage.Status), filtered=$($p15AuditFiltered.Status))"
+
+    # P15-T2 — a money form is rate-limited before it touches a service.
+    $p15TransferPage  = Invoke-App -Path '/wallet/transfer' -Session 'other'
+    $p15TransferToken = Get-Csrf $p15TransferPage.Body
+    $p15Blocked = $null
+
+    for ($p15Attempt = 1; $p15Attempt -le 11; $p15Attempt++) {
+        $attempt = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'other' -Form @{
+            '_csrf'     = $p15TransferToken
+            'recipient' = 'juan'
+            'amount'    = '1.00'
+            'password'  = 'WrongPassword1'
+            'note'      = 'smoke throttle'
+        }
+
+        if ($p15Attempt -le 10) {
+            $p15Blocked = $attempt
+        } else {
+            $p15LastAttempt = $attempt
+        }
+    }
+
+    $p15ThrottleFlash = Invoke-App -Path '/wallet/transfer' -Session 'other'
+    Assert-That 'P15-T2' ($p15LastAttempt.Status -eq 302 -and $p15ThrottleFlash.Body -match 'Too many transfer attempts') `
+        "the transfer form is rate-limited (last=$($p15LastAttempt.Status), flash=$($p15ThrottleFlash.Body -match 'Too many transfer attempts'))"
+
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
+
     # ---- P1-T11: maintenance mode ---------------------------------------
     $maintenanceBefore = Get-SettingValue 'maintenance_mode'
     Set-SettingValue 'maintenance_mode' '1'
@@ -3039,6 +3241,17 @@ try {
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
     try { Invoke-MySql "DELETE FROM packages WHERE name LIKE 'Smoke Package%';" | Out-Null } catch { }
+    # Phase 15: report-export and settings-change audit rows created here.
+    try {
+        if ($p15Ran -and $p15AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p15AuditStart AND action IN ('report.export', 'settings.update');" | Out-Null
+        }
+    } catch { }
+    # Phase 15: any upload probe this run left behind.
+    try {
+        Invoke-MySql "DELETE FROM audit_log WHERE action = 'settings.update' AND id > $p15AuditStart;" | Out-Null
+        Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs') -Filter 'smoke-probe-*.php' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch { }
     Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 

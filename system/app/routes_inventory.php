@@ -263,6 +263,8 @@ return [
         $extension('GET', '/admin/commissions/export', 11, 'Filtered commission-ledger CSV export.'),
         $extension('POST', '/slogin/exit', 14, 'Ends the impersonation session from the member layout banner.'),
         $extension('GET', '/admin/impersonations', 14, 'Super-login audit trail.'),
-        $extension('GET', '/admin/reports', 15, 'Reconciliation report.'),
+        $extension('GET', '/admin/reports', 15, 'Sales, commission, wallet, payout, code and reconciliation reports.'),
+        $extension('GET', '/admin/reports/export', 15, 'One CSV per report (sales, commissions, wallet statement, payout register, codes).'),
+        $extension('GET', '/admin/audit', 15, 'Admin audit desk over the append-only audit_log.'),
     ],
 ];

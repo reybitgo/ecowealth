@@ -431,6 +431,15 @@ final class OrderController
     {
         $user    = $this->member();
         $orderId = (int) ($params['id'] ?? 0);
+
+        /* Abuse guard (plan §3.7): ten proof uploads per quarter hour. The
+         * per-order attempt cap still applies; this stops a loop across
+         * orders from filling the uploads folder. */
+        if (!Throttle::hit('proof:' . (int) $user['id'], 10, 900)) {
+            flash_set('danger', 'Too many payment-proof uploads. Please wait a few minutes and try again.');
+            redirect('orders/' . $orderId);
+        }
+
         $claim   = [
             'amount_sent'   => Request::post('amount_sent'),
             'reference_no'  => Request::post('reference_no'),

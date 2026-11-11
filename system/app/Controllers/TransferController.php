@@ -105,6 +105,13 @@ final class TransferController
         $userId = (int) $user['id'];
         $back   = 'wallet/transfer';
 
+        /* Abuse guard (plan §3.7): ten transfer attempts per quarter hour.
+         * A refusal moves no money and writes no row. */
+        if (!Throttle::hit('transfer:' . $userId, 10, 900)) {
+            flash_set('danger', 'Too many transfer attempts. Please wait a few minutes and try again.');
+            redirect($back);
+        }
+
         $input = [
             'recipient' => Request::string('recipient'),
             'amount'    => Request::string('amount'),

@@ -19,6 +19,20 @@ require_once __DIR__ . '/autoload.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/auth.php';
 
+/* Response hardening first, so even a failure later in this file still
+ * answers with the shared headers (plan §3.7, Phase 15). */
+SecurityHeaders::send();
+
+/* Production never renders a PHP error to the browser (plan §3.7);
+ * the detail still reaches error_log through the front controller's
+ * Throwable handler. Development and the test harness keep them on. */
+if (!APP_DEBUG) {
+    @ini_set('display_errors', '0');
+    @ini_set('display_startup_errors', '0');
+}
+
+@ini_set('log_errors', '1');
+
 date_default_timezone_set(APP_TIMEZONE);
 
 auth_start_session();

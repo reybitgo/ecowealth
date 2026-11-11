@@ -143,7 +143,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_audit_actor (actor_id, created_at),
-  KEY idx_audit_subject (subject_type, subject_id)
+  KEY idx_audit_subject (subject_type, subject_id),
+  KEY idx_audit_action (action, created_at),
+  KEY idx_audit_created (created_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -310,6 +312,7 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   UNIQUE KEY uq_ewallet_idempotency (user_id, ref_type, ref_id, type),
   KEY idx_ewallet_user (user_id, created_at),
   KEY idx_ewallet_ref (ref_type, ref_id),
+  KEY idx_ewallet_created (created_at, ref_type),
   CONSTRAINT fk_ewallet_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
@@ -498,6 +501,8 @@ CREATE TABLE IF NOT EXISTS shop_orders (
   UNIQUE KEY uq_shop_orders_idem (idempotency_key),
   KEY idx_orders_user_status (user_id, status, created_at),
   KEY idx_orders_status (status, payment_deadline),
+  KEY idx_orders_created (created_at),
+  KEY idx_orders_paid (paid_at),
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
@@ -668,6 +673,7 @@ CREATE TABLE IF NOT EXISTS reg_codes (
   KEY idx_reg_codes_status (status),
   KEY idx_reg_codes_package (package_id),
   KEY idx_reg_codes_user (used_by),
+  KEY idx_reg_codes_created (created_at, status),
   CONSTRAINT fk_reg_codes_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE RESTRICT,
   CONSTRAINT fk_reg_codes_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
   CONSTRAINT fk_reg_codes_user    FOREIGN KEY (used_by)    REFERENCES users (id) ON DELETE SET NULL
@@ -744,6 +750,7 @@ CREATE TABLE IF NOT EXISTS commissions (
   KEY idx_commissions_source (source_user_id, created_at),
   KEY idx_commissions_activation (activation_id),
   KEY idx_commissions_status (status, created_at),
+  KEY idx_commissions_level (level, status),
   KEY idx_commissions_ledger (ledger_id),
   CONSTRAINT fk_comm_user       FOREIGN KEY (user_id)        REFERENCES users (id)       ON DELETE CASCADE,
   CONSTRAINT fk_comm_source     FOREIGN KEY (source_user_id) REFERENCES users (id)       ON DELETE CASCADE,

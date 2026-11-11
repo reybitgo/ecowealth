@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(85, $live);
+        assert_count(88, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -196,6 +196,11 @@ return [
         assert_same('superadmin', $live['POST /slogin']);
         assert_same('member', $live['POST /slogin/exit'], 'inside the tab the caller is the member');
         assert_same('admin', $live['GET /admin/impersonations']);
+
+        /* Phase 15 — the reports desk, its CSV exports and the audit log. */
+        assert_same('admin', $live['GET /admin/reports']);
+        assert_same('admin', $live['GET /admin/reports/export']);
+        assert_same('admin', $live['GET /admin/audit']);
     },
 
     'Live route table resolves the Phase 1–10 URLs' => function (): void {

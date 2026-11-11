@@ -23,6 +23,9 @@
 # Default entry point
 DirectoryIndex index.php
 
+# Never list a directory's contents.
+Options -Indexes
+
 # Never serve dotfiles (.htaccess itself, .env, …)
 <FilesMatch "^\.">
   Require all denied

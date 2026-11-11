@@ -261,6 +261,14 @@ final class CheckoutController
     {
         $user = $this->member();
 
+        /* Abuse guard (plan §3.7): twenty checkout submissions per ten
+         * minutes. The idempotency key still makes a double click safe;
+         * this stops a scripted loop from reserving stock repeatedly. */
+        if (!Throttle::hit('checkout:' . (int) $user['id'], 20, 600)) {
+            flash_set('danger', 'Too many checkout attempts. Please wait a moment and try again.');
+            redirect('checkout');
+        }
+
         $input = [
             'billing_name'      => Request::string('billing_name'),
             'billing_phone'     => Request::string('billing_phone'),

@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * Admin — settings: shop, payment accounts, payout methods, payment
- * windows, fulfilment and the invoice seller block (plan §7 Phases 7–8;
- * the full settings page expands in Phase 15).
+ * Admin — settings: identity & maintenance, shop, payment accounts,
+ * payout methods, payment windows, fulfilment and invoices, commissions
+ * and transfers (plan §7 Phases 7–8; the full settings page in Phase 15).
  *
  * Each card is its own form and saves on its own. The hidden `section`
  * field tells AdminSettingsController::save() which card's keys to
@@ -16,26 +16,35 @@ declare(strict_types=1);
  * footers and the explanatory side card stay static.
  *
  * @var array<string, mixed> $settings
+ * @var list<array{key:string,label:string,rule:string,max:int,hint:string}> $general_fields
  * @var list<array{title:string, icon:string, method:string, fields:list<array{key:string,label:string,placeholder:string}>}> $account_groups
  * @var list<array{key:string,label:string,hint:string,step:string,suffix:string}> $payout_fields
  * @var list<array{key:string,title:string,icon:string,usdt:bool,toggle:string,fee:string,gas:string}> $payout_channels
  * @var array<string, array{label:string, rule:string, hint:string}> $window_fields
  * @var list<array{key:string,label:string,placeholder:string,type:string}> $seller_fields
  * @var array<string, array{label:string, rule:string, hint:string}> $fulfilment_fields
+ * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $commission_fields
+ * @var array<string, array{label:string,hint:string}> $commission_toggles
+ * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
  * @var bool $autocomplete_enabled
+ * @var bool $maintenance_mode
  * @var bool $manual_open
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
 $settings         = $settings ?? [];
+$generalFields    = $general_fields ?? [];
 $accountGroups    = $account_groups ?? [];
 $payoutFields     = $payout_fields ?? [];
 $payoutChannels   = $payout_channels ?? [];
 $windowFields     = $window_fields ?? [];
 $sellerFields     = $seller_fields ?? [];
 $fulfilmentFields = $fulfilment_fields ?? [];
+$commissionFields = $commission_fields ?? [];
+$commissionToggles = $commission_toggles ?? [];
+$transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
 $live = $live ?? [
@@ -72,19 +81,46 @@ $action = url('admin/settings');
                 <div>
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
-                    Where buyers send manual payments, how withdrawals are paid out, how long a buyer has to pay,
-                    and what appears on the printed invoice. Each card saves on its own and every change is
-                    recorded in the audit log.
+                    Identity, where buyers send manual payments, how withdrawals are paid out, how long a buyer has to
+                    pay, what appears on the printed invoice, how commissions are earned and what transfers may move.
+                    Each card saves on its own and every change is recorded in the audit log.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
-                <span class="badge bg-label-primary">Payments, payouts, fulfilment &amp; invoices</span>
+                <span class="badge bg-label-primary">General, payments, payouts, fulfilment, commissions &amp; transfers</span>
               </div>
 
 <?= View::capture('admin/settings/_notice', ['manual_open' => $manualOpen]) ?>
 
               <div class="row g-6">
                 <div class="col-xl-8">
+                  <!-- General -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-general" class="card mb-6 settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="general" />
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <div>
+                        <h5 class="mb-1">General</h5>
+                        <p class="text-body-secondary small mb-0">Identity and availability</p>
+                      </div>
+                      <span class="badge bg-label-secondary">Phase 15</span>
+                    </div>
+<?= View::capture('admin/settings/_general', [
+    'settings'         => $settings,
+    'general_fields'   => $generalFields,
+    'maintenance_mode' => (bool) ($maintenance_mode ?? false),
+]) ?>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-buildings me-1"></i>
+                        The name appears in the browser title and the layout.
+                      </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save general settings">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
+                    </div>
+                  </form>
+
                   <!-- Shop -->
                   <form method="POST" action="<?= e($action) ?>" id="settings-shop" class="card mb-6 settings-form">
                     <?= csrf_field() ?>
@@ -190,6 +226,59 @@ $action = url('admin/settings');
                         Frozen at payment · completion runs from <code>bin/order_autocomplete.php</code>.
                       </span>
                       <button type="submit" class="btn btn-primary" aria-label="Save fulfilment and invoice settings">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
+                    </div>
+                  </form>
+
+                  <!-- Commissions -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-commissions" class="card mb-6 settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="commissions" />
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <div>
+                        <h5 class="mb-1">Commissions</h5>
+                        <p class="text-body-secondary small mb-0">Direct, unilevel and registration switches</p>
+                      </div>
+                      <span class="badge bg-label-secondary">Phase 15</span>
+                    </div>
+<?= View::capture('admin/settings/_commissions', [
+    'settings'           => $settings,
+    'commission_fields'  => $commissionFields,
+    'commission_toggles' => $commissionToggles,
+]) ?>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-line-chart me-1"></i>
+                        A disabled leg pays nothing on the next activation; the ledger keeps every past award.
+                      </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save commission settings">
+                        <i class="icon-base bx bx-save me-1"></i> Save settings
+                      </button>
+                    </div>
+                  </form>
+
+                  <!-- Transfers -->
+                  <form method="POST" action="<?= e($action) ?>" id="settings-transfers" class="card settings-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="section" value="transfers" />
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <div>
+                        <h5 class="mb-1">Transfers</h5>
+                        <p class="text-body-secondary small mb-0">Member-to-member fee and limits</p>
+                      </div>
+                      <span class="badge bg-label-secondary">Phase 15</span>
+                    </div>
+<?= View::capture('admin/settings/_transfers', [
+    'settings'        => $settings,
+    'transfer_fields' => $transferFields,
+]) ?>
+                    <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span class="small text-body-secondary">
+                        <i class="icon-base bx bx-transfer me-1"></i>
+                        The transfer page and the admin monitor pick these up on their next refresh.
+                      </span>
+                      <button type="submit" class="btn btn-primary" aria-label="Save transfer settings">
                         <i class="icon-base bx bx-save me-1"></i> Save settings
                       </button>
                     </div>

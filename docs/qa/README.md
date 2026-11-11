@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–14)
+# EcoWealth — Manual QA pack (Phases 1–15)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11, 12, 13 and 14. The automated suites are already green; these documents let a tester who has never seen the
+7, 8, 9, 10, 11, 12, 13, 14 and 15. The automated suites are already green; these documents let a tester who has never seen the
 project walk through every screen, compare it with the expected result, capture evidence and
 sign the phase off.
 
@@ -29,14 +29,15 @@ sign the phase off.
 | [phase-12-transfers.md](phase-12-transfers.md) | 12 — member transfers, fees, limits, reset cron, admin monitor | 8 | 25–35 min |
 | [phase-13-payouts.md](phase-13-payouts.md) | 13 — payout requests, the hold, fees, USDT conversion, admin queue | 8 | 25–35 min |
 | [phase-14-super-login.md](phase-14-super-login.md) | 14 — super-login console, URL-token impersonation, exit/TTL, audit trail | 8 | 25–35 min |
-| [sign-off-sheet.md](sign-off-sheet.md) | all fourteen | — | 10 min to complete |
+| [phase-15-launch.md](phase-15-launch.md) | 15 — dashboards, reports/exports, the eight settings cards, audit desk, hardening, UAT and launch | 12 | 40–55 min |
+| [sign-off-sheet.md](sign-off-sheet.md) | all fifteen | — | 10 min to complete |
 
-Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-14` inside it). Phases 4–12 also
+Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
 `evidence/phase-5/final-*.png`, `evidence/phase-6/final-*.png`, `evidence/phase-7/final-*.png`,
 `evidence/phase-8/final-*.png`, `evidence/phase-9/final-*.png`, `evidence/phase-10/*.png`,
 `evidence/phase-11/*.png` and (once the browser passes are captured) `evidence/phase-12/*.png`,
-`evidence/phase-13/*.png` and `evidence/phase-14/*.png`.
+`evidence/phase-13/*.png`, `evidence/phase-14/*.png` and `evidence/phase-15/*.png`.
 
 ---
 
@@ -55,7 +56,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 669   Passed: 669   Failed: 0
+Cases: 722   Passed: 722   Failed: 0
 All good.
 ```
 
@@ -68,7 +69,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 173   Failed: 0
+Passed: 185   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -181,6 +182,17 @@ Passed: 173   Failed: 0
   counts and no hashed nonce in its HTML. The HTTP smoke script opens a real URL-token session over HTTP,
   follows a token-bearing link, exits, proves the token dead, then exercises TTL expiry, user-agent
   expiry, the guards, an admin target, six rate-limited attempts, a tampered token and the audit page.
+- Phase 15: the report read model (paid-orders-only revenue, zero-filled day series, status order, paid-line
+  top products, level/leg commission grouping, both wallet buckets' float, payout status/method splits, code
+  revenue, and the five CSV shapes) and its window maths (default, inclusive, swapped, capped); the reports page
+  and its live fragments; the health widget's seven invariants (clean on the fixture, and a broken order total is
+  caught); the audit desk's filters/vocabulary/stats and the absence of any update/delete path; the shared
+  security headers, the throttles, uploads/ hardening, production error display and the phase-15 config; the
+  launch scenarios (a condensed UAT money path, IDOR/role/CSRF probes, 1,000-order report timing, fresh install,
+  effective settings and a complete S-Login audit). The HTTP smoke script adds the headers, an uploads PHP probe,
+  the reports/audit guards, a branded 404, all eight settings cards with a refusal and an effective brand change,
+  the reports desk and window, the CSV downloads with their audit rows, the audit filters and the transfer
+  throttle.
 The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 

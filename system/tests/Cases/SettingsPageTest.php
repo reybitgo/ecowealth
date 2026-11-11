@@ -24,14 +24,19 @@ $render = static function (array $overrides = []): string {
         'page_css'          => ['assets/css/orders.css'],
         'settings'          => setting_all(),
         'account_groups'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('ACCOUNT_GROUPS'),
+        'general_fields'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('GENERAL_FIELDS'),
         'payout_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('PAYOUT_FIELDS'),
         'payout_channels'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('PAYOUT_CHANNELS'),
         'window_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('WINDOW_FIELDS'),
         'seller_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('SELLER_FIELDS'),
         'fulfilment_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('FULFILMENT_FIELDS'),
+        'commission_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('COMMISSION_FIELDS'),
+        'commission_toggles' => (new ReflectionClass(AdminSettingsController::class))->getConstant('COMMISSION_TOGGLES'),
+        'transfer_fields'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('TRANSFER_FIELDS'),
         'shop_enabled'      => true,
         'expiry_enabled'    => true,
         'autocomplete_enabled' => true,
+        'maintenance_mode'  => false,
         'manual_open'       => true,
     ], $overrides);
 
@@ -71,11 +76,14 @@ return [
         $html = $render();
 
         $cards = [
+            'settings-general'    => 'general',
             'settings-shop'       => 'shop',
             'settings-accounts'   => 'accounts',
             'settings-payouts'    => 'payouts',
             'settings-windows'    => 'windows',
             'settings-fulfilment' => 'fulfilment',
+            'settings-commissions' => 'commissions',
+            'settings-transfers'  => 'transfers',
         ];
 
         foreach ($cards as $id => $section) {
@@ -88,15 +96,18 @@ return [
             assert_contains('action="' . url('admin/settings') . '"', $scope);
         }
 
-        assert_same(5, substr_count($html, 'Save settings'), 'one save button per card');
-        assert_same(5, substr_count($html, 'name="section"'), 'one section marker per form');
+        assert_same(8, substr_count($html, 'Save settings'), 'one save button per card');
+        assert_same(8, substr_count($html, 'name="section"'), 'one section marker per form');
 
-        /* Screen-reader labels distinguish the five buttons. */
+        /* Screen-reader labels distinguish the eight buttons. */
+        assert_contains('aria-label="Save general settings"', $html);
         assert_contains('aria-label="Save shop settings"', $html);
         assert_contains('aria-label="Save receiving accounts"', $html);
         assert_contains('aria-label="Save payout methods"', $html);
         assert_contains('aria-label="Save payment windows"', $html);
         assert_contains('aria-label="Save fulfilment and invoice settings"', $html);
+        assert_contains('aria-label="Save commission settings"', $html);
+        assert_contains('aria-label="Save transfer settings"', $html);
     },
 
     'P7-T4 a card only contains its own fields' => function () use ($render, $form): void {
@@ -109,6 +120,31 @@ return [
         $payouts    = $form($html, 'settings-payouts');
         $windows    = $form($html, 'settings-windows');
         $fulfilment = $form($html, 'settings-fulfilment');
+        $general    = $form($html, 'settings-general');
+        $commissions = $form($html, 'settings-commissions');
+        $transfers  = $form($html, 'settings-transfers');
+
+        /* Phase 15 cards: identity, commission switches and transfer rules. */
+        assert_contains('name="site_name"', $general);
+        assert_contains('name="site_tagline"', $general);
+        assert_contains('name="maintenance_mode"', $general);
+        assert_not_contains('name="shop_enabled"', $general);
+        assert_not_contains('name="commission_direct_enabled"', $general);
+
+        assert_contains('name="commission_indirect_max_levels"', $commissions);
+        assert_contains('name="commission_direct_enabled"', $commissions);
+        assert_contains('name="commission_indirect_enabled"', $commissions);
+        assert_contains('name="commission_requires_active_sponsor"', $commissions);
+        assert_contains('name="free_registration_enabled"', $commissions);
+        assert_not_contains('name="ewallet_transfer_fee"', $commissions);
+        assert_not_contains('name="site_name"', $commissions);
+
+        assert_contains('name="ewallet_transfer_fee"', $transfers);
+        assert_contains('name="ewallet_min_transfer"', $transfers);
+        assert_contains('name="ewallet_transfer_daily_limit"', $transfers);
+        assert_contains('name="ewallet_transfer_weekly_limit"', $transfers);
+        assert_not_contains('name="commission_direct_enabled"', $transfers);
+        assert_not_contains('name="min_payout"', $transfers);
 
         assert_contains('name="shop_enabled"', $shop);
         assert_not_contains('name="payment_gcash_number"', $shop);
@@ -193,7 +229,7 @@ return [
         $html = $render();
 
         assert_not_contains('class="row g-6 settings-form"', $html, 'no form wraps the whole grid');
-        assert_same(5, preg_match_all('/<form\b[^>]*class="[^"]*settings-form/', $html), 'five card forms');
+        assert_same(8, preg_match_all('/<form\b[^>]*class="[^"]*settings-form/', $html), 'eight card forms');
     },
 
     /* ---------- The section catalogue behind the save ------------- */
@@ -204,6 +240,24 @@ return [
         $windows    = $sectionMethod('sectionKeys', 'windows');
         $fulfilment = $sectionMethod('sectionKeys', 'fulfilment');
         $shop       = $sectionMethod('sectionKeys', 'shop');
+        $general    = $sectionMethod('sectionKeys', 'general');
+        $commissions = $sectionMethod('sectionKeys', 'commissions');
+        $transfers  = $sectionMethod('sectionKeys', 'transfers');
+
+        assert_same(['site_name', 'site_tagline'], $general);
+        assert_same(['commission_indirect_max_levels'], $commissions);
+        assert_same(
+            [
+                'ewallet_transfer_fee',
+                'ewallet_min_transfer',
+                'ewallet_transfer_daily_limit',
+                'ewallet_transfer_weekly_limit',
+            ],
+            $transfers
+        );
+        assert_same([], array_intersect($general, $commissions), 'no identity key in commissions');
+        assert_same([], array_intersect($commissions, $transfers), 'no commission key in transfers');
+        assert_same([], array_intersect($transfers, $payouts), 'the transfer card owns no payout key');
 
         assert_same([], $shop, 'the shop card carries only its switch');
         assert_true(in_array('payment_gcash_number', $accounts, true));
@@ -259,6 +313,19 @@ return [
         assert_same(['shop_expiry_enabled'], $sectionMethod('sectionToggles', 'windows'));
         assert_same(['shop_autocomplete_enabled'], $sectionMethod('sectionToggles', 'fulfilment'));
         assert_same([], $sectionMethod('sectionToggles', 'accounts'));
+        assert_same(['maintenance_mode'], $sectionMethod('sectionToggles', 'general'));
+        assert_same(
+            [
+                'commission_direct_enabled',
+                'commission_indirect_enabled',
+                'commission_requires_active_sponsor',
+                'commission_compression',
+                'free_registration_enabled',
+            ],
+            $sectionMethod('sectionToggles', 'commissions'),
+            'one switch per compensation rule'
+        );
+        assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 
         $shopRules = $sectionMethod('sectionRules', 'shop');
         assert_same(['shop_enabled'], array_keys($shopRules));
@@ -320,5 +387,36 @@ return [
         assert_same('USDT (TRC20) service fee (%)', $payoutLabels['service_fee_usdt_trc20'] ?? '');
         assert_same('USDT (BEP20) network fee (USDT)', $payoutLabels['usdt_bep20_gas_fee'] ?? '');
         assert_false(array_key_exists('seller_name', $payoutLabels));
+
+        /* The Phase 15 cards validate only their own keys. */
+        $generalRules = $sectionMethod('sectionRules', 'general');
+        assert_same(
+            ['maintenance_mode', 'site_name', 'site_tagline'],
+            array_keys($generalRules),
+            'identity fields plus the maintenance switch'
+        );
+        assert_contains('required', $generalRules['site_name'] ?? '');
+        assert_same('required|in:0,1', $generalRules['maintenance_mode'] ?? '');
+
+        $commissionRules = $sectionMethod('sectionRules', 'commissions');
+        assert_contains('gte:2', $commissionRules['commission_indirect_max_levels'] ?? '');
+        assert_contains('lte:10', $commissionRules['commission_indirect_max_levels'] ?? '');
+        assert_same('required|in:0,1', $commissionRules['commission_direct_enabled'] ?? '');
+        assert_false(array_key_exists('ewallet_transfer_fee', $commissionRules));
+
+        $transferRules = $sectionMethod('sectionRules', 'transfers');
+        foreach (['ewallet_transfer_fee', 'ewallet_min_transfer', 'ewallet_transfer_daily_limit', 'ewallet_transfer_weekly_limit'] as $key) {
+            assert_contains('decimal:2', $transferRules[$key] ?? '', $key . ' keeps the column precision');
+            assert_contains('gte:0', $transferRules[$key] ?? '', $key . ' cannot go negative');
+        }
+        assert_false(array_key_exists('commission_direct_enabled', $transferRules));
+
+        $generalLabels = $sectionMethod('sectionLabels', 'general');
+        assert_same('Site name', $generalLabels['site_name'] ?? '');
+        assert_same('Maintenance mode', $generalLabels['maintenance_mode'] ?? '');
+
+        $transferLabels = $sectionMethod('sectionLabels', 'transfers');
+        assert_same('Transfer fee', $transferLabels['ewallet_transfer_fee'] ?? '');
+        assert_same('Daily limit', $transferLabels['ewallet_transfer_daily_limit'] ?? '');
     },
 ];

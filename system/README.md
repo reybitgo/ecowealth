@@ -4,7 +4,8 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 14 — super-login.**
+**Current status: Phase 15 — hardening, dashboards, UAT and launch. The build is feature-complete
+for this scope.**
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -50,6 +51,17 @@ cookie-less, 8-hour, IP/user-agent-bound **URL-token session** (`?imp=<64-hex no
 banner and an Exit action in the member layout. Only the nonce's SHA-256 is stored in
 `impersonation_log`; every start, refusal and terminal status is audited, and `/admin/impersonations`
 renders the trail. The superadmin's own cookie session is never modified.
+Phase 15 makes the build operable and launchable: the admin dashboard gains the commerce/finance
+roll-up (sales today and 30 days, orders by status, top products, commissions, wallet float, payout
+hold); a **Reports** desk adds sales-by-day, commissions-by-level, the wallet statement export, the
+payout register, registration-code revenue and a **Finance health** widget over the seven plan
+invariants, with five CSV exports; the settings page becomes eight independently saved cards
+(General, Shop, Receiving accounts, Payout methods, Payment windows, Fulfilment & invoices,
+Commissions, Transfers); the append-only **audit log** gets its own filterable desk; and the
+security baseline is finished — shared response headers, session-scoped throttles on checkout,
+proof upload, transfers and payouts, uploads/ execution denial, production error display off, and
+report indexes (`019`). Operations are documented in [`docs/runbook.md`](../docs/runbook.md) and
+[`docs/admin-guide.md`](../docs/admin-guide.md); a backup → restore drill was executed and recorded.
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
 `/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`. All three log to
@@ -60,7 +72,9 @@ The expiry job runs from the CLI **and** from a guarded URL
 | App URL (Laragon) | `http://localhost/ecowealth/system/` |
 | Front door | `http://localhost/ecowealth/` → repo-root `index.html` |
 | Deployment | [`docs/deploy.md`](../docs/deploy.md) — beginner guide for Hostinger / shared hosting |
-| Scheduled jobs | `docs/cron.md` (expiry + auto-complete: CLI, URL, Windows launcher, Hostinger) |
+| Operations | [`docs/runbook.md`](../docs/runbook.md) — daily checks, backups/restore, incidents, go-live |
+| Admin guide | [`docs/admin-guide.md`](../docs/admin-guide.md) — page-by-page quick guide for the back office |
+| Scheduled jobs | `docs/cron.md` (expiry + auto-complete: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
 
@@ -375,6 +389,20 @@ Roles: `users.role ∈ {member, admin, superadmin}`.
 | POST | `/slogin/exit` | member (imp) | End the impersonation from the banner / sign-out; marks `logged_out` |
 | GET | `/admin/impersonations` | admin | The impersonation audit trail with status tabs, filters and pagination |
 
+### Phase 15 URLs — reports, audit and the full settings page
+
+| Method | Path | Guard | Purpose |
+|---|---|---|---|
+| GET | `/admin/reports` | admin | Sales by day, commissions by level, payout register, code revenue, orders by status, top products and the Finance health widget |
+| GET | `/admin/reports/export` | admin | One CSV for the selected window: `?type=sales\|commissions\|wallet\|payouts\|codes` (audited) |
+| GET | `/admin/audit` | admin | The append-only audit desk, filterable by action, subject, actor/action text and date |
+| GET/POST | `/admin/settings` | admin | Eight independently saved cards (see [Settings](#settings)) |
+
+The report window is `?from=YYYY-MM-DD&to=YYYY-MM-DD`, inclusive, defaulting to the last 30 days and
+capped at 366 days. `ReportService` validates it once for the page and every export, so a hand-typed
+URL can never ask for an unbounded scan. `/admin/reports` is the `admin.reports` live surface; the audit
+desk is deliberately not live (an audit trail is read like a document).
+
 An impersonated request carries `?imp=<64-hex nonce>`, which is the PHP session id of a cookie-less
 session under the `ecowealth_imp` name; `app/auth.php` opens it before `session_start()` and
 `auth_validate_imp_session()` re-validates TTL, IP, user-agent, the hashed nonce and the target before
@@ -399,30 +427,33 @@ route or a later-phase route is registered early.
 `settings` is a key/value table read through `setting()` / `setting_bool()` /
 `setting_int()` / `setting_float()` and written with `setting_set()`. The Phase 1 seeds
 cover payment accounts, shop windows, commission toggles, payout fees, USDT rates and
-e-wallet transfer limits; later phases read them without further migrations. Since Phase 7 the
-payment accounts and the three payment windows (`shop_payment_deadline_hours`,
-`shop_correction_window_hours`, `shop_max_proof_attempts`) are editable at `/admin/settings`; since
-Phase 8 the same page edits the invoice seller block (`seller_name/address/tin/phone`) and the
-auto-complete window/switch (`shop_autocomplete_days`, `shop_autocomplete_enabled`). The Phase 13
-follow-up adds **Payout methods**: the floor (`min_payout`), each channel's fee and switch
-(`service_fee_<method>`, `payout_<method>_enabled`) and the USDT rail (`usdt_rate`,
-`usdt_trc20_gas_fee`, `usdt_bep20_gas_fee`). The page is five independent cards — **Shop**,
-**Receiving accounts**, **Payout methods**, **Payment windows**, **Fulfilment & invoices** — each
-with its own form and **Save settings** button; the controller only validates, writes and audits
-the submitted card's keys, so one save can never overwrite another card. Money values keep their
-column precision (`decimal:2` for the floor and fees, `decimal:4` for the rate and gas) and a
-percentage is capped at 100 so the service never has to clamp a saved value. The transfer settings
-(`ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`,
-`ewallet_transfer_weekly_limit`) are still seeded and read by their service but not editable in
-the UI yet — an operator changes them with SQL until Phase 15 expands this page. The full
-settings page expands in Phase 15.
+e-wallet transfer limits; later phases read them without further migrations. Since Phase 15 the
+page is the complete settings surface — **eight independent cards**, each with its own form and
+**Save settings** button, so one save can never overwrite another card's values:
+
+| Card | Keys |
+|---|---|
+| **General** | `site_name` (rendered in the title and header), `site_tagline`, `maintenance_mode` |
+| **Shop** | `shop_enabled` |
+| **Receiving accounts** | `payment_gcash_*`, `payment_maya_*`, `payment_bank_*` |
+| **Payout methods** | `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee`, `payout_<method>_enabled` |
+| **Payment windows** | `shop_payment_deadline_hours`, `shop_correction_window_hours`, `shop_max_proof_attempts`, `shop_expiry_enabled` |
+| **Fulfilment & invoices** | `seller_*`, `shop_autocomplete_days`, `shop_autocomplete_enabled` |
+| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled` |
+| **Transfers** | `ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`, `ewallet_transfer_weekly_limit` (0 = unlimited) |
+
+The controller only validates, writes and audits the submitted card's keys (`settings.update`, with
+the before/after value per key). Money values keep their column precision (`decimal:2` for the floor
+and fees, `decimal:4` for the rate and gas) and a percentage is capped at 100 so a service never has
+to clamp a saved value. Cross-field rules reject a weekly limit below the daily limit and a minimum
+above the daily limit. A save bumps the settings page and the shared `config` live revision, so open
+membership/order pages revalidate; the two payout pages also mix `PayoutService::settingsFingerprint()`.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.
 
 `free_registration_enabled` (default `1`) gates the free standard/pending registration modes
-and the referral-link signup. It is a seeded setting; the full settings page that will expose
-it arrives in Phase 15.
+and the referral-link signup; it is editable on the **Commissions** card.
 
 ---
 
@@ -609,6 +640,36 @@ it arrives in Phase 15.
 - **Rate limit.** Five failed attempts for one target in 15 minutes are refused with
   `rate_limited`; the counter lives in the superadmin's own session (the reference behaviour), and each
   refusal is audited.
+
+---
+
+## Reports, health and the audit desk (Phase 15)
+
+- **One reporting language.** `app/Models/Report.php` holds the aggregate SELECTs, `ReportService`
+  owns the window (inclusive dates, validated once, capped at 366 days) and the CSV shapes, and the
+  admin dashboard and reports page build from the same calls. A number on the dashboard cannot
+  disagree with the report it links to.
+- **What the reports page shows:** sales by day (paid orders only; cancelled orders are excluded
+  from revenue), sales by method and the average order, the best sellers in the window, commissions
+  by level (credited vs skipped), the payout register summary (held now, completed, fees, by method),
+  registration-code revenue per package, orders by status and the **Finance health** widget.
+- **Five CSV exports** — `sales`, `commissions`, `wallet`, `payouts`, `codes` — each for the selected
+  window, each written through one CSV builder and each audited as `report.export` with its type,
+  window and row count.
+- **Finance health** is `HealthService`: the four service reconciliations (wallets, commissions,
+  transfers, payouts) plus order-total, stock-availability and award-integrity checks, seven sections
+  in all. It is read-only and independently guarded per section, so one failing query never hides the
+  others; the same four money reconciliations back `bin/wallet_reconcile.php`.
+- **The audit desk** (`/admin/audit`) reads the append-only `audit_log`: filter by action, subject,
+  actor/action text and date, paginate, and see the actor, role, subject, compact detail and IP. Every
+  audited write — settings changes, top-ups, exports, member status, activation and payout decisions,
+  transfers, code generate/redeem, S-Login starts/refusals/stops — is already recorded by its service.
+  There is no update or delete path by design.
+- **Hardening in the same phase:** shared security headers on every PHP response
+  (`app/Core/SecurityHeaders.php`, sent from the bootstrap), session-scoped throttles
+  (`app/Core/Throttle.php`) on checkout (20/10 min), payment proof (10/15 min), transfers (10/15 min)
+  and payout requests (10/h), uploads/ script execution denied, production PHP error display forced
+  off, and migration `019` for the reporting indexes.
 
 ---
 
@@ -880,7 +941,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (669 cases in Phase 14)
+php tests/run.php                 # full suite (722 cases in Phase 15)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
@@ -895,14 +956,18 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–018 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–019 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
 member account with its wallet, orders, addresses, proofs, shipments and invoices, products with SKU
 prefix `SMOKE-`, packages named `Smoke Package…`, a member-to-member transfer with its ledger legs and
 the limit counters it moves, the payment/fulfilment/transfer settings it edits, the super-login sessions
-and audit rows it creates, and `maintenance_mode`; all restored):
+and audit rows it creates, the reports exports and settings saves it audits, `maintenance_mode`; all
+restored). Phase 15 adds 11 HTTP checks: security headers, uploads/ PHP denial, the reports/audit
+guards, the branded 404, the eight settings cards and their validation, the reports desk and its
+window, the reports performance budget, the CSV exports and their audit rows, the audit filters and the
+transfer throttle.
 
 ```powershell
 powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
@@ -936,6 +1001,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `016_transfers.sql` | `users.ewallet_sent_today` + `ewallet_sent_this_week`, `ewallet_transfers`, and the four transfer settings when missing |
 | `017_payouts.sql` | `payout_requests` (the withdrawal queue and its hold/refund trail), the four `users` payout accounts (no-op when 007 already ran) and the eleven payout settings when missing |
 | `018_impersonation.sql` | `impersonation_log` (the S-Login sessions: superadmin/member snapshots, `nonce_hash` unique, IP/user-agent, active/expired/logged_out, TTL) |
+| `019_audit_and_reporting.sql` | the Phase 15 report indexes (`audit_log.action`, `audit_log.created_at`, `shop_orders.created_at/paid_at`, `ewallet_ledger.created_at`, `commissions.level`, `reg_codes.created_at`); re-creates `audit_log` when an old install skipped it; every step is idempotent |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

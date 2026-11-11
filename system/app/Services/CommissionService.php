@@ -35,6 +35,10 @@ declare(strict_types=1);
  *    • `packages.indirect_enabled = 0` or
  *      `settings.commission_indirect_enabled = 0` pays the direct leg
  *      only; `commission_indirect_max_levels` caps the depth
+ *    • `settings.commission_direct_enabled = 0` pays no direct leg at
+ *      all (Phase 15 exposes the switch on /admin/settings)
+ *    • `settings.commission_requires_active_sponsor = 0` relaxes the
+ *      active-membership eligibility check for every recipient
  *    • a credited row exists only together with its wallet movement:
  *      both are written in the caller's transaction, so a failed
  *      credit rolls the row back (there is no one-sided state)
@@ -178,7 +182,10 @@ final class CommissionService
         $directId = (int) $direct['id'];
         $amount   = round((float) $package['direct_referral_bonus'], 2);
 
-        if ($amount > 0) {
+        /* Phase 15: the direct leg has its own switch. Turning it off
+         * pays nothing and writes no row — the indirect ladder (when
+         * enabled) still runs. */
+        if (setting_bool('commission_direct_enabled', true) && $amount > 0) {
             $existing = Commission::forEvent('direct_referral', $sourceId, $directId, Commission::LEVEL_DIRECT, $pdo);
 
             if ($existing !== null) {
@@ -730,6 +737,13 @@ final class CommissionService
     {
         if ($member === null) {
             return 'recipient account not found';
+        }
+
+        /* The operator can relax the active-membership rule (seeded 1,
+         * exposed on /admin/settings in Phase 15). The default keeps the
+         * plan §6.3 rule: an inactive upline consumes its level. */
+        if (!setting_bool('commission_requires_active_sponsor', true)) {
+            return '';
         }
 
         if ((int) ($member['is_active'] ?? 0) !== 1) {

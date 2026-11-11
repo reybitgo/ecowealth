@@ -5,17 +5,27 @@ declare(strict_types=1);
  *  AdminDashboardController — back-office landing page
  *  (reference: admin). Phase 1 shipped account counts; Phase 3
  *  adds the live catalogue, stock and packaging picture the
- *  operations screen needs. Later phases extend $stats instead of
- *  rebuilding the view.
+ *  operations screen needs. Phase 15 adds the commerce and finance
+ *  roll-up (sales today/30d, orders by status, top products,
+ *  commissions paid, wallet float and the payout hold) from the
+ *  same ReportService the reports desk uses, so the two screens can
+ *  never disagree.
  *
  *  The same URL doubles as its JSON feed (`X-Live: 1`). The KPI
- *  cards, catalogue chart, stock health card, recent accounts and
- *  package list are separate live regions; the browser patches only
- *  the regions that changed.
+ *  cards, commerce cards, catalogue chart, stock health card, orders
+ *  table, top products, recent accounts and package list are separate
+ *  live regions; the browser patches only the regions that changed.
  * ============================================================== */
 
 final class AdminDashboardController
 {
+    private ReportService $reports;
+
+    public function __construct()
+    {
+        $this->reports = new ReportService();
+    }
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -41,6 +51,7 @@ final class AdminDashboardController
             'stock'       => $data['stock'],
             'attention'   => $data['attention'],
             'chart_data'  => $data['chart_data'],
+            'commerce'    => $data['commerce'],
             'nav_notes'   => $data['notes'],
             'live'        => $this->liveMeta(),
         ]);
@@ -59,6 +70,7 @@ final class AdminDashboardController
      *   stock: array{healthy:int, low:int, out:int},
      *   attention: list<array<string, mixed>>,
      *   notes: list<array<string, string>>,
+     *   commerce: array<string, mixed>,
      *   chart_data: array{
      *     catalogue: array{labels: list<string>, values: list<float>},
      *     stock: array{labels: list<string>, values: list<int>}
@@ -219,6 +231,17 @@ final class AdminDashboardController
             ],
         ];
 
+        /* Commerce and finance roll-up (Phase 15). One guarded block so a
+         * reporting query can never blank the operational dashboard. */
+        $commerce = [];
+
+        try {
+            $commerce = $this->reports->dashboard();
+        } catch (Throwable $e) {
+            error_log('[ecowealth] admin dashboard commerce stats: ' . $e->getMessage());
+            $commerce = $this->emptyCommerce();
+        }
+
         return [
             'stats'      => $screen,
             'packages'   => $packages,
@@ -227,7 +250,42 @@ final class AdminDashboardController
             'stock'      => $stock,
             'attention'  => $attention,
             'notes'      => $notes,
+            'commerce'   => $commerce,
             'chart_data' => $chartData,
+        ];
+    }
+
+    /**
+     * Zero-shaped commerce payload for the view when a reporting query
+     * fails: the screen keeps its shape and says "no data", never a 500.
+     *
+     * @return array<string, mixed>
+     */
+    private function emptyCommerce(): array
+    {
+        return [
+            'sales_today'      => ['orders' => 0, 'amount' => 0.0, 'average' => 0.0],
+            'sales_30d'        => ['orders' => 0, 'amount' => 0.0, 'average' => 0.0],
+            'sales_all'        => ['orders' => 0, 'amount' => 0.0, 'average' => 0.0],
+            'open_orders'      => 0,
+            'orders_by_status' => [],
+            'top_products'     => [],
+            'commissions'      => [
+                'amount' => 0.0, 'count' => 0, 'skipped' => 0, 'recipients' => 0,
+                'all_time' => 0.0, 'this_month' => 0.0,
+            ],
+            'wallet' => [
+                'accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0,
+                'credited_today' => 0.0, 'debited_today' => 0.0, 'movements_today' => 0,
+            ],
+            'payouts' => [
+                'by_status' => [], 'by_method' => [], 'held' => 0.0,
+                'held_requests' => 0, 'completed_amount' => 0.0, 'completed_fees' => 0.0,
+            ],
+            'members' => [
+                'total' => 0, 'members' => 0, 'active' => 0, 'pending' => 0,
+                'suspended' => 0, 'new_30d' => 0,
+            ],
         ];
     }
 
@@ -285,6 +343,7 @@ final class AdminDashboardController
      *   stock: array{healthy:int, low:int, out:int},
      *   attention: list<array<string, mixed>>,
      *   notes: list<array<string, string>>,
+     *   commerce: array<string, mixed>,
      *   chart_data: array{
      *     catalogue: array{labels: list<string>, values: list<float>},
      *     stock: array{labels: list<string>, values: list<int>}
@@ -294,6 +353,8 @@ final class AdminDashboardController
      */
     public function feedPayload(int $revision, string $etag, array $data): array
     {
+        $commerce = (array) ($data['commerce'] ?? $this->emptyCommerce());
+
         return [
             'ok'        => true,
             'surface'   => 'admin.dashboard',
@@ -303,6 +364,9 @@ final class AdminDashboardController
                 'dashboard-kpis' => View::capture('admin/dashboard/_kpis', [
                     'stats' => $data['stats'],
                 ]),
+                'dashboard-commerce' => View::capture('admin/dashboard/_commerce', [
+                    'commerce' => $commerce,
+                ]),
                 'dashboard-catalogue' => View::capture('admin/dashboard/_catalogue', [
                     'stats' => $data['stats'],
                     'chart' => $data['chart'],
@@ -311,6 +375,12 @@ final class AdminDashboardController
                     'stats'     => $data['stats'],
                     'stock'     => $data['stock'],
                     'attention' => $data['attention'],
+                ]),
+                'dashboard-order-status' => View::capture('admin/dashboard/_order_status', [
+                    'commerce' => $commerce,
+                ]),
+                'dashboard-top-products' => View::capture('admin/dashboard/_top_products', [
+                    'commerce' => $commerce,
                 ]),
                 'dashboard-recent' => View::capture('admin/dashboard/_recent', [
                     'recent' => $data['recent'],
@@ -330,11 +400,23 @@ final class AdminDashboardController
      * the current date, so the day is part of the scope. A tab left open
      * across midnight revalidates on its next poll instead of staying
      * stale until some unrelated write.
+     *
+     * Phase 15 adds the commerce roll-up, which reads orders, commissions,
+     * wallets, payouts and settings. Rather than touching this surface in
+     * every one of those services, the scope mixes the revisions of the
+     * surfaces their writes already bump: any such write makes the next
+     * poll answer 200 with fresh figures.
      */
     private function scope(?int $userId = null): string
     {
         $userId ??= (int) (auth_user()['id'] ?? 0);
 
-        return Live::scope($_GET, $userId) . '|day:' . date('Y-m-d');
+        return Live::scope($_GET, $userId)
+            . '|day:' . date('Y-m-d')
+            . '|orders:' . Live::revisionOrZero('admin.orders')
+            . '|commissions:' . Live::revisionOrZero('admin.commissions')
+            . '|wallets:' . Live::revisionOrZero('admin.wallets')
+            . '|payouts:' . Live::revisionOrZero(Live::ADMIN_PAYOUTS)
+            . '|config:' . Live::revisionOrZero(Live::CONFIG);
     }
 }

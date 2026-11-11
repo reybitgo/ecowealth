@@ -115,12 +115,14 @@ return [
                      * page renders inside the back-office layout for them
                      * (same pattern as admin.wallet / admin.transfer). */
                     ['key' => 'admin.my_payouts', 'label' => 'My payouts', 'path' => 'payouts', 'icon' => 'bx-credit-card-front', 'guard' => 'admin', 'phase' => 13],
+                    ['key' => 'admin.reports', 'label' => 'Reports', 'path' => 'admin/reports', 'icon' => 'bx-bar-chart-alt-2', 'guard' => 'admin', 'phase' => 15],
                 ],
             ],
             [
                 'label' => 'System',
                 'items' => [
                     ['key' => 'admin.settings', 'label' => 'Settings', 'path' => 'admin/settings', 'icon' => 'bx-cog', 'guard' => 'admin', 'phase' => 7],
+                    ['key' => 'admin.audit', 'label' => 'Audit log', 'path' => 'admin/audit', 'icon' => 'bx-list-check', 'guard' => 'admin', 'phase' => 15],
                     ['key' => 'admin.slogin', 'label' => 'S-Login console', 'path' => 'slogin', 'icon' => 'bx-shield-quarter', 'guard' => 'superadmin', 'phase' => 14],
                     /* The top-bar identity row opens this page; admins get the
                      * back-office layout (same pattern as admin.cart / admin.wallet). */

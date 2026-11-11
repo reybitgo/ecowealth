@@ -1,4 +1,4 @@
-# EcoWealth — QA sign-off sheet (Phases 1–14)
+# EcoWealth — QA sign-off sheet (Phases 1–15)
 
 Fill this sheet while working through the fourteen phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
@@ -519,13 +519,48 @@ page — **173 / 173** checks green, and the run cleaned up its sessions and aud
 
 ---
 
-## 16. Defect log
+## 16. Phase 15 — Hardening, dashboards, reports and launch
+
+Document: [phase-15-launch.md](phase-15-launch.md)
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA15-01 | The admin dashboard shows sales today/30d, orders by status, top products, commissions, wallet float and the payout hold, and refreshes from the same URL | ☑ Pass ☐ Fail ☐ Blocked | `automated: AdminDashboardLiveTest, LaunchTest P15-T4` |
+| QA15-02 | The reports desk renders sales by day, commissions by level, the payout register, code revenue, top products, orders by status and the health widget for an inclusive window | ☑ Pass ☐ Fail ☐ Blocked | `automated: ReportTest, ReportViewTest; smoke P15-T1` |
+| QA15-03 | Each of the five CSV exports downloads for the selected window and writes one `report.export` audit row | ☑ Pass ☐ Fail ☐ Blocked | `automated: ReportTest exports; smoke P15-T1` |
+| QA15-04 | The eight settings cards save independently; an invalid pair is refused; the brand and the transfer rules take effect; every change is audited with before/after | ☑ Pass ☐ Fail ☐ Blocked | `automated: SettingsPageTest, AdminSettingsLiveTest, LaunchTest P15-T7; smoke P15-T7` |
+| QA15-05 | The audit desk lists and filters actions, subjects, actors and dates; it has no edit/delete path | ☑ Pass ☐ Fail ☐ Blocked | `automated: AuditLogTest; smoke P15-T12` |
+| QA15-06 | Shared security headers on every page; a PHP probe under `uploads/` is refused; error pages are branded with no trace | ☑ Pass ☐ Fail ☐ Blocked | `automated: HardeningTest; smoke P15-T2/T8` |
+| QA15-07 | The throttle refuses the 11th transfer in the window and writes nothing; checkout/proof/payout limits are wired | ☑ Pass ☐ Fail ☐ Blocked | `automated: HardeningTest; smoke P15-T2` |
+| QA15-08 | The UAT money path reconciles end to end (code -> commission -> purchase -> fulfilment -> transfer -> payout -> health) | ☑ Pass ☐ Fail ☐ Blocked | `automated: LaunchTest P15-T1/T4/T11` |
+| QA15-09 | Launch scale: 1,000 orders / 200 products / 500 ledger rows keep every report under 1 s and the page under 2 s | ☑ Pass ☐ Fail ☐ Blocked | `automated: LaunchTest P15-T3; smoke P15-T3` |
+| QA15-10 | A fresh install reaches the final schema and seeds (migration 019 + fresh-install index comparison) | ☑ Pass ☐ Fail ☐ Blocked | `automated: MigrationTest, LaunchTest P15-T10` |
+| QA15-11 | A backup restores into a scratch schema with identical counts, a clean reconciliation and a clean health card | ☑ Pass ☐ Fail ☐ Blocked | `manual: runbook §3 drill, 2026-11-11` |
+| QA15-12 | The final invariants are zero after the mixed scenario and the S-Login audit has both ends | ☑ Pass ☐ Fail ☐ Blocked | `automated: LaunchTest P15-T4/T12, HealthService` |
+
+| Phase 15 summary | |
+|---|---|
+| Executed | 12 / 12 |
+| Passed / Failed / Blocked | 12 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-11 |
+
+Phase 15 was signed from the automated suite, the HTTP smoke run and the restore drill. The suite is
+**722 / 722** and the smoke script **185 / 185**; `/admin/reports` answered in 0.103 s and 0.171 s on
+the two measured runs; the restore drill reproduced 26 users, 16 orders, 48 ledger rows, 12
+commissions, 2 payout requests and 1,781 audit rows with a clean reconciliation and a 7/7 health
+card. No browser screenshots were produced for this pass; the checks above cite the automated and
+HTTP evidence that covers the same behaviour.
+
+---
+
+## 17. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
 | ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
 |---|---|---|---|---|---|---|
-| — | Phases 1–14 | — | No defects were raised in this pass. | — | — | Closed |
+| — | Phases 1–15 | — | No defects were raised in this pass. | — | — | Closed |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -535,7 +570,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 17. Final decision
+## 18. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -553,8 +588,9 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 12 | ☑ Yes ☐ No | 8 / 8 checks passed; 594 / 594 PHP cases, 150 / 150 smoke checks and a clean transfer reconciliation green. |
 | Phase 13 | ☑ Yes ☐ No | 8 / 8 checks passed; 645 / 645 PHP cases, 161 / 161 smoke checks, a clean payout reconciliation and the headless-Chrome modal pass green. |
 | Phase 14 | ☑ Yes ☐ No | 8 / 8 checks passed; 669 / 669 PHP cases, 173 / 173 smoke checks and a clean audit trail (hashed nonces only) green. |
+| Phase 15 | ☑ Yes ☐ No | 12 / 12 checks passed; 722 / 722 PHP cases, 185 / 185 smoke checks, a launch-scale report pass, a 7/7 health card and an executed restore drill green. |
 
-Phases 1–14 are **Approved**. No defect is open, so no accepted exception is recorded.
+Phases 1–15 are **Approved**. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

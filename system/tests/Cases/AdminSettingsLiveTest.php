@@ -4,10 +4,10 @@ declare(strict_types=1);
 /* ==============================================================
  *  AdminSettingsLiveTest — the settings page
  *
- *  One surface (`admin.settings`) with six regions: the placeholder
- *  notice and the five card bodies (shop, receiving accounts, payout
- *  methods, payment windows, fulfilment). The bodies are held regions;
- *  the forms, headers and footers stay static.
+ *  One surface (`admin.settings`) with nine regions: the placeholder
+ *  notice and the eight card bodies (general, shop, receiving accounts,
+ *  payout methods, payment windows, fulfilment, commissions, transfers).
+ *  The bodies are held regions; the forms, headers and footers stay static.
  * ============================================================== */
 
 $makeAdmin = static function (): array {
@@ -51,7 +51,7 @@ return [
         assert_not_same($etag, $nextEtag, 'a config move changes a membership ETag');
     },
 
-    'the settings feed renders the notice and five held card bodies' => function () use ($makeAdmin): void {
+    'the settings feed renders the notice and eight held card bodies' => function () use ($makeAdmin): void {
         $admin = $makeAdmin();
 
         test_signed_in_as($admin);
@@ -67,23 +67,34 @@ return [
         assert_same(
             [
                 'settings-notice',
+                'settings-general',
                 'settings-shop',
                 'settings-accounts',
                 'settings-payouts',
                 'settings-windows',
                 'settings-fulfilment',
+                'settings-commissions',
+                'settings-transfers',
             ],
             array_keys($payload['fragments'])
         );
 
         $notice     = $payload['fragments']['settings-notice'];
+        $general    = $payload['fragments']['settings-general'];
         $shop       = $payload['fragments']['settings-shop'];
         $accounts   = $payload['fragments']['settings-accounts'];
         $payouts    = $payload['fragments']['settings-payouts'];
         $windows    = $payload['fragments']['settings-windows'];
         $fulfilment = $payload['fragments']['settings-fulfilment'];
+        $commissions = $payload['fragments']['settings-commissions'];
+        $transfers  = $payload['fragments']['settings-transfers'];
 
         assert_contains('data-live-region="settings-notice"', $notice);
+        assert_contains('data-live-region="settings-general"', $general);
+        assert_contains('data-live-hold="dirty"', $general);
+        assert_contains('name="site_name"', $general);
+        assert_contains('name="maintenance_mode"', $general);
+
         assert_contains('data-live-region="settings-shop"', $shop);
         assert_contains('data-live-hold="dirty"', $shop);
         assert_contains('name="shop_enabled"', $shop);
@@ -112,6 +123,17 @@ return [
         assert_contains('name="seller_name"', $fulfilment);
         assert_contains('name="shop_autocomplete_days"', $fulfilment);
         assert_contains('name="shop_autocomplete_enabled"', $fulfilment);
+
+        assert_contains('data-live-region="settings-commissions"', $commissions);
+        assert_contains('data-live-hold="dirty"', $commissions);
+        assert_contains('name="commission_indirect_max_levels"', $commissions);
+        assert_contains('name="commission_direct_enabled"', $commissions);
+        assert_contains('name="free_registration_enabled"', $commissions);
+
+        assert_contains('data-live-region="settings-transfers"', $transfers);
+        assert_contains('data-live-hold="dirty"', $transfers);
+        assert_contains('name="ewallet_transfer_fee"', $transfers);
+        assert_contains('name="ewallet_transfer_weekly_limit"', $transfers);
 
         assert_same(url('admin/settings'), $payload['meta']['canonical']);
 
@@ -225,11 +247,11 @@ return [
         assert_contains('data-live-region="settings-payouts"', $html);
         assert_contains('data-live-region="settings-windows"', $html);
         assert_contains('data-live-region="settings-fulfilment"', $html);
-        assert_same(5, substr_count($html, 'data-live-hold="dirty"'), 'one held body per card');
+        assert_same(8, substr_count($html, 'data-live-hold="dirty"'), 'one held body per card');
         assert_contains('data-live-status', $html);
         assert_contains('data-live-stale', $html);
         assert_contains('admin-live.js', $html);
-        assert_same(5, substr_count($html, 'Save settings'), 'one save button per card');
-        assert_same(5, substr_count($html, 'name="section"'), 'one section marker per form');
+        assert_same(8, substr_count($html, 'Save settings'), 'one save button per card');
+        assert_same(8, substr_count($html, 'name="section"'), 'one section marker per form');
     },
 ];

@@ -31,6 +31,7 @@ $migrations    = [
     $migrationDir . '016_transfers.sql',
     $migrationDir . '017_payouts.sql',
     $migrationDir . '018_impersonation.sql',
+    $migrationDir . '019_audit_and_reporting.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -273,6 +274,61 @@ return [
         assert_same($columnList($fresh, 'payout_requests'), $columnList($migrated, 'payout_requests'), 'payout_requests columns differ from schema.sql');
         assert_same($columnList($fresh, 'impersonation_log'), $columnList($migrated, 'impersonation_log'), 'impersonation_log columns differ from schema.sql');
         assert_same($columnList($fresh, 'live_revisions'), $columnList($migrated, 'live_revisions'), 'live_revisions columns differ from schema.sql');
+        assert_same($columnList($fresh, 'audit_log'), $columnList($migrated, 'audit_log'), 'audit_log columns differ from schema.sql');
+    },
+
+    'migration 019 adds the reporting indexes and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
+        $pdo   = $buildMigrated();
+        $fresh = test_pdo(['db' => DB_NAME]);
+
+        $indexNames = static function (PDO $pdo, string $table): array {
+            $rows = $pdo->query('SHOW INDEX FROM `' . $table . '`')->fetchAll();
+
+            return array_values(array_unique(array_map(
+                static fn (array $row): string => (string) $row['Key_name'],
+                $rows
+            )));
+        };
+
+        foreach ([
+            'audit_log'      => ['idx_audit_action', 'idx_audit_created'],
+            'shop_orders'    => ['idx_orders_created', 'idx_orders_paid'],
+            'ewallet_ledger' => ['idx_ewallet_created'],
+            'commissions'    => ['idx_commissions_level'],
+            'reg_codes'      => ['idx_reg_codes_created'],
+        ] as $table => $expected) {
+            $migratedNames = $indexNames($pdo, $table);
+            $freshNames    = $indexNames($fresh, $table);
+
+            foreach ($expected as $index) {
+                assert_true(
+                    in_array($index, $migratedNames, true),
+                    $table . '.' . $index . ' missing after the migration'
+                );
+                assert_true(
+                    in_array($index, $freshNames, true),
+                    $table . '.' . $index . ' missing from schema.sql'
+                );
+            }
+        }
+
+        /* Applying 019 a second time is a no-op (plan §9.3). */
+        test_run_sql_file($pdo, $migrationDir . '019_audit_and_reporting.sql');
+        assert_true(in_array('idx_orders_created', $indexNames($pdo, 'shop_orders'), true));
+
+        /* The audit desk can read what every audited write records. */
+        $pdo->exec(
+            "INSERT INTO audit_log (actor_id, actor_role, action, subject_type, subject_id, meta_json, ip)
+             VALUES (NULL, 'admin', 'settings.update', 'settings', NULL, '{\"section\":\"shop\",\"changes\":{}}', '127.0.0.1')"
+        );
+
+        $row = $pdo->query("SELECT action, meta_json FROM audit_log WHERE action = 'settings.update'")->fetch();
+        assert_same('settings.update', $row['action']);
+
+        /* MySQL normalises a JSON column, so decode it rather than
+         * compare the raw text. */
+        $meta = json_decode((string) $row['meta_json'], true);
+        assert_same('shop', $meta['section'] ?? null);
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {

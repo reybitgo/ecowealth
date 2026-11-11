@@ -2,23 +2,47 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  AdminSettingsController — payment accounts, payout methods,
- *  payment windows, fulfilment and invoices (plan §7 Phases 7–8;
- *  expanded into the full settings page in Phase 15; reference
- *  AdminController::settings/saveSettings)
+ *  AdminSettingsController — every configurable key from every
+ *  phase (plan §7 Phases 7–8; expanded into the full settings page
+ *  in Phase 15; reference AdminController::settings/saveSettings)
  *
  *  Routes:
- *      GET  /admin/settings   the surfaces used so far
+ *      GET  /admin/settings   every settings card
  *      POST /admin/settings   validated save + audit entry
  *
  *  Every write is audited (`settings.update`, with the before/after
  *  value per key) because these values decide where buyers send
- *  money, how long they have to send it, and what the printed
- *  invoice says.
+ *  money, how long they have to send it, what the printed invoice
+ *  says, how commissions are paid and what transfers may move.
+ *
+ *  Cards save independently: the hidden `section` field tells save()
+ *  which card's keys to validate, write and audit, so pressing one
+ *  card's **Save settings** never touches another card's values.
  * ============================================================== */
 
 final class AdminSettingsController
 {
+    /**
+     * Identity and the maintenance switch (Phase 1 keys, exposed in
+     * Phase 15). `site_name` is the brand the layout renders.
+     */
+    private const GENERAL_FIELDS = [
+        [
+            'key'   => 'site_name',
+            'label' => 'Site name',
+            'rule'  => 'required|string|max:80',
+            'max'   => 80,
+            'hint'  => 'Shown in the browser title, the app header and the sign-in pages.',
+        ],
+        [
+            'key'   => 'site_tagline',
+            'label' => 'Tagline',
+            'rule'  => 'nullable|string|max:160',
+            'max'   => 160,
+            'hint'  => 'A short line under the brand on the sign-in pages.',
+        ],
+    ];
+
     /**
      * Receiving accounts per manual method. The checkout and the order
      * page render exactly these values, so an empty field is shown as
@@ -168,17 +192,100 @@ final class AdminSettingsController
     ];
 
     /**
+     * Commission switches (Phase 9–11 keys, exposed in Phase 15).
+     *
+     * A switch list rather than plain fields because each row is a
+     * labelled checkbox with its own explanation of who is paid.
+     */
+    private const COMMISSION_TOGGLES = [
+        'commission_direct_enabled' => [
+            'label' => 'Direct referral bonus',
+            'hint'  => 'Level 1: the sponsor receives the package direct bonus when a member activates.',
+        ],
+        'commission_indirect_enabled' => [
+            'label' => 'Indirect referral (unilevel)',
+            'hint'  => 'Levels 2–10: each eligible upline receives the source package level amount.',
+        ],
+        'commission_requires_active_sponsor' => [
+            'label' => 'Require an active sponsor',
+            'hint'  => 'An upline without an active membership and package consumes its level and is not paid (no compression).',
+        ],
+        'commission_compression' => [
+            'label' => 'Upline compression (reserved)',
+            'hint'  => 'Reserved for a later pillar; this build always pays without compression, whichever way this is set.',
+        ],
+        'free_registration_enabled' => [
+            'label' => 'Free standard registration',
+            'hint'  => 'Allow a shopping-only account with no package and no code.',
+        ],
+    ];
+
+    /**
+     * The unilevel depth. Level 1 is the direct bonus, so the indirect
+     * ladder is 2…10.
+     */
+    private const COMMISSION_FIELDS = [
+        [
+            'key'    => 'commission_indirect_max_levels',
+            'label'  => 'Unilevel depth (levels)',
+            'rule'   => 'required|integer|gte:2|lte:10',
+            'suffix' => 'levels',
+            'hint'   => 'How far up the sponsor chain an indirect bonus is paid (2–10).',
+        ],
+    ];
+
+    /**
+     * Transfer fees and limits (Phase 12 keys, exposed in Phase 15).
+     *
+     * A limit of 0 means *unlimited* in TransferService: an operator who
+     * wants no cap types 0, not a blank field (plan §5.8).
+     */
+    private const TRANSFER_FIELDS = [
+        [
+            'key'    => 'ewallet_transfer_fee',
+            'label'  => 'Transfer fee',
+            'rule'   => 'required|numeric|gte:0|lte:' . TransferService::MAX_AMOUNT . '|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'Flat fee charged to the sender; credited to the primary admin.',
+        ],
+        [
+            'key'    => 'ewallet_min_transfer',
+            'label'  => 'Minimum transfer',
+            'rule'   => 'required|numeric|gte:0|lte:' . TransferService::MAX_AMOUNT . '|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'The smallest amount a member may send.',
+        ],
+        [
+            'key'    => 'ewallet_transfer_daily_limit',
+            'label'  => 'Daily limit',
+            'rule'   => 'required|numeric|gte:0|lte:' . TransferService::MAX_AMOUNT . '|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'Per-member daily send cap; 0 means unlimited.',
+        ],
+        [
+            'key'    => 'ewallet_transfer_weekly_limit',
+            'label'  => 'Weekly limit',
+            'rule'   => 'required|numeric|gte:0|lte:' . TransferService::MAX_AMOUNT . '|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'Per-member weekly send cap; 0 means unlimited.',
+        ],
+    ];
+
+    /**
      * The independently saveable cards on /admin/settings. Every card
      * has its own form and its own **Save settings** button, and only
      * the submitted section is validated, written and audited — so a
      * save in one card can never overwrite another card's values.
      */
     private const SECTIONS = [
+        'general'    => 'General',
         'shop'       => 'Shop',
         'accounts'   => 'Receiving accounts',
         'payouts'    => 'Payout methods',
         'windows'    => 'Payment windows',
         'fulfilment' => 'Fulfilment & invoices',
+        'commissions' => 'Commissions',
+        'transfers'  => 'Transfers',
     ];
 
     /** @param array<string, string> $params */
@@ -210,15 +317,20 @@ final class AdminSettingsController
     {
         return [
             'settings'          => setting_all(),
+            'general_fields'    => self::GENERAL_FIELDS,
             'account_groups'    => self::ACCOUNT_GROUPS,
             'payout_fields'     => self::PAYOUT_FIELDS,
             'payout_channels'   => self::PAYOUT_CHANNELS,
             'window_fields'     => self::WINDOW_FIELDS,
             'seller_fields'     => self::SELLER_FIELDS,
             'fulfilment_fields' => self::FULFILMENT_FIELDS,
+            'commission_fields' => self::COMMISSION_FIELDS,
+            'commission_toggles' => self::COMMISSION_TOGGLES,
+            'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'expiry_enabled'    => setting_bool('shop_expiry_enabled', true),
             'autocomplete_enabled' => FulfilmentService::autoCompleteEnabled(),
+            'maintenance_mode'  => setting_bool('maintenance_mode', false),
             'manual_open'       => $this->manualMethodsConfigured(),
         ];
     }
@@ -270,6 +382,11 @@ final class AdminSettingsController
                 'settings-notice' => View::capture('admin/settings/_notice', [
                     'manual_open' => $data['manual_open'],
                 ]),
+                'settings-general' => View::capture('admin/settings/_general', [
+                    'settings'        => $data['settings'],
+                    'general_fields'  => $data['general_fields'],
+                    'maintenance_mode' => $data['maintenance_mode'],
+                ]),
                 'settings-shop' => View::capture('admin/settings/_shop', [
                     'settings' => $data['settings'],
                 ]),
@@ -292,6 +409,15 @@ final class AdminSettingsController
                     'seller_fields'        => $data['seller_fields'],
                     'fulfilment_fields'    => $data['fulfilment_fields'],
                     'autocomplete_enabled' => $data['autocomplete_enabled'],
+                ]),
+                'settings-commissions' => View::capture('admin/settings/_commissions', [
+                    'settings'           => $data['settings'],
+                    'commission_fields'  => $data['commission_fields'],
+                    'commission_toggles' => $data['commission_toggles'],
+                ]),
+                'settings-transfers' => View::capture('admin/settings/_transfers', [
+                    'settings'        => $data['settings'],
+                    'transfer_fields' => $data['transfer_fields'],
                 ]),
             ],
             'meta'      => [
@@ -332,6 +458,7 @@ final class AdminSettingsController
         }
 
         $errors = Validator::check($input, self::sectionRules($section), self::sectionLabels($section));
+        $errors = array_merge($errors, self::sectionCrossFieldErrors($section, $input));
 
         if ($errors !== []) {
             errors_set($errors);
@@ -418,6 +545,12 @@ final class AdminSettingsController
     {
         $keys = [];
 
+        if ($section === 'general') {
+            foreach (self::GENERAL_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
+        }
+
         if ($section === 'accounts') {
             foreach (self::ACCOUNT_GROUPS as $group) {
                 foreach ($group['fields'] as $field) {
@@ -456,6 +589,18 @@ final class AdminSettingsController
             }
         }
 
+        if ($section === 'commissions') {
+            foreach (self::COMMISSION_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
+        }
+
+        if ($section === 'transfers') {
+            foreach (self::TRANSFER_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
+        }
+
         return $keys;
     }
 
@@ -463,6 +608,7 @@ final class AdminSettingsController
     private static function sectionToggles(string $section): array
     {
         return match ($section) {
+            'general'    => ['maintenance_mode'],
             'shop'       => ['shop_enabled'],
             'payouts'    => array_map(
                 static fn (array $channel): string => (string) $channel['toggle'],
@@ -470,6 +616,7 @@ final class AdminSettingsController
             ),
             'windows'    => ['shop_expiry_enabled'],
             'fulfilment' => ['shop_autocomplete_enabled'],
+            'commissions' => array_keys(self::COMMISSION_TOGGLES),
             default      => [],
         };
     }
@@ -490,6 +637,39 @@ final class AdminSettingsController
         return array_intersect_key(self::fieldLabels(), array_flip($keys));
     }
 
+    /**
+     * Rules that compare two fields in the same card.
+     *
+     * Validator checks one value at a time; these are the cases where a
+     * pair must agree or a saved combination would make the transfer
+     * service refuse an otherwise valid request.
+     *
+     * @param array<string, string> $input
+     * @return array<string, string>
+     */
+    private static function sectionCrossFieldErrors(string $section, array $input): array
+    {
+        if ($section !== 'transfers') {
+            return [];
+        }
+
+        $min    = (float) ($input['ewallet_min_transfer'] ?? 0);
+        $daily  = (float) ($input['ewallet_transfer_daily_limit'] ?? 0);
+        $weekly = (float) ($input['ewallet_transfer_weekly_limit'] ?? 0);
+        $errors = [];
+
+        /* 0 means "unlimited", so only two real caps can be compared. */
+        if ($daily > 0 && $weekly > 0 && $weekly < $daily) {
+            $errors['ewallet_transfer_weekly_limit'] = 'The weekly limit cannot be below the daily limit.';
+        }
+
+        if ($daily > 0 && $min > $daily) {
+            $errors['ewallet_min_transfer'] = 'The minimum transfer cannot exceed the daily limit.';
+        }
+
+        return $errors;
+    }
+
     /** @return array<string, string> */
     private static function fieldRules(): array
     {
@@ -497,7 +677,24 @@ final class AdminSettingsController
             'shop_enabled'              => 'required|in:0,1',
             'shop_expiry_enabled'       => 'required|in:0,1',
             'shop_autocomplete_enabled' => 'required|in:0,1',
+            'maintenance_mode'          => 'required|in:0,1',
         ];
+
+        foreach (self::GENERAL_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (self::COMMISSION_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (array_keys(self::COMMISSION_TOGGLES) as $key) {
+            $rules[(string) $key] = 'required|in:0,1';
+        }
+
+        foreach (self::TRANSFER_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
 
         foreach (self::ACCOUNT_GROUPS as $group) {
             foreach ($group['fields'] as $field) {
@@ -545,7 +742,24 @@ final class AdminSettingsController
             'shop_enabled'              => 'Shop',
             'shop_expiry_enabled'       => 'Automatic expiry',
             'shop_autocomplete_enabled' => 'Automatic completion',
+            'maintenance_mode'          => 'Maintenance mode',
         ];
+
+        foreach (self::GENERAL_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::COMMISSION_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::COMMISSION_TOGGLES as $key => $toggle) {
+            $labels[(string) $key] = (string) $toggle['label'];
+        }
+
+        foreach (self::TRANSFER_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
 
         foreach (self::ACCOUNT_GROUPS as $group) {
             foreach ($group['fields'] as $field) {

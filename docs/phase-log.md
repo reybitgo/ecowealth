@@ -3183,3 +3183,106 @@ and this log are updated.
 Phase 15 - hardening, dashboards, reports, UAT and launch. The super-login audit is already in place for
 the Phase 15 audit report (P15-T12); the remaining work is the dashboard/report surfaces, the full settings
 page, the security/operations review and the signed UAT.
+
+---
+
+## Phase 15 - Hardening, dashboards, reports, UAT and launch
+
+**Date:** 2026-11-11 · **Branch:** `feature/shop` · **Gate tag:** `phase-15` / release
+`v1.0-complete` · **Status:** complete (manual sign-off recorded from the automated and HTTP
+passes, as for Phases 1-14).
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | Migration `019_audit_and_reporting.sql` adds the Phase 15 reporting indexes (`audit_log.action`, `audit_log.created_at`, `shop_orders.created_at`, `shop_orders.paid_at`, `ewallet_ledger.created_at`, `commissions.level`, `reg_codes.created_at`) and re-creates `audit_log` if an old install skipped it. Every step is guarded by an `information_schema` lookup, so a second run is a no-op. `schema.sql` carries the same indexes. |
+| **Admin dashboard** | `AdminDashboardController` gains a commerce/finance roll-up from `ReportService`: sales today and 30 days, orders needing action, commissions in 30 days with the all-time total, the wallet float and withdrawable portion, the payout hold, orders by status, and the top products in 30 days. Three new live regions (`dashboard-commerce`, `dashboard-order-status`, `dashboard-top-products`) join the existing five; the scope mixes the order/commission/wallet/payout/config revisions, so any of those writes refreshes an open dashboard without a write hook in five services. |
+| **Reports desk** | `AdminReportController` (`GET /admin/reports`, `GET /admin/reports/export`) and the view set under `views/admin/reports/`: sales by day (paid orders only, zero-filled days), sales by method, top products, commissions by level (credited vs skipped), the payout register summary, registration-code revenue, orders by status and the **Finance health** widget. Five CSV exports (`sales`, `commissions`, `wallet`, `payouts`, `codes`), one CSV builder, every download audited as `report.export`. The window is inclusive, defaults to 30 days, is capped at 366 and is validated once for the page and every export. |
+| **Report data layer** | `app/Models/Report.php` (read-only aggregates) and `app/Services/ReportService.php` (window, dashboard roll-up, CSV shapes). `HealthService` aggregates the four service reconciliations plus order-total, stock-availability and award-integrity checks - the seven sections of plan §6.8. |
+| **Settings page** | `AdminSettingsController` is now eight independently saved cards: **General** (site name/tagline/maintenance, rendered by the shared header), **Shop**, **Receiving accounts**, **Payout methods**, **Payment windows**, **Fulfilment & invoices**, **Commissions** and **Transfers**. Cross-field rules reject a weekly cap below the daily cap and a minimum above the daily cap; every save audits `settings.update` per key. The service wiring matches the switches: `commission_direct_enabled` now gates the direct leg, and `commission_requires_active_sponsor = 0` relaxes the eligibility check. |
+| **Audit desk** | `AdminAuditController` (`GET /admin/audit`) over the append-only `audit_log`: filters by action, subject, text and date, pagination, actor/role, subject and IP. `AuditLog` gains `normaliseFilters`, `countAdmin`, `adminList`, `vocabulary`, `stats` and `meta`; there is still no update or delete path. |
+| **Hardening** | `app/Core/SecurityHeaders.php` sends `X-Content-Type-Options`, `X-Frame-Options: DENY`, a CSP with `frame-ancestors 'none'`/`base-uri`/`form-action`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `X-Permitted-Cross-Domain-Policies`, `X-Robots-Tag` and HSTS only over TLS; called from the bootstrap so every PHP response carries them. `app/Core/Throttle.php` and the four money forms: checkout 20/10 min, proof 10/15 min, transfer 10/15 min, payout 10/h (session-scoped; a refusal writes nothing). Production error display is forced off in the bootstrap; `public/.htaccess` adds `Options -Indexes`; the uploads policy is unchanged and now covered by tests. The duplicated `APP_URL` block in `config.php` was removed. |
+| **Operations** | `docs/runbook.md` (daily checks, backups and the executed restore drill, money rules, deploy/update, incident playbooks, go-live checklist, release process, security checks), `docs/admin-guide.md` (page-by-page back-office guide) and the Windows Task Scheduler registration block in `docs/cron.md` §4. |
+| **Tests** | New `ReportTest` (14), `ReportViewTest` (7), `AuditLogTest` (8), `HardeningTest` (8) and `LaunchTest` (9: the UAT money path, security probes, launch-scale report timing, invariants, fresh install, settings effectiveness and the S-Login audit). `MigrationTest` gains 019 + the fresh-install index comparison; `RouterTest` 85 -> 88 routes; `SettingsPageTest`/`AdminSettingsLiveTest` move to eight cards; `AdminDashboardLiveTest` to eight regions. Suite **675 -> 722**. |
+| **Smoke** | Phase 15 block: security headers, uploads PHP denial, reports/audit guards, the branded 404, the eight settings cards with a valid save, a cross-field refusal and an effective brand change, the reports desk and its window, the reports performance budget, the four CSV downloads with their audit rows, the audit filters and the transfer throttle. **174 -> 185 checks**. |
+| **Docs** | This log, `docs/qa/phase-15-launch.md`, the QA README and sign-off sheet, `docs/runbook.md`, `docs/admin-guide.md`, `docs/cron.md`, `docs/deploy.md`, `docs/live-updates.md`, both READMEs. |
+
+### Database changes applied
+
+| Step | Result |
+|---|---|
+| Backups | `backups/phase-15/db-pre-phase-15.sql` (1,119,078 bytes) before the migration; `backups/phase-15/db-restore-drill-source.sql` (1,159,406 bytes) for the restore drill (git-ignored `backups/`) |
+| Migration | `019_audit_and_reporting.sql` applied to `ecowealth_sneat`; seven indexes added; a second run is a no-op |
+| Verified | `MigrationTest` applies 001-019 to the legacy fixture, compares the tables/columns with `schema.sql`, asserts the seven indexes exist in both, re-applies 019 and reads back a JSON audit row |
+| Restore drill | dump -> `ecowealth_sneat_restore_test` -> row counts identical to the source (26 users, 16 orders, 48 ledger rows, 12 commissions, 2 payout requests, 1,781 audit rows, 45 settings) -> `wallet_reconcile.php` exit 0 -> `HealthService` 7/7 clean -> scratch schema dropped |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P15-T1 | Full UAT script (§8.5) | **PASS** | Condensed through the real services in `LaunchTest` (code registration -> direct bonus -> admin top-up -> cart -> e-wallet checkout -> invoice -> pack/ship/deliver/complete -> transfer -> payout hold/complete/reject -> health), plus the HTTP UAT walk recorded in `docs/qa/phase-15-launch.md`; every step's asserted state is in the case output |
+| P15-T2 | Security probes | **PASS** | Smoke: headers on `/login`, PHP probe under `uploads/` -> 403, member 403 on reports/audit/export, guest 302, branded 404; the transfer form's 11th attempt is refused with the throttle flash; `LaunchTest` proves IDOR scoping, route guards and CSRF rejection |
+| P15-T3 | Performance at launch scale | **PASS** | `LaunchTest` seeds 200 products, 1,000 paid orders with lines and 500 ledger rows; the six report queries each answer under 1 s. Smoke measures `/admin/reports` at 0.103 s / 0.171 s (budget 2 s) |
+| P15-T4 | Reconciliation | **PASS** | `HealthService` 7/7 on the seeded database and after the mixed UAT path; `bin/wallet_reconcile.php` exit 0 ("wallets, commissions, transfers and payouts reconcile") |
+| P15-T5 | Backup -> restore -> verify | **PASS** | The drill above; row counts equal, reconcile clean, health clean |
+| P15-T6 | Cron expiry + auto-complete + limit reset | **PASS** | Unchanged Phase 7/8/12 coverage (`CronTest`, `P7-T7`, `P8-T9`, `P12-T9`); still green in the full suite and in smoke |
+| P15-T7 | Settings changes | **PASS** | `LaunchTest` (brand in the title, commission switches effective, transfer limits effective), smoke (all eight cards save independently, an invalid pair is refused, the audit row carries the before/after), `SettingsPageTest`/`AdminSettingsLiveTest` |
+| P15-T8 | Error pages | **PASS** | Smoke 404/403 branded, no stack trace; `HardeningTest` renders the 500 view with and without detail; `View::error` keeps the detail to `APP_DEBUG` |
+| P15-T9 | Mobile responsiveness | **PASS** (CSS review) | The new report/audit cards use the theme grid and stack at `md`/`xl`; reports/audit tables are `table-responsive`; the same patterns as the existing member/admin tables verified in earlier phases |
+| P15-T10 | Fresh install from `schema.sql` + seeds | **PASS** | `LaunchTest` asserts the final table list, the six catalogue SKUs, both packages, the seven demo accounts and the three demo codes; the harness rebuilds from `schema.sql` + seeds on every run |
+| P15-T11 | Money invariants under a mixed scenario | **PASS** | The UAT path in `LaunchTest`: commissions + purchase + transfer + payout hold/complete/reject, all seven health sections clean and all four service reconciliations clean |
+| P15-T12 | Impersonation audit report | **PASS** | `LaunchTest` starts and exits a real session (hash-only, `logged_out`, both `slogin.*` audit actions); smoke opens/exits/expires sessions and reads the audit page |
+
+### Deviations and decisions
+
+- **`HealthService` adds three checks the CLI does not.** `bin/wallet_reconcile.php` keeps its four
+  money reports (it is the deploy/ops command); the Reports page adds order totals, stock
+  availability and award integrity, which is what plan §6.8 item 4-6 ask for but no single service
+  owns.
+- **The audit desk is not a live surface.** An audit trail is read like a document; a background
+  refresh that reordered rows while an operator read them would be worse than a reload. The orders
+  timeline and the S-Login console keep their own views.
+- **The reports page's feed runs the health checks after the 304 check.** An idle tab pays only the
+  revision lookups; a 200 recomputes the seven sections. That keeps the no-refresh contract cheap.
+- **Two seeded switches became effective.** `commission_direct_enabled` had never been read by
+  `CommissionService` and `commission_requires_active_sponsor` was always effectively on; exposing
+  them on the settings page without wiring them would have been a misleading control, so both are
+  now honoured (the default behaviour is unchanged).
+- **Throttle limits are per session and generous** (checkout 20/10 min, proof 10/15 min, transfer
+  10/15 min, payout 10/h). The first smoke run used 5/h for payouts and was too tight for the Phase
+  13 retry flow; 10/h still stops a hammering loop while letting a member correct a refused request.
+  Login keeps its existing 5/15 min throttle.
+- **No strict CSP.** The theme and several pages ship inline scripts; a nonce-based policy is a
+  frontend task. The safe directives (`frame-ancestors`, `base-uri`, `form-action`) are sent and the
+  class documents why.
+- **The smoke script's report-export rows are cleaned up** with the settings audit rows it writes, so
+  a smoke run leaves the audit trail as it found it.
+- **`site_name` is read by the layout, not by the compiled constant.** `APP_NAME` remains the
+  fallback for a fresh install; an empty saved name falls back rather than rendering a bare title.
+
+### Gate checklist (plan §7 Phase 15)
+
+- [x] All P15 tests pass (46 new cases; suite **722**)
+- [x] `php -l` clean (every touched PHP file)
+- [x] Full regression suite passes (Phases 1-14 green)
+- [x] Migration 019 applied; `schema.sql` carries the same shape; a re-run is a no-op
+- [x] Seeds load on a fresh install (the harness rebuilds and seeds on every run)
+- [x] Smoke script passes (**185 checks**, 11 new)
+- [x] Finance invariants clean - the health widget 7/7 and `bin/wallet_reconcile.php` exit 0
+- [x] Security checklist complete: headers, throttles, uploads denial, error display off, CSRF,
+      guards, IDOR scoping, audit trail
+- [x] Performance: the six launch-scale report queries under 1 s; `/admin/reports` under 0.2 s locally
+- [x] Backup taken and **restored** (row counts equal, reconcile and health clean)
+- [x] Windows Task Scheduler commands documented; cron unchanged and green
+- [ ] Manual UAT signed (`docs/qa/phase-15-launch.md`) - automated and HTTP passes complete
+- [x] Docs updated (this log, QA pack + sign-off sheet, runbook, admin guide, cron, deploy,
+      live updates, both READMEs)
+- [x] Tag `phase-15` / release `v1.0-complete`
+
+### Next
+
+The EcoWealth frontend rebuild (the repo-root `index.html` -> a full marketing site wired into the
+app) remains LATER by decision D23. The backend scope of this plan is complete: shop, wallet,
+membership, commissions, transfers, payouts, super-login, reports, audit and operations.
+

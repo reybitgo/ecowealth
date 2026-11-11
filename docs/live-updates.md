@@ -569,7 +569,8 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | Surface | Page | Regions |
 |---|---|---|
 | `admin.products` | `/admin/products` | stats, rows, pagination |
-| `admin.dashboard` | `/admin` | KPIs, catalogue chart, stock health, recent accounts, packages |
+| `admin.dashboard` | `/admin` | KPIs, commerce roll-up, catalogue chart, stock health, orders by status, top products, recent accounts, packages |
+| `admin.reports` | `/admin/reports` | health widget, KPI cards, sales chart + method table, top products, commissions by level, payout register, codes, orders by status |
 | `admin.orders` | `/admin/orders` | header/counter, stats, rows, pagination |
 | `admin.orders:{id}` | `/admin/orders/{id}` | status, payment review, fulfilment, items, history, member, delivery, shipment, payment summary, cancel |
 | `admin.wallets` | `/admin/wallets` | metrics, stats, tab counts, members tab, top-ups tab, ledger tab |
@@ -581,7 +582,7 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `admin.commissions` | `/admin/commissions` | header, stats, rows, pagination |
 | `admin.packages` | `/admin/packages` | stats, rows, pagination |
 | `admin.payouts` | `/admin/payouts` | stats + facts, tab counts, rows, pagination (also follows the payout-settings fingerprint) |
-| `admin.settings` | `/admin/settings` | notice, shop, receiving accounts, payout methods, payment windows, fulfilment & invoices |
+| `admin.settings` | `/admin/settings` | notice, general, shop, receiving accounts, payout methods, payment windows, fulfilment & invoices, commissions, transfers |
 | `admin.slogin` | `/slogin` | active sessions card, recent sessions card |
 | `member.dashboard:{id}` | `/dashboard` | header pill, KPI row, E-wallet card, membership, recent orders, earnings |
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
@@ -603,12 +604,46 @@ notification dropdown) as one optional surface. The cart page already refreshes 
 drawer and badge after its own payloads, but a change made while a page without a
 cart surface is open still waits for the next full navigation.
 
+### Phase 15: two data-heavy surfaces
+
+`admin.reports` and the extended `admin.dashboard` read orders, commissions, wallets,
+payouts and settings. Rather than touching their surfaces from every one of those
+services, both ETag scopes mix the revisions of the surfaces the writes already bump:
+
+```
+scope = Live::scope($_GET, $user)
+      + '|day:'  . date('Y-m-d')
+      + '|orders:'      . Live::revisionOrZero('admin.orders')
+      + '|commissions:' . Live::revisionOrZero('admin.commissions')
+      + '|wallets:'     . Live::revisionOrZero('admin.wallets')
+      + '|payouts:'     . Live::revisionOrZero(Live::ADMIN_PAYOUTS)
+      + '|config:'      . Live::revisionOrZero(Live::CONFIG)
+```
+
+An order transition, a commission award, a balance movement, a payout decision or a
+settings save therefore makes the next poll answer **200** with fresh figures; an
+idle tab still gets **304** and pays only the revision lookups. The reports page also
+runs `HealthService` in its feed — the seven reconciliation checks — after the
+revision check, so a 304 costs no reconciliation. The sales chart is re-rendered from
+the payload's `data.sales` when `report-sales` was applied (see
+`assets/js/admin-reports.js`); the admin dashboard's ApexCharts keep their existing
+`ecowealth:live-applied` handling.
+
+**Not live by design:** `/admin/audit`. An audit trail is read like a document; a
+background refresh that reordered its rows while an operator was reading would be
+worse than a manual reload. The impersonation console and its audit list follow the
+same rule for the same reason.
+
 ## Deployment
 
 Apply `database/migrations/013_live_revisions.sql` to an existing database.
 Fresh installs already get the table from `database/schema.sql`. Without the
 table the page still renders, but live updates switch themselves off and the
 feed returns a JSON 500.
+
+Phase 15 adds no new live table: `admin.reports` reuses `live_revisions` and the
+revisions the earlier phases already write. Apply `019_audit_and_reporting.sql` for
+the report indexes on the same deployment.
 
 For the full shared-hosting walkthrough (including Hostinger), see
 [deploy.md](deploy.md).
