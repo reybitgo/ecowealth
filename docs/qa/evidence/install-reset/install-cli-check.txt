@@ -1,0 +1,91 @@
+2026-11-11 20:42:11 +08:00 — IR-3 preflight (--check): an empty scratch schema passes
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php bin\db_install.php --check --database=ecowealth_sneat_install_cli_test
+Exit: 0
+
+EcoWealth database installer
+  database: ecowealth_sneat_install_cli_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     preflight only (no writes)
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_install_cli_test
+  OK    Database exists      ecowealth_sneat_install_cli_test exists
+  OK    Database empty       no tables — ready for the bundle
+  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight passed — ecowealth_sneat_install_cli_test can be installed.
+
+2026-11-11 20:42:11 +08:00 — IR-3 preflight (--check): the loaded development schema is refused
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php bin\db_install.php --check
+Exit: 3
+
+EcoWealth database installer
+  database: ecowealth_sneat at 127.0.0.1:3306
+  channel:  cli
+  mode:     preflight only (no writes)
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat
+  OK    Database exists      ecowealth_sneat exists
+  FAIL  Database empty       the schema already holds 27 tables
+        The bundle is fresh-install only. Drop and recreate the schema (or choose another one); existing
+        databases are upgraded with database/migrations/NNN_*.sql, never with install.sql.
+  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight failed — 1 check needs attention.
+
+2026-11-11 20:42:11 +08:00 — IR-3 preflight (--check): a schema that does not exist yet
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php bin\db_install.php --check --database=ecowealth_sneat_install_missing_manual_test
+Exit: 1
+
+EcoWealth database installer
+  database: ecowealth_sneat_install_missing_manual_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     preflight only (no writes)
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_install_missing_manual_test
+  FAIL  Database exists      The database "ecowealth_sneat_install_missing_manual_test" does not exist.
+        Create it first (hosting panel, or `CREATE DATABASE ecowealth_sneat_install_missing_manual_test
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`), or let the installer create it with
+        --create-database.
+  OK    Database empty       not checked — the schema does not exist yet
+  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight failed — 1 check needs attention.

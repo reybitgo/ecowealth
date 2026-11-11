@@ -69,6 +69,14 @@ defined('COMMISSIONS_ENABLED') || define('COMMISSIONS_ENABLED', true);
 /* ---------- Uploads ---------- */
 defined('UPLOAD_MAX_BYTES') || define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);   // 5 MB
 
+/* ---------- Installation (plan IR-3, §6.8) ------------------------------------
+ * The installer key. It gates the guided installers only; the application
+ * never reads it. An empty value means an installer refuses to run when
+ * APP_ENV is production — set a long random string in config.local.php (or
+ * the ECO_INSTALL_KEY environment variable) on the server. Neither the CLI
+ * nor the web installer ever prints it back. */
+defined('INSTALL_KEY') || define('INSTALL_KEY', (string) (getenv('ECO_INSTALL_KEY') ?: ''));
+
 /* ---------- Runtime storage (cron logs + locks) -------------------------------
  * Outside public/, so nothing stored here is web-readable. The test harness
  * pins its own temp folder before this file is loaded (tests/bootstrap.php). */

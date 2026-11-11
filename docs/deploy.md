@@ -218,6 +218,43 @@ packages are concatenated in dependency order, so a fresh install is one import.
 databases never import the bundle — apply `database/migrations/NNN_*.sql` in numeric order
 instead (schema first in a fresh path, migrations in an upgrade).
 
+### 5D. CLI installer (only if your host gives you SSH)
+
+Most shared plans have no SSH — use 5B (phpMyAdmin). If yours does, `bin/db_install.php`
+imports the same bundle, replaces both seeded passwords with ones you choose, verifies the
+result and writes `storage/install.lock`:
+
+```bash
+# 1. preflight: every check, no writes, nothing created
+php bin/db_install.php --check
+
+# 2. install (the database must be empty)
+php bin/db_install.php --database=u123456_ecowealth --force \
+  --admin-user=admin --admin-email=owner@example.com --admin-password-stdin \
+  --superadmin-user=superadmin --superadmin-email=owner+super@example.com \
+  --superadmin-password-stdin --site-name="EcoWealth"
+```
+
+Each `--…-password-stdin` reads one line from standard input (admin first), so no password
+lands in the shell history. Without `--force` the command asks you to type the database
+name first; `--force` skips only that confirmation, never the preflight.
+
+| Exit | Meaning |
+|---:|---|
+| 0 | installed and verified |
+| 1 | a preflight check or the verification failed |
+| 2 | a flag or a credential is wrong (usage) |
+| 3 | refused: the schema is non-empty, an install lock exists, or the production key is missing/wrong |
+
+On a `production` site the command also requires `INSTALL_KEY` in `config.local.php` and a
+matching `--key=…` (or `ECO_INSTALL_KEY`). `--json` prints one machine-readable report
+instead of the human tables.
+
+> **After the install:** change both staff passwords, then delete `bin/db_install.php` and
+> `database/install.sql` from the server (§12). `storage/install.lock` is proof of the
+> guided install — keep it. Removing the lock is the only way to install into that tree
+> again, so treat deleting it as "wipe and re-install".
+
 ---
 
 ## 6. Upload the files
@@ -345,6 +382,7 @@ define('DB_PASS', 'paste-the-database-password-here');
 // define('APP_TIMEZONE', 'Asia/Manila');   // change only if the business is elsewhere
 // define('DB_TIMEZONE', '+08:00');         // keep aligned with APP_TIMEZONE
 // define('CRON_KEY', 'a-long-random-string'); // only for the URL cron form
+// define('INSTALL_KEY', 'a-long-random-string'); // only if you will run a guided installer
 ```
 
 ### What each value means
@@ -361,6 +399,7 @@ define('DB_PASS', 'paste-the-database-password-here');
 | `APP_TIMEZONE` | Defaults to `Asia/Manila`. Change only if the business runs elsewhere. |
 | `DB_TIMEZONE` | Defaults to `+08:00`. Keep it aligned with `APP_TIMEZONE`. |
 | `CRON_KEY` | Optional. Required only if you use the **URL** cron form. |
+| `INSTALL_KEY` | Optional. Required only if you run a guided installer on a production site (`bin/db_install.php` today; the web installer in the next phase). At least 32 random characters. The installer refuses to run in production when it is empty, and never prints it. |
 
 > **About `DB_NAME`:** the [repository README](../system/README.md) says a local
 > `config.local.php` should not define `DB_NAME`, because the local test runner switches

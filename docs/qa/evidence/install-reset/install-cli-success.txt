@@ -1,0 +1,117 @@
+2026-11-11 20:44:06 +08:00 — IR-3 guided CLI install, human output
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php bin\db_install.php --database=ecowealth_sneat_install_cli_test --force --admin-email=owner@example.com --admin-password-stdin --superadmin-email=owner+super@example.com --superadmin-password-stdin --site-name="EcoWealth CLI Manual"
+Stdin: both staff passwords, one line each (admin first) — not recorded here
+Exit: 0
+
+EcoWealth database installer
+  database: ecowealth_sneat_install_cli_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     install
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_install_cli_test
+  OK    Database exists      ecowealth_sneat_install_cli_test exists
+  OK    Database empty       no tables — ready for the bundle
+  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight passed — ecowealth_sneat_install_cli_test can be installed.
+
+Installing
+  OK    lock              Advisory lock acquired (2 ms)
+  SKIP  create_database   Database already exists (8 ms)
+  OK    guard             Target schema is empty (8 ms)
+  OK    bundle            Import database/install.sql (2650 ms)
+  OK    staff             Set both staff accounts (213 ms)
+  OK    settings          Write the install metadata (8 ms)
+  OK    verify            Verify the installation (511 ms)
+  OK    lock_file         Write the install lock (6 ms)
+
+Verification
+  OK    Tables                 27 of 27 tables
+  OK    Settings               48 of 48 settings
+  OK    Staff accounts         admin (admin), superadmin (superadmin)
+  OK    Staff sign-in          2 passwords verified
+  OK    Members                0 of 0 members
+  OK    Catalogue              7 products / 2 packages / 18 levels / 10 contents
+  OK    Registration codes     0 of 0 codes
+  OK    No transactional rows  every shop, wallet, membership and session table is empty
+  OK    Install metadata       version 1.0.0 · channel cli · 2026-11-11 20:44:06
+  OK    Install lock           storage/install.lock records the install into ecowealth_sneat_install_cli_test
+
+  counts: tables 27 · settings 48 · staff 2 · members 0 · products 7 · packages 2 · levels 18 · contents 10 · codes 0
+
+Installed and verified.
+  lock:    storage/install.lock
+  sign in: admin (admin)
+  sign in: superadmin (superadmin)
+  next:    change both staff passwords, then delete bin/db_install.php and database/install.sql before going live.
+
+2026-11-11 20:44:06 +08:00 — storage/install.lock (written by the install)
+
+{
+    "installed_at": "2026-11-11T20:44:06+08:00",
+    "database": "ecowealth_sneat_install_cli_test",
+    "app_version": "1.0.0",
+    "install_sql_sha256": "3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb",
+    "staff": [
+        "admin",
+        "superadmin"
+    ],
+    "channel": "cli"
+}
+
+2026-11-11 20:44:07 +08:00 — SQL-level verification on ecowealth_sneat_install_cli_test
+
+tables_created   27
+settings_rows    48
+staff_rows       2
+members_rows     0
+products_rows    7
+packages_rows    2
+levels_rows      18
+contents_rows    10
+codes_rows       0
+
+staff  admin        admin       active  is_active=1 wallet=0.00/0.00
+staff  superadmin   superadmin  active  is_active=1 wallet=0.00/0.00
+
+setting install_channel        cli
+setting install_completed_at   2026-11-11 20:44:06
+setting install_version        1.0.0
+setting site_name              EcoWealth CLI Manual
+
+refused schema: 1 table(s), ew_probe rows: 1 (untouched)
+
+2026-11-11 20:59:49 +08:00 — application boot: the CLI-installed schema signs in
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php -S 127.0.0.1:8099 -t public public/router.php   (ECO_DB_NAME=ecowealth_sneat_install_cli_test)
+Exit: 0
+
+Application boot against the CLI-installed schema
+Server: php -S 127.0.0.1:8099 -t public public/router.php (ECO_DB_NAME=ecowealth_sneat_install_cli_test)
+Client: PowerShell web session; the CSRF token came from the real login form.
+
+GET  /login             -> 200  Login | EcoWealth CLI Manual
+POST /login (admin)     -> 200  final /dashboard  Dashboard | EcoWealth CLI Manual
+GET  /admin/products    -> 200  Products | EcoWealth CLI Manual
+     page markers: EW-COFFEE=yes  EW-COLONICS=yes
+GET  /admin/packages    -> 200  Packages | EcoWealth CLI Manual
+     page markers: Package A=yes  Package B=yes
+GET  /admin/members     -> 200  Members | EcoWealth CLI Manual
+     page markers: No members yet=yes
+
+The admin account signed in with the password chosen at install time (read from STDIN,
+never printed). A stored hash the real login accepts is the end-to-end proof that the
+installer replaced the seeded default everywhere it matters.

@@ -3454,3 +3454,77 @@ and adds the drift gates that keep the generated bundle honest.
 
 IR-3 — CLI installer: `DatabaseInstaller`, `bin/db_install.php`, operator-chosen credentials,
 the install lock and `InstallTest`, building on the bundle this phase committed.
+
+---
+
+## IR-3 — CLI installer (2026-11-11)
+
+**Status:** complete · **Tag:** `ir-3` · **Branch:** `feature/shop` · **First runtime file touched: one inert constant.**
+
+Plan: `dmp/plan-ecowealth-install-reset.md` §IR-3. This phase turns the IR-2 bundle into a
+guided install: one command imports it into an empty schema, replaces both seeded staff
+passwords with operator-chosen ones, verifies the result against the §6.5/Appendix E pack
+and writes the `storage/install.lock` that refuses a second run. The SQL still lives in
+`database/install.sql`; this phase adds the engine and its front-end.
+
+| Item | Record |
+|---|---|
+| **Deliverables** | `system/app/Services/DatabaseInstaller.php` (engine: preflight, install, verify, lock), `system/bin/db_install.php` (CLI: flags, prompts, exit codes, JSON), `system/app/config.php` (`INSTALL_KEY`, env fallback, empty default), `system/tests/Cases/InstallTest.php` (10 cases). Docs: `system/README.md` quick start Path C + config row, `docs/deploy.md` §5D + `INSTALL_KEY` in §7. |
+| **Preflight** | One read-only table, 15 checks: PHP ≥ 8.1, `pdo_mysql`/`fileinfo`/`mbstring`/`json`, `app/config.local.php` readable, MySQL reachable (version shown), database name safe, schema exists, schema empty, `install.sql` parses (54 statements, 63,695 bytes, no `CREATE DATABASE`/`USE`), storage writable, lock directory writable, install lock absent, production `INSTALL_KEY`. `ok` is the conjunction; a failed check is reported with a hint instead of thrown, so `--check` prints the whole picture in one run. |
+| **Install** | `GET_LOCK('ecowealth:install:<sha1(database)[0..16]>', 10)` → file-lock refusal → optional `create_database` → empty check → `SqlScript::run(install.sql)` → staff update → install metadata → `verify()` → lock file. A failing statement keeps its IR-1 context (statement, line, driver code); the bundle's empty-database guard (ERROR 1146) is translated into a typed `not_empty` refusal instead of surfacing a SQLSTATE. The lock is written **last**, so a half-finished install never looks installed. |
+| **Credentials** | Usernames `/^[A-Za-z0-9_.-]{3,50}$/`; valid, distinct emails; passwords 12–72 bytes, never a published default (`Admin@123`, `Super@123`, …); `password_hash(…, PASSWORD_DEFAULT)`. `UPDATE users SET username, email, password_hash, member_status='active', is_active=1 WHERE role=?` after proving the bundle seeded exactly one row per role. Verified afterwards with `password_verify()` for both accounts. |
+| **Production gate** | `INSTALL_KEY` (constant, env `ECO_INSTALL_KEY` fallback, empty default) plus `hash_equals()`. An empty configured key never matches, not even an empty submission. The key is never printed, logged, reported or stored. |
+| **Lock** | `storage/install.lock` (honours `STORAGE_PATH`), JSON `installed_at`/`database`/`app_version`/`install_sql_sha256`/`staff`/`channel` (Appendix D). Atomic write (temp file + `rename`), `chmod 0600` where the platform allows. If it cannot be written the database still reports installed but `ok=false`, with the exact JSON in `lock.contents` to create by hand. |
+| **Verification** | 10 checks: 27 tables, 48 settings, 2 active staff roles, both passwords verify, 0 members, 7/2/18/10 catalogue, 0 codes, 21 transactional tables empty, `install_*` metadata (version/channel/timestamp), lock readable and matching. A wrong password or a missing table fails the report (`ok=false`, exit 1); `verify()` reports a half-applied schema instead of throwing. |
+| **CLI** | `--check`, `--database=`, `--create-database`, `--admin-user/email/password` + `-stdin`, the superadmin equivalents, `--site-name=`, `--with-demo`, `--key=`, `--force`, `--json`, `--help`. `--force` skips only the typed database-name confirmation. `--json` prints exactly one document (the checks travel once, under `verification.checks`). Exit codes: `0` installed+verified, `1` preflight/verify failed, `2` usage or a bad name, `3` refused/locked/non-empty. |
+| **Tests** | `php tests/run.php InstallTest` → **10/10**; `php tests/run.php Install` → **21/21**; full suite → **Cases: 771   Passed: 771   Failed: 0** (761 existing + 10 new), exit 0. Evidence: `docs/qa/evidence/install-reset/ir3-suite.log`. |
+| **Manual acceptance** | Scratch `ecowealth_sneat_install_cli_test` created empty as root and granted to `ecowealth`. `--check` → 0 (15/15). Guided install with both passwords on stdin → **27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0**, both staff sign-in hashes verify, `install_channel=cli`, lock written (bundle sha256 `3e94fd28…`) → exit 0. Re-run → exit 3 with the lock hash unchanged. Non-empty schema (one probe table) with the lock moved aside → exit 3, no lock created, the probe row untouched. A second identical run with `--json` → one document, `"ok": true`, `"tool": "db_install"`, `tool`/`lock.written`/`counts` present. The installed schema then booted the app (`php -S`, `ECO_DB_NAME=…`): the admin signed in with the password chosen at install time (200, final `/dashboard`), `/admin/products` rendered EW-COFFEE/EW-COLONICS, `/admin/packages` Package A/Package B, `/admin/members` the empty state — every page title carried the installer's `site_name`. Evidence: `install-cli-check.txt`, `install-cli-success.txt`, `install-cli-success.json`, `install-cli-refused.txt`. |
+| **Gate** | Preflight/advisory lock/empty guard/bundle/staff/settings/verify/lock all proven by the suite and the transcripts; `--check` works before the schema exists (exit 1 with a create hint) and never creates it; re-runs and non-empty targets are refused with distinct messages; no default password exists on the installer path; no test touches `ecowealth_sneat` or `ecowealth_sneat_test` as an install target (both scratch slots only). |
+
+### Notes and deviations
+
+- **The guard fails at `PREPARE`, not `EXECUTE`.** MySQL 8.4 validates the prepared
+  statement when it is prepared, so the empty-database guard raises ERROR 1146 on
+  `PREPARE ew_guard FROM @ew_guard`; older versions raise it on `EXECUTE`. The translation
+  accepts both, still requires driver code 1146, the `ew_guard` statement name and a
+  non-empty schema, and never swallows a real failure. Covered by the "table appearing
+  mid-import" case, which builds the bundle's own guard behind a `CREATE TABLE`.
+- **`--with-demo` is refused, not silently ignored.** IR-7 owns `DemoDataService`; the
+  flag exits 2 with a hint that names the phase. `verify()` already accepts the demo
+  expectations (5 members, 3 codes, 3 ledger rows) so IR-7 only has to call it.
+- **`preflight()` has two optional parameters beyond the plan's signature** —
+  `$installKey` (the `--key` value, compared only in production) and `$willCreate` (so
+  `--check --create-database` reports "will be created" instead of a failure). Both default
+  to the documented behaviour, so `preflight($database, true)` is unchanged.
+- **`--check --json` is additive.** Appendix C does not mention it; the CLI emits the
+  documented report keys with `"mode": "check"` and `verification.checks`, which is what CI
+  needs. The human `--check` output stays the primary contract.
+- **The JSON evidence is a second, identical run.** The install lock is global to the tree,
+  so the human transcript and the JSON transcript cannot come from one process: the schema
+  is recreated empty and the lock removed between them. Both runs use the same bundle,
+  credentials and target; the phase gate cites both.
+- **`checks` travels once in JSON.** The PHP report keeps a top-level `checks` alias (the
+  web page in IR-4 reads it), and the JSON encoder drops the alias so the document carries
+  the list only under `verification.checks` (Appendix D).
+- **A missing schema reports one problem, not two.** `database_empty` passes as
+  "not checked" when the schema does not exist; the actionable failure is `database_exists`.
+  `--check` therefore exits 1 for a missing schema (a precondition) and 3 for a locked or
+  non-empty one (a refusal).
+- **The flag reference lives in `--help`, not in a duplicated transcript.** The plan asked
+  the README to carry a `--help` transcript; the quick start documents the two commands an
+  operator needs and points at `--help`, and `docs/deploy.md` §5D carries the exit-code
+  table. Pasting the 35-line usage text into the README would be a second copy to drift.
+- **`system/storage/install.lock` now exists in the working tree** (git-ignored), pointing
+  at `ecowealth_sneat_install_cli_test` from the manual gate. It is runtime state: the
+  suite never sees it (`STORAGE_PATH` is a temp folder) and IR-4's manual gate must remove
+  it (or install into a fresh tree) before using the web installer.
+- **The only application file touched is `config.php`**, and only additively: nothing reads
+  `INSTALL_KEY` yet except the installer's own production gate. No route, controller, view
+  or service behaviour changed; `app/routes.php` is untouched, so the 98-page inventory and
+  `RouterTest`/`ParityTest` are unaffected (D-IR-17).
+
+### Next
+
+IR-4 — web installer: `public/install.php` plus `DbToolAccess`/`db-tools.css`, reusing
+`DatabaseInstaller` for the preflight, the install and the lock, with the `INSTALL_KEY`
+gate and browser evidence for the shared-hosting path.

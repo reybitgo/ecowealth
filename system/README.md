@@ -140,6 +140,25 @@ The expiry job runs from the CLI **and** from a guarded URL
    > an existing schema. A failed/partial import is recovered by dropping and recreating
    > the schema, not by running the bundle again.
 
+   **Prefer operator-chosen staff passwords?** `bin/db_install.php` imports the same
+   bundle, replaces both seeded passwords with values you choose, verifies the result and
+   writes `storage/install.lock` so the database cannot be installed over afterwards:
+
+   ```bash
+   php bin/db_install.php --check     # preflight only: every check, no writes
+   php bin/db_install.php --database=ecowealth_sneat --force \
+     --admin-email=owner@example.com --admin-password-stdin \
+     --superadmin-email=owner+super@example.com --superadmin-password-stdin
+   ```
+
+   It prints the preflight table, imports into an **empty** schema, records
+   `install_channel = 'cli'` and ends with the verification counts. A second run, a
+   non-empty schema or an existing lock is refused (exit code 3); delete
+   `storage/install.lock` only when you intend to wipe the database and re-install.
+   `--json` prints exactly one machine-readable report; `--help` lists every flag.
+   Passwords are 12–72 characters and may not be a published default; each
+   `--…-password-stdin` reads one line, admin first.
+
 4. **Open** `http://localhost/ecowealth/system/` and sign in.
 
 ### Demo accounts
@@ -183,6 +202,7 @@ pages (login, register, logout) keep their scripts, everything else goes to the 
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
+| `INSTALL_KEY` | empty | Key the guided installers require in production. Set a long random string in `config.local.php` (or `ECO_INSTALL_KEY`); an empty value makes `bin/db_install.php` refuse when `APP_ENV=production`. Never printed or stored |
 | `CURRENCY_SYMBOL` | `₱` | Used by `money()` |
 | `UPLOAD_MAX_BYTES` | 5 MB | Upload cap |
 
@@ -218,8 +238,9 @@ system/
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
-│                              wallet_reconcile.php, build_install_sql.php
-├── storage/                   cron logs/ and locks/ (outside public/, ignored, deny-all .htaccess)
+│                              wallet_reconcile.php, build_install_sql.php, db_install.php
+├── storage/                   cron logs/ and locks/ + install.lock (outside public/, ignored,
+│                              deny-all .htaccess)
 ├── public/                    docroot
 │   ├── index.php              front controller
 │   ├── router.php             PHP built-in server parity
