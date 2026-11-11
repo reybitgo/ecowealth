@@ -302,7 +302,7 @@ final class AdminSettingsController
             'page_title'  => 'Settings',
             'current_nav' => 'admin.settings',
             'page_css'    => ['assets/css/orders.css'],
-            'page_js'     => ['assets/js/admin-live.js'],
+            'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js'],
             'live'        => Live::meta('admin.settings', Live::scope($_GET, (int) (auth_user()['id'] ?? 0))),
         ]);
     }

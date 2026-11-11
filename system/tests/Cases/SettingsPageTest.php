@@ -232,6 +232,61 @@ return [
         assert_same(8, preg_match_all('/<form\b[^>]*class="[^"]*settings-form/', $html), 'eight card forms');
     },
 
+    'the settings page has a section menu for every card' => function () use ($render): void {
+        test_signed_in_as(test_user('st_admin', 'admin'));
+
+        $html = $render();
+
+        assert_contains('data-settings-tabs', $html);
+        assert_contains('aria-label="Settings sections"', $html);
+
+        preg_match('/<nav\b[^>]*data-settings-tabs[^>]*>(.*?)<\/nav>/s', $html, $menu);
+        $menu = $menu[1] ?? '';
+
+        assert_true($menu !== '', 'the section menu must render');
+        assert_same(8, substr_count($menu, 'data-settings-tab="'), 'one tab per settings card');
+
+        $tabs = [
+            'settings-general'     => 'General',
+            'settings-shop'        => 'Shop',
+            'settings-accounts'    => 'Accounts',
+            'settings-payouts'     => 'Payouts',
+            'settings-windows'     => 'Windows',
+            'settings-fulfilment'  => 'Fulfilment',
+            'settings-commissions' => 'Commissions',
+            'settings-transfers'   => 'Transfers',
+        ];
+
+        foreach ($tabs as $id => $label) {
+            assert_contains('href="#' . $id . '"', $menu, $id . ' tab target');
+            assert_contains('data-settings-tab="' . $id . '"', $menu, $id . ' tab hook');
+            assert_contains($label, $menu, $id . ' tab label');
+            assert_contains('id="' . $id . '"', $html, $id . ' card must exist');
+        }
+
+        assert_true(
+            strpos($html, 'data-settings-tabs') < strpos($html, 'id="settings-general"'),
+            'the menu sits above the first card'
+        );
+
+        /* The menu is statically rendered, so it survives a live refresh
+         * and never becomes a held form body. */
+        assert_not_contains('data-live-hold', $menu);
+    },
+
+    'the settings cards keep a gap when they follow one another' => function () use ($render): void {
+        test_signed_in_as(test_user('st_admin', 'admin'));
+
+        $html = $render();
+
+        preg_match('/<form\b[^>]*\bid="settings-fulfilment"[^>]*>/s', $html, $form);
+        $fulfilment = $form[0] ?? '';
+
+        assert_true($fulfilment !== '', 'the fulfilment card must render');
+        assert_contains('mb-6', $fulfilment, 'Fulfilment & invoices keeps a gap before Commissions');
+        assert_contains('card', $fulfilment);
+    },
+
     /* ---------- The section catalogue behind the save ------------- */
 
     'P7-T4 the field catalog is partitioned by section' => function () use ($sectionMethod): void {

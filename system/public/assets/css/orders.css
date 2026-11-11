@@ -286,6 +286,58 @@
   font-size: 0.78rem;
 }
 
+/* Section menu above the cards. It sticks to the fixed navbar so a card
+ * can be reached from anywhere on the page, while each card reserves the
+ * same space with scroll-margin-top for tab jumps and save redirects. */
+.settings-tabs {
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-paper-bg, var(--bs-body-bg));
+}
+
+.settings-tab-list {
+  padding-block: 0.125rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.settings-tab-list .nav-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Laptops with the fixed sidebar leave roughly 950 px for the cards, which
+ * is narrower than the eight full-size pills. A slightly tighter pill keeps
+ * every section visible there instead of hiding the last one in a scroll. */
+@media (max-width: 1439.98px) {
+  .settings-tab-list .nav-link {
+    padding-inline: 0.7rem;
+    font-size: 0.875rem;
+  }
+
+  .settings-tab-list .nav-link .icon-base {
+    margin-inline-end: 0.25rem !important;
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .settings-tabs {
+    position: sticky;
+    z-index: 8;
+    inset-block-start: 5rem;
+  }
+
+  .settings-page .settings-form {
+    scroll-margin-top: 10rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .settings-page .settings-form {
+    scroll-margin-top: 5.75rem;
+  }
+}
+
 /* ---------- Small screens ---------- */
 @media (max-width: 991.98px) {
   .checkout-summary {

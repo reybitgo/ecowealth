@@ -3286,3 +3286,22 @@ The EcoWealth frontend rebuild (the repo-root `index.html` -> a full marketing s
 app) remains LATER by decision D23. The backend scope of this plan is complete: shop, wallet,
 membership, commissions, transfers, payouts, super-login, reports, audit and operations.
 
+---
+
+## Post-Phase 15 — Settings section menu
+
+`/admin/settings` is eight independently saved cards in one long column; the header badge names the
+areas but there was no way to jump to one, and the **Fulfilment & invoices** card had lost the
+`mb-6` that separates every other card, so **Commissions** sat directly against it.
+
+| Piece | What changed |
+|---|---|
+| **Menu** | `admin/settings/_tabs.php` renders a horizontal pill menu directly under the heading badge: General, Shop, Accounts, Payouts, Windows, Fulfilment, Commissions, Transfers. Each pill is an anchor to its card (`#settings-<section>`), so it works without JavaScript. |
+| **Behaviour** | `assets/js/admin-settings.js` smooth-scrolls to the clicked card, writes the hash (so a card can be linked or refreshed), keeps the active pill in step with the section in view, and updates it for a hash left by a save redirect (`admin/settings#settings-<section>`). Modified clicks keep the browser's own behaviour. |
+| **Layout** | The menu is sticky under the fixed navbar on `md` and up, and scrolls horizontally inside its card on narrow screens. A slightly tighter pill below 1440 px keeps all eight visible on laptops where the fixed sidebar leaves about 950 px. Each card gets `scroll-margin-top` so neither a tab jump nor a save redirect lands it under the bar. The fulfilment card regained `mb-6`; the measured gap to Commissions is now 24 px like every other pair. The header badge wraps on narrow screens instead of pushing the page 37 px sideways. |
+| **Tests** | `SettingsPageTest` +2 (the menu has one tab per card and every target exists; Fulfilment keeps its gap), `AdminSettingsLiveTest` now expects `admin-settings.js` and the menu. Suite **722 → 724**. |
+| **Verified** | Full suite **724/724**, `php -l` clean, `node --check` clean. In headless Chrome all eight pills were clicked: every hash, `aria-current` and active pill followed, each card landed 160 px from the viewport top with the bar's bottom at 140 px; a direct `#settings-commissions` load selected the right pill; a keyboard Enter on a pill moved focus into that card; with scripts disabled the menu still rendered and its anchors landed the card at the same offset; 0 JavaScript exceptions. Evidence: `docs/qa/evidence/post-phase-15/settings-section-tabs.png`, `settings-section-tabs-active.png` and `settings-section-tabs-mobile.png`. |
+
+No migration. The card forms, their `section` markers and the live regions are unchanged; the menu
+is static markup outside every form and held region.
+

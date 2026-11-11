@@ -13,7 +13,8 @@ declare(strict_types=1);
  *
  * One live surface (`admin.settings`): each card body is a held region,
  * so a background refresh never replaces typed input; the headers,
- * footers and the explanatory side card stay static.
+ * footers and the explanatory side card stay static. A section menu above
+ * the cards jumps to any card and tracks the section on screen.
  *
  * @var array<string, mixed> $settings
  * @var list<array{key:string,label:string,rule:string,max:int,hint:string}> $general_fields
@@ -87,8 +88,10 @@ $action = url('admin/settings');
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
                 </div>
-                <span class="badge bg-label-primary">General, payments, payouts, fulfilment, commissions &amp; transfers</span>
+                <span class="badge bg-label-primary text-wrap text-start">General, payments, payouts, fulfilment, commissions &amp; transfers</span>
               </div>
+
+<?= View::capture('admin/settings/_tabs') ?>
 
 <?= View::capture('admin/settings/_notice', ['manual_open' => $manualOpen]) ?>
 
@@ -207,7 +210,7 @@ $action = url('admin/settings');
                   </form>
 
                   <!-- Fulfilment & invoices -->
-                  <form method="POST" action="<?= e($action) ?>" id="settings-fulfilment" class="card settings-form">
+                  <form method="POST" action="<?= e($action) ?>" id="settings-fulfilment" class="card mb-6 settings-form">
                     <?= csrf_field() ?>
                     <input type="hidden" name="section" value="fulfilment" />
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">

@@ -22,7 +22,7 @@ $renderPage = static function (array $data): string {
             'page_title'  => 'Settings',
             'current_nav' => 'admin.settings',
             'page_css'    => ['assets/css/orders.css'],
-            'page_js'     => ['assets/js/admin-live.js'],
+            'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js'],
             'live'        => Live::meta('admin.settings', 'page'),
         ]);
     } finally {
@@ -251,6 +251,8 @@ return [
         assert_contains('data-live-status', $html);
         assert_contains('data-live-stale', $html);
         assert_contains('admin-live.js', $html);
+        assert_contains('admin-settings.js', $html);
+        assert_contains('data-settings-tabs', $html);
         assert_same(8, substr_count($html, 'Save settings'), 'one save button per card');
         assert_same(8, substr_count($html, 'name="section"'), 'one section marker per form');
     },
