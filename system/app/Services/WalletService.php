@@ -46,6 +46,12 @@ final class WalletService
      * SINGLE SOURCE OF TRUTH. It must stay identical to the ENUM in
      * database/schema.sql and database/migrations/005_wallets.sql.
      * P5-T8 fails when a value is accepted here but missing there.
+     *
+     * Phase 17 adds the two repeat-purchase movements: `unilevel` is an
+     * award credit (ref_id = the unilevel award's id) and
+     * `unilevel_reversal` is its cancellation debit. They ship in the same
+     * phase as the enum because P5-T8 compares the list and the column in
+     * both directions.
      */
     public const REF_TYPES = [
         'commission',
@@ -56,6 +62,8 @@ final class WalletService
         'shop_order',
         'adjustment',
         'refund',
+        'unilevel',
+        'unilevel_reversal',
     ];
 
     /** DECIMAL(12,2) upper bound. */

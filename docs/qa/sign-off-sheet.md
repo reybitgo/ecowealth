@@ -605,7 +605,36 @@ installer's pre-bundle demo/catalogue limitation, the Windows lock-file ACL and 
 
 ---
 
-## 18. Defect log
+## 18. Phase 17 — Unilevel repeat-purchase bonus (in progress: 17A)
+
+Document: [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md)
+
+Phase 17 is delivered in seven gated phases (**17A → 17G**). Section A (Foundation) is written; the
+checks below cover it. Sections B–G append their rows as each phase lands, and this section is
+finalised by 17G. Every 17A check runs on a scratch schema; the evidence lives in
+`evidence/phase-17/`.
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA17A-01 | Migration 020 applies twice on a `p17-start` schema and builds exactly four `*unilevel*` tables (31 tables total), no error | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-01-tables.txt` |
+| QA17A-02 | The four altered tables carry the documented columns in position; `ref_type` ends `'unilevel','unilevel_reversal'`; both order indexes exist | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-02-columns.txt` |
+| QA17A-03 | Six `unilevel%` settings with the documented defaults; every product switches off | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-03-settings.txt` |
+| QA17A-04 | No repeat-purchase UI: `/admin/settings` has no new block, the product form has no P.V. field or ladder card | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-04-admin-settings.png`, `QA17A-04-product-edit.png` |
+| QA17A-05 | A paid e-wallet order writes no award, leaves the order page and the sponsor's wallet unchanged; `unilevel_awards` = 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-05-order.txt`, `QA17A-05-awards-count.txt` |
+| QA17A-06 | The `/wallet` source filter lists *Repeat-purchase bonus* and *Repeat-purchase reversal*; both return no rows | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-06-wallet-filter.png`, `QA17A-06-wallet-reversal.png` |
+| QA17A-07 | A rebuilt bundle installs to `31 tables · 54 settings · 2 staff · 0 members · 7 / 2 / 18 / 10 / 0`; `wallet_reconcile` exits 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-07-verification.txt` |
+| QA17A-08 | A development reset empties the three money tables, keeps the ladder and the six settings, and verifies green | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-08-reset.txt` |
+
+| Phase 17A summary | |
+|---|---|
+| Executed | 8 / 8 |
+| Passed / Failed / Blocked | 8 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-12 |
+
+---
+
+## 19. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -621,7 +650,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 19. Final decision
+## 20. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -641,8 +670,10 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 14 | ☑ Yes ☐ No | 8 / 8 checks passed; 669 / 669 PHP cases, 173 / 173 smoke checks and a clean audit trail (hashed nonces only) green. |
 | Phase 15 | ☑ Yes ☐ No | 12 / 12 checks passed; 722 / 722 PHP cases, 185 / 185 smoke checks, a launch-scale report pass, a 7/7 health card and an executed restore drill green. |
 | Phase 16 | ☑ Yes ☐ No | 16 / 16 checks passed; 816 / 816 PHP cases, 195 / 195 smoke checks, `build_install_sql --check` exit 0, both installs (mysql/phpMyAdmin/CLI/web), both resets (CLI/web), the demo parity cases and the go-live tool-retirement capture green. |
+| Phase 17A | ☐ Yes ☐ No | In progress: section A written, automated gate green (830 / 830 PHP cases, 195 / 195 smoke checks); the eight manual checks are not yet executed. |
 
-Phases 1–16 are **Approved**. No defect is open, so no accepted exception is recorded.
+Phases 1–16 are **Approved**. Phase 17A is **in progress** and is not part of that approval until its
+section is executed and signed. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

@@ -70,6 +70,10 @@ final class DatabaseResetService
      *
      * This is the only allow-list a table name may come from: identifiers
      * in the SQL below are hard-coded constants, never input.
+     *
+     * Phase 17 adds the four repeat-purchase tables: `product_unilevel_levels`
+     * is catalogue (emptied only by a catalogue reset), the other three are
+     * money and are emptied by every business reset.
      */
     public const ALL_TABLES = [
         'addresses',
@@ -87,6 +91,7 @@ final class DatabaseResetService
         'package_products',
         'packages',
         'payout_requests',
+        'product_unilevel_levels',
         'products',
         'reg_codes',
         'remember_tokens',
@@ -98,6 +103,9 @@ final class DatabaseResetService
         'shop_orders',
         'shop_payment_proofs',
         'shop_shipments',
+        'unilevel_activity',
+        'unilevel_awards',
+        'unilevel_periods',
         'users',
     ];
 
@@ -127,6 +135,9 @@ final class DatabaseResetService
         'shop_orders',
         'shop_payment_proofs',
         'shop_shipments',
+        'unilevel_activity',
+        'unilevel_awards',
+        'unilevel_periods',
     ];
 
     /**
@@ -136,6 +147,11 @@ final class DatabaseResetService
      * ids (D-IR-15). Catalogue tables are excluded because they may have
      * just been re-seeded. `audit_log` is excluded because the reset row
      * always keeps one row in it.
+     *
+     * `unilevel_awards` is the only Phase 17 table with an auto-increment
+     * column: `unilevel_activity` and `unilevel_periods` have natural
+     * primary keys, so an `ALTER TABLE … AUTO_INCREMENT` on them would
+     * fail (plan §13.7).
      */
     public const AUTO_INCREMENT_TABLES = [
         'shop_orders',
@@ -153,6 +169,7 @@ final class DatabaseResetService
         'ewallet_transfers',
         'payout_requests',
         'commissions',
+        'unilevel_awards',
         'activations',
         'reg_codes',
         'impersonation_log',
@@ -220,6 +237,17 @@ final class DatabaseResetService
             'label' => 'S-Login sessions',
             'sql'   => [
                 'DELETE FROM impersonation_log',
+            ],
+        ],
+        [
+            /* Before the orders group: every award references an order item,
+             * so the money ledger must be emptied before its parents. */
+            'key'   => 'unilevel',
+            'label' => 'Repeat-purchase bonus awards and month snapshots',
+            'sql'   => [
+                'DELETE FROM unilevel_awards',
+                'DELETE FROM unilevel_activity',
+                'DELETE FROM unilevel_periods',
             ],
         ],
         [
@@ -1092,6 +1120,7 @@ final class DatabaseResetService
             'DELETE FROM package_products',
             'DELETE FROM package_levels',
             'DELETE FROM packages',
+            'DELETE FROM product_unilevel_levels',
             'DELETE FROM products',
         ] as $sql) {
             $deleted += $this->exec($sql);
@@ -2033,7 +2062,7 @@ final class DatabaseResetService
             $plan[] = [
                 'key'        => 'catalogue',
                 'label'      => 'Delete and re-seed the starter catalogue',
-                'statements' => 4 + $seedStatements,
+                'statements' => 5 + $seedStatements,
             ];
         } else {
             $plan[] = ['key' => 'catalogue', 'label' => 'Keep the existing catalogue', 'statements' => 0];

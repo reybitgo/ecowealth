@@ -32,6 +32,7 @@ $migrations    = [
     $migrationDir . '017_payouts.sql',
     $migrationDir . '018_impersonation.sql',
     $migrationDir . '019_audit_and_reporting.sql',
+    $migrationDir . '020_unilevel_repeat_purchase.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -275,6 +276,10 @@ return [
         assert_same($columnList($fresh, 'impersonation_log'), $columnList($migrated, 'impersonation_log'), 'impersonation_log columns differ from schema.sql');
         assert_same($columnList($fresh, 'live_revisions'), $columnList($migrated, 'live_revisions'), 'live_revisions columns differ from schema.sql');
         assert_same($columnList($fresh, 'audit_log'), $columnList($migrated, 'audit_log'), 'audit_log columns differ from schema.sql');
+        assert_same($columnList($fresh, 'product_unilevel_levels'), $columnList($migrated, 'product_unilevel_levels'), 'product_unilevel_levels columns differ from schema.sql');
+        assert_same($columnList($fresh, 'unilevel_awards'), $columnList($migrated, 'unilevel_awards'), 'unilevel_awards columns differ from schema.sql');
+        assert_same($columnList($fresh, 'unilevel_activity'), $columnList($migrated, 'unilevel_activity'), 'unilevel_activity columns differ from schema.sql');
+        assert_same($columnList($fresh, 'unilevel_periods'), $columnList($migrated, 'unilevel_periods'), 'unilevel_periods columns differ from schema.sql');
     },
 
     'migration 019 adds the reporting indexes and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
@@ -329,6 +334,260 @@ return [
          * compare the raw text. */
         $meta = json_decode((string) $row['meta_json'], true);
         assert_same('shop', $meta['section'] ?? null);
+    },
+
+    'P17A-T3 migration 020 adds the repeat-purchase objects, defaults off and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
+        $pdo   = $buildMigrated();
+        $fresh = test_pdo(['db' => DB_NAME]);
+
+        /* ---- 1. the four tables and their columns -------------------- */
+        $tables = test_table_list($pdo);
+
+        foreach ([
+            'product_unilevel_levels',
+            'unilevel_awards',
+            'unilevel_activity',
+            'unilevel_periods',
+        ] as $table) {
+            assert_true(in_array($table, $tables, true), $table . ' is missing after migration 020');
+            assert_same(
+                test_column_list($fresh, DB_NAME)[$table],
+                test_column_list($pdo)[$table],
+                $table . ' columns differ from schema.sql'
+            );
+            assert_same(
+                test_index_list($fresh, DB_NAME)[$table],
+                test_index_list($pdo)[$table],
+                $table . ' indexes differ from schema.sql'
+            );
+            assert_same(
+                test_foreign_key_list($fresh, DB_NAME)[$table],
+                test_foreign_key_list($pdo)[$table],
+                $table . ' foreign keys differ from schema.sql'
+            );
+        }
+
+        /* ---- 2. the four altered tables ------------------------------ */
+        $columns = static function (PDO $pdo, string $table): array {
+            return array_column($pdo->query('SHOW COLUMNS FROM `' . $table . '`')->fetchAll(), 'Field');
+        };
+
+        foreach ([
+            'products'         => ['unilevel_enabled', 'unilevel_base'],
+            'shop_orders'      => ['unilevel_processed_at', 'unilevel_total'],
+            'shop_order_items' => ['unit_base', 'base_total'],
+        ] as $table => $expected) {
+            $actual = $columns($pdo, $table);
+
+            foreach ($expected as $column) {
+                assert_true(in_array($column, $actual, true), $table . '.' . $column . ' is missing');
+            }
+        }
+
+        /* The two new order indexes exist on both sides. */
+        $orderIndexes = array_map(
+            static fn (array $row): string => (string) $row['Key_name'],
+            $pdo->query('SHOW INDEX FROM shop_orders')->fetchAll()
+        );
+        $freshIndexes = array_map(
+            static fn (array $row): string => (string) $row['Key_name'],
+            $fresh->query('SHOW INDEX FROM shop_orders')->fetchAll()
+        );
+
+        foreach (['idx_orders_unilevel', 'idx_orders_user_paid'] as $index) {
+            assert_true(in_array($index, $orderIndexes, true), 'shop_orders.' . $index . ' missing after the migration');
+            assert_true(in_array($index, $freshIndexes, true), 'shop_orders.' . $index . ' missing from schema.sql');
+        }
+
+        /* ---- 3. the extended ledger enum ----------------------------- */
+        $enum = (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
+        assert_contains("'unilevel'", $enum);
+        assert_contains("'unilevel_reversal'", $enum);
+        assert_same(
+            (string) $fresh->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'],
+            $enum,
+            'the migrated enum must equal the fresh-install enum'
+        );
+
+        /* ---- 4. the six settings, off by default --------------------- */
+        assert_same(6, (int) $pdo->query(
+            "SELECT COUNT(*) FROM settings WHERE key_name LIKE 'unilevel%'"
+        )->fetchColumn());
+
+        foreach ([
+            'unilevel_enabled'                => '0',
+            'unilevel_max_levels'             => '10',
+            'unilevel_requires_active_upline' => '1',
+            'unilevel_active_threshold'       => '500',
+            'unilevel_reversal_enabled'       => '1',
+        ] as $key => $value) {
+            assert_same(
+                $value,
+                (string) $pdo->query("SELECT value FROM settings WHERE key_name = '{$key}'")->fetchColumn(),
+                'settings.' . $key
+            );
+        }
+
+        assert_same(
+            1,
+            preg_match(
+                '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+                (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'unilevel_ledger_since'")->fetchColumn()
+            ),
+            'unilevel_ledger_since is a MySQL datetime'
+        );
+
+        /* Every existing product keeps the master switch off and the
+         * default base (D-11: a migration never starts paying). */
+        $products = $pdo->query('SELECT unilevel_enabled, unilevel_base FROM products')->fetchAll();
+
+        foreach ($products as $product) {
+            assert_same(0, (int) $product['unilevel_enabled'], 'every migrated product starts switched off');
+            assert_same('auto', (string) $product['unilevel_base']);
+        }
+
+        /* ---- 5. applying 020 again is a no-op ------------------------ */
+        $before = [
+            'tables'   => test_table_list($pdo),
+            'settings' => (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn(),
+            'columns'  => test_column_list($pdo),
+        ];
+
+        /* An operator's edit must survive the re-run. */
+        $pdo->exec("UPDATE settings SET value = '7' WHERE key_name = 'unilevel_max_levels'");
+
+        test_run_sql_file($pdo, $migrationDir . '020_unilevel_repeat_purchase.sql');
+
+        assert_same($before['tables'], test_table_list($pdo), 'a re-run creates no table');
+        assert_same($before['settings'], (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn(), 'a re-run adds no setting');
+        assert_same($before['columns'], test_column_list($pdo), 'a re-run changes no column');
+        assert_same(
+            '7',
+            (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'unilevel_max_levels'")->fetchColumn(),
+            'a re-run never overwrites an operator value'
+        );
+
+        /* ---- 6. the schema guards ----------------------------------- */
+        $pdo->exec(
+            "INSERT INTO products (sku, name, slug, price, stock)
+             VALUES ('MIG-1', 'Migrated product', 'migrated-product', 10.00, 5)"
+        );
+        $productId = (int) $pdo->lastInsertId();
+        assert_true($productId > 0, 'the migration probe product exists');
+
+        /* A ladder row is one per (product, level) and level is 1–10. */
+        $insertLevel = static function (PDO $pdo, int $productId, int $level, string $percent): void {
+            $pdo->exec(
+                "INSERT INTO product_unilevel_levels (product_id, level, percent)
+                 VALUES ({$productId}, {$level}, {$percent})"
+            );
+        };
+
+        $insertLevel($pdo, $productId, 1, '5.000');
+        assert_throws(static fn () => $insertLevel($pdo, $productId, 1, '6.000'), PDOException::class, 'the ladder is unique per level');
+        assert_throws(static fn () => $insertLevel($pdo, $productId, 0, '5.000'), PDOException::class, 'level 0 is refused');
+        assert_throws(static fn () => $insertLevel($pdo, $productId, 11, '5.000'), PDOException::class, 'level 11 is refused');
+        assert_throws(static fn () => $insertLevel($pdo, $productId, 2, '100.500'), PDOException::class, 'a percent above 100 is refused');
+
+        /* Deleting the product cascades its ladder. */
+        $pdo->exec("DELETE FROM products WHERE id = {$productId}");
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM product_unilevel_levels WHERE product_id = {$productId}")->fetchColumn(),
+            'the ladder is deleted with its product'
+        );
+
+        /* An award needs its order, line, product and both users. */
+        $buyerId  = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        $uplineId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+
+        $pdo->exec(
+            "INSERT INTO products (sku, name, slug, price, stock)
+             VALUES ('MIG-2', 'Awarded product', 'awarded-product', 10.00, 5)"
+        );
+        $awardProductId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                subtotal, total, paid_at, terms_accepted_at)
+             VALUES ('EWT-MIG-20', {$buyerId}, 'paid', 'ewallet', 'Buyer', 'Buyer', 'Address',
+                     10.00, 10.00, NOW(), NOW())"
+        );
+        $orderId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO shop_order_items
+               (order_id, product_id, product_name, quantity, unit_price, line_total, unit_base, base_total)
+             VALUES ({$orderId}, {$awardProductId}, 'Awarded product', 1, 10.00, 10.00, 10.00, 10.00)"
+        );
+        $itemId = (int) $pdo->lastInsertId();
+
+        $insertAward = static function (PDO $pdo, int $orderId, int $itemId, int $productId, int $buyerId, int $userId, int $level = 1, string $amount = '0.50'): void {
+            $pdo->exec(
+                "INSERT INTO unilevel_awards
+                   (order_id, order_item_id, product_id, buyer_id, user_id, level,
+                    base_amount, rate_pct, amount, paid_at)
+                 VALUES ({$orderId}, {$itemId}, {$productId}, {$buyerId}, {$userId}, {$level},
+                         10.00, 5.000, {$amount}, NOW())"
+            );
+        };
+
+        $insertAward($pdo, $orderId, $itemId, $awardProductId, $buyerId, $uplineId);
+        assert_same(1, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn());
+
+        /* The unique key is the money anchor: a replayed line/person/level
+         * cannot create a second row. A different level can. */
+        assert_throws(
+            static fn () => $insertAward($pdo, $orderId, $itemId, $awardProductId, $buyerId, $uplineId),
+            PDOException::class,
+            'a replayed award is refused'
+        );
+        $insertAward($pdo, $orderId, $itemId, $awardProductId, $buyerId, $uplineId, 2);
+        assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn());
+
+        /* A product that paid an award cannot be deleted out from under it. */
+        assert_throws(
+            static fn () => $pdo->exec("DELETE FROM products WHERE id = {$awardProductId}"),
+            PDOException::class,
+            'a product referenced by an award is protected'
+        );
+
+        /* Deleting the order takes its awards with it. */
+        $pdo->exec("DELETE FROM shop_orders WHERE id = {$orderId}");
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn());
+
+        /* The activity snapshot is keyed by (period, user) and validates
+         * the period shape. */
+        $insertActivity = static function (PDO $pdo, string $period, int $userId): void {
+            $pdo->exec(
+                "INSERT INTO unilevel_activity (period, user_id, personal_purchases, qualified, evaluated_at)
+                 VALUES ('{$period}', {$userId}, 500.00, 1, NOW())"
+            );
+        };
+
+        $insertActivity($pdo, '2026-10', $buyerId);
+        assert_throws(static fn () => $insertActivity($pdo, '2026-10', $buyerId), PDOException::class, 'one row per member per period');
+        assert_throws(static fn () => $insertActivity($pdo, '2026-13', $buyerId), PDOException::class, 'month 13 is refused');
+        assert_throws(static fn () => $insertActivity($pdo, '2026-1', $buyerId), PDOException::class, 'a short period is refused');
+
+        /* Deleting the member removes their activity row. */
+        $pdo->exec("DELETE FROM users WHERE id = {$buyerId}");
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_activity')->fetchColumn());
+
+        /* The closed-month header accepts a full row and keeps the closer
+         * when the account goes away (SET NULL, not CASCADE). */
+        $pdo->exec(
+            "INSERT INTO unilevel_periods
+               (period, closed_at, closed_by, threshold, members_total, qualified_count, award_total)
+             VALUES ('2026-10', NOW(), {$uplineId}, 500.00, 1, 1, 0.50)"
+        );
+
+        assert_same(1, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_periods')->fetchColumn());
+
+        $pdo->exec("DELETE FROM users WHERE id = {$uplineId}");
+        assert_same(1, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_periods')->fetchColumn(), 'the period survives its closer');
+        assert_null($pdo->query("SELECT closed_by FROM unilevel_periods WHERE period = '2026-10'")->fetchColumn());
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {

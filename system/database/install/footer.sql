@@ -26,7 +26,7 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 27    settings_rows = 48    staff_rows    = 2
+--      tables_created = 31    settings_rows = 54    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --

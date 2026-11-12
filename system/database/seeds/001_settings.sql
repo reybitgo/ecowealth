@@ -56,6 +56,17 @@ INSERT INTO settings (key_name, value) VALUES
   -- an existing value is never overwritten (ON DUPLICATE … no-op below).
   ('commission_ledger_since',          DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
+  -- Repeat-purchase bonus (Phase 17). Every key is inert until an operator
+  -- turns a product's ladder on: the global master is '0' and the product
+  -- switch defaults to off. `unilevel_ledger_since` marks the instant the
+  -- stream may pay, so reconciliation can separate legacy ledger rows.
+  ('unilevel_enabled',                 '0'),
+  ('unilevel_max_levels',              '10'),
+  ('unilevel_requires_active_upline',  '1'),
+  ('unilevel_active_threshold',        '500'),
+  ('unilevel_reversal_enabled',        '1'),
+  ('unilevel_ledger_since',            DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),

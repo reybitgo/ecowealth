@@ -3849,3 +3849,107 @@ IR-0 … IR-8 are complete: the production install bundle, the shared plumbing, 
 installers, the reset engine/CLI/console, the demo fixtures and parity, and the hardening,
 documentation and go-live sign-off. The application itself remains Phase 15; Phase 16 added no
 route or page, and both tools are retired by deleting two files and removing two constants.
+
+---
+
+## Phase 17A — Foundation (2026-11-12)
+
+**Status:** complete · **Tags:** `p17-start` (baseline, on `be7357c`), `p17a-foundation` ·
+**Branch:** `feature/unilevel`, cut from `feature/shop` · **Schema:** 27 → 31 tables ·
+**Suite:** 816 → 830 cases, **830 / 830** green · **Smoke:** 195 / 195.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §5 (Phase 17A), §12.3 and §13. This phase
+ships the repeat-purchase schema, the wallet vocabulary and the install/reset knowledge that
+17B–17G build on. **No code path reads any of it:** the tables are empty and unread, no model,
+service, controller, view, route or job exists, and a paid order still pays nothing.
+
+### Database
+
+| Object | Change |
+|---|---|
+| `database/migrations/020_unilevel_repeat_purchase.sql` (new) | Four tables (`product_unilevel_levels`, `unilevel_awards`, `unilevel_activity`, `unilevel_periods`), four altered tables (`products`, `shop_orders`, `shop_order_items`, `ewallet_ledger`), two `shop_orders` indexes, the extended `ref_type` enum and the six settings. Every `ALTER` is guarded by an `information_schema` probe + `PREPARE`/`EXECUTE`; the settings insert is `ON DUPLICATE KEY UPDATE key_name = key_name`. Applied twice on a scratch schema and twice on the development copy (a no-op), both exit 0. |
+| `database/schema.sql` | The fresh-install mirror, block for block: the two product columns, the four tables, the four order/item columns, the two indexes and the extended enum. The `pv` comment no longer says "reserved … never read or written". |
+| `database/seeds/001_settings.sql` | The six keys, in the migration's order and with the same defaults. `unilevel_ledger_since` uses `DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')`, like `commission_ledger_since`. |
+| `database/install/footer.sql` | Expected counts: **31 tables, 54 settings**. |
+| `database/install/header.sql` | Doc comment: **31 tables · 51 settings** (deviation 1). |
+| `database/install.sql` | Regenerated only (`php bin/build_install_sql.php`): 72,659 bytes, sha256 `a5467d25d02a573e778f57ce2ffad6c09ab5a005022073c7c672b0055ad3522c`; `--check` exits 0. |
+
+### Code
+
+- **`DatabaseInstaller`** — `EXPECTED` 27/48 → **31/54**; the settings hint becomes "51 keys plus
+  the three `install_*` metadata rows"; `TRANSACTIONAL_TABLES` gains `unilevel_awards`,
+  `unilevel_activity`, `unilevel_periods`, so a fresh install fails verification if any money table
+  is non-empty. `DEMO_TABLES` is unchanged.
+- **`DatabaseResetService`** — `ALL_TABLES` 27 → **31**; `ZERO_TABLES` gains the three money tables;
+  `AUTO_INCREMENT_TABLES` gains **`unilevel_awards` only** (the other two have natural primary keys);
+  a new **Repeat-purchase bonus awards and month snapshots** delete group sits before the orders
+  group (awards reference order items); a catalogue reset also deletes `product_unilevel_levels`,
+  and the dry-run catalogue count follows (4 → 5). The integrity map is untouched — it names
+  `UnilevelService`, which does not exist until 17C.
+- **`WalletService::REF_TYPES`** — `unilevel`, `unilevel_reversal` (10 values). The column and the
+  constant ship together because P5-T8 compares them in both directions.
+- **`helpers.php`** — `wallet_ref_label()` / `wallet_ref_icon()`: *Repeat-purchase bonus* /
+  *Repeat-purchase reversal*, `bx-gift` / `bx-undo`.
+
+The one visible change is the wallet statement's Source filter (two new options that match nothing
+yet), documented and accepted in plan §5 Rule 6.
+
+### Tests
+
+**14 new cases: 816 → 830, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `UnilevelFoundationTest` (new) | 11 | P17A-T1 (structure, enum, settings), T2 (a re-run is a no-op), T5 (bundle parity), T6 (installer/reset expectations), T9 (enum ↔ `REF_TYPES`), T10 (labels/icons), T11 (migrated = fresh defaults), T12 ×2 (ladder and award cascades/guards), T13 (the phase is inert — no reader) |
+| `MigrationTest` | 1 | P17A-T3: 020 in the ordered list; migrated ≡ fresh for the new tables (columns, indexes, foreign keys); the enum equals a fresh install; defaults off; a re-run is a no-op and keeps an operator value |
+| `InstallTest` | 1 | P17A-T7: one award row fails the install verification and names `unilevel_awards`; removing it returns the install to clean |
+| `DbResetTest` | 1 | P17A-T8: a business reset empties the three money tables, keeps the ladder and the six settings, reports the new step; a catalogue reset clears the ladder |
+
+Updated for the new counts: `DbTargetTest` (31 tables), `SqlScriptTest` (the 31-table list),
+`InstallSqlTest` (31 / 54; both `*_ledger_since` keys compared by shape), `InstallTest`
+(31 / 54 / 58 statements), `DbResetTest` (31-name helper, 20 auto-increment counters, the dynamic
+`unilevel_ledger_since` excluded from the parity snapshot, the new delete step), `WalletTest`
+(P5-T8 carries the two values and asserts ten).
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` applies 020 and migrated ≡ fresh is green.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 830   Passed: 830   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 on the migrated development copy.
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 195   Failed: 0**, exit 0.
+- [x] Every P17A-Tn case exists, is named for the phase and passes.
+- [x] The manual script (plan §5, `QA17A-01` … `QA17A-08`) executed **8 / 8** on scratch schemas
+      (01/02/03/07/08) and through the real services over HTTP (04/05/06); the two browser
+      observations are captured as 1440×900 screenshots. Evidence:
+      `docs/qa/evidence/phase-17/`.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass (the logs
+      hold only the cron lines the smoke run writes).
+- [x] QA pack section A filled; `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` and
+      `docs/qa/evidence/phase-17/README.md` carry the Phase 17 row.
+- [x] This entry and Appendix G of the plan are filled; tag `p17a-foundation`.
+
+### Deviations
+
+1. **`install/header.sql`** — its expected-counts comment was updated (27/45 → 31/51). Plan §13.6
+   lists only `install/footer.sql`, but the header is a bundle source and a stale count there would
+   ship inside `install.sql`.
+2. **The development copy was migrated at this gate.** Plan §5 says to run the manual script on a
+   scratch schema, and QA17A-01/02/03/07/08 did. QA17A-05's `SELECT COUNT(*) FROM unilevel_awards`
+   and the hand-off ("a migrated database") need the development copy at 17A, so it was backed up
+   first (`C:\laragon\www\ecowealth-backups\phase-17\ecowealth_sneat-pre-17a-20261112-162709.sql`,
+   675,279 bytes) and then migrated; both runs exited 0 and every page was re-checked.
+3. **Two further test files needed count updates.** Plan §16.4 named `MigrationTest`, `InstallTest`,
+   `InstallSqlTest`, `DbResetTest` and `WalletTest`; `DbTargetTest` and `SqlScriptTest` also
+   hard-code 27 tables and moved to 31. No behavioural change.
+4. **No application file outside the manifest changed.** `git diff --stat` touches the 17A files,
+   the tests and the docs only; `routes.php`, the controllers, the views and the layouts are
+   untouched, which `P17A-T13` asserts by scanning them.
+
+### Hand-off to 17B
+
+- A migrated database with every column, table and setting the feature needs; a fresh-install
+  bundle that produces the same database (`MigrationTest`, `InstallSqlTest` green).
+- A reset engine that empties the money tables and preserves the ladder; a wallet vocabulary that
+  can name `unilevel` and `unilevel_reversal`.
+- **Nothing reads any of it.** 17B may assume the tables exist and are empty.

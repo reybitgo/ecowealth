@@ -66,7 +66,7 @@ return [
         $harness = test_pdo(['db' => DB_NAME]);
 
         $tables = test_table_list($pdo, $database);
-        assert_count(27, $tables);
+        assert_count(31, $tables);
         assert_same(test_table_list($harness, DB_NAME), $tables, 'table list');
 
         assert_same(
@@ -94,13 +94,13 @@ return [
         $harness = $keyPairs(test_pdo(['db' => DB_NAME]), 'SELECT key_name, value FROM settings ORDER BY key_name');
         $import  = $keyPairs($pdo, 'SELECT key_name, value FROM settings ORDER BY key_name');
 
-        assert_true(count($harness) >= 45, 'the harness fresh install carries at least 45 settings');
-        assert_count(48, $import, '45 seed keys + 3 install metadata keys');
+        assert_true(count($harness) >= 51, 'the harness fresh install carries at least 51 settings');
+        assert_count(54, $import, '51 seed keys + 3 install metadata keys');
 
         foreach ($harness as $key => $value) {
             assert_true(array_key_exists($key, $import), 'the import carries settings.' . $key);
 
-            if ($key === 'commission_ledger_since') {
+            if ($key === 'commission_ledger_since' || $key === 'unilevel_ledger_since') {
                 continue;   // inserted with NOW() on each side; compare the shape only
             }
 
@@ -111,6 +111,11 @@ return [
             1,
             preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) $import['commission_ledger_since']),
             'commission_ledger_since is a MySQL datetime (F-01)'
+        );
+        assert_same(
+            1,
+            preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) $import['unilevel_ledger_since']),
+            'unilevel_ledger_since is a MySQL datetime baseline'
         );
 
         assert_same('1.0.0', $import['install_version']);
@@ -263,9 +268,9 @@ return [
         assert_same(1146, (int) $error->context['driver_code'], 'the guard names a missing table');
         assert_contains('statement', $error->getMessage());
 
-        /* Nothing after the guard ran: still 27 tables, 48 settings, 2 staff. */
-        assert_count(27, test_table_list($pdo, $database));
-        assert_same(48, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+        /* Nothing after the guard ran: still 31 tables, 54 settings, 2 staff. */
+        assert_count(31, test_table_list($pdo, $database));
+        assert_same(54, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
         $probe = $pdo->prepare(

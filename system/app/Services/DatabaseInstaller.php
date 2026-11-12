@@ -80,6 +80,11 @@ final class DatabaseInstaller
      * `users` is checked through members_rows; the catalogue and settings
      * are counted explicitly. With demo fixtures the three tables the demo
      * seed writes are excluded and checked with their own expected counts.
+     *
+     * Phase 17 adds the three transactional repeat-purchase tables: a fresh
+     * install must fail verification if an award, an activity snapshot or a
+     * closed period already exists. `product_unilevel_levels` is catalogue,
+     * not money, so it is not in this list.
      */
     public const TRANSACTIONAL_TABLES = [
         'addresses',
@@ -103,6 +108,9 @@ final class DatabaseInstaller
         'shop_orders',
         'shop_payment_proofs',
         'shop_shipments',
+        'unilevel_activity',
+        'unilevel_awards',
+        'unilevel_periods',
     ];
 
     /** Tables the demo seed writes, so the zero pack must not require them (IR-7). */
@@ -110,8 +118,8 @@ final class DatabaseInstaller
 
     /** The expected production counts — the numbers the footer prints (plan §6.5). */
     public const EXPECTED = [
-        'tables_created' => 27,
-        'settings_rows'  => 48,
+        'tables_created' => 31,
+        'settings_rows'  => 54,
         'staff_rows'     => 2,
         'members_rows'   => 0,
         'products_rows'  => 7,
@@ -937,7 +945,7 @@ final class DatabaseInstaller
             'Settings',
             $counts['settings_rows'] === $expected['settings_rows'],
             $counts['settings_rows'] . ' of ' . $expected['settings_rows'] . ' settings',
-            'The bundle seeds 45 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
+            'The bundle seeds 51 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
         );
 
         /* ---- Staff rows: exactly one per role, active ---------------- */

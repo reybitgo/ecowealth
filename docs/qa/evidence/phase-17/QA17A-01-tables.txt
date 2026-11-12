@@ -1,0 +1,22 @@
+# QA17A-01 - Migration 020 builds the four tables and is re-runnable
+# Date: 2026-11-12 - Schema: ecowealth_sneat_qa17a (p17-start = legacy fixture + migrations 001-019)
+#
+# Command 1: mysql -u root ecowealth_sneat_qa17a < database/migrations/020_unilevel_repeat_purchase.sql
+# exit: 0
+#
+# Command 2 (second run): the same file again
+# exit: 0
+#
+# Command 3: SHOW TABLES LIKE '%unilevel%';
+Tables_in_ecowealth_sneat_qa17a (%unilevel%)
+product_unilevel_levels
+unilevel_activity
+unilevel_awards
+unilevel_periods
+#
+# Command 4: SELECT COUNT(*) AS tables_after FROM information_schema.tables ...;
+tables_after
+31
+#
+# Result: PASS - both runs exited 0 with no output; the schema now holds the
+# four Phase 17 tables, 31 tables in total.

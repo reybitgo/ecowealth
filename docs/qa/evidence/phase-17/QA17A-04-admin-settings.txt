@@ -1,0 +1,25 @@
+# QA17A-04 - No new admin UI exists yet (settings page)
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# Command: GET /login as admin, POST /login (admin / Admin@123) -> 302 /dashboard
+# Command: GET /admin/settings -> 200, 78,808 bytes
+#
+# The Commissions card (the only place 17B will add a block) carries exactly the
+# Phase 9-11 fields:
+#   commission_direct_enabled
+#   commission_indirect_enabled
+#   commission_indirect_max_levels
+#   commission_compression
+#   commission_requires_active_sponsor
+#   free_registration_enabled
+#
+# Absence checks on the whole page (0 occurrences expected):
+#   'Repeat-purchase'                    -> 0
+#   'Upline depth'                       -> 0
+#   'unilevel_max_levels'                -> 0
+#   'unilevel_enabled'                   -> 0
+#   'Monthly personal-purchase minimum'  -> 0
+#   'Reverse awards'                     -> 0
+#
+# The full page field list contains no unilevel key (see the captured HTML).
+# Result: PASS - the settings page is unchanged by Phase 17A.

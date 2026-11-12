@@ -30,6 +30,12 @@
 --                ewallet_transfers.
 --  Phase 13 owns: payout_requests.
 --  Phase 14 owns: impersonation_log.
+--  Phase 17 owns: product_unilevel_levels, unilevel_awards,
+--                unilevel_activity, unilevel_periods,
+--                products.unilevel_enabled/unilevel_base,
+--                shop_orders.unilevel_processed_at/unilevel_total,
+--                shop_order_items.unit_base/base_total and the two
+--                unilevel ledger ref types.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -153,8 +159,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
 --
 --  stock    physical count on hand. `available` is derived:
 --           stock − quantity reserved by non-terminal orders.
---  pv       reserved for residual PV (V3.0 later pillars) — never
---           read or written by the current build.
+--  pv       the point value; from Phase 17 it is the repeat-purchase
+--           bonus base when unilevel_base = 'pv'. 0 means "not set".
+--  unilevel_enabled  per-product master switch (Phase 17); off by
+--                    default so a migration never starts paying.
+--  unilevel_base     which base the repeat-purchase ladder prices:
+--                    auto (P.V. when set, else price) | price | pv
 --  slug     generated from the name, stable once created.
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS products (
@@ -164,6 +174,8 @@ CREATE TABLE IF NOT EXISTS products (
   slug              VARCHAR(180)  NOT NULL,
   price             DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   pv                DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  unilevel_enabled  TINYINT(1)    NOT NULL DEFAULT 0,
+  unilevel_base     ENUM('auto','price','pv') NOT NULL DEFAULT 'auto',
   stock             INT UNSIGNED  NOT NULL DEFAULT 0,
   image_url         VARCHAR(255)  NULL,
   short_description VARCHAR(255)  NULL,
@@ -176,6 +188,25 @@ CREATE TABLE IF NOT EXISTS products (
   UNIQUE KEY uq_products_sku (sku),
   UNIQUE KEY uq_products_slug (slug),
   KEY idx_products_status (status, sort_order)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Repeat-purchase ladder — one percentage per level, 1–10
+-- (Phase 17, plan §13.2). The buyer's direct sponsor is level 1,
+-- their sponsor level 2, and so on. Missing rows are zero (the
+-- model zero-fills), exactly like package_levels; the ladder is
+-- inert until the product's unilevel_enabled switch is on.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS product_unilevel_levels (
+  id         INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  product_id INT UNSIGNED     NOT NULL,
+  level      TINYINT UNSIGNED NOT NULL,
+  percent    DECIMAL(6,3)     NOT NULL DEFAULT 0.000,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_product_unilevel (product_id, level),
+  CONSTRAINT fk_pul_product  FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE,
+  CONSTRAINT chk_pul_level   CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_pul_percent CHECK (percent >= 0 AND percent <= 100)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -289,7 +320,10 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      dual-bucket invariant cannot be reconciled
 --                      without this snapshot — see migrations/005)
 --  ref_type            plan §4.4 movement kinds; the PHP list lives
---                      in WalletService::REF_TYPES and must agree
+--                      in WalletService::REF_TYPES and must agree.
+--                      Phase 17 adds 'unilevel' (a repeat-purchase
+--                      award credit) and 'unilevel_reversal' (its
+--                      cancellation debit); ref_id = unilevel_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -304,7 +338,8 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   balance_after     DECIMAL(14,2) NOT NULL,
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
-                         'shop_order','adjustment','refund') NOT NULL,
+                         'shop_order','adjustment','refund','unilevel',
+                         'unilevel_reversal') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -457,6 +492,11 @@ CREATE TABLE IF NOT EXISTS addresses (
 --  Address columns are a snapshot, never a live address-book link.
 --  order_no = EW + yymmdd + 5-digit id (written after insert).
 --  idempotency_key is the unique anchor for double-submit replay.
+--
+--  Phase 17 repeat-purchase anchor:
+--    unilevel_processed_at  stamped inside the payment transaction,
+--                           so a second payment event cannot pay twice
+--    unilevel_total         the order's credited repeat-purchase money
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS shop_orders (
   id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -488,6 +528,8 @@ CREATE TABLE IF NOT EXISTS shop_orders (
   payment_deadline    DATETIME     NULL,
   correction_deadline DATETIME     NULL,
   paid_at             DATETIME     NULL,
+  unilevel_processed_at DATETIME   NULL,
+  unilevel_total      DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   packed_at           DATETIME     NULL,
   shipped_at          DATETIME     NULL,
   delivered_at        DATETIME     NULL,
@@ -503,12 +545,19 @@ CREATE TABLE IF NOT EXISTS shop_orders (
   KEY idx_orders_status (status, payment_deadline),
   KEY idx_orders_created (created_at),
   KEY idx_orders_paid (paid_at),
+  KEY idx_orders_unilevel (unilevel_processed_at),
+  KEY idx_orders_user_paid (user_id, paid_at),
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
 -- Order lines — priced snapshots + the stock reservation state
 --  reserved → committed at payment → deducted at ship → or released
+--
+--  Phase 17: unit_base / base_total freeze the repeat-purchase base
+--  at placement, so a later product edit cannot rewrite a payout.
+--  They stay NULL for lines created before the migration; the engine
+--  then derives the base from the product (base_source = 'product').
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS shop_order_items (
   id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -519,6 +568,8 @@ CREATE TABLE IF NOT EXISTS shop_order_items (
   quantity          INT UNSIGNED NOT NULL DEFAULT 1,
   unit_price        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   line_total        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  unit_base         DECIMAL(12,2) NULL,
+  base_total        DECIMAL(12,2) NULL,
   reservation_state ENUM('reserved','committed','deducted','released') NOT NULL DEFAULT 'reserved',
   created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -526,6 +577,59 @@ CREATE TABLE IF NOT EXISTS shop_order_items (
   KEY idx_order_items_product (product_id, reservation_state),
   CONSTRAINT fk_order_items_order   FOREIGN KEY (order_id) REFERENCES shop_orders (id) ON DELETE CASCADE,
   CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Repeat-purchase awards — the Phase 17 money ledger (plan §13.2)
+--
+--  One row per (order line, recipient, level) decision. There is no
+--  `type` column: the level (1–10) is the whole story (D-17).
+--
+--  status   credited = paid (ledger_id set)
+--           skipped  = due but not paid (reason set); never moves money
+--           voided   = paid then reversed (reversal_ledger_id set)
+--  uq_unilevel_award (order_item_id, user_id, level) is the money
+--  anchor: a replayed payment cannot create a second award.
+--  ledger_id / reversal_ledger_id are deliberately NOT foreign keys
+--  (the ledger is append-only and must outlive a correction).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS unilevel_awards (
+  id                 BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  order_id           INT UNSIGNED     NOT NULL,
+  order_item_id      INT UNSIGNED     NOT NULL,
+  product_id         INT UNSIGNED     NOT NULL,
+  buyer_id           INT UNSIGNED     NOT NULL,
+  user_id            INT UNSIGNED     NOT NULL,
+  level              TINYINT UNSIGNED NOT NULL,
+  base_amount        DECIMAL(12,2)    NOT NULL,
+  base_source        ENUM('line','product') NOT NULL DEFAULT 'line',
+  rate_pct           DECIMAL(6,3)     NOT NULL,
+  amount             DECIMAL(12,2)    NOT NULL,
+  status             ENUM('credited','skipped','voided') NOT NULL DEFAULT 'credited',
+  reason             VARCHAR(120)     NULL,
+  ledger_id          INT UNSIGNED     NULL,
+  reversal_ledger_id INT UNSIGNED     NULL,
+  reversed_amount    DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  paid_at            DATETIME         NOT NULL,
+  voided_at          DATETIME         NULL,
+  void_reason        VARCHAR(160)     NULL,
+  created_at         TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_unilevel_award (order_item_id, user_id, level),
+  KEY idx_unilevel_user (user_id, created_at),
+  KEY idx_unilevel_order (order_id),
+  KEY idx_unilevel_buyer (buyer_id, created_at),
+  KEY idx_unilevel_product (product_id, created_at),
+  KEY idx_unilevel_status (status, created_at),
+  KEY idx_unilevel_paid (paid_at),
+  KEY idx_unilevel_ledger (ledger_id),
+  CONSTRAINT fk_ua_order     FOREIGN KEY (order_id)      REFERENCES shop_orders (id)      ON DELETE CASCADE,
+  CONSTRAINT fk_ua_item      FOREIGN KEY (order_item_id) REFERENCES shop_order_items (id) ON DELETE CASCADE,
+  CONSTRAINT fk_ua_product   FOREIGN KEY (product_id)    REFERENCES products (id)         ON DELETE RESTRICT,
+  CONSTRAINT fk_ua_buyer     FOREIGN KEY (buyer_id)      REFERENCES users (id)            ON DELETE CASCADE,
+  CONSTRAINT fk_ua_recipient FOREIGN KEY (user_id)       REFERENCES users (id)            ON DELETE CASCADE,
+  CONSTRAINT chk_ua_level    CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_ua_amount   CHECK (amount >= 0 AND reversed_amount >= 0 AND reversed_amount <= amount)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -766,6 +870,53 @@ CREATE TABLE IF NOT EXISTS commissions (
 ALTER TABLE users
   ADD CONSTRAINT fk_users_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_users_sponsor FOREIGN KEY (sponsor_id) REFERENCES users (id) ON DELETE SET NULL;
+
+-- -------------------------------------------------------------
+-- Repeat-purchase Active snapshot — per member, per month
+-- (Phase 17, plan §13.2)
+--
+--  Written ONLY by the month close, never by a purchase: one row per
+--  member per closed period with their personal purchases for that
+--  period and whether they cleared the threshold. A member with no
+--  row is treated as Active (the two-clock fallback, plan §12.7).
+--
+--  No auto-increment column: the primary key is natural.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS unilevel_activity (
+  period             CHAR(7)       NOT NULL,
+  user_id            INT UNSIGNED  NOT NULL,
+  personal_purchases DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  qualified          TINYINT(1)    NOT NULL DEFAULT 0,
+  evaluated_at       DATETIME      NOT NULL,
+  PRIMARY KEY (period, user_id),
+  KEY idx_unilevel_activity_user (user_id, period),
+  CONSTRAINT fk_ua_activity_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_ua_period CHECK (period REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$')
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Repeat-purchase periods — one row per CLOSED month
+-- (Phase 17, plan §13.2)
+--
+--  The header that makes a period authoritative and immutable: the
+--  threshold in force, the row counts and the credited money for that
+--  month. The close writes this row and the unilevel_activity rows in
+--  one transaction, so activity never exists for an open period.
+--
+--  No auto-increment column: the primary key is the period.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS unilevel_periods (
+  period          CHAR(7)       NOT NULL,
+  closed_at       DATETIME      NOT NULL,
+  closed_by       INT UNSIGNED  NULL,
+  threshold       DECIMAL(12,2) NOT NULL,
+  members_total   INT UNSIGNED  NOT NULL DEFAULT 0,
+  qualified_count INT UNSIGNED  NOT NULL DEFAULT 0,
+  award_total     DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (period),
+  CONSTRAINT fk_up_closer FOREIGN KEY (closed_by) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT chk_up_period CHECK (period REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$')
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
 -- Impersonation log — super-login sessions (plan §4.2, §4.4,

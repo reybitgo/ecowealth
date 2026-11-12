@@ -1,0 +1,21 @@
+# Phase 17A - migrating the development copy (prerequisite for sections B onward)
+# Date: 2026-11-12 - Schema: ecowealth_sneat
+#
+# Backup first, outside the repository (standing rule):
+#   mysqldump -u root --single-transaction --routines --triggers --databases ecowealth_sneat
+#   -> C:\laragon\www\ecowealth-backups\phase-17\ecowealth_sneat-pre-17a-20261112-162709.sql (675,279 bytes)
+#
+# Command: mysql -u root ecowealth_sneat < database/migrations/020_unilevel_repeat_purchase.sql
+# exit: 0
+# Command: the same file a second time
+# exit: 0 (idempotent no-op)
+#
+# After:
+tables_after
+31
+unilevel_settings
+6
+#
+# The app was re-checked after the migration: /admin/settings, /admin/products/1/edit
+# and /wallet all return 200 and render exactly as before (QA17A-04, QA17A-06).
+# Result: PASS - the development copy is at Phase 17A and behaves as at p17-start.

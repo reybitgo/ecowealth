@@ -632,14 +632,16 @@ function status_badge(string $status, array $overrides = []): string
 function wallet_ref_label(string $refType): string
 {
     $map = [
-        'commission'   => 'Commission',
-        'payout'       => 'Payout',
-        'transfer'     => 'Transfer',
-        'topup'        => 'Admin top-up',
-        'registration' => 'Registration',
-        'shop_order'   => 'Shop order',
-        'adjustment'   => 'Adjustment',
-        'refund'       => 'Refund',
+        'commission'        => 'Commission',
+        'payout'            => 'Payout',
+        'transfer'          => 'Transfer',
+        'topup'             => 'Admin top-up',
+        'registration'      => 'Registration',
+        'shop_order'        => 'Shop order',
+        'adjustment'        => 'Adjustment',
+        'refund'            => 'Refund',
+        'unilevel'          => 'Repeat-purchase bonus',
+        'unilevel_reversal' => 'Repeat-purchase reversal',
     ];
 
     return $map[$refType] ?? ucfirst(str_replace('_', ' ', $refType));
@@ -649,14 +651,16 @@ function wallet_ref_label(string $refType): string
 function wallet_ref_icon(string $refType): string
 {
     $map = [
-        'commission'   => 'bx-line-chart',
-        'payout'       => 'bx-money-withdraw',
-        'transfer'     => 'bx-transfer',
-        'topup'        => 'bx-plus-circle',
-        'registration' => 'bx-id-card',
-        'shop_order'   => 'bx-cart',
-        'adjustment'   => 'bx-slider-alt',
-        'refund'       => 'bx-undo',
+        'commission'        => 'bx-line-chart',
+        'payout'            => 'bx-money-withdraw',
+        'transfer'          => 'bx-transfer',
+        'topup'             => 'bx-plus-circle',
+        'registration'      => 'bx-id-card',
+        'shop_order'        => 'bx-cart',
+        'adjustment'        => 'bx-slider-alt',
+        'refund'            => 'bx-undo',
+        'unilevel'          => 'bx-gift',
+        'unilevel_reversal' => 'bx-undo',
     ];
 
     return 'bx ' . ($map[$refType] ?? 'bx-wallet');

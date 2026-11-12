@@ -329,6 +329,16 @@ return [
         $dbValues = $matches[1];
 
         $php = WalletService::REF_TYPES;
+
+        /* Phase 17 adds the two repeat-purchase movements; the list and the
+         * column must carry both or the stream cannot credit and reverse. */
+        foreach (['unilevel', 'unilevel_reversal'] as $refType) {
+            assert_true(in_array($refType, $php, true), 'WalletService::REF_TYPES carries "' . $refType . '"');
+            assert_true(in_array($refType, $dbValues, true), 'the ledger enum carries "' . $refType . '"');
+        }
+
+        assert_count(10, $php, 'the Phase 17 vocabulary is ten movement kinds');
+
         sort($dbValues);
         sort($php);
 

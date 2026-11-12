@@ -23,7 +23,7 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      27 tables · 45 settings · 2 staff accounts · 7 products
+--      31 tables · 51 settings · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
 --
 --  It seeds NO demo members, NO demo registration codes and NO demo wallet

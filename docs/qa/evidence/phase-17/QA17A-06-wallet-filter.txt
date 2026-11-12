@@ -1,0 +1,16 @@
+# QA17A-06 - The wallet statement filter lists the two new sources
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - sign-in: juan
+#
+# Command: GET /wallet -> 200, 58,929 bytes
+# The Source select now renders one option per WalletService::REF_TYPES entry:
+#   <option value="unilevel">Repeat-purchase bonus</option>
+#   <option value="unilevel_reversal">Repeat-purchase reversal</option>
+#
+# Command: GET /wallet?ref_type=unilevel -> 200
+#   expected and observed: the filtered empty state ('No wallet movements yet');
+#   0 matching ledger rows, because nothing writes the type until 17C.
+#
+# Command: GET /wallet?ref_type=unilevel_reversal -> 200
+#   expected and observed: the same empty state.
+#
+# Result: PASS - both options exist, spelled exactly as documented, and match nothing.

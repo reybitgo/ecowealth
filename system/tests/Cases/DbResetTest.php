@@ -72,7 +72,7 @@ $service = static function (PDO $pdo, string $database, array $options = [], ?ca
     );
 };
 
-/** The 27 table names the counts helper reads. */
+/** The 31 table names the counts helper reads. */
 $allTables = [
     'users', 'remember_tokens', 'settings', 'audit_log', 'products', 'packages',
     'package_levels', 'package_products', 'carts', 'cart_items', 'ewallet_ledger',
@@ -80,6 +80,7 @@ $allTables = [
     'shop_orders', 'shop_order_items', 'shop_order_events', 'shop_payment_proofs',
     'shop_shipments', 'shop_invoices', 'shop_invoice_items', 'reg_codes',
     'activations', 'commissions', 'impersonation_log', 'live_revisions',
+    'product_unilevel_levels', 'unilevel_awards', 'unilevel_activity', 'unilevel_periods',
 ];
 
 /** @return array<string,int> */
@@ -270,7 +271,7 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
 
     $settings = $pdo->query('SELECT key_name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since'] as $dynamic) {
+    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since'] as $dynamic) {
         unset($settings[$dynamic]);
     }
 
@@ -539,7 +540,7 @@ return [
         }
 
         assert_same(7, $plan['orders']['statements']);
-        assert_same(19, $plan['auto_increment']['statements']);
+        assert_same(20, $plan['auto_increment']['statements']);
         assert_same(0, $plan['catalogue']['statements'], 'the catalogue is kept by default');
     },
 
@@ -549,6 +550,12 @@ return [
     'default reset leaves a verified staff-only database' => function () use ($fresh, $service, $populate, $tableCounts, $byKey): void {
         [$pdo, $database] = $fresh();
         $populate($pdo);
+
+        /* Phase 17: a configured ladder row must survive the reset. */
+        $pdo->exec(
+            "INSERT INTO product_unilevel_levels (product_id, level, percent)
+             SELECT id, 1, 5.000 FROM products ORDER BY sku LIMIT 1"
+        );
 
         $settingsBefore = $pdo->query('SELECT key_name, value FROM settings ORDER BY key_name')
             ->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -584,6 +591,17 @@ return [
         assert_same(0, $after['activations']);
         assert_same(0, $after['reg_codes']);
         assert_same(0, $after['impersonation_log']);
+
+        /* Phase 17: the three money tables are emptied; the ladder is
+         * catalogue and survives (plan §5 Rule 8). */
+        assert_same(0, $after['unilevel_awards']);
+        assert_same(0, $after['unilevel_activity']);
+        assert_same(0, $after['unilevel_periods']);
+        assert_same(
+            1,
+            (int) $pdo->query('SELECT COUNT(*) FROM product_unilevel_levels')->fetchColumn(),
+            'the per-product ladder survives a business reset'
+        );
 
         $settingsAfter = $pdo->query('SELECT key_name, value FROM settings ORDER BY key_name')
             ->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -693,6 +711,89 @@ return [
             assert_same('0.00', number_format((float) $row['ewallet_sent_this_week'], 2, '.', ''));
             assert_null($row['last_login_at']);
         }
+    },
+
+    /* ==========================================================
+     *  4b. Phase 17A: the repeat-purchase tables (plan §5 Rule 8)
+     * ========================================================== */
+    'P17A-T8 a business reset empties the repeat-purchase money and keeps the ladder' => function () use ($fresh, $service, $byKey): void {
+        [$pdo, $database] = $fresh();
+
+        $productId = (int) $pdo->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $juan      = (int) $pdo->query("SELECT id FROM users WHERE username = 'juan'")->fetchColumn();
+        $maria     = (int) $pdo->query("SELECT id FROM users WHERE username = 'maria'")->fetchColumn();
+
+        /* A configured ladder (catalogue, must survive), one award, one
+         * activity snapshot and one closed period (money, must be emptied). */
+        $pdo->exec(
+            "INSERT INTO product_unilevel_levels (product_id, level, percent)
+             VALUES ({$productId}, 1, 5.000), ({$productId}, 2, 3.000)"
+        );
+
+        $pdo->exec(
+            "INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                subtotal, total, paid_at, unilevel_processed_at, unilevel_total, terms_accepted_at)
+             VALUES ('ORD-P17A-1', {$juan}, 'paid', 'ewallet', 'Juan', 'Juan', 'Address',
+                     300.00, 300.00, NOW(), NOW(), 15.00, NOW())"
+        );
+        $orderId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO shop_order_items
+               (order_id, product_id, product_name, quantity, unit_price, line_total, unit_base, base_total)
+             VALUES ({$orderId}, {$productId}, 'Coffee', 1, 300.00, 300.00, 300.00, 300.00)"
+        );
+        $itemId = (int) $pdo->lastInsertId();
+
+        $pdo->exec(
+            "INSERT INTO unilevel_awards
+               (order_id, order_item_id, product_id, buyer_id, user_id, level,
+                base_amount, rate_pct, amount, paid_at)
+             VALUES ({$orderId}, {$itemId}, {$productId}, {$juan}, {$maria}, 1, 300.00, 5.000, 15.00, NOW())"
+        );
+
+        $pdo->exec(
+            "INSERT INTO unilevel_activity (period, user_id, personal_purchases, qualified, evaluated_at)
+             VALUES ('2026-10', {$maria}, 750.00, 1, NOW())"
+        );
+        $pdo->exec(
+            "INSERT INTO unilevel_periods (period, closed_at, closed_by, threshold, members_total, qualified_count, award_total)
+             VALUES ('2026-10', NOW(), NULL, 500.00, 1, 1, 15.00)"
+        );
+
+        $report = $service($pdo, $database)->run();
+        assert_true($report['ok'], json_encode($report['verification']['checks']));
+
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn(), 'the awards are emptied');
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_activity')->fetchColumn(), 'the activity snapshot is emptied');
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_periods')->fetchColumn(), 'the closed period is emptied');
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM shop_orders')->fetchColumn(), 'the order is deleted');
+
+        assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM product_unilevel_levels')->fetchColumn(), 'the ladder survives');
+        assert_same(
+            6,
+            (int) $pdo->query("SELECT COUNT(*) FROM settings WHERE key_name LIKE 'unilevel%'")->fetchColumn(),
+            'the six settings survive'
+        );
+
+        $checks = $byKey($report['verification']['checks']);
+        assert_true($checks['zero_transactional']['ok']);
+
+        /* The reset's own step log names the new group. */
+        $steps = [];
+
+        foreach ($report['steps'] as $step) {
+            $steps[(string) $step['key']] = $step;
+        }
+
+        assert_true(isset($steps['unilevel']), 'the reset reports a repeat-purchase step');
+        assert_true((int) $steps['unilevel']['deleted'] >= 3, 'the step deleted the award, the snapshot and the period');
+
+        /* A catalogue reset also clears the ladder (it is catalogue). */
+        $second = $service($pdo, $database, ['reset_catalogue' => true])->run();
+        assert_true($second['ok'], json_encode($second['verification']['checks']));
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM product_unilevel_levels')->fetchColumn());
     },
 
     /* ==========================================================
@@ -910,7 +1011,7 @@ return [
         assert_true($second['ok'], json_encode($second['verification']['checks']));
 
         $deleteKeys = [
-            'impersonation', 'orders', 'carts', 'addresses', 'wallet', 'payouts',
+            'impersonation', 'unilevel', 'orders', 'carts', 'addresses', 'wallet', 'payouts',
             'commissions', 'codes', 'sessions', 'members',
         ];
 
@@ -1043,7 +1144,7 @@ return [
 
         $report = $service($pdo, $database)->run();
         assert_true($report['ok']);
-        assert_same(19, $report['auto_increment']['reset']);
+        assert_same(20, $report['auto_increment']['reset']);
         assert_same(0, $report['auto_increment']['failed']);
 
         foreach (['shop_orders', 'ewallet_ledger', 'reg_codes', 'activations', 'commissions'] as $table) {

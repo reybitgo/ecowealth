@@ -1,0 +1,49 @@
+# QA17A-07 - A fresh install reports 31 tables and 54 settings
+# Date: 2026-11-12 - Schema: ecowealth_sneat_qa17a_install (empty, production bundle)
+#
+# Command 1: php bin/build_install_sql.php --check
+# exit: 0  (no output + exit 0 = the committed bundle matches its sources)
+#
+# Command 2: mysql -u root ecowealth_sneat_qa17a_install < database/install.sql  (the footer verification pack)
+tables_created	settings_rows	staff_rows	members_rows	products_rows	packages_rows	levels_rows	contents_rows	codes_rows
+31	54	2	0	7	2	18	10	0
+key_name	value
+install_channel	install.sql
+install_completed_at	2026-11-12 16:23:27
+install_version	1.0.0
+site_name	EcoWealth
+username	role	member_status	is_active
+admin	admin	active	1
+superadmin	superadmin	active	1
+# exit: 0
+#
+# Result: PASS - the import printed tables_created = 31 and settings_rows = 54
+# (staff 2, members 0, products 7, packages 2, levels 18, contents 10, codes 0).
+#
+# Command 3: php bin/wallet_reconcile.php  (development schema ecowealth_sneat)
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat (127.0.0.1)
+  accounts checked:  26
+  accounts with ledger: 10
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   8 (2,430.00)
+  skipped awards:    4
+  ledger total:      2,430.00
+  legacy credits:    2 (20,500.00) — commission movements before the award history began
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 3
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  2
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+All good — wallets, commissions, transfers and payouts reconcile.
+# exit: 0
