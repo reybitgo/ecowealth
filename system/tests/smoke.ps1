@@ -3184,6 +3184,72 @@ try {
             -and $p17bAwardsAfter -eq '0' -and $p17bUnilevelLedger -eq '0') `
         "a paid order with the global stream off is stamped with a zero total and writes no award (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsAfter, ledger=$p17bUnilevelLedger)"
 
+    # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
+    $p17dRan        = $true
+    $p17dAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    # P17D-T2 / QA17D-01 - the repeat tab renders its counters, period card,
+    # filters, Lvl column and empty state; the package ledger has not moved.
+    $p17dRepeat = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
+    $p17dPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    Assert-That 'P17D-T2' ($p17dRepeat.Status -eq 200 `
+            -and $p17dRepeat.Body -match 'Repeat-purchase ledger' `
+            -and $p17dRepeat.Body -match 'data-live-region="repeat-stats"' `
+            -and $p17dRepeat.Body -match 'data-live-region="repeat-periods"' `
+            -and $p17dRepeat.Body -match 'data-live-region="repeat-rows"' `
+            -and $p17dRepeat.Body -match '<th scope="col">Lvl</th>' `
+            -and $p17dRepeat.Body -match 'name="product_id"' `
+            -and $p17dRepeat.Body -match 'name="ledger" value="repeat"' `
+            -and $p17dRepeat.Body -match 'No repeat-purchase bonus has been paid' `
+            -and $p17dRepeat.Body -notmatch 'direct_unilevel' `
+            -and $p17dRepeat.Body -notmatch 'indirect_unilevel') `
+        "GET /admin/commissions?ledger=repeat renders the repeat ledger, filters and empty state (status=$($p17dRepeat.Status))"
+
+    Assert-That 'P17D-T1' ($p17dPackage.Status -eq 200 `
+            -and $p17dPackage.Body -match 'Commission ledger' `
+            -and $p17dPackage.Body -match 'data-live-region="commission-rows"' `
+            -and $p17dPackage.Body -notmatch 'Repeat-purchase ledger' `
+            -and $p17dPackage.Body -notmatch 'data-live-region="repeat-') `
+        "the package tab keeps its own ledger and never renders the repeat regions (status=$($p17dPackage.Status))"
+
+    # P17D-T8 - the repeat CSV downloads with the documented columns and
+    # writes an `unilevel.export` audit row.
+    $p17dCsv = Invoke-App -Path '/admin/commissions/export?ledger=repeat' -Session 'admin'
+    $p17dCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered'
+    $p17dExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'unilevel.export' AND id > $p17dAuditStart;" | Out-String).Trim()
+    Assert-That 'P17D-T8' ($p17dCsv.Status -eq 200 `
+            -and $p17dCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p17dCsv.Body -match [regex]::Escape($p17dCsvHeader) `
+            -and $p17dExportAudit -eq '1') `
+        "GET /admin/commissions/export?ledger=repeat returns the repeat CSV and audits unilevel.export (status=$($p17dCsv.Status), audit=$p17dExportAudit)"
+
+    # P17D-T15 - the repeat ledger stays admin-only.
+    $p17dMember = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'other'
+    $p17dMemberCsv = Invoke-App -Path '/admin/commissions/export?ledger=repeat' -Session 'other'
+    Assert-That 'P17D-T15' ($p17dMember.Status -eq 403 -and $p17dMember.Body -match 'Access denied' `
+            -and $p17dMemberCsv.Status -eq 403) `
+        "a member is refused the repeat ledger and its export (page=$($p17dMember.Status), csv=$($p17dMemberCsv.Status))"
+
+    # P17D-T12 / T13 - the reports page carries the four repeat cards and
+    # the new export, and the dashboard carries the 30-day KPI.
+    $p17dReports = Invoke-App -Path '/admin/reports' -Session 'admin'
+    $p17dDashboard = Invoke-App -Path '/dashboard' -Session 'admin'
+    $p17dReportCsv = Invoke-App -Path '/admin/reports/export?type=unilevel&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    Assert-That 'P17D-T12' ($p17dReports.Status -eq 200 `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel"' `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel-levels"' `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel-products"' `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel-periods"' `
+            -and $p17dReports.Body -match 'type=unilevel' `
+            -and $p17dDashboard.Status -eq 200 `
+            -and $p17dDashboard.Body -match 'Repeat bonus \(30 d\)') `
+        "the reports page renders the four repeat cards and the dashboard KPI reads 30 days (reports=$($p17dReports.Status), dashboard=$($p17dDashboard.Status))"
+
+    Assert-That 'P17D-T13' ($p17dReportCsv.Status -eq 200 `
+            -and $p17dReportCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p17dReportCsv.Body -match 'Award,Date,Order,Buyer,Recipient,Product,Level') `
+        "GET /admin/reports/export?type=unilevel returns the repeat ledger CSV (status=$($p17dReportCsv.Status))"
+
     # ---- Phase 15: hardening, reports, settings, audit and launch ------
     $p15Ran = $true
     $p15AuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())

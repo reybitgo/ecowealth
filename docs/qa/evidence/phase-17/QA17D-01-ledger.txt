@@ -1,0 +1,26 @@
+QA17D-01 - the repeat-purchase ledger shows the four reference awards
+URL: /admin/commissions?ledger=repeat (HTTP 200)
+
+--- page markers ---
+... vel 1–10. Export CSV E-wallet monitor Package commissions Repeat-purchase bonus Total credited ₱90.00 4 members paid This month ₱90.00 Since the 1st Awards 4 Average ₱22.50 Recipients 4 Uplines credited at least once Skipped 0 Ineligible upline — no money move ...
+... -wallet monitor Package commissions Repeat-purchase bonus Total credited ₱90.00 4 members paid This month ₱90.00 Since the 1st Awards 4 Average ₱22.50 Recipients 4 Uplines credited at least once Skipped 0 Ineligible upline — no money moved Unrecovered ₱0.00 0  ...
+... g a month is an operations job; this card reads the snapshots it leaves behind. Repeat-purchase ledger Every award a paid shop order produced, credited, skipped or voided. One row per order line, recipient and level. 4 rows Recipient, buyer, product or order L ...
+...  Package commissions Repeat-purchase bonus Total credited ₱90.00 4 members paid This month ₱90.00 Since the 1st Awards 4 Average ₱22.50 Recipients 4 Uplines credited at least once Skipped 0 Ineligible upline — no money moved Unrecovered ₱0.00 0 voided awards — ...
+... s 4 Uplines credited at least once Skipped 0 Ineligible upline — no money moved Unrecovered ₱0.00 0 voided awards — shortfall after reversal Closed months The Active snapshot behind the monthly gate. A closed month is never rewritten. 0 closed Month Members Qu ...
+
+--- unilevel_awards for order 
+QA17D-721059
+ ---
+1	qa17d_u1	500.00	5.000	25.00	credited	NULL
+2	qa17d_u2	500.00	5.000	25.00	credited	NULL
+3	qa17d_u3	500.00	5.000	25.00	credited	NULL
+4	qa17d_u4	500.00	3.000	15.00	credited	NULL
+
+--- wallet movements (ref_type unilevel / unilevel_reversal) ---
+1092	qa17d_u1	unilevel	credit	25.00
+1093	qa17d_u2	unilevel	credit	25.00
+1094	qa17d_u3	unilevel	credit	25.00
+1095	qa17d_u4	unilevel	credit	15.00
+
+Captured by the automated Phase 17D QA pass (real HTTP + MySQL) - 
+DeepSeek Harness, 2026-11-12 20:00:37 Asia/Manila.

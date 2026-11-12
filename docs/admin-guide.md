@@ -118,6 +118,19 @@ recalculated one.
 
 Order actions are recorded in the order timeline with the actor and time.
 
+**The repeat-purchase card** sits under the payment panel. It reads the order's own stamp:
+
+| The card says | Meaning |
+|---|---|
+| "Paid orders earn the repeat-purchase bonus. This order is `pending`." | no money has been received, so nothing is due |
+| "This order was paid before the repeat-purchase stream was switched on…" | the order was paid before the feature was enabled; it is never paid retroactively |
+| "No bonus was due: no product on this order had an active ladder…" | processed, but this product or chain pays nothing |
+| a table of L1–L10 rows with a total | the award this order paid to the sponsor chain |
+
+Each row shows the level, recipient, product, base, rate, amount and status, and the headline equals
+the order's repeat-purchase total. The buyer is never a recipient. A skipped level keeps its number
+(no compression); a voided row shows how much was recovered and, in red, the shortfall.
+
 ---
 
 ## 7. E-wallet, transfers and payouts
@@ -171,6 +184,10 @@ A failed save shows the field errors and writes nothing.
 |---|---|
 | **Sales by day** | paid orders and value per day, with the method breakdown and the average order |
 | **Commissions by level** | awards, amounts and skips per level and leg, with all-time totals |
+| **Repeat-purchase bonus** | the product ladder's credited, skipped and voided money, with the unrecovered shortfall |
+| **Repeat-purchase by level** | awards, amounts and skips for levels 1–10 (one ladder, no direct/indirect split) |
+| **Repeat-purchase by product** | what each product's ladder cost in the window — the first place to check a margin |
+| **Closed months** | the Active snapshots the month close wrote, with members, qualified count and award total |
 | **Payout register** | requests by status and method, the amount held now, completed value and fees |
 | **Registration-code revenue** | codes issued/redeemed/expired per package and their face/realised value |
 | **Finance health** | the seven invariants; a red row lists examples and links to the fixing screen |
@@ -178,6 +195,14 @@ A failed save shows the field errors and writes nothing.
 | **Top products** | best sellers in the window |
 
 **Export CSV** offers one file per report for the selected window. Every download is audited.
+
+**The repeat-purchase ledger** is **Finance → Commissions → Repeat-purchase bonus**
+(`/admin/commissions?ledger=repeat`). Its filters are recipient/buyer/product/order (`q`), level 1–10,
+status (credited, skipped, voided), product and date. A **skipped** row is an audit note, never money:
+it shows what was due and why it was not paid. **Unrecovered** is the part of a voided award the
+wallet could not return. Every row links to its order and to the recipient's wallet statement filtered
+to that order. The **Closed months** card is a history only — closing a month is an operations job,
+not a button here. The package commission ledger is the other tab and is unchanged.
 
 ---
 

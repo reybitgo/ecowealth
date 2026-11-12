@@ -21,6 +21,10 @@ declare(strict_types=1);
  * @var list<array{name:string, sku:?string, units:int, amount:float}> $top_products
  * @var array{amount:float, count:int, skipped:int, recipients:int, all_time:float, this_month:float} $commissions
  * @var list<array{level:int, type:string, count:int, amount:float, skipped:int}> $levels
+ * @var array{amount:float, count:int, skipped:int, voided:int, unrecovered:float, recipients:int, all_time:float, this_month:float} $unilevel
+ * @var list<array{level:int, count:int, amount:float, skipped:int}> $unilevel_levels
+ * @var list<array{product_id:int, product:string, count:int, amount:float, skipped:int}> $unilevel_products
+ * @var list<array<string, mixed>> $unilevel_periods
  * @var array{accounts:int, float:float, withdrawable:float, credited_today:float, debited_today:float, movements_today:int} $wallet
  * @var array{by_status:list<array{status:string,count:int,amount:float,fees:float}>, by_method:list<array{method:string,count:int,amount:float}>, held:float, held_requests:int, completed_amount:float, completed_fees:float} $payouts
  * @var list<array<string, mixed>> $codes
@@ -158,6 +162,35 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
 <?= View::capture('admin/reports/_payouts', [
     'payouts' => $payouts,
     'range'   => $range,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12 col-xl-4">
+<?= View::capture('admin/reports/_unilevel', [
+    'unilevel' => $unilevel,
+    'range'    => $range,
+]) ?>
+                </div>
+                <div class="col-12 col-xl-8">
+<?= View::capture('admin/reports/_unilevel_levels', [
+    'unilevel_levels' => $unilevel_levels,
+    'range'           => $range,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12 col-xl-7">
+<?= View::capture('admin/reports/_unilevel_products', [
+    'unilevel_products' => $unilevel_products,
+    'range'             => $range,
+]) ?>
+                </div>
+                <div class="col-12 col-xl-5">
+<?= View::capture('admin/reports/_unilevel_periods', [
+    'unilevel_periods' => $unilevel_periods,
 ]) ?>
                 </div>
               </div>

@@ -12,7 +12,8 @@ copy, never on a production database.
 
 **Document status.** Section A (17A — Foundation) written 2026-11-12 with the automated gate green;
 section B (17B — Configuration) appended 2026-11-12; section C (17C — Money engine) appended
-2026-11-12. Sections D–G are added by their phases.
+2026-11-12; section D (17D — Admin visibility) appended 2026-11-12. Sections E–G are added by their
+phases.
 
 ---
 
@@ -30,17 +31,18 @@ php bin\wallet_reconcile.php              # exit 0: the money is untouched by th
 Expected final lines:
 
 ```text
-Cases: 906   Passed: 906   Failed: 0
+Cases: 924   Passed: 924   Failed: 0
 All good.
 ```
 
 ```text
-Passed: 209   Failed: 0
+Passed: 215   Failed: 0
 ```
 
 The counts grow with each phase: **830 / 195** at `p17a-foundation`, **855 / 209** at
-`p17b-configuration`, **906 / 209** at `p17c-money`. Section A's own expectations are stated in
-section 3; section B's in section 5; section C's in section 7.
+`p17b-configuration`, **906 / 209** at `p17c-money`, **924 / 215** at `p17d-admin`. Section A's own
+expectations are stated in section 3; section B's in section 5; section C's in section 7; section D's
+in section 9.
 
 The groups that carry Phase 17A (its own share of the suite is listed here):
 
@@ -75,6 +77,16 @@ Phase 17C's share:
 | `DbResetTest` | 1 rewritten | The reset verification now runs **five** reconciliations, including `UnilevelService::reconcile` on the injected PDO |
 | `UnilevelFoundationTest` | 1 rewritten | P17A-T13 now guards the enduring surface: the engine exists, no controller/route/view/month-close job does, and the stream is off on a fresh database |
 | `WalletTest` / `WalletViewTest` / `CommissionTest` / `CommissionIndirectTest` | — | Regression: the referral ledger, the wallet vocabulary and both statements are unchanged |
+
+Phase 17D's share:
+
+| Group | Cases | What it proves for 17D |
+|---|---|---|
+| `AdminCommissionLiveTest` (extended) | 10 | P17D-T1 (the package tab keeps its four regions, columns, filters and drawer), T2 (the repeat tab's page, feed, `Lvl` column, filters and empty state), T3 (the six stat tiles read the ledger exactly), T4 (the period card reads closed months newest first), T5 (level/product/date/q filters narrow and unknown values fall back), T6 (a skipped row shows its due amount and reason, never the credited total), T7 (a voided row shows what was recovered and the shortfall), T8 (the CSV shape), T14 (an award bumps `admin.commissions`; the two tabs have separate ETags and the package tab never renders a repeat row) |
+| `ReportTest` (extended) | 5 | `unilevelSummary()` window maths, `unilevelByLevel()`, `unilevelByProduct()`, `unilevelByPeriod()` newest first, the dashboard 30-day KPI and the `type=unilevel` export |
+| `ReportViewTest` (extended) | 1 | P17D-T12: the four cards render the fixture numbers from the same read models; the dashboard tile renders the 30-day amount, awards and recipients |
+| `AdminOrderLiveTest` (extended) | 3 | P17D-T9 (a paid, processed order lists level, recipient, product, base, rate, amount and status, with the headline equal to `unilevel_total`), T10 (an unpaid order explains nothing is paid), T11 (an order paid before the feature says so and stays unprocessed) |
+| `UnilevelFoundationTest` (rewritten) | 1 | P17A-T13's enduring half after 17D: no route, no controller, no month-close job, and **no controller or view writes a Phase 17 table** (the admin surface is read-only) |
 
 The migration and bundle cases build scratch schemas (`ecowealth_sneat_migration_test`,
 `ecowealth_sneat_tool_a_test`, `ecowealth_sneat_tool_b_test`). No automated case targets
@@ -839,3 +851,224 @@ Expected
 | Defects | none |
 | Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts. 17C intentionally adds no page: checks 02, 03 and 07 were captured from the wallet statements' SQL, the order rows and the CLI, exactly as the plan's manual script describes; a human may add browser screenshots without changing the result |
 | Evidence | `docs/qa/evidence/phase-17/` (`QA17C-01-order.txt` … `QA17C-10-close.txt`) |
+
+---
+
+## 9. Section D — Admin visibility (`QA17D-01` … `QA17D-08`)
+
+**Prerequisites.** The `p17d-admin` tag (17A + 17B + 17C applied and the money engine proven), an
+admin session, a backup of the development copy, and the green automated gate (§1). **Expected
+suite:** 924 / 924. **Time:** 30–40 min.
+
+**What this section proves.** Finance can see, filter and export every repeat-purchase award, open the
+order that produced it, reach the wallet movement, and read four report cards — all without moving
+money. The phase is read-only: no check below writes an award, and no page offers a "pay" or "close"
+button.
+
+**Fixture used by the section.** One product (price ₱300, P.V. ₱250, base *Auto*, reference ladder
+5/5/5/3/3/2/2/2/1/1 = 29%, switch **on**), one buyer with four sponsors `u1 → u2 → u3 → u4` (the
+buyer's sponsor is `u1`; `u4`'s sponsor is empty), and the global `unilevel_enabled = 1`. Two paid
+orders of `2 × product` each have a **₱500** base; the first pays **₱90** (25/25/25/15), the second
+pays **₱65** with **one skipped ₱25** row once `u2` is disabled. A ₱45 debit against `u1` before the
+first cancellation leaves a **₱20 shortfall** that must stay visible. The buyer is never paid.
+
+**Safety.** The pass creates five users, one product, four orders and their awards in a development
+copy only, then deletes every row it created, restores the five settings it changed and re-runs
+`wallet_reconcile.php`. The transcript of that cleanup is `QA17D-00-setup-cleanup.txt`.
+
+### QA17D-01 — The ledger header reads ₱90.00, 4 awards and 4 recipients
+
+| Why it matters | The repeat ledger is the audit tool the operator uses to explain the money. |
+|---|---|
+| Where | `/admin/commissions?ledger=repeat` |
+| Evidence | `QA17D-01-ledger.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Pay the first order (the real engine, through the same hook checkout uses) and open the URL.
+2. Read the six tiles, the tab pills and the table heading.
+3. Compare with `SELECT level, user_id, amount, status FROM unilevel_awards WHERE order_id = <id>;`.
+
+Expected
+
+- **Total credited ₱90.00 — 4 members paid**; **This month ₱90.00**; **Awards 4**; **Recipients 4**;
+  **Skipped 0**; **Unrecovered ₱0.00**.
+- The card heading reads **Repeat-purchase ledger** and **4 rows**; the two pills are *Package
+  commissions* and *Repeat-purchase bonus*, with the repeat pill active.
+- The table has **Lvl** (L1 … L4) and **no** direct/indirect column; each row shows the recipient, the
+  buyer, the product, the ₱500.00 base, the rate (5.000% / 3.000%) and the amount.
+- Four `unilevel` wallet movements, one per award.
+
+### QA17D-02 — Filters narrow the rows, and a skipped level is visible
+
+| Why it matters | Level, status and product filters are how a large ledger gets audited; a skip must explain itself. |
+|---|---|
+| Where | `/admin/commissions?ledger=repeat&level=2` · `…&status=skipped` |
+| Evidence | `QA17D-02-filters.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Filter **Level 2** and read the single row.
+2. Disable `u2` (`users.is_active = 0`), pay the second order, filter **Status: skipped**, restore
+   `u2`.
+3. Check that the second order's other three levels still paid at their own numbers.
+
+Expected
+
+- The level filter shows **1 row** for `u2`: ₱500.00 base, 5.000%, **+₱25.00**, Credited.
+- The skipped filter shows **1 row**: L2, ₱25.00, **Skipped — recipient account is disabled**, and the
+  amount cell says **not paid**.
+- The second order paid ₱25 + ₱25 + ₱15 = **₱65**; the skipped ₱25 was **not** redirected (no
+  compression).
+- A bad filter value (`level=99`, an unparseable date) falls back to "no filter" and never errors.
+
+### QA17D-03 — A cancelled order shows voided rows and keeps the shortfall visible
+
+| Why it matters | Unrecovered money must be reported, not hidden; a cancellation must never rewrite history. |
+|---|---|
+| Where | `/admin/orders/{id}` → Cancel · `/admin/commissions?ledger=repeat&status=voided` |
+| Evidence | `QA17D-03-reversal.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Spend ₱45 of `u1`'s ₱50 withdrawable balance (a real ledgered debit), leaving ₱5.
+2. Admin-cancel the first paid order.
+3. Read the voided rows and the header's **Unrecovered**; check `shop_orders.unilevel_total` and the
+   award rows.
+
+Expected
+
+- Every award of that order is **Voided** and keeps its original amount; `u2`, `u3` and `u4` show
+  **₱25.00 recovered of ₱25.00** (and ₱15 of ₱15), while `u1` shows **₱5.00 recovered of ₱25.00** and a
+  **₱20.00 shortfall**.
+- The header's **Unrecovered** reads **₱20.00** and the tile counts **4 voided awards**.
+- The order's `unilevel_total` is **0.00**; the period snapshot was not touched; `wallet_reconcile.php`
+  still exits 0.
+
+### QA17D-04 — A row links to its order and to its wallet movement
+
+| Why it matters | A finance reviewer must be able to walk from a number to both of its sources in one click. |
+|---|---|
+| Where | `/admin/orders/{id}` · `/admin/wallets/{recipient}?q={order_no}` |
+| Evidence | `QA17D-04-order-wallet.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. From the ledger, click a row's order link.
+2. Read the **Repeat-purchase bonus** card on the order page.
+3. Back on the ledger, click the wallet icon for the level-1 row.
+
+Expected
+
+- The order page shows the headline **₱90.00 to the sponsor chain**, then one line per level with
+  level, recipient, product, base, rate, amount and status, and the footer total **₱90.00**.
+- The card names `u1`…`u4` and never the buyer.
+- The wallet link opens the recipient's statement **filtered to the order note**, and the movement is
+  the **Repeat-purchase bonus** credit for that order.
+
+### QA17D-05 — The filtered CSV matches the screen
+
+| Why it matters | Finance works offline; the export must be the same data, not a second query definition. |
+|---|---|
+| Where | `/admin/commissions/export?ledger=repeat&level=2` |
+| Evidence | `QA17D-05-export.txt`, `QA17D-05-export.csv` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Apply the level-2 filter and press **Export CSV**.
+2. Open the file; compare the columns and the values with the screen.
+
+Expected
+
+- Columns: **Award, Date, Order, Buyer, Recipient, Product, Level, Base, Rate %, Amount, Status,
+  Reason, Recovered**.
+- One row per filtered award (the credited and the skipped ₱25 level-2 rows in the fixture), with the
+  same order number, recipient, base 500.00, rate 5.000 and amount 25.00 the page shows.
+- The download writes one `unilevel.export` audit row carrying the filters and the row count.
+
+### QA17D-06 — The order card explains an unpaid order and a pre-feature payment
+
+| Why it matters | "No bonus" has two very different causes; the card must say which one applies. |
+|---|---|
+| Where | `/admin/orders/{pending id}` · `/admin/orders/{paid-before id}` |
+| Evidence | `QA17D-06-order-states.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open a `pending` order.
+2. Open an order that was marked `paid` outside the app (its `unilevel_processed_at` is `NULL`).
+
+Expected
+
+- The pending order reads **Paid orders earn the repeat-purchase bonus. This order is `pending`.**
+  with the **No bonus** badge and no rows.
+- The pre-feature order reads **This order was paid before the repeat-purchase stream was switched
+  on, so it earned no bonus.** Its stamp stays `NULL` and its total stays `0.00` — it is never paid
+  retroactively.
+
+### QA17D-07 — The four report cards, the range export and the dashboard KPI
+
+| Why it matters | The reports page is where the operator watches the stream's total cost. |
+|---|---|
+| Where | `/admin/reports` · `/admin/reports/export?type=unilevel` · `/dashboard` |
+| Evidence | `QA17D-07-reports.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/reports` for the last 30 days and read the four repeat cards.
+2. Export **Repeat-purchase bonus** and read the CSV head.
+3. Open `/dashboard` and read the **Repeat bonus (30 d)** tile.
+
+Expected
+
+- **Repeat-purchase bonus** (window ₱65.00, 3 awards, 3 recipients, 1 skipped, 4 voided, no
+  unrecovered), **Repeat-purchase by level** (levels 1, 3, 4 credited; level 2 shows one skip; window
+  3 awards / ₱65.00 / 1 skipped), **Repeat-purchase by product** (the fixture product: 3 awards,
+  ₱65.00, 1 skipped) and **Closed months** (empty in the fixture).
+- The export menu offers **Repeat-purchase bonus**, and its CSV carries the same 13 columns and the
+  same rows as the ledger export.
+- The dashboard tile reads **Repeat bonus (30 d) ₱65.00** with **3 awards · 3 recipients** and links to
+  `?ledger=repeat`.
+
+### QA17D-08 — The package commission ledger is unchanged
+
+| Why it matters | 17D adds a tab; it must not disturb the Phase 10–11 money page. |
+|---|---|
+| Where | `/admin/commissions` |
+| Evidence | `QA17D-08-package-tab.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions` without a `ledger` parameter.
+2. Read the heading, the counters, the filters, the columns and the CSV export.
+
+Expected
+
+- The page still shows **Commission ledger**, the four referral counters, the same filters
+  (`q`, `type`, `level`, `status`, `from`, `to`), the same columns (Recipient, Source, Type, Amount,
+  Status, Activation, Awarded, Details) and the detail drawer.
+- **Zero** repeat-purchase regions and **no** "Repeat-purchase ledger" heading.
+- The package export still downloads the package columns.
+
+---
+
+## 10. Section D sign-off
+
+| Item | Value |
+|---|---|
+| Tester | Automated QA pass — DeepSeek Harness (DSH) |
+| Date | 2026-11-12 |
+| Automated gate | `Cases: 924 / 924` · `Passed: 215 / 215` smoke · `build_install_sql --check` exit 0 · `wallet_reconcile` exit 0 |
+| Checks passed | 8 / 08 |
+| Defects | none |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts; the checks ran against the development copy over real HTTP with the real engine and were cleaned up afterwards (`QA17D-00-setup-cleanup.txt`: awards 0, repeat ledger 0, fixture users 0, fixture products 0, `unilevel_enabled` 0, reconcile exit 0). A human may add viewport screenshots without changing the result. The "someone who did not write it" item stays open for the lead's review, as in sections A–C. |
+| Evidence | `docs/qa/evidence/phase-17/` (`QA17D-00-setup-cleanup.txt` … `QA17D-08-package-tab.txt`, plus `QA17D-05-export.csv`) |
+

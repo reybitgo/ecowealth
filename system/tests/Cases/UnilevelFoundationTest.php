@@ -554,12 +554,13 @@ return [
     /* ==========================================================
      *  Inert (P17A-T13)
      * ========================================================== */
-    'P17A-T13 the stream stays off by default and adds no route or view' => function () use ($appRoot): void {
+    'P17A-T13 the stream stays off by default and adds no route or job' => function () use ($appRoot): void {
         /* 17A's promise was "nothing reads the new objects". 17B started
-         * reading the configuration and 17C added the money engine, so
-         * the enduring half is narrower but sharper: there is no
-         * controller, no route, no view and no month-close job, the
-         * stream is off on a fresh database, and nothing has paid. */
+         * reading the configuration, 17C added the money engine and 17D
+         * added the read-only admin pages, so the enduring half is
+         * narrower but sharper: there is no controller, no route and no
+         * month-close job, no page writes the ledger, the stream is off
+         * on a fresh database, and nothing has paid. */
         foreach ([
             '/app/Models/UnilevelAward.php',
             '/app/Models/UnilevelCycle.php',
@@ -576,51 +577,29 @@ return [
             assert_false(is_file($appRoot . $file), $file . ' belongs to a later phase (D-14, 17F)');
         }
 
-        /* The only application files that may name a Phase 17 table are
-         * the engine, the two database tools and the configuration
-         * readers. A controller or a view with SQL against them would
-         * mean a phase has crept. */
-        $hits = [];
-        $root = rtrim(str_replace('\\', '/', $appRoot), '/') . '/app/';
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
-        );
+        /* 17D is read-only: neither a controller nor a view may write a
+         * Phase 17 table. The engine's writes live in the models and the
+         * service (plan §8 Rule 1). */
+        $writePath = '/\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+`?(unilevel_(awards|activity|periods)|product_unilevel_levels)/i';
 
-        foreach ($iterator as $file) {
-            if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
-                continue;
-            }
+        foreach (['/app/Controllers', '/app/views'] as $folder) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator(rtrim($appRoot, '/') . $folder, FilesystemIterator::SKIP_DOTS)
+            );
 
-            $source = (string) file_get_contents($file->getPathname());
-
-            foreach ([
-                'unilevel_awards',
-                'unilevel_activity',
-                'unilevel_periods',
-                'product_unilevel_levels',
-            ] as $needle) {
-                if (str_contains($source, $needle)) {
-                    $hits[] = str_replace('\\', '/', substr($file->getPathname(), strlen($root)));
-                    break;
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
+                    continue;
                 }
+
+                assert_same(
+                    0,
+                    preg_match($writePath, (string) file_get_contents($file->getPathname())),
+                    str_replace('\\', '/', substr($file->getPathname(), strlen($appRoot)))
+                        . ' is read-only over the Phase 17 ledger'
+                );
             }
         }
-
-        sort($hits, SORT_STRING);
-
-        assert_same(
-            [
-                'Models/Product.php',
-                'Models/ProductUnilevel.php',
-                'Models/UnilevelAward.php',
-                'Models/UnilevelCycle.php',
-                'Services/DatabaseInstaller.php',
-                'Services/DatabaseResetService.php',
-                'Services/UnilevelService.php',
-            ],
-            $hits,
-            'only the engine, the configuration readers and the install/reset tools name the new tables'
-        );
 
         /* No route knows the stream yet (D-14: no phase adds a route). */
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
@@ -630,22 +609,6 @@ return [
                 preg_match('/unilevel[-_](awards|activity|periods|repeat|levels)/i', $source),
                 $file . ' has no repeat-purchase route'
             );
-        }
-
-        $views = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(rtrim($appRoot, '/') . '/app/views', FilesystemIterator::SKIP_DOTS)
-        );
-
-        foreach ($views as $file) {
-            if (!$file->isFile()) {
-                continue;
-            }
-
-            $source = (string) file_get_contents($file->getPathname());
-
-            foreach (['unilevel_awards', 'unilevel_activity', 'unilevel_periods', 'product_unilevel_levels'] as $needle) {
-                assert_not_contains($needle, $source, basename($file->getPathname()) . ' renders no Phase 17 table yet');
-            }
         }
 
         /* The feature is off on a fresh database: both masters, every

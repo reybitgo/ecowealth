@@ -1,0 +1,27 @@
+QA17D-02 - level filter and the skipped row (no compression)
+URL: /admin/commissions?ledger=repeat&level=2 (HTTP 200)
+
+--- level 2 only ---
+... nt and level. 1 row Recipient, buyer, product or order Level All levels Level 1 Level 2 Level 3 Level 4 Level 5 Level 6 Level 7 Level 8 Level 9 Level 10 Status All statuses Credited Skipped Voided Product All products EcoWealth Coffee EcoWealth Immune Spice QA ...
+... ar Lvl Recipient Buyer Product Base Rate Amount Status Order Awarded Wallet L2 @qa17d_u2 QA17D Upline 2 QA17D-721059 @qa17d_buyer Nov 12, 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 5.000% +₱25.00 Credited QA17D-721059 Paid Nov 12, 2026 8:00 PM Rows per page 5  ...
+... 721059 @qa17d_buyer Nov 12, 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 5.000% +₱25.00 Credited QA17D-721059 Paid Nov 12, 2026 8:00 PM Rows per page 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 Apply Awards Showing 1–1 of 1 © 2026 EcoWealth — Mem ...
+
+Level 2 was disabled, order 
+788
+ was paid, level 2 was restored.
+URL: /admin/commissions?ledger=repeat&status=skipped (HTTP 200)
+
+--- skipped rows ---
+... nce the 1st Awards 7 Average ₱22.14 Recipients 4 Uplines credited at least once Skipped 1 Ineligible upline — no money moved Unrecovered ₱0.00 0 voided awards — shortfall after reversal Closed months The Active snapshot behind the monthly gate. A closed month  ...
+... ar Lvl Recipient Buyer Product Base Rate Amount Status Order Awarded Wallet L2 @qa17d_u2 QA17D Upline 2 QA17D-501161 @qa17d_buyer Nov 12, 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 5.000% ₱25.00 not paid Skipped recipient account is disabled QA17D-501161 Paid  ...
+... v 12, 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 5.000% ₱25.00 not paid Skipped recipient account is disabled QA17D-501161 Paid Nov 12, 2026 8:00 PM — Rows per page 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 Apply Awards Showing 1–1 of 1 © 202 ...
+... 1 @qa17d_buyer Nov 12, 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 5.000% ₱25.00 not paid Skipped recipient account is disabled QA17D-501161 Paid Nov 12, 2026 8:00 PM — Rows per page 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 Apply Awards Showi ...
+
+--- unilevel_awards for the second order ---
+1	qa17d_u1	25.00	credited	NULL
+2	qa17d_u2	25.00	skipped	recipient account is disabled
+3	qa17d_u3	25.00	credited	NULL
+4	qa17d_u4	15.00	credited	NULL
+
+Captured by the automated Phase 17D QA pass (real HTTP + MySQL) - 
+DeepSeek Harness, 2026-11-12 20:00:37 Asia/Manila.

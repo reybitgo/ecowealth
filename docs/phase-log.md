@@ -4247,3 +4247,137 @@ database). The smoke check P17B-T20 was updated for the same hand-off.
   feature" and "paid and processed", which 17D's order card needs.
 - The repeat-purchase ledger and its reversal are visible in the existing wallet statements today,
   so the money can be audited before the admin/member pages exist.
+
+---
+
+## Phase 17D — Admin visibility (2026-11-12)
+
+**Status:** complete · **Tag:** `p17d-admin` (on `p17c-money`) ·
+**Branch:** `feature/unilevel` · **Schema:** unchanged (31 tables, 54 settings) ·
+**Suite:** 906 → 924 cases, **924 / 924** green · **Smoke:** 209 → 215, **215 / 215**.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §8 (Phase 17D), §14.2, §13.7.
+This phase makes the repeat-purchase money **visible to administrators**: a second tab on the
+commission ledger, an order card, four report cards, a CSV export and a dashboard KPI. It is
+**read-only** — no controller, model or view in this phase writes an award, a wallet row or a period.
+
+### Database
+
+None. 17A shipped every table, column and setting this phase reads.
+
+### Code
+
+- **`Controllers/AdminCommissionController.php`** — two tabs on one route (D-14). `?ledger=repeat`
+  selects the repeat ledger; anything else is the package tab, byte-identical in its four regions,
+  filters and export. `repeatContext()` normalises the repeat filters through
+  `UnilevelAward::normaliseFilters()`, builds the paginated page, the six counters
+  (`UnilevelAward::stats()`), the closed months (`UnilevelCycle::periods()`) and the product filter.
+  `export()` dispatches: the package tab keeps `commission.export` and its columns; the repeat tab
+  writes the 13 `UnilevelAward::csvHeader()` columns and audits **`unilevel.export`**. The live feed
+  returns the package or repeat fragments from the same `admin.commissions` surface; the query string
+  is part of the ETag scope, so the two tabs never share a cache entry.
+- **Views** — `admin/commissions/_repeat_header.php`, `_repeat_stats.php`, `_repeat_periods.php`,
+  `_repeat_rows.php`, `_repeat_pagination.php` (new), and `admin/commissions/index.php` (the two nav
+  pills, the repeat branch with its filters and 11-column table with the **Lvl** column). The repeat
+  rows link to the order and to the recipient's wallet statement filtered by the order note, and show
+  a skipped row's reason and a voided row's recovered/shortfall figures. The empty state names the two
+  switches.
+- **`Controllers/AdminOrderController.php`** — `orderContext()` gains a `unilevel` block (awards,
+  stamp, order total, paid flag, stream switch) and `detailFeedPayload()` gains the
+  `order-unilevel` region. `admin/orders/_unilevel.php` (new) renders the card and
+  `admin/orders/show.php` includes it under the payment panel.
+- **`Models/Report.php`** — `unilevelSummary()`, `unilevelByLevel()`, `unilevelByProduct()`,
+  `unilevelByPeriod()` (windowed on `unilevel_awards.created_at`, the same key the ledger filters
+  use, so the two screens cannot disagree).
+- **`Services/ReportService.php`** — the four cards in `page()`, the dashboard `unilevel` KPI in
+  `dashboard()`, and `type=unilevel` in `EXPORTS`/`export()` (through `UnilevelAward`'s CSV shape).
+- **`Controllers/AdminReportController.php`** — the four new feed fragments.
+- **Views** — `admin/reports/_unilevel.php`, `_unilevel_levels.php`, `_unilevel_products.php`,
+  `_unilevel_periods.php` (new); `admin/reports/index.php` includes the two rows;
+  `admin/dashboard/_commerce.php` gains the **Repeat bonus (30 d)** tile (seven tiles, `col-xl-3`);
+  `AdminDashboardController::emptyCommerce()` carries the zero shape.
+
+### Tests
+
+**18 new cases: 906 → 924, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `AdminCommissionLiveTest` | 9 | P17D-T1 (the package tab keeps its four regions, columns, filters and drawer and renders no repeat region), T2 (the repeat page and feed: stats, filters, `Lvl`, empty state, no direct/indirect column or label), T3 (the six tiles read the ledger exactly), T4 (closed months newest first), T5 (level/product/date/q filters and silent fallback), T6 (a skipped row shows its due amount and reason, never the credited total), T7 (a voided row shows recovered and shortfall, header unrecovered), T8 (CSV shape and filtered rows), T14 (an award bumps the surface, separate ETags, the package feed unaffected) |
+| `ReportTest` | 5 | `unilevelSummary` window maths (skips, voided, unrecovered), by level, by product, periods newest first, the dashboard KPI and the `type=unilevel` export |
+| `ReportViewTest` | 1 | P17D-T12: the four cards render the fixture numbers and the dashboard tile reads 30 days |
+| `AdminOrderLiveTest` | 3 | P17D-T9 (paid + processed card, headline equals `unilevel_total`, buyer never a recipient), T10 (unpaid order explanation), T11 (paid before the feature) |
+
+Rewritten to stay truthful after the phase: `UnilevelFoundationTest` P17A-T13 (17D adds the admin
+views, so its enduring half is now "no route, no controller, no month-close job, and no controller or
+view writes a Phase 17 table"). The reports feed test's fragment list grew from eight to twelve.
+
+P17D-T15 (the member guard) is proven by the smoke run: a member gets **403** on
+`/admin/commissions?ledger=repeat` and on its export.
+
+### Rules as built
+
+1. Read-only: no controller or view writes an award, a wallet row or a period (asserted by P17A-T13).
+2. The package tab keeps its four regions, filters, columns, drawer and export; P17D-T1 is the
+   regression.
+3. No new route: `?ledger=repeat` and `?type=unilevel` only; `routes.php` and `routes_inventory.php`
+   are untouched and `ParityTest`/`RouterTest` stay green.
+4. The repeat table shows **Lvl** and never a direct/indirect column or a "Level 1 · Direct" label.
+5. Skipped is not money: every total is computed by `UnilevelAward`, never in the view.
+6. Unrecovered is `Σ (amount − reversed_amount)` over voided rows and is always shown.
+7. Unknown filter values fall back to "no filter".
+8. Every row links to its order and to its wallet movement (filtered by the order note).
+9. The empty state names both switches.
+10. The period card is a history, never a button.
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` green; 17D changes no schema.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 924   Passed: 924   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 (five sections; the Repeat-purchase section reports zero
+      before the manual pass and is clean again after it).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 215   Failed: 0**, exit 0.
+- [x] Every P17D-Tn case exists, is named for the phase and passes (`T1`–`T14` in the suite, `T15` in
+      the smoke run).
+- [x] The package tab is unchanged: same fragment set, columns, filters, drawer and export; zero
+      repeat regions on the page (P17D-T1 + smoke).
+- [x] No new route; `ParityTest` and `RouterTest` green.
+- [x] Every number is traceable: row → order and row → wallet movement (`QA17D-04`).
+- [x] The manual script (`QA17D-01` … `QA17D-08`) executed **8 / 8** against the development copy over
+      real HTTP with the real engine, then cleaned up. Evidence:
+      `docs/qa/evidence/phase-17/QA17D-*`.
+- [x] No new PHP warning, notice or deprecation in `storage/logs/` after the pass.
+- [x] This entry and Appendix G of the plan are filled; tag `p17d-admin`.
+
+### Deviations
+
+1. **`AdminOrderController` also changed.** §8 names only `admin/orders/_unilevel.php` and
+   `admin/orders/show.php`, but the card needs its data and a live region: `orderContext()` builds
+   the `unilevel` block once for the page and its feed, and `detailFeedPayload()` adds
+   `order-unilevel`. The view still derives the same shape when it is rendered standalone.
+2. **The four report cards use the `UnilevelAward` CSV shape.** §8 names four `Report` methods and
+   `type=unilevel`; the export itself is `UnilevelAward::exportRows()` + `csvHeader()`/`csvRows()`,
+   the API 17C shipped for exactly this, so the screen, the ledger export and the report export share
+   one column definition.
+3. **The dashboard KPI lives in `admin/dashboard/_commerce.php`.** §8 says `_kpi.php` "or its
+   equivalent"; the commerce row is where the other money tiles live. It gained a seventh tile and the
+   grid moved from `col-xl-2` to `col-xl-3` (4 + 3 on a wide screen instead of a lone seventh tile).
+4. **P17A-T13 was rewritten again.** 17C made it assert "the engine exists; no controller, route,
+   view or job does". 17D is the phase that adds the admin views, so the case now asserts the
+   enduring half: no route, no controller, no month-close job, and no controller or view writes a
+   Phase 17 table. No behaviour changed to satisfy the test.
+5. **The manual pass ran on the development copy**, not a scratch schema: the admin pages need the
+   real app and the engine's award rows. It was preceded by a backup
+   (`C:\laragon\www\ecowealth-backups\phase-17\db-pre-17d.sql`), created five users, one product and
+   four orders through SQL, paid two through the real `UnilevelService::onOrderPaid()`, and deleted
+   every row and restored every setting afterwards (`QA17D-00-setup-cleanup.txt`; reconcile exit 0).
+6. **The manual checks were executed by the automated pass**, like sections A–C: no independent
+   tester is available in this session. The "someone who did not write it" item stays open for the
+   lead's review. No viewport screenshots were taken; the pages were read from the served HTML and the
+   evidence is filed as text transcripts.
+7. **"The package tab is byte-identical" means its ledger regions, not the whole page.** §8 itself
+   requires index.php to gain the two nav pills, so the page necessarily changes above the card.
+   The package card's four regions, filters, columns, detail drawer, export and counts are unchanged
+   and P17D-T1 asserts exactly that (the repeat fragments never appear there); the smoke run repeats
+   it over HTTP.

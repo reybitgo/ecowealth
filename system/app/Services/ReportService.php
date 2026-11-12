@@ -30,6 +30,7 @@ final class ReportService
     public const EXPORTS = [
         'sales'       => 'Sales by day',
         'commissions' => 'Commissions by level',
+        'unilevel'    => 'Repeat-purchase bonus',
         'wallet'      => 'Wallet statement',
         'payouts'     => 'Payout register',
         'codes'       => 'Registration codes',
@@ -101,6 +102,7 @@ final class ReportService
             'orders_by_status' => Report::ordersByStatus(),
             'top_products'     => Report::topProducts($last30['from'], $last30['to'], 5),
             'commissions'      => Report::commissionSummary($last30['from'], $last30['to']),
+            'unilevel'         => Report::unilevelSummary($last30['from'], $last30['to']),
             'wallet'           => Report::walletFloat(),
             'payouts'          => Report::payoutSummary($last30['from'], $last30['to']),
             'members'          => Report::memberCounts(),
@@ -128,6 +130,10 @@ final class ReportService
             'top_products'  => Report::topProducts($range['from'], $range['to'], 6),
             'commissions'   => Report::commissionSummary($range['from'], $range['to']),
             'levels'        => Report::commissionsByLevel($range['from'], $range['to']),
+            'unilevel'          => Report::unilevelSummary($range['from'], $range['to']),
+            'unilevel_levels'   => Report::unilevelByLevel($range['from'], $range['to']),
+            'unilevel_products' => Report::unilevelByProduct($range['from'], $range['to'], 6),
+            'unilevel_periods'  => Report::unilevelByPeriod(6),
             'wallet'        => Report::walletFloat(),
             'payouts'       => Report::payoutSummary($range['from'], $range['to']),
             'codes'         => Report::codeRevenue(),
@@ -151,6 +157,7 @@ final class ReportService
         return match ($type) {
             'sales'       => $this->salesExport($from, $to),
             'commissions' => $this->commissionsExport($from, $to),
+            'unilevel'    => $this->unilevelExport($from, $to),
             'wallet'      => $this->walletExport($from, $to),
             'payouts'     => $this->payoutExport($from, $to),
             'codes'       => $this->codesExport($from, $to),
@@ -208,6 +215,24 @@ final class ReportService
             'filename' => self::filename('commissions', ['from' => $from, 'to' => $to]),
             'header'   => ['Level', 'Type', 'Awards', 'Amount', 'Skipped'],
             'rows'     => $rows,
+        ];
+    }
+
+    /**
+     * Every repeat-purchase award in the window, exactly the columns the
+     * admin ledger shows (plan §8 Rule 8: screen and CSV agree).
+     *
+     * @return array{filename:string, header:list<string>, rows:list<list<string>>}
+     */
+    private function unilevelExport(string $from, string $to): array
+    {
+        $filters = UnilevelAward::normaliseFilters(['from' => $from, 'to' => $to]);
+        $rows    = UnilevelAward::exportRows(null, $filters);
+
+        return [
+            'filename' => self::filename('unilevel', ['from' => $from, 'to' => $to]),
+            'header'   => UnilevelAward::csvHeader(),
+            'rows'     => UnilevelAward::csvRows($rows),
         ];
     }
 

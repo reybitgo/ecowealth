@@ -439,6 +439,7 @@ return [
             [
                 'order-status',
                 'order-payment',
+                'order-unilevel',
                 'order-fulfilment',
                 'order-items',
                 'order-timeline',
@@ -704,5 +705,128 @@ return [
         assert_contains('data-live-region="order-payment-summary"', $detailHtml);
         assert_contains('data-live-region="order-cancel"', $detailHtml);
         assert_contains('action="' . url('admin/orders/' . $orderId . '/transition') . '"', $detailHtml);
+    },
+
+    /* ==========================================================
+     *  Phase 17D — the repeat-purchase card
+     * ========================================================== */
+
+    'P17D-T9 a paid, processed order lists its repeat-purchase awards and the order total' => function (): void {
+        setting_set('unilevel_enabled', '1');
+        setting_set('unilevel_max_levels', '10');
+        setting_set('unilevel_requires_active_upline', '1');
+        setting_set('unilevel_active_threshold', '500');
+
+        $productId = Product::save([
+            'name'             => 'P17D Card Product ' . bin2hex(random_bytes(3)),
+            'sku'              => 'P17D-CARD-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'            => '300.00',
+            'pv'               => '250.00',
+            'unilevel_enabled' => '1',
+            'unilevel_base'    => 'auto',
+            'stock'            => '50',
+            'status'           => 'active',
+        ], null, ProductUnilevel::referencePreset());
+
+        $buyer  = test_user('p17d_card_buyer_' . bin2hex(random_bytes(3)));
+        $child  = $buyer;
+        $levels = [];
+
+        for ($level = 1; $level <= 4; $level++) {
+            $upline = test_user('p17d_card_u' . $level . '_' . bin2hex(random_bytes(3)));
+            db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+                ->execute([(int) $upline['id'], (int) $child['id']]);
+            $levels[$level] = $upline;
+            $child          = $upline;
+        }
+
+        $orderId = test_order((int) $buyer['id'], [['product_id' => $productId, 'quantity' => 2]], 'paid', [
+            'paid_at'  => date('Y-m-d H:i:s'),
+            'subtotal' => '600.00',
+            'total'    => '600.00',
+        ]);
+        $itemId = (int) db()->query(
+            'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+        )->fetchColumn();
+        db()->prepare(
+            'UPDATE shop_order_items
+                SET product_name = ?, unit_price = 300.00, line_total = 600.00,
+                    unit_base = 250.00, base_total = 500.00
+              WHERE id = ?'
+        )->execute(['P17D Card Product', $itemId]);
+
+        (new UnilevelService())->onOrderPaid($orderId);
+
+        $order = Order::find($orderId);
+        assert_same('90.00', (string) $order['unilevel_total']);
+
+        test_signed_in_as(test_user('p17d_card_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $payload    = $controller->detailFeedPayload(
+            7,
+            '"admin.orders:' . $orderId . ':7:card"',
+            $controller->orderContext($order)
+        );
+
+        $card = $payload['fragments']['order-unilevel'];
+
+        assert_contains('data-live-region="order-unilevel"', $card);
+        assert_contains('Repeat-purchase bonus', $card);
+        assert_contains(money(90.0), $card, 'the headline total is the order stamp');
+        assert_contains('L1', $card);
+        assert_contains('L4', $card);
+
+        foreach ($levels as $level => $upline) {
+            assert_contains('@' . (string) $upline['username'], $card, 'the level ' . $level . ' recipient is named');
+        }
+
+        assert_contains('P17D Card Product', $card);
+        assert_contains(money(500.0), $card, 'the base snapshot is shown');
+        assert_contains('5.000%', $card);
+        assert_contains('3.000%', $card);
+        assert_contains('Credited', $card);
+        assert_contains('Credited to the sponsor chain', $card);
+
+        /* The buyer is never named as a recipient. */
+        assert_not_contains('@' . (string) $buyer['username'], $card);
+    },
+
+    'P17D-T10 an unpaid order explains that nothing is paid yet' => function () use ($makeMember, $makeProduct, $placeOrder): void {
+        $member  = $makeMember();
+        $product = $makeProduct();
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        test_signed_in_as(test_user('p17d_unpaid_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $order      = Order::find($orderId);
+        $card       = $controller->detailFeedPayload(1, '"x"', $controller->orderContext($order))['fragments']['order-unilevel'];
+
+        assert_contains('data-live-region="order-unilevel"', $card);
+        assert_contains('Paid orders earn the repeat-purchase bonus', $card);
+        assert_contains('pending', $card);
+        assert_contains('No bonus', $card);
+        assert_not_contains('Credited to the sponsor chain', $card);
+    },
+
+    'P17D-T11 an order paid before the feature says so and never pays retroactively' => function () use ($makeMember, $makeProduct, $placeOrder): void {
+        $member  = $makeMember();
+        $product = $makeProduct();
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        /* Paid outside the app's payment path: the stamp stays NULL. */
+        db()->prepare("UPDATE shop_orders SET status = 'paid', paid_at = NOW() WHERE id = ?")->execute([$orderId]);
+
+        test_signed_in_as(test_user('p17d_legacy_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $order      = Order::find($orderId);
+        $card       = $controller->detailFeedPayload(2, '"x"', $controller->orderContext($order))['fragments']['order-unilevel'];
+
+        assert_contains('paid before the repeat-purchase stream was switched on', $card);
+        assert_contains('No bonus', $card);
+        assert_null($order['unilevel_processed_at']);
+        assert_same('0.00', (string) $order['unilevel_total']);
     },
 ];

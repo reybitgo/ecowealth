@@ -3245,7 +3245,7 @@ filled row is not closed, whatever its code says.
 | 17A Foundation | `p17a-foundation` | 2026-11-12 | 830 / 830 | 195 / 195 | `--check` exit 0 (sha256 `a5467d25…`); migration applied twice, idempotent | A: 08/08 | DSH | 4 (see below) | ☑ |
 | 17B Configuration | `p17b-configuration` | 2026-11-12 | 855 / 855 | 209 / 209 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | B: 09/09 | DSH | 7 (see below) | ☑ |
 | 17C Money engine | `p17c-money` | 2026-11-12 | 906 / 906 | 209 / 209 | no schema change (`--check` exit 0); `wallet_reconcile` exit 0 with five sections | C: 10/10 | DSH | 5 (see below) | ☑ |
-| 17D Admin visibility | `p17d-admin` | | __ / __ | __ / __ | no schema change | D: __/08 | | | |
+| 17D Admin visibility | `p17d-admin` | 2026-11-12 | 924 / 924 | 215 / 215 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | D: 08/08 | DSH | 7 (see below) | ☑ |
 | 17E Member visibility | `p17e-member` | | __ / __ | __ / __ | no schema change | E: __/09 | | | |
 | 17F Operations | `p17f-month-close` | | __ / __ | __ / __ | cron doctor | F: __/07 | | | |
 | 17G Release | `p17g-release` | | __ / __ | __ / __ | `APP_PHASE = 17` | G: __/06 | | | |
@@ -3271,6 +3271,13 @@ owns it. An empty deviation log at the 17G gate means the plan and the build agr
 | 17C | `UnilevelConfigurationTest` P17B-T20 and the smoke P17B-T20 check were rewritten for the 17C hook | They proved "no hook" at the 17B gate; after 17C the same global-master-off scenario stamps the order with a zero total and still writes no award. No behaviour changed to satisfy the tests | 17C gate |
 | 17C | `P17C-T32` builds a committed fixture on `ecowealth_sneat_tool_a_test` and runs the real `wallet_reconcile.php` as a subprocess | A subprocess cannot see the harness's rolled-back transaction. The test proves both exit codes end to end and recreates the tool schema, as the install tests already do | 17C gate |
 | 17C | The manual section-C checks were executed by the automated pass (real HTTP where a page exists, SQL transcripts, the close helper and the real CLI) rather than an independent tester | Same constraint as 17A and 17B; the SQL/CLI observations are real and the evidence is filed, but the "someone who did not write it" item stays open for the lead's review | pending |
+| 17D | `AdminOrderController` also changed (`orderContext()` and `detailFeedPayload()`) | §8 names only `admin/orders/_unilevel.php` and `show.php`, but the card needs its data built once for the page and its feed, and a live region; the view still derives the same shape standalone | 17D gate |
+| 17D | The `type=unilevel` report export uses `UnilevelAward::exportRows()` + `csvHeader()`/`csvRows()` | §8 names four `Report` methods and the export type; reusing 17C's CSV API keeps one column definition for the screen, the ledger export and the report export | 17D gate |
+| 17D | The dashboard KPI is the seventh tile in `admin/dashboard/_commerce.php`, and the row moved from `col-xl-2` to `col-xl-3` | §8 allows `_kpi.php` "or its equivalent"; the commerce row is where the money tiles live. Seven `col-xl-2` tiles would leave one alone on a second row | 17D gate |
+| 17D | P17A-T13 was rewritten again: no route/controller/job, and no controller or view writes a Phase 17 table | 17D is the phase that adds the admin views; its precedent (17C) rewrote the same case when the engine landed. The read-only assertion is stronger than the old file allow-list | 17D gate |
+| 17D | The manual pass ran on the development copy with a backup, then deleted every fixture row and restored every setting | The admin pages need the real app and real award rows; a scratch schema cannot be served by the running Apache. `QA17D-00-setup-cleanup.txt` records the cleanup and reconcile exit 0 | 17D gate |
+| 17D | The manual section-D checks were executed by the automated pass (real HTTP + the real engine) rather than an independent tester | Same constraint as 17A–17C; the evidence is filed as text transcripts and a CSV, and the "someone who did not write it" item stays open for the lead's review | pending |
+| 17D | "The package tab is byte-identical" is read as its ledger regions, not the whole page | §8 requires `index.php` to gain the two nav pills, so the page changes above the card; the package card's four regions, filters, columns, drawer, export and counts are unchanged and P17D-T1 asserts it, with the smoke run repeating it over HTTP | 17D gate |
 
 ---
 

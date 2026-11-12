@@ -234,6 +234,21 @@ final class AdminReportController
                     'orders'      => $data['orders'],
                     'open_orders' => $data['open_orders'],
                 ]),
+                'report-unilevel' => View::capture('admin/reports/_unilevel', [
+                    'unilevel' => $data['unilevel'],
+                    'range'    => $data['range'],
+                ]),
+                'report-unilevel-levels' => View::capture('admin/reports/_unilevel_levels', [
+                    'unilevel_levels' => $data['unilevel_levels'],
+                    'range'           => $data['range'],
+                ]),
+                'report-unilevel-products' => View::capture('admin/reports/_unilevel_products', [
+                    'unilevel_products' => $data['unilevel_products'],
+                    'range'             => $data['range'],
+                ]),
+                'report-unilevel-periods' => View::capture('admin/reports/_unilevel_periods', [
+                    'unilevel_periods' => $data['unilevel_periods'],
+                ]),
             ],
             'data'      => [
                 'sales' => [

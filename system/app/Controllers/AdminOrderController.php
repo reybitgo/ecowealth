@@ -312,6 +312,17 @@ final class AdminOrderController
             'tracking'         => $tracking,
             'courier_choice'   => old('courier'),
             'full_address'     => $fullAddress,
+            /* Phase 17D: the repeat-purchase card. The stamp distinguishes
+             * "not paid", "paid before the feature" and "processed", so the
+             * card can explain a zero payout instead of guessing. */
+            'unilevel'         => [
+                'awards'       => UnilevelAward::forOrder($orderId),
+                'processed_at' => $order['unilevel_processed_at'],
+                'total'        => (float) $order['unilevel_total'],
+                'is_paid'      => Order::isPaid($order),
+                'status'       => $status,
+                'enabled'      => UnilevelService::enabled(),
+            ],
         ];
     }
 
@@ -371,6 +382,7 @@ final class AdminOrderController
             'fragments' => [
                 'order-status' => View::capture('admin/orders/_status', ['ctx' => $ctx]),
                 'order-payment' => View::capture('admin/orders/_payment', ['ctx' => $ctx]),
+                'order-unilevel' => View::capture('admin/orders/_unilevel', ['ctx' => $ctx]),
                 'order-fulfilment' => View::capture('admin/orders/_fulfilment', ['ctx' => $ctx]),
                 'order-items' => View::capture('admin/orders/_items', ['ctx' => $ctx]),
                 'order-timeline' => View::capture('admin/orders/_timeline', ['ctx' => $ctx]),

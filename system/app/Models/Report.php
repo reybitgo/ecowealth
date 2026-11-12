@@ -351,6 +351,150 @@ final class Report
     }
 
     /* ----------------------------------------------------------
+     *  Repeat-purchase bonus (Phase 17D)
+     *
+     *  The window is `unilevel_awards.created_at`, the same key the
+     *  admin ledger filters use, so `/admin/reports?from=…&to=…` and
+     *  `/admin/commissions?ledger=repeat&from=…` always agree.
+     * ---------------------------------------------------------- */
+
+    /**
+     * Repeat-purchase counters for a window: credited money, awards,
+     * skipped and voided decisions, distinct recipients and the
+     * unreturned shortfall — plus all-time and this-month totals.
+     *
+     * A `skipped` row is an audit note, never money (plan §8 Rule 5).
+     *
+     * @return array{
+     *   amount:float, count:int, skipped:int, voided:int, unrecovered:float,
+     *   recipients:int, all_time:float, this_month:float
+     * }
+     */
+    public static function unilevelSummary(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo  ??= db();
+        $stmt   = $pdo->prepare(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS amount,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COUNT(CASE WHEN status = 'skipped'  THEN 1 END) AS skipped,
+                    COUNT(CASE WHEN status = 'voided'   THEN 1 END) AS voided,
+                    COALESCE(SUM(CASE WHEN status = 'voided'
+                                      THEN amount - reversed_amount ELSE 0 END), 0) AS unrecovered,
+                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients
+               FROM unilevel_awards
+              WHERE created_at >= ? AND created_at < ?"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $row = $stmt->fetch() ?: [];
+
+        $totals = $pdo->query(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS all_time,
+                    COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month
+               FROM unilevel_awards"
+        )->fetch() ?: [];
+
+        return [
+            'amount'       => round((float) ($row['amount'] ?? 0), 2),
+            'count'        => (int) ($row['credited'] ?? 0),
+            'skipped'      => (int) ($row['skipped'] ?? 0),
+            'voided'       => (int) ($row['voided'] ?? 0),
+            'unrecovered'  => round((float) ($row['unrecovered'] ?? 0), 2),
+            'recipients'   => (int) ($row['recipients'] ?? 0),
+            'all_time'     => round((float) ($totals['all_time'] ?? 0), 2),
+            'this_month'   => round((float) ($totals['this_month'] ?? 0), 2),
+        ];
+    }
+
+    /**
+     * Credited awards per ladder level (1 … 10), skips included.
+     *
+     * @return list<array{level:int, count:int, amount:float, skipped:int}>
+     */
+    public static function unilevelByLevel(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo  ??= db();
+        $stmt   = $pdo->prepare(
+            "SELECT level,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS amount,
+                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped
+               FROM unilevel_awards
+              WHERE created_at >= ? AND created_at < ?
+              GROUP BY level
+              ORDER BY level"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $rows = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $rows[] = [
+                'level'   => (int) $row['level'],
+                'count'   => (int) $row['credited'],
+                'amount'  => round((float) $row['amount'], 2),
+                'skipped' => (int) $row['skipped'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Repeat-purchase money per product, biggest first.
+     *
+     * @return list<array{product_id:int, product:string, count:int, amount:float, skipped:int}>
+     */
+    public static function unilevelByProduct(string $from, string $to, int $limit = 8, ?PDO $pdo = null): array
+    {
+        $pdo  ??= db();
+        $limit   = max(1, min(50, $limit));
+
+        $stmt = $pdo->prepare(
+            "SELECT a.product_id, p.name AS product,
+                    COUNT(CASE WHEN a.status = 'credited' THEN 1 END) AS credited,
+                    COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS amount,
+                    COUNT(CASE WHEN a.status = 'skipped' THEN 1 END) AS skipped
+               FROM unilevel_awards a
+               JOIN products p ON p.id = a.product_id
+              WHERE a.created_at >= ? AND a.created_at < ?
+              GROUP BY a.product_id, p.name
+              ORDER BY amount DESC, credited DESC, p.name ASC
+              LIMIT " . $limit
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $rows = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $rows[] = [
+                'product_id' => (int) $row['product_id'],
+                'product'    => (string) $row['product'],
+                'count'      => (int) $row['credited'],
+                'amount'     => round((float) $row['amount'], 2),
+                'skipped'    => (int) $row['skipped'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Closed months, newest first — the period history card.
+     *
+     * `unilevel_periods` is written only by the close, so a month that
+     * is not listed has either never been closed or does not exist yet
+     * (the engine's live fallback covers the gap, plan §12.7).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function unilevelByPeriod(int $limit = 6, ?PDO $pdo = null): array
+    {
+        return UnilevelCycle::periods($limit, $pdo);
+    }
+
+    /* ----------------------------------------------------------
      *  Wallets
      * ---------------------------------------------------------- */
 

@@ -1073,3 +1073,47 @@ Upgrade checklist additions:
 - [ ] Open a product's edit page and confirm the *Unilevel repeat-purchase bonus* card renders and
       saves (P.V., base, ten rates). Nothing is paid, whatever is configured.
 - [ ] Leave `unilevel_enabled` at `0` until the operations runbook for the stream exists (Phase 17F/17G).
+
+---
+
+## Phase 17C/17D addendum — the money engine and the admin visibility
+
+**No new hosting requirement and no schema change.** The upgrade above is the only database work;
+17C and 17D are PHP and pages.
+
+Phase 17C ships the engine: a paid order (e-wallet checkout or a verified manual payment) pays the
+product ladder to the buyer's sponsor chain once, writes one `unilevel` wallet credit per award, and
+best-effort reverses them when an administrator cancels the order (`unilevel_reversal`). The wallet
+statements show both movement kinds, and `bin/wallet_reconcile.php` gains a **Repeat-purchase**
+section whose failure changes the exit code — keep it in the daily check.
+
+Phase 17D is read-only and needs no configuration:
+
+| Surface | What it shows |
+|---|---|
+| `/admin/commissions?ledger=repeat` | every repeat-purchase award: filters, six counters, the closed-month history, CSV export |
+| `/admin/orders/{id}` | the order's repeat-purchase card: awards, statuses, shortfall, and the three "no bonus" explanations |
+| `/admin/reports` | four cards (window summary, by level, by product, closed months) and a `type=unilevel` CSV |
+| `/dashboard` | a **Repeat bonus (30 d)** KPI |
+
+New **audit actions** to recognise on `/admin/audit` (in addition to the Phase 17B
+`product.unilevel.update`):
+
+| Action | Written by |
+|---|---|
+| `unilevel.export` | the repeat-purchase CSV download, with the filters and row count in its meta |
+| `report.export` (with `type = unilevel`) | the reports-desk range export |
+
+Award reversals are recorded on the order's own audit/timeline through `order.cancel`; the award rows
+themselves keep their history and only the reversal columns change. Phase 17D offers no button that
+writes an award, a wallet row or a period — the ledger is an audit surface.
+
+Post-upgrade smoke check:
+
+- [ ] Sign in as an admin and open `/admin/commissions?ledger=repeat` — the page renders with **zero**
+      rows and names the two switches in its empty state.
+- [ ] Open any paid order: the repeat-purchase card appears under the payment panel.
+- [ ] Open `/admin/reports` — the four repeat cards render; the export menu offers
+      **Repeat-purchase bonus**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 and reports the **Repeat-purchase** section.
+- [ ] `unilevel_enabled` stays `0` until operations signs the stream off/on deliberately.

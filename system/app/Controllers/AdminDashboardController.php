@@ -274,6 +274,10 @@ final class AdminDashboardController
                 'amount' => 0.0, 'count' => 0, 'skipped' => 0, 'recipients' => 0,
                 'all_time' => 0.0, 'this_month' => 0.0,
             ],
+            'unilevel' => [
+                'amount' => 0.0, 'count' => 0, 'skipped' => 0, 'voided' => 0,
+                'unrecovered' => 0.0, 'recipients' => 0, 'all_time' => 0.0, 'this_month' => 0.0,
+            ],
             'wallet' => [
                 'accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0,
                 'credited_today' => 0.0, 'debited_today' => 0.0, 'movements_today' => 0,

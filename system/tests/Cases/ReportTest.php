@@ -39,6 +39,47 @@ $paidOrder = static function (
     return $orderId;
 };
 
+/**
+ * One repeat-purchase award on a real order line (Phase 17D fixtures).
+ *
+ * @param array<string, mixed> $overrides
+ * @return array<string, mixed> the ids and the stored row
+ */
+$unilevelAward = static function (array $overrides = []): array {
+    static $seq = 0;
+    $seq++;
+
+    $buyer     = test_user('rep_ua_buyer_' . $seq . '_' . bin2hex(random_bytes(2)));
+    $recipient = test_user('rep_ua_rec_' . $seq . '_' . bin2hex(random_bytes(2)));
+    $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+    $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+        'paid_at' => date('Y-m-d H:i:s'),
+        'total'   => '100.00',
+    ]);
+    $itemId = (int) db()->query(
+        'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+    )->fetchColumn();
+
+    $values = $overrides + [
+        'order_id'      => $orderId,
+        'order_item_id' => $itemId,
+        'product_id'    => $productId,
+        'buyer_id'      => (int) $buyer['id'],
+        'user_id'       => (int) $recipient['id'],
+        'level'         => 1,
+        'base_amount'   => 500.00,
+        'rate_pct'      => 5.0,
+        'amount'        => 25.00,
+        'status'        => 'credited',
+        'paid_at'       => date('Y-m-d H:i:s'),
+    ];
+
+    $id = UnilevelAward::create($values);
+
+    return $values + ['id' => $id, 'product_id' => $productId];
+};
+
 return [
     /* ---------- Window maths -------------------------------------- */
 
@@ -347,5 +388,112 @@ return [
             static fn () => (new ReportService())->export('everything', $range),
             InvalidArgumentException::class
         );
+    },
+
+    /* ---------- Repeat-purchase bonus (Phase 17D) --------------------- */
+
+    'P17D-T12 the summary counts credited money, skips and the unrecovered shortfall' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $award = $unilevelAward(['level' => 2, 'amount' => 15.00]);
+        $unilevelAward(['level' => 3, 'amount' => 25.00, 'status' => 'skipped', 'reason' => 'recipient account is disabled']);
+
+        /* A paid-then-reversed award: it is not credited money any more,
+         * but its shortfall is visible. */
+        $voided = $unilevelAward(['level' => 4, 'amount' => 25.00]);
+        UnilevelAward::void((int) $voided['id'], ['reversed_amount' => 10.00]);
+
+        $today = Report::unilevelSummary(date('Y-m-d'), date('Y-m-d'));
+
+        assert_same(40.0, $today['amount']);
+        assert_same(2, $today['count']);
+        assert_same(1, $today['skipped']);
+        assert_same(1, $today['voided']);
+        assert_same(15.0, $today['unrecovered']);
+        assert_same(2, $today['recipients'], 'two uplines are still credited');
+        assert_same(40.0, $today['all_time']);
+        assert_same(40.0, $today['this_month']);
+
+        /* A window that predates every award reports zeros, not the total. */
+        $old = Report::unilevelSummary('2020-01-01', '2020-01-31');
+        assert_same(0.0, $old['amount']);
+        assert_same(0, $old['count']);
+        assert_same(0, $old['skipped']);
+    },
+
+    'P17D-T12 the repeat report groups by level and by product' => function () use ($unilevelAward): void {
+        $one = $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 1, 'amount' => 25.00, 'product_id' => $one['product_id']]);
+        $unilevelAward(['level' => 2, 'amount' => 15.00, 'product_id' => $one['product_id']]);
+        $unilevelAward(['level' => 2, 'amount' => 25.00, 'status' => 'skipped', 'reason' => 'not Active']);
+
+        $byLevel = Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d'));
+
+        assert_count(2, $byLevel);
+        assert_same(1, $byLevel[0]['level']);
+        assert_same(2, $byLevel[0]['count']);
+        assert_same(50.0, $byLevel[0]['amount']);
+        assert_same(0, $byLevel[0]['skipped']);
+        assert_same(2, $byLevel[1]['level']);
+        assert_same(1, $byLevel[1]['count']);
+        assert_same(15.0, $byLevel[1]['amount']);
+        assert_same(1, $byLevel[1]['skipped']);
+
+        $byProduct = Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d'));
+
+        assert_true($byProduct !== []);
+        assert_same($one['product_id'], $byProduct[0]['product_id']);
+        assert_same(3, $byProduct[0]['count']);
+        assert_same(65.0, $byProduct[0]['amount']);
+        assert_same(1, $byProduct[0]['skipped']);
+    },
+
+    'P17D-T12 the period card reads the closed months newest first' => function (): void {
+        foreach ([['2026-09', 12, 7, 1234.56], ['2026-10', 15, 9, 2000.00]] as [$period, $members, $qualified, $award]) {
+            db()->prepare(
+                'INSERT INTO unilevel_periods
+                   (period, closed_at, closed_by, threshold, members_total, qualified_count, award_total)
+                 VALUES (?, NOW(), NULL, 500.00, ?, ?, ?)'
+            )->execute([$period, $members, $qualified, $award]);
+        }
+
+        $periods = Report::unilevelByPeriod(6);
+
+        assert_count(2, $periods);
+        assert_same('2026-10', (string) $periods[0]['period']);
+        assert_same(15, (int) $periods[0]['members_total']);
+        assert_same(9, (int) $periods[0]['qualified_count']);
+        assert_same(2000.0, round((float) $periods[0]['award_total'], 2));
+        assert_same('2026-09', (string) $periods[1]['period']);
+    },
+
+    'P17D-T13 the repeat export is offered and writes the ledger columns' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 2, 'amount' => 15.00]);
+
+        assert_true(isset(ReportService::EXPORTS['unilevel']));
+        assert_same('Repeat-purchase bonus', ReportService::EXPORTS['unilevel']);
+
+        $range  = ReportService::range(date('Y-m-d'), date('Y-m-d'));
+        $export = (new ReportService())->export('unilevel', $range);
+
+        assert_same('ecowealth_unilevel_' . $range['from'] . '_' . $range['to'] . '.csv', $export['filename']);
+        assert_same(UnilevelAward::csvHeader(), $export['header']);
+        assert_count(2, $export['rows']);
+
+        foreach ($export['rows'] as $row) {
+            assert_count(count($export['header']), $row, 'every export row matches the header');
+        }
+    },
+
+    'P17D-T12 the dashboard KPI reads the repeat money of the last 30 days' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 2, 'amount' => 15.00]);
+
+        $dashboard = (new ReportService())->dashboard();
+
+        assert_true(isset($dashboard['unilevel']));
+        assert_same(40.0, $dashboard['unilevel']['amount']);
+        assert_same(2, $dashboard['unilevel']['count']);
+        assert_same(2, $dashboard['unilevel']['recipients']);
     },
 ];

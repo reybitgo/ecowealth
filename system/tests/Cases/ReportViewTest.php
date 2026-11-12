@@ -47,6 +47,10 @@ return [
         assert_contains('Reports', $html);
         assert_contains('Sales by day', $html);
         assert_contains('Commissions by level', $html);
+        assert_contains('Repeat-purchase bonus', $html);
+        assert_contains('Repeat-purchase by level', $html);
+        assert_contains('Repeat-purchase by product', $html);
+        assert_contains('Closed months', $html);
         assert_contains('Payout register', $html);
         assert_contains('Registration-code revenue', $html);
         assert_contains('Finance health', $html);
@@ -68,6 +72,10 @@ return [
         assert_contains('data-live-region="report-commissions"', $html);
         assert_contains('data-live-region="report-payouts"', $html);
         assert_contains('data-live-region="report-codes"', $html);
+        assert_contains('data-live-region="report-unilevel"', $html);
+        assert_contains('data-live-region="report-unilevel-levels"', $html);
+        assert_contains('data-live-region="report-unilevel-products"', $html);
+        assert_contains('data-live-region="report-unilevel-periods"', $html);
         assert_contains('window.ECOWEALTH_REPORTS', $html);
     },
 
@@ -108,7 +116,7 @@ return [
         assert_not_contains('<script>alert("x")</script>', $html);
     },
 
-    'P15 the reports feed returns eight fragments and chart data' => function (): void {
+    'P15 the reports feed returns twelve fragments and chart data' => function (): void {
         test_signed_in_as(test_user('rpt_admin', 'admin'));
 
         $_GET = [];
@@ -129,6 +137,10 @@ return [
                 'report-payouts',
                 'report-codes',
                 'report-orders',
+                'report-unilevel',
+                'report-unilevel-levels',
+                'report-unilevel-products',
+                'report-unilevel-periods',
             ],
             array_keys($payload['fragments'])
         );
@@ -223,5 +235,101 @@ return [
         assert_same('admin.audit', nav_current_key('admin', test_user('rpt_admin', 'admin')));
 
         $_SERVER['REQUEST_URI'] = '/';
+    },
+
+    'P17D-T12 the four repeat cards show the fixture numbers and the dashboard KPI reads 30 days' => function () use ($renderReports): void {
+        /* Two credited awards (₱25 level 1, ₱15 level 2) and one skip. */
+        $makeAward = static function (int $level, float $amount, string $status = 'credited', string $reason = ''): int {
+            $buyer     = test_user('rptv_buyer_' . bin2hex(random_bytes(3)));
+            $recipient = test_user('rptv_rec_' . bin2hex(random_bytes(3)));
+            $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+            $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+                'paid_at' => date('Y-m-d H:i:s'),
+                'total'   => '100.00',
+            ]);
+            $itemId = (int) db()->query(
+                'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+            )->fetchColumn();
+
+            return UnilevelAward::create([
+                'order_id'      => $orderId,
+                'order_item_id' => $itemId,
+                'product_id'    => $productId,
+                'buyer_id'      => (int) $buyer['id'],
+                'user_id'       => (int) $recipient['id'],
+                'level'         => $level,
+                'base_amount'   => 500.00,
+                'rate_pct'      => $level === 1 ? 5.0 : 3.0,
+                'amount'        => $amount,
+                'status'        => $status,
+                'reason'        => $reason === '' ? null : $reason,
+                'paid_at'       => date('Y-m-d H:i:s'),
+            ]);
+        };
+
+        $makeAward(1, 25.00);
+        $makeAward(2, 15.00);
+        $makeAward(2, 25.00, 'skipped', 'recipient account is disabled');
+
+        db()->prepare(
+            'INSERT INTO unilevel_periods
+               (period, closed_at, closed_by, threshold, members_total, qualified_count, award_total)
+             VALUES (?, NOW(), NULL, 500.00, 15, 9, 2000.00)'
+        )->execute(['2026-10']);
+
+        test_signed_in_as(test_user('rptv_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        $summary = View::capture('admin/reports/_unilevel', [
+            'unilevel' => Report::unilevelSummary(date('Y-m-d'), date('Y-m-d')),
+            'range'    => ReportService::range(null, null),
+        ]);
+        assert_contains(money(40.0), $summary);
+        assert_contains('2', $summary);
+        assert_contains('1', $summary, 'one skip is reported');
+
+        $levels = View::capture('admin/reports/_unilevel_levels', [
+            'unilevel_levels' => Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d')),
+            'range'           => ReportService::range(null, null),
+        ]);
+        assert_contains('Level 1', $levels);
+        assert_contains('Level 2', $levels);
+        assert_contains(money(25.0), $levels);
+        assert_contains(money(15.0), $levels);
+
+        $products = View::capture('admin/reports/_unilevel_products', [
+            'unilevel_products' => Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d')),
+            'range'             => ReportService::range(null, null),
+        ]);
+        assert_contains(money(40.0), $products);
+
+        $periods = View::capture('admin/reports/_unilevel_periods', [
+            'unilevel_periods' => Report::unilevelByPeriod(6),
+        ]);
+        assert_contains('Oct 2026', $periods);
+        assert_contains('15', $periods);
+        assert_contains('9', $periods);
+        assert_contains(money(2000.0), $periods);
+
+        /* The same four cards are on the page. */
+        assert_contains('data-live-region="report-unilevel"', $html);
+        assert_contains('data-live-region="report-unilevel-levels"', $html);
+        assert_contains('data-live-region="report-unilevel-products"', $html);
+        assert_contains('data-live-region="report-unilevel-periods"', $html);
+
+        /* The dashboard tile reads the last 30 days from the same read. */
+        $commerce = (new ReportService())->dashboard();
+        $tile     = View::capture('admin/dashboard/_commerce', ['commerce' => $commerce]);
+
+        assert_contains('Repeat bonus (30 d)', $tile);
+        assert_contains(money(40.0), $tile);
+        assert_contains('2 awards', $tile);
+        assert_contains('2 recipients', $tile);
+        assert_contains('admin/commissions?ledger=repeat', $tile);
     },
 ];
