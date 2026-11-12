@@ -605,13 +605,14 @@ installer's pre-bundle demo/catalogue limitation, the Windows lock-file ACL and 
 
 ---
 
-## 18. Phase 17 — Unilevel repeat-purchase bonus (in progress: 17A)
+## 18. Phase 17 — Unilevel repeat-purchase bonus (in progress: 17B)
 
 Document: [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md)
 
-Phase 17 is delivered in seven gated phases (**17A → 17G**). Section A (Foundation) is written; the
-checks below cover it. Sections B–G append their rows as each phase lands, and this section is
-finalised by 17G. Every 17A check runs on a scratch schema; the evidence lives in
+Phase 17 is delivered in seven gated phases (**17A → 17G**). Section A (Foundation) and section B
+(Configuration) are written; the checks below cover both. Sections C–G append their rows as each phase
+lands, and this section is finalised by 17G. Section A's checks ran on scratch schemas; section B's ran
+against the development copy through the real HTTP app. The evidence lives in
 `evidence/phase-17/`.
 
 | Check | What it verifies | Result | Evidence file |
@@ -629,6 +630,25 @@ finalised by 17G. Every 17A check runs on a scratch schema; the evidence lives i
 |---|---|
 | Executed | 8 / 8 |
 | Passed / Failed / Blocked | 8 / 0 / 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | DSH · 2026-11-12 |
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA17B-01 | A migrated product reads ten blank rows, total `0.000%`, switch off, P.V. `0.00`, base Auto, and no direct/indirect control anywhere | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-01-product-edit.txt` |
+| QA17B-02 | P.V. 250 + the reference ladder + the switch on saves ten rows totalling `29.000%`, the form re-reads them, and one `product.unilevel.update` entry carries before/after | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-02-saved-ladder.txt` |
+| QA17B-03 | A 200% ladder is refused with the sum error, the typed values survive, and the stored 3.000% is untouched | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-03-sum-error.txt` |
+| QA17B-04 | Switching on with every level cleared is refused with "Turn the switch off or give at least one level a rate above 0." and the ladder is unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-04-empty-ladder.txt` |
+| QA17B-05 | A P.V. base with P.V. 0 is refused on the base field; Auto with P.V. 0 is accepted | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-05-pv-base.txt` |
+| QA17B-06 | The list badge reads `Repeat bonus 29%`, `?unilevel=on` returns the product and `off` does not, and the filter survives pagination | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-06-products-list.txt` |
+| QA17B-07 | The *Repeat-purchase bonus* block renders the five keys (never the sixth), depth 11 is refused, and a valid save persists and audits | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-07-settings.txt` |
+| QA17B-08 | With JavaScript off the ladder, the per-unit amounts and the total are server-rendered and the form still saves | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-08-no-js.txt` |
+| QA17B-09 | A paid e-wallet order for a fully configured product writes no award, moves no repeat-purchase money and leaves the order unstamped | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-09-order.txt` |
+
+| Phase 17B summary | |
+|---|---|
+| Executed | 9 / 9 |
+| Passed / Failed / Blocked | 9 / 0 / 0 |
 | Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
 | Tester initials / date | DSH · 2026-11-12 |
 
@@ -670,10 +690,12 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 14 | ☑ Yes ☐ No | 8 / 8 checks passed; 669 / 669 PHP cases, 173 / 173 smoke checks and a clean audit trail (hashed nonces only) green. |
 | Phase 15 | ☑ Yes ☐ No | 12 / 12 checks passed; 722 / 722 PHP cases, 185 / 185 smoke checks, a launch-scale report pass, a 7/7 health card and an executed restore drill green. |
 | Phase 16 | ☑ Yes ☐ No | 16 / 16 checks passed; 816 / 816 PHP cases, 195 / 195 smoke checks, `build_install_sql --check` exit 0, both installs (mysql/phpMyAdmin/CLI/web), both resets (CLI/web), the demo parity cases and the go-live tool-retirement capture green. |
-| Phase 17A | ☐ Yes ☐ No | In progress: section A written, automated gate green (830 / 830 PHP cases, 195 / 195 smoke checks); the eight manual checks are not yet executed. |
+| Phase 17A | ☑ Yes ☐ No | 8 / 8 checks passed; 830 / 830 PHP cases, 195 / 195 smoke checks at the phase tag; migration 020 applied twice (idempotent), the bundle installs to 31 tables / 54 settings and a reset keeps the ladder. |
+| Phase 17B | ☐ Yes ☐ No | In progress: section B written, automated gate green (855 / 855 PHP cases, 209 / 209 smoke checks); the nine manual checks executed by the automated pass, awaiting the lead's independent review. |
 
-Phases 1–16 are **Approved**. Phase 17A is **in progress** and is not part of that approval until its
-section is executed and signed. No defect is open, so no accepted exception is recorded.
+Phases 1–16 are **Approved**. Phase 17B is **in progress** (its section is executed but the
+independent-tester sign-off is still open, exactly as 17A's was) and is not part of that approval until
+its section is signed. No defect is open, so no accepted exception is recorded.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

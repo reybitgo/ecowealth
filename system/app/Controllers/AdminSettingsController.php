@@ -235,6 +235,55 @@ final class AdminSettingsController
     ];
 
     /**
+     * The repeat-purchase bonus (Phase 17B keys, exposed in 17B).
+     *
+     * Five of the six `unilevel*` keys are operator-facing; the sixth,
+     * `unilevel_ledger_since`, is a reconciliation baseline written by
+     * migration 020 and is deliberately never rendered (plan §13.5).
+     *
+     * Same `{key,label,rule,suffix,hint}` shape as COMMISSION_FIELDS, plus
+     * the input attributes the view needs (`min`, `max`, `step`).
+     */
+    private const REPEAT_FIELDS = [
+        [
+            'key'    => 'unilevel_max_levels',
+            'label'  => 'Upline depth',
+            'rule'   => 'required|integer|gte:1|lte:10',
+            'suffix' => 'levels',
+            'hint'   => 'How far up the sponsor chain the repeat-purchase bonus is paid (1–10). The ladder on each product has ten levels; this caps the walk.',
+            'min'    => 1,
+            'max'    => 10,
+            'step'   => '1',
+        ],
+        [
+            'key'    => 'unilevel_active_threshold',
+            'label'  => 'Monthly personal-purchase minimum',
+            'rule'   => 'required|numeric|gte:0|lte:1000000|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'An upline must have bought at least this much in the month that just ended to be paid, i.e. to be Active for this month. 0 pays every eligible upline.',
+            'min'    => 0,
+            'max'    => 1000000,
+            'step'   => '0.01',
+        ],
+    ];
+
+    /** The repeat-purchase switches, in display order (plan §13.5). */
+    private const REPEAT_TOGGLES = [
+        'unilevel_enabled' => [
+            'label' => 'Repeat-purchase bonus enabled',
+            'hint'  => 'The global master switch. Off: a paid order stamps itself as processed but pays no bonus, whatever a product says.',
+        ],
+        'unilevel_requires_active_upline' => [
+            'label' => 'Require the monthly Active rule',
+            'hint'  => 'Off: uplines are paid without the monthly personal-purchase check. The account and membership checks still apply.',
+        ],
+        'unilevel_reversal_enabled' => [
+            'label' => 'Reverse awards when a paid order is cancelled',
+            'hint'  => 'On: cancelling a paid order claws the bonus back from the recipients. Off: the bonus stays where it was paid.',
+        ],
+    ];
+
+    /**
      * Transfer fees and limits (Phase 12 keys, exposed in Phase 15).
      *
      * A limit of 0 means *unlimited* in TransferService: an operator who
@@ -326,6 +375,8 @@ final class AdminSettingsController
             'fulfilment_fields' => self::FULFILMENT_FIELDS,
             'commission_fields' => self::COMMISSION_FIELDS,
             'commission_toggles' => self::COMMISSION_TOGGLES,
+            'repeat_fields'     => self::REPEAT_FIELDS,
+            'repeat_toggles'    => self::REPEAT_TOGGLES,
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'expiry_enabled'    => setting_bool('shop_expiry_enabled', true),
@@ -414,6 +465,8 @@ final class AdminSettingsController
                     'settings'           => $data['settings'],
                     'commission_fields'  => $data['commission_fields'],
                     'commission_toggles' => $data['commission_toggles'],
+                    'repeat_fields'      => $data['repeat_fields'],
+                    'repeat_toggles'     => $data['repeat_toggles'],
                 ]),
                 'settings-transfers' => View::capture('admin/settings/_transfers', [
                     'settings'        => $data['settings'],
@@ -593,6 +646,13 @@ final class AdminSettingsController
             foreach (self::COMMISSION_FIELDS as $field) {
                 $keys[] = (string) $field['key'];
             }
+
+            /* The repeat-purchase numbers live on the same card, in their
+             * own sub-block (plan §13.5). `unilevel_ledger_since` is not in
+             * this list: it is never operator-editable. */
+            foreach (self::REPEAT_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
         }
 
         if ($section === 'transfers') {
@@ -616,7 +676,10 @@ final class AdminSettingsController
             ),
             'windows'    => ['shop_expiry_enabled'],
             'fulfilment' => ['shop_autocomplete_enabled'],
-            'commissions' => array_keys(self::COMMISSION_TOGGLES),
+            'commissions' => array_merge(
+                array_keys(self::COMMISSION_TOGGLES),
+                array_keys(self::REPEAT_TOGGLES)
+            ),
             default      => [],
         };
     }
@@ -692,6 +755,17 @@ final class AdminSettingsController
             $rules[(string) $key] = 'required|in:0,1';
         }
 
+        /* The repeat-purchase block: two numbers and three switches
+         * (plan §13.5). The depth is capped at the ladder's ten levels
+         * and the threshold keeps the money precision of its column. */
+        foreach (self::REPEAT_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (array_keys(self::REPEAT_TOGGLES) as $key) {
+            $rules[(string) $key] = 'required|in:0,1';
+        }
+
         foreach (self::TRANSFER_FIELDS as $field) {
             $rules[(string) $field['key']] = (string) $field['rule'];
         }
@@ -754,6 +828,14 @@ final class AdminSettingsController
         }
 
         foreach (self::COMMISSION_TOGGLES as $key => $toggle) {
+            $labels[(string) $key] = (string) $toggle['label'];
+        }
+
+        foreach (self::REPEAT_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::REPEAT_TOGGLES as $key => $toggle) {
             $labels[(string) $key] = (string) $toggle['label'];
         }
 

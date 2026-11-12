@@ -554,11 +554,14 @@ return [
     /* ==========================================================
      *  Inert (P17A-T13)
      * ========================================================== */
-    'P17A-T13 nothing in the application reads the new objects yet' => function () use ($appRoot): void {
-        /* No model, no service, no controller, no view, no job: 17B/17C
-         * create those. A file here would mean the phase has crept. */
+    'P17A-T13 no money engine exists and nothing writes an award' => function () use ($appRoot): void {
+        /* 17A's promise was "nothing reads the new objects". 17B is the
+         * phase that deliberately starts reading them — the ladder model,
+         * the product form and the list badge — so from 17B on this case
+         * guards the part that has to stay true until 17C: there is no
+         * engine, no award writer, no route, and a paid order pays nothing.
+         * 17C rewrites it once more, for the engine's own invariants. */
         foreach ([
-            '/app/Models/ProductUnilevel.php',
             '/app/Models/UnilevelAward.php',
             '/app/Models/UnilevelCycle.php',
             '/app/Services/UnilevelService.php',
@@ -566,11 +569,12 @@ return [
             '/app/Controllers/UnilevelController.php',
             '/bin/unilevel_month_close.php',
         ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist in Phase 17A');
+            assert_false(is_file($appRoot . $file), $file . ' must not exist before 17C');
         }
 
         /* The only application files that may name a Phase 17 table are the
-         * two database tools (allow-lists and the reset delete groups). */
+         * two database tools and 17B's configuration readers. A view or a
+         * controller with SQL against them would mean the phase has crept. */
         $hits = [];
         $root = rtrim(str_replace('\\', '/', $appRoot), '/') . '/app/';
         $iterator = new RecursiveIteratorIterator(
@@ -600,12 +604,49 @@ return [
         sort($hits, SORT_STRING);
 
         assert_same(
-            ['Services/DatabaseInstaller.php', 'Services/DatabaseResetService.php'],
+            [
+                'Models/Product.php',
+                'Models/ProductUnilevel.php',
+                'Services/DatabaseInstaller.php',
+                'Services/DatabaseResetService.php',
+            ],
             $hits,
-            'only the install/reset tools name the new tables in Phase 17A'
+            'only the install/reset tools and the 17B configuration readers name the new tables'
         );
 
-        /* No route and no view knows the stream yet. */
+        /* Nothing writes an award row or a repeat-purchase ledger row: the
+         * only SQL against `unilevel_awards` in the application is the
+         * reference COUNT above — plus the reset engine, which empties the
+         * money tables on purpose (that is not a bonus path). */
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
+                continue;
+            }
+
+            $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root)));
+
+            if ($relative === 'Services/DatabaseResetService.php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            foreach ([
+                'INSERT INTO unilevel_awards',
+                'UPDATE unilevel_awards',
+                'DELETE FROM unilevel_awards',
+                "ref_type = 'unilevel",
+                "ref_type='unilevel",
+            ] as $needle) {
+                assert_not_contains(
+                    $needle,
+                    $source,
+                    $relative . ' must not write a repeat-purchase row before 17C'
+                );
+            }
+        }
+
+        /* No route knows the stream yet (D-14: no phase adds a route). */
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
             $source = (string) file_get_contents($appRoot . $file);
             assert_same(
@@ -631,8 +672,14 @@ return [
             }
         }
 
-        /* The feature is off: with no reader and no operator configuration,
-         * a paid order cannot produce an award row. */
+        /* The feature is off: with no engine, a paid order produces no
+         * award row and no wallet movement it could be attributed to. */
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn());
+        assert_same(
+            0,
+            (int) db()->query(
+                "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('unilevel', 'unilevel_reversal')"
+            )->fetchColumn()
+        );
     },
 ];

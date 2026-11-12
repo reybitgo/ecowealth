@@ -1,0 +1,18 @@
+# QA17B-01 - A migrated product reads 0% and the switch is off
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat - signed in as admin
+#
+# Command: GET /admin/products/1/edit -> 200
+#
+# Observed in the served HTML:
+#   rate inputs named unilevel_levels[1..10] : 10
+#   of those, rendered blank (value="")      : 10
+#   card total badge                         : 0.000%
+#   switch (id=productUnilevelEnabled)       : not checked
+#   P.V. input value                         : 0.00
+#   base select 'Auto' selected              : True
+#   direct/indirect controls found           : 0
+#   the card sits after the Details card     : True
+#
+# Expected: ten blank rate inputs, total 0.000%, switch off, P.V. 0.00, Auto,
+#           zero direct/indirect controls, the card after Details.
+# Result: PASS - the migrated product is inert and unconfigured.

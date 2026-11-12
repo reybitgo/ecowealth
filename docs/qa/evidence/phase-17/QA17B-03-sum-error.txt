@@ -1,0 +1,18 @@
+# QA17B-03 - A ladder over 100% is refused as typed
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# Command: POST /admin/products/save with product_id=2181 and every one of the
+#          ten levels set to 20 (200% in total, above the 100% ceiling)
+#   -> 302 /ecowealth/system/admin/products/2181/edit
+#
+# GET /admin/products/2181/edit:
+#   sum error shown    : yes
+#   message            : The ladder totals 200% — the ten levels cannot add up to more than 100%.
+#   unilevel_levels[1] : 20  (the value as typed)
+#   card total         : 200.000%  (server-rendered, no JavaScript)
+#
+# SELECT percent FROM product_unilevel_levels WHERE product_id = 2181 AND level = 4;
+#   level 4 still stores : 3.000
+#
+# Expected: the sum error, the typed values kept, the stored 3.000% untouched.
+# Result: PASS

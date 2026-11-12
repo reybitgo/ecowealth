@@ -3953,3 +3953,147 @@ Updated for the new counts: `DbTargetTest` (31 tables), `SqlScriptTest` (the 31-
 - A reset engine that empties the money tables and preserves the ladder; a wallet vocabulary that
   can name `unilevel` and `unilevel_reversal`.
 - **Nothing reads any of it.** 17B may assume the tables exist and are empty.
+
+---
+
+## Phase 17B — Configuration (2026-11-12)
+
+**Status:** complete · **Tags:** `p17b-configuration` (on `p17a-foundation`) ·
+**Branch:** `feature/unilevel` · **Schema:** unchanged (31 tables, 54 settings) ·
+**Suite:** 830 → 855 cases, **855 / 855** green · **Smoke:** 209 / 209.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §6 (Phase 17B), §12.3–12.4, §12.9, §13.2,
+§13.3 and §13.5. This phase makes the repeat-purchase bonus **configurable**: a P.V. field, a bonus
+base, a per-product switch and a ten-row percentage ladder on the product form, plus a five-key
+sub-block on the *Commissions* settings card. **No money moves** — the ladder is read by nothing until
+17C, and a paid order still writes no `unilevel_awards` row and no `unilevel` ledger movement.
+
+### Database
+
+None. 17A shipped every column, table and setting this phase writes.
+
+### Code
+
+- **`Models/ProductUnilevel.php` (new)** — the ladder: `levels()`, `levelsMap()`, `totalsMap()`,
+  `total()`, `save()`, `validateLevels()`, `validate()`, `forForm()`, `fromInput()`,
+  `referencePreset()`, `baseFor()`, `snapshot()`, `diff()` and `audit()`. Levels 1–10, zero-filled on
+  read exactly like `Package::levels()`; a save rewrites **ten** rows (blank and `0` are the same value);
+  the base is derived here and nowhere else: `auto` pays on P.V. when it is above 0, else on the price.
+- **`Models/Product.php`** — `validate()` gains `pv` (`nullable|numeric|gte:0|lte:1000000|decimal:2`),
+  `unilevel_base` (`nullable|in:auto,price,pv`) and the cross-field rule "a P.V. base needs a P.V.".
+  `save()` gains `?array $unilevel` and `?array $actor`: the product row, the two new columns and the
+  ten ladder rows are written in **one transaction**, and a real change records one
+  `product.unilevel.update` entry (before/after + the keys that moved) inside it. New `rowsFor()`
+  returns the engine's columns in one query. `referencesMap()` gains an `awards` count, and
+  `delete()` now refuses a product that paid an award (the FK is `RESTRICT`). The admin list filter
+  gains `unilevel=on|off` (anything else is ignored).
+- **`Controllers/AdminProductController.php`** — `listContext()`/`feedPayload()` carry the ladder totals
+  for the badge; `create()` pre-fills the reference ladder with the switch off; `edit()` loads the stored
+  ladder; `save()` reads `pv`, `unilevel_enabled`, `unilevel_base`, `unilevel_levels[1..10]`, merges
+  `Product::validate()` with `ProductUnilevel::validate()`, re-renders the posted values and ladder after
+  an error, saves atomically and passes the actor through. The form now loads
+  `assets/js/app-product-unilevel.js`.
+- **`Controllers/AdminSettingsController.php`** — `REPEAT_FIELDS` (depth 1–10, threshold money) and
+  `REPEAT_TOGGLES` (enabled, requires Active, reversal) merged into `sectionKeys()`,
+  `sectionToggles()`, `fieldRules()` and `fieldLabels()`; `settingsContext()` and `feedPayload()` pass
+  `repeat_fields` / `repeat_toggles`. The section stays `commissions`; `unilevel_ledger_since` is never
+  rendered or editable.
+- **Views** — `admin/products/_unilevel.php` (new partial: switch, base select, ten rows, per-unit
+  amounts, total badge, reference/clear buttons, the `sum` error), `admin/products/form.php` (the card
+  after *Details*, the P.V. field in *Pricing & stock*), `admin/products/_rows.php` (the
+  `Repeat bonus 29%` / `Repeat bonus 0%` badge and the award delete blocker), `admin/products/index.php`
+  (the `?unilevel=` filter), `admin/settings/_commissions.php` (the sub-block) and
+  `admin/settings/index.php` (passes the two new lists to the partial).
+- **`public/assets/js/app-product-unilevel.js` (new)** — a progressive enhancement: it re-renders each
+  level's per-unit amount and the ladder total while the operator types, and fills the reference ladder
+  or clears it. With JavaScript off the same numbers are already in the HTML and the form still saves.
+
+The two visible changes are the product form and the settings card. Nothing on the storefront, the
+checkout or the order pages changed.
+
+### Tests
+
+**25 new cases: 830 → 855, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `UnilevelConfigurationTest` (new) | 24 | P17B-T1 (save + re-read), T2 (blanks = 0.000, three decimals), T3 ×2 (sum error; a failed write rolls back), T4 (101%), T5 (per-level bounds and precision), T6 (switch on with an empty ladder), T7 (P.V. base without a P.V.), T8 (price base accepted), T9 (one audit entry, before/after, no-op saves), T10 (`baseFor`), T11 (`referencePreset`), T12 ×2 (batched reads with no N+1; `rowsFor`), T13 (cascade + award guard), T14 ×2 (create and edit forms, no direct/indirect control), T15 (refused form keeps values and errors), T16 (badge), T17 (filter + pagination), T18 (settings card, no sixth key), T19 (settings rules and round trip), T20 (a paid order writes no award) |
+| `ProductViewTest` | 1 | P17B-T14: the shared form view renders the card for any caller, and an older caller that passes no ladder still gets ten blank editable rows |
+| `ProductTest` | 1 | `referencesMap()` returns the new `awards` count |
+| `SettingsPageTest` | 2 | The commissions card's key list and toggle list now include the repeat-purchase keys |
+| `UnilevelFoundationTest` | 1 | P17A-T13 rewritten for its enduring half: no engine, no award writer, no route, and no `unilevel` ledger movement (17B is the phase that deliberately starts reading the tables) |
+
+Updated for the widened card: `SettingsPageTest`'s two catalogue assertions.
+
+### Rules as built
+
+1. One ladder, ten equal rows — level 1 is a normal row, no direct/indirect control exists anywhere
+   (`P17B-T14` parses every rate input; the smoke run greps the served HTML).
+2. Blank and `0` are the same: ten rows on save, never nine; the form renders `0` as blank.
+3. The ladder sum is capped at 100% with a `unilevel_levels.sum` field error, never a clamp.
+4. A level is 0–100 with at most three decimals; `min/max/step` on the inputs are decoration, the server
+   validates.
+5. Enabling a zero ladder is refused on `unilevel_enabled`.
+6. `pv` is money; a P.V. base with `pv = 0` is refused on `unilevel_base`.
+7. The save is atomic: one transaction, and the audit entry lives inside it.
+8. Nothing is enabled by default: a new product carries the reference ladder with the switch off; a
+   migrated product reads 0% everywhere.
+9. The badge reads `ProductUnilevel::totalsMap()`, the same map the card header uses.
+10. The card sits after *Details* in the left column; the P.V. field lives in *Pricing & stock*.
+11. No JavaScript-only validation: with the script blocked the form still saves and still validates.
+
+### Gate
+
+- [x] Schema state matches the plan — this phase changes no schema; `MigrationTest` still green.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 855   Passed: 855   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 (wallets, commissions, transfers, payouts).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 209   Failed: 0**, exit 0.
+- [x] Every P17B-Tn case exists, is named for the phase and passes.
+- [x] The manual script (plan §6, `QA17B-01` … `QA17B-09`) executed **9 / 9** through the real HTTP
+      app: 01–08 captured from the served HTML and the database by a scripted pass, 09 from the smoke
+      run's paid-order check. Evidence: `docs/qa/evidence/phase-17/QA17B-*.txt`.
+- [x] The card, the badge and the settings block render on desktop and mobile widths: the card is a
+      `.table-responsive` table inside the existing `col-xl-8` grid, the badge is inline in the product
+      cell and the settings sub-block reuses the card's `col-md-6` grid, so no new breakpoint is
+      introduced. Verified structurally from the markup; there are no viewport screenshots in this pass
+      (deviation 7).
+- [x] No direct/indirect control exists anywhere in the product form HTML.
+- [x] Paying an order still writes zero award rows (P17B-T20 and the smoke check).
+- [x] No new PHP warning, notice or deprecation in `storage/logs/` after the pass.
+- [x] This entry and Appendix G of the plan are filled; tag `p17b-configuration`.
+
+### Deviations
+
+1. **`admin/settings/index.php` also changed.** Plan §6 lists `admin/settings/_commissions.php` for the
+   sub-block, but the settings index is the wrapper that resolves and passes the card's data; it had to
+   pass `repeat_fields` / `repeat_toggles` (otherwise the sub-block renders empty). The card's subtitle
+   now reads "Direct, unilevel, repeat-purchase and registration rules".
+2. **The audit entry is written by `Product::save()`, not the controller.** Plan §6 says the controller
+   audits. Writing it inside the same transaction as the rows keeps "an audit entry never exists without
+   the change" true by construction and makes it testable in-process (a controller POST ends in
+   `redirect()`); the controller still passes the actor. `ProductUnilevel::audit()` builds the payload.
+3. **`Product::save()` takes a fourth argument (`?array $actor`)** so the audit row names the operator.
+   Existing callers pass three or fewer and are unaffected.
+4. **`ProductViewTest` gained one case** (the plan names the file; the phase's own 24 cases live in
+   `UnilevelConfigurationTest`, per the §16.1 naming convention).
+5. **The smoke suite needed one edit outside Phase 17B's manifest.** `P15-T7` posted the commissions card
+   without the repeat-purchase keys, which the widened card now refuses ("Upline depth is required"). It
+   posts them unchanged so the check still proves what it was written to prove (an unticked commission
+   switch is stored as 0). No behaviour changed.
+6. **`docs/deploy.md`'s verification counts were stale** (27 tables / 48 settings from before 17A). They
+   now read 31 / 54, and the file gains the Phase 17 settings addendum the plan asks for.
+7. **The manual checks were executed by the automated pass** (real HTTP + MySQL transcripts from
+   `curl.exe`, which never runs JavaScript) rather than an independent tester or a browser, as in 17A.
+   The nine checks are proven end to end, but there are no viewport screenshots: the responsive items
+   are verified from the markup (`.table-responsive` plus the existing Bootstrap grid). The "someone
+   who did not write it" item stays open for the lead's review.
+
+### Hand-off to 17C
+
+- `ProductUnilevel::levelsMap()` and `baseFor()` are the only way the engine may read a ladder or a base.
+- `Product::rowsFor()` returns the engine's product columns in one query.
+- `unilevel_enabled`, `unilevel_base`, `unilevel_max_levels`, `unilevel_requires_active_upline`,
+  `unilevel_active_threshold` and `unilevel_reversal_enabled` exist, are validated, and are editable by
+  an operator.
+- Ladders are inert: 17C may assume a configured product and must work when none is configured.

@@ -9,15 +9,32 @@ declare(strict_types=1);
  * changed; the forms carry data-live-action so the shared client can
  * submit them with fetch (and fall back to a normal POST without JS).
  *
+ * Phase 17B adds the repeat-purchase badge. It reads the same
+ * `ProductUnilevel::totalsMap()` the form header reads, so the badge
+ * can never disagree with the saved ladder (plan §6 Rule 9).
+ *
  * @var list<array<string, mixed>> $products
- * @var array<int, array{orders:int, carts:int, packages:int}> $references
+ * @var array<int, array{orders:int, carts:int, packages:int, awards:int}> $references
  * @var array<int, int> $available
- * @var array{q?: string, status?: string} $filters
+ * @var array{q?: string, status?: string, unilevel?: string} $filters
+ * @var array<int, float> $repeat_totals ladder total per product
  */
 
-$query      = trim((string) ($filters['q'] ?? ''));
-$status     = (string) ($filters['status'] ?? '');
-$hasFilters = $query !== '' || $status !== '';
+$query        = trim((string) ($filters['q'] ?? ''));
+$status       = (string) ($filters['status'] ?? '');
+$unilevel     = (string) ($filters['unilevel'] ?? '');
+$hasFilters   = $query !== '' || $status !== '' || $unilevel !== '';
+$repeatTotals = $repeat_totals ?? [];
+
+/**
+ * A percentage without trailing zeros: 29.0 → "29", 12.5 → "12.5",
+ * 0.0 → "0". Two different totals must never render the same string.
+ */
+$percentLabel = static function (float $value): string {
+    $text = rtrim(rtrim(number_format($value, 3, '.', ''), '0'), '.');
+
+    return $text === '' ? '0' : $text;
+};
 ?>
                       <tbody data-live-region="product-rows">
 <?php if ($products === []): ?>
@@ -40,7 +57,7 @@ $hasFilters = $query !== '' || $status !== '';
 <?php foreach ($products as $product): ?>
 <?php
     $id        = (int) $product['id'];
-    $refs      = $references[$id] ?? ['orders' => 0, 'carts' => 0, 'packages' => 0];
+    $refs      = $references[$id] ?? ['orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0];
     $blockers  = [];
 
     if (($refs['orders'] ?? 0) > 0) {
@@ -52,6 +69,9 @@ $hasFilters = $query !== '' || $status !== '';
     if (($refs['packages'] ?? 0) > 0) {
         $blockers[] = 'a package';
     }
+    if (($refs['awards'] ?? 0) > 0) {
+        $blockers[] = 'a repeat-purchase award';
+    }
 
     $blocked   = $blockers !== [];
     $blockedBy = $blocked
@@ -60,6 +80,8 @@ $hasFilters = $query !== '' || $status !== '';
     $availableUnits = (int) ($available[$id] ?? 0);
     $thumb          = UploadService::url($product['image_url'] ?? null);
     $isActive       = $product['status'] === 'active';
+    $repeatOn       = (int) ($product['unilevel_enabled'] ?? 0) === 1;
+    $repeatTotal    = (float) ($repeatTotals[$id] ?? 0);
 ?>
                         <tr data-live-key="<?= $id ?>">
                           <td>
@@ -82,6 +104,11 @@ $hasFilters = $query !== '' || $status !== '';
                                 <div class="small text-body-secondary">
                                   <?= e(trim((string) ($product['sku'] ?? '')) !== '' ? (string) $product['sku'] : 'No SKU') ?>
                                 </div>
+<?php if ($repeatOn): ?>
+                                <span class="badge bg-label-<?= $repeatTotal > 0 ? 'success' : 'warning' ?> mt-1">
+                                  Repeat bonus <?= e($percentLabel($repeatTotal)) ?>%
+                                </span>
+<?php endif; ?>
                               </div>
                             </div>
                           </td>

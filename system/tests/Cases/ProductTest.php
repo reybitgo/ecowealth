@@ -327,7 +327,7 @@ return [
 
         assert_same(2, $map[$a]['carts']);
         assert_same(0, $map[$b]['carts']);
-        assert_same(['orders' => 0, 'carts' => 0, 'packages' => 0], $map[999999]);
+        assert_same(['orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0], $map[999999]);
     },
 
     /* ---------- StockService ---------------------------------------- */

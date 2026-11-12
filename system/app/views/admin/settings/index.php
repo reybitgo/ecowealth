@@ -26,6 +26,8 @@ declare(strict_types=1);
  * @var array<string, array{label:string, rule:string, hint:string}> $fulfilment_fields
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $commission_fields
  * @var array<string, array{label:string,hint:string}> $commission_toggles
+ * @var list<array<string, mixed>> $repeat_fields
+ * @var array<string, array{label:string,hint:string}> $repeat_toggles
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
@@ -45,6 +47,8 @@ $sellerFields     = $seller_fields ?? [];
 $fulfilmentFields = $fulfilment_fields ?? [];
 $commissionFields = $commission_fields ?? [];
 $commissionToggles = $commission_toggles ?? [];
+$repeatFields     = $repeat_fields ?? [];
+$repeatToggles    = $repeat_toggles ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -241,7 +245,7 @@ $action = url('admin/settings');
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <div>
                         <h5 class="mb-1">Commissions</h5>
-                        <p class="text-body-secondary small mb-0">Direct, unilevel and registration switches</p>
+                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase and registration rules</p>
                       </div>
                       <span class="badge bg-label-secondary">Phase 15</span>
                     </div>
@@ -249,6 +253,8 @@ $action = url('admin/settings');
     'settings'           => $settings,
     'commission_fields'  => $commissionFields,
     'commission_toggles' => $commissionToggles,
+    'repeat_fields'      => $repeatFields,
+    'repeat_toggles'     => $repeatToggles,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

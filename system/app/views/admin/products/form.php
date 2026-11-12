@@ -6,15 +6,22 @@ declare(strict_types=1);
  * (plan §7 Phase 2; reference views/admin/shop_products.php + the
  * theme's app-ecommerce-product-add.html layout).
  *
+ * Phase 17B adds the *Unilevel repeat-purchase bonus* card after
+ * *Details* (one ladder, ten equal rows — D-17) and the P.V. field to
+ * *Pricing & stock*. The bonus card is a separate partial so the
+ * direct/indirect shape cannot creep in unnoticed.
+ *
  * @var array<string, mixed>|null $product Existing row when editing
  * @var array<string, mixed>       $current Values to render (old input wins below)
+ * @var array<int, string>         $unilevel levels 1 … 10 => posted/stored value
  */
 
-$isEdit  = $product !== null;
-$id      = $isEdit ? (int) $product['id'] : 0;
-$image   = UploadService::url($current['image_url'] ?? null);
-$slug    = $isEdit ? (string) ($product['slug'] ?? '') : '';
-$errors  = errors_all();
+$isEdit   = $product !== null;
+$id       = $isEdit ? (int) $product['id'] : 0;
+$image    = UploadService::url($current['image_url'] ?? null);
+$slug     = $isEdit ? (string) ($product['slug'] ?? '') : '';
+$errors   = errors_all();
+$unilevel = $unilevel ?? [];
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
               <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-6">
@@ -127,6 +134,11 @@ $errors  = errors_all();
                         </div>
                       </div>
                     </div>
+
+<?= View::capture('admin/products/_unilevel', [
+    'current'  => $current,
+    'unilevel' => $unilevel,
+]) ?>
                   </div>
 
                   <div class="col-xl-4">
@@ -150,6 +162,31 @@ $errors  = errors_all();
                           </div>
 <?php if (has_error('price')): ?>
                           <div class="invalid-feedback d-block"><?= e(error_for('price')) ?></div>
+<?php endif; ?>
+                        </div>
+
+                        <div class="mb-4">
+                          <label for="productPv" class="form-label">Point value (P.V.)</label>
+                          <div class="input-group">
+                            <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
+                            <input
+                              type="number"
+                              class="form-control <?= e(invalid_class('pv')) ?>"
+                              id="productPv"
+                              name="pv"
+                              min="0"
+                              max="1000000"
+                              step="0.01"
+                              value="<?= old('pv', $isEdit ? number_format((float) $product['pv'], 2, '.', '') : '') ?>"
+                            />
+                          </div>
+<?php if (has_error('pv')): ?>
+                          <div class="invalid-feedback d-block"><?= e(error_for('pv')) ?></div>
+<?php else: ?>
+                          <div class="form-text">
+                            Used as the bonus base when the ladder is set to <em>Auto</em> or <em>P.V.</em>;
+                            leave it at 0 to base the bonus on the price.
+                          </div>
 <?php endif; ?>
                         </div>
 

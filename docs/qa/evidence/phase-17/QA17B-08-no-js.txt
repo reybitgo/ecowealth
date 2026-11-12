@@ -1,0 +1,19 @@
+# QA17B-08 - The form works with JavaScript off
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# The evidence pass drives the app with curl.exe: no script is ever executed,
+# which is exactly the JavaScript-off case. The preview therefore comes from the
+# server, and the save round trip is a plain POST (QA17B-02).
+#
+# GET /admin/products/2181/edit (raw HTML, no script run):
+#   rate inputs rendered           : 10
+#   server-rendered total badge    : 29.000%
+#   server-rendered level 1 amount : ₱12.50
+#   the enhancement script linked  : True
+#
+# POST /admin/products/save (plain form post, no script): the QA17B-02 save
+# above answered 302 and persisted every value.
+#
+# Expected: the ladder, the per-unit amounts and the total are all rendered
+#           server-side; the script only updates them live.
+# Result: PASS

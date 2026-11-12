@@ -10,6 +10,12 @@ declare(strict_types=1);
  *  checked centrally. XHR requests get JSON (the status / delete
  *  buttons use it when JS is available); plain forms fall back to
  *  a flash + redirect so the page works without JavaScript.
+ *
+ *  Phase 17B adds the repeat-purchase configuration to the same form:
+ *  the P.V. field in *Pricing & stock*, the ten-row ladder card after
+ *  *Details* and the `?unilevel=on|off` list filter. The ladder and
+ *  the two product columns are saved atomically and audited once as
+ *  `product.unilevel.update` when anything actually changed.
  * ============================================================== */
 
 final class AdminProductController
@@ -46,17 +52,19 @@ final class AdminProductController
      * @return array{
      *   products: list<array<string, mixed>>,
      *   pager: Paginator,
-     *   filters: array{q: string, status: string},
+     *   filters: array{q: string, status: string, unilevel: string},
      *   stats: array{total:int, active:int, inactive:int, out_of_stock:int},
-     *   references: array<int, array{orders:int, carts:int, packages:int}>,
-     *   available: array<int, int>
+     *   references: array<int, array{orders:int, carts:int, packages:int, awards:int}>,
+     *   available: array<int, int>,
+     *   repeat_totals: array<int, float>
      * }
      */
     private function listContext(): array
     {
         $filters = [
-            'q'      => Request::string('q'),
-            'status' => Request::string('status'),
+            'q'        => Request::string('q'),
+            'status'   => Request::string('status'),
+            'unilevel' => Request::string('unilevel'),
         ];
 
         $pager    = Paginator::fromTableRequest(Product::countAdmin($filters));
@@ -64,12 +72,13 @@ final class AdminProductController
         $ids      = array_map(static fn (array $row): int => (int) $row['id'], $products);
 
         return [
-            'products'   => $products,
-            'pager'      => $pager,
-            'filters'    => $filters,
-            'stats'      => Product::stats(),
-            'references' => Product::referencesMap($ids),
-            'available'  => StockService::availableMap($ids),
+            'products'      => $products,
+            'pager'         => $pager,
+            'filters'       => $filters,
+            'stats'         => Product::stats(),
+            'references'    => Product::referencesMap($ids),
+            'available'     => StockService::availableMap($ids),
+            'repeat_totals' => ProductUnilevel::totalsMap($ids),
         ];
     }
 
@@ -127,10 +136,11 @@ final class AdminProductController
      * @param array{
      *   products: list<array<string, mixed>>,
      *   pager: Paginator,
-     *   filters: array{q: string, status: string},
+     *   filters: array{q: string, status: string, unilevel: string},
      *   stats: array{total:int, active:int, inactive:int, out_of_stock:int},
-     *   references: array<int, array{orders:int, carts:int, packages:int}>,
-     *   available: array<int, int>
+     *   references: array<int, array{orders:int, carts:int, packages:int, awards:int}>,
+     *   available: array<int, int>,
+     *   repeat_totals: array<int, float>
      * } $data
      * @return array<string, mixed>
      */
@@ -150,6 +160,7 @@ final class AdminProductController
                     'references' => $data['references'],
                     'available'  => $data['available'],
                     'filters'    => $data['filters'],
+                    'repeat_totals' => $data['repeat_totals'],
                 ]),
                 'product-pagination' => View::capture('admin/products/_pagination', [
                     'pager'       => $data['pager'],
@@ -193,21 +204,17 @@ final class AdminProductController
     {
         $this->forgetInputWhenClean();
 
+        $payload = old_payload();
+
         View::page('admin', 'admin/products/form', [
             'page_title'  => 'New product',
             'current_nav' => 'admin.products',
             'product'     => null,
-            'current'     => [
-                'name'              => '',
-                'sku'               => '',
-                'price'             => '',
-                'stock'             => '0',
-                'sort_order'        => '0',
-                'short_description' => '',
-                'description'       => '',
-                'status'            => 'active',
-                'image_url'         => null,
-            ],
+            'current'     => $payload['input'] ?? self::defaults(),
+            /* A new product is pre-filled with the reference ladder but its
+             * switch is off — nothing is enabled by default (plan §6 Rule 8, D-11). */
+            'unilevel'    => $payload['unilevel'] ?? ProductUnilevel::forForm(ProductUnilevel::referencePreset()),
+            'page_js'     => ['assets/js/app-product-unilevel.js'],
         ]);
     }
 
@@ -222,11 +229,16 @@ final class AdminProductController
 
         $this->forgetInputWhenClean();
 
+        $payload = old_payload();
+
         View::page('admin', 'admin/products/form', [
             'page_title'  => 'Edit product',
             'current_nav' => 'admin.products',
             'product'     => $product,
-            'current'     => $product,
+            'current'     => $payload['input'] ?? $product,
+            'unilevel'    => $payload['unilevel']
+                ?? ProductUnilevel::forForm(ProductUnilevel::levels((int) $product['id'])),
+            'page_js'     => ['assets/js/app-product-unilevel.js'],
         ]);
     }
 
@@ -244,14 +256,25 @@ final class AdminProductController
             'name'              => Request::string('name'),
             'sku'               => Request::string('sku'),
             'price'             => Request::string('price'),
+            'pv'                => Request::string('pv'),
             'stock'             => Request::string('stock'),
             'sort_order'        => Request::string('sort_order'),
             'short_description' => Request::string('short_description'),
             'description'       => Request::string('description'),
             'status'            => Request::string('status', 'active'),
+            'unilevel_base'     => Request::string('unilevel_base', 'auto'),
+            'unilevel_enabled'  => Request::post('unilevel_enabled') === '1' ? '1' : '0',
         ];
 
-        $errors   = Product::validate($input, $id > 0 ? $id : null);
+        $levelsInput = ProductUnilevel::fromInput(
+            is_array($_POST['unilevel_levels'] ?? null) ? $_POST['unilevel_levels'] : []
+        );
+
+        /* Two validators, two key spaces: the product fields and the ladder
+         * (`unilevel_levels.*`, including the `sum` cross-field error). */
+        $errors  = Product::validate($input, $id > 0 ? $id : null);
+        $errors += ProductUnilevel::validate($levelsInput, $input['unilevel_enabled'] === '1');
+
         $imageUrl = $existing['image_url'] ?? null;
 
         /* Uploads only run once the text fields are valid, so a rejected
@@ -280,13 +303,20 @@ final class AdminProductController
         if ($errors !== []) {
             errors_set($errors);
             old_set($input);
+            old_payload_set(['input' => $input, 'unilevel' => $levelsInput]);
             redirect($id > 0 ? 'admin/products/' . $id . '/edit' : 'admin/products/new');
         }
 
         $input['image_url'] = $imageUrl;
-        Product::save($input, $id > 0 ? $id : null);
+
+        /* The row, the two repeat-purchase columns and the ten ladder rows
+         * are written in one transaction. When the configuration actually
+         * changed, Product::save() also writes the `product.unilevel.update`
+         * audit entry inside that same transaction (plan §6 T9). */
+        Product::save($input, $id > 0 ? $id : null, $levelsInput, auth_user());
 
         old_clear();
+        old_payload_clear();
         flash_set('success', $id > 0 ? 'Product updated.' : 'Product created.');
 
         /* The form keeps its native POST/redirect flow. Queue every
@@ -364,6 +394,9 @@ final class AdminProductController
         if (($result['packages'] ?? 0) > 0) {
             $parts[] = 'a package';
         }
+        if (($result['awards'] ?? 0) > 0) {
+            $parts[] = 'a repeat-purchase award';
+        }
 
         $message = match (true) {
             $result['ok'] => 'Product deleted.',
@@ -391,11 +424,39 @@ final class AdminProductController
      * A form opened without pending validation errors should show the
      * database values, not leftover input from an earlier failed submit.
      * (errors_all() primes the per-request cache the view reads next.)
+     *
+     * The ladder travels through `old_payload()` (a nested array), so it is
+     * cleared here too — a clean edit page must read the stored ladder.
      */
     private function forgetInputWhenClean(): void
     {
         if (errors_all() === []) {
             old_clear();
+            old_payload_clear();
         }
+    }
+
+    /**
+     * A blank product form: the catalogue columns plus the repeat-purchase
+     * switch off and the base at *Auto* (plan §6 Rule 8).
+     *
+     * @return array<string, mixed>
+     */
+    private static function defaults(): array
+    {
+        return [
+            'name'              => '',
+            'sku'               => '',
+            'price'             => '',
+            'pv'                => '',
+            'stock'             => '0',
+            'sort_order'        => '0',
+            'short_description' => '',
+            'description'       => '',
+            'status'            => 'active',
+            'image_url'         => null,
+            'unilevel_enabled'  => '0',
+            'unilevel_base'     => 'auto',
+        ];
     }
 }

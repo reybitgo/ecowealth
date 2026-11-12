@@ -1,0 +1,29 @@
+# QA17B-02 - Set a P.V., load the reference ladder, enable and save
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat - signed in as admin
+#
+# Command: POST /admin/products/save (no product_id = create)
+#   name=QA17B Repeat Product QA17B-324227  sku=QA17B-324227  price=300.00  pv=250  stock=50  status=active
+#   unilevel_base=auto  unilevel_enabled=1
+#   unilevel_levels[1..10] = 5,5,5,3,3,2,2,2,1,1 (the reference ladder)
+#   -> 302 /ecowealth/system/admin/products
+#
+# SELECT level, percent FROM product_unilevel_levels WHERE product_id = 2181 ORDER BY level;
+#   rows      : 10
+#   per level : 5.000, 5.000, 5.000, 3.000, 3.000, 2.000, 2.000, 2.000, 1.000, 1.000
+#   sum       : 29.000
+# SELECT pv, unilevel_enabled, unilevel_base FROM products WHERE id = 2181;
+#   pv | on | base : 250.00 | 1 | auto
+#
+# GET /admin/products/2181/edit (re-opened):
+#   value of unilevel_levels[1] : 5
+#   total badge                 : 29.000%
+#   switch                      : CHECKED (on)
+#   base Auto selected          : True
+#   P.V. input value            : 250.00
+#
+# audit_log (newest product.unilevel.update for this product):
+#   product.unilevel.update product#2181 changes=["pv", "enabled", "levels.1", "levels.2", "levels.3", "levels.4", "levels.5", "levels.6", "levels.7", "levels.8", "levels.9", "levels.10"] before.pv="0.00" after.pv="250.00"
+#
+# Expected: ten rows totalling 29.000%, switch on, base Auto, P.V. 250.00,
+#           the form reading 29.000%, one audit entry with before/after.
+# Result: PASS

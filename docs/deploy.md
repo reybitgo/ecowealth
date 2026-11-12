@@ -705,7 +705,7 @@ Open phpMyAdmin → select the database → **SQL** and run the verification pac
 `dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
 
 ```sql
--- 1. 27 tables and 48 settings on a fresh production install
+-- 1. 31 tables and 54 settings on a fresh production install
 SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
        (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
        (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
@@ -730,7 +730,7 @@ SELECT COUNT(*) AS surfaces FROM live_revisions;
 SHOW TABLES LIKE 'live_revisions';
 ```
 
-A fresh production install prints **27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
+A fresh production install prints **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
 is empty after a static `install.sql` import; it may hold a row for `admin.products` after the
 first product change, and a reset leaves 18 standard surfaces. Record the output with the
 go-live evidence (§12).
@@ -766,7 +766,7 @@ Before calling the site live:
 - [ ] Confirm no demo data leaked into production:
       `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
       and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
-- [ ] Run the verification pack (§11.6) and file its output: 27 tables, 48 settings, 2 staff,
+- [ ] Run the verification pack (§11.6) and file its output: 31 tables, 54 settings, 2 staff,
       0 members, 7 products, 2 packages, 18 levels, 10 contents, 0 codes.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
@@ -1037,3 +1037,39 @@ headers, uploads, cron and restore checks.
 When a later phase adds a migration, a cron job or a new hosting requirement, update
 [Step 5](#5-import-the-database), [Step 8](#8-set-the-php-version-and-extensions),
 [Step 13](#13-optional-cron-jobs) and the checklist above.
+
+---
+
+## Phase 17 addendum — the repeat-purchase bonus settings
+
+Migration `020_unilevel_repeat_purchase.sql` (Phase 17A) adds four tables, four columns, two indexes,
+ten `ewallet_ledger.ref_type` values in total and **six settings**. Phase 17B makes **five** of them
+editable on `/admin/settings` → **Commissions** → *Repeat-purchase bonus*:
+
+| Key | Default | Shown as |
+|---|---|---|
+| `unilevel_enabled` | `0` | **Repeat-purchase bonus enabled** — the global master switch |
+| `unilevel_max_levels` | `10` | **Upline depth** (1–10) |
+| `unilevel_requires_active_upline` | `1` | **Require the monthly Active rule** |
+| `unilevel_active_threshold` | `500` | **Monthly personal-purchase minimum** (₱) |
+| `unilevel_reversal_enabled` | `1` | **Reverse awards when a paid order is cancelled** |
+
+The sixth key, `unilevel_ledger_since`, is a reconciliation baseline written by the migration and is
+never rendered or editable.
+
+The **per-product** half is configured on the product form: **Point value (P.V.)** in *Pricing &
+stock*, then the *Unilevel repeat-purchase bonus* card (bonus base, ten rates, the per-product switch).
+A new product is pre-filled with the reference ladder 5/5/5/3/3/2/2/2/1/1 but its switch is **off**;
+a product that existed before the migration reads 0% everywhere. Nothing is enabled by default and
+**no money moves until Phase 17C** ships the engine: a paid order still writes no award row and no
+`ref_type = 'unilevel'` ledger row.
+
+Upgrade checklist additions:
+
+- [ ] Apply migration `020` (it is additive and re-runnable), or import the regenerated
+      `install.sql` on an empty schema.
+- [ ] Confirm the six keys: `SELECT key_name, value FROM settings WHERE key_name LIKE 'unilevel%';`
+      — six rows, `unilevel_enabled = 0`.
+- [ ] Open a product's edit page and confirm the *Unilevel repeat-purchase bonus* card renders and
+      saves (P.V., base, ten rates). Nothing is paid, whatever is configured.
+- [ ] Leave `unilevel_enabled` at `0` until the operations runbook for the stream exists (Phase 17F/17G).

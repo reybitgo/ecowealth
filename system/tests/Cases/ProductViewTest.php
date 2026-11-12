@@ -294,4 +294,25 @@ return [
         assert_contains('value="300.00"', $html);
         assert_contains('Stable after creation', $html);
     },
+
+    'P17B-T14 the form view itself renders the repeat-purchase card' => function () use ($render, $product): void {
+        /* The controller's own render path is covered by
+         * UnilevelConfigurationTest; this case proves the shared form view
+         * carries the card for *any* caller and that an older caller that
+         * passes no ladder still gets ten editable, blank rows. */
+        test_signed_in_as(test_user('catalog_admin', 'admin'));
+
+        $html = $render('admin', 'admin/products/form', [
+            'product' => $product(['unilevel_enabled' => 0, 'unilevel_base' => 'auto']),
+            'current' => $product(['unilevel_enabled' => 0, 'unilevel_base' => 'auto']),
+        ]);
+
+        assert_contains('Unilevel repeat-purchase bonus', $html);
+        assert_contains('Levels 1–10', $html);
+        assert_contains('name="pv"', $html);
+        assert_same(10, preg_match_all('/name="unilevel_levels\[\d+\]"/', $html));
+        assert_contains('Load reference ladder', $html);
+        assert_not_contains('direct_unilevel', $html);
+        assert_not_contains('indirect_unilevel', $html);
+    },
 ];

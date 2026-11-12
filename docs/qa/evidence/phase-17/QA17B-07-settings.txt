@@ -1,0 +1,24 @@
+# QA17B-07 - The settings block and its validation
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat - signed in as admin
+#
+# GET /admin/settings -> Commissions -> "Repeat-purchase bonus"
+#   depth input                       : <input type="number" min="1" max="10" step="1" name="unilevel_max_levels" id="setting-unilevel_max_levels" class="form-control " value="10" />
+#   depth value                       : 10
+#   threshold value                   : 500
+#   repeat-purchase switches rendered : 3 (enabled, requires_active_upline, reversal_enabled)
+#   unilevel_ledger_since rendered    : False  (must be False)
+#
+# 1. POST /admin/settings section=commissions with unilevel_max_levels=11
+#    -> 302 /ecowealth/system/admin/settings#settings-commissions
+#    GET /admin/settings: Upline depth must be at most 10.
+#    stored depth before / after : 10 / 10
+#
+# 2. POST /admin/settings section=commissions with unilevel_max_levels=10 and
+#    unilevel_active_threshold=500.00
+#    -> 302 /ecowealth/system/admin/settings#settings-commissions
+#    stored depth | threshold    : 10 | 500.00
+#    latest settings.update      : settings.update commissions changes=["unilevel_active_threshold"]
+#
+# Expected: the five keys render (never the sixth), depth 11 is refused with its
+#           message and writes nothing, depth 10 saves and the change is audited.
+# Result: PASS

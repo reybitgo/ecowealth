@@ -2946,6 +2946,243 @@ try {
     # Leave the cart clean for the maintenance checks.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
 
+    # ---- Phase 17B: the repeat-purchase configuration -------------------
+    $p17bRan        = $true
+    $p17bAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+    $p17bSku        = 'SMOKE-P17B-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p17bName       = 'Smoke Repeat Product ' + $p17bSku
+
+    # Every key the Commissions card owns: a card save writes all of them,
+    # so each one is snapshotted and posted back unchanged.
+    $p17bCommissionKeys = @(
+        'commission_direct_enabled', 'commission_indirect_enabled', 'commission_requires_active_sponsor',
+        'commission_compression', 'free_registration_enabled', 'commission_indirect_max_levels',
+        'unilevel_enabled', 'unilevel_max_levels', 'unilevel_requires_active_upline',
+        'unilevel_active_threshold', 'unilevel_reversal_enabled'
+    )
+
+    $p17bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p17bToken    = Get-Csrf $p17bSettings.Body
+
+    foreach ($key in $p17bCommissionKeys) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    # P17B-T14 - the product form carries the card, the P.V. field and no
+    # direct/indirect control of any kind (D-17).
+    $p17bNewPage  = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    $p17bRateRows = [regex]::Matches($p17bNewPage.Body, 'name="unilevel_levels\[\d+\]"').Count
+    Assert-That 'P17B-T14' ($p17bNewPage.Status -eq 200 -and $p17bRateRows -eq 10 `
+            -and $p17bNewPage.Body -match 'Unilevel repeat-purchase bonus' `
+            -and $p17bNewPage.Body -match 'name="pv"' `
+            -and $p17bNewPage.Body -match 'name="unilevel_base"' `
+            -and $p17bNewPage.Body -match 'app-product-unilevel\.js' `
+            -and $p17bNewPage.Body -notmatch 'direct_unilevel' `
+            -and $p17bNewPage.Body -notmatch 'indirect_unilevel') `
+        "the product form renders ten rate inputs, the P.V. field and the base select, with no direct/indirect control (inputs=$p17bRateRows)"
+
+    # P17B-T1 / QA17B-02 - create with a P.V., the reference ladder and the
+    # switch on; ten rows, 29.000% in total.
+    $p17bForm = @{
+        '_csrf'              = $adminToken
+        'name'               = $p17bName
+        'sku'                = $p17bSku
+        'price'              = '300.00'
+        'pv'                 = '250'
+        'stock'              = '50'
+        'sort_order'         = '999'
+        'status'             = 'active'
+        'unilevel_base'      = 'auto'
+        'unilevel_enabled'   = '1'
+        'unilevel_levels[1]' = '5'
+        'unilevel_levels[2]' = '5'
+        'unilevel_levels[3]' = '5'
+        'unilevel_levels[4]' = '3'
+        'unilevel_levels[5]' = '3'
+        'unilevel_levels[6]' = '2'
+        'unilevel_levels[7]' = '2'
+        'unilevel_levels[8]' = '2'
+        'unilevel_levels[9]' = '1'
+        'unilevel_levels[10]' = '1'
+    }
+
+    $p17bCreate  = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bForm
+    $p17bId      = [int] ((Invoke-MySql "SELECT id FROM products WHERE sku = '$p17bSku' LIMIT 1;" | Out-String).Trim())
+    $p17bRows    = (Invoke-MySql "SELECT COUNT(*) FROM product_unilevel_levels WHERE product_id = $p17bId;" | Out-String).Trim()
+    $p17bSum     = (Invoke-MySql "SELECT SUM(percent) FROM product_unilevel_levels WHERE product_id = $p17bId;" | Out-String).Trim()
+    $p17bProduct = (Invoke-MySql "SELECT CONCAT(pv, '|', unilevel_enabled, '|', unilevel_base) FROM products WHERE id = $p17bId;" | Out-String).Trim()
+
+    Assert-That 'P17B-T1' ($p17bCreate.Status -eq 302 -and $p17bId -gt 0 -and $p17bRows -eq '10' `
+            -and $p17bSum -eq '29.000' -and $p17bProduct -eq '250.00|1|auto') `
+        "POST /admin/products/save stores the P.V., the switch and ten ladder rows totalling 29.000% (status=$($p17bCreate.Status), id=$p17bId, rows=$p17bRows, sum=$p17bSum, pv|on|base=$p17bProduct)"
+
+    $p17bEditPage = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    Assert-That 'P17B-T1' ($p17bEditPage.Status -eq 200 -and $p17bEditPage.Body -match 'value="5"' `
+            -and $p17bEditPage.Body -match '29\.000%' -and $p17bEditPage.Body -match 'checked' `
+            -and $p17bEditPage.Body -match 'value="250.00"') `
+        'the edit form re-reads the stored ladder, the 29.000% total, the switch and the P.V.'
+
+    # P17B-T9 - the ladder change is audited once, with before and after.
+    $p17bAuditCount = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'product.unilevel.update' AND subject_id = $p17bId;" | Out-String).Trim()
+    $p17bAuditMeta  = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'product.unilevel.update' AND subject_id = $p17bId ORDER BY id DESC LIMIT 1;" | Out-String)
+    Assert-That 'P17B-T9' ($p17bAuditCount -eq '1' -and $p17bAuditMeta -match '"before"' `
+            -and $p17bAuditMeta -match '"after"' -and $p17bAuditMeta -match '"levels"') `
+        "editing the ladder writes one product.unilevel.update audit row with before/after (rows=$p17bAuditCount)"
+
+    # P17B-T3 / QA17B-03 - ten levels at 20% is 200%: refused, values kept,
+    # the stored ladder untouched.
+    $p17bOver = $p17bForm.Clone()
+    $p17bOver['product_id'] = "$p17bId"
+
+    for ($level = 1; $level -le 10; $level++) {
+        $p17bOver["unilevel_levels[$level]"] = '20'
+    }
+
+    $p17bOverSave = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bOver
+    $p17bOverForm = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    $p17bLevel4   = (Invoke-MySql "SELECT percent FROM product_unilevel_levels WHERE product_id = $p17bId AND level = 4;" | Out-String).Trim()
+
+    Assert-That 'P17B-T3' ($p17bOverSave.Status -eq 302 -and $p17bOverForm.Body -match 'cannot add up to more than 100%' `
+            -and $p17bOverForm.Body -match 'value="20"' -and $p17bLevel4 -eq '3.000') `
+        "a 200% ladder is refused with the sum error, the deleted values stay on screen and the stored 3.000% survives (level4=$p17bLevel4)"
+
+    # P17B-T6 / QA17B-04 - switch on with every level cleared is refused.
+    $p17bEmpty = $p17bForm.Clone()
+    $p17bEmpty['product_id'] = "$p17bId"
+
+    for ($level = 1; $level -le 10; $level++) {
+        $p17bEmpty["unilevel_levels[$level]"] = ''
+    }
+
+    $p17bEmptySave = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bEmpty
+    $p17bEmptyForm = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    Assert-That 'P17B-T6' ($p17bEmptySave.Status -eq 302 -and $p17bEmptyForm.Body -match 'Turn the switch off or give at least one level a rate above 0') `
+        'switching the ladder on with every level at 0 is refused'
+
+    # P17B-T7 / QA17B-05 - a P.V. base needs a P.V.
+    $p17bPvBase = $p17bForm.Clone()
+    $p17bPvBase['product_id']     = "$p17bId"
+    $p17bPvBase['pv']             = '0'
+    $p17bPvBase['unilevel_base']  = 'pv'
+
+    $p17bPvSave = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bPvBase
+    $p17bPvForm = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    $p17bAfterPv = (Invoke-MySql "SELECT CONCAT(pv, '|', unilevel_base) FROM products WHERE id = $p17bId;" | Out-String).Trim()
+
+    Assert-That 'P17B-T7' ($p17bPvSave.Status -eq 302 -and $p17bPvForm.Body -match 'A P\.V\. base needs a point value above 0' `
+            -and $p17bAfterPv -eq '250.00|auto') `
+        "a P.V. base with no P.V. is refused on the base field and the product keeps its P.V. and Auto base ($p17bAfterPv)"
+
+    # QA17B-08 - the form saves with JavaScript off: the preview is the only
+    # thing that is missing, and it is rendered server-side, so nothing that
+    # matters depends on the script.
+    $p17bNoJsForm = $p17bForm.Clone()
+    $p17bNoJsForm['product_id'] = "$p17bId"
+    $p17bNoJs = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bNoJsForm
+    $p17bNoJsRows = (Invoke-MySql "SELECT COUNT(*) FROM product_unilevel_levels WHERE product_id = $p17bId;" | Out-String).Trim()
+    Assert-That 'P17B-T14' ($p17bNoJs.Status -eq 302 -and $p17bNoJsRows -eq '10') `
+        'the product form still saves through a plain POST (no script run)'
+
+    # P17B-T16 / T17 / QA17B-06 - the badge and the filter.
+    $p17bList = Invoke-App -Path "/admin/products?q=$p17bSku" -Session 'admin'
+    $p17bOn   = Invoke-App -Path "/admin/products?unilevel=on&q=$p17bSku" -Session 'admin'
+    $p17bOff  = Invoke-App -Path "/admin/products?unilevel=off&q=$p17bSku" -Session 'admin'
+
+    Assert-That 'P17B-T16' ($p17bList.Status -eq 200 -and $p17bList.Body -match 'Repeat bonus 29%') `
+        'the list badge reads Repeat bonus 29% for a configured product'
+
+    Assert-That 'P17B-T17' ($p17bOn.Body -match "admin/products/$p17bId/edit" `
+            -and $p17bOff.Body -notmatch "admin/products/$p17bId/edit" `
+            -and $p17bOff.Body -match 'No products match these filters') `
+        'the ?unilevel=on filter returns the product and ?unilevel=off does not'
+
+    # P17B-T18 / T19 / QA17B-07 - the Commissions card and its validation.
+    $p17bCard = $p17bSettings.Body -match 'Repeat-purchase bonus' `
+        -and $p17bSettings.Body -match 'name="unilevel_max_levels"' `
+        -and $p17bSettings.Body -match 'name="unilevel_active_threshold"' `
+        -and $p17bSettings.Body -match 'name="unilevel_enabled"' `
+        -and $p17bSettings.Body -match 'name="unilevel_requires_active_upline"' `
+        -and $p17bSettings.Body -match 'name="unilevel_reversal_enabled"' `
+        -and $p17bSettings.Body -notmatch 'unilevel_ledger_since'
+    Assert-That 'P17B-T18' $p17bCard `
+        'the Commissions card holds the five repeat-purchase keys and never the ledger baseline'
+
+    $p17bCommissionForm = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p17bCommissionForm[$key] = [string] $settingsSnapshot[$key] }
+
+    $p17bBadDepth = $p17bCommissionForm.Clone()
+    $p17bBadDepth['unilevel_max_levels'] = '11'
+    $p17bBadSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p17bBadDepth
+    $p17bBadPage = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p17bDepthDb = Get-SettingValue 'unilevel_max_levels'
+
+    Assert-That 'P17B-T19' ($p17bBadSave.Status -eq 302 -and $p17bBadPage.Body -match 'Upline depth must be at most 10' `
+            -and $p17bDepthDb -eq [string] $settingsSnapshot['unilevel_max_levels']) `
+        "an out-of-range depth (11) is refused and nothing is written (stored=$p17bDepthDb)"
+
+    $p17bGood = $p17bCommissionForm.Clone()
+    $p17bGood['unilevel_max_levels']       = '10'
+    # A threshold that differs from whatever is stored, so the run always
+    # produces a real change to audit (the finally block restores it).
+    $p17bThreshold = '500.50'
+    if ((Get-SettingValue 'unilevel_active_threshold') -eq $p17bThreshold) { $p17bThreshold = '500.75' }
+    $p17bGood['unilevel_active_threshold'] = $p17bThreshold
+    $p17bGood['unilevel_enabled']          = '0'
+    $p17bGoodSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p17bGood
+    $p17bStored   = (Invoke-MySql "SELECT CONCAT(
+        COALESCE(MAX(CASE WHEN key_name = 'unilevel_max_levels' THEN value END), '?'), '|',
+        COALESCE(MAX(CASE WHEN key_name = 'unilevel_active_threshold' THEN value END), '?'))
+        FROM settings WHERE key_name IN ('unilevel_max_levels', 'unilevel_active_threshold');" | Out-String).Trim()
+    $p17bSettingsAudit = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'settings.update' AND id > $p17bAuditStart AND meta_json LIKE '%unilevel_active_threshold%' ORDER BY id DESC LIMIT 1;" | Out-String)
+
+    Assert-That 'P17B-T19' ($p17bGoodSave.Status -eq 302 -and $p17bStored -eq "10|$p17bThreshold" `
+            -and $p17bSettingsAudit -match 'unilevel_active_threshold') `
+        "the card round-trips a valid depth and threshold and audits the change (stored=$p17bStored)"
+
+    # P17B-T20 / QA17B-09 - a paid e-wallet order for the configured product
+    # still writes no award row: 17B has no hook.
+    $p17bAwardsBefore = (Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim()
+
+    Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'amount' = '500.00'; 'note' = 'Smoke repeat order funds' } | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$p17bId"; 'quantity' = '1' } | Out-Null
+
+    $p17bCheckoutPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $p17bCheckoutToken = Get-Csrf $p17bCheckoutPage.Body
+    $p17bIdem          = ''
+    if ($p17bCheckoutPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $p17bIdem = $matches[1] }
+
+    $p17bPlace = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form @{
+        '_csrf'             = $p17bCheckoutToken
+        'billing_name'      = 'Smoke Buyer'
+        'billing_phone'     = '0917 000 0000'
+        'shipping_name'     = 'Smoke Buyer'
+        'shipping_phone'    = '0917 000 0000'
+        'shipping_address'  = '12 Smoke Street'
+        'shipping_barangay' = 'Poblacion'
+        'shipping_city'     = 'Makati'
+        'shipping_province' = 'Metro Manila'
+        'shipping_postal'   = '1200'
+        'notes_member'      = 'Smoke repeat order'
+        'payment_method'    = 'ewallet'
+        'terms'             = '1'
+        'idempotency_key'   = $p17bIdem
+    }
+
+    $p17bOrderId = 0
+    if ($p17bPlace.Location -match '/orders/(\d+)$') { $p17bOrderId = [int]$matches[1] }
+
+    $p17bOrderStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $p17bOrderId;" | Out-String).Trim()
+    $p17bOrderStamp  = (Invoke-MySql "SELECT CONCAT(COALESCE(DATE_FORMAT(unilevel_processed_at, '%Y-%m-%d'), 'NULL'), '|', unilevel_total) FROM shop_orders WHERE id = $p17bOrderId;" | Out-String).Trim()
+    $p17bAwardsAfter = (Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim()
+    $p17bUnilevelLedger = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('unilevel', 'unilevel_reversal');" | Out-String).Trim()
+
+    Assert-That 'P17B-T20' ($p17bPlace.Status -eq 302 -and $p17bOrderId -gt 0 -and $p17bOrderStatus -eq 'paid' `
+            -and $p17bOrderStamp -eq 'NULL|0.00' -and $p17bAwardsAfter -eq $p17bAwardsBefore `
+            -and $p17bAwardsAfter -eq '0' -and $p17bUnilevelLedger -eq '0') `
+        "a paid order for a fully configured product writes no award and moves no repeat-purchase money (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsAfter, ledger=$p17bUnilevelLedger)"
+
     # ---- Phase 15: hardening, reports, settings, audit and launch ------
     $p15Ran = $true
     $p15AuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
@@ -3051,6 +3288,14 @@ try {
         'commission_indirect_enabled'      = '1'
         'commission_requires_active_sponsor' = '1'
         'free_registration_enabled'        = '1'
+        # Phase 17B: the card also owns the repeat-purchase block, so a card
+        # save has to carry it (the two commission switches stay unticked on
+        # purpose, which is what this check proves).
+        'unilevel_max_levels'              = '10'
+        'unilevel_active_threshold'        = '500'
+        'unilevel_enabled'                 = '0'
+        'unilevel_requires_active_upline'  = '1'
+        'unilevel_reversal_enabled'        = '1'
     }
     $p15CommissionsOff = (Get-SettingValue 'commission_direct_enabled') -eq '0'
 
@@ -3364,6 +3609,13 @@ try {
         }
         if ($p14AuditStart -gt 0) {
             Invoke-MySql "DELETE FROM audit_log WHERE id > $p14AuditStart AND action LIKE 'slogin.%';" | Out-Null
+        }
+    } catch { }
+    # Phase 17B: the ladder and settings audit rows this run wrote (the
+    # products and the order are removed by the SMOKE-% and member cleanups).
+    try {
+        if ($p17bRan -and $p17bAuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p17bAuditStart AND action IN ('product.unilevel.update', 'settings.update');" | Out-Null
         }
     } catch { }
     try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }

@@ -689,7 +689,7 @@ page is the complete settings surface — **eight independent cards**, each with
 | **Payout methods** | `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee`, `payout_<method>_enabled` |
 | **Payment windows** | `shop_payment_deadline_hours`, `shop_correction_window_hours`, `shop_max_proof_attempts`, `shop_expiry_enabled` |
 | **Fulfilment & invoices** | `seller_*`, `shop_autocomplete_days`, `shop_autocomplete_enabled` |
-| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled` |
+| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`, plus the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled` |
 | **Transfers** | `ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`, `ewallet_transfer_weekly_limit` (0 = unlimited) |
 
 The controller only validates, writes and audits the submitted card's keys (`settings.update`, with
@@ -720,6 +720,9 @@ and the referral-link signup; it is editable on the **Commissions** card.
 - Product images are stored under `public/uploads/products/` with random names. Seeded
   demo products reference photos under `public/assets/img/products/`; two rows
   deliberately have no image so the placeholder path is exercised.
+- Since Phase 17B the form also carries the **Point value (P.V.)** and the per-product
+  **repeat-purchase ladder** (see [Repeat-purchase bonus](#repeat-purchase-bonus-phase-17b)).
+  A plain catalogue save never rewrites a bonus configuration.
 - Deleting a product is refused while an order line or cart line references it; the admin
   list disables the button and names the reason (order history vs. a member's cart).
 
@@ -1138,6 +1141,53 @@ withdrawable wallet money.
 ```bash
 php bin/wallet_reconcile.php          # wallets + commissions, exit 0 when clean
 php bin/wallet_reconcile.php --json
+```
+
+---
+
+## Repeat-purchase bonus (Phase 17B)
+
+A **per-product unilevel ladder** that will pay the buyer's sponsor chain on every **paid shop order**:
+level 1 is the direct sponsor, level 10 the tenth upline. Phase 17B ships the **configuration only** —
+the ladder model, the product form, the list badge and the settings block. The engine that pays it is
+Phase 17C, so **paying an order today moves no repeat-purchase money**: `unilevel_awards` stays empty
+and no wallet row carries `ref_type = 'unilevel'`. Deploying this code changes nothing until an operator
+configures a product **and** turns the global switch on.
+
+- **One ladder, ten equal rows (D-17).** Levels 1–10 in `product_unilevel_levels`, each a percentage of
+  the line's base. There is **no** direct/indirect split, no separate direct field, no read-only level 1
+  and no `type` column — level 1 is simply the first row. `ProductUnilevel` is the only reader/writer.
+- **The product form** (`/admin/products/new`, `/admin/products/{id}/edit`) carries:
+  - *Point value (P.V.)* in **Pricing & stock** — money, `0` means "not set";
+  - *Bonus base* in the ladder card — **Auto** (P.V. when set, else the price), **P.V.** or **Retail
+    price**, stored in `products.unilevel_base`;
+  - ten rate inputs `unilevel_levels[1…10]` (`min 0`, `max 100`, `step 0.001`) and the per-product switch
+    `products.unilevel_enabled`;
+  - the running total and each level's per-unit amount, recomputed live by
+    `assets/js/app-product-unilevel.js` (progressive enhancement — the same numbers are rendered
+    server-side, so the form saves and validates with JavaScript off);
+  - **Load reference ladder** (5/5/5/3/3/2/2/2/1/1 = 29%) and **Clear**. A **new** product is pre-filled
+    with the preset but its switch stays **off**; a migrated product reads 0% everywhere.
+- **The rules.** Blank and `0` are the same value: ten rows are written on save, zero-filled. A rate is
+  0–100 with at most three decimals. The ten levels may not add up to more than **100%** — a field error
+  on the ladder, never a silent clamp. Switching a product on with every level at 0 is refused, and so
+  is a P.V. base with no P.V. (`0`). One save writes the product row, the two new columns and the ladder
+  in **one transaction**.
+- **Audit.** A changed configuration writes one `product.unilevel.update` entry (before/after and the
+  keys that moved) inside the same transaction. A save that changes nothing writes nothing.
+- **The list** shows `Repeat bonus 29%` when the switch is on and the ladder has a total, `Repeat bonus
+  0%` when it is on with an empty ladder (a configuration error the operator can see), and no badge when
+  it is off. `?unilevel=on|off` filters the catalogue table and survives pagination.
+- **The settings block** lives in the **Commissions** card, under *Repeat-purchase bonus*: `Upline depth`
+  (1–10), `Monthly personal-purchase minimum` (₱), and the three switches `unilevel_enabled`,
+  `unilevel_requires_active_upline`, `unilevel_reversal_enabled`. The sixth key,
+  `unilevel_ledger_since`, is a reconciliation baseline and is never rendered. Saving the card validates
+  and audits exactly like the Phase 15 cards (`settings.update`).
+- **Delete guard.** A product with ladder rows is deleted with them (`ON DELETE CASCADE`); a product that
+  paid a repeat-purchase award cannot be deleted (`ON DELETE RESTRICT`, reported by the list).
+
+```bash
+php tests/run.php UnilevelConfiguration   # the phase's 24 cases
 ```
 
 ---

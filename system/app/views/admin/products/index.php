@@ -11,16 +11,19 @@ declare(strict_types=1);
  *
  * @var list<array<string, mixed>> $products
  * @var Paginator                  $pager
- * @var array{q?: string, status?: string} $filters
+ * @var array{q?: string, status?: string, unilevel?: string} $filters
  * @var array{total:int, active:int, inactive:int, out_of_stock:int} $stats
- * @var array<int, array{orders:int, carts:int, packages:int}> $references
+ * @var array<int, array{orders:int, carts:int, packages:int, awards:int}> $references
  * @var array<int, int>            $available
+ * @var array<int, float>          $repeat_totals ladder total per product
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
-$query      = trim((string) ($filters['q'] ?? ''));
-$status     = (string) ($filters['status'] ?? '');
-$hasFilters = $query !== '' || $status !== '';
+$query        = trim((string) ($filters['q'] ?? ''));
+$status       = (string) ($filters['status'] ?? '');
+$unilevel     = (string) ($filters['unilevel'] ?? '');
+$repeatTotals = $repeat_totals ?? [];
+$hasFilters   = $query !== '' || $status !== '' || $unilevel !== '';
 
 $live = $live ?? [
     'surface'  => 'admin.products',
@@ -71,6 +74,11 @@ $live = $live ?? [
                       <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
                       <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                     </select>
+                    <select name="unilevel" class="form-select" aria-label="Filter by repeat-purchase bonus">
+                      <option value="">Repeat bonus — all</option>
+                      <option value="on" <?= $unilevel === 'on' ? 'selected' : '' ?>>Repeat bonus — on</option>
+                      <option value="off" <?= $unilevel === 'off' ? 'selected' : '' ?>>Repeat bonus — off</option>
+                    </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($hasFilters): ?>
                     <a href="<?= e(url('admin/products')) ?>" class="btn btn-label-secondary">Clear</a>
@@ -91,10 +99,11 @@ $live = $live ?? [
                       </tr>
                     </thead>
 <?= View::capture('admin/products/_rows', [
-    'products'   => $products,
-    'references' => $references,
-    'available'  => $available,
-    'filters'    => $filters,
+    'products'      => $products,
+    'references'    => $references,
+    'available'     => $available,
+    'filters'       => $filters,
+    'repeat_totals' => $repeatTotals,
 ]) ?>
                   </table>
                 </div>

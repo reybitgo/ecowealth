@@ -300,7 +300,11 @@ return [
         $transfers  = $sectionMethod('sectionKeys', 'transfers');
 
         assert_same(['site_name', 'site_tagline'], $general);
-        assert_same(['commission_indirect_max_levels'], $commissions);
+        assert_same(
+            ['commission_indirect_max_levels', 'unilevel_max_levels', 'unilevel_active_threshold'],
+            $commissions,
+            'the commissions card owns the referral depth and both repeat-purchase numbers'
+        );
         assert_same(
             [
                 'ewallet_transfer_fee',
@@ -376,9 +380,12 @@ return [
                 'commission_requires_active_sponsor',
                 'commission_compression',
                 'free_registration_enabled',
+                'unilevel_enabled',
+                'unilevel_requires_active_upline',
+                'unilevel_reversal_enabled',
             ],
             $sectionMethod('sectionToggles', 'commissions'),
-            'one switch per compensation rule'
+            'one switch per compensation rule, including the three repeat-purchase switches'
         );
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 
