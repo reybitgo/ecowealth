@@ -3139,8 +3139,9 @@ try {
             -and $p17bSettingsAudit -match 'unilevel_active_threshold') `
         "the card round-trips a valid depth and threshold and audits the change (stored=$p17bStored)"
 
-    # P17B-T20 / QA17B-09 - a paid e-wallet order for the configured product
-    # still writes no award row: 17B has no hook.
+    # P17B-T20 / QA17B-09 - the configured product is on but the global
+    # master is off. 17C's hook stamps the order as "decided, nothing
+    # due" (a date and a zero total) and still writes no award.
     $p17bAwardsBefore = (Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim()
 
     Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' `
@@ -3179,9 +3180,9 @@ try {
     $p17bUnilevelLedger = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('unilevel', 'unilevel_reversal');" | Out-String).Trim()
 
     Assert-That 'P17B-T20' ($p17bPlace.Status -eq 302 -and $p17bOrderId -gt 0 -and $p17bOrderStatus -eq 'paid' `
-            -and $p17bOrderStamp -eq 'NULL|0.00' -and $p17bAwardsAfter -eq $p17bAwardsBefore `
+            -and $p17bOrderStamp -match '^\d{4}-\d{2}-\d{2}\|0\.00$' -and $p17bAwardsAfter -eq $p17bAwardsBefore `
             -and $p17bAwardsAfter -eq '0' -and $p17bUnilevelLedger -eq '0') `
-        "a paid order for a fully configured product writes no award and moves no repeat-purchase money (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsAfter, ledger=$p17bUnilevelLedger)"
+        "a paid order with the global stream off is stamped with a zero total and writes no award (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsAfter, ledger=$p17bUnilevelLedger)"
 
     # ---- Phase 15: hardening, reports, settings, audit and launch ------
     $p15Ran = $true

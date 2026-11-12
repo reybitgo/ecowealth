@@ -37,6 +37,7 @@ final class OrderService
     private WalletService $wallet;
     private CartService $carts;
     private InvoiceService $invoices;
+    private UnilevelService $unilevel;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -44,6 +45,7 @@ final class OrderService
         $this->wallet   = new WalletService($this->pdo);
         $this->carts    = new CartService($this->pdo);
         $this->invoices = new InvoiceService($this->pdo);
+        $this->unilevel = new UnilevelService($this->pdo);
     }
 
     /* ----------------------------------------------------------
@@ -193,6 +195,12 @@ final class OrderService
                     $lineTotal = round($unitPrice * $quantity, 2);
                     $subtotal  = round($subtotal + $lineTotal, 2);
 
+                    /* The repeat-purchase base is frozen on the line now,
+                     * so an edit to the price or P.V. between placement
+                     * and verification cannot rewrite what this order
+                     * pays (plan §12.3, D-06). */
+                    $base = ProductUnilevel::baseFor($product, $quantity);
+
                     $lines[] = [
                         'product_id'   => $productId,
                         'product_name' => mb_substr((string) $product['name'], 0, 160),
@@ -200,6 +208,8 @@ final class OrderService
                         'quantity'     => $quantity,
                         'unit_price'   => $unitPrice,
                         'line_total'   => $lineTotal,
+                        'unit_base'    => $base['unit'],
+                        'base_total'   => $base['total'],
                     ];
                 }
 
@@ -291,6 +301,13 @@ final class OrderService
                      * the payment, so "paid" and "invoiced" cannot drift
                      * (plan §5.7, Phase 8). */
                     $this->invoices->issueForPaidOrder($orderId, $this->pdo);
+
+                    /* The repeat-purchase ladder is paid on the money
+                     * event, inside the same transaction: the awards,
+                     * the wallet credits and the order stamp either all
+                     * commit or all roll back (plan §14.5). A failure
+                     * propagates and aborts the checkout. */
+                    $this->unilevel->onOrderPaid($orderId, $this->pdo);
 
                     $status = 'paid';
                 }
@@ -458,7 +475,7 @@ final class OrderService
         $marks = implode(',', array_fill(0, count($productIds), '?'));
 
         $stmt = $this->pdo->prepare(
-            'SELECT id, name, sku, price, stock, status
+            'SELECT id, name, sku, price, pv, unilevel_enabled, unilevel_base, stock, status
                FROM products
               WHERE id IN (' . $marks . ')
               ORDER BY id ASC
@@ -558,8 +575,9 @@ final class OrderService
     {
         $stmt = $this->pdo->prepare(
             "INSERT INTO shop_order_items
-               (order_id, product_id, product_name, product_sku, quantity, unit_price, line_total, reservation_state)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 'reserved')"
+               (order_id, product_id, product_name, product_sku, quantity, unit_price, line_total,
+                unit_base, base_total, reservation_state)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved')"
         );
 
         foreach ($lines as $line) {
@@ -571,6 +589,8 @@ final class OrderService
                 (int) $line['quantity'],
                 $this->decimal((float) $line['unit_price']),
                 $this->decimal((float) $line['line_total']),
+                $this->decimal((float) ($line['unit_base'] ?? 0)),
+                $this->decimal((float) ($line['base_total'] ?? 0)),
             ]);
         }
     }

@@ -3244,7 +3244,7 @@ filled row is not closed, whatever its code says.
 |---|---|---|---|---:|---:|---|---|---|---|
 | 17A Foundation | `p17a-foundation` | 2026-11-12 | 830 / 830 | 195 / 195 | `--check` exit 0 (sha256 `a5467d25…`); migration applied twice, idempotent | A: 08/08 | DSH | 4 (see below) | ☑ |
 | 17B Configuration | `p17b-configuration` | 2026-11-12 | 855 / 855 | 209 / 209 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | B: 09/09 | DSH | 7 (see below) | ☑ |
-| 17C Money engine | `p17c-money` | | __ / __ | __ / __ | `wallet_reconcile` exit 0 | C: __/10 | | | |
+| 17C Money engine | `p17c-money` | 2026-11-12 | 906 / 906 | 209 / 209 | no schema change (`--check` exit 0); `wallet_reconcile` exit 0 with five sections | C: 10/10 | DSH | 5 (see below) | ☑ |
 | 17D Admin visibility | `p17d-admin` | | __ / __ | __ / __ | no schema change | D: __/08 | | | |
 | 17E Member visibility | `p17e-member` | | __ / __ | __ / __ | no schema change | E: __/09 | | | |
 | 17F Operations | `p17f-month-close` | | __ / __ | __ / __ | cron doctor | F: __/07 | | | |
@@ -3266,6 +3266,11 @@ owns it. An empty deviation log at the 17G gate means the plan and the build agr
 | 17B | `tests/smoke.ps1`'s `P15-T7` posts the commissions card with the five new keys | The widened card validates them (`required`), so the old partial POST was refused; the check still proves an unticked commission switch is stored as 0 | 17B gate |
 | 17B | `docs/deploy.md`'s install counts corrected from 27/48 to 31/54 | Stale since 17A added migration 020; the file was being edited for the Phase 17 settings addendum anyway | 17B gate |
 | 17B | The manual section-B checks were executed by the automated pass (real HTTP + MySQL transcripts) rather than an independent tester | Same constraint as 17A's row above; the "someone who did not write it" item stays open for the lead's review | pending |
+| 17C | `UnilevelService::reconcile()` compares the `unilevel` ledger with the amounts of **credited + voided** awards, and the `unilevel_reversal` ledger with the voided `reversed_amount`; it does not compare the ledger with only the currently-credited awards | §14.11's literal total check fails after every reversal (the original `unilevel` credit stays while the award becomes `voided`), yet QA17C-07 requires the reconcile to stay clean. The shipped checks are stricter: each movement kind is compared with the awards that produced it, and the order total with the still-credited rows | 17C gate |
+| 17C | `UnilevelAward::forItem()` returns a line's rows and `forEvent()` is the singular `(line, recipient, level)` pre-check | §14.4 names `forItem($orderItemId, $userId, $level)` for layer 2; 17D/17E need the line-level list, so the singular lookup uses the name `Commission::forEvent()` already owns. Behaviour is unchanged | 17C gate |
+| 17C | `UnilevelConfigurationTest` P17B-T20 and the smoke P17B-T20 check were rewritten for the 17C hook | They proved "no hook" at the 17B gate; after 17C the same global-master-off scenario stamps the order with a zero total and still writes no award. No behaviour changed to satisfy the tests | 17C gate |
+| 17C | `P17C-T32` builds a committed fixture on `ecowealth_sneat_tool_a_test` and runs the real `wallet_reconcile.php` as a subprocess | A subprocess cannot see the harness's rolled-back transaction. The test proves both exit codes end to end and recreates the tool schema, as the install tests already do | 17C gate |
+| 17C | The manual section-C checks were executed by the automated pass (real HTTP where a page exists, SQL transcripts, the close helper and the real CLI) rather than an independent tester | Same constraint as 17A and 17B; the SQL/CLI observations are real and the evidence is filed, but the "someone who did not write it" item stays open for the lead's review | pending |
 
 ---
 

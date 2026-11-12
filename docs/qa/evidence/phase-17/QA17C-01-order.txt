@@ -1,0 +1,18 @@
+QA17C-01 — an e-wallet order pays the ladder (automated pass, ecowealth_sneat_test)
+Fixture: P1 price 300.00 / P.V. 250.00 / reference ladder; buyer → c → b → a → boss; order 2 × P1.
+
+shop_orders:
+id | order_no      | status | unilevel_processed_at | unilevel_total
+--------------------------------------------------------------------
+1  | EW26111200001 | paid   | 2026-11-12 18:35:29   | 90.00         
+
+unilevel_awards:
+level | user_id | base_amount | rate_pct | amount | status   | reason
+---------------------------------------------------------------------
+1     | 9       | 500.00      | 5.000    | 25.00  | credited |       
+2     | 10      | 500.00      | 5.000    | 25.00  | credited |       
+3     | 11      | 500.00      | 5.000    | 25.00  | credited |       
+4     | 12      | 500.00      | 3.000    | 15.00  | credited |       
+
+Expected: status paid; stamp set; total 90.00; four credited rows 25/25/25/15.
+

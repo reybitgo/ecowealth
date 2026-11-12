@@ -11,7 +11,8 @@ section B on, may move test money: every one runs on a scratch schema or on the 
 copy, never on a production database.
 
 **Document status.** Section A (17A — Foundation) written 2026-11-12 with the automated gate green;
-section B (17B — Configuration) appended 2026-11-12. Sections C–G are added by their phases.
+section B (17B — Configuration) appended 2026-11-12; section C (17C — Money engine) appended
+2026-11-12. Sections D–G are added by their phases.
 
 ---
 
@@ -29,7 +30,7 @@ php bin\wallet_reconcile.php              # exit 0: the money is untouched by th
 Expected final lines:
 
 ```text
-Cases: 855   Passed: 855   Failed: 0
+Cases: 906   Passed: 906   Failed: 0
 All good.
 ```
 
@@ -38,7 +39,8 @@ Passed: 209   Failed: 0
 ```
 
 The counts grow with each phase: **830 / 195** at `p17a-foundation`, **855 / 209** at
-`p17b-configuration`. Section A's own expectations are stated in section 3; section B's in section 5.
+`p17b-configuration`, **906 / 209** at `p17c-money`. Section A's own expectations are stated in
+section 3; section B's in section 5; section C's in section 7.
 
 The groups that carry Phase 17A (its own share of the suite is listed here):
 
@@ -60,6 +62,19 @@ Phase 17B's share:
 | `ProductViewTest` | +1 | The shared form view renders the card for any caller, and an older caller that passes no ladder still gets ten blank editable rows (P17B-T14) |
 | `ProductTest` | 1 | `referencesMap()` reports the new `awards` count (P17B-T13) |
 | `SettingsPageTest` | 2 | The commissions card's key and toggle lists include the five repeat-purchase keys (P17B-T18/T19) |
+
+Phase 17C's share:
+
+| Group | Cases | What it proves for 17C |
+|---|---:|---|
+| `UnilevelEngine` (new) | 38 | The ladder on a paid line through both real payment paths (the manual path's case lives in `PaymentTest`), the base snapshot and legacy fallback, the depth cap, two products on one order, the buyer never a recipient, the company account skipped, disabled/suspended/monthly-Inactive uplines with no compression, the two switches, the four idempotency layers, the unique anchor, the product delete guard, the preview, full/partial/disabled reversal, an unpaid cancellation and the reconcile; the CLI exit-code case builds a scratch schema and runs the real `wallet_reconcile.php` |
+| `UnilevelCycle` (new) | 11 | The two-clock Active rule: a ₱450 month blocks the next, ₱2,000 restores it, a missing snapshot row is Active, a closed period is immutable, `close()` writes one row per account and one header, a second close is a no-op, a future period is refused, the live fallback agrees with the close, the Manila midnight bounds, the batched lookup (one query for ten recipients) and the close running with the stream off |
+| `PaymentTest` | +1 | P17C-T2: a manual GCash order verified by an admin pays the four-deep ladder once, and a second verification adds no row |
+| `OrderTest` | +1 | P17C-T34: placement snapshots `unit_base`/`base_total`, and a price/P.V. edit before verification cannot rewrite the award |
+| `UnilevelConfigurationTest` | 1 rewritten | P17B-T20 now proves the 17C hand-off: with the global master off the hook stamps `unilevel_processed_at` with a zero total and still writes no award |
+| `DbResetTest` | 1 rewritten | The reset verification now runs **five** reconciliations, including `UnilevelService::reconcile` on the injected PDO |
+| `UnilevelFoundationTest` | 1 rewritten | P17A-T13 now guards the enduring surface: the engine exists, no controller/route/view/month-close job does, and the stream is off on a fresh database |
+| `WalletTest` / `WalletViewTest` / `CommissionTest` / `CommissionIndirectTest` | — | Regression: the referral ledger, the wallet vocabulary and both statements are unchanged |
 
 The migration and bundle cases build scratch schemas (`ecowealth_sneat_migration_test`,
 `ecowealth_sneat_tool_a_test`, `ecowealth_sneat_tool_b_test`). No automated case targets
@@ -536,3 +551,291 @@ Expected
 | Defects | none |
 | Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts; the browser observations (01, 02, 03, 06, 07, 08) were read from the served HTML in the automated pass, exactly as section A's were, so a human may add screenshots without changing the result |
 | Evidence | `docs/qa/evidence/phase-17/` (`QA17B-01-product-edit.txt` … `QA17B-09-order.txt`) |
+
+---
+
+## 7. Section C — Money engine (`QA17C-01` … `QA17C-10`)
+
+**Prerequisites.** The `p17c-money` tag (17A + 17B applied), a scratch schema or the local development
+copy with a backup, and the green automated gate (§1). **Expected suite:** 906 / 906. **Time:** 45–60
+minutes. **No new page appears in this phase** — every check is read from the wallet statements, the
+order data and SQL. Do not run these checks against production.
+
+**Fixture used by the section.** One product `P1` (price ₱300, P.V. ₱250, base *Auto*, reference
+ladder 5/5/5/3/3/2/2/2/1/1 = 29%, switch **on**), one member `buyer` with four sponsors
+`c → b → a → boss` (buyer's sponsor is `c`, `boss`'s sponsor is empty), and the global
+`unilevel_enabled = 1`. A second order of `2 × P1` has a **₱500** base and pays
+**c ₱25, b ₱25, a ₱25, boss ₱15 = ₱90**. The buyer is never paid.
+
+**Helper: a scratch month close (17F owns the real runner).** Save this as `close.php` outside the
+repository and run `php close.php 2026-10`:
+
+```php
+<?php
+require 'C:/laragon/www/ecowealth/system/app/config.php';
+require 'C:/laragon/www/ecowealth/system/app/helpers.php';
+require 'C:/laragon/www/ecowealth/system/app/autoload.php';
+require 'C:/laragon/www/ecowealth/system/app/database.php';
+date_default_timezone_set(APP_TIMEZONE);
+print_r(UnilevelCycle::close($argv[1]));
+```
+
+### QA17C-01 — Configure, enable and pay an e-wallet order
+
+| Why it matters | This is the money event: a paid e-wallet order must pay the ladder. |
+|---|---|
+| Where | `/admin/products/{id}/edit`, `/admin/settings`, member checkout |
+| Evidence | `QA17C-01-order.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `P1`'s edit page: P.V. `250.00`, base **Auto**, the reference ladder, switch **on**. Save.
+2. `/admin/settings` → **Commissions** → *Repeat-purchase bonus*: **Repeat-purchase bonus enabled**
+   on; **Upline depth** `10`; **Monthly personal-purchase minimum** `500.00`; save.
+3. As `buyer`, add **2 × P1** to the cart and pay with the **e-wallet** (fund the buyer first if
+   needed). The order total is **₱600**.
+4. In MySQL:
+   `SELECT status, unilevel_processed_at, unilevel_total FROM shop_orders WHERE id = <order>;`
+
+Expected
+
+- The order is **paid**, `unilevel_processed_at` is a timestamp, and `unilevel_total` is **90.00**.
+- `SELECT level, user_id, amount, status FROM unilevel_awards WHERE order_id = <order> ORDER BY level;`
+  returns four **credited** rows: levels 1–4, ₱25.00, ₱25.00, ₱25.00, ₱15.00.
+- Running the same placement with the global switch off (see `QA17C-09`) writes no row but still
+  stamps the order — a zero payout is a decision, not a gap.
+
+### QA17C-02 — Each upline's wallet shows the credit
+
+| Why it matters | The award must be withdrawable money, not a number on a page. |
+|---|---|
+| Where | `/wallet` as `c`, `b`, `a`, `boss`; `/wallet` as `buyer` |
+| Evidence | `QA17C-02-wallets.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as `c` → `/wallet`: find the **Repeat-purchase bonus** credit of ₱25.00 for this order;
+   the statement filter offers *Repeat-purchase bonus* and matches it.
+2. Repeat as `b` (₱25.00), `a` (₱25.00) and `boss` (₱15.00).
+3. Open `/wallet` as the **buyer**.
+
+Expected
+
+- Each upline's withdrawable bucket rose by exactly the award; `withdrawable_after` on the ledger row
+  equals the new bucket.
+- The buyer's wallet shows only the order debit (₱600) — no repeat-purchase credit, no level-0
+  rebate.
+- The four ledger rows carry `ref_type = 'unilevel'`, `type = 'credit'` and
+  `ref_id = unilevel_awards.id`.
+
+### QA17C-03 — The admin ledger shows the same four movements
+
+| Why it matters | Finance must be able to walk from a wallet movement to its award. |
+|---|---|
+| Where | `/admin/wallets` (all movements) and the member detail |
+| Evidence | `QA17C-03-admin-wallet.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as an admin → `/admin/wallets` → **All movements**; filter/scan for the four credits.
+2. Open a recipient's detail and read the movement's note and reference.
+
+Expected
+
+- Four rows with the **Repeat-purchase bonus** label and the award id as the reference (`ref_id`).
+- The note reads `Repeat-purchase bonus — P1 (level N) — order EW…`.
+- No side effects: no second movement per award, no movement for a skipped row (see `QA17C-06`).
+
+### QA17C-04 — The reconciliation proves the money
+
+| Why it matters | This is the finance gate; a wrong ledger must fail loudly. |
+|---|---|
+| Where | CLI |
+| Evidence | `QA17C-04-reconcile.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\wallet_reconcile.php`.
+2. Run `php bin\wallet_reconcile.php --json` and read the `unilevel` object.
+
+Expected
+
+- Exit **0**; the output has a **Repeat-purchase** section with 4 credited awards, **₱90.00**
+  credited and **₱90.00** `unilevel ledger`, and `OK — every award has its wallet movement…`.
+- `--json` reports `"ok": true` and `"unilevel": { "ok": true, "credited_rows": 4 }`.
+- The four other sections stay clean.
+
+### QA17C-05 — A manual (GCash) order pays only after verification
+
+| Why it matters | The second payment path must pay exactly like the e-wallet one, and not before. |
+|---|---|
+| Where | Member checkout (GCash), proof upload, `/admin/orders/{id}` verify |
+| Evidence | `QA17C-05-manual.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. As `buyer`, place a **GCash** order of `2 × P1` (₱600) and upload a proof for ₱600.
+2. While the order is **payment_review**, run:
+   `SELECT COUNT(*) FROM unilevel_awards WHERE order_id = <order>;`
+3. As an admin, open the order and **Verify** the proof with the exact amount and a fresh reference.
+4. Re-read the order and the four wallets.
+
+Expected
+
+- Before verification: **0** award rows and `unilevel_processed_at IS NULL` — the order is not money
+  yet.
+- After verification: the same four awards (₱25/₱25/₱25/₱15, total ₱90) and the same four wallet
+  credits as `QA17C-02`.
+- Verifying again is refused (the order is `paid`); no fifth award appears.
+
+### QA17C-06 — A disabled upline is skipped, with no compression
+
+| Why it matters | The level number must be consumed; the next upline is not promoted. |
+|---|---|
+| Where | `/admin/members/{id}` (deactivate), member checkout, SQL |
+| Evidence | `QA17C-06-skipped.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Deactivate `b` (`users.is_active = 0`).
+2. Pay a second e-wallet order of `2 × P1` (base ₱500).
+3. Read `SELECT level, user_id, amount, status, reason FROM unilevel_awards WHERE order_id = <order> ORDER BY level;`
+   and the wallets.
+4. Restore `b`.
+
+Expected
+
+- Four rows: level 1 `c` credited ₱25; level 2 `b` **skipped** with
+  `recipient account is disabled` and amount ₱25.00; level 3 `a` credited ₱25; level 4 `boss`
+  credited ₱15.
+- Credited total **₱65**, skipped **₱25**; `b`'s wallet does not change; the ₱25 is **not**
+  redirected to `a` or `boss`.
+- `php bin\wallet_reconcile.php` still exits 0 (a skipped row is not money).
+
+### QA17C-07 — Cancelling a paid order reverses the awards
+
+| Why it matters | A cancelled sale must not leave the bonus behind; a shortfall must be visible. |
+|---|---|
+| Where | `/admin/orders/{id}` → Cancel, SQL, reconcile |
+| Evidence | `QA17C-07-reversal.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Admin-cancel the paid e-wallet order from `QA17C-01` (reason *Cancelled by the administrator*).
+2. Read the order, the awards and the wallets:
+   `SELECT status, reversed_amount, reversal_ledger_id FROM unilevel_awards WHERE order_id = <order>;`
+   `SELECT ref_type, amount FROM ewallet_ledger WHERE ref_type = 'unilevel_reversal' ORDER BY id;`
+3. If an upline had already spent part of the credit, repeat the cancel on another paid order and
+   compare `amount` with `reversed_amount`.
+
+Expected
+
+- Every award is **voided**, keeps its original `amount`, and records `reversed_amount` and a
+  `reversal_ledger_id`.
+- Each upline's wallet is debited by the reversed amount only — **never below zero**. The buyer is
+  refunded the order total as before.
+- A partly spent wallet reverses only what it still holds; the difference is the **shortfall**
+  (`amount − reversed_amount`) and is never hidden.
+- `shop_orders.unilevel_total` is **0.00**; `php bin\wallet_reconcile.php` still exits 0.
+- With `unilevel_reversal_enabled = 0` the awards stay **credited** and no debit is written.
+
+### QA17C-08 — The monthly Active rule
+
+| Why it matters | The two-clock rule blocks an upline who did not buy last month, and the switch can relax it. |
+|---|---|
+| Where | SQL + the helper `close.php`; member checkout |
+| Evidence | `QA17C-08-active.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Give `c` a paid October order of **₱450** (below the ₱500 threshold) and give `b`/`a`/`boss` ₱600
+   each. Run `php close.php 2026-10`.
+2. Pay a November order of `2 × P1` as `buyer`.
+3. Read the awards. Then set **Require the monthly Active rule** off, pay another November order and
+   read again.
+
+Expected
+
+- First order: level 1 `c` is **skipped** with `recipient is not Active for 2026-10`; levels 2–4 pay
+  ₱25/₱25/₱15 = ₱65. The skipped ₱25 is not redirected.
+- With the setting off: `c` is credited ₱25 and the order pays ₱90; the account/membership checks
+  still apply.
+- A member who joined after the close has **no** activity row and is Active; a member with an
+  explicit `qualified = 0` in a closed month is blocked for the following month.
+- Re-running `close.php 2026-10` writes nothing (`closed = 0`, "already closed").
+
+### QA17C-09 — The global kill switch stamps but never pays
+
+| Why it matters | Turning the stream off must stop new money immediately, and a later re-run must not pay. |
+|---|---|
+| Where | `/admin/settings` → Commissions; member checkout; SQL |
+| Evidence | `QA17C-09-kill-switch.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set **Repeat-purchase bonus enabled** to off and save.
+2. Pay an e-wallet order of `2 × P1`.
+3. Read `SELECT unilevel_processed_at, unilevel_total FROM shop_orders WHERE id = <order>;` and
+   `SELECT COUNT(*) FROM unilevel_awards WHERE order_id = <order>;`.
+4. Turn the switch back on, then re-run the hook for that same order once with a scratch script
+   (`(new UnilevelService())->onOrderPaid(<order>)`) and re-read.
+
+Expected
+
+- The order is paid; `unilevel_processed_at` is a timestamp, `unilevel_total` is **0.00**, and there
+  are **0** awards and **0** repeat-purchase ledger rows.
+- Re-running after turning the stream on returns `replayed` and pays nothing — the stamp is the
+  idempotency anchor.
+- A product whose own switch is off behaves the same way and is stamped too.
+
+### QA17C-10 — The month close writes the snapshot once
+
+| Why it matters | The close is what makes the flag authoritative; it must be idempotent and immutable. |
+|---|---|
+| Where | CLI helper `close.php`; SQL |
+| Evidence | `QA17C-10-close.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php close.php 2026-10` (or another completed month).
+2. Read:
+   `SELECT * FROM unilevel_periods ORDER BY period DESC LIMIT 3;`
+   `SELECT COUNT(*) FROM unilevel_activity WHERE period = '2026-10';`
+   `SELECT COUNT(*) FROM users;`
+3. Run `php close.php 2026-10` again.
+4. Run `php close.php 2099-01`.
+
+Expected
+
+- One `unilevel_periods` row: `threshold` 500.00, `members_total` equal to the account count,
+  `qualified_count` and `award_total` matching the month.
+- One `unilevel_activity` row per account (including zero-purchase accounts and staff), each with
+  `personal_purchases` and `qualified`.
+- The second run returns `closed = 0` with *already closed* and changes no row.
+- The future period is refused with an `InvalidArgumentException`; nothing is written.
+- A closed month is not rewritten when an order from it is cancelled later; the award is still
+  voided and the snapshot keeps its historical values.
+
+---
+
+## 8. Section C sign-off
+
+| Item | Value |
+|---|---|
+| Tester | Automated QA pass — DeepSeek Harness (DSH) |
+| Date | 2026-11-12 |
+| Automated gate | `Cases: 906 / 906` · `Passed: 209 / 209` smoke · `build_install_sql --check` exit 0 · `wallet_reconcile` exit 0 (five sections) |
+| Checks passed | 10 / 10 |
+| Defects | none |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts. 17C intentionally adds no page: checks 02, 03 and 07 were captured from the wallet statements' SQL, the order rows and the CLI, exactly as the plan's manual script describes; a human may add browser screenshots without changing the result |
+| Evidence | `docs/qa/evidence/phase-17/` (`QA17C-01-order.txt` … `QA17C-10-close.txt`) |

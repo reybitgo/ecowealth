@@ -15,7 +15,7 @@ dual-balance e-wallet, commissions, transfers, payouts, super-login and the repo
 | # | Check | Where | Healthy looks like |
 |---|---|---|---|
 | 1 | Finance health | **Admin → Reports → Finance health** | Green **All clear**, 7 checks, one line per invariant |
-| 2 | Reconciliation | `php bin\wallet_reconcile.php` | exit **0**, "All good — wallets, commissions, transfers and payouts reconcile" |
+| 2 | Reconciliation | `php bin\wallet_reconcile.php` | exit **0**, "All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile" |
 | 3 | Orders that need action | **Admin → Dashboard → Orders needing action** | the number you expect for the day; nothing stuck in `payment_review` |
 | 4 | Payout hold | **Admin → Dashboard → Held for payout** / **Payouts** | every open request has a reason to wait; none older than a day |
 | 5 | Audit desk | **Admin → Audit log** | today's settings changes, exports and S-Login exits are the ones you made |
@@ -242,8 +242,11 @@ money was involved. Full engine detail: `dmp/plan-ecowealth-install-reset.md` §
 5. No product holds more stock than it has.
 6. Every award points at a real activation and its ledger row; every approved activation is processed.
 7. Every completed payout has one ledger debit; a rejected payout has one refund and no hold.
+8. Every credited or voided repeat-purchase award has its `ref_type='unilevel'` credit; every
+   `ref_type='unilevel_reversal'` debit equals the award's `reversed_amount`.
+9. `shop_orders.unilevel_total` equals the sum of that order's still-`credited` awards.
 
-Checks 1–3 and 7 are also the four service reconciliations behind
+Checks 1–3, 7 and 8 are also the five service reconciliations behind
 `bin\wallet_reconcile.php`; the Reports page adds 4–6 in the **Finance health** widget.
 
 ### If a mismatch appears
@@ -260,10 +263,76 @@ Checks 1–3 and 7 are also the four service reconciliations behind
 6. Re-run the reconciliation and the Reports health card; both must be clean before the incident is
    closed. Record what happened in the phase log.
 
+### Repeat-purchase awards (Phase 17C)
+
+**What it pays.** A paid shop order pays the product's 1–10 ladder to the buyer's sponsor chain:
+level 1 is the direct sponsor, level 10 the tenth upline. The buyer earns nothing. Each credited level
+is a withdrawable wallet credit (`ref_type = 'unilevel'`, `ref_id = unilevel_awards.id`). The stream is
+off until **both** `settings.unilevel_enabled = 1` and the product's `products.unilevel_enabled = 1`;
+an order paid with either off is stamped with a zero total and can never be paid later.
+
+**Weekly checks.**
+
+```sql
+-- Paid orders the app paid but the stream never decided (should be empty).
+SELECT o.id, o.order_no, o.paid_at FROM shop_orders o
+ WHERE o.paid_at >= (SELECT value FROM settings WHERE key_name = 'unilevel_ledger_since')
+   AND o.status IN ('paid','packing','ready_to_ship','shipped','delivered','completed')
+   AND o.unilevel_processed_at IS NULL
+   AND EXISTS (SELECT 1 FROM shop_order_events e WHERE e.order_id = o.id AND e.to_status = 'paid');
+
+-- Award status counts and money by period (a quick finance read).
+SELECT DATE_FORMAT(paid_at, '%Y-%m') AS period, status, COUNT(*) AS n, SUM(amount) AS amount
+  FROM unilevel_awards GROUP BY period, status ORDER BY period DESC, status;
+
+-- Unrecovered shortfalls from cancelled orders (visible, never forgiven).
+SELECT order_id, user_id, amount, reversed_amount, amount - reversed_amount AS shortfall
+  FROM unilevel_awards WHERE status = 'voided' AND reversed_amount < amount ORDER BY id DESC;
+```
+
+`php bin\wallet_reconcile.php` reports a **Repeat-purchase** section (credited/voided/skipped counts,
+the `unilevel` and `unilevel_reversal` totals, and the baseline). Exit 0 means the awards, their wallet
+movements and the order totals agree.
+
+**If it fails.**
+
+1. Read the mismatch kind: `total`, `reversal_total`, `missing_ledger`, `orphan_ledger`, `amount`,
+   `reversal_amount`, `order_total` or `unstamped`.
+2. Do **not** delete an award or a ledger row and do **not** edit `users.ewallet_balance`; the ledger
+   is the audit trail. A missing movement is repaired by fixing the cause, then asking a developer for
+   a one-off correction script with its own approval.
+3. `missing_ledger` / `amount` on a recent order: check `storage/logs` for the payment transaction;
+   the award and its credit are written in one transaction, so a half-written pair is a database
+   incident, not a normal state.
+4. `unstamped`: an order was paid through the app but the hook did not run. Do **not** re-run it
+   blindly; open the order, confirm the awards are absent, then have a developer call
+   `UnilevelService::onOrderPaid()` once and re-run the reconcile.
+5. `order_total`: `shop_orders.unilevel_total` disagrees with the credited awards. A cancellation
+   recomputes it; a manual correction is a developer script, never an `UPDATE … SET unilevel_total`.
+
+**Reversing a payout.** Admin-cancel the paid order (`/admin/orders/{id}`). The order's awards are
+voided, the buyer is refunded as usual, and each upline's wallet is debited only as far as its
+withdrawable balance allows; the rest is recorded on the award as a shortfall and shown as
+*Unrecovered* in the ledger (17D). A negative balance is impossible and a cancellation is never
+blocked. Setting `unilevel_reversal_enabled = 0` leaves the awards credited instead — a business
+decision, not a repair path.
+
+**Turning it off.** Set `settings.unilevel_enabled = 0` first; new payments are stamped and pay
+nothing immediately. Existing awards stay in the wallets and in `unilevel_awards` — they are real
+money and a code rollback must not delete them. The ledger remains reconcilable because the command
+reads the tables, not the code path.
+
+**The month clock.** `unilevel_activity` / `unilevel_periods` are written only by
+`UnilevelCycle::close()` (17C) and, from 17F, by its scheduled job. A closed month is immutable; a
+member with no snapshot row is Active. If the close is late or missed, the engine computes the same
+aggregate live, so a payment is never blocked by the job.
+
 ### Double-spend and duplicate guards already in place
 
 - Order placement: unique idempotency key + `SELECT … FOR UPDATE` on stock.
 - Commissions: unique `(type, source_user_id, user_id, level)` + `commission_processed_at`.
+- Repeat-purchase: unique `(order_item_id, user_id, level)` + `shop_orders.unilevel_processed_at` +
+  the wallet's `(user, ref_type, ref_id, type)` replay.
 - Transfers: one transaction writes the sender debit, recipient credit and fee credit; a refused
   transfer writes nothing.
 - Payouts: the amount is held at request time; one open request per member; status guards refuse a
@@ -278,7 +347,8 @@ Full instructions are in [`deploy.md`](deploy.md). The short version:
 
 1. Back up the database (§3) and the current files.
 2. Copy the files; keep `config.local.php` and `uploads/` from the server.
-3. Apply migrations in order — the Phase 15 build is at **019_audit_and_reporting.sql**.
+3. Apply migrations in order — the Phase 17 build is at
+   **020_unilevel_repeat_purchase.sql** (17C adds no migration).
    `php bin` has no migration runner; import with the MySQL client, then compare with
    `database\schema.sql` (`php tests\run.php Migration` does that automatically on a scratch
    schema). Never import `database/install.sql` into an existing database: it is fresh-install

@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  *      php bin/wallet_reconcile.php [--json]
  *
- *  Four read-only reports:
+ *  Five read-only reports:
  *
  *    1. Wallets — both buckets recomputed from `ewallet_ledger`.
  *    2. Commissions — every credited award against its wallet movement
@@ -20,6 +20,10 @@ declare(strict_types=1);
  *    4. Payouts — every withdrawal request against its hold (one debit
  *       at request time) and, for a rejected request, its refund (one
  *       credit), plus orphan payout/refund ledger rows.
+ *    5. Repeat-purchase — every credited/voided award against its
+ *       `unilevel` credit, every reversal against `unilevel_reversal`,
+ *       the order headline totals and the idempotency stamp
+ *       (plan §14.11).
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -57,12 +61,13 @@ try {
     $commissions = (new CommissionService())->reconcile();
     $transfers   = (new TransferService())->reconcile();
     $payouts     = (new PayoutService())->reconcile();
+    $unilevel    = (new UnilevelService())->reconcile();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
 
-$ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok'];
+$ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok'] && $unilevel['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -77,6 +82,7 @@ if (isset($options['json'])) {
             'commissions' => $commissions,
             'transfers'   => $transfers,
             'payouts'     => $payouts,
+            'unilevel'    => $unilevel,
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
@@ -231,8 +237,48 @@ if ($payouts['ok']) {
 
 echo PHP_EOL;
 
+echo 'Repeat-purchase', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $unilevel['credited_rows'],
+    $format($unilevel['credited_total']),
+    PHP_EOL
+);
+printf("  skipped awards:    %d%s", $unilevel['skipped_rows'], PHP_EOL);
+printf("  voided awards:     %d%s", $unilevel['voided_rows'], PHP_EOL);
+printf("  unilevel ledger:   %s%s", $format($unilevel['ledger_total']), PHP_EOL);
+printf("  reversals:         %s%s", $format($unilevel['reversal_total']), PHP_EOL);
+
+if (($unilevel['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy movements:  %d (%s) — repeat-purchase movements before the award history began%s",
+        $unilevel['legacy_rows'],
+        $format($unilevel['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($unilevel['ok']) {
+    echo '  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($unilevel['mismatches']), PHP_EOL);
+
+    foreach ($unilevel['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
 if ($ok) {
-    echo 'All good — wallets, commissions, transfers and payouts reconcile.', PHP_EOL;
+    echo 'All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.', PHP_EOL;
     exit(0);
 }
 

@@ -1,0 +1,14 @@
+QA17C-10 — the month close writes once and is immutable (automated pass)
+
+Before: {"periods":1,"activity":32,"users":35}
+close(2026-09): {"closed":1,"skipped":false,"reason":null,"period":"2026-09","members":35,"qualified":0,"award_total":0,"threshold":500}
+Header:
+period  | closed_at           | closed_by | threshold | members_total | qualified_count | award_total
+-----------------------------------------------------------------------------------------------------
+2026-09 | 2026-11-12 18:35:33 |           | 500.00    | 35            | 0               | 0.00       
+
+Activity rows for 2026-09: 35 (users: 35)
+Second close: {"closed":0,"skipped":true,"reason":"already closed","period":"2026-09","members":0,"qualified":0,"award_total":0,"threshold":500}
+Future close: The period 2099-01 is in the future; only a completed month can be closed.
+Expected: one header with threshold 500.00, one activity row per account, a second close closed=0 'already closed', a future period refused.
+

@@ -1,0 +1,11 @@
+QA17C-03 — the admin wallet ledger shows the same movements (automated pass)
+
+id | username         | ref_type | type   | amount | ref_id | award                | note                                                                    
+-----------------------------------------------------------------------------------------
+6  | qa01_u1_dc0cf203 | unilevel | credit | 25.00  | 1      | award #1 L1 credited | Repeat-purchase bonus — P1 QA Coffee (level 1) — order EW26111200001
+7  | qa01_u2_34978511 | unilevel | credit | 25.00  | 2      | award #2 L2 credited | Repeat-purchase bonus — P1 QA Coffee (level 2) — order EW26111200001
+8  | qa01_u3_430a7bff | unilevel | credit | 25.00  | 3      | award #3 L3 credited | Repeat-purchase bonus — P1 QA Coffee (level 3) — order EW26111200001
+9  | qa01_u4_08f17238 | unilevel | credit | 15.00  | 4      | award #4 L4 credited | Repeat-purchase bonus — P1 QA Coffee (level 4) — order EW26111200001
+
+Expected: one ref_type=unilevel credit per credited award, ref_id = the award id, note names product/level/order.
+

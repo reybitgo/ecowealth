@@ -23,7 +23,7 @@ declare(strict_types=1);
  *    uploads           proof files removed, keepers kept
  *    live revisions    existing bumped, standard surfaces completed
  *    auto-increment    empty tables at 1, users never touched
- *    verification      four reconciliations clean
+ *    verification      five reconciliations clean
  *    safety gates      wrong confirmation / no staff / missing table /
  *                      production
  *    report            documented shape, codes list, warnings array
@@ -1158,7 +1158,7 @@ return [
     /* ==========================================================
      *  15. Verification
      * ========================================================== */
-    'verification runs the four reconciliations on the injected PDO' => function () use ($fresh, $service, $byKey): void {
+    'verification runs the five reconciliations on the injected PDO' => function () use ($fresh, $service, $byKey): void {
         [$pdo, $database] = $fresh();
         $service($pdo, $database)->run();
 
@@ -1167,7 +1167,7 @@ return [
 
         $checks = $byKey($verify['checks']);
 
-        foreach (['members', 'zero_transactional', 'staff', 'catalogue', 'codes', 'audit', 'wallets', 'commissions', 'transfers', 'payouts', 'live', 'auto_increment'] as $key) {
+        foreach (['members', 'zero_transactional', 'staff', 'catalogue', 'codes', 'audit', 'wallets', 'commissions', 'transfers', 'payouts', 'unilevel', 'live', 'auto_increment'] as $key) {
             assert_true(isset($checks[$key]), 'verify() carries "' . $key . '"');
             assert_true($checks[$key]['ok'], '"' . $key . '" must pass');
         }
@@ -1176,6 +1176,7 @@ return [
         assert_contains('CommissionService::reconcile clean', $checks['commissions']['detail']);
         assert_contains('TransferService::reconcile clean', $checks['transfers']['detail']);
         assert_contains('PayoutService::reconcile clean', $checks['payouts']['detail']);
+        assert_contains('UnilevelService::reconcile clean', $checks['unilevel']['detail']);
     },
 
     /* ==========================================================

@@ -1,0 +1,26 @@
+QA17C-07 — admin cancellation voids and debits (automated pass)
+
+Order after cancellation:
+status    | unilevel_total
+--------------------------
+cancelled | 0.00          
+
+Awards:
+level | user_id | amount | status | reversed_amount | reversal_ledger_id | voided_at          
+------------------------------------------------------------------------------------
+1     | 24      | 25.00  | voided | 25.00           | 26                 | 2026-11-12 18:35:32
+2     | 25      | 25.00  | voided | 25.00           | 27                 | 2026-11-12 18:35:32
+3     | 26      | 25.00  | voided | 25.00           | 28                 | 2026-11-12 18:35:32
+4     | 27      | 15.00  | voided | 15.00           | 29                 | 2026-11-12 18:35:32
+
+unilevel_reversal movements:
+id | username         | amount | ref_id
+---------------------------------------
+26 | qa07_u1_f89e92b5 | 25.00  | 13    
+27 | qa07_u2_0aa2fa17 | 25.00  | 14    
+28 | qa07_u3_40709efc | 25.00  | 15    
+29 | qa07_u4_7534a59a | 15.00  | 16    
+
+Reconcile after reversal: ok=true, credited=245, ever_credited=335, reversals=90
+Expected: every award voided with reversed_amount = amount; order total 0.00; four reversal debits; reconcile clean (the partial-shortfall branch is pinned by P17C-T37).
+

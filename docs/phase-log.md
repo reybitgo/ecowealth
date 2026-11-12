@@ -4097,3 +4097,153 @@ Updated for the widened card: `SettingsPageTest`'s two catalogue assertions.
   `unilevel_active_threshold` and `unilevel_reversal_enabled` exist, are validated, and are editable by
   an operator.
 - Ladders are inert: 17C may assume a configured product and must work when none is configured.
+
+---
+
+## Phase 17C — Money engine (2026-11-12)
+
+**Status:** complete · **Tag:** `p17c-money` (on `p17b-configuration`) ·
+**Branch:** `feature/unilevel` · **Schema:** unchanged (31 tables, 54 settings) ·
+**Suite:** 855 → 906 cases, **906 / 906** green · **Smoke:** 209 / 209 ·
+**Reconcile:** `wallet_reconcile.php` exit 0 with a fifth **Repeat-purchase** section.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §7 (Phase 17C), §12.2–12.11, §13.7 and §14.
+This is the only phase that moves this stream's money: a paid shop order pays the product's 1–10
+ladder to the buyer's sponsor chain, once, with withdrawable wallet credits, a best-effort reversal on
+cancellation and a reconciliation that proves it. No page and no route were added; the existing
+wallet statements and the CLI are the observation surfaces.
+
+### Database
+
+None. 17A shipped every table, column, index and setting this phase uses. The only schema-facing
+change is the fifth entry in the reset engine's integrity pack (below).
+
+### Code
+
+- **`Models/UnilevelAward.php` (new)** — the ledger: `create()`, `linkLedger()`, `void()`,
+  `recomputeOrderTotal()`, `find()`, `forOrder()`, `forItem()`, `forEvent()`, `forBuyer()`,
+  `normaliseFilters()`, the member/admin pages (`pageForUser()`, `adminList()`, `countForUser()`,
+  `countAdmin()`), `exportRows()`, `totalsForUser()`, `levelBreakdown()`, `stats()` and the CSV
+  shape (`csvHeader()`, `csvRows()`). No `type` column: the level is the whole story (D-17). Only the
+  reversal columns are writable after insert; `amount`, `level`, `rate_pct` and `ledger_id` never
+  change.
+- **`Models/UnilevelCycle.php` (new)** — the monthly clock: `periodOf()`, `previous()`, `bounds()`,
+  `isClosed()`, `isActive()`, `activeMap()` (one snapshot query for a closed previous month, one
+  aggregate for an open one), `personalPurchases()`, `threshold()`, `close()`, `pendingPeriods()`,
+  `lastClosed()`, `periods()` and `activityFor()`. `close()` is complete here — 17F only wraps it.
+- **`Services/UnilevelService.php` (new)** — `onOrderPaid()`, `quoteLine()`, `quoteCart()`,
+  `reverseForOrder()`, `totalsFor()`, `reconcile()`, `enabled()` and `amountFor()` (integer
+  centavos). `onOrderPaid()` locks the order, checks the stamp, walks
+  `CommissionService::sponsorChain()` once, batches the product/ladder/Active reads, drafts every
+  level, sorts the drafts by `(user_id, order_item_id, level)` before any wallet lock, credits each
+  award and stamps the order last. A wallet failure propagates; a zero amount never becomes a row.
+- **`Services/UnilevelException.php` (new)** — `notFound()`, `notPaid()`, `state()`, the same shape
+  as `OrderException`.
+- **`Services/OrderService.php`** — `lockProducts()` now selects `pv, unilevel_enabled,
+  unilevel_base`; `insertItems()` writes `unit_base` + `base_total` from
+  `ProductUnilevel::baseFor()`; the e-wallet branch calls `onOrderPaid()` after
+  `issueForPaidOrder()`, inside the checkout transaction.
+- **`Services/PaymentService.php`** — `verify()` calls `onOrderPaid()` after
+  `issueForPaidOrder()`; `cancelByAdmin()` calls `reverseForOrder()` after the wallet refund and
+  before the status update, inside the same transaction.
+- **`Services/DatabaseResetService.php`** — the integrity pack gains
+  `unilevel => UnilevelService::reconcile()` and the verification detail now names five services.
+- **`bin/wallet_reconcile.php`** — a **Repeat-purchase** section (credited/skipped/voided counts,
+  `unilevel` and `unilevel_reversal` totals, legacy movements, mismatches) included in the exit code;
+  `--json` gains the `unilevel` object.
+
+No controller and no view changed. `CommissionService::sponsorChain()` is reused, not reimplemented.
+
+### Tests
+
+**51 new cases: 855 → 906, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `UnilevelEngineTest` (new) | 37 | P17C-T1, T3–T33, T35–T39, T51: the e-wallet award and every wallet credit; the ten-deep and eleven-deep walks; the ₱555 / ₱555.55 rounding pins; the three base rules and the legacy fallback; the company account; no sponsor; the depth cap 1/2/3; two products and three lines; the buyer never a recipient; disabled/suspended/monthly-Inactive uplines, no compression, zero rates, the two masters, replay, the unique anchor, unpaid orders, the reconcile, the CLI exit code, the product delete guard, the quote; full/partial/disabled reversal; an unpaid cancellation; a staff buyer |
+| `UnilevelCycleTest` (new) | 11 | P17C-T40–T50: the ₱450 block, the ₱2,000 restore, the missing-flag rule, an immutable closed month, one row per account + header + award snapshot, the idempotent close, a refused future period, the live fallback agreeing with the close, the Manila midnight, one previous-period query for ten recipients, and a close with the stream off |
+| `PaymentTest` | 1 | P17C-T2: a verified GCash order pays the four-deep ladder once |
+| `OrderTest` | 1 | P17C-T34: the placement snapshot and a price/P.V. edit that cannot rewrite the award |
+
+Rewritten to stay truthful after the phase:
+`UnilevelConfigurationTest` P17B-T20 (now: global master off → the hook stamps a zero total and pays
+nothing), `DbResetTest` (five reconciliations), `UnilevelFoundationTest` P17A-T13 (the engine now
+exists; no controller, route, view or month-close job does, and the stream is off on a fresh
+database). The smoke check P17B-T20 was updated for the same hand-off.
+
+### Rules as built
+
+1. One hook, two paths; the hook never opens a transaction and both callers roll back together.
+2. The order is locked first; a second `onOrderPaid()` returns `replayed` and writes nothing.
+3. Idempotency at four layers: the stamp, `forEvent()` pre-check, `uq_unilevel_award` and the wallet's
+   replay.
+4. Both masters must be on; either off stamps the order with a zero total.
+5. The buyer is never a recipient; the company account is skipped with its own reason; other staff
+   uplines are paid.
+6. No compression: a skipped or zero-rate level keeps its number.
+7. Rate at payment, base at placement; the legacy fallback records `base_source = 'product'`.
+8. Rounding is per level, per line, in integer centavos; the sum is never re-rounded.
+9. Wallet locks are taken in ascending recipient order.
+10. Reversal is best effort: void, debit only the withdrawable balance, record the shortfall, never
+    negative, never block a cancellation.
+11. No backfill: only the transition pays.
+12. The schema is untouched; the referral ledger, the wallet statements and both earnings pages are
+    unchanged.
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` green; 17C changes no schema.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 906   Passed: 906   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 with five sections; the repeat section reports the
+      expected totals, and a deleted ledger row makes it exit 1 (`P17C-T32`).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 209   Failed: 0**, exit 0.
+- [x] Every P17C-Tn case exists, is named for the phase and passes.
+- [x] Rounding is pinned to the centavo, including the ₱555.55 drift (`T5`).
+- [x] No award row has the buyer as the recipient (`T16`, `T51`).
+- [x] Reversal leaves no negative balance and never blocks a cancellation (`T36`, `T37`).
+- [x] The manual script (`QA17C-01` … `QA17C-10`) executed **10 / 10** through the automated pass:
+      real HTTP where a page exists, SQL transcripts, the monthly-close helper and the real CLI.
+      Evidence: `docs/qa/evidence/phase-17/QA17C-*.txt`.
+- [x] No new PHP warning, notice or deprecation in `storage/logs/` after the pass.
+- [x] This entry and Appendix G of the plan are filled; tag `p17c-money`.
+
+### Deviations
+
+1. **The reconcile compares "ever credited" awards, not only currently credited ones.** Plan §14.11
+   states `SUM(amount) WHERE status='credited'` vs the `unilevel` ledger. After a cancellation the
+   award becomes `voided` but its original `unilevel` credit stays in the wallet ledger (the reversal
+   is a separate `unilevel_reversal` debit), so the literal check would fail after every reversal —
+   while `QA17C-07` requires the reconcile to stay clean. `UnilevelService::reconcile()` therefore
+   compares `SUM(amount)` over `credited + voided` awards with the `unilevel` ledger, separately
+   compares the voided `reversed_amount` with the `unilevel_reversal` ledger, and keeps the
+   currently-credited total and the per-order total as their own checks. This is stricter than the
+   plan text, not looser.
+2. **`UnilevelAward::forItem()` returns the line's rows; `forEvent()` is the singular pre-check.**
+   The plan named `forItem($orderItemId, $userId, $level)` for layer 2; a line-level list is needed by
+   17D/17E anyway, so the singular lookup is `forEvent()` (the same name `Commission` uses) and
+   `forItem()` takes an optional level. Behaviour is unchanged.
+3. **P17B-T20 and the smoke P17B-T20 check now assert the 17C stamp.** They proved "no hook" at the
+   17B gate; after 17C the same global-master-off scenario stamps the order with a zero total and
+   still writes no award. Rewriting them is the only way to keep the suite truthful; no behaviour was
+   changed to satisfy them.
+4. **The CLI exit-code case (`P17C-T32`) builds a scratch schema and commits its fixture there.** A
+   subprocess cannot see the harness's rolled-back transaction, so the test runs the real
+   `wallet_reconcile.php` against `ecowealth_sneat_tool_a_test`, first clean (exit 0) and then with a
+   deleted ledger row (exit 1, `missing_ledger`). It leaves the tool schema recreated, as the install
+   tests already do.
+5. **The manual section-C checks were executed by the automated pass**, like sections A and B: no
+   independent tester or browser is available in this session. The SQL/CLI observations are real and
+   the evidence is filed; the "someone who did not write it" item stays open for the lead's review.
+
+### Hand-off to 17D / 17E / 17F
+
+- Awards exist with a stable row shape: `UnilevelAward::forOrder()`, the filter/total/breakdown/CSV
+  API and the status machine (`credited` / `skipped` / `voided`) are ready to render.
+- `UnilevelCycle::periods()` / `activityFor()` / `lastClosed()` are ready for the admin and member
+  cards; `close()` is ready to be wrapped by 17F's job.
+- `quoteLine()` / `quoteCart()` are ready for 17E's previews; `totalsFor()` for its stats.
+- `shop_orders.unilevel_total` / `unilevel_processed_at` distinguish "not paid", "paid before the
+  feature" and "paid and processed", which 17D's order card needs.
+- The repeat-purchase ledger and its reversal are visible in the existing wallet statements today,
+  so the money can be audited before the admin/member pages exist.

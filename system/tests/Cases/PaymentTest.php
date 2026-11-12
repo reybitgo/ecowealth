@@ -108,6 +108,38 @@ $submit = static function (int $userId, int $orderId, array $overrides = [], ?ar
     );
 };
 
+/* --------------------------------------------------------------
+ *  Phase 17C fixture: a configured product and a four-deep chain
+ * -------------------------------------------------------------- */
+
+$makeRepeatProduct = static function (): int {
+    return Product::save([
+        'name' => 'P17C Manual ' . bin2hex(random_bytes(3)),
+        'sku'  => 'P17C-MAN-' . strtoupper(bin2hex(random_bytes(3))),
+        'price' => '300.00', 'pv' => '250.00', 'unilevel_enabled' => '1',
+        'unilevel_base' => 'auto', 'stock' => '10', 'status' => 'active',
+    ], null, ProductUnilevel::referencePreset());
+};
+
+/** buyer → c → b → a → boss, each a fresh member. @return array{buyer: array<string, mixed>, levels: array<int, array<string, mixed>>} */
+$makeChain = static function (string $prefix): array {
+    $buyer  = test_user($prefix . '_buyer_' . bin2hex(random_bytes(3)));
+    $levels = [];
+    $child  = $buyer;
+
+    for ($level = 1; $level <= 4; $level++) {
+        $upline = test_user($prefix . '_u' . $level . '_' . bin2hex(random_bytes(3)));
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([(int) $upline['id'], (int) $child['id']]);
+
+        $levels[$level] = $upline;
+        $child          = $upline;
+    }
+
+    return ['buyer' => $buyer, 'levels' => $levels];
+};
+
 return [
     /* ---------- P7-T1 / P7-T2: proof upload ------------------------ */
 
@@ -765,5 +797,58 @@ return [
         assert_same('status', $error->reason);
         assert_same('shipped', Order::find($orderId)['status']);
         assert_false(Order::canAdminCancel(Order::find($orderId)));
+    },
+
+    /* ----------------------------------------------------------
+     *  Phase 17C — the second payment path (P17C-T2)
+     * ---------------------------------------------------------- */
+
+    'P17C-T2 a manual order verified by an admin pays the ladder exactly once' => function () use ($makeRepeatProduct, $makeChain, $placeOrder, $submit): void {
+        setting_set('unilevel_enabled', '1');
+        setting_set('unilevel_max_levels', '10');
+        setting_set('unilevel_requires_active_upline', '1');
+
+        $chain   = $makeChain('p17c_t2');
+        $buyerId = (int) $chain['buyer']['id'];
+        $orderId = $placeOrder($buyerId, $makeRepeatProduct(), 1, 'gcash');
+
+        assert_same('pending', Order::find($orderId)['status']);
+        assert_same(0, count(UnilevelAward::forOrder($orderId)), 'placement pays nothing');
+
+        $submit($buyerId, $orderId, ['amount_sent' => '300.00']);
+
+        $admin = Member::primaryAdmin();
+        (new PaymentService())->verify((int) $admin['id'], $orderId, [
+            'amount_received'   => '300.00',
+            'payment_reference' => 'P17C-MANUAL-1',
+        ]);
+
+        assert_same('paid', Order::find($orderId)['status']);
+
+        $rows = UnilevelAward::forOrder($orderId);
+
+        assert_count(4, $rows);
+        assert_same(
+            [1 => 12.50, 12.50, 12.50, 7.50],
+            array_combine(
+                array_map(static fn (array $r): int => (int) $r['level'], $rows),
+                array_map(static fn (array $r): float => (float) $r['amount'], $rows)
+            )
+        );
+        assert_same(45.0, round(array_sum(array_column($rows, 'amount')), 2));
+
+        $firstIds = array_column($rows, 'id');
+
+        /* A second verification is refused before the hook, so the
+         * awards cannot be paid twice. */
+        assert_throws(
+            static fn (): array => (new PaymentService())->verify((int) $admin['id'], $orderId, [
+                'amount_received'   => '300.00',
+                'payment_reference' => 'P17C-MANUAL-2',
+            ]),
+            PaymentException::class
+        );
+
+        assert_same($firstIds, array_column(UnilevelAward::forOrder($orderId), 'id'));
     },
 ];

@@ -471,15 +471,18 @@ return [
         assert_same(0.0, $none['total']);
     },
 
-    'P17B-T20 paying a configured product still writes no award' => function () use ($makeProduct): void {
+    'P17B-T20 a configured product pays nothing while the global master is off' => function () use ($makeProduct): void {
         $buyer   = test_user('p17b_buyer_' . bin2hex(random_bytes(3)));
         $sponsor = test_user('p17b_sponsor_' . bin2hex(random_bytes(3)));
 
         db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')->execute([(int) $sponsor['id'], (int) $buyer['id']]);
 
-        /* Everything an operator could configure after 17B: both switches on,
-         * a P.V. base and the reference ladder. */
-        setting_set('unilevel_enabled', '1');
+        /* Everything an operator could configure after 17B: the product
+         * switch on, a P.V. base and the reference ladder. 17C added the
+         * paid-order hook, so this case now proves the other half of the
+         * hand-off: with the global master off, the hook stamps the
+         * order as decided and still moves no money. */
+        setting_set('unilevel_enabled', '0');
 
         $productId = $makeProduct([
             'name' => 'Award Probe', 'price' => '300.00', 'pv' => '250', 'stock' => '5',
@@ -505,10 +508,10 @@ return [
             'terms'             => '1',
         ]);
 
-        assert_same('paid', $result['status'], 'the order is paid, because 17B has no hook');
+        assert_same('paid', $result['status'], 'the order is paid; the stream is simply switched off');
 
         $order = Order::find($result['order_id']);
-        assert_null($order['unilevel_processed_at'], 'nothing stamped the order');
+        assert_not_null($order['unilevel_processed_at'], '17C stamps "decided, nothing due"');
         assert_same('0.00', number_format((float) $order['unilevel_total'], 2, '.', ''));
 
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn());

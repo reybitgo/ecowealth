@@ -259,7 +259,7 @@ final class Product
      * @param list<int|string> $ids
      * @return array<int, array{id:int, name:string, price:string, pv:string, unilevel_enabled:int, unilevel_base:string}>
      */
-    public static function rowsFor(array $ids): array
+    public static function rowsFor(array $ids, ?PDO $pdo = null): array
     {
         $ids = array_values(array_unique(array_filter(
             array_map('intval', $ids),
@@ -271,7 +271,7 @@ final class Product
         }
 
         $marks = implode(',', array_fill(0, count($ids), '?'));
-        $stmt  = db()->prepare(
+        $stmt  = ($pdo ?? db())->prepare(
             'SELECT id, name, price, pv, unilevel_enabled, unilevel_base
                FROM products WHERE id IN (' . $marks . ')'
         );

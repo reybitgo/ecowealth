@@ -7,7 +7,12 @@ front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-ca
 **Current status: Phase 15 — hardening, dashboards, UAT and launch. The build is feature-complete
 for this scope.** Phase 16 (the IR-1 … IR-8 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`)
 adds the production install bundle, the CLI and browser installers, and the guarded development reset;
-it changes no application route or page, and both tools are deleted before go-live.
+it changes no application route or page, and both tools are deleted before go-live. Phase 17 (the
+unilevel repeat-purchase workstream, `dmp/plan-ecowealth-unilevel-repeat-purchase.md`) is in progress:
+17A adds the four tables, the six settings and the two wallet movement kinds; 17B adds the per-product
+configuration; **17C adds the money engine** — the paid-order hook on both payment paths, the monthly
+Active gate, best-effort reversal and the repeat-purchase reconciliation. The stream ships off and
+pays nothing until an operator configures a product and turns the global master on.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -912,7 +917,7 @@ and the referral-link signup; it is editable on the **Commissions** card.
 - **Finance health** is `HealthService`: the four service reconciliations (wallets, commissions,
   transfers, payouts) plus order-total, stock-availability and award-integrity checks, seven sections
   in all. It is read-only and independently guarded per section, so one failing query never hides the
-  others; the same four money reconciliations back `bin/wallet_reconcile.php`.
+  others; `bin/wallet_reconcile.php` covers the same four plus the repeat-purchase awards (17C).
 - **The audit desk** (`/admin/audit`) reads the append-only `audit_log`: filter by action, subject,
   actor/action text and date, paginate, and see the actor, role, subject, compact detail and IP. Every
   audited write — settings changes, top-ups, exports, member status, activation and payout decisions,
@@ -1145,14 +1150,58 @@ php bin/wallet_reconcile.php --json
 
 ---
 
-## Repeat-purchase bonus (Phase 17B)
+## Repeat-purchase bonus (Phase 17)
 
-A **per-product unilevel ladder** that will pay the buyer's sponsor chain on every **paid shop order**:
-level 1 is the direct sponsor, level 10 the tenth upline. Phase 17B ships the **configuration only** —
-the ladder model, the product form, the list badge and the settings block. The engine that pays it is
-Phase 17C, so **paying an order today moves no repeat-purchase money**: `unilevel_awards` stays empty
-and no wallet row carries `ref_type = 'unilevel'`. Deploying this code changes nothing until an operator
-configures a product **and** turns the global switch on.
+A **per-product unilevel ladder** that pays the buyer's sponsor chain on every **paid shop order**:
+level 1 is the direct sponsor, level 10 the tenth upline. The work is split into phases: 17A ships the
+schema and the wallet vocabulary, 17B the configuration, **17C the money engine**, 17D/17E the admin
+and member surfaces, 17F the month-close job and 17G the release. **Paying an order now moves money**
+only when both masters are on — the global `unilevel_enabled` and the product's
+`products.unilevel_enabled` — so deploying this code changes nothing until an operator configures a
+product **and** turns the global switch on.
+
+### The engine (17C)
+
+- **One hook, two payment paths.** `UnilevelService::onOrderPaid()` runs inside the caller's
+  transaction from the e-wallet branch of `OrderService::placeFromCart()` and from
+  `PaymentService::verify()` for a verified manual payment. A placed-but-unpaid order pays nothing and
+  is never stamped; the order is stamped `unilevel_processed_at` (and `unilevel_total`) even when the
+  stream is off or there is nothing due, so a later re-verification cannot pay it.
+- **The ladder.** For each order line, `base × rate / 100` is rounded per level in integer centavos.
+  The **base is snapshotted at placement** (`shop_order_items.unit_base / base_total`) through
+  `ProductUnilevel::baseFor()`; the **rates are read at payment** and copied onto the award
+  (`rate_pct`). A line created before migration 020 falls back to the product and records
+  `base_source = 'product'`.
+- **The walk.** `CommissionService::sponsorChain()` supplies the buyer's sponsors (cycle-guarded, ten
+  levels); level 1 is the direct sponsor. The **buyer is never a recipient** (no level-0 rebate).
+  There is **no compression**: a disabled, suspended, monthly-Inactive or company upline writes a
+  `skipped` row with the reason and keeps its level number, so the next upline is paid at its own
+  rate. A zero rate writes no row and still consumes the level.
+- **The monthly Active gate.** `UnilevelCycle` decides the flag from the previous calendar month
+  (Asia/Manila): the close writes one `unilevel_activity` row per account and one `unilevel_periods`
+  header, and a member with no row is Active. An unclosed previous month is computed live from the
+  same order aggregate, so the midnight-to-cron window is correct with no snapshot. An operator can
+  relax the monthly rule with `unilevel_requires_active_upline = 0`; the account and membership
+  checks always apply, and the company account is never paid.
+- **Wallet and reconciliation.** Each credited award is a withdrawable wallet credit with
+  `ref_type = 'unilevel'` and `ref_id = unilevel_awards.id`, exactly one ledger row per award.
+  `bin/wallet_reconcile.php` gained a **Repeat-purchase** section: award credits and their ledger
+  rows, reversal debits against `reversed_amount`, the order headline totals and the idempotency
+  stamp. An award that was paid and then reversed keeps its amount and ledger id; only the reversal
+  columns change.
+- **Cancellation.** `PaymentService::cancelByAdmin()` voids every credited award after the buyer's
+  refund and before the status update, then debits what the wallet still holds as
+  `ref_type = 'unilevel_reversal'`. It is **best effort** (D-13): a partly spent wallet is debited
+  only up to its withdrawable balance, the shortfall is recorded on the award, balances never go
+  negative, and a cancellation is never blocked. `unilevel_reversal_enabled = 0` leaves the awards
+  credited.
+- **Idempotency.** Four layers: the order stamp, a per-(line, recipient, level) pre-check, the
+  `uq_unilevel_award` unique key and the wallet's own `(user, ref_type, ref_id, type)` replay. A
+  second `onOrderPaid()` returns `replayed` and moves nothing.
+- **Previews.** `quoteLine()` / `quoteCart()` read the current ladder and base and write nothing;
+  they are what 17E's "up to X%" product and checkout panels will render.
+- **Delete guard.** A product with ladder rows is deleted with them (`ON DELETE CASCADE`); a product
+  that paid a repeat-purchase award cannot be deleted (`ON DELETE RESTRICT`, reported by the list).
 
 - **One ladder, ten equal rows (D-17).** Levels 1–10 in `product_unilevel_levels`, each a percentage of
   the line's base. There is **no** direct/indirect split, no separate direct field, no read-only level 1
@@ -1187,7 +1236,10 @@ configures a product **and** turns the global switch on.
   paid a repeat-purchase award cannot be deleted (`ON DELETE RESTRICT`, reported by the list).
 
 ```bash
-php tests/run.php UnilevelConfiguration   # the phase's 24 cases
+php tests/run.php UnilevelConfiguration   # 24 configuration cases (17B)
+php tests/run.php UnilevelEngine          # 38 engine cases (17C)
+php tests/run.php UnilevelCycle           # 11 monthly-clock cases (17C)
+php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 ```
 
 ---

@@ -32,7 +32,7 @@ declare(strict_types=1);
  *    • AUTO_INCREMENT, upload cleanup, the optional demo tree (IR-7) and
  *      registration codes run after the commit and are reported
  *      separately, never mixed into it;
- *    • verification (four reconciliations + invariants) is mandatory:
+ *    • verification (five reconciliations + invariants) is mandatory:
  *      a reset that cannot prove its result reports ok=false.
  *
  *  What it must not do (plan §5.1): authenticate a user, emit HTML,
@@ -1409,7 +1409,7 @@ final class DatabaseResetService
     /**
      * Prove the database is in the post-reset state.
      *
-     * The four finance services are constructed on the injected PDO, so
+     * The five finance services are constructed on the injected PDO, so
      * the exact production reconciliation runs against the target.
      * `run()` captures the expectations below; a caller may override any
      * of them explicitly.
@@ -1637,12 +1637,13 @@ final class DatabaseResetService
                 . 'starts with it.'
         );
 
-        /* ---- The four finance reconciliations --------------------- */
+        /* ---- The five finance reconciliations --------------------- */
         $services = [
             'wallets'     => ['label' => 'Wallet reconciliation', 'service' => 'WalletService'],
             'commissions' => ['label' => 'Commission reconciliation', 'service' => 'CommissionService'],
             'transfers'   => ['label' => 'Transfer reconciliation', 'service' => 'TransferService'],
             'payouts'     => ['label' => 'Payout reconciliation', 'service' => 'PayoutService'],
+            'unilevel'    => ['label' => 'Repeat-purchase reconciliation', 'service' => 'UnilevelService'],
         ];
 
         foreach ($services as $key => $meta) {
@@ -1655,6 +1656,7 @@ final class DatabaseResetService
                     'commissions' => (new CommissionService($this->pdo))->reconcile(),
                     'transfers'   => (new TransferService($this->pdo))->reconcile(),
                     'payouts'     => (new PayoutService($this->pdo))->reconcile(),
+                    'unilevel'    => (new UnilevelService($this->pdo))->reconcile(),
                 };
 
                 $ok = (bool) ($result['ok'] ?? false);

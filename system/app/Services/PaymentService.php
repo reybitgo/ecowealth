@@ -56,12 +56,14 @@ final class PaymentService
     private PDO $pdo;
     private WalletService $wallet;
     private InvoiceService $invoices;
+    private UnilevelService $unilevel;
 
     public function __construct(?PDO $pdo = null)
     {
         $this->pdo      = $pdo ?? db();
         $this->wallet   = new WalletService($this->pdo);
         $this->invoices = new InvoiceService($this->pdo);
+        $this->unilevel = new UnilevelService($this->pdo);
     }
 
     /* ----------------------------------------------------------
@@ -443,6 +445,12 @@ final class PaymentService
             /* The invoice is frozen with the verification (plan §5.7). */
             $this->invoices->issueForPaidOrder($orderId, $this->pdo);
 
+            /* The second payment path reaches `paid` here: pay the
+             * repeat-purchase ladder inside the same transaction, so a
+             * failed credit blocks the verification and the admin can
+             * retry (plan §12.2, §14.5). */
+            $this->unilevel->onOrderPaid($orderId, $this->pdo);
+
             Live::touch('admin.products');
             Live::touchOrder($orderId, (int) $order['user_id']);
 
@@ -589,6 +597,12 @@ final class PaymentService
             $refunded = in_array($status, Order::REFUNDABLE, true)
                 ? $this->refundWalletDebit($order)
                 : 0.0;
+
+            /* Paid orders paid their uplines; cancellation voids those
+             * awards and claws back what the wallets still hold. Best
+             * effort: a shortfall is recorded, the cancellation always
+             * proceeds (plan §14.9, D-13). */
+            $this->unilevel->reverseForOrder($orderId, 'Order cancelled — ' . $reasonText, $this->pdo);
 
             /* A paid order had an invoice; cancelling reverses the sale,
              * so the document is voided (its content stays frozen). */

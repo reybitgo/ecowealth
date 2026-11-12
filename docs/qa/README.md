@@ -35,7 +35,7 @@ sign the phase off.
 | [phase-14-super-login.md](phase-14-super-login.md) | 14 — super-login console, URL-token impersonation, exit/TTL, audit trail | 8 | 25–35 min |
 | [phase-15-launch.md](phase-15-launch.md) | 15 — dashboards, reports/exports, the eight settings cards, audit desk, hardening, UAT and launch | 12 | 40–55 min |
 | [phase-16-install-reset.md](phase-16-install-reset.md) | 16 — install bundle, CLI/web installers, CLI/web reset, demo + parity, production gates, go-live | 16 | 90–120 min |
-| [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G. **In progress (17A): section A only** | A: 8 (B–G follow) | 35–45 min for A |
+| [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G. **In progress (17C): sections A–C** | A: 8 · B: 9 · C: 10 (D–G follow) | 35–45 min for A; 45–60 min for C |
 | [sign-off-sheet.md](sign-off-sheet.md) | all seventeen | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also

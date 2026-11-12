@@ -554,27 +554,32 @@ return [
     /* ==========================================================
      *  Inert (P17A-T13)
      * ========================================================== */
-    'P17A-T13 no money engine exists and nothing writes an award' => function () use ($appRoot): void {
-        /* 17A's promise was "nothing reads the new objects". 17B is the
-         * phase that deliberately starts reading them — the ladder model,
-         * the product form and the list badge — so from 17B on this case
-         * guards the part that has to stay true until 17C: there is no
-         * engine, no award writer, no route, and a paid order pays nothing.
-         * 17C rewrites it once more, for the engine's own invariants. */
+    'P17A-T13 the stream stays off by default and adds no route or view' => function () use ($appRoot): void {
+        /* 17A's promise was "nothing reads the new objects". 17B started
+         * reading the configuration and 17C added the money engine, so
+         * the enduring half is narrower but sharper: there is no
+         * controller, no route, no view and no month-close job, the
+         * stream is off on a fresh database, and nothing has paid. */
         foreach ([
             '/app/Models/UnilevelAward.php',
             '/app/Models/UnilevelCycle.php',
             '/app/Services/UnilevelService.php',
             '/app/Services/UnilevelException.php',
+        ] as $file) {
+            assert_true(is_file($appRoot . $file), $file . ' is the 17C engine');
+        }
+
+        foreach ([
             '/app/Controllers/UnilevelController.php',
             '/bin/unilevel_month_close.php',
         ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist before 17C');
+            assert_false(is_file($appRoot . $file), $file . ' belongs to a later phase (D-14, 17F)');
         }
 
-        /* The only application files that may name a Phase 17 table are the
-         * two database tools and 17B's configuration readers. A view or a
-         * controller with SQL against them would mean the phase has crept. */
+        /* The only application files that may name a Phase 17 table are
+         * the engine, the two database tools and the configuration
+         * readers. A controller or a view with SQL against them would
+         * mean a phase has crept. */
         $hits = [];
         $root = rtrim(str_replace('\\', '/', $appRoot), '/') . '/app/';
         $iterator = new RecursiveIteratorIterator(
@@ -607,44 +612,15 @@ return [
             [
                 'Models/Product.php',
                 'Models/ProductUnilevel.php',
+                'Models/UnilevelAward.php',
+                'Models/UnilevelCycle.php',
                 'Services/DatabaseInstaller.php',
                 'Services/DatabaseResetService.php',
+                'Services/UnilevelService.php',
             ],
             $hits,
-            'only the install/reset tools and the 17B configuration readers name the new tables'
+            'only the engine, the configuration readers and the install/reset tools name the new tables'
         );
-
-        /* Nothing writes an award row or a repeat-purchase ledger row: the
-         * only SQL against `unilevel_awards` in the application is the
-         * reference COUNT above — plus the reset engine, which empties the
-         * money tables on purpose (that is not a bonus path). */
-        foreach ($iterator as $file) {
-            if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
-                continue;
-            }
-
-            $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root)));
-
-            if ($relative === 'Services/DatabaseResetService.php') {
-                continue;
-            }
-
-            $source = (string) file_get_contents($file->getPathname());
-
-            foreach ([
-                'INSERT INTO unilevel_awards',
-                'UPDATE unilevel_awards',
-                'DELETE FROM unilevel_awards',
-                "ref_type = 'unilevel",
-                "ref_type='unilevel",
-            ] as $needle) {
-                assert_not_contains(
-                    $needle,
-                    $source,
-                    $relative . ' must not write a repeat-purchase row before 17C'
-                );
-            }
-        }
 
         /* No route knows the stream yet (D-14: no phase adds a route). */
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
@@ -672,8 +648,15 @@ return [
             }
         }
 
-        /* The feature is off: with no engine, a paid order produces no
-         * award row and no wallet movement it could be attributed to. */
+        /* The feature is off on a fresh database: both masters, every
+         * product, and the two money tables. Only 17C's tests turn it
+         * on; this case proves the shipping default. */
+        assert_same('0', setting('unilevel_enabled'), 'D-11: the global master starts off');
+        assert_same(
+            0,
+            (int) db()->query('SELECT COUNT(*) FROM products WHERE unilevel_enabled <> 0')->fetchColumn(),
+            'no product is switched on out of the box'
+        );
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn());
         assert_same(
             0,

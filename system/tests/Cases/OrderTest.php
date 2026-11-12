@@ -64,6 +64,38 @@ $ledgerRows = static function (int $userId): array {
     return $stmt->fetchAll();
 };
 
+/* --------------------------------------------------------------
+ *  Phase 17C fixture: a configured product and a four-deep chain
+ * -------------------------------------------------------------- */
+
+$makeRepeatProduct = static function (): int {
+    return Product::save([
+        'name' => 'P17C Order ' . bin2hex(random_bytes(3)),
+        'sku'  => 'P17C-ORD-' . strtoupper(bin2hex(random_bytes(3))),
+        'price' => '300.00', 'pv' => '250.00', 'unilevel_enabled' => '1',
+        'unilevel_base' => 'auto', 'stock' => '10', 'status' => 'active',
+    ], null, ProductUnilevel::referencePreset());
+};
+
+/** @return array{buyer: array<string, mixed>, levels: array<int, array<string, mixed>>} */
+$makeChain = static function (string $prefix): array {
+    $buyer  = test_user($prefix . '_buyer_' . bin2hex(random_bytes(3)));
+    $levels = [];
+    $child  = $buyer;
+
+    for ($level = 1; $level <= 4; $level++) {
+        $upline = test_user($prefix . '_u' . $level . '_' . bin2hex(random_bytes(3)));
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([(int) $upline['id'], (int) $child['id']]);
+
+        $levels[$level] = $upline;
+        $child          = $upline;
+    }
+
+    return ['buyer' => $buyer, 'levels' => $levels];
+};
+
 return [
     /* ---------- P6-T1: the two placement paths --------------------- */
 
@@ -672,5 +704,55 @@ return [
             $pdo->prepare('DELETE FROM users WHERE id IN (?, ?)')->execute([(int) $alice['id'], (int) $bob['id']]);
             $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([$product]);
         }
+    },
+
+    /* ----------------------------------------------------------
+     *  Phase 17C — the placement snapshot (P17C-T34)
+     * ---------------------------------------------------------- */
+
+    'P17C-T34 placement snapshots the bonus base and a later price edit cannot rewrite it' => function () use ($makeRepeatProduct, $makeChain, $addToCart, $input): void {
+        setting_set('unilevel_enabled', '1');
+        setting_set('unilevel_max_levels', '10');
+        setting_set('unilevel_requires_active_upline', '1');
+
+        $chain   = $makeChain('p17c_t34');
+        $buyerId = (int) $chain['buyer']['id'];
+        $product = $makeRepeatProduct();
+
+        $addToCart($buyerId, $product, 2);
+        $result = (new OrderService())->placeFromCart($buyerId, $input(['payment_method' => 'gcash']));
+        $orderId = $result['order_id'];
+
+        $item = db()->query('SELECT * FROM shop_order_items WHERE order_id = ' . $orderId)->fetch();
+
+        assert_same('250.00', number_format((float) $item['unit_base'], 2, '.', ''), 'the unit base is the P.V.');
+        assert_same('500.00', number_format((float) $item['base_total'], 2, '.', ''), 'the line base is × quantity');
+
+        /* The admin edits the product before the proof is verified. */
+        db()->prepare('UPDATE products SET price = 999.00, pv = 888.00 WHERE id = ?')->execute([$product]);
+
+        $tmp = (string) tempnam(sys_get_temp_dir(), 'p17c');
+        file_put_contents($tmp, TEST_PNG_BYTES);
+
+        $upload = [
+            'name' => 'proof.png', 'type' => 'image/png', 'tmp_name' => $tmp,
+            'error' => UPLOAD_ERR_OK, 'size' => strlen(TEST_PNG_BYTES),
+        ];
+
+        (new PaymentService())->submitProof($buyerId, $orderId, $upload, [
+            'amount_sent' => '600.00', 'reference_no' => 'P17C-T34-REF-' . bin2hex(random_bytes(3)),
+            'transfer_date' => date('Y-m-d'),
+        ]);
+
+        (new PaymentService())->verify((int) Member::primaryAdmin()['id'], $orderId, [
+            'amount_received' => '600.00', 'payment_reference' => 'P17C-T34-PAY-1',
+        ]);
+
+        $rows = UnilevelAward::forOrder($orderId);
+
+        assert_count(4, $rows);
+        assert_same(500.0, (float) $rows[0]['base_amount'], 'the award keeps the placement base');
+        assert_same('line', $rows[0]['base_source']);
+        assert_same(90.0, round(array_sum(array_column($rows, 'amount')), 2));
     },
 ];
