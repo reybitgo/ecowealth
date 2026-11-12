@@ -31,7 +31,7 @@ Examples: `QA17A-01-tables.txt`, `QA17A-06-wallet-filter.png`, `QA17B-03-ladder-
 | 17D Admin visibility | D | `QA17D-01` … `QA17D-08` | `QA17D-00-setup-cleanup.txt`, `QA17D-01-ledger.txt`, `QA17D-02-filters.txt`, `QA17D-03-reversal.txt`, `QA17D-04-order-wallet.txt`, `QA17D-05-export.txt`, `QA17D-05-export.csv`, `QA17D-06-order-states.txt`, `QA17D-07-reports.txt`, `QA17D-08-package-tab.txt` |
 | 17E Member visibility | E | `QA17E-01` … `QA17E-09` | `QA17E-00-setup-cleanup.txt`, `QA17E-01-product-panel.txt`, `QA17E-02-checkout-preview.txt`, `QA17E-03-order-outcome.txt`, `QA17E-04-earnings-tab.txt`, `QA17E-05-filters-export.txt`, `QA17E-05-export.csv`, `QA17E-06-package-regression.txt`, `QA17E-07-buyer-view.txt`, `QA17E-08-dashboard-membership.txt`, `QA17E-09-mobile.txt`, `QA17E-09-product-390.png`, `QA17E-09-product-390-full.png`, `QA17E-09-earnings-390.png`, `QA17E-09-earnings-390-full.png` |
 | 17F Operations | F | `QA17F-01` … `QA17F-07` | `QA17F-00-setup-cleanup.txt`, `QA17F-01-doctor.txt`, `QA17F-02-dry-run.txt`, `QA17F-03-close.txt`, `QA17F-04-idempotent.txt`, `QA17F-05-period.txt`, `QA17F-06-web.txt`, `QA17F-07-cmd.txt` |
-| 17G Release | G | `QA17G-01` … `QA17G-06` | added by 17G |
+| 17G Release | G | `QA17G-01` … `QA17G-06` | `QA17G-00-setup-cleanup.txt`, `QA17G-01-suite.txt`, `QA17G-01-smoke.txt`, `QA17G-01-build.txt`, `QA17G-01-reconcile.txt`, `QA17G-02-cold-read.txt`, `QA17G-03-acceptance-table.txt`, `QA17G-04-phase.txt`, `QA17G-05-deploy.txt`, `QA17G-05-runbook.txt`, `QA17G-06-evidence.txt` |
 
 The check text lives in [`../phase-17-unilevel-repeat-purchase.md`](../phase-17-unilevel-repeat-purchase.md).
 Evidence is filed by the tester named in that document's sign-off block; the project lead compares the

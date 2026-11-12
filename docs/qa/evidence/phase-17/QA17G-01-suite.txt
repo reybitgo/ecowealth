@@ -1,0 +1,1116 @@
+QA17G-01 — the full PHP suite on the release build (plan section 11, Phase 17G)
+Date: 2026-11-12 +08:00
+Database: ecowealth_sneat_test (rebuilt by tests/bootstrap.php)
+Command: php tests/run.php
+Note: ANSI colour codes stripped from the transcript; the text and counts are unchanged.
+
+EcoWealth test suite
+PHP 8.3.16 · schema ecowealth_sneat_test · phase 17
+
+AdminActivationLiveTest
+  PASS  a manual request bumps the queue and the member page
+  PASS  an approval bumps the queue, the directory and the member page
+  PASS  a rejection bumps the queue and the member page
+  PASS  the queue feed renders header, counters, tabs, rows and pagination
+  PASS  the queue feed renders its filtered empty state
+  PASS  the activation page declares its live surface and regions
+
+AdminCodeLiveTest
+  PASS  generating a batch bumps the code list
+  PASS  redeeming a code bumps the code list
+  PASS  an expiring code bumps the code list
+  PASS  the code feed renders the counters, rows and pagination
+  PASS  the code page declares its live surface and regions
+
+AdminCommissionLiveTest
+  PASS  a credited award bumps the commission ledger
+  PASS  a skipped award bumps the ledger without moving money
+  PASS  the ledger feed renders header, counters, rows and pagination
+  PASS  the ledger feed renders the filtered empty state
+  PASS  the commission page declares its live surface and regions
+  PASS  P17D-T1 the package tab keeps its ledger, filters and export (regression)
+  PASS  P17D-T2 the repeat tab renders stats, filters, rows and the empty state
+  PASS  P17D-T3 the stat tiles read the ledger exactly (credited, month, awards, recipients, skipped, unrecovered)
+  PASS  P17D-T4 the period card lists closed months newest first
+  PASS  P17D-T5 the repeat filters narrow, combine and fall back silently
+  PASS  P17D-T6 a skipped row shows the due amount and reason but never counts as money
+  PASS  P17D-T7 a voided award shows what was recovered and the shortfall stays visible
+  PASS  P17D-T8 the CSV shape carries the screen columns and every filtered row
+  PASS  P17D-T14 an award bumps the surface and the repeat tab refreshes, the package tab unaffected
+
+AdminConfirmTest
+  PASS  the confirmation handler supports a required reason prompt
+  PASS  a live admin mutation waits for the confirmation answer
+  PASS  every admin decision page loads the themed confirmation handler
+  PASS  every admin decision form carries its confirmation copy
+
+AdminDashboardLiveTest
+  PASS  dashboard writes bump admin.dashboard
+  PASS  member status changes bump admin.dashboard
+  PASS  the dashboard feed renders eight regions and chart data
+
+AdminMemberLiveTest
+  PASS  member surfaces use the list + detail keys and bump together
+  PASS  wallet movements and status changes bump the member surfaces
+  PASS  registration bumps the directory, the new member and the sponsor chain
+  PASS  the directory feed renders stats, filters, rows and pagination
+  PASS  the directory feed renders its filtered empty state
+  PASS  the member detail feed renders every card and keeps escaping
+  PASS  the member pages declare their live surfaces and regions
+
+AdminOrderLiveTest
+  PASS  order surfaces use the list + detail keys and bump together
+  PASS  placing an order bumps the desk and changes its ETag
+  PASS  every payment and fulfilment step bumps both surfaces
+  PASS  review decisions and cancellations bump their surfaces
+  PASS  the expiry and auto-complete sweeps bump the surfaces
+  PASS  the order desk feed renders header, stats, rows and pagination
+  PASS  the order desk feed shows the filtered empty state
+  PASS  the detail feed renders every card and keeps escaping
+  PASS  the detail feed opens the review pane and the fulfilment steps
+  PASS  the live client keeps form regions and reports the held keys
+  PASS  the order pages declare their live surfaces and regions
+  PASS  P17D-T9 a paid, processed order lists its repeat-purchase awards and the order total
+  PASS  P17D-T10 an unpaid order explains that nothing is paid yet
+  PASS  P17D-T11 an order paid before the feature says so and never pays retroactively
+
+AdminPackageLiveTest
+  PASS  package writes bump the admin list, member catalogue and config
+  PASS  the admin package feed renders stats, rows and pagination
+  PASS  the member package catalogue feed renders the cards and the empty state
+  PASS  the package pages declare their live surfaces and regions
+
+AdminSettingsLiveTest
+  PASS  settings saves bump the settings page and the shared config revision
+  PASS  the settings feed renders the notice and eight held card bodies
+  PASS  the payout card follows a settings change and warns while the USDT rate is unset
+  PASS  the settings page declares its live surface and regions
+
+AdminWalletLiveTest
+  PASS  wallet surfaces use the list + detail keys and bump together
+  PASS  every wallet movement bumps the monitor and its detail page
+  PASS  member status changes bump the wallet monitor and detail page
+  PASS  the monitor feed renders the common regions and the members tab
+  PASS  the monitor feed renders the top-ups tab
+  PASS  the monitor feed renders the ledger tab with a held statement
+  PASS  the wallet detail feed renders every card and keeps escaping
+  PASS  the wallet pages declare their live surfaces and regions
+
+AuditLogTest
+  PASS  P15 an audit entry records actor, action, subject, meta and ip
+  PASS  P15 meta decoding never throws on broken JSON
+  PASS  P15 the audit list filters by action, subject, text and date
+  PASS  P15 the audit vocabulary and counters feed the filters
+  PASS  P15 the audit trail has no update or delete path
+  PASS  P15 the audit desk renders entries, filters and pagination
+  PASS  P15 the audit desk shows an empty state
+  PASS  P15 only an admin route can reach the audit desk
+
+CartLiveTest
+  PASS  cart surfaces are per member and bump on every cart write
+  PASS  clearing a cart bumps the surface and an empty add is refused
+  PASS  the cart feed renders one content region with the lines
+  PASS  the cart feed renders the empty state and the closed-shop notice
+  PASS  the cart feed keeps the stock warning and the blocked checkout
+  PASS  the cart page declares its live surface, regions and banner
+
+CartTest
+  PASS  P4-T1 adding a product creates the cart and its first line
+  PASS  P4-T1 a page view never creates a cart row
+  PASS  P4-T2 adding the same product again increments the single line
+  PASS  P4-T3 adding beyond available stock is refused with the exact numbers
+  PASS  P4-T3 quantity must be at least 1 and at most the line cap
+  PASS  P4-T10 inactive and unknown products cannot be added
+  PASS  P4-T3 reserved stock reduces what the cart will accept
+  PASS  P4-T4 updating the quantity persists and qty 0 removes the line
+  PASS  P4-T4 updating beyond available is refused and keeps the old quantity
+  PASS  P4-T4 an inactive product cannot have its quantity raised
+  PASS  P4-T4 the no-JS stepper adjusts the quantity by ±1
+  PASS  P4-T4 the no-JS stepper cannot oversell, raise an inactive line or cross carts
+  PASS  P4-T5 updating another member’s item is refused (IDOR)
+  PASS  P4-T6 removing another member’s item is refused (IDOR)
+  PASS  P4-T7 a catalogue price change reaches the cart totals
+  PASS  P4-T8 two members’ carts are fully isolated
+  PASS  P4-T9 concurrent adds to the last unit cannot oversell
+  PASS  P4-T1 getOrCreate returns one active cart; convert starts a new one
+  PASS  P4-T4 clear empties the active cart but keeps it
+  PASS  P4-T13 validateStock explains every blocking line
+  PASS  P4-T13 a clean cart reports no stock problems
+
+CartViewTest
+  PASS  P4-T1 the cart page renders lines, totals and no-JS forms
+  PASS  P4-T4 a typed quantity saves on change, without a separate Update button
+  PASS  P4-T1 an empty cart shows the browse state and no table
+  PASS  P4-T1 the empty-state icon is centred and not pointer-cursored
+  PASS  P4-T13 an over-stock line blocks checkout and explains why
+  PASS  P4-T10 an inactive product line is flagged as unavailable
+  PASS  P4-T9 product names in the cart are escaped
+  PASS  P4-T1 a closed shop still shows the saved cart with a notice
+  PASS  P4-T13 the off-canvas drawer renders lines, count and totals
+  PASS  P4-T1 the empty drawer invites the member to the shop
+  PASS  P4-T13 the navbar, sidebar and drawer carry the live badge
+  PASS  P4-T1 the catalogue card offers a no-JS add-to-cart form
+  PASS  P4-T13 the admin sidebar also carries the cart menu with the live badge
+  PASS  P4-T13 the member sidebar still shows the cart without admin items
+  PASS  P4-T13 an empty cart keeps the sidebar badge hidden for the script to reveal
+  PASS  P4-T13 the cart drawer and navbar badge are styled by the global shell sheet
+  PASS  P4-T5 the cart page never leaks another member’s line
+
+CommissionIndirectTest
+  PASS  P11-T1 a ten-deep chain pays levels 1–10 exactly per the package matrix
+  PASS  P11-T2 a chain eleven deep stops at level 10
+  PASS  P11-T3 an ineligible upline consumes its level and deeper levels continue
+  PASS  P11-T4 package B pays a higher level matrix than package A
+  PASS  P11-T5 a package with indirect disabled pays only the direct award
+  PASS  P11-T5 the global indirect switch turns the ladder off
+  PASS  P11-T5 commission_indirect_max_levels caps the walk
+  PASS  P11-T6 replaying the hook pays no level twice
+  PASS  P11-T7 a zero-amount level writes no row and keeps deeper levels
+  PASS  P11-T8 wallet credits equal the credited commission rows
+  PASS  P11-T9 the earnings page shows a per-level breakdown
+  PASS  P11-T10 the admin ledger filters indirect awards by type and level
+  PASS  P11-T11 a ten-hop sponsor walk stays within twenty queries
+  PASS  P11-T12 worked Example B pays the full ladder
+
+CommissionTest
+  PASS  P10-T1 an active sponsor earns the package direct bonus exactly once
+  PASS  P10-T1 registration with a code pays the sponsor immediately
+  PASS  P10-T1 package B pays its premium direct bonus
+  PASS  P10-T2 a pending sponsor is skipped without moving money
+  PASS  P10-T2 an inactive or package-less sponsor is skipped with a reason
+  PASS  P10-T2 a member with no sponsor earns nothing and no row is written
+  PASS  P10-T3 a package with a zero direct bonus awards nothing and does not error
+  PASS  P10-T4 replaying the hook pays nothing twice
+  PASS  P10-T4 the unique key refuses a second award for the same event
+  PASS  P10-T5 two recruits credit two separate awards
+  PASS  P10-T6 wallet and commission reconciliation stay clean
+  PASS  P10-T6 reconciliation catches an award without its wallet movement
+  PASS  P10-T7 member totals, filters and pagination follow the awards
+  PASS  P10-T8 the admin ledger filters by member, type, level, status and date
+  PASS  P10-T9 a member query never returns another member commissions
+  PASS  P10-T10 an award links to its activation, source member and wallet entry
+  PASS  P10-T10 the hook is still invoked exactly once per activation
+
+CommissionViewTest
+  PASS  P10-T7 the earnings page shows the summary, the award and the wallet link
+  PASS  P10-T7 an empty earnings page explains where awards come from
+  PASS  P10-T7 a skipped award shows its reason and never claims money
+  PASS  P10-T7 the earnings filters keep their values and offer Clear
+  PASS  P10-T7 a hostile username is escaped in the table and the drawer
+  PASS  P10-T8 the admin ledger shows the stats, both sides of the award and the links
+  PASS  P10-T8 the admin ledger filters by type, level and status
+  PASS  P10-T8 an empty ledger explains where awards come from
+  PASS  P10-T7 the dashboard links to the earnings page
+
+CronTest
+  PASS  the web cron is trusted on loopback and needs the key elsewhere
+  PASS  the cron lock allows one run at a time
+  PASS  the cron log writes one monthly line per run
+  PASS  the expiry sweep obeys the admin kill switch
+  PASS  the settings mode recomputes a pending order from the payment window
+  PASS  the settings mode measures a rejected order from its rejection
+  PASS  the settings mode keeps a fresh order alive
+  PASS  the sweep reports candidates, mode and expiry state
+  PASS  P17F-T1 the dry run lists the months it would close and writes nothing
+  PASS  P17F-T2 a real run closes last month and the counts agree with the aggregate
+  PASS  P17F-T3 a second run is idempotent: closed=0 and no new row
+  PASS  P17F-T4 two missed months catch up in one run, oldest first
+  PASS  P17F-T5 a future period is refused and nothing is written
+  PASS  P17F-T6 --period on a closed month is an exit-0 no-op
+  PASS  P17F-T7 a held lock skips with [SKIP ] and exit 0
+  PASS  P17F-T8 the log is one line per run with the counters
+  PASS  P17F-T9 --json carries the numbers of the log line
+  PASS  P17F-T10 --doctor reports both clocks, the threshold and the pending months
+
+DbResetTest
+  PASS  preview counts the QA database and writes nothing
+  PASS  dry run plans the reset and writes nothing
+  PASS  default reset leaves a verified staff-only database
+  PASS  staff reset keeps identity and returns the state to install defaults
+  PASS  P17A-T8 a business reset empties the repeat-purchase money and keeps the ladder
+  PASS  a kept audit log grows by exactly one reset row
+  PASS  a cleared audit log starts with the reset row
+  PASS  catalogue reset reproduces the seed state by natural key
+  PASS  generated codes are unique unused package-bound and priced
+  PASS  invalid options are refused before any delete
+  PASS  a second reset deletes nothing and still verifies
+  PASS  a failure inside the transaction rolls every row back
+  PASS  upload cleanup deletes proof files and keeps the keepers
+  PASS  live revisions increment existing surfaces and add the standard ones
+  PASS  AUTO_INCREMENT is reset on empty tables but never on users
+  PASS  verification runs the five reconciliations on the injected PDO
+  PASS  a wrong confirmation is refused and nothing changes
+  PASS  no staff account is refused before deleting anything
+  PASS  a missing table is refused before deleting anything
+  PASS  production requires an explicit allow-production
+  PASS  the report carries the documented keys and the generated codes
+  PASS  CommissionService reads the commission baseline from the injected PDO
+  PASS  codes chosen before a catalogue reset follow the re-seeded package
+  PASS  a demo reset installs the documented tree, wallets and codes
+  PASS  demo codes and generated codes coexist and a plain reset clears both
+  PASS  a demo reset is refused in production before any delete
+  PASS  a demo reset is refused when the default packages are missing
+  PASS  reset parity: a default reset equals a fresh production install
+  PASS  reset parity: a catalogue+demo reset equals a fresh QA install
+
+DbTargetTest
+  PASS  fromConfig connects at server level and to one schema
+  PASS  exists reports a real schema and a missing one
+  PASS  tables and tableCount read information_schema in sorted order
+  PASS  the information_schema helpers describe the harness schema
+  PASS  a pre-provisioned scratch schema is recreated empty and then listed
+  PASS  recreating the scratch schema removes the previous case tables
+  PASS  create makes a missing schema and leaves it empty
+  PASS  create maps an existing schema and a refused name to hints
+  PASS  unsafe database names are rejected before any SQL
+  PASS  an unknown database maps to a create-it-first hint and leaks nothing
+  PASS  bad credentials map to a 1045 hint and never echo the password
+  PASS  an unreachable server maps to a not-reachable hint
+
+DbToolAccessTest
+  PASS  INSTALL_KEY is required only in production
+  PASS  an empty configured key never matches, not even an empty submission
+  PASS  the install key comparison is exact
+  PASS  the typed confirmation is INSTALL, trimmed and case-insensitive
+  PASS  the installer owns a dedicated session name
+  PASS  five failed key attempts throttle the gate for fifteen minutes
+  PASS  the key bucket is namespaced away from application forms
+  PASS  the reset console is visible outside production, and only enabled in production
+  PASS  the reset actor is admin in development and superadmin in production
+  PASS  the reset phrase is RESET in development and the database name in production
+  PASS  the reset phrase matcher is forgiving in development and exact in production
+  PASS  an S-Login tab can never open the reset console
+
+FulfilmentTest
+  PASS  P8-T1 pack → ready → ship moves the statuses and saves the tracking
+  PASS  P8-T1 a fulfilment step cannot be skipped, repeated or reversed
+  PASS  P8-T2 shipping without a courier or tracking is refused
+  PASS  P8-T2 the courier picker resolves a listed courier or a typed "Others" name
+  PASS  P8-T3 shipping deducts the physical stock exactly once
+  PASS  P8-T3 shipping refuses when the physical stock went short
+  PASS  P8-T4 deliver stamps the shipment and the member confirms the receipt
+  PASS  P8-T4 only the buyer can confirm, and only once the order is delivered
+  PASS  P8-T8 an order that has shipped can no longer be cancelled
+  PASS  P8-T9 the auto-complete sweep completes old deliveries and is idempotent
+  PASS  P8-T9 the auto-complete kill switch and day count are respected
+
+FulfilmentViewTest
+  PASS  P8-T5 the paid member page offers the invoice and explains what next
+  PASS  P8-T1 the shipped member page shows the courier and tracking
+  PASS  P8-T4 the delivered member page asks for a confirmation through the modal
+  PASS  P8-T4 the completed member page shows the closed order and the invoice
+  PASS  P8-T1 the paid admin page offers Start packing
+  PASS  P8-T1 the packing admin page offers Mark ready to ship
+  PASS  P8-T2 the ready admin page carries the guarded shipping form
+  PASS  P8-T2 the courier picker keeps the old choice and shows field errors
+  PASS  P8-T2 the ship script toggles the Other courier field progressively
+  PASS  P8-T4 the shipped admin page carries the delivery form and the shipment
+  PASS  P8-T9 the delivered admin page explains the auto-complete
+  PASS  P8-T5 the invoice page is a standalone A4 document
+  PASS  P8 the invoice page marks a voided document and keeps its content
+  PASS  P8 the invoice page escapes every snapshot value
+  PASS  P8 the settings page edits the seller identity and the completion rules
+  PASS  P8 the settings page echoes a bad completion window and the switch state
+
+HardeningTest
+  PASS  P15 the transfer throttle allows the limit then refuses
+  PASS  P15 the money forms are wired to the throttle
+  PASS  P15 the uploads directory cannot execute code
+  PASS  P15 the shared security headers are sent from the bootstrap
+  PASS  P15 production hides PHP errors and the 500 detail
+  PASS  P15 the repository ignores secrets and runtime artefacts
+  PASS  P15 the front controller pins the base URL, the router and the CSRF check
+  PASS  P15 the build reports phase 17
+
+ImpersonationTest
+  PASS  P14-T1 start records a hashed session and binds the member identity
+  PASS  P14-T2 every app URL keeps the token; assets and shared links do not
+  PASS  P14-T3 exit marks the log logged_out and the token is refused afterwards
+  PASS  P14-T4 a session past its TTL is refused and the audit row can be expired
+  PASS  P14-T5 an IP or user-agent change ends the session
+  PASS  P14-T6 only a superadmin can open a member session
+  PASS  P14-T7 the target must be an active member
+  PASS  P14-T8 six attempts in the window are rate-limited
+  PASS  P14-T9 a tampered token is rejected without touching the audit row
+  PASS  P14-T10 the raw nonce is never stored
+  PASS  P14-T11 the superadmin session survives start and exit
+  PASS  P14-T12 the audit list filters by status, search and date
+  PASS  P14-T13 a target suspended after the session opened is refused
+  PASS  P14-T14 a deleted audit row ends the session
+  PASS  P14-T15 bind refuses an invalid nonce
+  PASS  P14-T16 the console member picker lists only active members
+  PASS  P14-T17 the console and the audit trail render their real screens
+
+ImpersonationViewTest
+  PASS  P14-T1 the member layout shows the banner while impersonating
+  PASS  P14-T2 a normal member page has no banner
+  PASS  P14-T3 the banner is always present and never dismissible
+  PASS  P14-T4 the S-Login console is offered to superadmins only
+  PASS  P14-T5 the audit screen shows statuses but never a nonce hash
+  PASS  P14-T6 the audit screen has an empty state and filters
+
+InstallSqlTest
+  PASS  the committed bundle matches a fresh build byte for byte
+  PASS  the import matches the fresh schema, table by table
+  PASS  the import carries every setting and the three install_* keys
+  PASS  the catalogue matches by natural key (7 / 2 / 18 / 10)
+  PASS  the import seeds exactly two active staff accounts and no demo rows
+  PASS  a second import is refused by the guard and changes nothing
+
+InstallTest
+  PASS  preflight lists every check and passes on an empty scratch schema
+  PASS  a missing database is reported with a hint and never created
+  PASS  a fresh install produces 31/54/2/7/2/18/10 and a valid lock
+  PASS  P17A-T7 an award row fails the install verification and is named
+  PASS  a demo install seeds the tree, wallets and codes and verifies it
+  PASS  demo data is refused when the tree already exists
+  PASS  verify re-checks an installed schema and its lock
+  PASS  a second run is refused by the lock and changes nothing
+  PASS  a non-empty database without a lock is refused as not_empty
+  PASS  a table appearing mid-import is translated, never surfaced raw
+  PASS  the password policy is enforced before any SQL runs
+  PASS  production refuses without INSTALL_KEY and the comparison is constant time
+  PASS  the report carries the documented JSON keys and no secret
+  PASS  the web channel is recorded in settings and the lock
+  PASS  the installer page is standalone, SQL-free and writes no config
+  PASS  the shared tool stylesheet exists and carries the dark shell
+
+InvoiceTest
+  PASS  P8-T5 an e-wallet payment freezes one invoice at payment time
+  PASS  P8-T5 a verified manual payment issues the invoice too
+  PASS  P8-T5 an unpaid order has no invoice and never gets one
+  PASS  P8-T6 reprinting returns the same number and frozen content
+  PASS  P8-T5 a paid order from an earlier phase is backfilled exactly once
+  PASS  P8-T5 invoice numbers are unique and follow INV-yymmdd-#####
+  PASS  cancelling a paid order voids its invoice without changing its content
+  PASS  P8-T7 invoice documents are scoped to their own order
+  PASS  P8 the invoice snapshot keeps the status it was issued at
+
+LaunchTest
+  PASS  P15-T10 a fresh install carries the final schema and every seed
+  PASS  P15-T7 the general card renames the application everywhere
+  PASS  P15-T7 the commission switches stop the direct leg and relax eligibility
+  PASS  P15-T7 the transfer card drives the member transfer rules
+  PASS  P15-T1 the UAT money path runs end to end and reconciles
+  PASS  P15-T2 ownership, role and CSRF probes are refused
+  PASS  P15-T3 the report queries stay under a second at launch scale
+  PASS  P15-T4 every finance invariant is zero on the seeded database
+  PASS  P15-T12 impersonation sessions end in a terminal audit state
+
+LiveTest
+  PASS  live revision starts at zero and touch increments it
+  PASS  live touch de-duplicates repeated surfaces
+  PASS  live etag is stable and changes with revision or scope
+  PASS  live If-None-Match accepts strong, weak and list forms
+  PASS  live scope is order-independent and user-specific
+  PASS  product writes bump the admin.products revision
+  PASS  a missing product delete does not bump the revision
+  PASS  live publish queues surfaces and ignores stale entries
+
+Warning: Undefined array key "repeat_totals" in C:\laragon\www\ecowealth\system\app\Controllers\AdminProductController.php on line 163
+  PASS  the product feed renders stats, rows and pagination fragments
+
+Warning: Undefined array key "repeat_totals" in C:\laragon\www\ecowealth\system\app\Controllers\AdminProductController.php on line 163
+  PASS  the product feed renders the empty state
+
+MemberDashboardLiveTest
+  PASS  the member dashboard surface is per user and bumps on wallet and order writes
+  PASS  activation requests and decisions bump the dashboard
+  PASS  a rejected activation bumps the dashboard
+  PASS  the member dashboard feed renders the six regions
+  PASS  the member dashboard feed shows the newest order and the open request
+  PASS  the member dashboard page declares its surface and six regions
+  PASS  admins keep the admin dashboard surface at /dashboard
+
+MemberEarningsLiveTest
+  PASS  the earnings surface is per user and bumps on award and skip
+  PASS  the earnings feed renders the stats, rows and pagination
+  PASS  the earnings feed surfaces a skipped award without claiming money
+  PASS  the earnings page declares its live surface and regions
+
+MemberGenealogyLiveTest
+  PASS  the genealogy surface is per user and team writes bump the shared revision
+  PASS  the genealogy feed renders the team chain, recruits and team levels
+  PASS  the genealogy feed clamps the recruits page and renders the empty states
+  PASS  the team chain shows an empty state for a member with no team
+  PASS  the team-by-level cards paginate on their own, ten rows by default
+  PASS  the genealogy page declares its live surface and regions
+
+MemberMembershipLiveTest
+  PASS  membership surfaces are per member and bump together
+  PASS  activation, status and wallet writes bump the membership page
+  PASS  the membership feed renders the activation paths for a pending member
+  PASS  the feed replaces the paths with the open-request notice
+  PASS  the feed shows the active associate state and its history
+  PASS  the feed renders the standard and suspended notices
+  PASS  the membership page declares its live surface and regions
+
+MemberOrderLiveTest
+  PASS  member order surfaces use the list + detail keys and bump together
+  PASS  placement, cancellation and fulfilment bump the member order surfaces
+  PASS  the order history feed renders rows and pagination
+  PASS  the order history feed renders its filtered empty state
+  PASS  the order detail feed renders every card with the forms held
+  PASS  the order detail feed renders a paid order without action forms
+  PASS  the member order pages declare their live surfaces and regions
+
+MemberProfileLiveTest
+  PASS  address-book writes bump the profile and checkout surfaces
+  PASS  cart and wallet movements bump the checkout surface
+  PASS  the profile feed renders the name, payout and address regions
+  PASS  a stale edit id falls back to the add-address form
+  PASS  the profile page declares its live surface and regions
+  PASS  the checkout feed renders, hides and selects the saved addresses
+  PASS  the checkout page declares its live surface and regions
+
+MemberWalletLiveTest
+  PASS  the member wallet surface is per user and bumps on every movement
+  PASS  the wallet feed renders the buckets and the statement
+  PASS  the wallet feed renders the empty statement
+  PASS  the wallet page declares its live surface and regions
+
+MembershipTest
+  PASS  P9-T6 the demo tree seeds a sponsor chain without binary links
+  PASS  P9-T14 the demo codes cover unused and expired states
+  PASS  P9-T1 standard registration creates an active member without a package
+  PASS  P9-T1 a blank sponsor joins the company account (primary admin)
+  PASS  P9-T1 the default sponsor is the primary admin
+  PASS  P9-T1 free registration can be closed by the setting
+  PASS  P9-T2 registering with a valid code activates the code package
+  PASS  P9-T3 an invalid, used or expired code is refused and no account is written
+  PASS  P9-T4 an e-wallet registration debits the registrar once and credits the admin
+  PASS  P9-T5 a guest cannot register someone from an e-wallet
+  PASS  P9-T6 a referral signup resolves the sponsor by code and stays pending
+  PASS  P9-T7 an unknown or self sponsor is refused without an account
+  PASS  P9-T8 duplicate usernames and emails are field errors
+  PASS  P9-T9 activation by e-wallet debits once and invokes the hook once
+  PASS  P9-T10 a manual proof waits for review and approval activates the member
+  PASS  P9-T11 rejection returns the member to pending with a reason and no debit
+  PASS  P9-T12 double activation and double approval are refused
+  PASS  P9-T12 a standard member cannot self-activate (plan §7 rule)
+  PASS  P9-T13 two parallel redemptions use a code exactly once
+  PASS  P9-T14 generation is transactional and stats follow the states
+  PASS  P9-T14 invalid batches are refused and write nothing
+  PASS  P9-T15 the code and member routes are admin-guarded and the binary routes are gone
+  PASS  P9-T17 the upline chain walks sponsor_id to the top
+  PASS  P9-T17 the downline is grouped by level with no duplicates
+  PASS  P9-T17 a corrupted cycle cannot loop the chain or the downline
+  PASS  P9-T17 no binary column is referenced anywhere in the app
+  PASS  P9-T17 the schema carries no binary columns
+  PASS  P9-T16 suspend blocks sign-in and restore returns the right status
+  PASS  P9-T16 staff accounts are not member rows
+  PASS  P9-T18 referral codes are unique eight-character values
+  PASS  P9-T16 activation history and recruits page with the shared pager
+
+MembershipViewTest
+  PASS  P9-T1 the register form offers the free, code and pending modes
+  PASS  P9-T3 a code error is announced once, not twice
+  PASS  P9-T3 a global registration failure shows its message once
+  PASS  P9-T1 the register form pre-fills a referral sponsor
+  PASS  P9-T4 a signed-in registrar sees the e-wallet mode and package cards
+  PASS  P9-T4 a signed-in registrar sees the register-a-member framing
+  PASS  P9-T1 closed free registration leaves only the code mode
+  PASS  P9-T18 the register form has no binary placement field
+  PASS  P9-T9 a pending member sees the three activation paths
+  PASS  P9-T10 an open proof request replaces the activation forms
+  PASS  P9-T11 an active associate sees the package, not the forms
+  PASS  P9-T1 a standard member reads the standard-membership note
+  PASS  P9-T11 a suspended member sees no activation form
+  PASS  P9-T17 genealogy renders the team chain and the team levels
+  PASS  P9-T17 genealogy escapes a hostile username
+  PASS  P9-T16 the dashboard shows status, both wallet buckets and the referral link
+  PASS  P9-T16 the dashboard tells a pending member what to do
+  PASS  P9-T14 the codes page renders stats, the issue form and the list
+  PASS  P9-T15 a member cannot reach the admin screens (route guards)
+  PASS  P9-T10 the review queue offers approve, reject and the proof
+  PASS  P9-T11 an approved activation has no review actions
+  PASS  P9-T16 the member directory shows sponsor, package, wallet and status
+  PASS  P9-T16 the member detail page carries the membership record
+  PASS  P9-T16 the member table honours the rows-per-page choice
+
+MigrationTest
+  PASS  migration renames user → member and adds superadmin
+  PASS  migration keeps every account and its password hash
+  PASS  migration creates settings, audit_log and the catalogue tables
+  PASS  migration adds the role index
+  PASS  migration is idempotent
+  PASS  migrated schema matches a fresh install
+  PASS  migration 019 adds the reporting indexes and re-runs cleanly
+  PASS  P17A-T3 migration 020 adds the repeat-purchase objects, defaults off and re-runs cleanly
+  PASS  migration guards the ledger enum and the idempotency key
+  PASS  migration guards the order idempotency key and status enum
+  PASS  migration guards the payment-proof attempt and status enum
+  PASS  migration guards the shipment and invoice snapshots
+  PASS  migration adds membership columns, backfills and guards codes
+  PASS  migration adds the indirect commission settings
+  PASS  migration raises Package B to the premium ladder only
+  PASS  migration guards the commission event key and its cascades
+  PASS  migration guards the payout status machine and its cascades
+  PASS  migration guards the impersonation audit and its hashed nonce
+  PASS  migrated schema rejects the old user role value
+
+OrderTest
+  PASS  P6-T1 an e-wallet order is paid, reserved, converted and debited once
+  PASS  P6-T1 a manual order stays pending without touching the wallet
+  PASS  P6-T2 the same idempotency key returns the original order once
+  PASS  P6-T3 posted prices are ignored; the catalogue price wins
+  PASS  P6-T4 stock changed after the cart renders refuses the whole order
+  PASS  P6-T5 insufficient wallet refuses the order and keeps everything
+  PASS  P6-T6 missing address fields and terms are field-level errors
+  PASS  P6-T7 the address book enforces one default and member ownership
+  PASS  P6-T7 checkout can save the typed address for next time
+  PASS  P6-T8 another member cannot read or cancel the order
+  PASS  P6-T9 the order list filters, paginates and totals correctly
+  PASS  P6-T10 admins see every order; the stats count what they paid
+  PASS  P6-T11 cancelling an unpaid order releases stock and logs the transition
+  PASS  P6-T11 a paid order cannot be cancelled online
+  PASS  P6-T12 every transition writes one event with actor and timestamp
+  PASS  P6-T13 the order number is EW + yymmdd + id and is unique
+  PASS  P6-T14 two checkouts for the last unit create at most one order
+  PASS  P17C-T34 placement snapshots the bonus base and a later price edit cannot rewrite it
+
+OrderViewTest
+  PASS  P6-T1 the checkout page carries items, payments, terms and the key
+  PASS  P6-T5 an unaffordable e-wallet is disabled and manual is preselected
+  PASS  P6-T6 checkout errors render inline and keep the typed input
+  PASS  P6-T6 the checkout script gates Place order on the terms checkbox
+  PASS  P6-T9 the orders list renders rows, filters and the empty state
+  PASS  P6-T9 order rows escape the snapshot product name
+  PASS  P6-T1 the paid order page shows items, payment, delivery and history
+  PASS  P6-T11 the pending order page shows instructions and the cancel form
+  PASS  P6-T11 the confirmation script uses SweetAlert2 with a native fallback
+  PASS  P6-T11 a cancelled order shows its reason and no cancel form
+  PASS  P6-T10 the admin desk lists orders with stats and member context
+  PASS  P6-T10 the admin order page shows the member, items and timeline
+  PASS  P6-T7 the profile page renders the address book and the form
+  PASS  P6-T7 editing an address opens the form with its values
+  PASS  P6-T1 the member menu now offers Orders and Profile
+
+PackageTest
+  PASS  P3-T1 the demo seed loads Package A and Package B
+  PASS  P3-T1 levelsMap batches the ladder for a page
+  PASS  P3-T1 contentsMap joins product details
+  PASS  P3-T1 stats count packages by status
+  PASS  P3-T1 the admin list filters by search and status
+  PASS  P3-T1 creating a package writes the ladder and contents
+  PASS  P3-T2 editing a level persists and keeps the rest
+  PASS  P3-T5 level 1 is the direct bonus and never stored as a level row
+  PASS  P3-T1 slugs stay unique across packages
+  PASS  P3-T3 invalid package fields are rejected
+  PASS  P3-T3 level amounts reject negatives, 3 decimals and over the cap
+  PASS  P3-T3 a failed save writes nothing
+  PASS  P3-T4 blank rows are dropped and duplicates merged
+  PASS  P3-T4 inactive products cannot be added to contents
+  PASS  P3-T4 an already-linked inactive product may stay in its package
+  PASS  P3-T4 content quantities must be between 1 and 1000
+  PASS  P3-T4 content options are the active catalogue plus linked products
+  PASS  P3-T6 setStatus toggles packages and refuses unknown statuses
+  PASS  P3-T6 deactivated packages disappear from the public cards
+  PASS  P3-T8 public cards expose the ladder, totals and contents
+  PASS  P3-T8 levelsFromInput normalises the posted matrix
+  PASS  P3-T8 contentsFromInput zips the repeater arrays
+
+PackageViewTest
+  PASS  P3-T8 the packages page lists both packages with prices and bonuses
+  PASS  P3-T8 the packages page shows the full ladder on demand
+  PASS  P3-T8 an empty catalogue shows the empty state
+  PASS  P3-T8 package text is escaped
+  PASS  P3-T1 the admin list renders packages with their ladder summary
+  PASS  P3-T5 the admin form renders 9 editable levels and a read-only level 1
+  PASS  P3-T2 the admin form shows validation errors and posted values
+
+ParityTest
+  PASS  P1-T12 inventory holds the 98 reference pages exactly once
+  PASS  P1-T12 dispositions total 67 port · 8 defer · 23 drop
+  PASS  P1-T12 port rows carry targets and a valid phase
+  PASS  P1-T12 every target is well formed and every page target exists
+  PASS  P1-T12 every route due in this phase is registered
+  PASS  P1-T12 no route from a later phase is registered early
+  PASS  P1-T12 every registered route belongs to the inventory
+  PASS  P1-T12 the live table has no duplicated method + path
+
+PaymentDetailsTest
+  PASS  payout accounts save with normalised phone numbers
+  PASS  payout accounts accept 09 and +63 numbers and reject nonsense
+  PASS  payout accounts can be cleared one by one and only touch the owner
+  PASS  the profile renders the payout accounts card with the saved values
+  PASS  a failed payout save keeps the typed values and shows the field error
+  PASS  an admin profile keeps the payout card in the back-office layout
+
+PaymentTest
+  PASS  P7-T1 a valid proof moves the order to payment_review and keeps the hold
+  PASS  P7-T1 a PDF proof is accepted and its facts are read from the file
+  PASS  P7-T2 a wrong file type or an oversized file is refused with no writes
+  PASS  P7-T2 the claim is validated field by field
+  PASS  P7-T3 the attempt cap refuses the fourth upload
+  PASS  P7-T4 verification pays the order, commits the stock and logs the event
+  PASS  P7-T4 verification refuses a wrong amount, a reused reference or no proof
+  PASS  P7-T5 rejection releases the stock and opens the correction window
+  PASS  P7-T5 a rejection needs a real reason and a pending proof
+  PASS  P7-T6 a re-upload after a rejection re-reserves the stock
+  PASS  P7-T7 the expiry sweep cancels overdue orders and is idempotent
+  PASS  P7-T7 a rejected order expires on its correction deadline
+  PASS  P7-T8 an upload past the deadline is refused with clear copy
+  PASS  P7-T8 a second upload while under review is refused
+  PASS  P7-T9 another member cannot upload a proof on this order
+  PASS  P7-T10 an admin cannot verify, reject or cancel their own order
+  PASS  P7-T11 the timeline records every step with its actor and reason
+  PASS  P7-T12 cancelling a wallet-paid order refunds the buckets it spent
+  PASS  P7-T12 cancelling a proof-paid order refunds nothing
+  PASS  P7-T12 an admin cancel rejects a pending proof and never double-cancels
+  PASS  P7-T12 a shipped order cannot be cancelled by an admin
+  PASS  P17C-T2 a manual order verified by an admin pays the ladder exactly once
+
+PaymentViewTest
+  PASS  P7-T1 the pending page offers the proof upload with its fields
+  PASS  P7-T8 a closed window hides the form and explains why
+  PASS  P7-T1 the page shows the review state without an upload form
+  PASS  P7-T5 the rejected page shows the reason, the window and the retry form
+  PASS  P7-T3 an exhausted attempt cap explains itself and hides the form
+  PASS  P7-T1 attempt rows escape a hostile reference and reason
+  PASS  P7-T4 the paid page shows the verified reference and no proof panel
+  PASS  P7-T12 a cancelled order says what happened to the money
+  PASS  P7-T4 the review pane offers verify and reject with confirmations
+  PASS  P7-T10 the admin own order shows the segregation banner instead of actions
+  PASS  P7-T12 a paid order shows the refunding cancel action
+  PASS  P7-T5 the rejected order tells the admin the correction window is open
+  PASS  P7-T4 the settings page renders the accounts, windows and save
+  PASS  P7-T4 the settings form echoes field errors and typed values
+  PASS  P7-T4 the admin menu offers Settings and the desk links the review filter
+
+PayoutLiveTest
+  PASS  the payout surface is per member and bumps for every decision
+  PASS  a refused payout request bumps no surface
+  PASS  the payout feed renders the four regions and holds the request region
+  PASS  the payout page scope follows the wallet revision as well
+  PASS  the payout page also revalidates when the saved payout accounts change
+  PASS  the payout settings fingerprint reaches both payout surfaces
+  PASS  a USDT settings change reaches the open payout page without a reload
+  PASS  the queue feed renders the stats, tabs and rows
+  PASS  the payout page declares its surface and loads the form script
+
+PayoutTest
+  PASS  P13-T1 a valid request holds the amount and queues a pending row
+  PASS  P13-T2 an amount below min_payout is refused and writes nothing
+  PASS  P13-T3 an amount above the withdrawable bucket is refused even when the balance covers it
+  PASS  P13-T4 a second request while one is open is refused
+  PASS  P13-T5 the service fee percentage is taken from the amount and stored
+  PASS  P13-T6 a USDT request converts at the server-side rate and stores the rate and gas
+  PASS  P13-T6 a USDT request is refused while usdt_rate is unset
+  PASS  P13-T7 approve records the staff account and the moment
+  PASS  P13-T8 complete settles the request without a second debit
+  PASS  P13-T9 reject refunds the held amount exactly once and records the reason
+  PASS  P13-T9 a rejection without a reason is refused
+  PASS  P13-T9 a refund is still paid back when an order refund already uses that id
+  PASS  P13-T10 a member cannot process a payout, and nobody can process their own
+  PASS  P13-T11 double approve and out-of-order decisions are refused
+  PASS  P13-T12 reconciliation matches every request to its hold and refund
+  PASS  P13-T13 the queue filters, counts and totals agree with the rows
+  PASS  the channel must exist and be switched on
+  PASS  the payout account is required and validated like the profile form
+  PASS  the note is trimmed, collapsed and capped
+  PASS  the quote reports both buckets of a request and refuses a swallowed net
+  PASS  the options a page renders know when a request is possible
+  PASS  a second request cannot hold money the first one already took
+
+PayoutViewTest
+  PASS  P13-T1 the payout page carries the withdrawable card and the request form
+  PASS  P13-T6 the USDT channels are closed while the rate is unset
+  PASS  P13-T7 an open request closes the form and shows what is held
+  PASS  P13-T2 a withdrawable balance below the minimum explains itself
+  PASS  P13-T13 the member history shows every request, its fee, net, USDT and reason
+  PASS  P13-T1 the payout page escapes hostile names, accounts and notes
+  PASS  P13-T3 the form echoes a refusal and keeps the submitted values
+  PASS  P13-T12 an admin sees their own payout page in the back-office layout
+  PASS  P13-T13 the queue lists the pending requests with their actions
+  PASS  P13-T13 an approved request offers complete, a completed one offers nothing
+  PASS  P13-T13 the queue filters by member and date and escapes hostile input
+  PASS  P13-T12 the queue shows the settings it is working with
+
+ProductTest
+  PASS  P2-T1 the demo seed loads the retail products
+  PASS  P2-T4 the storefront list is ordered and filtered by status
+  PASS  P2-T8 search matches name, SKU and short description
+  PASS  P2-T8 LIKE wildcards in the search term are escaped
+  PASS  P2-T8 the admin list paginates and keeps filters
+  PASS  P2-T1 creating a product generates a unique slug
+  PASS  P2-T4 updating keeps the slug and stores the new price
+  PASS  P2-T2 validation rejects empty name, zero price and negative stock
+  PASS  P2-T2 validation enforces the description length
+  PASS  P2-T1 a valid product passes validation
+  PASS  P2-T1 SKUs stay unique while empty SKUs may repeat
+  PASS  P2-T5 setStatus toggles products and refuses unknown statuses
+  PASS  P2-T6 an unreferenced product can be deleted
+  PASS  P2-T6 deleting a product removes its uploaded image
+  PASS  P2-T7 delete is refused while a cart references the product
+  PASS  P2-T7 delete is refused while an order references the product
+  PASS  P3-T4 delete is refused while a package contains the product
+  PASS  P2-T7 referencesMap batches counts for a page of products
+  PASS  P2-T2 StockService labels stock levels
+  PASS  P2-T2 available stock is the physical count while no orders exist
+  PASS  P2-T2 reservations from non-terminal orders reduce availability
+  PASS  P2-T2 availability never drops below zero
+  PASS  P2-T3 UploadService replaces a product image and removes the old file
+  PASS  P2-T3 UploadService ignores seeded asset paths when removing
+  PASS  P2-T1 slugify normalises names safely
+
+ProductViewTest
+  PASS  P2-T1 the catalogue renders cards with prices and stock badges
+  PASS  P2-T2 the catalogue shows sold-out and low-stock badges
+  PASS  P2-T5 the catalogue shows an empty state when nothing matches
+  PASS  P2-T5 a closed shop hides the catalogue
+  PASS  P2-T9 product names, prices and descriptions are escaped
+  PASS  P4-T1 the detail page renders an active add-to-cart form
+  PASS  P4-T1 the product stepper is a single-row, content-width group
+  PASS  P2-T2 a sold-out detail page says so
+  PASS  P2-T1 the admin list renders rows, filters and guarded delete buttons
+  PASS  P2-T1 the admin form renders values, errors and the upload field
+  PASS  P2-T4 the edit form shows the current image and a remove option
+  PASS  P17B-T14 the form view itself renders the repeat-purchase card
+
+ReportTest
+  PASS  P15 the report window defaults to 30 days and is inclusive
+  PASS  P15 the report window swaps a reversed range and caps a long one
+  PASS  P15 sales today, in the window and all time count paid orders only
+  PASS  P15 sales by day zero-fills every day in the window
+  PASS  P15 orders by status keep the lifecycle order
+  PASS  P15 top products rank paid lines and exclude unpaid orders
+  PASS  P15 sales by method groups paid orders
+  PASS  P15 commissions by level separate credited from skipped
+  PASS  P15 the wallet float equals the sum of both buckets
+  PASS  P15 the wallet statement export rows are ordered and member-scoped
+  PASS  P15 the payout summary separates held, completed and rejected
+  PASS  P15 code revenue counts issued, redeemed and expired codes
+  PASS  P15 each export builds a filename, header and rows
+  PASS  P15 an unknown export type is refused
+  PASS  P17D-T12 the summary counts credited money, skips and the unrecovered shortfall
+  PASS  P17D-T12 the repeat report groups by level and by product
+  PASS  P17D-T12 the period card reads the closed months newest first
+  PASS  P17D-T13 the repeat export is offered and writes the ledger columns
+  PASS  P17D-T12 the dashboard KPI reads the repeat money of the last 30 days
+
+ReportViewTest
+  PASS  P15 the reports page renders every report and its export menu
+  PASS  P15 a report window comes from the query and is echoed in the form
+  PASS  P15 the reports page escapes product and member data
+  PASS  P15 the reports feed returns twelve fragments and chart data
+  PASS  P15 the health widget reports every invariant and passes on a clean fixture
+  PASS  P15 the health widget flags a broken order total
+  PASS  P15 the admin menu offers Reports and the Audit log in phase 15
+  PASS  P17D-T12 the four repeat cards show the fixture numbers and the dashboard KPI reads 30 days
+
+RouterTest
+  PASS  Router matches a static route with its guard
+  PASS  Router extracts numeric parameters
+  PASS  Router rejects non-numeric parameters
+  PASS  Router requires the exact method
+  PASS  Router treats HEAD as GET and tolerates a trailing slash
+  PASS  Router keeps "/" distinct from every other path
+  PASS  Router refuses duplicate routes
+  PASS  Router refuses an unknown guard
+  PASS  Router refuses a malformed row
+  PASS  Live route table builds and contains the Phase 1–10 routes
+  PASS  Live route table resolves the Phase 1–10 URLs
+
+SLoginLiveTest
+  PASS  the console surface is admin.slogin and every impersonation write bumps it
+  PASS  the overdue sweep bumps the console only when it expires a row
+  PASS  the console feed renders the active and recent cards
+  PASS  the console feed renders both empty states
+  PASS  the console page declares the surface and keeps the form outside it
+  PASS  the console ETag follows the revision and the signed-in superadmin
+
+SeedParityTest
+  PASS  every settings key a migration introduces exists in seed 001 (F-01)
+  PASS  seed 001 has no duplicate settings key
+  PASS  seed 002 marks both staff accounts active (F-09)
+  PASS  the install bundle carries every seed key and parses cleanly
+
+SettingsPageTest
+  PASS  P7-T4 each settings card has its own form and Save settings button
+  PASS  P7-T4 a card only contains its own fields
+  PASS  P7-T4 errors and typed values stay inside their own card
+  PASS  P7-T4 the legacy all-in-one form is gone
+  PASS  the settings page has a section menu for every card
+  PASS  the settings cards keep a gap when they follow one another
+  PASS  P7-T4 the field catalog is partitioned by section
+  PASS  P7-T4 each section validates and saves only its own keys
+
+SettingsTest
+  PASS  settings seed loads the documented defaults
+  PASS  setting() returns the fallback for a missing key
+  PASS  setting_bool() understands the common truthy spellings
+  PASS  setting_bool() normalises text values
+  PASS  setting_int() and setting_float() cast values
+  PASS  setting_set() inserts, updates and refreshes the cache
+  PASS  setting_all() returns the whole table
+  PASS  settings written by one case are rolled back before the next
+
+ShopLiveTest
+  PASS  shop surfaces use the catalogue + product keys and bump together
+  PASS  product writes bump the catalogue and the product page
+  PASS  order reservations and releases bump the storefront
+  PASS  the catalogue feed renders the heading, results and quick view
+  PASS  the catalogue feed renders the filtered empty state
+  PASS  the product feed renders the heading, notice and card
+  PASS  the product feed swaps to the unavailable card after removal
+  PASS  the shop pages declare their live surfaces and regions
+
+SkeletonTest
+  PASS  P1-T5 detect_app_base_url: document root
+  PASS  P1-T5 detect_app_base_url: /ecowealth/system/ sub-folder
+  PASS  P1-T5 detect_app_base_url: normalises Windows separators
+  PASS  P1-T5 url() prefixes the installation path
+  PASS  P9-T18 absolute_url() adds the origin to copyable links
+  PASS  P1-T5 Request::pathFrom strips the install prefix from a deep URL
+  PASS  P1-T5 Request::pathFrom handles root, trailing slash and query
+  PASS  P1-T5 Request::pathFrom decodes percent-escapes
+  PASS  money() formats pesos
+  PASS  money() shows the sign only when asked (or negative)
+  PASS  status_badge() maps a known status
+  PASS  status_badge() humanises an unknown status
+  PASS  status_badge() accepts per-page overrides
+  PASS  Validator flags required, length and numeric rules
+  PASS  Validator checks decimals, email and confirmation
+  PASS  Validator passes valid input
+  PASS  Validator honours nullable fields
+  PASS  Validator counts characters when a field says string
+  PASS  Validator keeps amount semantics on numeric fields
+  PASS  Validator unique rule reads the database
+  PASS  Paginator computes pages, offset and summary
+  PASS  Paginator clamps an out-of-range page
+  PASS  Paginator handles an empty result
+  PASS  Paginator window surrounds the current page
+  PASS  Paginator defaults to ten rows and offers 5 … 100 in fives
+  PASS  Paginator reads a valid per_page and falls back to the default
+  PASS  Paginator page URLs keep the chosen page size
+  PASS  flash messages render once
+  PASS  old() repopulates and clears
+  PASS  form errors survive one round trip
+  PASS  invalid_class adds is-invalid only for a failing field
+
+SqlScriptTest
+  PASS  plain statements split with their starting line numbers
+  PASS  a semicolon inside a quoted string never splits the statement
+  PASS  doubled quotes and backslash escapes stay inside the string
+  PASS  -- is a comment only when followed by whitespace
+  PASS  # and block comments are stripped and keep the line numbers
+  PASS  a DELIMITER block is rejected with a clear message
+  PASS  a truncated script cannot end inside a string or a comment
+  PASS  containsDatabaseSwitch sees statements, never comments or strings
+  PASS  a failing statement names its index, line and driver code
+  PASS  schema.sql imports through the runner into a scratch schema
+  PASS  the application SQL sources contain no executable database switch
+  PASS  checksum ignores line endings and trailing whitespace but not content
+  PASS  run reports the statement count and calls the progress hook
+  PASS  a missing SQL file is a usage error
+  PASS  the statement cap stops a runaway script
+
+TransferLiveTest
+  PASS  the transfer surface is per member and bumps for both parties
+  PASS  a refused transfer bumps no surface
+  PASS  the transfer feed renders the four regions and keeps the form out of them
+  PASS  the transfer page scope follows the wallet revision as well
+  PASS  the monitor transfers feed renders the tab and its rows
+  PASS  the transfer page declares its surface and loads the form script
+
+TransferTest
+  PASS  P12-T1 a fee-free transfer moves the amount and writes two ledger rows
+  PASS  P12-T2 a member pays the fee, which is credited to the primary admin
+  PASS  P12-T3 an amount below the minimum is refused and writes nothing
+  PASS  P12-T4 a transfer larger than the balance is refused; counters stay put
+  PASS  P12-T5 a member cannot transfer to themselves
+  PASS  P12-T6 a wrong or missing password refuses before anything is written
+  PASS  P12-T7 the daily limit allows exactly the limit and refuses one peso more
+  PASS  P12-T8 the weekly limit is enforced independently of the daily one
+  PASS  P12-T9 the reset job zeroes daily counters every run and weekly ones on request
+  PASS  P12-T10 a second transfer cannot spend money the first one already took
+  PASS  P12-T11 a transfer spends non-withdrawable money first and credits non-withdrawable money
+  PASS  P12-T12 staff transfer without a fee or a limit and are attributed to the primary admin
+  PASS  an admin transfers without a fee
+  PASS  the recipient must exist, be enabled and not be suspended
+  PASS  the note travels to the transfer row and both ledger rows
+  PASS  the fee falls back to an unlinked ledger row when the admin is the recipient
+  PASS  an orphan transfer leg is reported, not treated as a money error
+  PASS  reconciliation matches every transfer to its three ledger legs
+
+TransferViewTest
+  PASS  P12-T1 the transfer page carries the password-confirmed form, fee and minimum
+  PASS  P12-T1 the page lists sent and received transfers with their direction
+  PASS  P12-T1 the transfer page escapes hostile names and notes
+  PASS  P12-T1 the form echoes a refusal and keeps the submitted values
+  PASS  P12-T1 the ?to= query prefills the recipient
+  PASS  P12-T12 an admin sees the staff exemption on the transfer page
+  PASS  P12-T2 the monitor transfers tab lists the log with links, fees and filters
+  PASS  P12-T10 the monitor transfers tab searches by member and date
+  PASS  P12-T1 an empty transfer log explains itself
+
+UnilevelConfigurationTest
+  PASS  P17B-T11 referencePreset is the 29% reference ladder
+  PASS  P17B-T1 a new product saves the reference ladder with the switch off
+  PASS  P17B-T2 blanks are stored as 0.000 and shown blank again
+  PASS  P17B-T2 three decimals survive the round trip
+  PASS  P17B-T3 a ladder over 100% is refused with a sum error
+  PASS  P17B-T3 a failed product write leaves no ladder behind
+  PASS  P17B-T4 100% plus 1% is a sum error
+  PASS  P17B-T5 a rate over 100 or with four decimals fails on its own level
+  PASS  P17B-T6 switching on an empty ladder is refused
+  PASS  P17B-T7 a P.V. base without a P.V. is refused
+  PASS  P17B-T8 a price base with no P.V. is accepted
+  PASS  P17B-T9 the ladder change is audited once with before and after
+  PASS  P17B-T10 baseFor follows the base choice and the quantity
+  PASS  P17B-T20 a configured product pays nothing while the global master is off
+  PASS  P17B-T12 levelsMap and totalsMap read a page without N+1
+  PASS  P17B-T12 rowsFor returns the engine columns in one query
+  PASS  P17B-T13 deleting a product cascades its ladder; an award blocks
+  PASS  P17B-T14 the product form renders one ladder and no direct/indirect control
+  PASS  P17B-T14 the edit form loads the stored ladder
+  PASS  P17B-T15 a refused form keeps the posted values and its errors
+  PASS  P17B-T16 the list badge tells the truth about the ladder
+  PASS  P17B-T17 the unilevel filter narrows the list and survives pagination
+  PASS  P17B-T18 the commissions card holds the five repeat-purchase keys
+  PASS  P17B-T19 the settings card validates and round-trips its keys
+
+UnilevelCycleTest
+  PASS  P17C-T40 an October shortfall blocks c for November while the others pay
+  PASS  P17C-T41 a November ₱2,000 month restores c for December
+  PASS  P17C-T42 a member with no snapshot row is Active
+  PASS  P17C-T43 cancelling after the close never rewrites the snapshot
+  PASS  P17C-T44 close writes one row per account, one header and the award snapshot
+  PASS  P17C-T45 a second close writes nothing
+  PASS  P17C-T46 a future period is refused and nothing is written
+  PASS  P17C-T47 the live fallback agrees with a later close
+  PASS  P17C-T48 periodOf and bounds handle the Manila midnight
+  PASS  P17C-T49 activeMap is one previous-period query for ten recipients
+  PASS  P17C-T50 the close still snapshots when the stream is off
+
+UnilevelEngineTest
+  PASS  P17C-T1 an e-wallet order pays the four-deep ladder and credits each wallet once
+  PASS  P17C-T3 a ten-deep chain pays all ten levels (₱145)
+  PASS  P17C-T4 a ₱555 base rounds per level to ₱160.95
+  PASS  P17C-T5 a ₱555.55 base pinpoints the per-level rounding drift (₱161.13)
+  PASS  P17C-T6 base=price pays on ₱600 and not on the P.V.
+  PASS  P17C-T7 a legacy line without a snapshot falls back to the product base
+  PASS  P17C-T8 the company account is a skipped row and never paid
+  PASS  P17C-T9 a buyer with no sponsor gets no rows and a zero stamp
+  PASS  P17C-T10 max levels 3 pays three levels (₱75)
+  PASS  P17C-T11 max levels 2 pays two levels (₱50)
+  PASS  P17C-T12 max levels 1 pays only the direct sponsor (₱25)
+  PASS  P17C-T13 an eleven-deep chain pays levels 1–10 only
+  PASS  P17C-T14 two products on one order pay two independent ladders (₱140)
+  PASS  P17C-T15 three lines on a ten-deep chain stay batched (no N+1)
+  PASS  P17C-T16 the buyer is never a recipient and owns no award
+  PASS  P17C-T17 an inactive level 2 is skipped without compression
+  PASS  P17C-T18 a disabled level 1 is skipped and the walk continues
+  PASS  P17C-T19 a suspended level 1 writes the membership reason
+  PASS  P17C-T20 requires_active_upline=0 pays a monthly-inactive level 1
+  PASS  P17C-T21 a staff account as an upline is paid like any other member
+  PASS  P17C-T22 a self-sponsor cycle stops the walk with no duplicate recipient
+  PASS  P17C-T23 a zero rate at level 1 consumes the level with no row
+  PASS  P17C-T24 a zero rate at level 2 still pays level 3 at its own number
+  PASS  P17C-T25 the global master off writes no award but stamps the order
+  PASS  P17C-T26 the product master off writes no award but stamps the order
+  PASS  P17C-T27 both masters on pays the ladder (control for T25/T26)
+  PASS  P17C-T28 a second onOrderPaid is a replay and moves no money
+  PASS  P17C-T29 the unique key refuses a duplicate (line, recipient, level) award
+  PASS  P17C-T30 an unpaid order is never stamped and pays nothing
+  PASS  P17C-T31 the reconcile is clean after real awards
+  PASS  P17C-T32 a deleted ledger row fails the reconcile and the CLI exit code
+  PASS  P17C-T33 a product with an award cannot be deleted
+  PASS  P17C-T35 quoteLine reads ten levels and writes nothing
+  PASS  P17C-T36 cancelling a paid order voids every award and debits the wallets
+  PASS  P17C-T37 a partly spent wallet reverses only what it still holds
+  PASS  P17C-T38 the reversal switch off leaves the awards credited
+  PASS  P17C-T39 cancelling an unpaid order has nothing to reverse
+  PASS  P17C-T51 a staff buyer earns nothing and the chain above is paid
+
+UnilevelFoundationTest
+  PASS  P17A-T1 the migration adds the four tables, four altered tables and two indexes
+  PASS  P17A-T1 the migration extends the ledger enum and seeds six settings, every stream off
+  PASS  P17A-T2 a second run of the migration is a no-op
+  PASS  P17A-T5 the committed install bundle matches its sources and carries the six settings
+  PASS  P17A-T6 the installer and reset expectations match the schema
+  PASS  P17A-T9 WalletService::REF_TYPES and the live enum agree in both directions
+  PASS  P17A-T10 the two ref types carry Repeat-purchase labels and icons
+  PASS  P17A-T11 a migrated database and a fresh install carry the same six defaults
+  PASS  P17A-T12 a product ladder row cascades on delete and stays unique per level
+  PASS  P17A-T12 an award cascades with its order and protects its product
+  PASS  P17A-T13 the stream stays off by default and adds no route or controller
+
+UnilevelMemberViewTest
+  PASS  P17E-T1 the product panel lists levels 1–10, the per-unit amounts, the 29.000% total and the no-rebate note
+  PASS  P17E-T2 an unconfigured product renders no panel at all
+  PASS  P17E-T3 the catalogue badge shows Up to 29% for a configured product in one batched query
+  PASS  P17E-T4 the checkout summary says up to ₱145.00 goes to the sponsor chain and never says rebate
+  PASS  P17E-T5 a cart with no configured product renders no preview line
+  PASS  P17E-T6 the checkout feed carries bonus_preview in the refreshed summary and matches the first render
+  PASS  P17E-T7 the order page shows the total paid to the sponsor chain and no per-upline amounts
+  PASS  P17E-T8 the repeat tab shows the counters, the two-clock panel, the 1–10 breakdown and the rows without an as-buyer stat
+  PASS  P17E-T9 the repeat filters narrow the rows and the CSV carries the documented columns and own rows only
+  PASS  P17E-T10 the package tab is unchanged and renders no repeat region
+  PASS  P17E-T11 the repeat tab ignores a user_id parameter and stays scoped to the session member
+  PASS  P17E-T12 the dashboard tile and the membership paragraph read the current Active status without an action
+  PASS  P17E-T13 the new panels carry the responsive hooks used at 390 px
+  PASS  P17E-T8 memberStatus resolves both clocks from live orders and a closed snapshot
+
+UploadTest
+  PASS  Upload stores a valid PNG with a random name
+  PASS  Upload rejects a PHP file renamed to .jpg
+  PASS  Upload rejects a file over the size cap
+  PASS  Upload reports a missing file
+  PASS  Upload accepts a PDF payment proof
+  PASS  Upload refuses an unknown area
+  PASS  Upload::remove() refuses paths outside uploads/
+
+ViewTest
+  PASS  View::capture renders an error template
+  PASS  View::page renders 404 inside the plain layout without a sidebar
+  PASS  View::page renders the member layout with member navigation only
+  PASS  View::page renders the admin layout with back-office navigation
+  PASS  View::page shows the member status, not sign-in state, in recent accounts
+  PASS  View::page hides later-phase items from the superadmin console for a plain admin
+  PASS  View::page links the top-bar identity to the member profile
+  PASS  View::page renders an admin profile inside the back-office layout
+  PASS  View::page marks the active menu item
+  PASS  View::page renders the password form with CSRF protection
+  PASS  View::page renders the storefront for members
+  PASS  View refuses unknown and traversing template names
+  PASS  Partials render empty states and pagination
+  PASS  View::page footer carries only the EcoWealth copyright
+  PASS  Escaping is applied everywhere user text is printed
+
+WalletTest
+  PASS  P5-T1 a withdrawable credit raises both buckets and writes one ledger row
+  PASS  P5-T2 a non-withdrawable credit raises the total only
+  PASS  P5-T3 debitInternal spends non-withdrawable money first
+  PASS  P5-T4 a debit larger than the total is refused and writes nothing
+  PASS  P5-T4 a withdrawable debit cannot touch locked money
+  PASS  P5-T5 replaying a system movement returns the original row
+  PASS  P5-T5 movements without a reference id are never collapsed
+  PASS  P5-T6 concurrent debits cannot overdraw the wallet
+  PASS  P5-T7 an admin top-up credits the non-withdrawable bucket and audits it
+  PASS  P5-T7 a non-admin cannot top up and a rejected top-up writes nothing
+  PASS  P5-T8 an unknown ref_type is refused before any write
+  PASS  P5-T8 the PHP ref_type list matches the live DB enum exactly
+  PASS  P5-T9 the statement filters, paginates and totals exactly
+  PASS  P5-T9 invalid statement filters are ignored, never trusted
+  PASS  P5-T10 the ledger has no update or delete path
+  PASS  P5-T11 reconciliation is clean for a correct ledger
+  PASS  P5-T11 reconciliation catches a balance written outside the ledger
+  PASS  P5-T11 reconciliation catches a missing ledger and a bad withdrawable
+
+WalletViewTest
+  PASS  P5-T1 the member statement shows both buckets, rows and totals
+  PASS  P5-T1 an empty statement explains where money comes from
+  PASS  P5-T9 filters keep their values, narrow the rows and offer Clear
+  PASS  P5-T9 a filter that matches nothing shows the filtered empty state
+  PASS  P5-T7 the statement escapes a hostile ledger note
+  PASS  P5-T7 the admin monitor shows the float, both buckets and the directory
+  PASS  P5-T7 the monitor filters members by status
+  PASS  P5-T7 the admin top-up tab and the all-movements tab render
+  PASS  P5-T7 the admin wallet page carries the CSRF top-up form and history
+  PASS  P5-T7 the top-up form echoes field errors and the submitted value
+
+----------------------------------------------------------------
+Cases: 948   Passed: 948   Failed: 0
+All good.

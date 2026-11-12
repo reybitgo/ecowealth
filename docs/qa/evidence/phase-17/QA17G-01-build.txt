@@ -1,0 +1,8 @@
+QA17G-01 — the install bundle check (plan section 11, Phase 17G)
+Date: 2026-11-12 22:58:51 +08:00
+
+Command: php bin/build_install_sql.php --check
+(no output — the bundle matches its sources)
+bundle: database/install.sql · sha256 a5467d25d02a573e778f57ce2ffad6c09ab5a005022073c7c672b0055ad3522c · 72,659 bytes
+unchanged since 17A (the 17A gate recorded the same sha256)
+exit code: 0

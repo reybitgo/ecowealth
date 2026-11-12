@@ -28,22 +28,25 @@ balance automatically; a mismatch means a write happened outside its service.
 
 ## 2. Scheduled jobs
 
-Three jobs run unattended; the exact commands, Windows Task Scheduler registration, kill switches
-and log formats are in [`cron.md`](cron.md) (see §4 for the Task Scheduler block).
+Four jobs run unattended; the exact commands, Windows Task Scheduler registration, kill switches
+and log formats are in [`cron.md`](cron.md) (see §5 for the Task Scheduler block).
 
 | Job | Schedule | Entry |
 |---|---|---|
 | Shop expiry (unpaid orders) | every 15 minutes | `bin\shop_expire.php --limit=200` |
 | Delivered-order auto-complete | hourly | `bin\order_autocomplete.php` |
 | Transfer-limit reset | daily at 00:00 | `bin\reset_transfer_limits.php` |
+| Unilevel month close (the Active snapshot) | monthly, 00:15 on the 1st | `bin\unilevel_month_close.php` |
 
-All three are idempotent, take an advisory lock, write one monthly log line and have a `--doctor`
-mode. A second overlapping run logs `[SKIP ]` and exits 0.
+All four are idempotent, take an advisory lock, write one monthly log line and have a `--doctor`
+mode. A second overlapping run logs `[SKIP ]` and exits 0. The month close pays no money and has no
+kill switch: it must snapshot a month even while the repeat-purchase stream is off. It catches up on
+any month it missed, oldest first.
 
 **If a job misses a day:** the expiry and auto-complete jobs catch up on their next run (they act on
-stored deadlines); the weekly transfer counter keeps yesterday's usage until the next Monday, and a
-limit can only get *stricter* in the meantime, never wider. Run
-`php bin\reset_transfer_limits.php --week` once to clear it by hand.
+stored deadlines); the month close closes every pending month on its next run; the weekly transfer
+counter keeps yesterday's usage until the next Monday, and a limit can only get *stricter* in the
+meantime, never wider. Run `php bin\reset_transfer_limits.php --week` once to clear it by hand.
 
 ---
 
@@ -116,7 +119,7 @@ also needs `config.local.php`, the uploads folder and the `system/storage` folde
 
 ### Install a fresh database
 
-Every install path ends at the same state: **27 tables, 48 settings, 2 staff accounts, 7
+Every install path ends at the same state: **31 tables, 54 settings, 2 staff accounts, 7
 products, 2 packages, 18 ladder levels, 10 package contents, 0 members, 0 codes**. None of
 them may be run against a schema that already holds data — `install.sql` is fresh-install only,
 and an existing database is upgraded with `database/migrations/NNN_*.sql` ([§5](#5-deploying-an-update)).
@@ -263,7 +266,7 @@ Checks 1–3, 7 and 8 are also the five service reconciliations behind
 6. Re-run the reconciliation and the Reports health card; both must be clean before the incident is
    closed. Record what happened in the phase log.
 
-### Repeat-purchase awards (Phase 17C)
+### Repeat-purchase awards (Phases 17C–17F)
 
 **What it pays.** A paid shop order pays the product's 1–10 ladder to the buyer's sponsor chain:
 level 1 is the direct sponsor, level 10 the tenth upline. The buyer earns nothing. Each credited level
@@ -294,6 +297,31 @@ SELECT order_id, user_id, amount, reversed_amount, amount - reversed_amount AS s
 the `unilevel` and `unilevel_reversal` totals, and the baseline). Exit 0 means the awards, their wallet
 movements and the order totals agree.
 
+**The month clock (weekly, and on the 1st).** The Active rule reads the month that just ended. Confirm
+the snapshot exists before you trust a "not Active" complaint:
+
+```sql
+-- The months that have a snapshot, newest first (the period card shows the same rows).
+SELECT period, members_total, qualified_count, award_total, threshold, closed_at
+  FROM unilevel_periods ORDER BY period DESC LIMIT 6;
+
+-- A month with paid activity but no header is the one failure that matters: run the close.
+SELECT DISTINCT DATE_FORMAT(paid_at, '%Y-%m') AS period
+  FROM shop_orders WHERE paid_at IS NOT NULL
+   AND paid_at >= (SELECT value FROM settings WHERE key_name = 'unilevel_ledger_since');
+```
+
+```powershell
+php bin\unilevel_month_close.php --doctor     # both clocks, the threshold, closed and pending months, lock, log
+php bin\unilevel_month_close.php --dry-run    # what the next run would close; writes nothing
+```
+
+The job runs at **00:15 on the 1st**; a missed run catches up on every pending month, oldest first. A
+closed month is final — there is no reopen, so never hand-edit `unilevel_activity` or
+`unilevel_periods`. If the doctor reports a clock drift, fix `DB_TIMEZONE`/the host time before the
+close runs: the snapshot decides who is Active, and the engine's live fallback is only as good as the
+clock it reads.
+
 **If it fails.**
 
 1. Read the mismatch kind: `total`, `reversal_total`, `missing_ledger`, `orphan_ledger`, `amount`,
@@ -322,10 +350,10 @@ nothing immediately. Existing awards stay in the wallets and in `unilevel_awards
 money and a code rollback must not delete them. The ledger remains reconcilable because the command
 reads the tables, not the code path.
 
-**The month clock.** `unilevel_activity` / `unilevel_periods` are written only by
-`UnilevelCycle::close()` (17C) and, from 17F, by its scheduled job. A closed month is immutable; a
-member with no snapshot row is Active. If the close is late or missed, the engine computes the same
-aggregate live, so a payment is never blocked by the job.
+**Who writes the clock.** `unilevel_activity` / `unilevel_periods` are written only by
+`UnilevelCycle::close()` (17C) and, from 17F, by its scheduled job — never from a page. A member with
+no snapshot row is Active. If the close is late or missed, the engine computes the same aggregate
+live, so a payment is never blocked by the job; the snapshot is what makes the answer auditable.
 
 ### Double-spend and duplicate guards already in place
 
@@ -417,9 +445,9 @@ database dump before investigating further.
 
 ## 7. Go-live checklist (plan §9.6)
 
-- [ ] Production database created and migrated to `019`; `schema.sql` matches. A fresh install
+- [ ] Production database created and migrated to `020`; `schema.sql` matches. A fresh install
       was verified with the pack in [deploy.md §11.6](deploy.md#116-check-the-database):
-      **27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+      **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
 - [ ] Seeds replaced or removed: **only one admin and one superadmin**, no demo members, codes,
       orders or wallets (the `005_demo_tree.sql` data is demo only). The two demo queries in
       [deploy.md §12](deploy.md#12-secure-and-clean-up) both return `0`.
@@ -434,7 +462,7 @@ database dump before investigating further.
 - [ ] HTTPS enabled; HSTS is sent only over TLS.
 - [ ] `public/uploads/` writable, its `.htaccess` present; a PHP probe under `uploads/` returns 403.
 - [ ] Security headers verified on `/login` and `/admin` (see §8).
-- [ ] Cron scheduled and verified (three jobs, §2); one run appears in the log.
+- [ ] Cron scheduled and verified (four jobs, §2); one run appears in the log.
 - [ ] A backup has been taken **and restored** (§3).
 - [ ] Admin and superadmin passwords changed and neither is a documented default
       (`Admin@123`, `Super@123`); payment accounts, transfer fee/limits, payout methods/fees/USDT
@@ -498,7 +526,7 @@ Cron access, lock and log conventions are shared; see [`cron.md`](cron.md).
 
 1. Bundle: `php bin\build_install_sql.php --check` — exit 0 (the committed `install.sql` matches
    `schema.sql` + seeds 001–004; rebuild with `php bin\build_install_sql.php` after editing a source).
-2. Full suite: `php tests\run.php` — must be green (816 cases after the install/reset workstream).
+2. Full suite: `php tests\run.php` — must be green (948 cases after the Phase 17 workstream).
 3. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green (195 checks).
 4. Reconciliation: `php bin\wallet_reconcile.php` — exit 0.
 5. Phase gate checklist in `docs\phase-log.md` signed; QA doc updated.

@@ -167,9 +167,9 @@ Import **one file**, `database/install.sql`, through phpMyAdmin:
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 27 | 48 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 31 | 54 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
-The bundle creates the schema, the 48 settings, both staff accounts, the seven starter
+The bundle creates the schema, the 54 settings, both staff accounts, the seven starter
 products and the two packages in one pass. It contains no `CREATE DATABASE` or `USE`, so
 it installs into whichever schema you selected.
 
@@ -801,6 +801,8 @@ The scheduled jobs are for:
 - shop payment expiry (`bin/shop_expire.php`);
 - order auto-complete (`bin/order_autocomplete.php`);
 - transfer-limit reset (`bin/reset_transfer_limits.php`) — once a day, just after midnight;
+- unilevel month close (`bin/unilevel_month_close.php`) — **00:15 on the first of the month**; it
+  snapshots the previous month for the repeat-purchase Active rule and pays no money;
 - optionally `bin/wallet_reconcile.php` for a manual reconciliation audit.
 
 The full guide, access rules, logs and troubleshooting are in [cron.md](cron.md).
@@ -922,7 +924,7 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 - [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a
       guided installer was used (absent for a static import).
 - [ ] `DB_RESET_ENABLED` absent or `false`.
-- [ ] Verification pack (§11.6) run and filed: 27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
+- [ ] Verification pack (§11.6) run and filed: 31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
 - [ ] Database and uploads backed up **after** the checklist.
 - [ ] Error log reviewed.
 - [ ] Optional cron jobs created and tested with `--doctor`; `wallet_reconcile.php` exits 0.
@@ -974,6 +976,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-08 | Phase 11: add migration 014 and note the indirect-commission settings. |
 | 2026-11-11 | Phases 12–15: migrations 015–019, transfer/payout settings, S-Login, and the Phase 15 hardening/reports addendum below. |
 | 2026-11-12 | Install/reset workstream (IR-1 … IR-8): §5B becomes the one-file `install.sql` bundle plus the key-gated web installer and the optional CLI installer; §6 lists the temporary tool files; §7 documents `INSTALL_KEY` and `DB_RESET_ENABLED`; §11.6 is the verification pack; §12/§16 add tool deletion, lock, key, demo, default-password and verification checks. |
+| 2026-11-12 | Phase 17 (17A → 17G): migration 020 and the six repeat-purchase settings (§Phase 17 addendum), the money engine and the admin surfaces (§Phase 17C/17D addendum), the member surfaces and the fourth cron job (§Phase 17E/17F/17G addendum); §5B and §16 now read 31 tables / 54 settings, §13 names the four jobs, and `APP_PHASE` is 17. |
 
 ---
 
@@ -1018,7 +1021,7 @@ scripts, so a nonce-based policy is a later frontend task (documented in the cla
 
 ### Cron
 
-The three jobs and their Windows Task Scheduler registration are documented in
+The four jobs and their Windows Task Scheduler registration are documented in
 [`cron.md` §4](cron.md). Register them once on the host; a missed run only ever makes a limit
 stricter, never wider.
 
@@ -1072,7 +1075,7 @@ Upgrade checklist additions:
       — six rows, `unilevel_enabled = 0`.
 - [ ] Open a product's edit page and confirm the *Unilevel repeat-purchase bonus* card renders and
       saves (P.V., base, ten rates). Nothing is paid, whatever is configured.
-- [ ] Leave `unilevel_enabled` at `0` until the operations runbook for the stream exists (Phase 17F/17G).
+- [ ] Leave `unilevel_enabled` at `0` until operations deliberately enables the stream. The operating procedure is `docs/runbook.md` §4 (weekly checks, reading the ledger, a failed reconcile, reversing a payout) and the monthly snapshot is `docs/cron.md` §4.
 
 ---
 
@@ -1117,3 +1120,74 @@ Post-upgrade smoke check:
       **Repeat-purchase bonus**.
 - [ ] `php bin/wallet_reconcile.php` exits 0 and reports the **Repeat-purchase** section.
 - [ ] `unilevel_enabled` stays `0` until operations signs the stream off/on deliberately.
+
+---
+
+## Phase 17E/17F/17G addendum — the member surfaces, the month close and the release
+
+**No new hosting requirement and no schema change.** The database work is migration `020` (the Phase 17
+addendum above); 17E is PHP and templates, 17F is three files on the existing cron plumbing, and 17G is
+the build constant plus the documentation.
+
+### The member surfaces (17E)
+
+Read-only and scoped to the session member; nothing here can pay, claim or change a bonus.
+
+| Surface | What a member sees |
+|---|---|
+| `/shop/{id}` | the ten-level *Repeat-purchase bonus* panel on the product's bonus base, the **Up to 29%** total and the sentence that the buyer earns no rebate on their own purchase |
+| `/shop` | the **Up to 29% repeat bonus** badge on a configured card |
+| `/checkout` | one preview line: "up to ₱X goes to your sponsor chain when this order is paid" |
+| `/orders/{id}` | the order's total to the sponsor chain — never which upline received what |
+| `/earnings?ledger=repeat` | the member's own awards, the 1–10 breakdown, the two-clock Active panel, filters and a 13-column CSV |
+| `/dashboard` · `/membership` | the repeat-purchase tile and the one-sentence Active paragraph |
+
+The panel, the badge and the preview disappear while the global master or the product's ladder is off;
+the earnings tab stays reachable because a disabled stream can still have history. The package earnings
+tab is unchanged.
+
+### The month close (17F)
+
+A fourth cron job, `bin/unilevel_month_close.php` (`00:15` on the first, Asia/Manila), with the same
+guarded URL (`/system/cron/unilevel_month_close.php`) and Windows launcher
+(`bin/unilevel_month_close.cmd`) as the other three. It snapshots the previous calendar month for the
+Active rule and **pays no money**, so it has no kill switch: periods must close even while
+`unilevel_enabled = 0`.
+
+```bash
+php bin/unilevel_month_close.php --doctor     # both clocks, threshold, closed/pending months, lock, log
+php bin/unilevel_month_close.php --dry-run    # what would close; writes nothing
+php bin/unilevel_month_close.php              # close every pending month, oldest first
+php bin/unilevel_month_close.php --period=2026-10 --json
+```
+
+A closed period is immutable (there is no reopen); a future or current month is refused; a second run
+is `closed=0`; the log is `storage/logs/unilevel_month_close-YYYY-MM.log`, one line per run. Full flags,
+access rules and failure modes: [`cron.md` §4](cron.md).
+
+Upgrade checks:
+
+- [ ] Register the fourth cron entry (or the `.cmd` Task Scheduler line) from [`cron.md` §4](cron.md).
+- [ ] `php bin/unilevel_month_close.php --doctor` — `clocks agree`, threshold ₱500, the expected
+      closed/pending list, a free lock and a writable log; exit 0.
+- [ ] `php bin/unilevel_month_close.php --dry-run` — the months it would close, and no new row in
+      `unilevel_periods` / `unilevel_activity`.
+- [ ] A member's `/earnings?ledger=repeat` and a configured product's panel render; with
+      `unilevel_enabled = 0` the panel, badge and checkout line are gone.
+- [ ] `php bin/wallet_reconcile.php` exits 0 and reports the **Repeat-purchase** section.
+
+### The release (17G)
+
+`APP_PHASE` is **17** in `app/config.php` (D-15) and `HardeningTest` asserts it; the build reports
+`phase 17` in the suite header. The release re-runs every gate:
+
+```bash
+php tests/run.php                          # 948 cases, 0 failed, exit 0
+php bin/build_install_sql.php --check      # exit 0: the bundle matches its sources
+php bin/wallet_reconcile.php               # exit 0, five sections
+powershell -NoProfile -File tests/smoke.ps1  # 225 checks, 0 failed
+```
+
+After the upgrade the install verification pack (§11.6) still reads **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 /
+0**, and the QA pack is finalised at 57 checks in
+[`qa/phase-17-unilevel-repeat-purchase.md`](qa/phase-17-unilevel-repeat-purchase.md).

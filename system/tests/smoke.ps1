@@ -5,7 +5,9 @@
     P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
     P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12,
     P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13,
-    P15-T1 ... P15-T12).
+    P15-T1 ... P15-T12; Phase 17: P17B-T1 ... P17B-T20,
+    P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
+    P17F-T10 / P17F-T11).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -26,8 +28,12 @@
     expiry, the superadmin-only guard, the audit trail and the console's
     X-Live feed with its 304 revalidation), and the IR-4 web installer's
     refusal states (locked/non-empty tree, hardening headers, no lock
-    written by a GET or a CSRF-less POST, the shared stylesheet).
-    Everything the script changes is restored in a finally block: a
+    written by a GET or a CSRF-less POST, the shared stylesheet). Phase 17
+    is walked from the outside: the product ladder card and the settings
+    block, a paid order under the configured product, the admin repeat
+    ledger and its report/order cards, the member product/checkout/order/
+    earnings surfaces, and the month-close entry (its doctor and its dry
+    run). Everything the script changes is restored in a finally block: a
     throw-away member account, products with SKU prefix SMOKE-,
     packages named "Smoke Package …", registration codes and member
     accounts it creates, the commissions it paid and the wallet balances
@@ -241,7 +247,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-15)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-15 and 17)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -3347,6 +3353,34 @@ try {
             -and $p17eMembership.Body -match 'data-live-region="membership-repeat"' `
             -and $p17eMembership.Body -match 'Repeat-purchase bonus') `
         "the dashboard tile and the membership paragraph read the Active status (dashboard=$($p17eDashboard.Status), membership=$($p17eMembership.Status))"
+
+    # ---- Phase 17F: the month-close job over HTTP ------------------------
+    # The web entry must be the same job as the CLI: the doctor reports the
+    # same environment facts and the dry run returns the same JSON shape,
+    # with nothing written (17F Rule 12). Both URLs are loopback-trusted.
+    $p17fDoctor = Invoke-App -Path '/cron/unilevel_month_close.php?doctor=1'
+    Assert-That 'P17F-T10' ($p17fDoctor.Status -eq 200 `
+            -and $p17fDoctor.Body -match 'unilevel month close' `
+            -and $p17fDoctor.Body -match 'clocks\s+agree' `
+            -and $p17fDoctor.Body -match 'timezone\s+Asia/Manila' `
+            -and $p17fDoctor.Body -match 'threshold\s+' `
+            -and $p17fDoctor.Body -match 'last closed' `
+            -and $p17fDoctor.Body -match 'pending' `
+            -and $p17fDoctor.Body -match 'lock\s+free' `
+            -and $p17fDoctor.Body -match '\(writable\)') `
+        "GET /cron/unilevel_month_close.php?doctor=1 reports the clocks, threshold, periods and storage (status=$($p17fDoctor.Status))"
+
+    $p17fDryRaw = Invoke-App -Path '/cron/unilevel_month_close.php?dry-run=1&json=1'
+    $p17fDry    = $null
+    try { $p17fDry = ($p17fDryRaw.Body | Out-String) | ConvertFrom-Json } catch { }
+    $p17fPeriods = 0
+    if ($null -ne $p17fDry -and $null -ne $p17fDry.periods) { $p17fPeriods = @($p17fDry.periods).Count }
+    Assert-That 'P17F-T11' ($p17fDryRaw.Status -eq 200 -and $null -ne $p17fDry `
+            -and $p17fDry.ok -eq $true -and $p17fDry.trigger -eq 'http' `
+            -and $p17fDry.dry_run -eq $true `
+            -and $null -ne $p17fDry.would_close -and $null -ne $p17fDry.threshold `
+            -and $p17fPeriods -eq [int] $p17fDry.would_close) `
+        "GET /cron/unilevel_month_close.php?dry-run=1&json=1 returns the CLI's dry-run payload (status=$($p17fDryRaw.Status), would_close=$($p17fDry.would_close), threshold=$($p17fDry.threshold))"
 
     # ---- Phase 15: hardening, reports, settings, audit and launch ------
     $p15Ran = $true

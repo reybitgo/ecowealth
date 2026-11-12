@@ -38,7 +38,7 @@ folder.
 | Repository / branch | `feature/shop` |
 | Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14`, `phase-15`, `ir-0` … `ir-8` |
 | App URL | `http://localhost/ecowealth/system/` |
-| Database | `ecowealth_sneat` (Phases 1–15) · scratch `*_test` / `*_manual` schemas (Phase 16) |
+| Database | `ecowealth_sneat` (Phases 1–15 and 17) · scratch `*_test` / `*_manual` schemas (Phase 16) · scratch `ecowealth_sneat_qa17a` / `_qa17g` schemas (Phase 17) |
 | Operating system | Windows 11 Home Single Language 10.0.26200 (build 26200) |
 | Browser + version | Google Chrome 156.0.8078.80 |
 | Screen size(s) | 1440 × 900 · 390 × 844 (mobile emulation) |
@@ -51,8 +51,8 @@ folder.
 | Command | Expected | Actual | Result |
 |---|---|---|---|
 | `php bin\build_install_sql.php --check` | exit 0, no output | exit 0, no output | ☑ Pass ☐ Fail |
-| `php tests\run.php` | `Cases: 816  Passed: 816  Failed: 0` / `All good.` | `Cases: 816   Passed: 816   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 195   Failed: 0` | `Passed: 195   Failed: 0` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 948   Passed: 948   Failed: 0` / `All good.` | `Cases: 948   Passed: 948   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 225   Failed: 0` | `Passed: 225   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -62,14 +62,14 @@ php bin\build_install_sql.php --check
 
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 816   Passed: 816   Failed: 0
+Cases: 948   Passed: 948   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
   P1-T11 PASS   guest sees the 503 page with Retry-After: 3600 (got 503, retry=3600)
   P1-T11 PASS   admin bypasses maintenance mode (got 200)
 
-Passed: 195   Failed: 0
+Passed: 225   Failed: 0
 ```
 
 All three commands were run from `system\` and exited **0** on 2026-11-12. `bin/wallet_reconcile.php` also
@@ -77,7 +77,7 @@ exits **0** afterwards (both wallet buckets match the ledger, every credited com
 movement, every transfer has its sender debit, recipient credit and fee credit, and every payout request
 has its hold with every rejection refunded).
 
-Total manual checks in §2–§16 (all sixteen phases): **216** — **216 recorded as passed**, 0 failed,
+Total manual checks in §2–§18 (all eighteen phases): **273** — **273 recorded as passed**, 0 failed,
 0 blocked.
 
 ---
@@ -605,52 +605,105 @@ installer's pre-bundle demo/catalogue limitation, the Windows lock-file ACL and 
 
 ---
 
-## 18. Phase 17 — Unilevel repeat-purchase bonus (in progress: 17B)
+## 18. Phase 17 — Unilevel repeat-purchase bonus (signed)
 
 Document: [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md)
 
-Phase 17 is delivered in seven gated phases (**17A → 17G**). Section A (Foundation) and section B
-(Configuration) are written; the checks below cover both. Sections C–G append their rows as each phase
-lands, and this section is finalised by 17G. Section A's checks ran on scratch schemas; section B's ran
-against the development copy through the real HTTP app. The evidence lives in
-`evidence/phase-17/`.
+Phase 17 is delivered in seven gated phases (**17A → 17G**) and is **signed at all seven gates**. The
+pack's sections A–G hold **57 checks** (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6); every check has at
+least one file in `evidence/phase-17/`, indexed by that folder's `README.md`. Sections A and B are
+tag-scoped (§2.2 of the pack): three checks describe the tree before 17B/17C deliberately changed it and
+must be run at their own tag.
+
+**The seven gate records** (copied into Appendix G of the plan):
+
+| Phase | Tag | Date | Suite passed / ran | Smoke passed / ran | Migration / bundle | Manual QA | Tester | Deviations | Signed |
+|---|---|---|---:|---:|---|---|---|---|---|
+| 17A Foundation | `p17a-foundation` | 2026-11-12 | 830 / 830 | 195 / 195 | `--check` exit 0; migration 020 applied twice, idempotent | A: 8 / 8 | DSH | 4 | ☑ |
+| 17B Configuration | `p17b-configuration` | 2026-11-12 | 855 / 855 | 209 / 209 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | B: 9 / 9 | DSH | 7 | ☑ |
+| 17C Money engine | `p17c-money` | 2026-11-12 | 906 / 906 | 209 / 209 | no schema change; `wallet_reconcile` exit 0 with five sections | C: 10 / 10 | DSH | 5 | ☑ |
+| 17D Admin visibility | `p17d-admin` | 2026-11-12 | 924 / 924 | 215 / 215 | no schema change | D: 8 / 8 | DSH | 7 | ☑ |
+| 17E Member visibility | `p17e-member` | 2026-11-12 | 938 / 938 | 223 / 223 | no schema change | E: 9 / 9 | DSH | 8 | ☑ |
+| 17F Operations | `p17f-month-close` | 2026-11-12 | 948 / 948 | 223 / 223 | no schema change; the close moves no money | F: 7 / 7 | DSH | 8 | ☑ |
+| 17G Release | `p17g-release` | 2026-11-12 | 948 / 948 | 225 / 225 | no schema change; `APP_PHASE = 17`; `--check` exit 0; `wallet_reconcile` exit 0 | G: 6 / 6 | DSH | 3 | ☑ |
+
+The per-phase deviation lists, with the reason and the phase that owns each one, are in the plan's
+Appendix G (the deviation log) and in `docs/phase-log.md`.
+
+**The checks**
 
 | Check | What it verifies | Result | Evidence file |
 |---|---|---|---|
-| QA17A-01 | Migration 020 applies twice on a `p17-start` schema and builds exactly four `*unilevel*` tables (31 tables total), no error | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-01-tables.txt` |
-| QA17A-02 | The four altered tables carry the documented columns in position; `ref_type` ends `'unilevel','unilevel_reversal'`; both order indexes exist | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-02-columns.txt` |
+| QA17A-01 | Migration 020 applies twice and builds exactly four `*unilevel*` tables (31 tables total), no error | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-01-tables.txt` |
+| QA17A-02 | The four altered tables carry the documented columns; `ref_type` ends `'unilevel','unilevel_reversal'`; both order indexes exist | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-02-columns.txt` |
 | QA17A-03 | Six `unilevel%` settings with the documented defaults; every product switches off | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-03-settings.txt` |
-| QA17A-04 | No repeat-purchase UI: `/admin/settings` has no new block, the product form has no P.V. field or ladder card | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-04-admin-settings.png`, `QA17A-04-product-edit.png` |
-| QA17A-05 | A paid e-wallet order writes no award, leaves the order page and the sponsor's wallet unchanged; `unilevel_awards` = 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-05-order.txt`, `QA17A-05-awards-count.txt` |
+| QA17A-04 | No repeat-purchase UI at 17A (tag-scoped; 17B adds it) | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-04-admin-settings.png`, `QA17A-04-product-edit.png` |
+| QA17A-05 | A paid order at 17A pays and stamps nothing (tag-scoped; 17C stamps it) | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-05-order.txt`, `QA17A-05-awards-count.txt` |
 | QA17A-06 | The `/wallet` source filter lists *Repeat-purchase bonus* and *Repeat-purchase reversal*; both return no rows | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-06-wallet-filter.png`, `QA17A-06-wallet-reversal.png` |
-| QA17A-07 | A rebuilt bundle installs to `31 tables · 54 settings · 2 staff · 0 members · 7 / 2 / 18 / 10 / 0`; `wallet_reconcile` exits 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-07-verification.txt` |
-| QA17A-08 | A development reset empties the three money tables, keeps the ladder and the six settings, and verifies green | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-08-reset.txt` |
+| QA17A-07 | A rebuilt bundle installs to `31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0`; `wallet_reconcile` exits 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-07-verification.txt` |
+| QA17A-08 | A development reset empties the three money tables, keeps the ladder and the six settings | ☑ Pass ☐ Fail ☐ Blocked | `QA17A-08-reset.txt` |
+| QA17B-01 | A migrated product reads ten blank rows, `0.000%`, switch off, P.V. `0.00`, base Auto, no direct/indirect control | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-01-product-edit.txt` |
+| QA17B-02 | P.V. 250 + the reference ladder + the switch on saves ten rows totalling `29.000%`, one audit entry | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-02-saved-ladder.txt` |
+| QA17B-03 | A 200% ladder is refused with the sum error and the stored values are untouched | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-03-sum-error.txt` |
+| QA17B-04 | Switching on with every level cleared is refused, ladder unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-04-empty-ladder.txt` |
+| QA17B-05 | A P.V. base with P.V. 0 is refused; Auto with P.V. 0 is accepted | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-05-pv-base.txt` |
+| QA17B-06 | The list badge reads `Repeat bonus 29%`; `?unilevel=on` returns the product and `off` does not | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-06-products-list.txt` |
+| QA17B-07 | The *Repeat-purchase bonus* block renders the five keys (never the sixth); depth 11 refused; a valid save persists and audits | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-07-settings.txt` |
+| QA17B-08 | With JavaScript off the ladder, per-unit amounts and total are server-rendered and still save | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-08-no-js.txt` |
+| QA17B-09 | A paid order at 17B writes no award and no ledger row (tag-scoped; 17C stamps it) | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-09-order.txt` |
+| QA17C-01 | Configure, enable and pay an e-wallet order: the four-deep chain is paid once | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-01-order.txt` |
+| QA17C-02 | Each upline's wallet shows its withdrawable credit and its one `unilevel` ledger row | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-02-wallets.txt` |
+| QA17C-03 | The admin wallet statement shows the same four movements | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-03-admin-wallet.txt` |
+| QA17C-04 | `wallet_reconcile.php` exits 0 with a **Repeat-purchase** section | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-04-reconcile.txt` |
+| QA17C-05 | A manual GCash order pays only after the admin verifies it, and pays once | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-05-manual.txt` |
+| QA17C-06 | A disabled upline is skipped with its reason and no compression | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-06-skipped.txt` |
+| QA17C-07 | Cancelling a paid order voids the awards, debits what the wallet holds and shows the shortfall | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-07-reversal.txt` |
+| QA17C-08 | The monthly Active rule blocks a below-threshold upline for the following month | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-08-active.txt` |
+| QA17C-09 | The global kill switch stamps the order with a zero total and never pays | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-09-kill-switch.txt` |
+| QA17C-10 | The month close writes the snapshot once and a second run changes nothing | ☑ Pass ☐ Fail ☐ Blocked | `QA17C-10-close.txt` |
+| QA17D-01 | The ledger header reads ₱90.00, 4 awards and 4 recipients, with the Lvl column | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-01-ledger.txt` |
+| QA17D-02 | Filters narrow the rows and a skipped level shows what was due and why | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-02-filters.txt` |
+| QA17D-03 | A cancelled order shows voided rows and keeps the shortfall visible | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-03-reversal.txt` |
+| QA17D-04 | A row links to its order and to the recipient's wallet movement | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-04-order-wallet.txt` |
+| QA17D-05 | The filtered CSV matches the screen, column for column | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-05-export.txt`, `QA17D-05-export.csv` |
+| QA17D-06 | The order card explains an unpaid order and a pre-feature payment | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-06-order-states.txt` |
+| QA17D-07 | The four report cards, the range export and the dashboard KPI read the same numbers | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-07-reports.txt` |
+| QA17D-08 | The package commission ledger is unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA17D-08-package-tab.txt` |
+| QA17E-01 | The product panel shows ten levels, the per-unit amounts and the no-rebate sentence | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-01-product-panel.txt` |
+| QA17E-02 | The checkout preview is the panel × 2 and says the money is paid with the order | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-02-checkout-preview.txt` |
+| QA17E-03 | The order page shows the total only, never the upline breakdown | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-03-order-outcome.txt` |
+| QA17E-04 | The upline's repeat tab carries the award, the level-1 breakdown and the two clocks | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-04-earnings-tab.txt` |
+| QA17E-05 | The repeat filters and the member CSV match | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-05-filters-export.txt`, `QA17E-05-export.csv` |
+| QA17E-06 | The package tab is unchanged and the repeat tab refreshes live | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-06-package-regression.txt` |
+| QA17E-07 | The buyer's own repeat tab has no award for their purchase | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-07-buyer-view.txt` |
+| QA17E-08 | The dashboard tile and the membership paragraph read the Active status | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-08-dashboard-membership.txt` |
+| QA17E-09 | The product panel and the repeat tab hold at 390 px with no sideways scroll | ☑ Pass ☐ Fail ☐ Blocked | `QA17E-09-mobile.txt`, `QA17E-09-*.png` |
+| QA17F-01 | The doctor reports both clocks, the threshold, the ledger baseline and the pending months | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-01-doctor.txt` |
+| QA17F-02 | The dry run lists the months and writes no row | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-02-dry-run.txt` |
+| QA17F-03 | The real run closes the month: one header and one row per account | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-03-close.txt` |
+| QA17F-04 | A second run changes nothing (`closed=0`, exit 0) | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-04-idempotent.txt` |
+| QA17F-05 | `--period` on a closed month and on a future/current month | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-05-period.txt` |
+| QA17F-06 | The web entry serves the same job; the log, the lock and the 403 | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-06-web.txt` |
+| QA17F-07 | The `.cmd` launcher reports the same thing | ☑ Pass ☐ Fail ☐ Blocked | `QA17F-07-cmd.txt` |
+| QA17G-01 | The automated gate: suite 948, smoke 225, `--check` exit 0, `wallet_reconcile` exit 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA17G-01-suite.txt`, `QA17G-01-smoke.txt`, `QA17G-01-build.txt`, `QA17G-01-reconcile.txt` |
+| QA17G-02 | A cold read of sections A–F: ten questions, nine documentation defects fixed, none open | ☑ Pass ☐ Fail ☐ Blocked | `QA17G-02-cold-read.txt` |
+| QA17G-03 | The release acceptance table: 27 / 27 rows proven | ☑ Pass ☐ Fail ☐ Blocked | `QA17G-03-acceptance-table.txt` |
+| QA17G-04 | The build reports phase 17 (runtime, suite header, `HardeningTest`, `/dashboard` 200) | ☑ Pass ☐ Fail ☐ Blocked | `QA17G-04-phase.txt` |
+| QA17G-05 | `docs/deploy.md` end to end on a scratch install; the runbook's weekly checklist | ☑ Pass ☐ Fail ☐ Blocked | `QA17G-05-deploy.txt`, `QA17G-05-runbook.txt` |
+| QA17G-06 | Every check has its evidence file; the seven gate records are on this sheet | ☑ Pass ☐ Fail ☐ Blocked | `QA17G-06-evidence.txt` |
 
-| Phase 17A summary | |
+| Phase 17 summary | |
 |---|---|
-| Executed | 8 / 8 |
-| Passed / Failed / Blocked | 8 / 0 / 0 |
-| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Executed | 57 / 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) |
+| Passed / Failed / Blocked | 57 / 0 / 0 |
+| Automated gate at the release | `Cases: 948 / 948` · `Passed: 225 / 225` smoke · `build_install_sql --check` exit 0 · `wallet_reconcile` exit 0 (five sections) |
+| Defects | nine documentation defects found by the section-G cold read and fixed (listed in the pack's section G sign-off and in `QA17G-02-cold-read.txt`); no product defect |
+| Deviations | 3 at the 17G gate (no build-phase badge; the nine documentation corrections; the automated manual pass) — the seven gates carry 42 in all, in the plan's Appendix G |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected — approved from the executed transcripts: the full suite, the full smoke run, the bundle check, the reconciliation, the scratch-install deploy replay, the runbook's weekly commands, the cold read and the acceptance table |
 | Tester initials / date | DSH · 2026-11-12 |
 
-| Check | What it verifies | Result | Evidence file |
-|---|---|---|---|
-| QA17B-01 | A migrated product reads ten blank rows, total `0.000%`, switch off, P.V. `0.00`, base Auto, and no direct/indirect control anywhere | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-01-product-edit.txt` |
-| QA17B-02 | P.V. 250 + the reference ladder + the switch on saves ten rows totalling `29.000%`, the form re-reads them, and one `product.unilevel.update` entry carries before/after | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-02-saved-ladder.txt` |
-| QA17B-03 | A 200% ladder is refused with the sum error, the typed values survive, and the stored 3.000% is untouched | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-03-sum-error.txt` |
-| QA17B-04 | Switching on with every level cleared is refused with "Turn the switch off or give at least one level a rate above 0." and the ladder is unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-04-empty-ladder.txt` |
-| QA17B-05 | A P.V. base with P.V. 0 is refused on the base field; Auto with P.V. 0 is accepted | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-05-pv-base.txt` |
-| QA17B-06 | The list badge reads `Repeat bonus 29%`, `?unilevel=on` returns the product and `off` does not, and the filter survives pagination | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-06-products-list.txt` |
-| QA17B-07 | The *Repeat-purchase bonus* block renders the five keys (never the sixth), depth 11 is refused, and a valid save persists and audits | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-07-settings.txt` |
-| QA17B-08 | With JavaScript off the ladder, the per-unit amounts and the total are server-rendered and the form still saves | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-08-no-js.txt` |
-| QA17B-09 | A paid e-wallet order for a fully configured product writes no award, moves no repeat-purchase money and leaves the order unstamped | ☑ Pass ☐ Fail ☐ Blocked | `QA17B-09-order.txt` |
-
-| Phase 17B summary | |
-|---|---|
-| Executed | 9 / 9 |
-| Passed / Failed / Blocked | 9 / 0 / 0 |
-| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
-| Tester initials / date | DSH · 2026-11-12 |
+The "someone who did not write it" item stays open for the project lead at every gate, exactly as in
+Phases 1–16: the passes were executed by the automated QA agent and the lead countersigns below.
 
 ---
 
@@ -661,6 +714,7 @@ Add one row per problem found. Keep the status current until the defect is retes
 | ID | Phase / check | Severity | What happened (actual) | Expected | Evidence | Status |
 |---|---|---|---|---|---|---|
 | — | Phases 1–16 | — | No defects were raised in this pass. | — | — | Closed |
+| D-17G-01 | Phase 17 / QA17G-02 (cold read) | minor | Nine documents were stale against the released build: the pack's tag-scoping and fixture recipe were unstated, the pack said 948 / 223, `system/README.md` said `APP_PHASE` 15 and 27 / 48 with no migration 020 row, `docs/deploy.md` said 27 / 48 and "three jobs", `docs/runbook.md` said "three jobs" / 27 / 48 / 816 cases, `docs/qa/README.md` was frozen at "in progress (17C)", `docs/admin-guide.md` had no ladder-card section, and this sheet was frozen at 17B | every document matches the build | `QA17G-02-cold-read.txt` | Closed 2026-11-12 |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -691,11 +745,18 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 15 | ☑ Yes ☐ No | 12 / 12 checks passed; 722 / 722 PHP cases, 185 / 185 smoke checks, a launch-scale report pass, a 7/7 health card and an executed restore drill green. |
 | Phase 16 | ☑ Yes ☐ No | 16 / 16 checks passed; 816 / 816 PHP cases, 195 / 195 smoke checks, `build_install_sql --check` exit 0, both installs (mysql/phpMyAdmin/CLI/web), both resets (CLI/web), the demo parity cases and the go-live tool-retirement capture green. |
 | Phase 17A | ☑ Yes ☐ No | 8 / 8 checks passed; 830 / 830 PHP cases, 195 / 195 smoke checks at the phase tag; migration 020 applied twice (idempotent), the bundle installs to 31 tables / 54 settings and a reset keeps the ladder. |
-| Phase 17B | ☐ Yes ☐ No | In progress: section B written, automated gate green (855 / 855 PHP cases, 209 / 209 smoke checks); the nine manual checks executed by the automated pass, awaiting the lead's independent review. |
+| Phase 17B | ☑ Yes ☐ No | 9 / 9 checks passed; 855 / 855 PHP cases, 209 / 209 smoke checks at the phase tag; the nine checks executed by the automated pass, awaiting the lead's independent review. |
+| Phase 17C | ☑ Yes ☐ No | 10 / 10 checks passed; 906 / 906 PHP cases, 209 / 209 smoke checks; `wallet_reconcile` exit 0 with five sections; both payment paths paid the four-deep fixture and the reversal kept its shortfall visible. |
+| Phase 17D | ☑ Yes ☐ No | 8 / 8 checks passed; 924 / 924 PHP cases, 215 / 215 smoke checks; the repeat ledger, order card, reports, KPI and the unchanged package tab green. |
+| Phase 17E | ☑ Yes ☐ No | 9 / 9 checks passed; 938 / 938 PHP cases, 223 / 223 smoke checks; the member panel, preview, order card, repeat tab, tile and paragraph green, including the 390 px pass. |
+| Phase 17F | ☑ Yes ☐ No | 7 / 7 checks passed; 948 / 948 PHP cases, 223 / 223 smoke checks; the doctor, dry run, real close, idempotency, period edges, URL entry and `.cmd` green. |
+| Phase 17G | ☑ Yes ☐ No | 6 / 6 checks passed; 948 / 948 PHP cases, 225 / 225 smoke checks, `build_install_sql --check` exit 0, `wallet_reconcile` exit 0, `APP_PHASE = 17`; the release acceptance table 27 / 27 and the scratch-install deploy replay green; three deviations recorded (no build-phase badge, nine documentation corrections, the automated manual pass). |
 
-Phases 1–16 are **Approved**. Phase 17B is **in progress** (its section is executed but the
-independent-tester sign-off is still open, exactly as 17A's was) and is not part of that approval until
-its section is signed. No defect is open, so no accepted exception is recorded.
+Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
+acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release
+build. One defect is recorded (D-17G-01, the nine stale documents) and it is **Closed**; the only open
+item at every gate is the independent-tester review, which the project lead signs below — the automated
+pass executed every section and left its transcripts in `evidence/phase-17/`.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

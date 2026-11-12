@@ -13,8 +13,8 @@ copy, never on a production database.
 **Document status.** Section A (17A — Foundation) written 2026-11-12 with the automated gate green;
 section B (17B — Configuration) appended 2026-11-12; section C (17C — Money engine) appended
 2026-11-12; section D (17D — Admin visibility) appended 2026-11-12; section E (17E — Member
-visibility) appended 2026-11-12; section F (17F — Operations) appended 2026-11-12. Section G is
-added by 17G.
+visibility) appended 2026-11-12; section F (17F — Operations) appended 2026-11-12; section G (17G —
+Release) appended 2026-11-12 and closes the pack. **Sections A–G: 57 checks.**
 
 ---
 
@@ -37,14 +37,15 @@ All good.
 ```
 
 ```text
-Passed: 223   Failed: 0
+Passed: 225   Failed: 0
 ```
 
 The counts grow with each phase: **830 / 195** at `p17a-foundation`, **855 / 209** at
 `p17b-configuration`, **906 / 209** at `p17c-money`, **924 / 215** at `p17d-admin`, **938 / 223** at
-`p17e-member`, **948 / 223** at `p17f-month-close`. Section A's own expectations are stated in
-section 3; section B's in section 5; section C's in section 7; section D's in section 9; section E's
-in section 11; section F's in section 13.
+`p17e-member`, **948 / 223** at `p17f-month-close`, and **948 / 225** at `p17g-release` (17G adds no
+automated case; the two new smoke checks are the month-close URL pair). Section A's own expectations
+are stated in section 3; section B's in section 5; section C's in section 7; section D's in section 9;
+section E's in section 11; section F's in section 13; section G's in section 15.
 
 The groups that carry Phase 17A (its own share of the suite is listed here):
 
@@ -104,6 +105,12 @@ Phase 17F's share:
 | `CronTest` (extended) | 10 | The eight cases of §16.5 plus T6 and T10 of the phase's test plan, all run as the **real command** against a scratch schema (a subprocess cannot see the harness transaction): T1 (`--dry-run` lists 2026-xx and writes nothing), T2 (the real run writes the header and one row per account, and the counts equal the aggregate), T3 (a second run is `closed=0` with no new row), T4 (two missed months close in one run, oldest first), T5 (a future period is refused, exit 1, nothing written), T6 (`--period` on a closed month exits 0 with "already closed"), T7 (a held lock logs `[SKIP ]` and exits 0), T8 (one log line per run with `trigger`, `period`, `members`, `qualified`, `award_total`, `duration`), T9 (`--json` carries the same numbers as the log line) and T10 (the doctor reports both clocks, `APP_TIMEZONE`, the threshold, the closed/pending months, the account count, the lock and a writable log folder) |
 | `UnilevelFoundationTest` (rewritten again) | 1 | P17A-T13's enduring half after 17F: the job exists, and it still carries **no wallet or award write** — only `UnilevelCycle::close()` writes, and no controller or view writes a Phase 17 table |
 
+Phase 17G's share: **no new PHP case.** The release changes `APP_PHASE`, one assertion and the
+documentation. `HardeningTest`'s existing build case now asserts `APP_PHASE === 17`, and
+`tests/smoke.ps1` gains the two month-close URL checks (`P17F-T10` over `?doctor=1`, `P17F-T11` over
+`?dry-run=1&json=1`), taking the smoke run from **223** to **225** checks. Everything else in section
+G executes the accumulated suite and the earlier sections' checks.
+
 The migration and bundle cases build scratch schemas (`ecowealth_sneat_migration_test`,
 `ecowealth_sneat_tool_a_test`, `ecowealth_sneat_tool_b_test`). No automated case targets
 `ecowealth_sneat` or `ecowealth_sneat_test`. The 17F cases recreate `ecowealth_sneat_tool_b_test` and
@@ -120,6 +127,7 @@ its lock from `STORAGE_PATH`, which is the real `system/storage` for a CLI run) 
 | App | `http://localhost/ecowealth/system/` (Laragon Apache + MySQL) |
 | Development database | `ecowealth_sneat` — **never** a target of the destructive checks; migrated to 17A before this pass (backup: `C:\laragon\www\ecowealth-backups\phase-17\`, see `QA17A-dev-db-migration.txt`) |
 | Scratch schema for section A | `ecowealth_sneat_qa17a` (created as root, granted to the app user, dropped afterwards) |
+| Scratch schema for section G | `ecowealth_sneat_qa17g` (created as root, used for the deploy replay, dropped afterwards) |
 | App selection without editing config | `$env:ECO_DB_NAME = '<scratch>'` (PowerShell) or `export ECO_DB_NAME=<scratch>` (bash) |
 | PHP / MySQL | 8.3.16 · 8.4.3 |
 | Evidence | `docs/qa/evidence/phase-17/` (see that folder's `README.md`) |
@@ -137,12 +145,64 @@ Rules that protect the project:
    nothing.
 5. **Never put a password, key, cookie or DSN in the evidence folder.**
 
+### 2.1 The Phase 17 fixture (sections B–G)
+
+Every check from section B on needs the same small fixture. Create it **once** on the development copy,
+keep every name prefixed `QA17`, and remove it when the section is finished (each section records its
+own cleanup in `QA17X-00-setup-cleanup.txt`).
+
+1. **The product.** Admin → Products → **New product**: name `QA17 Product`, SKU `QA17-P1`, price
+   `300.00`, P.V. `250`, stock `100`, status active. In the **Unilevel repeat-purchase bonus** card press
+   **Load reference ladder** (5/5/5/3/3/2/2/2/1/1 = **29.000%**), leave **Bonus base** on *Auto* and turn
+   the product switch **on**; save. The product list badge must read **Repeat bonus 29%**.
+2. **The chain.** Register five members, each under the previous one, with the previous member's
+   **Referral link** (Membership → *Referral link*): `qa17_boss` first (sponsor blank → the company
+   account), then `qa17_a` under `qa17_boss`, `qa17_b` under `qa17_a`, `qa17_c` under `qa17_b`, and the
+   buyer `qa17_buyer` under `qa17_c`. The chain is
+   `qa17_buyer → qa17_c → qa17_b → qa17_a → qa17_boss → company`, the plan's §16.2 shape. Set each
+   password to `QaPass!2345` and make sure each upline is an **active member** (Admin → Members), or the
+   payable levels will be skipped.
+3. **The money.** Admin → E-wallet monitor → `qa17_buyer` → **Credit this wallet** `1000.00` with the
+   note `QA17 funding`. A top-up credits the non-withdrawable bucket and can be spent at checkout.
+4. **The switch.** Admin → Settings → **Commissions** → *Repeat-purchase bonus*: tick
+   **Repeat-purchase bonus enabled**, keep *Upline depth* `10` and *Monthly personal-purchase minimum*
+   `500.00`; save.
+5. **The order.** Sign in as `qa17_buyer`, add **2 × `QA17 Product`** to the cart and check out with
+   **E-wallet**. The line base is **₱500.00** and the order pays **₱90.00** (₱25.00 · ₱25.00 · ₱25.00 ·
+   ₱15.00) with the reference ladder.
+6. **The variants.** A **zero rate** = edit one level of the product to `0` and save. A **disabled
+   upline** = Admin → Members → `qa17_b` → *Suspend*. A **monthly-Inactive upline** = leave that upline
+   without personal purchases in the previous month (the default state — the monthly rule blocks it once
+   the previous month is treated as a real period).
+
+**Undo it.** Sections D–F record the exact cleanup SQL in `QA17D-00-setup-cleanup.txt`,
+`QA17E-00-setup-cleanup.txt` and `QA17F-00-setup-cleanup.txt` (award rows, ledger rows, the fixture
+users and products, then the settings restored to their snapshot). If you cannot run SQL, run sections
+D–G on a **copy** of the development database instead and drop the copy afterwards. Never leave a
+`QA17` row behind: `wallet_reconcile.php` must exit 0 at the end of every section.
+
+### 2.2 Sections A and B are tag-scoped
+
+Sections describe the tree at the phase that wrote them, and three checks describe a state a **later**
+phase deliberately changed. They cannot pass on the final tree and must be run at their own tag (or read
+as the record of that gate):
+
+| Check | Written for | What changed | Where the current behaviour is asserted |
+|---|---|---|---|
+| `QA17A-04` — no new admin UI | `p17a-foundation` | 17B adds the *Repeat-purchase bonus* settings block and the product ladder card | `QA17B-01`, the 17B section, and smoke `P17B-T14` / `P17B-T18` |
+| `QA17A-05` — a paid order is unstamped | `p17a-foundation` | 17C stamps `unilevel_processed_at` (and a zero `unilevel_total`) even when it pays nothing | `P17C-T28`, `P17C-T30`, `P17B-T20` and smoke `P17B-T20` |
+| `QA17B-09` — the order stays unstamped | `p17b-configuration` | same 17C hand-off | `P17B-T20` (rewritten), smoke `P17B-T20` |
+
+Everything else in sections A–F is executable on the final tree; every number in sections C–G is the
+current build's.
+
 ---
 
 ## 3. Section A — Foundation (`QA17A-01` … `QA17A-08`)
 
-**Prerequisites.** The `p17-start` tag (or any tree that includes migration 019), a scratch schema
-created as root, and a green automated gate (§1). **Expected suite:** 830 / 830. **Time:** 35–45 min.
+**Prerequisites.** The `p17a-foundation` tree (the `p17-start` tag plus migration 020; see §2.2 — this
+section is tag-scoped), a scratch schema created as root, and a green automated gate (§1). **Expected
+suite:** 830 / 830. **Time:** 35–45 min.
 
 ### QA17A-01 — Migration 020 builds the four tables and is re-runnable
 
@@ -236,6 +296,8 @@ Expected
   before this phase.
 - Every existing page renders with **no** new JavaScript error in the console.
 
+> **Later tree:** run this check at `p17a-foundation`. 17B deliberately adds both surfaces; see §2.2.
+
 ### QA17A-05 — A paid order pays nothing yet
 
 | Why it matters | The tables are empty and unread; the wallet and the order must be untouched. |
@@ -259,6 +321,9 @@ Expected
   before the order (other than any unrelated movement).
 - `unilevel_awards` counts **0**; `shop_orders.unilevel_processed_at` is `NULL` for the new order and
   `unilevel_total` is `0.00`.
+
+> **Later tree:** run this check at `p17a-foundation`. Since 17C the hook stamps the order with a date
+> and a zero total even when it pays nothing; see §2.2.
 
 ### QA17A-06 — The wallet statement filter lists the two new sources
 
@@ -568,6 +633,9 @@ Expected
   `unilevel_processed_at` is `NULL` and `unilevel_total` is `0.00`. (17C adds the hook that fills
   them.)
 - Restore the configured product if the box is not a scratch copy: switch it off.
+
+> **Later tree:** run this check at `p17b-configuration`. Since 17C the order is stamped when it is
+> paid, with a zero total; see §2.2.
 
 ---
 
@@ -1541,3 +1609,236 @@ Expected
 | Defects | two found and fixed during the pass: **(1)** a refused period printed its message to both stdout and stderr, so `--json` output was no longer a parseable document (`P17F-T5` caught it); the refusal now goes to stderr only when `--quiet` suppresses stdout. **(2)** the "nothing to close" sentence claimed "every month from 2026-10 through 2026-10 is already closed" and, on a fresh install whose baseline is later than last month, implied months had been closed; `close_pending_note()` now distinguishes "baseline after last month", "single month already closed" and "every month already closed". Re-run evidence: `QA17F-04-idempotent.txt`. |
 | Decision | ☑ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts. The pass ran on the development copy over real HTTP (loopback for the payload, the machine's LAN address for the 403), through the real `.cmd`, and against real rows in `unilevel_periods` / `unilevel_activity`; the fixture was removed afterwards and `wallet_reconcile.php` exits 0. The "someone who did not write it" item stays open for the lead's review, as in sections A–E. |
 | Evidence | `docs/qa/evidence/phase-17/` (`QA17F-00-setup-cleanup.txt` … `QA17F-07-cmd.txt`) |
+
+
+---
+
+## 15. Section G — Release (`QA17G-01` … `QA17G-06`)
+
+**Prerequisites.** The `p17f-month-close` tag plus 17G's five changed files (`app/config.php`,
+`tests/Cases/HardeningTest.php`, `tests/smoke.ps1`, this pack and the release documents), a green
+automated gate (§1), a backup of the development copy, and an **empty** scratch schema
+`ecowealth_sneat_qa17g` created as root. **Expected suite:** 948 / 948. **Expected smoke:** 225 / 225.
+**Time:** 60–75 min.
+
+**What this section proves.** Nothing new pays and nothing new renders: it proves that the build
+reports **Phase 17**, that every line of the release acceptance table is backed by a named passing
+case or a named gate, that the deploy guide and the runbook can be *executed* on a scratch install,
+and that the evidence folder and the seven gate records exist. The only code 17G changes is the
+constant, the assertion that guards it and two HTTP checks for the month-close entry.
+
+**Fixture used by the section.** The development copy (unchanged baseline) for the gate and the
+runbook checks, and the scratch schema `ecowealth_sneat_qa17g` for the deploy replay. No fixture user,
+product, order or award is created by section G.
+
+**Safety.** The scratch schema is dropped after `QA17G-05`; the development copy's row counts are
+recorded before and after and must be identical (`unilevel_awards` 0, `unilevel_periods` 0,
+`unilevel_activity` 0, users 26). Transcript: `QA17G-00-setup-cleanup.txt`.
+
+### QA17G-01 — The automated acceptance gate is green
+
+| Why it matters | The release is only as good as the four commands every earlier gate ran. |
+|---|---|
+| Where | `system/` — `php tests\run.php` · `powershell -NoProfile -File tests\smoke.ps1` · `php bin\build_install_sql.php --check` · `php bin\wallet_reconcile.php` |
+| Evidence | `QA17G-01-suite.txt`, `QA17G-01-smoke.txt`, `QA17G-01-build.txt`, `QA17G-01-reconcile.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. From `system/`, run `php tests\run.php`; read the header (PHP version, schema, **phase 17**) and the
+   last two lines.
+2. Run `powershell -NoProfile -File tests\smoke.ps1`; read the final `Passed:` line.
+3. Run `php bin\build_install_sql.php --check`; echo the exit code.
+4. Run `php bin\wallet_reconcile.php`; read the five section headings and the last line.
+
+Expected
+
+- `Cases: 948   Passed: 948   Failed: 0` and `All good.`, exit **0**.
+- `Passed: 225   Failed: 0`, exit **0** — including the two new checks `P17F-T10` (the doctor URL) and
+  `P17F-T11` (the dry-run JSON). The 948 cases include `HardeningTest`'s build case, which now asserts
+  `APP_PHASE === 17`.
+- `--check` prints nothing and exits **0**.
+- `wallet_reconcile.php` prints **Wallets**, **Commissions**, **Transfers**, **Payouts** and
+  **Repeat-purchase**, ends `All good — …`, exit **0**.
+
+*If it fails:* stop — a red suite is not a release candidate (plan §2.5). Record the failing case id in
+the phase log, fix it against the phase that owns the behaviour, and re-run that phase's gate first
+(17G Rule 1).
+
+### QA17G-02 — A stranger executes sections A–F without a question
+
+| Why it matters | A pack its author cannot be surprised by hides exactly the gaps a real tester finds. |
+|---|---|
+| Where | sections 3–14 of this document, read cold, against the build |
+| Evidence | `QA17G-02-cold-read.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Hand sections 3–14 to a tester who has not read the plan or the phase log. Ask them to execute
+   **A–F** and to write down **every** question and every number they could not confirm.
+2. For each question, decide whether the answer belongs in the pack (fix it), the runbook (link it) or
+   the plan (record a deviation).
+3. Re-derive every count and URL in the pack from the build: the phase tags and their suite/smoke
+   counts, the six settings, the ten ledger names, the CSV headers, the two clocks, the cron flags and
+   the three routes the checks call.
+
+Expected
+
+- **Zero open questions.** Every question is answered by the pack itself, by `docs/runbook.md` or by
+  `docs/cron.md`, and the answer is in the place a stranger looks first.
+- Every stated number is reproducible on the current build. The counts in §1 are the *current* ones
+  (948 / 225) with the per-tag history; a number that only held at an earlier tag is labelled with
+  that tag.
+- The documentation defects listed in section G's sign-off are fixed **in the shared parts** (§1, the
+  status line and the other documents) and, where they sat inside an appended section, corrected in
+  place with the defect named in this section's sign-off — a wrong number is never left standing for
+  the next reader.
+
+*If it fails:* a question the pack cannot answer is a documentation defect, not a tester error. Fix
+the document, not the tester, and record what was missing.
+
+### QA17G-03 — The release acceptance table is complete
+
+| Why it matters | Rule 5: the release is not signed unless every acceptance line is ticked against the phase that proved it. |
+|---|---|
+| Where | the plan's release acceptance table (§11), one row per line |
+| Evidence | `QA17G-03-acceptance-table.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open the plan's **Release acceptance table** and this document's section 15 side by side.
+2. For every row, write the proving case id (and its file) or the named gate, then run or re-read that
+   case and mark **PROVEN**.
+3. Count the rows; the table must have **27** lines and every line must be ticked.
+
+Expected
+
+- **27 / 27** rows proven, none "not tested", none citing a case that does not exist.
+- Rows proven by a gate rather than a case (for example `wallet_reconcile.php` with the
+  Repeat-purchase section, the cron's URL and `.cmd` forms) cite `QA17C-04`, `QA17F-06` / `QA17F-07`
+  and the `CronTest` cases that back them.
+- The one row 17G owns — *The docs are updated* — is proven by section G itself and by the eight
+  documents' `git diff --stat` in the release commit.
+
+*If it fails:* a row with no proving case is a **defect in the phase that owns the behaviour**, not in
+17G (Rule 1). Fix the phase, re-run its gate, record the deviation, then sign.
+
+### QA17G-04 — The build reports phase 17
+
+| Why it matters | D-15: the build must report the phase that shipped the feature, or the next phase starts from a stale constant. |
+|---|---|
+| Where | `system/` — `php -r "require 'app/config.php'; echo APP_PHASE;"` · `php tests\run.php Hardening` · `/dashboard` as admin |
+| Evidence | `QA17G-04-phase.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Print the constant with `php -r "require 'app\config.php'; echo APP_PHASE, PHP_EOL;"`.
+2. Run `php tests\run.php Hardening` and read the build case.
+3. Open `/dashboard` as an admin; confirm it renders and every admin menu item is live.
+4. Read the `php tests\run.php` header, which prints `phase 17`.
+
+Expected
+
+- The constant prints **17**; the header of a suite run reads `PHP 8.3.16 · schema … · phase 17`.
+- `HardeningTest`'s `P15 the build reports phase 17` case passes with `assert_same(17, APP_PHASE)`;
+  `ReportViewTest`'s `APP_PHASE >= 15` case still passes.
+- `/dashboard` (admin) answers **200** and the admin menu renders every item — no item is hidden by the
+  constant now that it is at the last phase.
+- The plan's §11 wording "on the dashboard badge" is **not** an observable in this build: the shell
+  renders no build-phase badge anywhere (`app/layout/` and `app/views/` contain no `APP_PHASE`
+  reference; the constant is read only by `nav_item_live()`). The check therefore proves the constant
+  through the three places it *is* observable — the runtime value, the suite's own header and the
+  guarded assertion — and the wording is amended in the plan (see the deviation log). Adding a badge
+  would be a UI change, which 17G Rule 1 forbids.
+
+*If it fails:* a value other than 17 means `config.local.php` or the harness pins it — check
+`tests/bootstrap.php` and `config.local.php`, then re-run. A failing `HardeningTest` means the constant
+and its assertion diverged; they are one deliverable.
+
+### QA17G-05 — `docs/deploy.md` end to end, then the runbook's weekly checklist
+
+| Why it matters | Rule 2: the documentation is executable. A guide nobody followed is a guess. |
+|---|---|
+| Where | scratch schema `ecowealth_sneat_qa17g` · `docs/deploy.md` §5B, §11.6, §13, §16 · `docs/runbook.md` §2, §4 and §9 |
+| Evidence | `QA17G-05-deploy.txt`, `QA17G-05-runbook.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Create `ecowealth_sneat_qa17g` as root. Import `database/install.sql` with the `mysql` client
+   exactly as deploy §5B-A describes.
+2. Run deploy §11.6's verification pack: the nine counts, the two demo queries, the metadata keys, the
+   `live_revisions` count and `SHOW TABLES LIKE 'live_revisions'`.
+3. Read deploy §13: it must name **four** cron jobs, and §16's final checklist must carry the
+   **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0** figures.
+4. From `system/`, run the runbook's weekly set against the development copy: the four job doctors,
+   `php bin\wallet_reconcile.php`, the three repeat-purchase SQL queries from runbook §4, and the
+   month-close `--dry-run`.
+5. Drop the scratch schema; record the development copy's counts before and after.
+
+Expected
+
+- The bundle import prints the verification pack with **31 tables, 54 settings, 2 staff, 0 members,
+  7 products, 2 packages, 18 levels, 10 contents, 0 codes**; `live_revisions` is **0** after a static
+  import; both demo counts are **0**; the metadata keys name the bundle version and channel.
+- The four doctors exit **0** and each reports both clocks/`APP_TIMEZONE`, its switch and its storage;
+  `unilevel_month_close --doctor` additionally reports `clocks agree`, the threshold, `last closed none
+  yet`, `pending none (… ledger baseline …)`, the account count, a free lock and a writable log.
+- `wallet_reconcile.php` exits **0**; the three runbook SQL queries return **no rows** (or zero
+  counts); the month-close `--dry-run` says `would close: nothing to close — the ledger baseline …`
+  and writes no row (`unilevel_periods` / `unilevel_activity` unchanged at **0**).
+- Development copy after the pass: users **26**, `unilevel_awards` **0**, `unilevel_periods` **0**,
+  `unilevel_activity` **0**; the scratch schema is gone.
+
+*If it fails:* a count other than 31/54 means the bundle and `install.sql` drifted — rebuild with
+`php bin\build_install_sql.php` and re-check. A command in the runbook that does not run is a
+documentation defect: fix the command and record it, never the other way round.
+
+### QA17G-06 — The evidence folder and the seven gate records are complete
+
+| Why it matters | The gate record is the release's only durable proof; a check without evidence is an assertion. |
+|---|---|
+| Where | `docs/qa/evidence/phase-17/` and `docs/qa/sign-off-sheet.md` §18 |
+| Evidence | `QA17G-06-evidence.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. List the evidence folder and map every `QA17X-nn` id from sections A–G to at least one file.
+2. Read the folder's `README.md`: the index must name the section G files too.
+3. Read `docs/qa/sign-off-sheet.md` §18: the Phase 17 row must carry **57 / 57**, sections A–G, and the
+   seven gate records.
+4. Read `docs/phase-log.md`: seven phase entries plus the release entry, each with its tag, counts and
+   deviations.
+
+Expected
+
+- **57 / 57** check ids (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) each map to at least one file; no
+  file is orphaned (every `QA17*` file belongs to a check).
+- The sign-off sheet's Phase 17 section has the seven gate rows — **17A … 17G** — with tag, date, suite
+  `passed/ran`, smoke `passed/ran`, migration/bundle, manual QA `nn/nn`, tester, deviations and a
+  signed box.
+- The phase log's Phase 17 entries: **17A, 17B, 17C, 17D, 17E, 17F, 17G** — the last one is the release
+  entry and carries the acceptance-table result.
+- `Appendix G` in the plan matches the sign-off sheet's seven rows, including 17G's.
+
+*If it fails:* a check with no file is a missing transcript (copy it in, never delete the check); a gate
+row without a tag means the tag was not created — tag the commit and re-read. The QA folder's README is
+the index: a file it does not name is invisible to a reviewer.
+
+---
+
+## 16. Section G sign-off
+
+| Item | Value |
+|---|---|
+| Tester | Automated QA pass — DeepSeek Harness (DSH) |
+| Date | 2026-11-12 |
+| Automated gate | `Cases: 948 / 948` · `Passed: 225 / 225` smoke · `build_install_sql --check` exit 0 · `wallet_reconcile` exit 0 (five sections) |
+| Checks passed | 6 / 06 |
+| Defects | nine documentation defects found by the cold read (`QA17G-02`) and fixed in this pass: **(1)** the pack did not say sections A–B are tag-scoped, so three checks would fail on the final tree (§2.2 + three inline notes); **(2)** sections B–G assumed a fixture no section told the tester how to build (§2.1); **(3)** §1 still carried the 17F counts (948 / 223) instead of the release counts (948 / 225); **(4)** `system/README.md` had `APP_PHASE` 15, the Phase 16 install counts (27/48), no migration 020 row and a stale 17E future tense; **(5)** `docs/deploy.md` had the 27/48 counts in §5B and §16, "three jobs" in §13, the "until the runbook exists" note and no 17E–17G addendum; **(6)** `docs/runbook.md` had "three jobs" in §2 and §7, 27/48 in §7 and 816 cases in §9; **(7)** `docs/qa/README.md` had the Phase 17 row frozen at "in progress (17C)", the 816/195 counts and a Phases 1–16 title; **(8)** `docs/admin-guide.md` documented the repeat ledger and reports but not the ladder card, the five settings or the monthly close; **(9)** `docs/qa/sign-off-sheet.md` had the Phase 17 section frozen at 17B with no C–G rows and no gate records. No product defect was found: the code was right and the documents were stale. |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts: the full suite, the full smoke run, the bundle check, the reconciliation, the scratch-install deploy replay and the runbook's weekly commands. The "someone who did not write it" item stays open for the lead's review exactly as in sections A–F: the cold read was performed by the same automated pass, which is why the seven documentation defects it found are listed by name. |
+| Evidence | `docs/qa/evidence/phase-17/` (`QA17G-00-setup-cleanup.txt` … `QA17G-06-evidence.txt`) |

@@ -1,6 +1,6 @@
 # Plan — Unilevel Repeat-purchase Bonus (per-product levels 1–10)
 
-**Phase 17** of the EcoWealth member system · **Status:** proposed for approval — not implemented
+**Phase 17** of the EcoWealth member system · **Status:** implemented and released — **17A → 17G signed 2026-11-12**, tag `p17g-release` (feature tag `phase-17`); `APP_PHASE` 17. See `docs/phase-log.md` for the seven gate entries and Appendix G for the gate record.
 **Delivery model:** **seven gated phases, 17A → 17G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 12 November 2026 · **Target page:** `http://localhost/ecowealth/system/checkout`
@@ -1509,7 +1509,7 @@ acceptance table below, executed in this order:
 2. `powershell -File tests/smoke.ps1` — the documented check count, 0 failed, exit 0.
 3. `php bin/build_install_sql.php --check` — exit 0 on the committed bundle.
 4. The release acceptance table — every row ticked against a named phase and a named case.
-5. `APP_PHASE` — 17 in `config.php`, on the dashboard badge, and asserted by `HardeningTest`.
+5. `APP_PHASE` — 17 in `config.php`, reported by the suite header and asserted by `HardeningTest`.
 
 **Release acceptance table**
 
@@ -1553,7 +1553,7 @@ The single acceptance list of the earlier draft, distributed to the phase that p
    without asking a question. Any question is a documentation defect.
 3. `QA17G-03` — walk the release acceptance table row by row; every row cites a passing case or a
    screenshot.
-4. `QA17G-04` — open `/dashboard` as an admin: the phase badge reads **17**.
+4. `QA17G-04` — the build reports **17**: the runtime constant, the suite header and `HardeningTest`; `/dashboard` answers 200 as an admin and every shipped menu item renders.
 5. `QA17G-05` — on a scratch install, follow `docs/deploy.md` end to end; then the runbook's weekly
    checklist.
 6. `QA17G-06` — confirm the evidence folder contains one file per `QA17X-nn` check, and the sign-off
@@ -2890,7 +2890,7 @@ rounded levels total ₱161.13. The tests pin the rounded total.
 | 17E | `ShopLiveTest.php` / `CartViewTest.php` | the product panel and the checkout line in the feed payload |
 | 17F | `CronTest.php` | the eight new cases |
 | 17G | `HardeningTest.php` | `APP_PHASE === 17` |
-| 17G | `tests/smoke.ps1` | ~10 new URL checks accumulated across the phases |
+| 17G | `tests/smoke.ps1` | the Phase 17 URL checks accumulated by 17B–17E (28) plus the month-close doctor and dry-run pair (2) — 223 → 225 |
 
 ### 16.5 Cron cases (`CronTest.php`, phase 17F)
 
@@ -3248,7 +3248,7 @@ filled row is not closed, whatever its code says.
 | 17D Admin visibility | `p17d-admin` | 2026-11-12 | 924 / 924 | 215 / 215 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | D: 08/08 | DSH | 7 (see below) | ☑ |
 | 17E Member visibility | `p17e-member` | 2026-11-12 | 938 / 938 | 223 / 223 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | E: 09/09 | DSH | 8 (see below) | ☑ |
 | 17F Operations | `p17f-month-close` | 2026-11-12 | 948 / 948 | 223 / 223 | no schema change (`--check` exit 0; `wallet_reconcile` exit 0) | F: 07/07 | DSH | 8 (see below) | ☑ |
-| 17G Release | `p17g-release` | | __ / __ | __ / __ | `APP_PHASE = 17` | G: __/06 | | | |
+| 17G Release | `p17g-release` | 2026-11-12 | 948 / 948 | 225 / 225 | no schema change (`--check` exit 0; bundle sha256 `a5467d25…`, unchanged since 17A; `wallet_reconcile` exit 0); `APP_PHASE = 17` | G: 06/06 | DSH | 3 (see below) | ☑ |
 
 **Deviation log.** Any difference between this plan and what was built, with the reason and the phase that
 owns it. An empty deviation log at the 17G gate means the plan and the build agreed.
@@ -3294,7 +3294,9 @@ owns it. An empty deviation log at the 17G gate means the plan and the build agr
 | 17F | The doctor gained a `clocks` line that compares the PHP and MySQL epochs | §10 Rule 11 asks it to report "the PHP/MySQL clock agreement"; the other jobs print both times only. `agree (±Ns)` is what QA17F-01 checks, and it is the risk-11 mitigation the plan names | 17F gate |
 | 17F | A refusal's message is printed once (stdout, plus stderr only under `--quiet`) | Printing it on both streams made `--json` output unparseable; P17F-T5 caught it during the phase | 17F gate |
 | 17F | The manual section-F checks were executed by the automated pass (real HTTP from loopback and from the LAN address, the real `.cmd`, real snapshot rows on the development copy) rather than an independent tester | Same constraint as 17A–17E; the fixture was removed and the baseline restored afterwards (`QA17F-00-setup-cleanup.txt`), and the "someone who did not write it" item stays open for the lead's review | pending |
-
+| 17G | No build-phase badge is rendered anywhere in the shell, so the plan's "on the dashboard badge" wording (§11 test plan item 5, `QA17G-04`) is amended to the three places the constant is observable: the runtime value, the suite header and the `HardeningTest` assertion; `/dashboard` is checked for a 200 and a complete menu instead | `APP_PHASE` is read only by `nav_item_live()` — no view or layout renders it. Adding a badge would be a UI change, which 17G Rule 1 forbids ("only `APP_PHASE`, tests and documentation"). The plan's Ships-alone paragraph lets the code win and the plan be amended | 17G gate |
+| 17G | The section-G cold read found nine stale documentation claims and fixed them (tag scoping, the missing fixture recipe, the 948/223 counts, the README's `APP_PHASE`/27-48/migration 020/smoke count, deploy's 27/48 and three jobs, the runbook's three jobs/27-48/816 cases, the QA README's Phase 17 row, the admin guide's missing ladder card, the sign-off sheet frozen at 17B) | No product defect: the code was right and the documents had not been updated by the earlier phases. The full list, with the question that exposed each one, is `docs/qa/evidence/phase-17/QA17G-02-cold-read.txt`; each was fixed in the shared parts and, where it sat inside an appended QA section, corrected in place with the defect named in section G's sign-off | 17G gate |
+| 17G | The manual section-G checks were executed by the automated pass (real HTTP, real commands, a scratch install and the full suite/smoke runs) rather than an independent tester | Same constraint as 17A–17F; the cold read was performed by the same pass, which is why its nine findings are listed by name. The "someone who did not write it" item stays open for the lead's review, as in every earlier gate | pending |
 ---
 
 *End of plan.*

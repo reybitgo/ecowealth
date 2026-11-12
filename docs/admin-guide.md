@@ -17,6 +17,7 @@ one exception: **you cannot verify or reject your own order** (the self-review g
 | **Sales today / Sales 30 days** | paid orders only; the same numbers as the reports desk |
 | **Orders needing action** | payment review, packing, ready-to-ship and shipped orders |
 | **Commissions · 30 days** | awards paid in the window plus the all-time total |
+| **Repeat bonus (30 d)** | repeat-purchase awards paid in the window, with the members and recipients they reached |
 | **Wallet float** | total member money and the withdrawable portion |
 | **Held for payout** | money promised to open withdrawal requests |
 | **Orders by status / Top products** | the lifecycle and the best sellers in the last 30 days |
@@ -37,9 +38,34 @@ you are ready.
 - **Inactive** hides a product from the shop and blocks new cart additions; it never rewrites an
   order that already contains it.
 - **Delete** is refused while an order or a package still references the product. Deactivate it
-  instead.
+  instead. A product that has already paid a repeat-purchase award can never be deleted.
 - Stock is the physical count. The shop shows `stock − reserved`; reserved units belong to unpaid
   orders. Shipping deducts the physical stock.
+
+### The repeat-purchase ladder card (Phase 17B)
+
+A product pays a **repeat-purchase bonus** to the buyer's sponsor chain on every paid order. The whole
+configuration lives on the product form, in the **Unilevel repeat-purchase bonus** card:
+
+| Field | What it does |
+|---|---|
+| **Point value (P.V.)** (*Pricing & stock*) | The per-unit value the ladder is applied to when the base is *Auto* or *P.V.*. `0` means "not set". |
+| **Bonus base** | **Auto** — the P.V. when it is above 0, otherwise the retail price; **P.V.** — refuse to save without one; **Retail price** — the shop price. |
+| **Levels 1–10** | One percentage per sponsor level. Level 1 is the direct sponsor, level 10 the tenth upline; there is no separate direct/indirect split. |
+| **Total / per-unit amounts** | Re-read as you type (and server-rendered with JavaScript off): the ladder's total and what each level pays on one unit. |
+| **Repeat-purchase bonus for this product** | The per-product switch. A new product starts **off** with the reference ladder pre-filled; a product that existed before 17A reads `0%` everywhere. |
+
+Rules the form enforces: a rate is `0–100` with up to three decimals; the ten levels may not add up to
+more than **100%**; switching the product on with every level at `0` is refused; a *P.V.* base needs a
+P.V. above `0`. **Load reference ladder** fills 5/5/5/3/3/2/2/2/1/1 (**29%**); **Clear** empties it.
+Every save that changes the ladder writes one `product.unilevel.update` audit entry with the
+before/after values — a save that changes nothing writes nothing. The product list badge reads
+**Repeat bonus 29%** when the switch is on with a ladder, **Repeat bonus 0%** when it is on with an
+empty ladder (a configuration error you can see), and nothing when it is off; `?unilevel=on|off`
+filters the list.
+
+> The global half lives on **Settings → Commissions → Repeat-purchase bonus** (§8). **Both** the global
+> master and the product switch must be on before an order can pay.
 
 ---
 
@@ -167,7 +193,7 @@ log with a before/after per key.
 | **Payout methods** | Minimum withdrawal, USDT rate, each channel's fee and switch, network fees |
 | **Payment windows** | Payment deadline, correction window, proof attempts per order, expiry kill switch |
 | **Fulfilment & invoices** | Auto-complete days and switch, seller name/TIN/phone/address on invoices |
-| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration |
+| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, reversal rule |
 | **Transfers** | Fee, minimum, daily and weekly caps (0 = unlimited) |
 
 Rules that the page enforces: a weekly limit cannot be below the daily limit, a minimum cannot
@@ -212,7 +238,7 @@ not a button here. The package commission ledger is the other tab and is unchang
 their before/after, wallet top-ups, exports, member status changes, activation decisions, payout
 decisions, transfers, code generation/redemption and S-Login starts, refusals and exits.
 
-- Filter by action, subject, actor/action text and date; paginate like any table.
+- Filter by action, subject, actor/action text and date; paginate like any table. The repeat-purchase vocabulary is `product.unilevel.update` (a ladder or base change, with before/after), `unilevel.export` (a repeat ledger CSV) and `report.export` with `type = unilevel`.
 - The row shows who (with role), what, on which subject, the compact detail and the IP.
 - Order transitions also have their own timeline on the order page; S-Login sessions have their own
   console. The audit desk links to both.
@@ -244,7 +270,7 @@ session is a member session: you cannot reach admin pages from inside it.
 | Every morning | Finance health, reconciliation command, orders needing action, open payouts (§1 of the runbook) |
 | As they arrive | Verify proofs, approve activations, ship paid orders, answer payout requests |
 | Weekly | Back up and copy the dump off the machine; review the audit log for unexpected settings changes; check the cron logs |
-| Monthly | Restore drill into a scratch schema; rotate admin passwords; review stock and best sellers |
+| Monthly | Restore drill into a scratch schema; rotate admin passwords; review stock and best sellers; run `php bin\unilevel_month_close.php --doctor` before the 1st and confirm the previous month closed (the Active rule reads it) |
 | Before any upgrade | Backup, then follow [`deploy.md`](deploy.md); after it, Finance health must be All clear |
 
 ---

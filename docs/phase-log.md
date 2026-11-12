@@ -4698,3 +4698,134 @@ documented in `docs/cron.md` §4 and `system/README.md` in the meantime.
    from loopback and from the LAN address, the real `.cmd`, and real rows in `unilevel_periods` /
    `unilevel_activity` on the development copy, removed afterwards. The evidence is filed; the "someone
    who did not write it" item stays open for the lead's review.
+
+
+## Phase 17G — Release (2026-11-12)
+
+**Status:** released · **Tag:** `p17g-release` (on `p17f-month-close`), feature tag `phase-17` ·
+**Branch:** `feature/unilevel` · **Schema:** unchanged (31 tables, 54 settings) ·
+**Suite:** 948 / 948 green · **Smoke:** 223 → 225, **225 / 225** green.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §11 (Phase 17G), §2.4, §17, Appendix G.
+This phase changes **no behaviour**: `APP_PHASE` 15 → 17, the `HardeningTest` assertion that guards
+it, two HTTP checks for the month-close entry, and the documentation. Its work is the acceptance
+pass: every phase's gate re-run in order, every command in `docs/deploy.md` and the runbook
+executed, the release acceptance table walked row by row, and the QA pack finalised and signed.
+
+### Database
+
+None. 17A shipped migration `020`; this phase touches no schema. The bundle is unchanged
+(`build_install_sql --check` exit 0) and a fresh import still reports **31 tables / 54 settings**.
+
+### Code
+
+- **`app/config.php`** — `APP_PHASE` is **17** (D-15), with a comment naming the release entry.
+- **`tests/Cases/HardeningTest.php`** — the build case is now `P15 the build reports phase 17` and
+  asserts `assert_same(17, APP_PHASE)`. They are one deliverable in one commit (17G risk 3).
+- **`tests/smoke.ps1`** — the two month-close URL checks the plan asks for: `P17F-T10` over
+  `?doctor=1` (the same environment facts as the CLI) and `P17F-T11` over `?dry-run=1&json=1` (the
+  same payload shape, `would_close` equal to `count(periods)`), plus the header and the description
+  now name the Phase 17 checks. **223 → 225** checks; no PHP case was added.
+
+### Tests
+
+- Full suite: **948 / 948**, exit 0 — the header now reads `PHP 8.3.16 · schema … · phase 17`.
+- Smoke: **225 / 225**, exit 0, including the two new month-close checks.
+- `HardeningTest` filtered: 8 / 8.
+- No new PHP warning, notice or deprecation in `storage/logs/` after the pass.
+
+### Docs
+
+- **QA pack** — section G (`QA17G-01` … `QA17G-06`) and its sign-off; a new **§2.1 fixture recipe**
+  (product, chain, funding, switch, order, variants) and **§2.2 tag-scoping** (the three checks that
+  describe the tree before 17B/17C changed it); §1's final counts are 948 / 225 with the per-tag
+  history; the status line closes the pack at **57 checks**.
+- **`docs/qa/README.md`** — the Phase 17 row finalised (57 checks, the per-section times, "signed"),
+  the Phases 1–17 title, the 948 / 225 gate, a Phase 17 coverage bullet and the evidence-folder note.
+- **`docs/qa/sign-off-sheet.md`** — §18 rebuilt for all seven gates: the seven gate records, the 57
+  check rows with their evidence files, the summary (57 / 57) and the 17G deviations; §19 gains
+  D-17G-01 (the nine stale documents, Closed); §20 approves Phases 17B–17G.
+- **`system/README.md`** — the status paragraph names the release; `APP_PHASE` 17; **31 / 54** in the
+  quick start; the migration table gains **020** and the tree reads `… 020_unilevel_repeat_purchase`;
+  the repeat-purchase section is split into *The engine (17C)*, *The configuration (17B)*, *The admin
+  surfaces (17D)* and *The member surfaces (17E)*, with the duplicated delete-guard bullet removed;
+  the smoke paragraph reads **225** and names Phase 17's 30 checks; the case and test-group lists
+  name the Phase 17 groups.
+- **`docs/deploy.md`** — §5B and §16 read **31 / 54**; §13 names the **four** jobs (the month close
+  included); a new **Phase 17E/17F/17G addendum** documents the member surfaces, the fourth job and
+  the release commands; Appendix C gains the Phase 17 row.
+- **`docs/runbook.md`** — §2's table lists the **four** jobs with the month close's schedule and
+  catch-up; §7 reads `020`, **31 / 54** and "four jobs"; §9 reads **948** cases; the repeat-purchase
+  section is retitled *(Phases 17C–17F)* and gains **The month clock** — the two snapshot queries, the
+  doctor and the dry run, and the clock-drift warning.
+- **`docs/admin-guide.md`** — §2 gains **The repeat-purchase ladder card** (P.V., bonus base, the ten
+  rates, the preset, the 100% rule, the switch, the audit entry and the delete guard); §1 gains the
+  **Repeat bonus (30 d)** KPI; §8's Commissions row names the five repeat-purchase keys; §10 lists the
+  three new audit actions; §12 adds the monthly close to the routine calendar.
+- **`docs/cron.md`** — completed in 17F; re-read and verified, no change.
+- **The plan** — the status line, §11 test-plan item 5 and `QA17G-04` are amended (no build-phase badge
+  exists in the shell — 17G deviation 1), the 17G Appendix G row is filled, and the deviation log gains
+  the three 17G rows.
+
+### Gate
+
+The universal gate of §2.4, item by item:
+
+- [x] Schema state matches the plan — `MigrationTest` green; 17G changes no schema (31 tables, 54
+      settings).
+- [x] `php bin/build_install_sql.php` was not needed and `--check` exits 0 (`QA17G-01-build.txt`).
+- [x] `php tests/run.php` → **Cases: 948   Passed: 948   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 with the **Repeat-purchase** section at zero
+      (`QA17G-01-reconcile.txt`).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 225   Failed: 0**, exit 0.
+- [x] Every P17G-Tn case: G has **no new automated case** (the plan says so); its six manual checks
+      are `QA17G-01` … `QA17G-06`, all executed.
+- [x] The manual script was executed — by the automated pass, as at every earlier gate; the cold read
+      (`QA17G-02`) answered ten questions, found nine stale documents and fixed them.
+- [x] No new PHP warning, notice or deprecation in `storage/logs/` after the pass.
+- [x] The QA pack section G is filled; evidence under `docs/qa/evidence/phase-17/` (`QA17G-00` …
+      `QA17G-06`, eleven files).
+- [x] This entry, Appendix G and tag `p17g-release` (plus the feature tag `phase-17`).
+
+Phase-specific gate:
+
+- [x] `APP_PHASE === 17`; `HardeningTest` green (`QA17G-04-phase.txt`).
+- [x] The release acceptance table is complete: **27 / 27** rows proven, each citing a passing case or
+      a named gate (`QA17G-03-acceptance-table.txt`).
+- [x] The QA pack is signed (57 / 57) and the sign-off sheet carries the seven gate records.
+- [x] The seven gate records in Appendix G are filled, and this log has seven Phase 17 entries plus
+      this release entry.
+- [x] `docs/deploy.md` replayed end to end on the scratch schema `ecowealth_sneat_qa17g`
+      (`QA17G-05-deploy.txt`) and the runbook's weekly checklist executed on the development copy
+      (`QA17G-05-runbook.txt`); the scratch schema was dropped and the development copy's counts are
+      unchanged (users 26, awards/periods/activity/repeat ledger 0, reconcile exit 0).
+- [x] Every check has its evidence file and the folder's `README.md` indexes them
+      (`QA17G-06-evidence.txt`).
+
+### Deviations
+
+1. **No build-phase badge exists, so the plan's "on the dashboard badge" wording is amended.** The
+   shell renders no build-phase chip anywhere: `APP_PHASE` is read only by `nav_item_live()`, and no
+   view or layout references it. The plan's §11 test-plan item 5 and `QA17G-04` now name the three
+   places the constant *is* observable (the runtime value, the suite header and the `HardeningTest`
+   assertion) and `/dashboard` is checked for a 200 with a complete menu. Adding a badge would be a UI
+   change, which Rule 1 forbids.
+2. **The section-G cold read found nine stale documentation claims and fixed them.** They are the
+   pack's missing tag-scoping and fixture recipe, its own 948 / 223 counts, `system/README.md`'s
+   `APP_PHASE` 15 / 27-48 / missing migration 020 / smoke count, `docs/deploy.md`'s 27 / 48 and
+   "three jobs", `docs/runbook.md`'s three jobs / 27-48 / 816 cases, `docs/qa/README.md`'s Phase 17
+   row frozen at 17C, `docs/admin-guide.md`'s missing ladder card, and the sign-off sheet frozen at
+   17B. No product defect: the code was right and the earlier phases had not updated the documents.
+   The ten questions that exposed them, with each fix, are `QA17G-02-cold-read.txt`.
+3. **The manual section-G checks were executed by the automated pass**, as at every gate since 17A:
+   real HTTP for `/dashboard`, real commands for the suite/smoke/bundle/reconcile, a real scratch
+   install for the deploy replay, and the real doctors for the runbook. The "someone who did not
+   write it" item stays open for the lead's review; the cold read was also performed by this pass,
+   which is why its nine findings are listed by name.
+
+### Hand-off
+
+The workstream is **closed**. `APP_PHASE` is 17, every gate is signed, and the QA pack is final.
+The deferred items in §18 (a level-0 rebate, a backfill, a per-order cap) are new streams with their
+own economics: each may start without reopening any of the seven Phase 17 gates, exactly as the plan's
+hand-off says.

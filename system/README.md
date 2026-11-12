@@ -4,17 +4,18 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 15 — hardening, dashboards, UAT and launch. The build is feature-complete
-for this scope.** Phase 16 (the IR-1 … IR-8 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`)
-adds the production install bundle, the CLI and browser installers, and the guarded development reset;
-it changes no application route or page, and both tools are deleted before go-live. Phase 17 (the
-unilevel repeat-purchase workstream, `dmp/plan-ecowealth-unilevel-repeat-purchase.md`) is in progress:
-17A adds the four tables, the six settings and the two wallet movement kinds; 17B adds the per-product
-configuration; **17C adds the money engine** — the paid-order hook on both payment paths, the monthly
-Active gate, best-effort reversal and the repeat-purchase reconciliation; 17D and 17E add the admin
-and member surfaces; **17F adds the unattended month-close job** (doctor, dry run, log, lock and
-catch-up). The stream ships off and pays nothing until an operator configures a product and turns the
-global master on.
+**Current status: Phase 17 — release. `APP_PHASE` is 17 and the workstream is closed.**
+Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
+install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
+the CLI and browser installers and the guarded development reset, changing no application route or
+page. Phase 17 (the unilevel repeat-purchase workstream,
+`dmp/plan-ecowealth-unilevel-repeat-purchase.md`) is **released in seven gates**: 17A the four tables,
+six settings and two wallet movement kinds; 17B the per-product configuration; 17C the money engine —
+the paid-order hook on both payment paths, the monthly Active gate, best-effort reversal and the
+repeat-purchase reconciliation; 17D and 17E the admin and member surfaces; 17F the unattended
+month-close job (doctor, dry run, log, lock and catch-up); and 17G the release (documentation, QA pack,
+`APP_PHASE` 17 and the acceptance pass). The stream ships **off** and pays nothing until an operator
+configures a product and turns the global master on.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -120,7 +121,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 27 tables, the 48 settings, both staff accounts,
+   `database/install.sql` creates the 31 tables, the 54 settings, both staff accounts,
    the seven starter products and the two packages. It seeds **no** demo members, demo
    codes or demo wallets, and it refuses to run against a non-empty schema.
 
@@ -131,7 +132,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 27 | 48 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 31 | 54 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
    The bundle is **generated** from `database/schema.sql` and seeds 001–004. Edit those
    sources, then rebuild and verify:
@@ -397,7 +398,7 @@ The full checklist, with the verification queries and the backup step, is in
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `15` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `17` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
@@ -461,13 +462,13 @@ system/
 │   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
 │   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 019_audit_and_reporting
+│   ├── migrations/            001_settings_roles … 020_unilevel_repeat_purchase
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures, the
     │                          scratch-schema and information_schema helpers
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5, P17B-T1 … P17F-T11)
     ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, View, Upload,
     │                          Migration, Product, ProductView, Package, PackageView, Cart,
     │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
@@ -1207,10 +1208,12 @@ product **and** turns the global switch on.
 - **Idempotency.** Four layers: the order stamp, a per-(line, recipient, level) pre-check, the
   `uq_unilevel_award` unique key and the wallet's own `(user, ref_type, ref_id, type)` replay. A
   second `onOrderPaid()` returns `replayed` and moves nothing.
-- **Previews.** `quoteLine()` / `quoteCart()` read the current ladder and base and write nothing;
-  they are what 17E's "up to X%" product and checkout panels will render.
+- **Previews.** `quoteLine()` / `quoteCart()` read the current ladder and base and write nothing; 17E's
+  product panel and checkout line render them (see *The member surfaces* below).
 - **Delete guard.** A product with ladder rows is deleted with them (`ON DELETE CASCADE`); a product
   that paid a repeat-purchase award cannot be deleted (`ON DELETE RESTRICT`, reported by the list).
+
+### The configuration (17B)
 
 - **One ladder, ten equal rows (D-17).** Levels 1–10 in `product_unilevel_levels`, each a percentage of
   the line's base. There is **no** direct/indirect split, no separate direct field, no read-only level 1
@@ -1241,13 +1244,51 @@ product **and** turns the global switch on.
   `unilevel_requires_active_upline`, `unilevel_reversal_enabled`. The sixth key,
   `unilevel_ledger_since`, is a reconciliation baseline and is never rendered. Saving the card validates
   and audits exactly like the Phase 15 cards (`settings.update`).
-- **Delete guard.** A product with ladder rows is deleted with them (`ON DELETE CASCADE`); a product that
-  paid a repeat-purchase award cannot be deleted (`ON DELETE RESTRICT`, reported by the list).
+
+### The admin surfaces (17D)
+
+Read-only: no admin page writes an award, a wallet row or a period.
+
+- **The repeat ledger** is the second tab of the commission ledger,
+  `/admin/commissions?ledger=repeat`: six counters (total credited and the members paid, this month,
+  awards, recipients, skipped, unrecovered), filters (recipient/buyer/product/order `q`, level, status,
+  product, date), the closed-month card and the filtered CSV
+  (`/admin/commissions/export?ledger=repeat`, audited as `unilevel.export`). The **Lvl** column is the
+  whole story — there is no direct/indirect column. A skipped row shows the amount that was due and its
+  reason; a voided row shows what was recovered and the shortfall.
+- **The order card** on `/admin/orders/{id}` lists level, recipient, product, base, rate, amount and
+  status, with the headline equal to `shop_orders.unilevel_total`, and explains the three "no bonus"
+  states (unpaid, stream off, paid before the feature). The buyer is never listed as a recipient.
+- **The reports** are four cards on `/admin/reports` (window summary, by level, by product, closed
+  months) plus a `type=unilevel` CSV, and a **Repeat bonus (30 d)** KPI on `/dashboard`'s commerce row.
+- **The package commission ledger is unchanged** — the same page, its own tab (P17D-T1).
+
+### The member surfaces (17E)
+
+Read-only and scoped to the session member; no page offers a repeat-purchase action.
+
+- **The product panel** (`/shop/{id}`) renders all ten levels on the product's bonus base with the
+  per-unit amounts, the **Up to 29%** total and the sentence that the buyer earns no rebate on their own
+  purchase. It is absent while the product's ladder or the global master is off.
+- **The catalogue badge** (`Up to 29% repeat bonus`) reads the batched `totalsMap()` — one query for the
+  page, not one per card.
+- **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X goes to your sponsor
+  chain when this order is paid" — and is absent when no cart product has a payable ladder.
+- **The order card** (`/orders/{id}`) shows the total that went to the sponsor chain, never which upline
+  received what; it is a live region, so a verification appears without a reload.
+- **The repeat tab** (`/earnings?ledger=repeat`) carries four counters, the **two-clock Active panel**
+  (this month's status, the previous month it is computed from, the threshold and the missing-flag
+  sentence), the 1–10 breakdown, the rows, filters and a 13-column CSV.
+- **The dashboard tile** and the **membership paragraph** read the same `UnilevelCycle::memberStatus()`.
+- The package earnings tab is unchanged (P17E-T10); `?user_id=` is ignored (P17E-T11).
 
 ```bash
+php tests/run.php Unilevel                # every Phase 17 case: foundation, configuration, engine, cycle, member view
 php tests/run.php UnilevelConfiguration   # 24 configuration cases (17B)
 php tests/run.php UnilevelEngine          # 38 engine cases (17C)
 php tests/run.php UnilevelCycle           # 11 monthly-clock cases (17C)
+php tests/run.php UnilevelMemberView      # 14 member-surface cases (17E)
+php tests/run.php Cron                    # 18 job cases, 10 of them the month close (17F)
 php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 ```
 
@@ -1316,11 +1357,11 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (948 cases after the Phase 17 workstream)
+php tests/run.php                 # full suite (948 cases; Phase 17 is the last workstream)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
-powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running app
+powershell -NoProfile -File tests/smoke.ps1    # 225 HTTP checks against the running app
 ```
 
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
@@ -1331,7 +1372,7 @@ powershell -NoProfile -File tests/smoke.ps1    # HTTP checks against the running
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–019 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–020 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -1345,7 +1386,7 @@ window, the reports performance budget, the CSV exports and their audit rows, th
 transfer throttle. The install/reset workstream adds ten more — `IR4-T1…T5` for the web installer's
 refusal states, hardening headers, GET/POST side effects and shared stylesheet, and `IR6-T1…T5` for the
 reset console's guest redirect, member 403, admin form with no secret, three refusals that change
-nothing, and its stylesheet — for **195** HTTP checks in all.
+nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON) — **225** HTTP checks in all.
 
 The install/reset groups run without a browser and without the application connection:
 
@@ -1402,6 +1443,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `017_payouts.sql` | `payout_requests` (the withdrawal queue and its hold/refund trail), the four `users` payout accounts (no-op when 007 already ran) and the eleven payout settings when missing |
 | `018_impersonation.sql` | `impersonation_log` (the S-Login sessions: superadmin/member snapshots, `nonce_hash` unique, IP/user-agent, active/expired/logged_out, TTL) |
 | `019_audit_and_reporting.sql` | the Phase 15 report indexes (`audit_log.action`, `audit_log.created_at`, `shop_orders.created_at/paid_at`, `ewallet_ledger.created_at`, `commissions.level`, `reg_codes.created_at`); re-creates `audit_log` when an old install skipped it; every step is idempotent |
+| `020_unilevel_repeat_purchase.sql` | `product_unilevel_levels`, `unilevel_awards`, `unilevel_periods`, `unilevel_activity`; `products.pv` + `unilevel_base` + `unilevel_enabled`; `shop_order_items.unit_base` + `base_total`; `shop_orders.unilevel_processed_at` + `unilevel_total`; two order indexes; `ewallet_ledger.ref_type` gains `unilevel` and `unilevel_reversal`; the six `unilevel%` settings (all off by default); additive and re-runnable |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

@@ -1,13 +1,17 @@
-# EcoWealth — Manual QA pack (Phases 1–16)
+# EcoWealth — Manual QA pack (Phases 1–17)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11, 12, 13, 14, 15 and 16. The automated suites are already green; these documents let a tester who has never seen the
-project walk through every screen, compare it with the expected result, capture evidence and
-sign the phase off.
+7, 8, 9, 10, 11, 12, 13, 14, 15, 16 and 17. The automated suites are already green; these documents let
+a tester who has never seen the project walk through every screen, compare it with the expected result,
+capture evidence and sign the phase off.
 
 > **Phase 16 is the install/reset workstream** (`dmp/plan-ecowealth-install-reset.md`, IR-1 … IR-8),
 > not an application phase. Its checks run on scratch schemas and its evidence lives in
 > `evidence/install-reset/`, not `evidence/phase-16/`.
+
+> **Phase 17 is the unilevel repeat-purchase workstream** (`dmp/plan-ecowealth-unilevel-repeat-purchase.md`),
+> delivered in seven gated phases **17A → 17G**. Its evidence lives in `evidence/phase-17/`, indexed by
+> that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -35,8 +39,8 @@ sign the phase off.
 | [phase-14-super-login.md](phase-14-super-login.md) | 14 — super-login console, URL-token impersonation, exit/TTL, audit trail | 8 | 25–35 min |
 | [phase-15-launch.md](phase-15-launch.md) | 15 — dashboards, reports/exports, the eight settings cards, audit desk, hardening, UAT and launch | 12 | 40–55 min |
 | [phase-16-install-reset.md](phase-16-install-reset.md) | 16 — install bundle, CLI/web installers, CLI/web reset, demo + parity, production gates, go-live | 16 | 90–120 min |
-| [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G. **In progress (17C): sections A–C** | A: 8 · B: 9 · C: 10 (D–G follow) | 35–45 min for A; 45–60 min for C |
-| [sign-off-sheet.md](sign-off-sheet.md) | all seventeen | — | 10 min to complete |
+| [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G, **signed** | 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) | 4–5.5 h in all (A 35–45 · B 30–40 · C 45–60 · D 30–40 · E 30–40 · F 15–20 · G 60–75 min) |
+| [sign-off-sheet.md](sign-off-sheet.md) | all eighteen | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
@@ -45,7 +49,8 @@ ship reference screenshots produced headlessly in a real browser — `evidence/p
 `evidence/phase-11/*.png` and (once the browser passes are captured) `evidence/phase-12/*.png`,
 `evidence/phase-13/*.png`, `evidence/phase-14/*.png` and `evidence/phase-15/*.png`. Phase 16 keeps
 its screenshots and terminal transcripts in `evidence/install-reset/`, indexed by that folder's
-`README.md`.
+`README.md`; Phase 17 keeps its 57 checks' screenshots, CSVs and terminal transcripts in
+`evidence/phase-17/`, indexed by that folder's `README.md`.
 
 ---
 
@@ -64,7 +69,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 816   Passed: 816   Failed: 0
+Cases: 948   Passed: 948   Failed: 0
 All good.
 ```
 
@@ -77,7 +82,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 195   Failed: 0
+Passed: 225   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -211,7 +216,20 @@ Passed: 195   Failed: 0
   (visibility/actor/phrase matrix, PRG, refusals), and the demo fixtures plus both reset ≡ fresh-install parity
   comparisons by natural key. The HTTP smoke script adds the installer and console probes (`IR4-T1…T5`,
   `IR6-T1…T5`).
-The manual pass adds what automation cannot: **does the page actually look right in a real browser,
+- Phase 17 (unilevel repeat-purchase workstream, 17A–17G): the migration's four new tables, four altered
+  tables, two indexes, the extended wallet enum and the six settings, with migrated ≡ fresh, an
+  idempotent re-run, a fresh install at 31 tables / 54 settings and a reset that keeps the ladder; the
+  per-product ladder model (ten rows, blanks = 0.000, the 29% preset, the 100% sum, switch-on-or-a-rate,
+  the P.V. base) and its atomic audited save; the paid-order engine on **both** payment paths (the base
+  snapshot, per-level rounding, the ten-deep walk, the buyer never a recipient, no compression, the
+  company account, the two masters, four idempotency layers, full/partial/disabled reversal and the
+  **Repeat-purchase** reconciliation section); the monthly Active clock (the ₱450 block, the ₱2,000
+  restore, a missing row = Active, immutable periods, one batched lookup); the admin repeat ledger, order
+  card, four report cards and both exports; the member product panel, catalogue badge, checkout preview,
+  order card, repeat earnings tab with the two-clock panel, dashboard tile, membership paragraph and both
+  member CSVs; and the month-close job run as the **real command** (dry run, doctor, log, lock, catch-up,
+  every refusal, `--json`). The HTTP smoke script adds **30** checks across that surface, and the 390 px
+  browser pass covers the product panel and the repeat earnings tab. The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
 
 ---
@@ -498,6 +516,7 @@ docs/qa/
 ├── phase-14-super-login.md            ← manual checks for Phase 14
 ├── phase-15-launch.md                 ← manual checks for Phase 15
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
+├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + install-reset/)
+├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + install-reset/ + phase-17/)
 ```

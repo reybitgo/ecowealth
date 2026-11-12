@@ -1,0 +1,52 @@
+QA17G-03 — the release acceptance table, walked row by row (plan section 11)
+Date: 2026-11-12 +08:00
+Build: APP_PHASE = 17 (p17g-release), suite 948 / 948, smoke 225 / 225
+Source table: dmp/plan-ecowealth-unilevel-repeat-purchase.md "Release acceptance table"
+Method: for every row, the named case was checked to exist in the suite file named below and was
+re-run in the acceptance pass (php tests/run.php -> Cases: 948 Passed: 948 Failed: 0). A row proven
+by a gate also names the QA check whose transcript is in this folder.
+
+Rows: 27. Proven: 27. Unproven: 0.
+
+ #  Acceptance criterion                                                          Proved by (case, file)                                                        Result
+ 1  A paid e-wallet order and a verified manual order produce identical awards       P17C-T1 UnilevelEngineTest / P17C-T2 PaymentTest                               PROVEN
+ 2  An unpaid order produces none, and no later transition produces another         P17C-T30 / P17C-T28 UnilevelEngineTest                                         PROVEN
+ 3  Each award is a withdrawable wallet credit with ref_type='unilevel' and one     P17C-T1 / P17C-T31 UnilevelEngineTest                                          PROVEN
+    ledger row
+ 4  wallet_reconcile.php exits 0 with a Repeat-purchase section                     P17C-T31 / P17C-T32 UnilevelEngineTest (real CLI subprocess); 17F gate           PROVEN
+                                                                                    QA17C-04-reconcile.txt, QA17G-01-reconcile.txt
+ 5  The buyer is never a recipient                                                  P17C-T16 UnilevelEngineTest                                                    PROVEN
+ 6  Level 1 is the direct sponsor; levels 2-10 the next sponsors, each at its own   P17C-T1, T3, T10-T13 UnilevelEngineTest                                        PROVEN
+    rate
+ 7  A zero level consumes its position; no compression                              P17C-T17, T23, T24 UnilevelEngineTest                                          PROVEN
+ 8  Per-level rounding matches the fixture table exactly                            P17C-T4, T5 UnilevelEngineTest (the P555.55 = P161.13 pin)                     PROVEN
+ 9  A replayed onOrderPaid() moves no money                                         P17C-T28 UnilevelEngineTest                                                    PROVEN
+10  Each product has its own ten-row ladder, switch and base                        P17B-T1, T2 UnilevelConfigurationTest                                          PROVEN
+11  The five visible settings render on /admin/settings and are audited             P17B-T18, T19 UnilevelConfigurationTest (smoke P17B-T18/T19 too)               PROVEN
+12  Enabling with no rate is refused; a ladder over 100% is refused                 P17B-T3, T6 UnilevelConfigurationTest (smoke P17B-T3/T6 too)                    PROVEN
+13  Changing a ladder never rewrites an existing award                              P17C-T9 (rates snapshotted), P17C-T34 OrderTest                                 PROVEN
+14  The product form is one 1-10 table with no direct/indirect split                P17B-T14 UnilevelConfigurationTest + ProductViewTest (smoke P17B-T14)           PROVEN
+15  The close writes one snapshot row per account and one header                    P17C-T44 UnilevelCycleTest; P17F-T2 CronTest                                    PROVEN
+16  A member below the threshold is blocked for the following month                 P17C-T40 UnilevelCycleTest                                                     PROVEN
+17  A member with no snapshot is Active                                             P17C-T42 UnilevelCycleTest                                                     PROVEN
+18  A closed period is never rewritten; the job is idempotent and catches up        P17C-T45 UnilevelCycleTest; P17F-T3, T4 CronTest                                PROVEN
+19  Every surface shows the numbers the fixture predicts                           P17D-T2-T13 AdminCommissionLiveTest/ReportTest/AdminOrderLiveTest;             PROVEN
+                                                                                    P17E-T1-T12 UnilevelMemberViewTest
+20  The product page and checkout say "your sponsor chain earns", never "you earn"  P17E-T1, T4 UnilevelMemberViewTest                                              PROVEN
+21  The package-commission pages are unchanged                                     P17D-T1 AdminCommissionLiveTest; P17E-T10 UnilevelMemberViewTest               PROVEN
+22  Both CSV exports open with the documented columns                              P17D-T8 AdminCommissionLiveTest; P17E-T9 UnilevelMemberViewTest                 PROVEN
+23  The migration is idempotent; migrated equals fresh                              P17A-T2 UnilevelFoundationTest; P17A-T3 MigrationTest                           PROVEN
+24  A fresh install reports 31 tables and 54 settings                              P17A-T6 UnilevelFoundationTest (QA17A-07-verification.txt)                      PROVEN
+25  The reset empties the three transactional tables and keeps the ladder            P17A-T8 DbResetTest (QA17A-08-reset.txt)                                       PROVEN
+26  The cron runs from CLI, URL and .cmd, logs one line, refuses a future period     P17F-T5, T8 CronTest; P17F-T11 (URL) smoke + QA17F-06-web.txt;                   PROVEN
+                                                                                    P17F-T12 (.cmd) QA17F-07-cmd.txt
+27  The docs are updated                                                            17G — this phase: git diff of the eight documents + this transcript             PROVEN
+
+Notes
+- Row 4's reconcile is also the release gate's own command (QA17G-01-reconcile.txt): five sections,
+  the Repeat-purchase one at zero, exit 0.
+- Row 26's URL half is now automated in tests/smoke.ps1 (P17F-T10 doctor, P17F-T11 dry-run JSON) and
+  its .cmd half remains the QA17F-07 observation, exactly as the 17F gate recorded.
+- Row 27 names the eight documents 17G changed: docs/qa/phase-17-unilevel-repeat-purchase.md,
+  docs/qa/README.md, docs/qa/sign-off-sheet.md, docs/phase-log.md, system/README.md, docs/deploy.md,
+  docs/runbook.md and docs/admin-guide.md (docs/cron.md was completed in 17F and verified only).
