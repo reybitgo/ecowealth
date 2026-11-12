@@ -1,0 +1,2 @@
+Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered
+45,"2026-11-12 20:57:33",EW26111200802,qa17e_buyer,qa17e_c,"QA17E Coffee",1,500.00,5.000,25.00,credited,,0.00

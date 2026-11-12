@@ -260,3 +260,55 @@ session is a member session: you cannot reach admin pages from inside it.
    member is recorded.
 5. **Never** commit `config.local.php`, a database dump, or the `uploads/` contents.
 6. When in doubt, take a backup first and read the audit trail before changing anything.
+
+---
+
+## 14. What members see (repeat-purchase bonus)
+
+The member-facing half of the repeat-purchase stream is read-only. Nothing a member can click pays,
+changes or claims a bonus; every number comes from the same engine and ledger the admin screens read
+(Phase 17E).
+
+| Surface | What it shows | Where |
+|---|---|---|
+| **Product page panel** | all ten levels with the per-unit rate and amount on the product's bonus base, the "up to" total, and the sentence that the buyer does not earn on their own purchase | any product whose switch is on |
+| **Catalogue badge** | *Up to 29% repeat bonus* on a card whose ladder is on | Shop |
+| **Checkout preview** | "Up to ₱145.00 goes to your sponsor chain when this order is paid" — the whole cart's ladder, one line | Checkout |
+| **Order page card** | the order's total that went to the sponsor chain; never which upline received which amount | `/orders/{id}` |
+| **Earnings → Repeat-purchase bonus** | the member's own awards as an upline, the 1–10 breakdown and a two-clock Active panel | `/earnings?ledger=repeat` |
+| **Dashboard tile** | what the member has earned as an upline plus their current Active status | `/dashboard` |
+| **Membership paragraph** | the same status, in one sentence | `/membership` |
+
+The tiles, the panel and the preview are **absent** while the global repeat-purchase master is off or
+the product's ladder is off/empty. The earnings tab and its export stay reachable either way, because a
+disabled stream can still have history.
+
+### The two clocks a member asks about
+
+The flag that decides **this month** comes from **last month's** purchases; this month's purchases
+decide next month. The threshold is **Settings → Commissions → Active threshold** (₱500 by default).
+
+- A member who buys ₱2,000 on the 2nd does **not** become Active that month — they become Active for
+  the *next* month.
+- A member with **no flag yet** (a fresh account, or a month that has not been closed) counts as
+  **Active**. After the first monthly close every account gets an explicit row.
+- A level that falls on someone who is **not Active** is *skipped*: no money, no compression, the next
+  upline keeps its own level number.
+
+The member's own purchases never pay them a bonus; they only decide whether a bonus from their team
+reaches them. This is the sentence to use in support replies.
+
+### Support checklist: "my repeat-purchase bonus is zero"
+
+1. **Global switch** — `unilevel_enabled` on **Settings → Commissions**.
+2. **Product switch and rates** — the product's ladder card; a zero rate at a level means that level
+   pays nothing.
+3. **Was the order paid?** — a `pending` order pays nothing; the money is credited when the order is
+   paid, never when it is placed.
+4. **Chain depth** — the buyer's sponsor chain may be shorter than the level in question.
+5. **Active flag** — the monthly rule above; the admin ledger's **Skipped** rows show the reason.
+6. **Membership** — an inactive/suspended recipient is skipped, exactly like a not-Active one.
+
+The admin ledger is **Finance → Commissions → Repeat-purchase bonus** (§9). Copy rules for support:
+say **repeat-purchase bonus**, say **up to**, say **paid when the order is paid**, and never call it a
+rebate or cashback — the buyer is not a recipient.

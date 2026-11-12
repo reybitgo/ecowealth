@@ -25,6 +25,7 @@ declare(strict_types=1);
  * @var array<string, mixed>|null  $open_activation
  * @var list<array<string, mixed>> $history
  * @var Paginator                  $history_pager
+ * @var array{totals:array<string, mixed>, status:array<string, mixed>, enabled:bool}|null $unilevel
  * @var string                     $referral_link
  * @var array<string, mixed>       $channels
  * @var bool                       $free_registration
@@ -109,6 +110,8 @@ $live = $live ?? [
     'display_name' => $display_name,
     'has_package'  => $has_package,
 ]) ?>
+
+<?= View::capture('member/membership/_repeat', ['unilevel' => $unilevel ?? null]) ?>
 
 <?= View::capture('member/membership/_paths', [
     'status'            => $status,

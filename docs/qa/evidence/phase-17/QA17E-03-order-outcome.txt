@@ -1,0 +1,22 @@
+QA17E-03 - the buyer sees the order total that went to the sponsor chain, and no
+per-upline amounts (which upline received which amount is admin-only).
+Order: 802 (status|total|unilevel_total|processed_at = paid|600.00|90.00|2026-11-12 20:57:33)
+URL: /orders/802 (HTTP 200)
+
+... btotal ₱600.00 Shipping Free Total ₱600.00 Paid Nov 12, 2026 8:57 PM View / print invoice Repeat-purchase bonus ₱90.00 went to your sponsor chain when this order was paid. The bonus is credited level by level to the uplines above you, when the order is paid. Only the order's tota ...
+... Free Total ₱600.00 Paid Nov 12, 2026 8:57 PM View / print invoice Repeat-purchase bonus ₱90.00 went to your sponsor chain when this order was paid. The bonus is credited level by level to the uplines above you, when the order is paid. Only the order's total is shown here; this m ...
+... Total ₱600.00 Paid Nov 12, 2026 8:57 PM View / print invoice Repeat-purchase bonus ₱90.00 went to your sponsor chain when this order was paid. The bonus is credited level by level to the uplines above you, when the order is paid. Only the order's total is shown here; this money i ...
+... d. The bonus is credited level by level to the uplines above you, when the order is paid. Only the order's total is shown here; this money is not paid to you. History Pending Nov 12, 2026 8:57 PM Member · @qa17e_buyer — Order placed via E-wallet Pending Paid Nov 12, 2026 8:57 PM ...
+
+--- unilevel_awards for this order ---
+1	qa17e_c	500.00	5.000	25.00	credited
+2	qa17e_b	500.00	5.000	25.00	credited
+3	qa17e_a	500.00	5.000	25.00	credited
+4	qa17e_boss	500.00	3.000	15.00	credited
+
+the buyer page names an upline (qa17e_c/b/a/boss): False
+per-upline amount 25.00 on the buyer page: False
+per-upline amount 15.00 on the buyer page: False
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:34 Asia/Manila.

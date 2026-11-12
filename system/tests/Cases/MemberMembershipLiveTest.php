@@ -140,6 +140,7 @@ return [
             [
                 'membership-header',
                 'membership-current',
+                'membership-repeat',
                 'membership-paths',
                 'membership-history',
             ],
@@ -150,6 +151,12 @@ return [
         $current = $payload['fragments']['membership-current'];
         $paths   = $payload['fragments']['membership-paths'];
         $history = $payload['fragments']['membership-history'];
+
+        /* 17E adds the repeat-purchase paragraph as its own region, with
+         * no form and no action (plan §9 Rule 12 / QA17E-08). */
+        $repeat = $payload['fragments']['membership-repeat'];
+        assert_contains('data-live-region="membership-repeat"', $repeat);
+        assert_not_contains('<form', $repeat);
 
         assert_contains('data-live-region="membership-header"', $header);
         assert_contains('Membership', $header);

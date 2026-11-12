@@ -84,12 +84,48 @@ final class ShopController
         }
 
         return [
-            'products'  => $products,
-            'available' => $available,
-            'pager'     => $pager,
-            'filters'   => $filters,
-            'shop_open' => $shopOpen,
+            'products'      => $products,
+            'available'     => $available,
+            'pager'         => $pager,
+            'filters'       => $filters,
+            'shop_open'     => $shopOpen,
+            'bonus_totals'  => $this->bonusTotals($products),
         ];
+    }
+
+    /**
+     * The repeat-purchase badge total for a page of products, in **one**
+     * batched query (17E; plan §9 Rule 3).
+     *
+     * A product contributes nothing when the global stream is off, when
+     * its own switch is off, or when its ladder adds up to 0% — the badge
+     * says "up to", so it must never describe a ladder that cannot pay.
+     *
+     * @param list<array<string, mixed>> $products
+     * @return array<int, float> product id => ladder total percent
+     */
+    private function bonusTotals(array $products): array
+    {
+        if ($products === [] || !UnilevelService::enabled()) {
+            return [];
+        }
+
+        $enabled = [];
+
+        foreach ($products as $product) {
+            if ((int) ($product['unilevel_enabled'] ?? 0) === 1) {
+                $enabled[] = (int) $product['id'];
+            }
+        }
+
+        if ($enabled === []) {
+            return [];
+        }
+
+        return array_filter(
+            ProductUnilevel::totalsMap($enabled),
+            static fn (float $total): bool => $total > 0
+        );
     }
 
     /**
@@ -146,11 +182,12 @@ final class ShopController
                     'filters' => $data['filters'],
                 ]),
                 'shop-catalog-results' => View::capture('shop/catalog/_results', [
-                    'products'  => $data['products'],
-                    'available' => $data['available'],
-                    'pager'     => $pager,
-                    'filters'   => $data['filters'],
-                    'shop_open' => $data['shop_open'],
+                    'products'     => $data['products'],
+                    'available'    => $data['available'],
+                    'pager'        => $pager,
+                    'filters'      => $data['filters'],
+                    'shop_open'    => $data['shop_open'],
+                    'bonus_totals' => $data['bonus_totals'] ?? [],
                 ]),
                 'shop-catalog-quickview' => View::capture('shop/catalog/_quickview', [
                     'products'  => $data['products'],
@@ -251,7 +288,50 @@ final class ShopController
             'available' => $available,
             'stock'     => StockService::label($available),
             'shop_open' => setting_bool('shop_enabled', true),
+            'bonus'     => $this->productBonus($product),
         ];
+    }
+
+    /**
+     * The repeat-purchase ladder as this page may show it (17E, §14.10).
+     *
+     * `quoteLine()` is the 17C preview API: it prices the configured
+     * ladder on the product's current base and never evaluates a chain
+     * or an Active flag, which is exactly why every sentence around it
+     * says "up to" (plan §9 Rule 2). The panel and the badge are
+     * absent when the global stream is off, the product's switch is
+     * off, or the ladder adds up to 0% — a promise that cannot pay is
+     * never rendered.
+     *
+     * @param array<string, mixed> $product
+     * @return array<string, mixed>|null
+     */
+    private function productBonus(array $product): ?array
+    {
+        if (!UnilevelService::enabled() || (int) ($product['unilevel_enabled'] ?? 0) !== 1) {
+            return null;
+        }
+
+        $quote       = (new UnilevelService())->quoteLine((int) $product['id'], 1);
+        $totalPercent = 0.0;
+        $paying      = 0;
+
+        foreach ($quote['levels'] as $level) {
+            $totalPercent += (float) $level['rate'];
+
+            if ((float) $level['rate'] > 0) {
+                $paying++;
+            }
+        }
+
+        if ($totalPercent <= 0 || (float) $quote['total'] <= 0) {
+            return null;
+        }
+
+        $quote['total_percent'] = round($totalPercent, 3);
+        $quote['paying_levels'] = $paying;
+
+        return $quote;
     }
 
     /**
@@ -320,6 +400,7 @@ final class ShopController
                     'available' => $data['available'],
                     'stock'     => $data['stock'],
                     'shop_open' => $data['shop_open'],
+                    'bonus'     => $data['bonus'] ?? null,
                 ]),
             ],
             'meta'      => [

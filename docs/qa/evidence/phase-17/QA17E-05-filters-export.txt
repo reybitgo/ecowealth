@@ -1,0 +1,19 @@
+QA17E-05 - filter the repeat tab by level 1 and status credited, then export the CSV
+and compare the values with the screen.
+URL: /earnings?ledger=repeat&level=1&status=credited (HTTP 200)
+
+... V Genealogy Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱25.00 1 award · withdrawable This month ₱25.00 Last award just now Awards 1 Levels that were credited to you Not paid 0 No level was skipped Your Active status The month that just ended decides th ...
+... ort CSV Genealogy Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱25.00 1 award · withdrawable This month ₱25.00 Last award just now Awards 1 Levels that were credited to you Not paid 0 No level was skipped Your Active status The month that just ended deci ...
+... onus can reach you when your team buys. Repeat-purchase by level One ladder, levels 1–10. Level 1 is paid to the buyer's sponsor, level 2 to their sponsor's sponsor, and so on up the chain. 1 level award · ₱25.00 Level 1 1 award ₱25.00 Level 2 No awards yet ₱0.00 Level 3 No award ...
+... el 2 Level 3 Level 4 Level 5 Level 6 Level 7 Level 8 Level 9 Level 10 Status All statuses Credited Skipped Voided Product All products EcoWealth Coffee EcoWealth Immune Spice QA Sample Product Coffee Immune Booster Spirulina Serpentina Kojic Soap Stone Buster Colonics Session QA1 ...
+
+Level 9 (no award) reads the filtered empty state: True
+URL: /earnings/export?ledger=repeat&level=1&status=credited (HTTP 200, text/csv; charset=utf-8)
+File: QA17E-05-export.csv
+
+--- CSV head and the single row ---
+Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered
+45,"2026-11-12 20:57:33",EW26111200802,qa17e_buyer,qa17e_c,"QA17E Coffee",1,500.00,5.000,25.00,credited,,0.00
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:37 Asia/Manila.

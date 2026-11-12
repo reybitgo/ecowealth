@@ -14,6 +14,7 @@ declare(strict_types=1);
  *   totals: array{items:int, quantity:int, subtotal:float}
  * } $state
  * @var array{balance:float, withdrawable:float} $wallet
+ * @var array<string, mixed>|null $bonus_preview repeat-purchase preview (17E)
  */
 
 $state  = $state ?? ['items' => [], 'totals' => ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0]];
@@ -63,4 +64,6 @@ $subtotal = (float) ($totals['subtotal'] ?? 0);
                             <a href="<?= e(url('wallet')) ?>">View wallet</a>
                           </div>
                         </div>
+
+<?= View::capture('shop/checkout/_bonus', ['bonus_preview' => $bonus_preview ?? null]) ?>
                       </div>

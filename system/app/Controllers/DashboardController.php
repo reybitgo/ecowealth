@@ -112,8 +112,34 @@ final class DashboardController
             'last_activation'  => $last === null ? null : $last,
             'activation_count' => count($history),
             'recent_history'   => array_slice($history, 0, 3),
+            'unilevel'         => $this->unilevelSummary($userId),
             'referral_code'    => (string) ($member['referral_code'] ?? ''),
             'referral_link'    => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
+        ];
+    }
+
+    /**
+     * The repeat-purchase tile (17E, plan §9).
+     *
+     * `totals` is what the member earned as an upline; `status` is the
+     * two-clock Active summary. The tile never shows an "as buyer"
+     * figure — a member earns nothing on their own purchase (Rule 9) —
+     * and it has no action: it is a read-out, not a form.
+     *
+     * `$enabled` lets the view hide the tile on an install where the
+     * stream has never been switched on and the member has no history.
+     * The earnings tab itself stays reachable either way, because a
+     * disabled stream can still have history from before it was
+     * switched off.
+     *
+     * @return array{totals:array<string, mixed>, status:array<string, mixed>, enabled:bool}
+     */
+    private function unilevelSummary(int $userId): array
+    {
+        return [
+            'totals'  => UnilevelAward::totalsForUser($userId),
+            'status'  => UnilevelCycle::memberStatus($userId),
+            'enabled' => UnilevelService::enabled(),
         ];
     }
 
@@ -215,6 +241,7 @@ final class DashboardController
                     'commissions'    => $data['commissions'],
                     'team'           => $data['team'],
                     'recent_history' => $data['recent_history'],
+                    'unilevel'       => $data['unilevel'] ?? null,
                 ]),
             ],
             'meta'      => [

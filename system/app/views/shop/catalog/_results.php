@@ -13,9 +13,11 @@ declare(strict_types=1);
  * @var Paginator                  $pager
  * @var array{q?: string}          $filters
  * @var bool                       $shop_open
+ * @var array<int, float>          $bonus_totals product id => repeat-purchase ladder total
  */
 
 $query = trim((string) ($filters['q'] ?? ''));
+$bonusTotals = $bonus_totals ?? [];
 ?>
               <div data-live-region="shop-catalog-results">
 <?php if (!$shop_open): ?>
@@ -48,6 +50,7 @@ $query = trim((string) ($filters['q'] ?? ''));
         'product'    => $product,
         'available'  => (int) ($available[(int) $product['id']] ?? 0),
         'quick_view' => true,
+        'bonus_total' => (float) ($bonusTotals[(int) $product['id']] ?? 0),
     ]);
 ?>
                   </div>

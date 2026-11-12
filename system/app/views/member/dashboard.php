@@ -158,6 +158,7 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
     'commissions'    => $commissions,
     'team'           => $team,
     'recent_history' => $recent_history,
+    'unilevel'       => $unilevel ?? null,
 ]) ?>
                 </div>
               </div>

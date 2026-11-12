@@ -192,6 +192,8 @@ $live = $live ?? [
     'invoice_url' => $invoice_url,
 ]) ?>
 
+<?= View::capture('shop/order/_bonus', ['order' => $order]) ?>
+
 <?= View::capture('shop/order/_history', ['events' => $events]) ?>
                 </div>
               </div>

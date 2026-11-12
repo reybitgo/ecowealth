@@ -11,11 +11,30 @@ declare(strict_types=1);
  * @var array{count:int, credited:float, this_month:float, last_at:?string} $commissions
  * @var array{direct:int, team:int, levels:int} $team
  * @var list<array<string, mixed>> $recent_history
+ * @var array{totals:array<string, mixed>, status:array<string, mixed>, enabled:bool}|null $unilevel
  */
 
 $commissions   = $commissions ?? ['count' => 0, 'credited' => 0.0, 'this_month' => 0.0, 'last_at' => null];
 $team          = $team ?? ['direct' => 0, 'team' => 0, 'levels' => 0];
 $recentHistory = $recent_history ?? [];
+$unilevel      = $unilevel ?? null;
+
+/* The repeat-purchase tile is a read-out: the member's upline earnings
+ * plus the two-clock Active status (17E, plan §9). It is hidden only
+ * when the stream has never been on and the member has no history. */
+$repeatOn      = is_array($unilevel);
+$repeatTotals  = $repeatOn ? ($unilevel['totals'] ?? []) : [];
+$repeatStatus  = $repeatOn ? ($unilevel['status'] ?? []) : [];
+$repeatAwards  = (int) ($repeatTotals['count'] ?? 0);
+$repeatCredited = (float) ($repeatTotals['credited'] ?? 0);
+$repeatEnabled = (bool) ($unilevel['enabled'] ?? false);
+$repeatShow    = $repeatOn && ($repeatEnabled || $repeatAwards > 0);
+
+$repeatPeriod = (string) ($repeatStatus['period'] ?? UnilevelCycle::periodOf());
+$repeatMonth  = strtotime($repeatPeriod . '-01') === false
+    ? $repeatPeriod
+    : date('F Y', (int) strtotime($repeatPeriod . '-01'));
+$repeatActive = (bool) ($repeatStatus['active'] ?? true);
 ?>
                   <div class="card h-100" data-live-region="dashboard-earnings">
                     <div class="card-header d-flex align-items-center justify-content-between">
@@ -78,6 +97,27 @@ $recentHistory = $recent_history ?? [];
                         No commissions yet. A direct referral is credited the moment someone you sponsored
                         activates a package — <a href="<?= e(url('earnings')) ?>">see earnings</a>.
                       </div>
+<?php endif; ?>
+
+<?php if ($repeatShow): ?>
+                      <hr class="my-3" />
+                      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <h6 class="mb-0">Repeat-purchase bonus</h6>
+                        <span class="badge <?= $repeatActive ? 'bg-label-success' : 'bg-label-secondary' ?>">
+                          <?= $repeatActive ? 'Active' : 'Not Active' ?> for <?= e($repeatMonth) ?>
+                        </span>
+                      </div>
+                      <div class="d-flex align-items-center justify-content-between gap-2">
+                        <span class="text-body-secondary small">Credited as an upline</span>
+                        <strong class="h6 mb-0"><?= e(money($repeatCredited)) ?></strong>
+                      </div>
+                      <p class="small text-body-secondary mt-2 mb-0">
+                        <?= $repeatAwards === 0
+                            ? 'No awards yet — a level is credited when a paid order in your team reaches it.'
+                            : $repeatAwards . ' award' . ($repeatAwards === 1 ? '' : 's') . ' at levels 1–10.' ?>
+                        Your own purchases never pay you;
+                        <a href="<?= e(url('earnings?ledger=repeat')) ?>">see the repeat-purchase statement</a>.
+                      </p>
 <?php endif; ?>
                     </div>
                   </div>

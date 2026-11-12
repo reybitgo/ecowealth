@@ -234,6 +234,7 @@ return [
                 'member-order-proofs',
                 'member-order-delivery',
                 'member-order-payment',
+                'member-order-bonus',
                 'member-order-history',
             ],
             array_keys($payload['fragments'])
@@ -245,6 +246,13 @@ return [
         $delivery = $payload['fragments']['member-order-delivery'];
         $payment  = $payload['fragments']['member-order-payment'];
         $history  = $payload['fragments']['member-order-history'];
+
+        /* 17E adds the repeat-purchase outcome card as its own region. A
+         * pending order shows the empty region and no money (plan §9
+         * Rule 8). */
+        $bonus = $payload['fragments']['member-order-bonus'];
+        assert_contains('data-live-region="member-order-bonus"', $bonus);
+        assert_not_contains('Repeat-purchase bonus', $bonus);
 
         assert_contains('data-live-region="member-order-header"', $header);
         assert_contains((string) $order['order_no'], $header);

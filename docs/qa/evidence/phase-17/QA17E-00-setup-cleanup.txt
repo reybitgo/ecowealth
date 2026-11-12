@@ -1,0 +1,23 @@
+QA17E setup and cleanup
+Backup: C:\laragon\www\ecowealth-backups\phase-17\db-pre-17e.sql
+Fixture: product 2293, buyer 815, level 1 816, level 4 819
+Order: 802 (status|unilevel_total|processed_at = paid|90.00|2026-11-12 20:57:33)
+Settings before: unilevel_active_threshold=500, unilevel_enabled=0, unilevel_max_levels=10, unilevel_requires_active_upline=1, unilevel_reversal_enabled=1
+Before cleanup (awards|periods|activity|repeat ledger|fixture users|fixture products): 0|0|0|0|0|0
+After cleanup (awards|periods|activity|repeat ledger|fixture users|fixture products|enabled): 0|0|0|0|0|0|0
+wallet_reconcile.php exit: 0
+
+--- reconcile tail ---
+
+Repeat-purchase
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  voided awards:     0
+  unilevel ledger:   0.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:57 Asia/Manila.

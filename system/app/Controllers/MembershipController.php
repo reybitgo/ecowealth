@@ -125,12 +125,31 @@ final class MembershipController
             'open_activation'   => Activation::latestOpen($userId),
             'history'           => $history,
             'history_pager'     => $historyPager,
+            'unilevel'          => $this->unilevelSummary($userId),
             'referral_link'     => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
             'channels'          => self::receivingAccounts(),
             'free_registration' => setting_bool('free_registration_enabled', true),
             'display_name'      => $displayName,
             'status_label'      => $statusLabel,
             'status_tone'       => $statusTone,
+        ];
+    }
+
+    /**
+     * The repeat-purchase paragraph's data (17E, plan §9).
+     *
+     * Read-only: the member's two-clock Active summary and what they
+     * have earned as an upline. It is informational — the page offers
+     * no repeat-purchase action, because there is none to take.
+     *
+     * @return array{totals:array<string, mixed>, status:array<string, mixed>, enabled:bool}
+     */
+    private function unilevelSummary(int $userId): array
+    {
+        return [
+            'totals'  => UnilevelAward::totalsForUser($userId),
+            'status'  => UnilevelCycle::memberStatus($userId),
+            'enabled' => UnilevelService::enabled(),
         ];
     }
 
@@ -197,6 +216,9 @@ final class MembershipController
                     'member'       => $member,
                     'display_name' => $data['display_name'],
                     'has_package'  => $data['has_package'],
+                ]),
+                'membership-repeat' => View::capture('member/membership/_repeat', [
+                    'unilevel' => $data['unilevel'] ?? null,
                 ]),
                 'membership-paths' => View::capture('member/membership/_paths', [
                     'status'            => $data['status'],

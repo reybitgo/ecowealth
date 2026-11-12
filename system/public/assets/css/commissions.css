@@ -133,6 +133,31 @@
   text-decoration: underline;
 }
 
+/* ---------- Tabs (Phase 17E) ----------
+ * Two pills on a 390 px screen are wider than the page: let the second
+ * wrap onto its own row instead of pushing the page sideways. */
+.commission-tabs {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.commission-tabs .nav-link {
+  white-space: nowrap;
+}
+
+/* ---------- Repeat-purchase tab (Phase 17E) ----------
+ * The member statement reuses the level grid and the row table, but its
+ * columns are the ladder's own (buyer, product, level, base, rate,
+ * amount, status, order). On a phone the buyer cell carries the same
+ * facts, so the wide columns step aside instead of scrolling sideways. */
+@media (max-width: 767.98px) {
+  .commission-table .commission-col-base,
+  .commission-table .commission-col-rate,
+  .commission-table .commission-col-order {
+    display: none;
+  }
+}
+
 /* ---------- Small screens ---------- */
 /* On a phone the member table keeps date, source, amount, status and the
  * detail button; the package and the leg move under the source, so the row

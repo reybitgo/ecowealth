@@ -12,10 +12,12 @@ declare(strict_types=1);
  * @var array<string, mixed> $product   Product row
  * @var int                  $available Available units (stock − reservations)
  * @var bool                 $quick_view Render the quick-view button
+ * @var float                $bonus_total Repeat-purchase ladder total (0 = no badge)
  */
 
 $available  = (int) ($available ?? 0);
 $quick_view = $quick_view ?? true;
+$bonusTotal = round((float) ($bonus_total ?? 0), 3);
 $stock      = StockService::label($available);
 $image      = UploadService::url($product['image_url'] ?? null);
 $href       = url('shop/' . (int) $product['id']);
@@ -60,6 +62,12 @@ $soldOut    = $stock['key'] === 'out';
                   <h6 class="product-card-title">
                     <a href="<?= e($href) ?>"><?= e($name) ?></a>
                   </h6>
+
+<?php if ($bonusTotal > 0): ?>
+                  <span class="badge bg-label-info product-card-bonus">
+                    Up to <?= (int) round($bonusTotal) ?>% repeat bonus
+                  </span>
+<?php endif; ?>
 
 <?php if ($short !== ''): ?>
                   <p class="product-card-desc"><?= e($short) ?></p>

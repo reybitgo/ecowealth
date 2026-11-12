@@ -4381,3 +4381,163 @@ P17D-T15 (the member guard) is proven by the smoke run: a member gets **403** on
    The package card's four regions, filters, columns, detail drawer, export and counts are unchanged
    and P17D-T1 asserts exactly that (the repeat fragments never appear there); the smoke run repeats
    it over HTTP.
+
+## Phase 17E — Member visibility (2026-11-12)
+
+**Status:** complete · **Tag:** `p17e-member` (on `p17d-admin`) ·
+**Branch:** `feature/unilevel` · **Schema:** unchanged (31 tables, 54 settings) ·
+**Suite:** 924 → 938 cases, **938 / 938** green · **Smoke:** 215 → 223, **223 / 223**.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §9 (Phase 17E), §12.9–12.10, §14.10.
+This phase makes the repeat-purchase stream **visible to members**: the product-page panel, the
+catalogue badge, the checkout preview, the order outcome card, the `?ledger=repeat` earnings tab
+with its two-clock status panel, the dashboard tile and the membership paragraph. It is
+**presentation only** — no controller, model or view in this phase writes an award, a wallet row,
+a period or an order stamp; every number comes from 17C's read API and every page is scoped to the
+session member.
+
+### Database
+
+None. 17A shipped every table, column and setting this phase reads.
+
+### Code
+
+- **`Controllers/ShopController.php`** — `productContext()` gains `bonus`
+  (`UnilevelService::quoteLine($id, 1)` plus `total_percent`/`paying_levels`, or `null`);
+  `catalogContext()` gains `bonus_totals` from one batched `ProductUnilevel::totalsMap()`;
+  `productFeedPayload()`/`feedPayload()` pass both into the card and results fragments. A surface is
+  rendered only when the global master is on, the product's switch is on and the ladder adds up above
+  0% — a promise that cannot pay is never drawn.
+- **`Controllers/CheckoutController.php`** — `checkoutContext()` gains `bonus_preview` from **one**
+  `quoteCart()` call for the whole cart (absent when no line has a ladder or the global master is off);
+  the `checkout-summary` fragment carries it, so the live refresh and the first render cannot disagree.
+- **`Controllers/OrderController.php`** — `detailFeedPayload()` gains the `member-order-bonus` region;
+  `orderContext()` is unchanged, because the card reads the order's own stamp (`unilevel_total`,
+  `unilevel_processed_at`).
+- **`Controllers/EarningsController.php`** — two tabs on one route (D-14): `?ledger=repeat` selects
+  the repeat statement, anything else is the Phase 10–11 package statement. `repeatContext()` normalises
+  the repeat filters through `UnilevelAward::normaliseFilters()`, pages through `countForUser()`/
+  `pageForUser()`, and adds `totalsForUser()`, `levelBreakdown()`, the product filter and
+  `UnilevelCycle::memberStatus()`. `export()` dispatches: the package tab keeps its columns and
+  filename; the repeat tab writes `repeat-purchase-statement_YYYY-MM-DD.csv` with the 13
+  `UnilevelAward` columns, scoped to `exportRows($userId, …)`. Both tabs share the one live surface
+  (`member.earnings:{id}`); the query string is part of the ETag scope, so they never share a cache
+  entry.
+- **`Controllers/DashboardController.php`** / **`Controllers/MembershipController.php`** — a
+  `unilevel` block (totals, `memberStatus()`, the global switch) built once for the page and its feed;
+  `dashboard-earnings` and the new `membership-repeat` fragment receive it.
+- **`Models/UnilevelCycle.php`** — `memberStatus(int $userId)`: the member's two clocks in one read
+  (the flag used this month from last month's purchases, this month's progress toward the next flag),
+  including `previous_seen` (a month with no counted purchase is the "missing flag = Active" case, not
+  a zero purchase) and `requires_active` (an operator who relaxed the rule). It calls the same
+  `activeMap()`/`personalPurchases()` the engine uses.
+- **Views (new)** — `shop/product/_bonus.php` (the ten-level panel), `shop/checkout/_bonus.php` (the
+  "up to" line), `shop/order/_bonus.php` (the order's total only), `member/earnings/_repeat_header.php`,
+  `_repeat_stats.php`, `_repeat_status.php`, `_repeat_levels.php`, `_repeat_rows.php`,
+  `_repeat_pagination.php`, `member/membership/_repeat.php`.
+- **Views (modified)** — `shop/product/_card.php` (includes the panel in the card footer),
+  `shop/product.php`, `shop/catalog.php` and `shop/catalog/_results.php` (the badge data),
+  `partials/product_card.php` (**Up to 29% repeat bonus**), `shop/checkout/_summary.php`,
+  `shop/checkout.php`, `shop/order.php` (the outcome card), `member/earnings.php` (the two nav pills and
+  the repeat branch), `member/dashboard/_earnings.php` (the tile), `member/dashboard.php`,
+  `member/membership.php` (the paragraph).
+- **Assets** — `assets/css/shop.css` gains the panel/preview block (a wrapping grid that becomes two
+  columns at 390 px); `assets/css/commissions.css` gains the tab wrap (found by QA17E-09: the pills did
+  not wrap, `scrollWidth` 477 → 390) and the repeat-column media rule.
+
+### Tests
+
+**14 new cases: 924 → 938, all green.** They live in **`UnilevelMemberViewTest`** (§16.1: a phase's
+cases are named for its subject).
+
+| Case | What it proves |
+|---|---|
+| P17E-T1 | The product panel: ten levels, the P.V. base, per-unit amounts (₱12.50 … ₱2.50), **Total up to 29.000% — ₱72.50**, the no-rebate sentence, no direct/indirect label; the same panel in the feed fragment and the page |
+| P17E-T2 | An unconfigured product (switch off, or all-zero ladder) renders no panel; a rate-0 level reads `—`, never `0.000%`; the global master off removes it |
+| P17E-T3 | The catalogue badge **Up to 29% repeat bonus**, one batched ladder query (cost does not grow with the product count), and no badge when the master is off |
+| P17E-T4/T5/T6 | The checkout preview: **Up to ₱145.00** for 2 units, "when this order is paid", "not paid to you", no "rebate"/"cashback"; absent without a ladder; the refreshed summary is byte-identical and carries `bonus_preview` |
+| P17E-T7 | The order card: ₱90.00 total, no recipient names, no per-upline amounts; an order with no awards renders the empty region; the order feed carries it |
+| P17E-T8 | The repeat tab: four counters (no "as buyer"), the two-clock panel (threshold, both months, the missing-flag sentence), the 1–10 breakdown, the rows, and the page's tabs/regions; plus `memberStatus()` on a live month and a closed snapshot (the snapshot wins) |
+| P17E-T9 | The repeat filters (level/status/product/date/q), silent fallback for a bad value, the export URL, and the 13-column CSV scoped to the member |
+| P17E-T10 | The package tab's fragment set, regions, breakdown and drawer are unchanged; only the pill is new |
+| P17E-T11 | `?user_id={other}` is ignored: the page still lists only the session member's award |
+| P17E-T12 | The dashboard tile and the membership paragraph read the current Active status and contain no form, input or button |
+| P17E-T13 | The responsive hooks: the product grid, the table wrapper and the repeat column classes exist, and the CSS breakpoints are present |
+
+Updated to stay truthful after the phase: `MemberOrderLiveTest` and `MemberMembershipLiveTest` each
+gained the one new region their feed now returns (the order outcome card, the membership paragraph).
+No behaviour changed to satisfy them.
+
+P17E-T11's HTTP half is proven by the smoke run (the page renders for a member with a foreign
+`user_id` and never reads it); the suite proves the query scoping.
+
+### Rules as built
+
+1. Member copy says **repeat-purchase bonus**, never "unilevel" alone; "unilevel" stays in admin labels
+   and ledger names.
+2. It says **up to X%**, never "you will earn X%".
+3. It says the money is credited **when the order is paid**.
+4. It never calls the money a rebate or cashback; the product panel carries the one deliberate
+   negation ("You do not earn a rebate on your own purchase"), which is the only rendered occurrence
+   besides 17D's admin sentence.
+5. Level 1 is never a "direct bonus" and the rest is never an "indirect ladder": one ladder, the level
+   number is the label (D-17).
+6. The panel shows all ten levels; a level with no rate reads `—`.
+7. The checkout line is informational, absent when no cart line can pay.
+8. The order page shows the order's total only; per-upline detail stays admin-only.
+9. The earnings tab has no "as buyer" figure; the member's own purchases appear only in the status panel.
+10. Both tabs stay live on the one `member.earnings:{id}` surface.
+11. Every read is scoped to the session member (`WHERE user_id = ?`); a query parameter cannot widen it.
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` green; 17E changes no schema.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 938   Passed: 938   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 (five sections; the Repeat-purchase section reads zero
+      before the manual pass and is clean again after it).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 223   Failed: 0**, exit 0.
+- [x] Every P17E-Tn case exists, is named for the phase and passes (T1–T13 in `UnilevelMemberViewTest`;
+      the two-clock helper is an extra case under T8; T11's HTTP half is in the smoke run).
+- [x] A word search of every new view for "rebate"/"cashback" finds only negations: the product panel's
+      deliberate sentence (rendered) and the two docblocks that state the rule (not rendered).
+- [x] The package earnings tab is unchanged: same six fragments, regions, filters, breakdown and export
+      (P17E-T10 + the smoke run).
+- [x] No new route; `ParityTest` and `RouterTest` green.
+- [x] The manual script (`QA17E-01` … `QA17E-09`) executed **9 / 9** against the development copy with a
+      real checkout, the real engine, MySQL transcripts and headless Chrome at 390 × 844, then cleaned
+      up. Evidence: `docs/qa/evidence/phase-17/QA17E-*` (including four screenshots and a CSV).
+- [x] No new PHP warning, notice or deprecation in `storage/logs/` after the pass (the newest files are
+      the three cron logs, unchanged since 20:14).
+- [x] This entry and Appendix G of the plan are filled; tag `p17e-member`.
+
+### Deviations
+
+1. **`DashboardController` and `MembershipController` also changed.** §9 names only the three member
+   controllers, but the dashboard tile and the membership paragraph need the member's repeat totals and
+   Active status built once for the page and its feed — the same pattern 17D used for the admin order
+   card. The views still render the same shape standalone.
+2. **`OrderController::detailFeedPayload()` and a new `shop/order/_bonus.php`.** §9 lists
+   `shop/order.php` as the only order view. The card is a live region, so a payment verified while the
+   buyer's page is open appears without a reload; it reads the order's own stamp, so no query is added.
+3. **`UnilevelCycle::memberStatus()` added.** §9 names no new model method, but three surfaces show the
+   two-clock status and must agree with the engine's resolution. The helper reuses
+   `activeMap()`/`personalPurchases()`, so the page cannot promise a status the payout path disagrees
+   with; its `previous_seen` flag separates "no counted purchases" (missing flag = Active) from "below
+   the threshold" in the copy.
+4. **`member/earnings/_repeat_pagination.php` added.** The shared `_pagination.php` carries the package
+   tab's `earnings-pagination` region name; the repeat tab's live fragment needs its own region name.
+5. **Member promise surfaces are also gated on the global master.** §9 requires the checkout line to be
+   absent without a ladder and the badge to be absent when off; the same rule is applied to
+   `unilevel_enabled` for the panel, the badge and the checkout line (and to the tile/paragraph when the
+   member has no history), because with the stream off a configured product cannot pay. The earnings
+   tab and its export stay reachable so history remains visible.
+6. **Two CSS blocks were added.** §9 lists no stylesheet, but QA17E-09 found the two earnings pills did
+   not wrap at 390 px (`scrollWidth` 477). `.commission-tabs { flex-wrap: wrap }` and the panel/preview
+   rules fixed it (390 px, no offenders); the same rule also fixes the admin ledger's identical pills.
+7. **Two existing live-feed cases were widened by one region each.** `MemberOrderLiveTest` and
+   `MemberMembershipLiveTest` assert the exact fragment list; each feed gained the region the phase
+   adds. No behaviour changed to satisfy the tests.
+8. **The manual section-E checks were executed by the automated pass**, like sections A–D: a real
+   e-wallet checkout over HTTP, the real engine, SQL transcripts and headless Chrome at 390 × 844. The
+   evidence is filed; the "someone who did not write it" item stays open for the lead's review.

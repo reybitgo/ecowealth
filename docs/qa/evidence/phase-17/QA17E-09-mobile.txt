@@ -1,0 +1,12 @@
+QA17E-09 - at a 390 px viewport the product panel, the checkout line and the repeat tab
+render without horizontal scroll (headless Chrome 390x844, documentElement.scrollWidth
+against window.innerWidth).
+
+[qa17e] after login: Dashboard | EcoWealth | /ecowealth/system/dashboard
+[qa17e] {"page":"product panel","viewport":"390x844","innerWidth":390,"scrollWidth":390,"bodyScrollWidth":390,"horizontalScroll":false,"offenders":[],"screenshot":"QA17E-09-product-390.png (84494 bytes)","fullPage":"QA17E-09-product-390-full.png (171160 bytes)"}
+[qa17e] {"page":"repeat-purchase tab","viewport":"390x844","innerWidth":390,"scrollWidth":390,"bodyScrollWidth":390,"horizontalScroll":false,"offenders":[],"screenshot":"QA17E-09-earnings-390.png (43110 bytes)","fullPage":"QA17E-09-earnings-390-full.png (230108 bytes)"}
+RESULT {"page":"product panel","viewport":"390x844","innerWidth":390,"scrollWidth":390,"bodyScrollWidth":390,"horizontalScroll":false,"offenders":[],"screenshot":"QA17E-09-product-390.png (84494 bytes)","fullPage":"QA17E-09-product-390-full.png (171160 bytes)"}
+RESULT {"page":"repeat-purchase tab","viewport":"390x844","innerWidth":390,"scrollWidth":390,"bodyScrollWidth":390,"horizontalScroll":false,"offenders":[],"screenshot":"QA17E-09-earnings-390.png (43110 bytes)","fullPage":"QA17E-09-earnings-390-full.png (230108 bytes)"}
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:54 Asia/Manila.

@@ -3250,6 +3250,104 @@ try {
             -and $p17dReportCsv.Body -match 'Award,Date,Order,Buyer,Recipient,Product,Level') `
         "GET /admin/reports/export?type=unilevel returns the repeat ledger CSV (status=$($p17dReportCsv.Status))"
 
+    # ---- Phase 17E: the member-facing repeat-purchase views --------------
+    # The stream is on for this block (17B left it off); the finally block
+    # restores the setting from the snapshot it took before the run.
+    Set-SettingValue 'unilevel_enabled' '1'
+
+    # P17E-T1 / QA17E-01 - the product page renders the ten-level panel,
+    # the per-unit amounts on the P.V. base, the 29.000% total and the one
+    # deliberate sentence about the buyer not earning on their purchase.
+    $p17eProduct = Invoke-App -Path "/shop/$p17bId" -Session 'member'
+    Assert-That 'P17E-T1' ($p17eProduct.Status -eq 200 `
+            -and $p17eProduct.Body -match 'data-bonus-panel' `
+            -and $p17eProduct.Body -match 'Level 1<' `
+            -and $p17eProduct.Body -match 'Level 10<' `
+            -and $p17eProduct.Body -match 'Bonus base' `
+            -and $p17eProduct.Body -match 'Total up to 29\.000%' `
+            -and $p17eProduct.Body -match 'You do not earn a rebate on your own purchase' `
+            -and $p17eProduct.Body -match 'when the order is paid' `
+            -and $p17eProduct.Body -notmatch 'direct_unilevel' `
+            -and $p17eProduct.Body -notmatch 'indirect_unilevel') `
+        "GET /shop/{configured} renders the ten-level panel and the no-rebate sentence (status=$($p17eProduct.Status))"
+
+    # P17E-T2 - with the global stream off the panel is absent: a promise
+    # that cannot pay is never rendered.
+    Set-SettingValue 'unilevel_enabled' '0'
+    $p17eProductOff = Invoke-App -Path "/shop/$p17bId" -Session 'member'
+    Set-SettingValue 'unilevel_enabled' '1'
+    Assert-That 'P17E-T2' ($p17eProductOff.Status -eq 200 `
+            -and $p17eProductOff.Body -notmatch 'data-bonus-panel' `
+            -and $p17eProductOff.Body -notmatch 'Repeat-purchase bonus') `
+        "the global master off removes the product panel (status=$($p17eProductOff.Status))"
+
+    # P17E-T3 - the catalogue badge says "up to", never "you will earn".
+    $p17eCatalog = Invoke-App -Path "/shop?q=$p17bSku" -Session 'member'
+    Assert-That 'P17E-T3' ($p17eCatalog.Status -eq 200 `
+            -and $p17eCatalog.Body -match 'Up to 29% repeat bonus' `
+            -and $p17eCatalog.Body -match 'product-card-bonus') `
+        "GET /shop?q={sku} renders the Up to 29% repeat bonus badge (status=$($p17eCatalog.Status))"
+
+    # P17E-T4 / QA17E-02 - two units in the cart preview exactly twice the
+    # panel's per-unit total, and the line says the money is paid when the
+    # order is paid. "rebate" appears nowhere on this page.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id JOIN users u ON u.id = c.user_id WHERE u.username = '$memberUsername';" | Out-Null
+    $p17eCartToken = Get-Csrf $p17eProduct.Body
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $p17eCartToken; 'product_id' = "$p17bId"; 'quantity' = '2' } | Out-Null
+
+    $p17eCheckout = Invoke-App -Path '/checkout' -Session 'member'
+    Assert-That 'P17E-T4' ($p17eCheckout.Status -eq 200 `
+            -and $p17eCheckout.Body -match 'data-bonus-preview' `
+            -and $p17eCheckout.Body -match 'Up to [^<]{0,4}145\.00 goes to your sponsor chain' `
+            -and $p17eCheckout.Body -match 'when this order is paid' `
+            -and $p17eCheckout.Body -notmatch 'rebate' `
+            -and $p17eCheckout.Body -notmatch 'cashback') `
+        "GET /checkout previews the 2-unit ladder at 145.00 and never says rebate (status=$($p17eCheckout.Status))"
+
+    # P17E-T8 / T10 - the earnings tabs: the repeat tab carries its own
+    # regions and no "as buyer" figure; the package tab is unchanged.
+    $p17eRepeat    = Invoke-App -Path '/earnings?ledger=repeat' -Session 'member'
+    $p17ePackage   = Invoke-App -Path '/earnings' -Session 'member'
+    Assert-That 'P17E-T8' ($p17eRepeat.Status -eq 200 `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-stats"' `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-status"' `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-levels"' `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-rows"' `
+            -and $p17eRepeat.Body -match 'Your Active status' `
+            -and $p17eRepeat.Body -match 'Repeat-purchase by level' `
+            -and $p17eRepeat.Body -match 'name="ledger" value="repeat"' `
+            -and $p17eRepeat.Body -notmatch 'As buyer') `
+        "GET /earnings?ledger=repeat renders the repeat tab without an as-buyer stat (status=$($p17eRepeat.Status))"
+
+    Assert-That 'P17E-T10' ($p17ePackage.Status -eq 200 `
+            -and $p17ePackage.Body -match 'data-live-region="earnings-stats"' `
+            -and $p17ePackage.Body -match 'data-live-region="earnings-levels"' `
+            -and $p17ePackage.Body -notmatch 'data-live-region="earnings-repeat-') `
+        "the package tab keeps its regions and never renders a repeat region (status=$($p17ePackage.Status))"
+
+    # P17E-T9 / QA17E-05 - the member's repeat CSV uses the documented
+    # columns; the export is scoped to the session member.
+    $p17eCsv = Invoke-App -Path '/earnings/export?ledger=repeat&level=1&status=credited' -Session 'member'
+    $p17eCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered'
+    Assert-That 'P17E-T9' ($p17eCsv.Status -eq 200 `
+            -and $p17eCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p17eCsv.Body -match [regex]::Escape($p17eCsvHeader)) `
+        "GET /earnings/export?ledger=repeat returns the member's repeat CSV (status=$($p17eCsv.Status))"
+
+    # P17E-T12 / QA17E-08 - the dashboard tile and the membership paragraph
+    # read the current Active status and offer no action.
+    $p17eDashboard  = Invoke-App -Path '/dashboard' -Session 'member'
+    $p17eMembership = Invoke-App -Path '/membership' -Session 'member'
+    Assert-That 'P17E-T12' ($p17eDashboard.Status -eq 200 `
+            -and $p17eDashboard.Body -match 'data-live-region="dashboard-earnings"' `
+            -and $p17eDashboard.Body -match 'Repeat-purchase bonus' `
+            -and $p17eDashboard.Body -match 'Active for ' `
+            -and $p17eMembership.Status -eq 200 `
+            -and $p17eMembership.Body -match 'data-live-region="membership-repeat"' `
+            -and $p17eMembership.Body -match 'Repeat-purchase bonus') `
+        "the dashboard tile and the membership paragraph read the Active status (dashboard=$($p17eDashboard.Status), membership=$($p17eMembership.Status))"
+
     # ---- Phase 15: hardening, reports, settings, audit and launch ------
     $p15Ran = $true
     $p15AuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())

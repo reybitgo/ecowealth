@@ -12,8 +12,8 @@ copy, never on a production database.
 
 **Document status.** Section A (17A — Foundation) written 2026-11-12 with the automated gate green;
 section B (17B — Configuration) appended 2026-11-12; section C (17C — Money engine) appended
-2026-11-12; section D (17D — Admin visibility) appended 2026-11-12. Sections E–G are added by their
-phases.
+2026-11-12; section D (17D — Admin visibility) appended 2026-11-12; section E (17E — Member
+visibility) appended 2026-11-12. Sections F–G are added by their phases.
 
 ---
 
@@ -31,18 +31,18 @@ php bin\wallet_reconcile.php              # exit 0: the money is untouched by th
 Expected final lines:
 
 ```text
-Cases: 924   Passed: 924   Failed: 0
+Cases: 938   Passed: 938   Failed: 0
 All good.
 ```
 
 ```text
-Passed: 215   Failed: 0
+Passed: 223   Failed: 0
 ```
 
 The counts grow with each phase: **830 / 195** at `p17a-foundation`, **855 / 209** at
-`p17b-configuration`, **906 / 209** at `p17c-money`, **924 / 215** at `p17d-admin`. Section A's own
-expectations are stated in section 3; section B's in section 5; section C's in section 7; section D's
-in section 9.
+`p17b-configuration`, **906 / 209** at `p17c-money`, **924 / 215** at `p17d-admin`, **938 / 223** at
+`p17e-member`. Section A's own expectations are stated in section 3; section B's in section 5; section
+C's in section 7; section D's in section 9; section E's in section 11.
 
 The groups that carry Phase 17A (its own share of the suite is listed here):
 
@@ -87,6 +87,13 @@ Phase 17D's share:
 | `ReportViewTest` (extended) | 1 | P17D-T12: the four cards render the fixture numbers from the same read models; the dashboard tile renders the 30-day amount, awards and recipients |
 | `AdminOrderLiveTest` (extended) | 3 | P17D-T9 (a paid, processed order lists level, recipient, product, base, rate, amount and status, with the headline equal to `unilevel_total`), T10 (an unpaid order explains nothing is paid), T11 (an order paid before the feature says so and stays unprocessed) |
 | `UnilevelFoundationTest` (rewritten) | 1 | P17A-T13's enduring half after 17D: no route, no controller, no month-close job, and **no controller or view writes a Phase 17 table** (the admin surface is read-only) |
+
+Phase 17E's share:
+
+| Group | Cases | What it proves for 17E |
+|---|---|---|
+| `UnilevelMemberViewTest` (new) | 14 | P17E-T1 (the product panel: ten levels, the P.V. base, the per-unit amounts, the 29.000% total, the no-rebate sentence, no direct/indirect label), T2 (an unconfigured product has no panel; a zero rate reads `—`; the global master off removes it), T3 (the catalogue badge and its one batched query), T4/T5/T6 (the checkout preview: ₱145.00 for 2 units, "when this order is paid", absent without a ladder, stable in the live feed), T7 (the order card: total only, no recipients, no per-upline amounts), T8 (the repeat tab's counters, two-clock panel, breakdown, rows and `memberStatus()` on a live month and a closed snapshot), T9 (filters, silent fallback and the 13-column member CSV), T10 (the package tab unchanged), T11 (`?user_id=` ignored), T12 (the dashboard tile and the membership paragraph, no action), T13 (the 390 px responsive hooks) |
+| `MemberOrderLiveTest` / `MemberMembershipLiveTest` (widened) | 2 | The order feed returns the new `member-order-bonus` region (empty for a pending order) and the membership feed returns `membership-repeat`; no other fragment moved |
 
 The migration and bundle cases build scratch schemas (`ecowealth_sneat_migration_test`,
 `ecowealth_sneat_tool_a_test`, `ecowealth_sneat_tool_b_test`). No automated case targets
@@ -1072,3 +1079,243 @@ Expected
 | Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts; the checks ran against the development copy over real HTTP with the real engine and were cleaned up afterwards (`QA17D-00-setup-cleanup.txt`: awards 0, repeat ledger 0, fixture users 0, fixture products 0, `unilevel_enabled` 0, reconcile exit 0). A human may add viewport screenshots without changing the result. The "someone who did not write it" item stays open for the lead's review, as in sections A–C. |
 | Evidence | `docs/qa/evidence/phase-17/` (`QA17D-00-setup-cleanup.txt` … `QA17D-08-package-tab.txt`, plus `QA17D-05-export.csv`) |
 
+
+---
+
+## 11. Section E — Member visibility (`QA17E-01` … `QA17E-09`)
+
+**Prerequisites.** The `p17e-member` tag (17A + 17B + 17C applied and the money engine proven), a
+member session, a backup of the development copy, and the green automated gate (§1). **Expected
+suite:** 938 / 938. **Time:** 30–40 min.
+
+**What this section proves.** A member can see what a purchase pays **to their sponsor chain** before
+buying, what it actually paid afterwards, and what they have earned as an upline — with copy that never
+suggests the buyer earns a rebate, and with every query scoped to the session member. The phase is
+presentation only: no page offers a repeat-purchase action, and the money cannot move from here.
+
+**Fixture used by the section.** One product (price ₱300, P.V. ₱250, base *Auto*, reference ladder
+5/5/5/3/3/2/2/2/1/1 = 29%, switch **on**), the global `unilevel_enabled = 1`, and a buyer with four
+sponsors `c → b → a → boss` (the buyer's sponsor is `c`). The buyer's e-wallet is funded with a real
+₱1,000 top-up; one order of `2 × product` (line base ₱500) is placed and paid through **/checkout** by
+e-wallet, so the pass observes the same code path a member does. The order pays c ₱25.00, b ₱25.00,
+a ₱25.00 and boss ₱15.00 — ₱90.00 in total. The buyer is never paid.
+
+**Safety.** The pass creates five users and one product in the development copy, one order and its
+awards, then deletes every row it created and restores the five settings it changed. The transcript is
+`QA17E-00-setup-cleanup.txt` (fixture rows back to 0, `wallet_reconcile.php` exit 0).
+
+### QA17E-01 — The product panel shows ten levels, the per-unit amounts and the no-rebate sentence
+
+| Why it matters | This is the only place a member sees the whole ladder before buying; it must be complete and it must not promise a rebate. |
+|---|---|
+| Where | `/shop/{configured product}` |
+| Evidence | `QA17E-01-product-panel.txt`, `QA17E-09-product-390*.png` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open the configured product as a member.
+2. Read the **Repeat-purchase bonus** panel: the badge, the base line, all ten rows and the footer.
+3. Open a product whose ladder has a zero rate at a level (edit one in **Admin → Products**) and re-read
+   the panel.
+
+Expected
+
+- Heading **Repeat-purchase bonus**, badge **Up to 29%**, base **₱250.00 per unit** (the product's P.V.),
+  and **10 of 10 levels pay on this base**.
+- Ten rows, level 1 … 10, rates **5.000 / 5.000 / 5.000 / 3.000 / 3.000 / 2.000 / 2.000 / 2.000 / 1.000 /
+  1.000 %**, amounts **₱12.50 / ₱12.50 / ₱12.50 / ₱7.50 / ₱7.50 / ₱5.00 / ₱5.00 / ₱5.00 / ₱2.50 / ₱2.50**
+  per unit. Level 1 reads **Your sponsor**.
+- Footer: **Total up to 29.000% — ₱72.50 per unit**, then the "credited when the order is paid" paragraph
+  and the sentence **You do not earn a rebate on your own purchase**.
+- No "direct" or "indirect" label anywhere in the panel; no "cashback".
+- A level with rate 0 reads **—** (a dash), never **0.000%**.
+
+### QA17E-02 — The checkout preview is the panel × 2 and says the money is paid with the order
+
+| Why it matters | The preview is the last thing a buyer reads; it must not read like money they will receive. |
+|---|---|
+| Where | `/checkout` with 2 units of the configured product in the cart |
+| Evidence | `QA17E-02-checkout-preview.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Add 2 units of the configured product to the cart and open `/checkout`.
+2. Read the **Order summary** card below the totals.
+
+Expected
+
+- **Up to ₱145.00 goes to your sponsor chain when this order is paid.** (₱72.50 × 2).
+- **It is credited when the order is paid, and only to an upline who is eligible and Active that
+  month. It is not paid to you.**
+- The word **rebate** appears nowhere on the page, and neither does **cashback**.
+- With a cart that has no configured product, the line is absent entirely.
+
+### QA17E-03 — The order page shows the total only
+
+| Why it matters | Which upline received which amount is admin-only, the same rule as package commissions. |
+|---|---|
+| Where | `/orders/{paid order}` |
+| Evidence | `QA17E-03-order-outcome.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Place the order through the real checkout (e-wallet) and open the order page as the buyer.
+2. Read the **Repeat-purchase bonus** card.
+3. Compare with `SELECT level, user_id, amount, status FROM unilevel_awards WHERE order_id = …;`.
+
+Expected
+
+- **₱90.00 went to your sponsor chain when this order was paid.** and **Only the order's total is shown
+  here; this money is not paid to you.**
+- The four awards are 25 / 25 / 25 / 15 against levels 1–4, and the order reads
+  `paid | 600.00 | 90.00 | <processed_at>`.
+- No recipient username and no per-upline amount appear on the buyer's page.
+- An order with no awards renders the empty region and no card.
+
+### QA17E-04 — The upline's repeat tab carries the award, the level-1 breakdown and the two clocks
+
+| Why it matters | This is the member's statement; the number must equal the wallet credit and the status panel must explain the monthly rule. |
+|---|---|
+| Where | `/earnings?ledger=repeat` as `c` (level 1 of the order) |
+| Evidence | `QA17E-04-earnings-tab.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as `c` and open `/earnings?ledger=repeat`.
+2. Read the four tiles, the **Your Active status** panel, the **Repeat-purchase by level** card and the
+   row under **Your repeat-purchase awards**.
+3. Cross-check the wallet with `SELECT username, ewallet_balance, withdrawable_balance FROM users …;`.
+
+Expected
+
+- **Total credited ₱25.00 — 1 award · withdrawable**; **This month ₱25.00**; **Awards 1**; **Not paid 0**.
+- The status panel reads **Active for November 2026**, shows **October 2026 purchases ₱0.00** with the
+  missing-flag sentence (no counted purchases that month), then **November 2026 purchases so far
+  ₱0.00** with its progress line, and the note that the member's own purchases never pay them a bonus.
+- The breakdown shows level 1 at **1 award · ₱25.00**; levels 2–10 read **No awards yet**.
+- The row shows the buyer, **L1**, base ₱500.00, rate 5.000%, **+₱25.00**, **Credited**.
+- The page has **no "as buyer" statistic**.
+- Wallets after the order: c/b/a/boss = **25.00 / 25.00 / 25.00 / 15.00**, all withdrawable.
+
+### QA17E-05 — The repeat filters and the CSV match
+
+| Why it matters | A member must be able to reconcile the statement offline; the export is the same data, not a second query. |
+|---|---|
+| Where | `/earnings?ledger=repeat&level=1&status=credited` · `/earnings/export?ledger=repeat&level=1&status=credited` |
+| Evidence | `QA17E-05-filters-export.txt`, `QA17E-05-export.csv` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Filter by level **1** and status **credited**, then by level **9**.
+2. Press **Export CSV** and open the file.
+
+Expected
+
+- The level-1/credited filter shows **1 award**; level 9 shows **No awards match these filters**.
+- A bad filter value (`level=99`, a date that is not a date) falls back to "no filter" and never errors.
+- The CSV header is **Award, Date, Order, Buyer, Recipient, Product, Level, Base, Rate %, Amount, Status,
+  Reason, Recovered**; the single row matches the screen (base **500.00**, rate **5.000**, amount
+  **25.00**, status **credited**) and carries only this member's rows.
+
+### QA17E-06 — The package tab is unchanged and the repeat tab refreshes live
+
+| Why it matters | 17E adds a tab; it must not disturb the Phase 10–11 statement, and an award that arrives while the tab is open must appear without a reload. |
+|---|---|
+| Where | `/earnings` · `/earnings?ledger=repeat` (live feed) |
+| Evidence | `QA17E-06-package-regression.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/earnings` as `c` and confirm the package statement below the new pills is unchanged.
+2. Before the order, request the repeat tab's live feed (`X-Live: 1`); note its ETag and revision.
+3. Place and pay the order, then request the same feed with the old `If-None-Match`.
+
+Expected
+
+- The package tab shows **Package commissions**, the four summary sections, **Unilevel breakdown**,
+  the filter with `type`, and the detail drawer; **zero** `earnings-repeat-` regions.
+- The feed before the order is revision **0**; the same ETag afterwards returns **HTTP 200** with
+  revision **1**, and the refreshed rows fragment contains the ₱25.00 award and the buyer.
+
+### QA17E-07 — The buyer's own repeat tab has no award for their purchase
+
+| Why it matters | A member earns nothing on their own purchase; their purchase only feeds next month's Active flag. |
+|---|---|
+| Where | `/earnings?ledger=repeat` as the buyer |
+| Evidence | `QA17E-07-buyer-view.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as the buyer and open `/earnings?ledger=repeat`.
+
+Expected
+
+- **No repeat-purchase bonus yet** and the empty state that says **You do not earn on your own
+  purchase**.
+- **No award row** and **no "as buyer" statistic**.
+- The status panel shows the purchase as **this month's purchases ₱600.00** and the sentence that
+  reaching the threshold makes them Active for December 2026.
+
+### QA17E-08 — The dashboard tile and the membership paragraph
+
+| Why it matters | The status has to be visible where the member already looks, without offering an action. |
+|---|---|
+| Where | `/dashboard` · `/membership` as `c` |
+| Evidence | `QA17E-08-dashboard-membership.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/dashboard` and read the earnings card.
+2. Open `/membership` and read the paragraph under the current-membership card.
+
+Expected
+
+- The dashboard tile reads **Repeat-purchase bonus**, **Active for November 2026**, **Credited as an
+  upline ₱25.00**, **1 award at levels 1–10**, and links to the repeat-purchase statement.
+- The membership paragraph reads **Repeat-purchase bonus**, the status pill, the sentence that a level
+  falling on an Active upline is paid, and **you do not earn on your own purchase**.
+- Neither surface contains a `<form>`, an `<input>` or a `<button>` for the repeat-purchase stream.
+
+### QA17E-09 — The product panel and the repeat tab at 390 px
+
+| Why it matters | The member pages are used on a phone; a sideways-scrolling panel or tab is a support ticket. |
+|---|---|
+| Where | `/shop/{configured}` · `/earnings?ledger=repeat` at 390 × 844 |
+| Evidence | `QA17E-09-mobile.txt`, `QA17E-09-product-390.png`, `QA17E-09-product-390-full.png`, `QA17E-09-earnings-390.png`, `QA17E-09-earnings-390-full.png` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open both pages in headless Chrome at a 390 × 844 mobile viewport.
+2. Read `document.documentElement.scrollWidth` against `window.innerWidth` and scan for elements that
+   hang off the right edge.
+3. Read the screenshots: the panel is a two-column grid, the two earnings pills wrap onto two rows, and
+   the table keeps Buyer, Level, Amount and Status.
+
+Expected
+
+- Both pages: **innerWidth 390, scrollWidth 390, horizontalScroll false, offenders []**.
+- The product panel's ten levels are a 2 × 5 grid; the earnings pills stack; no page-level horizontal
+  scrollbar.
+
+---
+
+## 12. Section E sign-off
+
+| Item | Value |
+|---|---|
+| Tester | Automated QA pass — DeepSeek Harness (DSH) |
+| Date | 2026-11-12 |
+| Automated gate | `Cases: 938 / 938` · `Passed: 223 / 223` smoke · `build_install_sql --check` exit 0 · `wallet_reconcile` exit 0 |
+| Checks passed | 9 / 09 |
+| Defects | one found and fixed during the pass: at 390 px the two earnings pills did not wrap and the page scrolled sideways (`scrollWidth` 477). `.commission-tabs { flex-wrap: wrap }` was added to `commissions.css`; the repeat now measures 390 with no offenders, and the admin tabs share the fix. Re-run evidence: `QA17E-09-mobile.txt`. |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts; the pass ran against the development copy over real HTTP with the real checkout and the real engine, and was cleaned up afterwards (`QA17E-00-setup-cleanup.txt`: awards 0, periods 0, activity 0, repeat ledger 0, fixture users 0, fixture products 0, `unilevel_enabled` 0, reconcile exit 0). The 390 px checks were executed in headless Chrome, not read from the CSS. The "someone who did not write it" item stays open for the lead's review, as in sections A–D. |
+| Evidence | `docs/qa/evidence/phase-17/` (`QA17E-00-setup-cleanup.txt` … `QA17E-09-mobile.txt`, the four screenshots and `QA17E-05-export.csv`) |

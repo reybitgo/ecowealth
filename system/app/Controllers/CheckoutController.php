@@ -105,7 +105,41 @@ final class CheckoutController
             'payment_methods' => $this->paymentMethods($balance, $total),
             'terms_version'   => OrderService::TERMS_VERSION,
             'posted'          => old_payload(),
+            'bonus_preview'   => $this->bonusPreview($state['items'] ?? []),
         ];
+    }
+
+    /**
+     * The repeat-purchase preview for this cart (17E, §14.10).
+     *
+     * One batched `quoteCart()` call for the whole cart — one ladder
+     * query, never one per line. The line is informational: it says
+     * "up to", it is absent when no cart product carries a ladder, and
+     * it is never styled as money the buyer will receive. `quoteCart()`
+     * skips a product whose switch is off; the global switch is checked
+     * here so a disabled stream renders nothing.
+     *
+     * @param list<array<string, mixed>> $items CartService::state()['items']
+     * @return array<string, mixed>|null
+     */
+    private function bonusPreview(array $items): ?array
+    {
+        if ($items === [] || !UnilevelService::enabled()) {
+            return null;
+        }
+
+        $lines = [];
+
+        foreach ($items as $item) {
+            $lines[] = [
+                'product_id' => (int) ($item['product_id'] ?? 0),
+                'quantity'   => (int) ($item['quantity'] ?? 0),
+            ];
+        }
+
+        $quote = (new UnilevelService())->quoteCart($lines);
+
+        return ((float) ($quote['total'] ?? 0)) > 0 ? $quote : null;
     }
 
     /**
@@ -215,8 +249,9 @@ final class CheckoutController
                     'selected_id' => $data['selected_id'],
                 ]),
                 'checkout-summary' => View::capture('shop/checkout/_summary', [
-                    'state'  => $data['state'],
-                    'wallet' => $data['wallet'],
+                    'state'         => $data['state'],
+                    'wallet'        => $data['wallet'],
+                    'bonus_preview' => $data['bonus_preview'] ?? null,
                 ]),
                 'checkout-payment' => View::capture('shop/checkout/_payment', [
                     'payment_methods' => $data['payment_methods'],

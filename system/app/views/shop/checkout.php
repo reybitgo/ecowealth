@@ -238,8 +238,9 @@ $live = $live ?? [
                         <h5 class="mb-0">Order summary</h5>
                       </div>
 <?= View::capture('shop/checkout/_summary', [
-    'state'  => $state,
-    'wallet' => $wallet,
+    'state'         => $state,
+    'wallet'        => $wallet,
+    'bonus_preview' => $bonus_preview ?? null,
 ]) ?>
                       <div class="card-body pt-0">
                         <button

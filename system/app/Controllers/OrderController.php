@@ -392,6 +392,9 @@ final class OrderController
                     'has_invoice' => $data['has_invoice'],
                     'invoice_url' => $data['invoice_url'],
                 ]),
+                'member-order-bonus' => View::capture('shop/order/_bonus', [
+                    'order' => $order,
+                ]),
                 'member-order-history' => View::capture('shop/order/_history', [
                     'events' => $data['events'],
                 ]),

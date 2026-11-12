@@ -66,5 +66,6 @@ $live = $live ?? [
     'available' => $available,
     'stock'     => $stock,
     'shop_open' => $shop_open,
+    'bonus'     => $bonus ?? null,
 ]) ?>
             </div>

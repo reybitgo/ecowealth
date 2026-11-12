@@ -476,6 +476,103 @@
   }
 }
 
+/* ---------- Repeat-purchase bonus (Phase 17E) ----------
+ * The product-page ladder panel, the catalogue card badge and the
+ * checkout preview line. Every layout here is a flex/grid row that
+ * wraps, so the panel and the line never need a horizontal scroll at
+ * 390 px: the ten levels become two columns, then one. */
+.product-card-bonus {
+  align-self: flex-start;
+  margin-bottom: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.product-bonus-footer {
+  padding: 1.15rem 1.15rem 1.25rem;
+  background: var(--bs-gray-100, #f4f6fb);
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.product-bonus-panel {
+  width: 100%;
+}
+
+.product-bonus-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 1.25rem;
+  margin-bottom: 0.9rem;
+}
+
+.product-bonus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.product-bonus-item {
+  min-width: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.5rem;
+  background: var(--bs-body-bg);
+}
+
+.product-bonus-item.is-paying {
+  border-color: var(--bs-info-border-subtle);
+  background: var(--bs-info-bg-subtle);
+}
+
+.product-bonus-level {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.product-bonus-rate,
+.product-bonus-amount {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.product-bonus-amount {
+  font-weight: 600;
+}
+
+.product-bonus-total {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px dashed var(--bs-border-color);
+}
+
+.checkout-bonus-note {
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--bs-info-border-subtle);
+  border-radius: 0.5rem;
+  background: var(--bs-info-bg-subtle);
+}
+
+@media (max-width: 575.98px) {
+  .product-bonus-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .product-bonus-item {
+    padding: 0.4rem 0.5rem;
+  }
+
+  .product-bonus-level,
+  .product-bonus-rate,
+  .product-bonus-amount {
+    font-size: 0.72rem;
+  }
+}
+
 /* ---------- Motion preferences ---------- */
 @media (prefers-reduced-motion: reduce) {
   .product-card,

@@ -239,6 +239,88 @@ final class UnilevelCycle
         return round((float) $value, 2);
     }
 
+    /**
+     * The member's two-clock summary for the member pages (17E, §12.7).
+     *
+     * Both lines travel together, because the member page explains
+     * them together and must never show one without the other:
+     *
+     *      this month's flag  ← last month's purchases
+     *      next month's flag  ← this month's purchases
+     *
+     * `active` is the same resolution the engine uses (§12.7), so the
+     * page cannot promise a status the payout path disagrees with.
+     * `previous_source` says where last month's line came from:
+     * `snapshot` (a closed month's stored row), `missing` (a closed
+     * month without a row for this account → Active), or `live` (the
+     * month is still open, so the aggregate is computed live).
+     *
+     * @return array{
+     *   period:string, previous:string, next:string, active:bool,
+     *   previous_purchases:float, previous_seen:bool, previous_source:string,
+     *   current_purchases:float, threshold:float, next_active:bool,
+     *   progress:int, remaining:float, requires_active:bool
+     * }
+     */
+    public static function memberStatus(int $userId, ?PDO $pdo = null): array
+    {
+        $pdo       = $pdo ?? db();
+        $period    = self::periodOf();
+        $previous  = self::previous($period);
+        $threshold = self::threshold();
+
+        $map    = self::activeMap([$userId], $period, $pdo);
+        $active = (bool) ($map[$userId] ?? true);
+
+        $closed   = self::isClosed($previous, $pdo);
+        $snapshot = null;
+
+        if ($userId > 0) {
+            $stmt = $pdo->prepare(
+                'SELECT qualified FROM unilevel_activity WHERE period = ? AND user_id = ? LIMIT 1'
+            );
+            $stmt->execute([$previous, $userId]);
+            $value = $stmt->fetchColumn();
+
+            if ($value !== false) {
+                $snapshot = (int) $value === 1;
+            }
+        }
+
+        $lastMonth  = self::personalPurchasesOrNull($userId, $previous, $pdo);
+        $thisMonth  = self::personalPurchasesOrNull($userId, $period, $pdo);
+        $previousSeen = $lastMonth !== null;
+        $lastMonth    = $lastMonth ?? 0.0;
+        $thisMonth    = $thisMonth ?? 0.0;
+        $nextActive   = $thisMonth >= $threshold;
+
+        $progress = $threshold <= 0
+            ? 100
+            : (int) max(0, min(100, floor(($thisMonth / $threshold) * 100)));
+
+        $source = match (true) {
+            !$closed           => 'live',
+            $snapshot === null => 'missing',
+            default            => 'snapshot',
+        };
+
+        return [
+            'period'             => $period,
+            'previous'           => $previous,
+            'next'               => self::next($period),
+            'active'             => $active,
+            'previous_purchases' => round($lastMonth, 2),
+            'previous_seen'      => $previousSeen,
+            'previous_source'    => $source,
+            'current_purchases'  => round($thisMonth, 2),
+            'threshold'          => $threshold,
+            'next_active'        => $nextActive,
+            'progress'           => $progress,
+            'remaining'          => round(max(0.0, $threshold - $thisMonth), 2),
+            'requires_active'    => setting_bool('unilevel_requires_active_upline', true),
+        ];
+    }
+
     /* ----------------------------------------------------------
      *  The close (plan §14.8)
      * ---------------------------------------------------------- */

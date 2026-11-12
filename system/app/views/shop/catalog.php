@@ -16,6 +16,7 @@ declare(strict_types=1);
  * @var Paginator                  $pager
  * @var array{q?: string}          $filters
  * @var bool                       $shop_open
+ * @var array<int, float>          $bonus_totals product id => repeat-purchase ladder total
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
@@ -66,11 +67,12 @@ $live = $live ?? [
               </div>
 
 <?= View::capture('shop/catalog/_results', [
-    'products'  => $products,
-    'available' => $available,
-    'pager'     => $pager,
-    'filters'   => $filters,
-    'shop_open' => $shop_open,
+    'products'     => $products,
+    'available'    => $available,
+    'pager'        => $pager,
+    'filters'      => $filters,
+    'shop_open'    => $shop_open,
+    'bonus_totals' => $bonus_totals ?? [],
 ]) ?>
 
 <?= View::capture('shop/catalog/_quickview', [

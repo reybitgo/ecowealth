@@ -12,8 +12,10 @@ declare(strict_types=1);
  * @var int                  $available
  * @var array{key: string, label: string, tone: string} $stock
  * @var bool                 $shop_open
+ * @var array<string, mixed>|null $bonus  UnilevelService::quoteLine() + totals, or null
  */
 
+$bonus   = $bonus ?? null;
 $image   = UploadService::url($product['image_url'] ?? null);
 $soldOut = $stock['key'] === 'out';
 $sku     = trim((string) ($product['sku'] ?? ''));
@@ -114,5 +116,10 @@ $sku     = trim((string) ($product['sku'] ?? ''));
                     </div>
                   </div>
                 </div>
+<?php if ($bonus !== null): ?>
+                <div class="card-footer product-bonus-footer">
+<?= View::capture('shop/product/_bonus', ['bonus' => $bonus]) ?>
+                </div>
+<?php endif; ?>
               </div>
               </div>

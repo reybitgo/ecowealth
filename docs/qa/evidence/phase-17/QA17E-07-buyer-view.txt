@@ -1,0 +1,15 @@
+QA17E-07 - the buyer earns nothing on their own purchase: no award row for it and no
+"as buyer" figure. The purchase shows up only in the two-clock status panel.
+URL: /earnings?ledger=repeat as qa17e_buyer (HTTP 200)
+
+... ession QA17E Coffee From To Filter Date Buyer Product Level Base Rate Amount Status Order No repeat-purchase bonus yet When someone in your team buys a product with a repeat-purchase ladder and the order is paid, your level's share is credited here. You do not earn on your own pu ...
+... with a repeat-purchase ladder and the order is paid, your level's share is credited here. You do not earn on your own purchase. Open the shop Awards No records © 2026 EcoWealth — Membership, shop and e-wallet. All rights reserved. Cart 0 Your cart is empty Fresh picks are one tap ...
+... set — a missing flag counts as Active for November 2026. November 2026 purchases so far ₱600.00 Counts toward December 2026 You have already bought ₱600.00 in November 2026 — that meets the threshold, so you will be Active for December 2026. These are your own purchases, and the ...
+... ng credited yet Awards 0 Levels that were credited to you Not paid 0 No level was skipped Your Active status The month that just ended decides this month; this month decides the next one. Active for November 2026 October 2026 purchases ₱0.00 Threshold ₱500.00 · not closed yet, th ...
+
+the buyer tab lists an award row: False
+the buyer tab carries an as-buyer figure: False
+the buyer's own purchase appears as this month's purchases (600.00): True
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:38 Asia/Manila.
