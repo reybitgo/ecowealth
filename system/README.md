@@ -11,8 +11,10 @@ it changes no application route or page, and both tools are deleted before go-li
 unilevel repeat-purchase workstream, `dmp/plan-ecowealth-unilevel-repeat-purchase.md`) is in progress:
 17A adds the four tables, the six settings and the two wallet movement kinds; 17B adds the per-product
 configuration; **17C adds the money engine** — the paid-order hook on both payment paths, the monthly
-Active gate, best-effort reversal and the repeat-purchase reconciliation. The stream ships off and
-pays nothing until an operator configures a product and turns the global master on.
+Active gate, best-effort reversal and the repeat-purchase reconciliation; 17D and 17E add the admin
+and member surfaces; **17F adds the unattended month-close job** (doctor, dry run, log, lock and
+catch-up). The stream ships off and pays nothing until an operator configures a product and turns the
+global master on.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -72,7 +74,8 @@ report indexes (`019`). Operations are documented in [`docs/runbook.md`](../docs
 [`docs/admin-guide.md`](../docs/admin-guide.md); a backup → restore drill was executed and recorded.
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
-`/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`. All three log to
+`/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`, and so does the
+Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
 `system/storage/`; the first two have kill switches on the settings page.
 
 | | |
@@ -82,7 +85,7 @@ The expiry job runs from the CLI **and** from a guarded URL
 | Deployment | [`docs/deploy.md`](../docs/deploy.md) — beginner guide for Hostinger / shared hosting |
 | Operations | [`docs/runbook.md`](../docs/runbook.md) — daily checks, backups/restore, incidents, go-live |
 | Admin guide | [`docs/admin-guide.md`](../docs/admin-guide.md) — page-by-page quick guide for the back office |
-| Scheduled jobs | `docs/cron.md` (expiry + auto-complete: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
+| Scheduled jobs | `docs/cron.md` (expiry, auto-complete, transfer-limit reset, unilevel month close: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
 
@@ -437,6 +440,7 @@ system/
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
+│                              reset_transfer_limits.php + .cmd, unilevel_month_close.php + .cmd,
 │                              wallet_reconcile.php, build_install_sql.php, db_install.php, db_reset.php
 ├── storage/                   cron logs/ and locks/ + install.lock (outside public/, ignored,
 │                              deny-all .htaccess)
@@ -445,6 +449,8 @@ system/
 │   ├── router.php             PHP built-in server parity
 │   ├── cron/shop_expire.php   guarded web entry for the expiry job (local/URL cron)
 │   ├── cron/order_autocomplete.php  guarded web entry for the auto-complete job
+│   ├── cron/reset_transfer_limits.php  guarded web entry for the transfer-limit reset
+│   ├── cron/unilevel_month_close.php   guarded web entry for the month close
 │   ├── login.php register.php logout.php   (standalone this build)
 │   ├── install.php            standalone web installer (IR-4; delete after use)
 │   ├── reset.php              standalone reset console (IR-6; development/QA only)
@@ -1180,9 +1186,12 @@ product **and** turns the global switch on.
 - **The monthly Active gate.** `UnilevelCycle` decides the flag from the previous calendar month
   (Asia/Manila): the close writes one `unilevel_activity` row per account and one `unilevel_periods`
   header, and a member with no row is Active. An unclosed previous month is computed live from the
-  same order aggregate, so the midnight-to-cron window is correct with no snapshot. An operator can
-  relax the monthly rule with `unilevel_requires_active_upline = 0`; the account and membership
-  checks always apply, and the company account is never paid.
+  same order aggregate, so the midnight-to-cron window is correct with no snapshot. The close runs
+  unattended through `bin/unilevel_month_close.php` (00:15 on the 1st; CLI, guarded URL or `.cmd`),
+  which owns the schedule, the lock, the monthly log, `--dry-run`, `--doctor` and the catch-up —
+  see [Cron jobs](#cron-jobs). An operator can relax the monthly rule with
+  `unilevel_requires_active_upline = 0`; the account and membership checks always apply, and the
+  company account is never paid.
 - **Wallet and reconciliation.** Each credited award is a withdrawable wallet credit with
   `ref_type = 'unilevel'` and `ref_id = unilevel_awards.id`, exactly one ledger row per award.
   `bin/wallet_reconcile.php` gained a **Repeat-purchase** section: award credits and their ledger
@@ -1246,31 +1255,40 @@ php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 
 ## Cron jobs
 
-Three scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
+Four scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
 
 | Job | CLI | Web | Windows |
 |---|---|---|---|
 | Shop expiry (cancel unpaid orders) | `bin/shop_expire.php` | `/system/cron/shop_expire.php` | `bin/shop_expire.cmd` |
 | Order auto-complete (close old deliveries) | `bin/order_autocomplete.php` | `/system/cron/order_autocomplete.php` | `bin/order_autocomplete.cmd` |
 | Transfer-limit reset (daily/weekly counters) | `bin/reset_transfer_limits.php` | `/system/cron/reset_transfer_limits.php` | `bin/reset_transfer_limits.cmd` |
+| Unilevel month close (monthly Active snapshot) | `bin/unilevel_month_close.php` | `/system/cron/unilevel_month_close.php` | `bin/unilevel_month_close.cmd` |
 
 - Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `json`, `doctor`, `log-dir` (CLI only),
   `quiet` (CLI only), `help`; the expiry job also has `from-settings`, the reset job `week` and
-  `daily-only`.
+  `daily-only`, and the month close `period`.
 - `--from-settings` recomputes expiry deadlines from the **current** settings instead of the stored
   stamps (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction
   window). The cron itself uses the stamps, so changing a window never retroactively cancels old
   orders.
 - `--week` forces the transfer-limit weekly reset on any weekday (repairing a missed Monday);
   `--daily-only` never touches the weekly counter.
+- `--period=YYYY-MM` closes exactly one completed month. Without it the month close catches up: every
+  open month from `unilevel_ledger_since` through last month, oldest first.
 - The web entries are trusted on loopback (local testing needs no setup); any other caller needs
   `?key=` matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
 - One run at a time (`CronLock`); monthly logs at `storage/logs/shop_expire-YYYY-MM.log`,
-  `storage/logs/order_autocomplete-YYYY-MM.log` and `storage/logs/reset_transfer_limits-YYYY-MM.log`;
-  `--doctor` reports PHP/DB time, settings, candidates, lock and log state.
+  `storage/logs/order_autocomplete-YYYY-MM.log`, `storage/logs/reset_transfer_limits-YYYY-MM.log`
+  and `storage/logs/unilevel_month_close-YYYY-MM.log`; `--doctor` reports PHP/DB time, settings,
+  candidates, lock and log state.
 - Kill switches: `shop_expiry_enabled` and `shop_autocomplete_enabled` (settings page). Each makes
   every run of its job exit 0 without changing anything. The reset job has nothing to switch off — a
-  run only zeroes counters a transfer would have incremented.
+  run only zeroes counters a transfer would have incremented. The **month close has no switch on
+  purpose**: it pays no money, so there is nothing to pause, and it must snapshot a period even while
+  `unilevel_enabled = 0`.
+- What drives the month close: `unilevel_active_threshold` (the monthly personal-purchase minimum,
+  ₱500 by default, snapshotted onto every closed period) and `unilevel_ledger_since` (the baseline
+  the catch-up starts from; the install month, never rendered on a page).
 
 ```bash
 php bin/shop_expire.php --doctor
@@ -1284,6 +1302,11 @@ php bin/order_autocomplete.php
 php bin/reset_transfer_limits.php --doctor
 php bin/reset_transfer_limits.php --dry-run
 php bin/reset_transfer_limits.php
+
+php bin/unilevel_month_close.php --doctor
+php bin/unilevel_month_close.php --dry-run
+php bin/unilevel_month_close.php
+php bin/unilevel_month_close.php --period=2026-10 --json
 ```
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
@@ -1293,7 +1316,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (816 cases after the install/reset workstream)
+php tests/run.php                 # full suite (948 cases after the Phase 17 workstream)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

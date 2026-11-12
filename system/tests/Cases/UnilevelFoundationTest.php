@@ -554,13 +554,14 @@ return [
     /* ==========================================================
      *  Inert (P17A-T13)
      * ========================================================== */
-    'P17A-T13 the stream stays off by default and adds no route or job' => function () use ($appRoot): void {
+    'P17A-T13 the stream stays off by default and adds no route or controller' => function () use ($appRoot): void {
         /* 17A's promise was "nothing reads the new objects". 17B started
-         * reading the configuration, 17C added the money engine and 17D
-         * added the read-only admin pages, so the enduring half is
-         * narrower but sharper: there is no controller, no route and no
-         * month-close job, no page writes the ledger, the stream is off
-         * on a fresh database, and nothing has paid. */
+         * reading the configuration, 17C added the money engine, 17D/17E
+         * added the read-only surfaces and 17F ships the month-close job,
+         * so the enduring half is narrower but sharper: the engine exists,
+         * there is no controller and no route, no page writes the ledger,
+         * the job itself writes no money row, the stream is off on a fresh
+         * database, and nothing has paid. */
         foreach ([
             '/app/Models/UnilevelAward.php',
             '/app/Models/UnilevelCycle.php',
@@ -570,12 +571,27 @@ return [
             assert_true(is_file($appRoot . $file), $file . ' is the 17C engine');
         }
 
-        foreach ([
-            '/app/Controllers/UnilevelController.php',
-            '/bin/unilevel_month_close.php',
-        ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' belongs to a later phase (D-14, 17F)');
-        }
+        assert_false(
+            is_file($appRoot . '/app/Controllers/UnilevelController.php'),
+            'no controller serves the stream (D-14)'
+        );
+
+        /* 17F ships the job; what stays true is that it pays nothing: the
+         * only money write is inside UnilevelCycle::close(), and the job's
+         * own source carries no wallet or award write. */
+        assert_true(is_file($appRoot . '/bin/unilevel_month_close.php'), '17F ships the month-close job');
+
+        $job = (string) file_get_contents($appRoot . '/bin/unilevel_month_close.php');
+
+        assert_same(
+            0,
+            preg_match(
+                '/\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+`?(ewallet_ledger|unilevel_awards|users)/i',
+                $job
+            ),
+            'the month close writes no money row'
+        );
+        assert_same(0, preg_match('/WalletService|reverseForOrder/', $job), 'the month close never pays or reverses');
 
         /* 17D is read-only: neither a controller nor a view may write a
          * Phase 17 table. The engine's writes live in the models and the

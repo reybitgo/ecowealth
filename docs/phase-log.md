@@ -4541,3 +4541,160 @@ P17E-T11's HTTP half is proven by the smoke run (the page renders for a member w
 8. **The manual section-E checks were executed by the automated pass**, like sections A–D: a real
    e-wallet checkout over HTTP, the real engine, SQL transcripts and headless Chrome at 390 × 844. The
    evidence is filed; the "someone who did not write it" item stays open for the lead's review.
+
+---
+
+## Phase 17F — Operations (2026-11-12)
+
+**Status:** complete · **Tag:** `p17f-month-close` (on `p17e-member`) ·
+**Branch:** `feature/unilevel` · **Schema:** unchanged (31 tables, 54 settings) ·
+**Suite:** 938 → 948 cases, **948 / 948** green · **Smoke:** 223 / 223.
+
+Plan: `dmp/plan-ecowealth-unilevel-repeat-purchase.md` §10 (Phase 17F), §12.7, §14.8, §16.5.
+This phase wraps 17C's `UnilevelCycle::close()` in an **operational job**: one implementation with three
+entry points (CLI, guarded URL, Windows launcher), a schedule of 00:15 on the first of the month, a
+catch-up, a dry run, a doctor, one monthly log line per run, a lock, JSON output and an idempotent
+re-run. It **pays no money** and touches no wallet, award, order or setting: it writes only the two
+snapshot tables 17A created, through `close()`.
+
+### Database
+
+None. 17A shipped `unilevel_activity` and `unilevel_periods`; this phase only writes them through the
+17C close.
+
+### Code
+
+- **`bin/unilevel_month_close.php`** (new) — the whole job. Flags `--period`, `--dry-run`, `--doctor`,
+  `--json`, `--log-dir`, `--quiet`, `--help`; the shared `CronAccess` rules (loopback or `CRON_KEY`);
+  `CronLock('unilevel_month_close')`; `CronLog(…, 'unilevel_month_close')`; exit 0 for done/skipped/no-op
+  and 1 for a refusal or a failed run. The rules live in small functions so the dry run and the real run
+  cannot disagree:
+  - `close_resolve()` — which months a run may touch: one `--period` month (completed only) or every open
+    month from `unilevel_ledger_since` through last month, oldest first. It is the single place that
+    answers "future", "not finished" and "already closed".
+  - `close_project()` — the dry run's counts, computed by the **same aggregate** `close()` writes.
+  - `close_pending_note()` — the truthful "nothing to do" sentence (baseline after last month, a single
+    month already closed, or the whole range closed).
+  - `close_doctor()` — PHP/MySQL clocks compared as epochs, `APP_TIMEZONE`, the session zone, the
+    threshold, `ledger_since`, the last closed month, the pending months, the account count, the lock
+    state, the log folder and whether `CRON_KEY` is set.
+  - `close_write_log()` — the run's one log line.
+- **`public/cron/unilevel_month_close.php`** (new) — the two-line web adapter: it requires the CLI file
+  and owns no logic (plan §10 Rule 12).
+- **`bin/unilevel_month_close.cmd`** (new) — the Windows launcher, shaped like the other three: `PHP_EXE`
+  when set, `php` from `PATH` otherwise, `--period`/`--dry-run`/`--doctor` passed through.
+
+### Tests
+
+**10 new cases: 938 → 948, all green.** They live in **`CronTest`** (§16.5 names that file), and each one
+runs the **real command** against a freshly built `ecowealth_sneat_tool_b_test` with `ECO_DB_NAME`, the
+same technique 17C used for the reconcile CLI: a subprocess cannot see the harness transaction.
+
+| Case | What it proves |
+|---|---|
+| P17F-T1 | `--dry-run` on a month with a paid and an unpaid order: `would close 1`, `members 27`, `qualified 1`, `award_total 0.00`, and **zero** rows written — the unpaid order never counts |
+| P17F-T2 | The real run writes one header and one row per account; `members_total`/`qualified_count` equal the aggregate, the threshold is stored, the paid buyer is `600.00 / 1` and the unpaid one `0.00 / 0` |
+| P17F-T3 | A second run is `closed=0`, exit 0, no new row |
+| P17F-T4 | Two missed months close in one run, `periods` oldest first, each snapshot covering every account that exists at close time |
+| P17F-T5 | A future `--period` exits 1, says "future", and writes nothing |
+| P17F-T6 | `--period` on a closed month exits 0 with "already closed" and rewrites nothing |
+| P17F-T7 | A held lock logs `[SKIP ]`, exits 0 and does no work (the test holds the real `storage/locks` file the subprocess resolves) |
+| P17F-T8 | One log line per run with `trigger`, `closed`, `period`, `members`, `qualified`, `award_total`, `duration`; the file is `unilevel_month_close-YYYY-MM.log` |
+| P17F-T9 | `--json` carries exactly the numbers of the log line (closed, members, qualified, award_total, periods, duration) |
+| P17F-T10 | `--doctor` reports both clocks (`clocks agree`), `APP_TIMEZONE`, the threshold, the baseline, the pending month, the account count, the lock and a writable log folder — and writes nothing |
+
+`CronTest` grew from 8 to 18 cases. One existing case was rewritten to stay truthful:
+**`UnilevelFoundationTest` P17A-T13** now asserts that the job exists **and** that its own source carries
+no wallet or award write (and still no controller/route/view writes a Phase 17 table).
+
+### Docs
+
+- **`docs/cron.md`** — the fourth job: the schedule and why 00:15, the flags, the dry run, the log and
+  lock, the failure modes, the URL and `.cmd` forms, the three settings that drive it
+  (`unilevel_active_threshold`, `unilevel_ledger_since`), the troubleshooting rows; the Windows section
+  is renumbered to §5 and gains the monthly `schtasks` line and the `.cmd` variant.
+- **`system/README.md`** — the cron section is now four jobs (with the month close's flags, its log, its
+  "no kill switch on purpose" note and the two settings), the tree lists the new entry points, and the
+  engine's Active bullet names the job.
+- **QA pack** — section F (`QA17F-01` … `QA17F-07`) and its sign-off; the shared counts are 948 / 223
+  and the status line records section F.
+
+Left for 17G by the plan's deliverable split: `docs/deploy.md` (line ~1021) and `docs/runbook.md`
+(lines ~31, ~437) still say "three jobs". They are the release phase's files; the new job is fully
+documented in `docs/cron.md` §4 and `system/README.md` in the meantime.
+
+### Rules as built
+
+1. **00:15 on the first, `Asia/Manila`** — in the job's header, `docs/cron.md` (§4 and the Task
+   Scheduler line) and the launcher's comment.
+2. **Catch-up from `unilevel_ledger_since` through last month, oldest first** — `close_resolve()` uses
+   `UnilevelCycle::pendingPeriods()`, which walks the range; a fresh install closes nothing.
+3. **One transaction per period** — `close()` owns it; the job only sequences the months.
+4. **No `ON DUPLICATE KEY UPDATE`** — the period is the primary key; the loser of a race rolls back.
+5. **Idempotent** — a second run finds nothing and logs `closed=0`, exit 0.
+6. **Independent of the switch** — the doctor says so, and `close()` writes even with
+   `unilevel_enabled = 0` (17C's T50).
+7. **A closed period is immutable** — `--period` on a closed month is an exit-0 no-op with a message;
+   there is no reopen anywhere.
+8. **A future period is refused** — exit 1, message, nothing written. The **current** month is refused
+   too (deviation 1).
+9. **`paid_at` decides the month** — the fixtures prove an unpaid ₱900 order contributes nothing.
+10. **All accounts get a row** — T2 asserts the row count equals the `users` count.
+11. **One log file per month, one line per run, a lock under `storage/locks/`, a doctor** — T7/T8/T10.
+12. **The web entry adds no logic** — it is one `require` line; the access decision is `CronAccess`,
+    proven by its own case and, over HTTP, by QA17F-06.
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` green; 17F changes no schema (31 tables, 54
+      settings).
+- [x] `php bin/build_install_sql.php --check` exits 0 (the bundle is untouched).
+- [x] `php tests/run.php` → **Cases: 948   Passed: 948   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 before and after the manual pass, with the
+      **Repeat-purchase** section at zero (the job moves no money).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 223   Failed: 0**, exit 0.
+- [x] Every P17F-Tn case exists, is named for the phase and passes: **T1–T10** in `CronTest`; **T11**
+      (the web entry and the refusal) and **T12** (the `.cmd`) are the HTTP/Windows observations in
+      QA17F-06/07, and the access decision itself is a suite case.
+- [x] Dry run and doctor change nothing — **asserted** (T1, T10 count rows before and after) and
+      repeated in QA17F-02 with SQL counts.
+- [x] Two consecutive runs are idempotent (T3, QA17F-04); two missed months catch up in order (T4).
+- [x] The manual script (`QA17F-01` … `QA17F-07`) executed **7 / 7** against the development copy:
+      doctor, dry run, a real close of **2026-10** (27 accounts, 1 qualified, ₱0.00), a second run, both
+      `--period` edges, the URL entry over real HTTP (loopback **200**, LAN address **403**) and the
+      `.cmd`, then the fixture removed and the baseline restored. Evidence:
+      `docs/qa/evidence/phase-17/QA17F-*` (eight transcripts).
+- [x] No new PHP warning, notice or deprecation in `storage/logs/` after the pass.
+- [x] This entry and Appendix G of the plan are filled; tag `p17f-month-close`.
+
+### Deviations
+
+1. **The current month is refused as well as a future one.** Rule 8 names only a future period, and
+   `UnilevelCycle::close()` itself allows the current month. Closing an incomplete month would freeze
+   it — permanently, because there is no reopen — so `close_resolve()` refuses any `--period` at or
+   after `periodOf()`, with a different sentence for "in the future" and "has not finished yet". The
+   default run never names the current month, so this only hardens the explicit flag.
+2. **Ten `CronTest` cases, not eight.** The eight of §16.5 are all there; P17F-T6 (`--period` on a
+   closed month) and P17F-T10 (the doctor) are in the phase's test plan as well and were worth
+   automating against the real command. The Gate above names where T11/T12 are proven instead.
+3. **`P17A-T13` was rewritten for the third time.** It asserted that no month-close job exists, which
+   17F is. The replacement is sharper: the job exists and its own source carries no wallet or award
+   write, so "the close never pays" is now asserted by name.
+4. **The lock case writes one file under `system/storage/locks/`.** A subprocess resolves `CronLock`
+   from its own `STORAGE_PATH`, so the test cannot use the harness's temp folder; it holds the real
+   lock for the instant of the run and deletes it after, exactly as the production job would leave it.
+5. **A catch-up run logs one line with a comma-separated month list, and the counters summed across the
+   months it closed.** §10 Rule 11 says one line per run; §16.5 asks for `period`/`members`/`qualified`
+   counters. The run is the unit, so a two-month catch-up reads
+   `closed=2 period=2026-10,2026-11 members=52 qualified=6 …`, and `docs/cron.md` explains the sum. A
+   single-month run (the monthly schedule) reads exactly as the plan does.
+6. **The doctor gained a `clocks` line.** §10 Rule 11 asks it to report "the PHP/MySQL clock agreement";
+   the other jobs print both times and leave the comparison to the operator. This one compares the
+   epochs and prints `agree (±Ns)`, which is what QA17F-01 checks.
+7. **A refusal's message is printed once.** It goes to stdout (and to stderr only under `--quiet`, so a
+   cron mail still carries it); printing it on both streams made `--json` output unparseable, which
+   P17F-T5 caught during the phase.
+8. **The manual section-F checks were executed by the automated pass**, like sections A–E: real HTTP
+   from loopback and from the LAN address, the real `.cmd`, and real rows in `unilevel_periods` /
+   `unilevel_activity` on the development copy, removed afterwards. The evidence is filed; the "someone
+   who did not write it" item stays open for the lead's review.

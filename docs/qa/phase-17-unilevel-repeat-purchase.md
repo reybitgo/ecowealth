@@ -13,7 +13,8 @@ copy, never on a production database.
 **Document status.** Section A (17A — Foundation) written 2026-11-12 with the automated gate green;
 section B (17B — Configuration) appended 2026-11-12; section C (17C — Money engine) appended
 2026-11-12; section D (17D — Admin visibility) appended 2026-11-12; section E (17E — Member
-visibility) appended 2026-11-12. Sections F–G are added by their phases.
+visibility) appended 2026-11-12; section F (17F — Operations) appended 2026-11-12. Section G is
+added by 17G.
 
 ---
 
@@ -31,7 +32,7 @@ php bin\wallet_reconcile.php              # exit 0: the money is untouched by th
 Expected final lines:
 
 ```text
-Cases: 938   Passed: 938   Failed: 0
+Cases: 948   Passed: 948   Failed: 0
 All good.
 ```
 
@@ -41,8 +42,9 @@ Passed: 223   Failed: 0
 
 The counts grow with each phase: **830 / 195** at `p17a-foundation`, **855 / 209** at
 `p17b-configuration`, **906 / 209** at `p17c-money`, **924 / 215** at `p17d-admin`, **938 / 223** at
-`p17e-member`. Section A's own expectations are stated in section 3; section B's in section 5; section
-C's in section 7; section D's in section 9; section E's in section 11.
+`p17e-member`, **948 / 223** at `p17f-month-close`. Section A's own expectations are stated in
+section 3; section B's in section 5; section C's in section 7; section D's in section 9; section E's
+in section 11; section F's in section 13.
 
 The groups that carry Phase 17A (its own share of the suite is listed here):
 
@@ -75,7 +77,7 @@ Phase 17C's share:
 | `OrderTest` | +1 | P17C-T34: placement snapshots `unit_base`/`base_total`, and a price/P.V. edit before verification cannot rewrite the award |
 | `UnilevelConfigurationTest` | 1 rewritten | P17B-T20 now proves the 17C hand-off: with the global master off the hook stamps `unilevel_processed_at` with a zero total and still writes no award |
 | `DbResetTest` | 1 rewritten | The reset verification now runs **five** reconciliations, including `UnilevelService::reconcile` on the injected PDO |
-| `UnilevelFoundationTest` | 1 rewritten | P17A-T13 now guards the enduring surface: the engine exists, no controller/route/view/month-close job does, and the stream is off on a fresh database |
+| `UnilevelFoundationTest` | 1 rewritten | P17A-T13 now guards the enduring surface: the engine exists, no controller/route/view writes a Phase 17 table, the month-close job itself writes no money row, and the stream is off on a fresh database |
 | `WalletTest` / `WalletViewTest` / `CommissionTest` / `CommissionIndirectTest` | — | Regression: the referral ledger, the wallet vocabulary and both statements are unchanged |
 
 Phase 17D's share:
@@ -95,9 +97,19 @@ Phase 17E's share:
 | `UnilevelMemberViewTest` (new) | 14 | P17E-T1 (the product panel: ten levels, the P.V. base, the per-unit amounts, the 29.000% total, the no-rebate sentence, no direct/indirect label), T2 (an unconfigured product has no panel; a zero rate reads `—`; the global master off removes it), T3 (the catalogue badge and its one batched query), T4/T5/T6 (the checkout preview: ₱145.00 for 2 units, "when this order is paid", absent without a ladder, stable in the live feed), T7 (the order card: total only, no recipients, no per-upline amounts), T8 (the repeat tab's counters, two-clock panel, breakdown, rows and `memberStatus()` on a live month and a closed snapshot), T9 (filters, silent fallback and the 13-column member CSV), T10 (the package tab unchanged), T11 (`?user_id=` ignored), T12 (the dashboard tile and the membership paragraph, no action), T13 (the 390 px responsive hooks) |
 | `MemberOrderLiveTest` / `MemberMembershipLiveTest` (widened) | 2 | The order feed returns the new `member-order-bonus` region (empty for a pending order) and the membership feed returns `membership-repeat`; no other fragment moved |
 
+Phase 17F's share:
+
+| Group | Cases | What it proves for 17F |
+|---|---|---|
+| `CronTest` (extended) | 10 | The eight cases of §16.5 plus T6 and T10 of the phase's test plan, all run as the **real command** against a scratch schema (a subprocess cannot see the harness transaction): T1 (`--dry-run` lists 2026-xx and writes nothing), T2 (the real run writes the header and one row per account, and the counts equal the aggregate), T3 (a second run is `closed=0` with no new row), T4 (two missed months close in one run, oldest first), T5 (a future period is refused, exit 1, nothing written), T6 (`--period` on a closed month exits 0 with "already closed"), T7 (a held lock logs `[SKIP ]` and exits 0), T8 (one log line per run with `trigger`, `period`, `members`, `qualified`, `award_total`, `duration`), T9 (`--json` carries the same numbers as the log line) and T10 (the doctor reports both clocks, `APP_TIMEZONE`, the threshold, the closed/pending months, the account count, the lock and a writable log folder) |
+| `UnilevelFoundationTest` (rewritten again) | 1 | P17A-T13's enduring half after 17F: the job exists, and it still carries **no wallet or award write** — only `UnilevelCycle::close()` writes, and no controller or view writes a Phase 17 table |
+
 The migration and bundle cases build scratch schemas (`ecowealth_sneat_migration_test`,
 `ecowealth_sneat_tool_a_test`, `ecowealth_sneat_tool_b_test`). No automated case targets
-`ecowealth_sneat` or `ecowealth_sneat_test`.
+`ecowealth_sneat` or `ecowealth_sneat_test`. The 17F cases recreate `ecowealth_sneat_tool_b_test` and
+run the real CLI against it with `ECO_DB_NAME`; the lock case holds the real
+`storage/locks/unilevel_month_close.lock` for the instant the subprocess runs (the subprocess resolves
+its lock from `STORAGE_PATH`, which is the real `system/storage` for a CLI run) and removes it after.
 
 ---
 
@@ -1319,3 +1331,213 @@ Expected
 | Defects | one found and fixed during the pass: at 390 px the two earnings pills did not wrap and the page scrolled sideways (`scrollWidth` 477). `.commission-tabs { flex-wrap: wrap }` was added to `commissions.css`; the repeat now measures 390 with no offenders, and the admin tabs share the fix. Re-run evidence: `QA17E-09-mobile.txt`. |
 | Decision | ☐ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts; the pass ran against the development copy over real HTTP with the real checkout and the real engine, and was cleaned up afterwards (`QA17E-00-setup-cleanup.txt`: awards 0, periods 0, activity 0, repeat ledger 0, fixture users 0, fixture products 0, `unilevel_enabled` 0, reconcile exit 0). The 390 px checks were executed in headless Chrome, not read from the CSS. The "someone who did not write it" item stays open for the lead's review, as in sections A–D. |
 | Evidence | `docs/qa/evidence/phase-17/` (`QA17E-00-setup-cleanup.txt` … `QA17E-09-mobile.txt`, the four screenshots and `QA17E-05-export.csv`) |
+
+---
+
+## 13. Section F — Operations (`QA17F-01` … `QA17F-07`)
+
+**Prerequisites.** The `p17e-member` tag plus 17F's three files (`bin/unilevel_month_close.php`,
+`public/cron/unilevel_month_close.php`, `bin/unilevel_month_close.cmd`), a backup of the development
+copy, and the green automated gate (§1). **Expected suite:** 948 / 948. **Time:** 15–20 min.
+
+**What this section proves.** The monthly close runs unattended and is safe to repeat: it closes the
+month the Active rule needs, catches up on a missed month, offers a dry run and a doctor, refuses a
+future month, writes one log line per run, takes one lock, answers JSON, and works from the CLI, a
+URL and a Windows launcher. It **pays no money**: the pass changes no wallet balance, and
+`wallet_reconcile.php` is clean before and after.
+
+**Fixture used by the section.** The development copy, plus one paid order of ₱600 in **2026-10**
+(`QA17F-2026-10-015`) for a fixture member `qa17f_buyer`, and `unilevel_ledger_since` moved back to
+`2026-10-01 00:00:00` so that month is pending. The order is above the ₱500 threshold, so the closed
+month has exactly **one qualified member** (and ₱0.00 of awards, because no repeat-purchase award
+exists on the copy).
+
+**Safety.** The pass creates one user, one product, one order and one order line, then removes them
+and restores the baseline; the snapshot rows it writes are deleted with SQL (a QA cleanup of a
+fixture, not a reopen path — the application itself has none). Final state: `unilevel_periods` 0,
+`unilevel_activity` 0, `unilevel_awards` 0, users 26, baseline restored, `wallet_reconcile` exit 0.
+Transcript: `QA17F-00-setup-cleanup.txt`.
+
+### QA17F-01 — The doctor reports both clocks, the threshold and the pending months
+
+| Why it matters | The one silent failure mode of a time-based job is a clock disagreement; the doctor is the first command to run on a new host. |
+|---|---|
+| Where | `system/` — `php bin/unilevel_month_close.php --doctor` |
+| Evidence | `QA17F-01-doctor.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. From `system/`, run `php bin\unilevel_month_close.php --doctor`.
+2. Read every line; compare `timezone` with `db now`.
+
+Expected
+
+- `clocks agree (0s)`; `timezone Asia/Manila · … +08:00`; `db now … (session +08:00)`.
+- `threshold ₱500.00 personal purchases`; `period now 2026-11 — the current month is never closed implicitly`.
+- `ledger since 2026-10-01 00:00:00`; `last closed none yet`; `pending 2026-10 (1)`;
+  `members 27 accounts get a snapshot row`.
+- `lock free · …\storage\locks\unilevel_month_close.lock`;
+  `log …\storage\logs\unilevel_month_close-2026-11.log (writable)`; exit code **0**.
+
+*If it fails:* a non-zero drift or a session zone other than `+08:00` means `DB_TIMEZONE` and the host clock disagree — fix `app/config.php` before running the close. A `(NOT writable)` log or a `busy` lock means the storage folder or a stuck process needs attention.
+
+### QA17F-02 — The dry run lists the months and writes nothing
+
+| Why it matters | An operator must be able to see exactly which months a run would close, and the counts it would write, without touching the database. |
+|---|---|
+| Where | `system/` — `php bin/unilevel_month_close.php --dry-run` |
+| Evidence | `QA17F-02-dry-run.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Record `SELECT COUNT(*)` for `unilevel_periods` and `unilevel_activity`.
+2. Run `php bin\unilevel_month_close.php --dry-run`.
+3. Record both counts again.
+
+Expected
+
+- `would close: 1` and one line: `2026-10  members 27  qualified 1  award_total ₱0.00`.
+- Both row counts are **identical before and after** (0 and 0), and the exit code is **0**.
+
+*If it fails:* a changed count means the dry run wrote — stop and report; the branch must only read. A missing month means `unilevel_ledger_since` is later than the month you expect.
+
+### QA17F-03 — The real run closes the month, once
+
+| Why it matters | This is the snapshot the whole Active rule reads; its header and its one-row-per-account shape are the contract. |
+|---|---|
+| Where | `system/` — `php bin/unilevel_month_close.php`, then SQL |
+| Evidence | `QA17F-03-close.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\unilevel_month_close.php`.
+2. Run `SELECT * FROM unilevel_periods;` and
+   `SELECT COUNT(*) FROM unilevel_activity WHERE period = '2026-10';`.
+3. Run `SELECT * FROM unilevel_activity WHERE period = '2026-10' AND qualified = 1;`.
+
+Expected
+
+- `closed: 1`, `periods: 2026-10`, `2026-10  members 27  qualified 1  award_total ₱0.00`,
+  `snapshot: 27 rows · 1 qualified · ₱0.00`, exit code **0**.
+- One header: `2026-10 | <the close time, e.g. 2026-11-12 22:02:31> | NULL | 500.00 | 27 | 1 | 0.00` —
+  the threshold is stored for audit and `closed_by` is `NULL` (a system close).
+- **27** activity rows (every account, including members with zero purchases), `SUM(personal_purchases) = 600.00`,
+  and exactly one qualified row: `2026-10 | qa17f_buyer | 600.00 | 1`.
+
+*If it fails:* fewer rows than accounts means the insert was not "all accounts" — check the `users`
+count at the moment of the close. A second header for the same month is impossible (primary key); a
+non-zero `award_total` means awards exist for that month on that copy.
+
+### QA17F-04 — A second run changes nothing
+
+| Why it matters | Cron overlap and operator re-runs are normal; a rewrite of a closed month would destroy the audit trail. |
+|---|---|
+| Where | `system/` — `php bin/unilevel_month_close.php` (twice) |
+| Evidence | `QA17F-04-idempotent.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run the job a second time.
+2. Compare the two row counts with the ones from QA17F-03.
+3. Run `php bin\unilevel_month_close.php --json` and read `closed` and `periods`.
+
+Expected
+
+- `closed: 0 — nothing was pending`, `periods: —`, and the summary line
+  `nothing to close — 2026-10 is already closed`; exit code **0**.
+- Counts still **1** header and **27** activity rows.
+- `--json`: `"closed": 0`, `"periods": []`, `"members": 0`.
+
+*If it fails:* a non-zero `closed` means the "is closed" check and the insert disagree — stop and report; the period header must be the single source of truth.
+
+### QA17F-05 — `--period` on a closed month and on a future month
+
+| Why it matters | A closed period is immutable and a future one has no month of data; both must be answered clearly instead of silently doing something. |
+|---|---|
+| Where | `system/` — `--period=2026-10` · `--period=2026-12` · `--period=2026-11` |
+| Evidence | `QA17F-05-period.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\unilevel_month_close.php --period=2026-10` (closed by QA17F-03).
+2. Run `php bin\unilevel_month_close.php --period=2026-12` (after 2026-11).
+3. Run `php bin\unilevel_month_close.php --period=2026-11` (the current month).
+4. Re-read both row counts after each.
+
+Expected
+
+- **A (closed):** `period: 2026-10`, `result: already closed — a closed period is never rewritten.`,
+  `nothing was written.`, exit code **0**; counts unchanged (1 / 27).
+- **B (future):** `refused: The period 2026-12 has not finished yet — it is in the future (the current
+  month is 2026-11); only a completed month can be closed.`, exit code **1**.
+- **C (current):** the same refusal without "it is in the future", exit code **1**; counts still 1 / 27.
+
+*If it fails:* exit 0 on B or C means a future/incomplete month could be frozen — stop and report. A rewritten row on A means the immutability guard is missing.
+
+### QA17F-06 — The web entry, the log line, the lock and the refusal
+
+| Why it matters | The URL entry must be the same job (not a second implementation), and the log, the lock and the access rule are what make it operable. |
+|---|---|
+| Where | `http://localhost/ecowealth/system/cron/unilevel_month_close.php?doctor=1` · `?json=1` |
+| Evidence | `QA17F-06-web.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `?doctor=1` in a browser (or `Invoke-WebRequest`) from `localhost`.
+2. Open `?json=1` and compare its numbers with `php bin\unilevel_month_close.php --json`.
+3. Request the same URL on the machine's LAN address (a non-loopback caller, no `?key=`).
+4. Read `system/storage/logs/unilevel_month_close-YYYY-MM.log` and list `system/storage/locks/`.
+
+Expected
+
+- `?doctor=1` → **HTTP 200**, `php 8.3.16 (apache2handler)`, the same lines as QA17F-01.
+- `?json=1` → `"trigger": "http"` and the **same** `closed / members / qualified / award_total /
+  threshold` as the CLI's payload for the same database (`0 / 0 / 0 / 0 / 500` in the transcript).
+- The LAN-address request → **`Forbidden`, HTTP 403** (loopback needs no key; anything else needs
+  `?key=` matching `CRON_KEY`, which is not configured here).
+- The log carries a `trigger=http` line with `closed=0 period=-`, one line per run, and
+  `system/storage/locks/unilevel_month_close.lock` exists (advisory, released after every run).
+
+*If it fails:* a 200 from the LAN address means the access rule regressed (`CronAccess`) — stop and report. A different payload from the URL means the web entry grew logic; it must only `require` the CLI file. A second line per run means the log write happens twice.
+
+### QA17F-07 — The `.cmd` launcher reports the same thing
+
+| Why it matters | The Windows Task Scheduler entry point must be the same job, with no PATH assumption beyond `PHP_EXE`. |
+|---|---|
+| Where | `system/` — `bin\unilevel_month_close.cmd --dry-run` · `--doctor` |
+| Evidence | `QA17F-07-cmd.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Double-click `bin\unilevel_month_close.cmd` (or run `cmd /c bin\unilevel_month_close.cmd --dry-run`).
+2. Run the same flags through the CLI and compare.
+3. Optionally `setx PHP_EXE "…\php.exe"` and re-run to prove the environment override.
+
+Expected
+
+- The launcher prints the **same output** as the CLI for `--dry-run` and `--doctor`, exit code **0**.
+- With `PHP_EXE` unset it uses `php` from `PATH`; with `PHP_EXE` set it uses that binary (the transcript
+  shows the unset case, which is this machine's).
+
+*If it fails:* `'php' is not recognized` means neither `PATH` nor `PHP_EXE` has a PHP binary for that account — set `PHP_EXE` once for the machine (see `docs/cron.md` §5).
+
+---
+
+## 14. Section F sign-off
+
+| Item | Value |
+|---|---|
+| Tester | Automated QA pass — DeepSeek Harness (DSH) |
+| Date | 2026-11-12 |
+| Automated gate | `Cases: 948 / 948` · `Passed: 223 / 223` smoke · `build_install_sql --check` exit 0 · `wallet_reconcile` exit 0 |
+| Checks passed | 7 / 07 |
+| Defects | two found and fixed during the pass: **(1)** a refused period printed its message to both stdout and stderr, so `--json` output was no longer a parseable document (`P17F-T5` caught it); the refusal now goes to stderr only when `--quiet` suppresses stdout. **(2)** the "nothing to close" sentence claimed "every month from 2026-10 through 2026-10 is already closed" and, on a fresh install whose baseline is later than last month, implied months had been closed; `close_pending_note()` now distinguishes "baseline after last month", "single month already closed" and "every month already closed". Re-run evidence: `QA17F-04-idempotent.txt`. |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts. The pass ran on the development copy over real HTTP (loopback for the payload, the machine's LAN address for the 403), through the real `.cmd`, and against real rows in `unilevel_periods` / `unilevel_activity`; the fixture was removed afterwards and `wallet_reconcile.php` exits 0. The "someone who did not write it" item stays open for the lead's review, as in sections A–E. |
+| Evidence | `docs/qa/evidence/phase-17/` (`QA17F-00-setup-cleanup.txt` … `QA17F-07-cmd.txt`) |

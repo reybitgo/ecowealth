@@ -1,0 +1,49 @@
+QA17F-04 - a second run is idempotent: closed=0 and nothing written
+Date: 2026-11-12 22:02:36 +08:00
+Database: ecowealth_sneat @ 127.0.0.1 (2026-10 was closed by QA17F-03)
+
+Row counts BEFORE the second run:
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity
+periods | activity
+------------------------------------------------------------------------
+1 | 27
+(1 row)
+
+Command: php bin/unilevel_month_close.php
+EcoWealth unilevel month close
+  database:    ecowealth_sneat (127.0.0.1)
+  trigger:     cli
+  threshold:   ₱500.00 personal purchases
+  closed:      0 — nothing was pending
+  periods:     —
+  snapshot:    0 rows · 0 qualified · ₱0.00
+  duration:    12ms
+  log:         C:\laragon\www\ecowealth\system/storage\logs\unilevel_month_close-2026-11.log
+  nothing to close — 2026-10 is already closed
+
+exit code: 0
+
+Row counts AFTER the second run:
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity
+periods | activity
+------------------------------------------------------------------------
+1 | 27
+(1 row)
+
+Command: php bin/unilevel_month_close.php --json
+{
+    "ok": true,
+    "trigger": "cli",
+    "dry_run": false,
+    "closed": 0,
+    "periods": [],
+    "members": 0,
+    "qualified": 0,
+    "award_total": 0,
+    "threshold": 500,
+    "duration_ms": 12,
+    "log": "C:\\laragon\\www\\ecowealth\\system/storage\\logs\\unilevel_month_close-2026-11.log",
+    "results": []
+}
+
+exit code: 0
