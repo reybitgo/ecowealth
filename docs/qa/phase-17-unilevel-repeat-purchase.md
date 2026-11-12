@@ -14,7 +14,9 @@ copy, never on a production database.
 section B (17B — Configuration) appended 2026-11-12; section C (17C — Money engine) appended
 2026-11-12; section D (17D — Admin visibility) appended 2026-11-12; section E (17E — Member
 visibility) appended 2026-11-12; section F (17F — Operations) appended 2026-11-12; section G (17G —
-Release) appended 2026-11-12 and closes the pack. **Sections A–G: 57 checks.**
+Release) appended 2026-11-12 and closes the pack. **Sections A–G: 57 checks.** **Appendix A** (added
+after the gate, 2026-11-12) carries the fixture SQL that the UI cannot produce, plus the human
+verification record; it changes no check's expected result.
 
 ---
 
@@ -145,24 +147,33 @@ Rules that protect the project:
    nothing.
 5. **Never put a password, key, cookie or DSN in the evidence folder.**
 
-### 2.1 The Phase 17 fixture (sections B–G)
+### 2.1 The Phase 17 fixture (sections B–F)
 
-Every check from section B on needs the same small fixture. Create it **once** on the development copy,
-keep every name prefixed `QA17`, and remove it when the section is finished (each section records its
-own cleanup in `QA17X-00-setup-cleanup.txt`).
+Every check from section B on needs a small fixture. The shape is the same — one configured product and
+a five-deep sponsor chain — but **each section builds its own** and starts from the reserved baseline of
+§2.3. Build the fixture for the section you are running, keep every name prefixed `QA17`, and remove it
+when the section is finished (sections D–F record their cleanup in `QA17X-00-setup-cleanup.txt`; section
+C is restored from its dump — see §2.3).
+
+| Section | Product | Chain (buyer → level 1 → … → level 4) |
+|---|---|---|
+| B | an existing product (for example **Coffee**, id 1) | none |
+| C | `QA17 Product` (`P1`) — price ₱300, P.V. ₱250 | `qa17_buyer → qa17_c → qa17_b → qa17_a → qa17_boss` |
+| D, E | the same product | the same chain |
+| F | `QA17F-FIXTURE` | `qa17f_buyer` only |
 
 1. **The product.** Admin → Products → **New product**: name `QA17 Product`, SKU `QA17-P1`, price
    `300.00`, P.V. `250`, stock `100`, status active. In the **Unilevel repeat-purchase bonus** card press
    **Load reference ladder** (5/5/5/3/3/2/2/2/1/1 = **29.000%**), leave **Bonus base** on *Auto* and turn
    the product switch **on**; save. The product list badge must read **Repeat bonus 29%**.
-2. **The chain.** Register five members, each under the previous one, with the previous member's
-   **Referral link** (Membership → *Referral link*): `qa17_boss` first (sponsor blank → the company
-   account), then `qa17_a` under `qa17_boss`, `qa17_b` under `qa17_a`, `qa17_c` under `qa17_b`, and the
-   buyer `qa17_buyer` under `qa17_c`. The chain is
+2. **The chain (sections C–E).** Register five members, each under the previous one, with the previous
+   member's **Referral link** (Membership → *Referral link*): `qa17_boss` first (sponsor blank → the
+   company account), then `qa17_a` under `qa17_boss`, `qa17_b` under `qa17_a`, `qa17_c` under `qa17_b`,
+   and the buyer `qa17_buyer` under `qa17_c`. The chain is
    `qa17_buyer → qa17_c → qa17_b → qa17_a → qa17_boss → company`, the plan's §16.2 shape. Set each
    password to `QaPass!2345` and make sure each upline is an **active member** (Admin → Members), or the
    payable levels will be skipped.
-3. **The money.** Admin → E-wallet monitor → `qa17_buyer` → **Credit this wallet** `1000.00` with the
+3. **The money.** Admin → E-wallet monitor → `qa17_buyer` → **Credit wallet** `1000.00` with the
    note `QA17 funding`. A top-up credits the non-withdrawable bucket and can be spent at checkout.
 4. **The switch.** Admin → Settings → **Commissions** → *Repeat-purchase bonus*: tick
    **Repeat-purchase bonus enabled**, keep *Upline depth* `10` and *Monthly personal-purchase minimum*
@@ -175,11 +186,20 @@ own cleanup in `QA17X-00-setup-cleanup.txt`).
    without personal purchases in the previous month (the default state — the monthly rule blocks it once
    the previous month is treated as a real period).
 
-**Undo it.** Sections D–F record the exact cleanup SQL in `QA17D-00-setup-cleanup.txt`,
-`QA17E-00-setup-cleanup.txt` and `QA17F-00-setup-cleanup.txt` (award rows, ledger rows, the fixture
-users and products, then the settings restored to their snapshot). If you cannot run SQL, run sections
-D–G on a **copy** of the development database instead and drop the copy afterwards. Never leave a
-`QA17` row behind: `wallet_reconcile.php` must exit 0 at the end of every section.
+Where section C says **`buyer`**, **`c`**, **`b`**, **`a`**, **`boss`**, and section D says **`u1` … `u4`**,
+they are the same people: `buyer` = `qa17_buyer`, `c`/`u1` = `qa17_c`, `b`/`u2` = `qa17_b`,
+`a`/`u3` = `qa17_a`, `boss`/`u4` = `qa17_boss`.
+
+The UI builds almost all of it. The few states it cannot produce — **backdated October orders**, a
+**ledgered ₱45 debit**, and an **order paid before the feature** — are in **Appendix A**, with the exact
+SQL and its cleanup. Take the section's dump (§2.3) before you start; Appendix A assumes it.
+
+**Undo it.** Section C is restored from its dump (§2.3). Sections D–F record the exact cleanup SQL in
+`QA17D-00-setup-cleanup.txt`, `QA17E-00-setup-cleanup.txt` and `QA17F-00-setup-cleanup.txt` (award
+rows, ledger rows, the fixture users and products, then the settings restored to their snapshot). If
+you cannot run SQL, run sections D–G on a **copy** of the development database instead and drop the
+copy afterwards. Never leave a `QA17` row behind: `wallet_reconcile.php` must exit 0 at the end of
+every section.
 
 ### 2.2 Sections A and B are tag-scoped
 
@@ -195,6 +215,55 @@ as the record of that gate):
 
 Everything else in sections A–F is executable on the final tree; every number in sections C–G is the
 current build's.
+
+### 2.3 Executing sections C–G on the release tree
+
+Sections A and B are the record of their own tags (§2.2). On the release tree the executable path is
+**C → D → E → F → G**, and every money section starts from the same baseline:
+
+| Item | Baseline on `ecowealth_sneat` |
+|---|---|
+| Users | **26** |
+| `unilevel_awards` · `unilevel_periods` · `unilevel_activity` | **0 · 0 · 0** |
+| `product_unilevel_levels` | **0** |
+| Products with `unilevel_enabled = 1` | **0** |
+| `unilevel_enabled` | **0** |
+| `unilevel_ledger_since` | `2026-11-12 16:27:16` |
+
+**Dump before, restore after.** Section C has no `QA17C-00` transcript and is not self-cleaning: it
+leaves awards, four wallet credits, a closed `2026-10` period and two changed settings. Section D's
+header counts exactly four awards, and section F expects `pending 2026-10`; both need the baseline.
+Take a dump before each money section and restore it before the next:
+
+```powershell
+# before a money section — name the file for the section; --result-file avoids PowerShell's UTF-16 >
+& 'C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysqldump.exe' -h 127.0.0.1 -u root `
+  --single-transaction --routines --triggers `
+  "--result-file=C:\laragon\www\ecowealth-backups\phase-17\db-pre-qa17c.sql" ecowealth_sneat
+
+# after it — stop Apache first; this replaces the development copy
+& 'C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe' -h 127.0.0.1 -u root `
+  -e "DROP DATABASE ecowealth_sneat; CREATE DATABASE ecowealth_sneat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+& 'C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe' -h 127.0.0.1 -u root ecowealth_sneat `
+  -e "source C:/laragon/www/ecowealth-backups/phase-17/db-pre-qa17c.sql"
+```
+
+Confirm the restoration before starting the next section:
+
+```sql
+SELECT (SELECT COUNT(*) FROM users) AS users,
+       (SELECT COUNT(*) FROM unilevel_awards) AS awards,
+       (SELECT COUNT(*) FROM unilevel_periods) AS periods,
+       (SELECT COUNT(*) FROM unilevel_activity) AS activity,
+       (SELECT COUNT(*) FROM product_unilevel_levels) AS ladder,
+       (SELECT value FROM settings WHERE key_name = 'unilevel_ledger_since') AS ledger_since;
+```
+
+Expected: `26 | 0 | 0 | 0 | 0 | 2026-11-12 16:27:16`. If you would rather not replace the development
+copy, restore each dump into a scratch schema and run the section against that schema instead.
+
+A human re-run should record its own results in **Appendix A.5**, not overwrite the automated
+sign-off tables of sections 4–16.
 
 ---
 
@@ -856,7 +925,7 @@ Expected
 Steps
 
 1. Give `c` a paid October order of **₱450** (below the ₱500 threshold) and give `b`/`a`/`boss` ₱600
-   each. Run `php close.php 2026-10`.
+   each — the SQL is **Appendix A.1**. Run `php close.php 2026-10`.
 2. Pay a November order of `2 × P1` as `buyer`.
 3. Read the awards. Then set **Require the monthly Active rule** off, pay another November order and
    read again.
@@ -1021,7 +1090,8 @@ Expected
 
 Steps
 
-1. Spend ₱45 of `u1`'s ₱50 withdrawable balance (a real ledgered debit), leaving ₱5.
+1. Spend ₱45 of `u1`'s ₱50 withdrawable balance (a ledgered debit; the SQL is **Appendix A.2** — the
+   UI has no ₱45 debit, because the minimum transfer is ₱50 and the minimum payout ₱500), leaving ₱5.
 2. Admin-cancel the first paid order.
 3. Read the voided rows and the header's **Unrecovered**; check `shop_orders.unilevel_total` and the
    award rows.
@@ -1089,7 +1159,8 @@ Expected
 Steps
 
 1. Open a `pending` order.
-2. Open an order that was marked `paid` outside the app (its `unilevel_processed_at` is `NULL`).
+2. Open an order that was marked `paid` outside the app (its `unilevel_processed_at` is `NULL`;
+   **Appendix A.4** creates one).
 
 Expected
 
@@ -1418,7 +1489,8 @@ URL and a Windows launcher. It **pays no money**: the pass changes no wallet bal
 (`QA17F-2026-10-015`) for a fixture member `qa17f_buyer`, and `unilevel_ledger_since` moved back to
 `2026-10-01 00:00:00` so that month is pending. The order is above the ₱500 threshold, so the closed
 month has exactly **one qualified member** (and ₱0.00 of awards, because no repeat-purchase award
-exists on the copy).
+exists on the copy). Register the member and create `QA17F-FIXTURE` through the UI, then run
+**Appendix A.3** for the order and the baseline.
 
 **Safety.** The pass creates one user, one product, one order and one order line, then removes them
 and restores the baseline; the snapshot rows it writes are deleted with SQL (a QA cleanup of a
@@ -1842,3 +1914,180 @@ the index: a file it does not name is invisible to a reviewer.
 | Defects | nine documentation defects found by the cold read (`QA17G-02`) and fixed in this pass: **(1)** the pack did not say sections A–B are tag-scoped, so three checks would fail on the final tree (§2.2 + three inline notes); **(2)** sections B–G assumed a fixture no section told the tester how to build (§2.1); **(3)** §1 still carried the 17F counts (948 / 223) instead of the release counts (948 / 225); **(4)** `system/README.md` had `APP_PHASE` 15, the Phase 16 install counts (27/48), no migration 020 row and a stale 17E future tense; **(5)** `docs/deploy.md` had the 27/48 counts in §5B and §16, "three jobs" in §13, the "until the runbook exists" note and no 17E–17G addendum; **(6)** `docs/runbook.md` had "three jobs" in §2 and §7, 27/48 in §7 and 816 cases in §9; **(7)** `docs/qa/README.md` had the Phase 17 row frozen at "in progress (17C)", the 816/195 counts and a Phases 1–16 title; **(8)** `docs/admin-guide.md` documented the repeat ledger and reports but not the ladder card, the five settings or the monthly close; **(9)** `docs/qa/sign-off-sheet.md` had the Phase 17 section frozen at 17B with no C–G rows and no gate records. No product defect was found: the code was right and the documents were stale. |
 | Decision | ☑ Approved ☐ Approved with notes ☐ Blocked — approved from the executed transcripts: the full suite, the full smoke run, the bundle check, the reconciliation, the scratch-install deploy replay and the runbook's weekly commands. The "someone who did not write it" item stays open for the lead's review exactly as in sections A–F: the cold read was performed by the same automated pass, which is why the seven documentation defects it found are listed by name. |
 | Evidence | `docs/qa/evidence/phase-17/` (`QA17G-00-setup-cleanup.txt` … `QA17G-06-evidence.txt`) |
+
+---
+
+## Appendix A — Execution aids for a human pass
+
+*Added 2026-11-12, after the gate. These are the fixture states the sections need and the UI cannot
+produce. They change no check's expected result. Every statement targets the development copy (or a
+scratch copy), uses the `qa17_` names of §2.1, and is safe to re-run where it carries a `NOT EXISTS`
+guard. Run them with the `mysql` client as a user that may write the schema.*
+
+### A.0 Before you run one
+
+- §2.1's members and `QA17 Product` exist: SKU `QA17-P1`, price `300.00`, P.V. `250.00`, the reference
+  ladder, product switch **on**, global **Repeat-purchase bonus enabled** on.
+- `qa17_buyer` holds the `1000.00` top-up.
+- Record the baseline (`§2.3`'s query) and take the section dump **before** the first statement.
+
+### A.1 Section C-08 — the October purchases
+
+Four paid orders dated **2026-10-15**: `qa17_c` ₱450 (below the threshold), and `qa17_b`, `qa17_a`,
+`qa17_boss` ₱600 each. They carry no `unilevel_processed_at` — they represent purchases made before the
+stream existed. The month close reads `shop_order_items.line_total`, so each order has one line equal to
+its total.
+
+```sql
+-- 1. the four orders
+INSERT INTO shop_orders (order_no, user_id, status, payment_method, subtotal, shipping_fee, total,
+                         billing_name, shipping_name, shipping_address, paid_at, created_at,
+                         unilevel_total)
+SELECT v.order_no, u.id, 'paid', 'ewallet', v.amount, 0, v.amount,
+       u.full_name, u.full_name, 'QA17 fixture', v.paid_at, v.paid_at - INTERVAL 5 MINUTE, 0
+FROM (SELECT 'qa17_c'    AS username, 'QA17C-2026-10-C'    AS order_no, 450.00 AS amount,
+             '2026-10-15 10:00:00' AS paid_at
+      UNION ALL SELECT 'qa17_b',    'QA17C-2026-10-B',    600.00, '2026-10-15 10:05:00'
+      UNION ALL SELECT 'qa17_a',    'QA17C-2026-10-A',    600.00, '2026-10-15 10:10:00'
+      UNION ALL SELECT 'qa17_boss', 'QA17C-2026-10-BOSS', 600.00, '2026-10-15 10:15:00') v
+JOIN users u ON u.username = v.username
+LEFT JOIN shop_orders o ON o.order_no = v.order_no
+WHERE o.id IS NULL;
+
+-- 2. one line per order, equal to its total
+INSERT INTO shop_order_items (order_id, product_id, product_name, product_sku, quantity,
+                              unit_price, line_total, reservation_state)
+SELECT o.id, p.id, p.name, p.sku, 1, o.subtotal, o.subtotal, 'committed'
+FROM shop_orders o
+JOIN products p ON p.sku = 'QA17-P1'
+WHERE o.order_no IN ('QA17C-2026-10-C', 'QA17C-2026-10-B',
+                     'QA17C-2026-10-A', 'QA17C-2026-10-BOSS')
+  AND NOT EXISTS (SELECT 1 FROM shop_order_items i WHERE i.order_id = o.id);
+```
+
+Verify — four rows, `450.00` and three `600.00`:
+
+```sql
+SELECT u.username, o.order_no, o.paid_at, oi.line_total
+FROM shop_orders o
+JOIN users u ON u.id = o.user_id
+JOIN shop_order_items oi ON oi.order_id = o.id
+WHERE o.order_no LIKE 'QA17C-2026-10-%'
+ORDER BY u.username;
+```
+
+Then run `php close.php 2026-10` (**§7**) and continue with `QA17C-08`. The close reports `qualified 3`
+and the November order skips `qa17_c` with *recipient is not Active for 2026-10*.
+
+Cleanup: the section dump (§2.3) is the safest undo; otherwise delete the four orders and their lines
+with `order_no LIKE 'QA17C-2026-10-%'`.
+
+### A.2 Section D-03 — the ₱45 ledgered debit
+
+The section D fixture pays `qa17_c` (its `u1`) ₱25.00 on each of its two paid orders, so both buckets
+hold ₱50.00. The UI cannot take ₱45 out of the withdrawable bucket (minimum transfer ₱50, minimum
+payout ₱500), so the fixture records the spend as an `adjustment` movement and leaves the wallet at
+₱5.00 in each bucket — exactly the state a real ₱45 spend produces, and `wallet_reconcile.php` still
+exits 0.
+
+```sql
+-- run only after both paid orders: qa17_c holds 50.00 / 50.00
+INSERT INTO ewallet_ledger (user_id, type, amount, balance_after, withdrawable_after,
+                            ref_type, ref_id, note)
+SELECT u.id, 'debit', 45.00, 5.00, 5.00, 'adjustment', NULL,
+       'QA17D fixture: spend 45 of u1 withdrawable'
+FROM users u
+WHERE u.username = 'qa17_c'
+  AND NOT EXISTS (SELECT 1 FROM ewallet_ledger l
+                  WHERE l.user_id = u.id
+                    AND l.note = 'QA17D fixture: spend 45 of u1 withdrawable')
+LIMIT 1;
+
+UPDATE users SET ewallet_balance = 5.00, withdrawable_balance = 5.00
+WHERE username = 'qa17_c';
+```
+
+Verify: `php bin\wallet_reconcile.php` exits **0** with no mismatch for `qa17_c`. Then admin-cancel the
+first paid order and continue with `QA17D-03`: `qa17_c` shows **₱5.00 recovered of ₱25.00** and a
+**₱20.00 shortfall**.
+
+### A.3 Section F — the closed-month fixture
+
+Register `qa17f_buyer` and create `QA17F-FIXTURE` (any price; product switch **off**) through the UI,
+then put the one October order and the moved baseline in place:
+
+```sql
+INSERT INTO shop_orders (order_no, user_id, status, payment_method, subtotal, shipping_fee, total,
+                         billing_name, shipping_name, shipping_address, paid_at, created_at,
+                         unilevel_total)
+SELECT 'QA17F-2026-10-015', u.id, 'paid', 'ewallet', 600.00, 0, 600.00,
+       u.full_name, u.full_name, 'QA17 fixture', '2026-10-15 10:00:00', '2026-10-15 09:55:00', 0
+FROM users u
+WHERE u.username = 'qa17f_buyer'
+  AND NOT EXISTS (SELECT 1 FROM shop_orders o WHERE o.order_no = 'QA17F-2026-10-015');
+
+INSERT INTO shop_order_items (order_id, product_id, product_name, product_sku, quantity,
+                              unit_price, line_total, reservation_state)
+SELECT o.id, p.id, p.name, p.sku, 1, 600.00, 600.00, 'committed'
+FROM shop_orders o
+JOIN products p ON p.sku = 'QA17F-FIXTURE'
+WHERE o.order_no = 'QA17F-2026-10-015'
+  AND NOT EXISTS (SELECT 1 FROM shop_order_items i WHERE i.order_id = o.id);
+
+UPDATE settings SET value = '2026-10-01 00:00:00'
+WHERE key_name = 'unilevel_ledger_since';
+```
+
+Verify with `php bin\unilevel_month_close.php --doctor`: `ledger since 2026-10-01 00:00:00`,
+`pending 2026-10 (1)` and `members 27`. The dry run then reads
+`2026-10  members 27  qualified 1  award_total ₱0.00`, as `QA17F-02` expects.
+
+Cleanup: the section dump (§2.3). If you are not restoring, delete the order and its line, delete the
+`2026-10` period and activity rows, and put `unilevel_ledger_since` back to the value recorded in A.0.
+
+### A.4 Section D-06 — an order paid before the feature
+
+A paid order with **no** repeat-purchase stamp, so the order card has to explain it:
+
+```sql
+INSERT INTO shop_orders (order_no, user_id, status, payment_method, subtotal, shipping_fee, total,
+                         billing_name, shipping_name, shipping_address, paid_at, created_at,
+                         unilevel_processed_at, unilevel_total)
+SELECT 'QA17D-LEGACY-01', u.id, 'paid', 'ewallet', 300.00, 0, 300.00,
+       u.full_name, u.full_name, 'QA17 fixture', '2026-11-01 10:00:00', '2026-11-01 09:55:00',
+       NULL, 0
+FROM users u
+WHERE u.username = 'qa17_buyer'
+  AND NOT EXISTS (SELECT 1 FROM shop_orders o WHERE o.order_no = 'QA17D-LEGACY-01');
+
+INSERT INTO shop_order_items (order_id, product_id, product_name, product_sku, quantity,
+                              unit_price, line_total, reservation_state)
+SELECT o.id, p.id, p.name, p.sku, 1, 300.00, 300.00, 'committed'
+FROM shop_orders o
+JOIN products p ON p.sku = 'QA17-P1'
+WHERE o.order_no = 'QA17D-LEGACY-01'
+  AND NOT EXISTS (SELECT 1 FROM shop_order_items i WHERE i.order_id = o.id);
+```
+
+Open `/admin/orders/{id}`: the card must read **This order was paid before the repeat-purchase stream
+was switched on, so it earned no bonus**, with the stamp `NULL` and the total `0.00`.
+
+For the other half of `QA17D-06`, place a **GCash** order and leave it in `payment_review` — no SQL
+needed.
+
+### A.5 Human verification record
+
+The sign-off tables of sections 4, 6, 8, 10, 12, 14 and 16 record the automated pass of 2026-11-12.
+Record your own run here; do not overwrite them.
+
+| Section | Date | Tester | Checks passed | Notes |
+|---|---|---|---:|---|
+| A — Foundation (tag-scoped, §2.2) | | | / 8 | |
+| B — Configuration (tag-scoped, §2.2) | | | / 9 | |
+| C — Money engine | | | / 10 | |
+| D — Admin visibility | | | / 8 | |
+| E — Member visibility | | | / 9 | |
+| F — Operations | | | / 7 | |
+| G — Release | | | / 6 | |
+
+*End of pack.*
