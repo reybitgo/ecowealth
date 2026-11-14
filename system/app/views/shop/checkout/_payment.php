@@ -31,7 +31,7 @@ if (!isset($payment_methods[$selectedMethod]) || $payment_methods[$selectedMetho
                         <div class="row g-3">
 <?php foreach ($payment_methods as $methodKey => $method): ?>
                           <div class="col-12 col-md-6">
-                            <label class="checkout-payment-option<?= $method['available'] ? '' : ' is-disabled' ?><?= $selectedMethod === $methodKey ? ' is-selected' : '' ?>">
+                            <label class="checkout-payment-option<?= $method['available'] ? '' : ' is-disabled' ?>">
                               <input
                                 type="radio"
                                 name="payment_method"

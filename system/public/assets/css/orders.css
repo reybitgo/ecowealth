@@ -70,7 +70,10 @@
   border-color: rgba(var(--bs-primary-rgb), 0.45);
 }
 
-.checkout-payment-option.is-selected {
+/* The checked radio is the real state: it follows a restored draft or a
+ * click without a reload, the same `:has` pattern the payout methods
+ * use. */
+.checkout-payment-option:has(input:checked) {
   border-color: var(--bs-primary);
   box-shadow: 0 0 0 1px var(--bs-primary) inset;
   background: rgba(var(--bs-primary-rgb), 0.03);

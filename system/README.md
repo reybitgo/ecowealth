@@ -948,6 +948,11 @@ and the referral-link signup; it is editable on the **Commissions** card.
 - **The checkout page** pre-selects the e-wallet only when its balance covers the total and always shows that
   balance inside the e-wallet option. The terms are ticked by default; unticking them disables **Place order**
   (`app-checkout.js`), and the server still validates the checkbox.
+- **Typed details survive the detour.** `app-checkout.js` mirrors the delivery fields, the payment choice and the
+  two checkboxes into `sessionStorage` (per member, per tab) while the member edits them, and fills them back in
+  when the checkout is opened again. Pressing **Back to cart** and returning no longer means retyping; a notice
+  confirms the restore and offers **Start over**. The draft is dropped on submit and when a saved address is
+  picked, and the server-rendered posted values always win over it.
 - **The server owns the money.** Posted prices and totals are never read; the order total is the catalogue
   subtotal plus the stored shipping fee (`0.00` for now — decision D8 keeps shipping free in this build).
 - **Idempotent placement.** The checkout form carries a hidden key; `shop_orders.idempotency_key` is UNIQUE

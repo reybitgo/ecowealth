@@ -168,6 +168,16 @@ return [
         assert_contains('app-checkout.js', $html);
         assert_contains('checked', $tag($html, 'terms'), 'the terms start ticked');
 
+        /* The form is the anchor of the draft behaviour: a page hook so
+         * app-checkout.js can scope its key, a hidden notice it reveals
+         * after a restore, and the posted flag that tells it the server
+         * has newer values than the draft. */
+        assert_contains('data-checkout-page', $html);
+        assert_contains('data-checkout-posted="0"', $html, 'a fresh page lets the draft restore');
+        assert_contains('data-checkout-draft', $html);
+        assert_contains('data-checkout-draft-clear', $html);
+        assert_contains('Start over', $html);
+
         $placeOrder = $tag($html, 'placeOrder', 'button');
         assert_true($placeOrder !== '', 'the Place order button must render');
         assert_not_contains('disabled', $placeOrder, 'the button starts enabled');
@@ -276,6 +286,7 @@ return [
         assert_contains('value="retained-key"', $html, 'the same idempotency key is reused');
         assert_contains('value="gcash"', $html);
         assert_contains('is-invalid', $html);
+        assert_contains('data-checkout-posted="1"', $html, 'posted values beat the draft');
         assert_not_contains('value="Prefill"', $html, 'posted values beat the prefill');
 
         /* The unticked terms survive the failed submit and gate the button. */
@@ -286,7 +297,7 @@ return [
         assert_contains('Tick the terms above to place your order.', $html);
     },
 
-    'P6-T6 the checkout script gates Place order on the terms checkbox' => function (): void {
+    'P6-T6 the checkout script gates Place order and keeps a draft' => function (): void {
         $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/app-checkout.js');
 
         assert_contains('terms.checked', $js);
@@ -296,11 +307,43 @@ return [
         assert_contains("window.addEventListener('pageshow', sync);", $js);
         assert_contains("hint.classList.toggle('d-none', accepted);", $js);
 
-        /* A CSS fallback keeps the button inert before the script runs. */
+        /* The draft lives in sessionStorage, so it survives the detour
+         * through the cart but not a closed tab, and its key carries the
+         * member's own live surface so two accounts in one tab never
+         * trade addresses. */
+        assert_contains("var DRAFT_KEY = 'ecowealth:checkout-draft:';", $js);
+        assert_contains("checkoutPage().getAttribute('data-live-surface')", $js);
+        assert_contains('sessionStorage.setItem(draftKey(), JSON.stringify(draft));', $js);
+        assert_contains('sessionStorage.removeItem(draftKey());', $js);
+
+        /* The server stays the source of truth: a posted page wins over
+         * the draft, while a fresh page restores it. */
+        assert_contains("formEl.getAttribute('data-checkout-posted') === '1'", $js);
+        assert_contains('if (draft && applyDraft(draft)) {', $js);
+
+        /* Hidden controls (CSRF and the idempotency key) are never
+         * restored, and a disabled payment option is never made
+         * selected. */
+        assert_contains("type !== 'hidden'", $js);
+        assert_contains('!field.disabled', $js);
+
+        /* Typing saves on a short debounce and flushes before the page
+         * goes away; a submit drops the draft, Start over resets it. */
+        assert_contains("formEl.addEventListener('input', scheduleSave);", $js);
+        assert_contains("window.addEventListener('pagehide', flush);", $js);
+        assert_contains("formEl.addEventListener('submit'", $js);
+        assert_contains('clearDraft();', $js);
+        assert_contains('formEl.reset();', $js);
+
         $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/orders.css');
 
+        /* A CSS fallback keeps the button inert before the script runs. */
         assert_contains(':has(#terms:not(:checked)) [data-checkout-submit]', $css);
         assert_contains('pointer-events: none;', $css);
+
+        /* A restored or clicked payment method moves the card border
+         * through CSS, without touching the live region's DOM. */
+        assert_contains('.checkout-payment-option:has(input:checked)', $css);
     },
 
     'P6-T9 the orders list renders rows, filters and the empty state' => function () use ($render, $makeProduct, $makeMember, $placeOrder): void {

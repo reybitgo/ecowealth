@@ -55,6 +55,7 @@ $live = $live ?? [
 ?>
             <div
               class="container-xxl flex-grow-1 container-p-y checkout-page"
+              data-checkout-page
               data-live-surface="<?= e($live['surface']) ?>"
               data-live-enabled="<?= $live['enabled'] ? '1' : '0' ?>"
               data-live-revision="<?= (int) $live['revision'] ?>"
@@ -86,6 +87,15 @@ $live = $live ?? [
                 </a>
               </div>
 
+              <div class="alert alert-info d-flex align-items-start gap-2 mb-4 d-none" data-checkout-draft role="status" aria-live="polite">
+                <i class="icon-base bx bx-history fs-5"></i>
+                <div>
+                  <strong>Your checkout details were restored.</strong>
+                  The delivery details and payment method you typed earlier were filled back in; nothing was submitted.
+                  <button type="button" class="btn btn-sm btn-link alert-link p-0 align-baseline" data-checkout-draft-clear>Start over</button>
+                </div>
+              </div>
+
 <?php if (error_for('checkout') !== ''): ?>
               <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
                 <i class="icon-base bx bx-error-circle fs-4"></i>
@@ -93,7 +103,7 @@ $live = $live ?? [
               </div>
 <?php endif; ?>
 
-              <form method="POST" action="<?= e(url('checkout')) ?>" id="checkoutForm" novalidate>
+              <form method="POST" action="<?= e(url('checkout')) ?>" id="checkoutForm" novalidate data-checkout-posted="<?= $posted === [] ? '0' : '1' ?>">
                 <?= csrf_field() ?>
                 <input type="hidden" name="idempotency_key" value="<?= e($key) ?>" />
 

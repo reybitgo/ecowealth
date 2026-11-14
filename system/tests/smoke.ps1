@@ -1235,6 +1235,9 @@ try {
 
     Assert-That 'P6-T6' ($badTerms.Status -eq 302 -and $ordersBeforeBadTerms -eq $ordersAfterBadTerms `
             -and $termsErrorPage.Body -match 'Please accept the terms' `
+            -and $termsErrorPage.Body -match 'data-checkout-posted="1"' `
+            -and $termsPage.Body -match 'data-checkout-posted="0"' `
+            -and $termsPage.Body -match 'data-checkout-draft' `
             -and $termsErrorPage.Body.Contains('No Terms Buyer')) `
         "a checkout without terms is refused, writes no order and keeps the input (orders=$ordersAfterBadTerms)"
 
