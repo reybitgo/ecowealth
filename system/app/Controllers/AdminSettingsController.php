@@ -292,7 +292,7 @@ final class AdminSettingsController
         ],
         'unilevel_reversal_enabled' => [
             'label' => 'Reverse awards when a paid order is cancelled',
-            'hint'  => 'On: cancelling an order after its bonus was released claws the bonus back. Off: a released bonus stays. Pending bonuses are always cancelled.',
+            'hint'  => 'On: cancelling an order after its bonus was released claws the bonus back. Off: a released bonus stays. Pending bonuses are always cancelled when an order is cancelled; order cancellation itself is off by default (Shop → Enable Cancel of Order).',
         ],
         'unilevel_release_enabled' => [
             'label' => 'Release repeat-purchase bonuses',
@@ -396,6 +396,7 @@ final class AdminSettingsController
             'repeat_toggles'    => self::REPEAT_TOGGLES,
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
+            'cancel_enabled'    => Order::cancelEnabled(),
             'expiry_enabled'    => setting_bool('shop_expiry_enabled', true),
             'autocomplete_enabled' => FulfilmentService::autoCompleteEnabled(),
             'maintenance_mode'  => setting_bool('maintenance_mode', false),
@@ -686,7 +687,7 @@ final class AdminSettingsController
     {
         return match ($section) {
             'general'    => ['maintenance_mode'],
-            'shop'       => ['shop_enabled'],
+            'shop'       => ['shop_enabled', 'shop_cancel_enabled'],
             'payouts'    => array_map(
                 static fn (array $channel): string => (string) $channel['toggle'],
                 self::PAYOUT_CHANNELS
@@ -755,6 +756,7 @@ final class AdminSettingsController
     {
         $rules = [
             'shop_enabled'              => 'required|in:0,1',
+            'shop_cancel_enabled'       => 'required|in:0,1',
             'shop_expiry_enabled'       => 'required|in:0,1',
             'shop_autocomplete_enabled' => 'required|in:0,1',
             'maintenance_mode'          => 'required|in:0,1',
@@ -832,6 +834,7 @@ final class AdminSettingsController
     {
         $labels = [
             'shop_enabled'              => 'Shop',
+            'shop_cancel_enabled'       => 'Enable Cancel of Order',
             'shop_expiry_enabled'       => 'Automatic expiry',
             'shop_autocomplete_enabled' => 'Automatic completion',
             'maintenance_mode'          => 'Maintenance mode',

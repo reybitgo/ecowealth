@@ -10,7 +10,7 @@ declare(strict_types=1);
  *  touches ecowealth_sneat, ecowealth_sneat_test or their grants.
  *
  *      preflight    the check table, a missing schema, --create-database
- *      install      31 tables, 56 settings, 2 staff, 7/2/18/10, the lock
+ *      install      31 tables, 57 settings, 2 staff, 7/2/18/10, the lock
  *      credentials  the §6.8 policy, enforced before any SQL
  *      refusals     locked / not_empty, with the lock never overwritten
  *      guard        a table appearing mid-import is translated, not raw
@@ -144,7 +144,7 @@ return [
         assert_false($target->exists($missing), 'even --check --create-database creates nothing');
     },
 
-    'a fresh install produces 31/56/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
+    'a fresh install produces 31/57/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
         $clearLock();
 
         [$pdo, $database] = test_scratch_database('tool_a');
@@ -160,7 +160,7 @@ return [
             assert_same('cli', $report['channel']);
 
             assert_same(31, $report['counts']['tables_created']);
-            assert_same(56, $report['counts']['settings_rows']);
+            assert_same(57, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -171,7 +171,7 @@ return [
 
             /* The database itself, not just the report. */
             assert_count(31, test_table_list($pdo, $database));
-            assert_same(56, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(57, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
             /* Both operator passwords really authenticate. */
@@ -556,7 +556,7 @@ return [
 
             /* Nothing was deleted or added: the import is untouched. */
             assert_count(31, test_table_list($pdo, $database));
-            assert_same(56, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(57, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         } finally {
             $clearLock();
         }

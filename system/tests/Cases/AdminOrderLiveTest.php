@@ -190,6 +190,8 @@ return [
     },
 
     'review decisions and cancellations bump their surfaces' => function () use ($makeProduct, $makeMember, $placeOrder, $submitProof): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $admin   = test_user('desk_reviewer', 'admin');
         $adminId = (int) $admin['id'];
@@ -416,6 +418,8 @@ return [
     },
 
     'the detail feed renders every card and keeps escaping' => function () use ($makeProduct, $makeMember, $placeOrder): void {
+        test_enable_order_cancel();
+
         $admin   = test_user('desk_detail_admin', 'admin');
         $member  = $makeMember('<b>desk buyer</b>');
         $product = $makeProduct(['name' => '<script>alert(1)</script> Desk Coffee']);
@@ -514,6 +518,8 @@ return [
     },
 
     'the detail feed opens the review pane and the fulfilment steps' => function () use ($makeProduct, $makeMember, $placeOrder, $submitProof): void {
+        test_enable_order_cancel();
+
         $admin   = test_user('desk_steps_admin', 'admin');
         $adminId = (int) $admin['id'];
         $member  = $makeMember();
@@ -618,6 +624,8 @@ return [
     },
 
     'the order pages declare their live surfaces and regions' => function () use ($makeProduct, $makeMember, $placeOrder): void {
+        test_enable_order_cancel();
+
         $admin   = test_user('desk_page_admin', 'admin');
         $member  = $makeMember();
         $product = $makeProduct();
@@ -894,6 +902,8 @@ return [
     },
 
     'P18-T43 a cancelled-before-release order keeps its rows and says No bonus released' => function () use ($placeOrder): void {
+        test_enable_order_cancel();
+
         $product = Product::save([
             'name'             => 'P18 Card Cancel ' . bin2hex(random_bytes(3)),
             'sku'              => 'P18-CCAN-' . strtoupper(bin2hex(random_bytes(3))),

@@ -34,6 +34,7 @@ $migrations    = [
     $migrationDir . '019_audit_and_reporting.sql',
     $migrationDir . '020_unilevel_repeat_purchase.sql',
     $migrationDir . '021_unilevel_bonus_escrow.sql',
+    $migrationDir . '022_shop_cancel_toggle.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -682,6 +683,32 @@ return [
             '0',
             (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'unilevel_release_enabled'")->fetchColumn(),
             'the saved release switch survives a second run'
+        );
+    },
+
+    'P18-T26 migration 022 adds the cancellation switch off and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
+        $pdo = $buildMigrated();
+
+        /* `buildMigrated` applies 022 last, so a fully upgraded schema is
+         * already at the safe default. */
+        assert_same(
+            '0',
+            (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'shop_cancel_enabled'")->fetchColumn(),
+            'an upgraded database gets cancellation off, never the old open state'
+        );
+
+        $before = (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn();
+
+        /* A second application is a no-op and never overwrites an operator
+         * who explicitly turned cancellation on for a special case. */
+        $pdo->exec("UPDATE settings SET value = '1' WHERE key_name = 'shop_cancel_enabled'");
+        test_run_sql_file($pdo, $migrationDir . '022_shop_cancel_toggle.sql');
+
+        assert_same($before, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+        assert_same(
+            '1',
+            (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'shop_cancel_enabled'")->fetchColumn(),
+            'the saved switch survives a second run'
         );
     },
 

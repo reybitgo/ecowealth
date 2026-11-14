@@ -120,6 +120,8 @@ return [
     },
 
     'order reservations and releases bump the storefront' => function () use ($makeProduct, $makeMember, $fund, $orderInput): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['stock' => '10']);

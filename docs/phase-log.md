@@ -5021,3 +5021,73 @@ cron entry (`20 * * * *`, `--limit=200`), keep `unilevel_release_enabled = 1`, a
 superadmin-only manual release (plan §26.1) and the returns module that would use the same
 cancel-before-release contract (plan §26.2). Neither reopens this phase's gate.
 
+---
+
+## Phase 18 follow-up — order-cancellation kill switch (2026-11-14)
+
+**Status:** complete · **Numbering:** a Phase 18 follow-up; `APP_PHASE` stays **17** · **Schema:** 31
+tables, **56 → 57** settings (migration `022`; no new table) · **Tests:** `CancelSettingTest` (8 new
+cases) and the `P18-T26` migration case, plus the updated order, payment, fulfilment, invoice,
+settings, commission and escrow suites — **1008 / 1008** PHP cases and **229 / 229** smoke checks.
+
+### What changed
+
+`shop_cancel_enabled` ships **`0`** and is exposed on **Admin → Settings → Shop** as **Enable Cancel
+of Order**. While it is off (the normal state):
+
+- `Order::canMemberCancel()` / `Order::canAdminCancel()` return false, the member and admin order
+  pages replace the cancel form with an explanation, and both service methods refuse an otherwise
+  valid request with the stable `cancel_disabled` reason;
+- no `refund` ledger row is written and no wallet bucket is restored;
+- no repeat-purchase award can become `cancelled` or `voided` through a cancellation — pending awards
+  stay pending and release after delivery + the hold.
+
+Turning the switch on restores the exact pre-follow-up behaviour. The escrow plan §8 / ESC-06
+contract is unchanged on that path: a cancellation always cancels the order's `pending` awards before
+the `unilevel_reversal_enabled` check, then reverses `credited` awards best-effort. Automatic expiry
+keeps its own `shop_expiry_enabled` switch and still cancels overdue unpaid orders while the new
+switch is off; an unpaid order never produced an award or a refund.
+
+### Files and numbers
+
+- **Migration:** `database/migrations/022_shop_cancel_toggle.sql` (idempotent `INSERT … ON DUPLICATE
+  KEY UPDATE`; no table, no column).
+- **Seed / install:** `seeds/001_settings.sql` gains the key; `install.sql` is rebuilt at **58
+  statements, 74,387 bytes**, sha256 `f340e25796a5026d596d607cd77d8022e9aaa79b92df5c94d46d45632542f1cb`;
+  `DatabaseInstaller::EXPECTED['settings_rows']` is **57**, and a fresh install reports
+  **31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+- **Code:** `Models/Order` (the switch and the status/policy split), `Services/OrderService` and
+  `Services/PaymentService` (the refusals), `OrderException` / `PaymentException` (the
+  `cancel_disabled` reason), `AdminSettingsController` (rule, toggle, label, context) and the
+  `_shop.php`, `_commissions.php`, index, admin `_cancel.php` and member `_status.php` views. The
+  admin order detail ETag now mixes the shared `config` revision, so toggling the switch reaches an
+  open order page on its next poll.
+- **Tests:** `tests/Cases/CancelSettingTest.php` covers the default, the settings card, both service
+  refusals, the escrow-stays-pending case, the escrow-still-cancels case when enabled, expiry
+  independence and both order pages. Existing cancellation cases opt in with
+  `test_enable_order_cancel()`; the production seed remains off. `smoke.ps1` opens the switch for its
+  legacy cancellation walk and restores the operator's value in `finally`.
+- **Docs:** `admin-guide.md` §15 (off-by-default subsection), `runbook.md` (release pause, reversal and
+  migration `022`), `deploy.md` (migration, changelog and **57** counts), `install-reset.md`
+  (counts/bundle hash and migration range), `system/README.md` and this entry.
+
+### Gate
+
+- [x] The switch is off in the seed and in an existing database upgraded by `022`; code falls back to
+      off when the row is missing.
+- [x] A member and an admin cancellation are both refused while off, with the status/ownership guards
+      still running first; enabling it restores the old path.
+- [x] Pending escrow awards stay pending while off and release normally; enabling the switch still
+      cancels them on a cancellation (plan §8 / ESC-06).
+- [x] Automatic expiry remains governed only by `shop_expiry_enabled`.
+- [x] `build_install_sql --check` exits 0; the bundle is 58 statements / 74,387 bytes.
+- [x] The PHP suite is **1008 / 1008** and the smoke walk is **229 / 229**, with the settings-card
+      check seeing `shop_cancel_enabled` and preserving it across a shop-card save.
+
+### Deviation
+
+- `DbTargetTest` now checks a **real user with a wrong password** instead of a nonexistent user. On
+  MySQL 8.4 a missing account can report **1524** (`mysql_native_password` not loaded) before it
+  reports 1045, which is a server-plugin path rather than the credential refusal that case pins. No
+  application code changed for this; the cancellation feature is unaffected.
+

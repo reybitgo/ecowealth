@@ -87,7 +87,8 @@ $action = url('admin/settings');
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
                     Identity, where buyers send manual payments, how withdrawals are paid out, how long a buyer has to
-                    pay, what appears on the printed invoice, how commissions are earned and what transfers may move.
+                    pay, whether an order may be cancelled, what appears on the printed invoice, how commissions are
+                    earned and what transfers may move.
                     Each card saves on its own and every change is recorded in the audit log.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
@@ -137,7 +138,7 @@ $action = url('admin/settings');
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">
                         <i class="icon-base bx bx-store me-1"></i>
-                        Applies to the storefront and the checkout immediately.
+                        Applies to the storefront, the checkout and the order cancel actions immediately.
                       </span>
                       <button type="submit" class="btn btn-primary" aria-label="Save shop settings">
                         <i class="icon-base bx bx-save me-1"></i> Save settings
@@ -348,12 +349,25 @@ $action = url('admin/settings');
                       </div>
                       <div class="settings-note">
                         <div class="d-flex gap-2">
+                          <i class="icon-base bx bx-x-circle text-danger mt-1"></i>
+                          <div>
+                            <div class="fw-medium">Cancellation &amp; refunds</div>
+                            <p class="text-body-secondary small mb-0">
+                              <strong>Enable Cancel of Order</strong> is off by default: neither members nor
+                              administrators can cancel an order, so no wallet refund or repeat-purchase escrow
+                              reversal is issued. Turn it on only for a special case.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="settings-note">
+                        <div class="d-flex gap-2">
                           <i class="icon-base bx bx-error text-warning mt-1"></i>
                           <div>
                             <div class="fw-medium">Expiry &amp; completion</div>
                             <p class="text-body-secondary small mb-0">
-                              Unpaid orders are cancelled when their window closes; delivered orders complete
-                              themselves when the auto-complete window passes.
+                              Unpaid orders are cancelled by the expiry job when their window closes (its own
+                              switch); delivered orders complete themselves when the auto-complete window passes.
                             </p>
                           </div>
                         </div>

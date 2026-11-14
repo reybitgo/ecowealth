@@ -10,7 +10,7 @@ declare(strict_types=1);
  *
  *      not_found · status · expired · attempts · validation ·
  *      amount · reference · proof · self_review · reason · stock ·
- *      refund
+ *      refund · cancel_disabled
  * ============================================================== */
 
 final class PaymentException extends RuntimeException
@@ -127,6 +127,19 @@ final class PaymentException extends RuntimeException
     public static function refund(string $message): self
     {
         return new self($message, 'refund');
+    }
+
+    /**
+     * The operator closed order cancellation (`shop_cancel_enabled = 0`,
+     * the default). The caller already passed the status and segregation
+     * guards, so this is the only reason the cancellation cannot proceed.
+     */
+    public static function cancelDisabled(): self
+    {
+        return new self(
+            'Order cancellation is turned off. Turn on “Enable Cancel of Order” under Settings → Shop before cancelling an order.',
+            'cancel_disabled'
+        );
     }
 
     public static function userMissing(): self

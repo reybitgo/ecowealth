@@ -10,6 +10,8 @@ return [
         assert_same('EcoWealth', setting('site_name'));
         assert_same('PHP', setting('currency'));
         assert_same('0', setting('maintenance_mode'));
+        assert_same('0', setting('shop_cancel_enabled'), 'order cancellation ships off');
+        assert_false(setting_bool('shop_cancel_enabled'));
         assert_same('1', setting('commission_indirect_enabled'));
         assert_same('10', setting('commission_indirect_max_levels'));
         assert_same('0', setting('commission_compression'));

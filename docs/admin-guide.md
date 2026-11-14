@@ -203,7 +203,7 @@ log with a before/after per key.
 | Card | What it controls |
 |---|---|
 | **General** | Site name (title and header), tagline, maintenance mode (503 for visitors, admins bypass) |
-| **Shop** | The shop switch; closing it blocks new cart/checkout but not pending payments |
+| **Shop** | The shop switch (closing it blocks new cart/checkout but not pending payments) and **Enable Cancel of Order** (off by default) |
 | **Receiving accounts** | GCash / Maya / bank details shown at checkout and on the order page |
 | **Payout methods** | Minimum withdrawal, USDT rate, each channel's fee and switch, network fees |
 | **Payment windows** | Payment deadline, correction window, proof attempts per order, expiry kill switch |
@@ -400,6 +400,20 @@ question.
 pending award is released (no money “arrives” twice) and it does fall to `0` when an order is cancelled
 before release.
 
+### Order cancellation is off by default
+
+**Admin → Settings → Shop → Enable Cancel of Order** ships **off**. While it is off:
+
+- neither a member nor an administrator can cancel an order;
+- no e-wallet refund is issued and no `refund` ledger row is written;
+- no repeat-purchase award can become `cancelled` or `voided` through a cancellation — pending awards
+  simply stay pending and release after delivery + the hold.
+
+Turn the switch on only for a special case that genuinely needs an order cancelled; the normal
+operation leaves it off. Automatic expiry of unpaid orders is **not** affected: it keeps its own
+**Expire unpaid orders automatically** switch on the Payment windows card, and an expired unpaid order
+never produced an award or a refund.
+
 ### The two settings
 
 Both live on **Admin → Settings → Commissions → Repeat-purchase bonus**:
@@ -407,14 +421,15 @@ Both live on **Admin → Settings → Commissions → Repeat-purchase bonus**:
 | Setting | Default | Label and hint |
 |---|---:|---|
 | `unilevel_hold_days` | `7` | **Release delay after delivery** — “Days after delivery before a repeat-purchase bonus becomes withdrawable. 0 releases at delivery. Applies to new awards only; each award keeps the value it was given at payment.” Range 0–365. |
-| `unilevel_release_enabled` | `1` | **Release repeat-purchase bonuses** — “Off pauses the release job; pending bonuses stay pending. Cancelling an order still cancels its pending awards.” |
+| `unilevel_release_enabled` | `1` | **Release repeat-purchase bonuses** — “Off pauses the release job; pending bonuses stay pending. Cancelling an order still cancels its pending awards; order cancellation itself is off by default (Shop → Enable Cancel of Order).” |
 
 The two hints that changed with them:
 
 - `unilevel_enabled` (master): “Off hides the offer and stops new awards. Bonuses already pending still
   release unless **Release repeat-purchase bonuses** is also off.”
 - `unilevel_reversal_enabled`: “On: cancelling an order after its bonus was released claws the bonus
-  back. Off: a released bonus stays. Pending bonuses are always cancelled.”
+  back. Off: a released bonus stays. Pending bonuses are always cancelled when an order is cancelled;
+  order cancellation itself is off by default (Shop → Enable Cancel of Order).”
 
 **The hold is snapshotted per award.** Changing the setting moves no existing award's promised date; it
 applies to awards created after the change. `0` releases at delivery (useful for a no-returns business
@@ -424,7 +439,9 @@ and for QA).
 
 `bin/unilevel_release.php` runs hourly at `:20` (see [`cron.md` §6](cron.md)) and has its own switch.
 When it is off, runs exit 0 and log a `WARN`; pending awards keep their dates and release on the first
-run after it is switched back on. Cancelling an order still cancels its pending awards while it is off.
+run after it is switched back on. When **Enable Cancel of Order** is on, cancelling an order still
+cancels its pending awards while the release job is paused; with the cancellation switch off (the
+default) there is no cancellation to make.
 
 The quickest health check, from the admin desk or with a terminal:
 
@@ -441,8 +458,8 @@ awards the next run would credit and changes nothing; `--order=ID` tries one ord
 rule (it is a diagnostic, not a force). There is **no “release now” button** on any screen.
 
 **An undelivered order never releases.** Its award stays `Pending release` indefinitely; that is the
-delivery-based return policy working. Either deliver the order or cancel it — the cancellation moves no
-money.
+delivery-based return policy working. Deliver the order, or turn on **Enable Cancel of Order** for the
+special case and cancel it — that cancellation moves no money.
 
 ### No retroactive lock
 

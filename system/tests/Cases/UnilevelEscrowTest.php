@@ -428,6 +428,7 @@ return [
      * ========================================================== */
 
     'P18-T11 cancelling before release cancels the awards with no money moved' => function () use ($enable, $makeChain, $makeProduct, $paidOrder, $run, $awards, $ledgerRows, $withdrawable, $balance, $fund): void {
+        test_enable_order_cancel();
         $enable(7);
         $chain = $makeChain(2, 'p18_t11');
         $buyer = $chain['buyer'];
@@ -483,6 +484,7 @@ return [
     },
 
     'P18-T13 cancelling after release voids the award and records a shortfall' => function () use ($enable, $makeChain, $makeProduct, $paidOrder, $run, $awards, $legacyCredit, $withdrawable, $balance): void {
+        test_enable_order_cancel();
         $enable(0);
         $chain = $makeChain(1, 'p18_t13');
         $buyer = $chain['buyer'];
@@ -659,6 +661,7 @@ return [
      * ========================================================== */
 
     'P18-T21 the reconcile is clean after cancelling pending awards' => function () use ($enable, $makeChain, $makeProduct, $paidOrder, $run): void {
+        test_enable_order_cancel();
         $enable(7);
         $chain = $makeChain(2, 'p18_t21');
         $order = $paidOrder((int) $chain['buyer']['id'], $makeProduct());
@@ -699,6 +702,7 @@ return [
     },
 
     'P18-T23 the reconcile reports a pending award left on a cancelled order' => function () use ($enable, $makeChain, $makeProduct, $paidOrder, $run, $awards): void {
+        test_enable_order_cancel();
         $enable(7);
         $chain = $makeChain(1, 'p18_t23');
         $order = $paidOrder((int) $chain['buyer']['id'], $makeProduct());

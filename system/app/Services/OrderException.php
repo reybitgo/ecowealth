@@ -10,7 +10,8 @@ declare(strict_types=1);
  *
  *      empty_cart · stock · wallet · payment_method · product_missing
  *      product_inactive · validation · not_found · not_cancellable
- *      shop_closed · invalid_total · user_missing · duplicate
+ *      cancel_disabled · shop_closed · invalid_total · user_missing ·
+ *      duplicate
  * ============================================================== */
 
 final class OrderException extends RuntimeException
@@ -99,6 +100,19 @@ final class OrderException extends RuntimeException
                 ? 'This order has already been cancelled.'
                 : 'This order can no longer be cancelled online. Please contact support.',
             'not_cancellable'
+        );
+    }
+
+    /**
+     * The operator closed order cancellation (`shop_cancel_enabled = 0`,
+     * the default). Status and ownership checks run first, so this only
+     * answers an otherwise valid cancellation request.
+     */
+    public static function cancelDisabled(): self
+    {
+        return new self(
+            'Order cancellation is turned off. Please contact support if you need to change this order.',
+            'cancel_disabled'
         );
     }
 }

@@ -167,9 +167,9 @@ Import **one file**, `database/install.sql`, through phpMyAdmin:
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 31 | 56 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 31 | 57 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
-The bundle creates the schema, the 56 settings, both staff accounts, the seven starter
+The bundle creates the schema, the 57 settings, both staff accounts, the seven starter
 products and the two packages in one pass. It contains no `CREATE DATABASE` or `USE`, so
 it installs into whichever schema you selected.
 
@@ -257,7 +257,8 @@ If the dump is older than Phase 14, apply **every missing migration** in
 `<app>/database/migrations/` in numeric order (for example `012_commissions.sql`,
 `013_live_revisions.sql`, `014_indirect_commissions.sql`, `015_package_b_premium_ladder.sql`,
 `016_transfers.sql`, `017_payouts.sql`, `018_impersonation.sql`, `019_audit_and_reporting.sql`,
-`020_unilevel_repeat_purchase.sql`, then `021_unilevel_bonus_escrow.sql`), not just the newest one.
+`020_unilevel_repeat_purchase.sql`, `021_unilevel_bonus_escrow.sql`, then
+`022_shop_cancel_toggle.sql`), not just the newest one.
 
 > **Import size limit:** if phpMyAdmin says the file is too large, export as `.sql.gz`
 > (gzip) and import the `.sql.gz`, or split the dump. Hostinger's phpMyAdmin accepts
@@ -712,7 +713,7 @@ Open phpMyAdmin → select the database → **SQL** and run the verification pac
 `dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
 
 ```sql
--- 1. 31 tables and 56 settings on a fresh production install
+-- 1. 31 tables and 57 settings on a fresh production install
 SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
        (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
        (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
@@ -737,7 +738,7 @@ SELECT COUNT(*) AS surfaces FROM live_revisions;
 SHOW TABLES LIKE 'live_revisions';
 ```
 
-A fresh production install prints **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
+A fresh production install prints **31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
 is empty after a static `install.sql` import; it may hold a row for `admin.products` after the
 first product change, and a reset leaves 18 standard surfaces. Record the output with the
 go-live evidence (§12).
@@ -773,7 +774,7 @@ Before calling the site live:
 - [ ] Confirm no demo data leaked into production:
       `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
       and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
-- [ ] Run the verification pack (§11.6) and file its output: 31 tables, 56 settings, 2 staff,
+- [ ] Run the verification pack (§11.6) and file its output: 31 tables, 57 settings, 2 staff,
       0 members, 7 products, 2 packages, 18 levels, 10 contents, 0 codes.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
@@ -933,7 +934,7 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 - [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a
       guided installer was used (absent for a static import).
 - [ ] `DB_RESET_ENABLED` absent or `false`.
-- [ ] Verification pack (§11.6) run and filed: 31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
+- [ ] Verification pack (§11.6) run and filed: 31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
 - [ ] Database and uploads backed up **after** the checklist.
 - [ ] Error log reviewed.
 - [ ] Optional cron jobs created and tested with `--doctor`; `wallet_reconcile.php` exits 0.
@@ -988,6 +989,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-12 | Phase 17 (17A → 17G): migration 020 and the six repeat-purchase settings (§Phase 17 addendum), the money engine and the admin surfaces (§Phase 17C/17D addendum), the member surfaces and the fourth cron job (§Phase 17E/17F/17G addendum); §5B and §16 now read 31 tables / 54 settings, §13 names the four jobs, and `APP_PHASE` is 17. |
 | 2026-11-14 | Live update: the checkout page follows the shared `config` revision, so saving **Repeat-purchase bonus enabled** on `/admin/settings` removes or restores the preview line on an open checkout without a reload; §11.4 adds check 28. |
 | 2026-11-14 | Phase 18 (post-17 point release): migration `021` (the escrow columns, the `pending`/`cancelled` states, two indexes and the two settings), the fifth cron job (`bin/unilevel_release.php`), and the §Phase 18 addendum; §5B and §12 now read **31 tables / 56 settings**, §13 names **five** jobs, and `APP_PHASE` stays **17**. |
+| 2026-11-14 | Order-cancellation kill switch: migration `022` adds `shop_cancel_enabled`, **off by default**, exposed as **Settings → Shop → Enable Cancel of Order**. While it is off, no member or administrator can cancel an order, so no wallet refund and no repeat-purchase escrow reversal runs; automatic expiry keeps its own switch. §5B and §12 now read **31 tables / 57 settings**. |
 
 ---
 
@@ -1039,7 +1041,7 @@ a missed run only ever makes a limit stricter, never wider.
 ### Backups
 
 A real backup → restore drill was executed for the launch gate; the commands and the recorded result
-are in [`runbook.md` §3](runbook.md). Take a dump before applying `021` and before any later
+are in [`runbook.md` §3](runbook.md). Take a dump before applying `022` and before any later
 migration.
 
 ### Go-live
@@ -1278,7 +1280,7 @@ SELECT status, COUNT(*) FROM unilevel_awards GROUP BY status;
 -- expected on a Phase 17 database: pending 0, credited/voided/skipped unchanged
 ```
 
-A fresh `install.sql` import prints **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+A fresh `install.sql` import prints **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0** at this stage.
 
 ### Two-stage rollout (plan §25.1)
 
@@ -1327,3 +1329,40 @@ cancellation path running.
       `unilevel_release_enabled = 1`.
 - [ ] Run the QA v2 E4/E5/E6 checks on a disposable copy.
 - [ ] Verify the first live pending award and its release.
+
+---
+
+## Phase 18 follow-up — order-cancellation kill switch
+
+Migration `022_shop_cancel_toggle.sql` adds one setting and no table. It is additive and re-runnable:
+an existing database that predates it gets the safe default, never the old open behaviour.
+
+| Key | Default | Label | Meaning |
+|---|---:|---|---|
+| `shop_cancel_enabled` | `0` | **Enable Cancel of Order** (Settings → **Shop**) | `0`: no member or administrator can cancel an order, so no wallet refund and no repeat-purchase escrow reversal is issued. `1`: the normal cancellation/refund path is open. |
+
+Automatic expiry is unaffected: it keeps its own `shop_expiry_enabled` switch and still closes overdue
+**unpaid** orders. An order cancelled while the switch is off is refused with the `cancel_disabled`
+reason by both `OrderService::cancelByMember()` and `PaymentService::cancelByAdmin()`; when the switch
+is on, the escrow contract in the Phase 18 addendum still applies (pending awards are always
+cancelled, credited ones follow `unilevel_reversal_enabled`).
+
+### Counts after 022
+
+| Tables | Settings | Cron jobs | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **31** | **57** | **five** | **17** |
+
+The bundle is **58 statements, 74,387 bytes**, sha256
+`f340e25796a5026d596d607cd77d8022e9aaa79b92df5c94d46d45632542f1cb`; a fresh import prints
+**31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+
+### Upgrade checklist (022)
+
+- [ ] Back up the database.
+- [ ] Apply `022_shop_cancel_toggle.sql` after `021`.
+- [ ] `SELECT value FROM settings WHERE key_name = 'shop_cancel_enabled';` — **0** on an upgraded
+      database unless an operator explicitly turned it on.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] Open **Admin → Settings → Shop** and confirm **Enable Cancel of Order** is present and unchecked.
+- [ ] Confirm an order page offers no **Cancel order** form while it is unchecked.

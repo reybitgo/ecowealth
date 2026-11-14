@@ -14,6 +14,8 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $lines
  * @var list<array<string, mixed>> $events
  * @var bool $can_cancel
+ * @var bool $cancel_enabled
+ * @var bool $cancel_disabled
  * @var list<array<string, mixed>> $proofs
  * @var array<string, mixed>|null $latest_proof
  * @var array{open:bool, reason:string, deadline:?string, used:int, left:int, max:int} $window
@@ -60,6 +62,8 @@ $window_open     = $window_open ?? (bool) ($window['open'] ?? false);
 $window_deadline = $window_deadline ?? ($window['deadline'] ?? null);
 $is_manual       = $is_manual ?? ((string) $order['payment_method'] !== 'ewallet');
 $can_cancel      = $can_cancel ?? Order::canMemberCancel($order);
+$cancel_enabled  = $cancel_enabled ?? Order::cancelEnabled();
+$cancel_disabled = $cancel_disabled ?? (!$cancel_enabled && Order::isMemberCancellableStatus($order));
 $can_confirm     = $can_confirm ?? Order::canMemberConfirm($order);
 $auto_days       = $auto_days ?? FulfilmentService::autoCompleteDays();
 
@@ -158,6 +162,8 @@ $live = $live ?? [
     'instructions'    => $instructions,
     'can_confirm'     => $can_confirm,
     'can_cancel'      => $can_cancel,
+    'cancel_enabled'  => $cancel_enabled,
+    'cancel_disabled' => $cancel_disabled,
     'auto_days'       => $auto_days,
     'courier'         => $courier,
     'tracking'        => $tracking,

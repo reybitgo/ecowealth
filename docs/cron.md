@@ -21,6 +21,9 @@ month close has none either, on purpose: it pays no money, so there is nothing t
 
 The job that cancels unpaid shop orders once their payment (or correction) window closes, releases
 their reserved stock and records a `payment_expired` event. One implementation, three entry points.
+It is governed only by its own `shop_expiry_enabled` switch, **not** by **Enable Cancel of Order**
+(`shop_cancel_enabled`, off by default): the sweep touches only unpaid orders, which never produced a
+wallet refund or a repeat-purchase award.
 
 | Entry | Path | Use |
 |---|---|---|
@@ -199,7 +202,7 @@ the lock state, whether the log folder is writable and whether `CRON_KEY` is set
 | Delivered orders are not completing | auto-complete switch off, days not reached, or no delivered orders | `--doctor`, then `--dry-run` |
 | No period was closed on the 1st | nothing was pending, the ledger baseline is later than last month, or the month was already closed | `--doctor`, then `--dry-run` |
 | Repeat-purchase bonuses are not being released | the release switch is off, the order is not delivered, or its hold has not elapsed | `bin/unilevel_release.php --doctor`, then `--dry-run` |
-| An order's pending awards never release | the order was never delivered, so it has no `delivered_at`/`completed_at` | deliver it, or cancel it — cancellation cancels the pending awards and moves no money. There is no auto-release |
+| An order's pending awards never release | the order was never delivered, so it has no `delivered_at`/`completed_at` | deliver it, or turn on **Enable Cancel of Order** and cancel it — cancellation cancels the pending awards and moves no money. There is no auto-release |
 | `db now` differs from `timezone` | MySQL session time zone drifted | check `DB_TIMEZONE` in `app/config.php` (default `+08:00`) |
 | 500 on the URL entry | a PHP fatal — the response hides details by design | run the CLI version, or check the Apache error log |
 
@@ -687,7 +690,7 @@ and the wallet's `(user, ref_type, ref_id, type)` key is the final guard against
 | `unilevel_hold_days` | `7` | days after delivery before release (0–365; 0 releases at delivery) |
 | `unilevel_release_enabled` | `1` | **kill switch** — when `0`, every run is skipped and pending stays pending |
 | `unilevel_enabled` | `0` | master switch — off stops **new** awards, but pending ones still release |
-| `unilevel_reversal_enabled` | `1` | governs awards **already credited** only; pending awards are always cancelled with the order |
+| `unilevel_reversal_enabled` | `1` | governs awards **already credited** only; pending awards are always cancelled with the order when cancellation is enabled (Enable Cancel of Order, off by default) |
 
 > **The hold is a snapshot.** Every award stores the `unilevel_hold_days` value that was in force when
 > the order was **paid**, so changing the setting moves no existing award's promised date. The setting
@@ -703,8 +706,9 @@ and the wallet's `(user, ref_type, ref_id, type)` key is the final guard against
 - each run exits `0` and logs a `WARN`; nothing is credited;
 - pending awards stay `pending` — they are an obligation, not a loss, and they release on the first run
   after the switch is back on (the due date is unchanged);
-- **cancelling an order still cancels its pending awards.** The switch never makes a cancelled order
-  payable (ESC-06/ESC-07);
+- **when Enable Cancel of Order is on, cancelling an order still cancels its pending awards.** The
+  release switch never makes a cancelled order payable (ESC-06/ESC-07); with the cancellation switch
+  off (the default) there is no cancellation to make.
 - the member-facing reminder says **“Release is currently paused by the administrator.”**
 
 Turning the global master `unilevel_enabled` off is different: it stops new awards (a paid order is
@@ -810,7 +814,7 @@ member says a bonus never arrived. It prints:
 | `released_awards=0` and `candidates>0` | an award stopped being due between the candidate query and the lock (or a wallet refusal rolled the order back) | read the log's `errors`; the order is retried on the next run |
 | `errors>0` (exit 1) | a wallet or database failure for at least one order | the log names the order; the award stays `pending` and is retried. Do not edit award rows |
 | pending never falls on a delivered order | the order has no `delivered_at`/`completed_at`, or the hold is longer than expected | `--doctor`; a delivered order always carries the stamp |
-| pending on an undelivered order | the order is still `shipped` (or older) | **no auto-release by design.** Deliver it, or cancel it — cancellation cancels the award with no money moved |
+| pending on an undelivered order | the order is still `shipped` (or older) | **no auto-release by design.** Deliver it, or turn on **Enable Cancel of Order** and cancel it — cancellation cancels the award with no money moved |
 | `cancelled_due` is not 0 | a cancelled order kept a pending award — a real money bug | stop releases (`unilevel_release_enabled=0`), take a backup, run `php bin/wallet_reconcile.php` and escalate; never hand-edit the row |
 
 > **Undelivered orders never release.** Their pending awards stay pending forever, and that is correct
@@ -821,5 +825,6 @@ member says a bonus never arrived. It prints:
 
 The escrow walkthrough (v2) in [`qa-unilevel-product.md`](qa-unilevel-product.md) covers this job from
 the browser and the terminal: C1a (payment moves no money), the fulfilment step, C1b (delivery +
-release credits exactly once), E4 (cancellation before release pays nothing) and E6 (the hold actually
+release credits exactly once), E4 (cancellation before release pays nothing — turn on **Enable Cancel
+of Order** for the check, then turn it back off) and E6 (the hold actually
 holds).

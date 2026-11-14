@@ -155,6 +155,8 @@ return [
     },
 
     'P8-T5 an unpaid order has no invoice and never gets one' => function () use ($makeProduct, $makeMember, $manualOrder): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['price' => '30.00']);
         $order   = $manualOrder($member, $product, 1);
@@ -272,6 +274,8 @@ return [
     /* ---------- Voiding on cancellation --------------------------- */
 
     'cancelling a paid order voids its invoice without changing its content' => function () use ($makeProduct, $makeMember, $paidOrder): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['name' => 'Void Coffee', 'price' => '35.00', 'stock' => '4']);
         $order   = $paidOrder($member, $product, 1);

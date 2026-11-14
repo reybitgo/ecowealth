@@ -99,6 +99,22 @@ final class AdminOrderController
         return Live::scope($_GET, $userId) . '|day:' . date('Y-m-d');
     }
 
+    /**
+     * ETag scope for one order detail.
+     *
+     * Cancellation availability and the refund copy read the shared
+     * configuration (`shop_cancel_enabled`, the repeat-purchase reversal
+     * switch), and the payment instructions read the receiving accounts.
+     * Mixing the `config` revision into the scope means a settings save
+     * reaches an open order page on its next poll instead of leaving a
+     * stale Cancel order form behind.
+     */
+    private function detailScope(int $userId): string
+    {
+        return Live::scope($_GET, $userId)
+            . '|config:' . Live::revisionOrZero(Live::CONFIG);
+    }
+
     /** @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int} */
     private function listLiveMeta(): array
     {
@@ -247,7 +263,7 @@ final class AdminOrderController
             'ctx'  => $this->orderContext($order),
             'live' => Live::meta(
                 Live::orderSurface($orderId),
-                Live::scope($_GET, (int) (auth_user()['id'] ?? 0))
+                $this->detailScope((int) (auth_user()['id'] ?? 0))
             ),
         ]);
     }
@@ -349,6 +365,10 @@ final class AdminOrderController
                 && $latest !== null
                 && (string) $latest['status'] === 'pending',
             'can_cancel'       => !$isSelf && Order::canAdminCancel($order),
+            'cancel_enabled'   => Order::cancelEnabled(),
+            'cancel_disabled'  => !$isSelf
+                && !Order::cancelEnabled()
+                && Order::isAdminCancellableStatus($order),
             'refund_on_cancel' => !$isSelf && Order::isRefundable($order),
             'reject_reasons'   => PaymentService::REJECT_REASONS,
             'cancel_reasons'   => PaymentService::CANCEL_REASONS,
@@ -407,7 +427,7 @@ final class AdminOrderController
 
         try {
             $revision = Live::revision($surface);
-            $etag     = Live::etag($surface, $revision, Live::scope($_GET, $userId));
+            $etag     = Live::etag($surface, $revision, $this->detailScope($userId));
 
             if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
                 Live::notModified($etag);

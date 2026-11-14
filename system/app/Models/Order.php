@@ -151,10 +151,39 @@ final class Order
      *  Rules
      * ---------------------------------------------------------- */
 
+    /**
+     * Is order cancellation open? (`shop_cancel_enabled`, default off)
+     *
+     * Off is the normal state: no member or administrator may cancel an
+     * order, so the wallet-refund and repeat-purchase escrow-reversal
+     * paths cannot run. An operator turns it on only for a special case
+     * (Settings → Shop → **Enable Cancel of Order**).
+     *
+     * Automatic expiry of unpaid orders is deliberately not governed by
+     * this switch: it keeps its own `shop_expiry_enabled` key, and an
+     * expired unpaid order never produced an award or a refund.
+     */
+    public static function cancelEnabled(): bool
+    {
+        return setting_bool('shop_cancel_enabled', false);
+    }
+
+    /** Would the order status alone allow a member cancellation? */
+    public static function isMemberCancellableStatus(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), self::MEMBER_CANCELLABLE, true);
+    }
+
+    /** Would the order status alone allow an administrator cancellation? */
+    public static function isAdminCancellableStatus(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), self::ADMIN_CANCELLABLE, true);
+    }
+
     /** May the member cancel this order online? */
     public static function canMemberCancel(array $order): bool
     {
-        return in_array((string) ($order['status'] ?? ''), self::MEMBER_CANCELLABLE, true);
+        return self::cancelEnabled() && self::isMemberCancellableStatus($order);
     }
 
     /** Has the payment been received (so an invoice may exist)? */
@@ -172,13 +201,14 @@ final class Order
     /** May an administrator cancel this order (before it ships)? */
     public static function canAdminCancel(array $order): bool
     {
-        return in_array((string) ($order['status'] ?? ''), self::ADMIN_CANCELLABLE, true);
+        return self::cancelEnabled() && self::isAdminCancellableStatus($order);
     }
 
     /** Does cancelling this order owe the member a wallet refund? */
     public static function isRefundable(array $order): bool
     {
-        return in_array((string) ($order['status'] ?? ''), self::REFUNDABLE, true);
+        return self::cancelEnabled()
+            && in_array((string) ($order['status'] ?? ''), self::REFUNDABLE, true);
     }
 
     /* ----------------------------------------------------------

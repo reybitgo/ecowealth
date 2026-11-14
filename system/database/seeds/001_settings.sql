@@ -17,6 +17,12 @@ INSERT INTO settings (key_name, value) VALUES
   ('maintenance_mode',                 '0'),
   ('shop_enabled',                     '1'),
 
+  -- Order cancellation kill switch (post-Phase 18). Off by default: a
+  -- member or an administrator cannot cancel an order, so no wallet refund
+  -- and no repeat-purchase escrow reversal happens in normal operation.
+  -- Automatic expiry of unpaid orders stays under `shop_expiry_enabled`.
+  ('shop_cancel_enabled',              '0'),
+
   -- Manual payment accounts (placeholders — replace before go-live)
   ('payment_gcash_name',               'EcoWealth Trading'),
   ('payment_gcash_number',             '0917 000 0000'),

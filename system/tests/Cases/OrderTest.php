@@ -437,6 +437,8 @@ return [
     },
 
     'P6-T9 the order list filters, paginates and totals correctly' => function () use ($makeProduct, $makeMember, $addToCart, $input): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['price' => '10.00', 'stock' => '20']);
@@ -524,6 +526,8 @@ return [
     /* ---------- P6-T11 / P6-T12: cancel and events ---------------- */
 
     'P6-T11 cancelling an unpaid order releases stock and logs the transition' => function () use ($makeProduct, $makeMember, $addToCart, $input): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['price' => '20.00', 'stock' => '5']);
@@ -582,6 +586,8 @@ return [
     },
 
     'P6-T12 every transition writes one event with actor and timestamp' => function () use ($makeProduct, $makeMember, $fund, $addToCart, $input): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['price' => '15.00', 'stock' => '5']);

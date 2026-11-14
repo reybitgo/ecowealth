@@ -1187,6 +1187,7 @@ return [
      * ========================================================== */
 
     'P17C-T36 cancelling a paid order voids every award and debits the wallets' => function () use ($enable, $p1, $makeChain, $fund, $place, $legacyCredit, $awards, $withdrawable, $balance, $repeatLedger): void {
+        test_enable_order_cancel();
         $enable();
         $chain   = $makeChain(4, 'p17c_t36');
         $buyerId = (int) $chain['buyer']['id'];
@@ -1233,6 +1234,7 @@ return [
     },
 
     'P17C-T37 a partly spent wallet reverses only what it still holds' => function () use ($enable, $p1, $makeChain, $makeUser, $fund, $place, $legacyCredit, $awards, $withdrawable, $balance): void {
+        test_enable_order_cancel();
         $enable();
         $chain   = $makeChain(4, 'p17c_t37');
         $buyerId = (int) $chain['buyer']['id'];
@@ -1276,6 +1278,7 @@ return [
     },
 
     'P17C-T38 the reversal switch off leaves the awards credited' => function () use ($enable, $p1, $makeChain, $fund, $place, $legacyCredit, $awards, $settings, $withdrawable, $repeatLedger): void {
+        test_enable_order_cancel();
         $enable();
         $chain   = $makeChain(4, 'p17c_t38');
         $buyerId = (int) $chain['buyer']['id'];
@@ -1301,6 +1304,7 @@ return [
     },
 
     'P17C-T39 cancelling an unpaid order has nothing to reverse' => function () use ($enable, $p1, $makeChain, $place, $awards, $repeatLedger): void {
+        test_enable_order_cancel();
         $enable();
         $chain   = $makeChain(4, 'p17c_t39');
         $buyerId = (int) $chain['buyer']['id'];

@@ -84,6 +84,8 @@ $checked = static function (string $key) use ($settings): bool {
                         to the upline's withdrawable wallet. Independent of the referral bonuses above: it has its
                         own master switch, release switch, Active rule and reversal rule. The per-product ladder is
                         edited on the product form; this block holds the values that apply to every award.
+                        Cancelling an order is what cancels a pending award, and that action is off by default
+                        (<strong>Shop → Enable Cancel of Order</strong>).
                       </p>
 
                       <div class="row g-6">

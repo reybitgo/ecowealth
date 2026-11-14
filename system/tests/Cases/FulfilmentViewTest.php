@@ -520,6 +520,8 @@ return [
     },
 
     'P8 the invoice page marks a voided document and keeps its content' => function () use ($makeProduct, $makeMember, $paidOrder, $invoiceHtml): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['name' => 'Void Coffee', 'price' => '35.00', 'stock' => '3']);
         $order   = $paidOrder($member, $product, 1);

@@ -53,7 +53,9 @@ prepared exactly as described.
 >   and **C1b** checks delivery + release (the wallet rises by exactly ₱12.50).
 > - A **fulfilment step** (pack → ready → ship → deliver) now sits between them; the fast path uses
 >   `unilevel_hold_days = 0`.
-> - **E4** is a cancellation **before** release: no debit, no reversal row, **no shortfall**.
+> - **E4** is a cancellation **before** release: no debit, no reversal row, **no shortfall**. It needs
+>   **Enable Cancel of Order** switched on first (Settings → Shop; it ships off), then switched back
+>   off afterwards.
 > - **E5** (the payout reminder) and **E6** (the hold actually holds) are new.
 > - Where a section's behaviour changed, the v1 **“Observed”** note (captured on the Phase 17 build,
 >   which credited at payment) was **removed or relabelled as v1 history**; the expectation above it is
@@ -1601,12 +1603,14 @@ after, and the list badge.
 | | |
 |---|---|
 | **Why it matters** | A cancelled sale must not leave bonus money behind. On a new order the award is still pending, so cancelling it must move **no** money: no debit, no reversal row and no shortfall. The order and its cancelled rows must stay visible as history. |
-| **Where** | Peter → **Shop** → **Checkout** · Admin → **Orders** → the second order → **Cancel order** · Admin → **Commissions** → **Repeat-purchase bonus** |
+| **Where** | Admin → **Settings → Shop → Enable Cancel of Order** (turn it on first) · Peter → **Shop** → **Checkout** · Admin → **Orders** → the second order → **Cancel order** · Admin → **Commissions** → **Repeat-purchase bonus** |
 | **Evidence** | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_order_cancelled.jpeg`, `8_e4_admin_ledger_cancelled.jpeg` (expected names, in `docs/qa/evidence/unilevel-escrow/`) |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
 
 **Do this**
 
+0. In Window A, open **Settings → Shop** and turn on **Enable Cancel of Order**, then save. It ships
+   off, so the **Cancel order** card does not exist until it is on. Turn it back off after E4.
 1. In Window B, sign in as `peter`. **Before buying**, record maria's and juan's current
    **Withdrawable**, **Pending release**, **Total funds** and **Earnings → Repeat-purchase bonus**
    **Total credited** values. C1b already released the first order, so these are the baseline; on a

@@ -45,7 +45,8 @@ mode. A second overlapping run logs `[SKIP ]` and exits 0. The month close pays 
 kill switch: it must snapshot a month even while the repeat-purchase stream is off. It catches up on
 any month it missed, oldest first. The release job **does** have a switch
 (`unilevel_release_enabled`): turning it off pauses the credits but keeps every pending award, and
-cancelling an order still cancels its pending awards.
+cancelling an order still cancels its pending awards — provided **Enable Cancel of Order** is on
+(it ships off; see §“Order cancellation is off by default” in the admin guide).
 
 **If a job misses a day:** the expiry and auto-complete jobs catch up on their next run (they act on
 stored deadlines); the month close closes every pending month on its next run; every due release is
@@ -125,7 +126,7 @@ also needs `config.local.php`, the uploads folder and the `system/storage` folde
 
 ### Install a fresh database
 
-Every install path ends at the same state: **31 tables, 56 settings, 2 staff accounts, 7
+Every install path ends at the same state: **31 tables, 57 settings, 2 staff accounts, 7
 products, 2 packages, 18 ladder levels, 10 package contents, 0 members, 0 codes**. None of
 them may be run against a schema that already holds data — `install.sql` is fresh-install only,
 and an existing database is upgraded with `database/migrations/NNN_*.sql` ([§5](#5-deploying-an-update)).
@@ -385,15 +386,18 @@ trusted; any other caller needs `?key=`). The HTTP form works when there is no t
 
 **Pausing releases.** Set `settings.unilevel_release_enabled = 0`. The job then exits 0, logs a
 `WARN` and credits nothing; pending awards stay pending with their due dates unchanged, so they release
-on the first run after the switch is back on. Cancelling an order still cancels its pending awards
-while releases are paused. Do not “pause” by turning off the master switch — `unilevel_enabled = 0`
-stops *new* awards and still lets the pending ones release.
+on the first run after the switch is back on. When **Enable Cancel of Order** is on, cancelling an
+order still cancels its pending awards while releases are paused; with the cancellation switch off
+(the default) there is no cancellation to make. Do not “pause” by turning off the master switch —
+`unilevel_enabled = 0` stops *new* awards and still lets the pending ones release.
 
 **Rollback and roll-forward.** The release is safe to pause (`unilevel_release_enabled = 0`) and safe
-to resume; there is no lost money either way. Do **not** revert the cancellation path: pending awards
-must always be cancelled with the order, before the `unilevel_reversal_enabled` check. If a bad release
-must be undone, that is a reversal decision for the developer and finance, not an `UPDATE`; the
-supported lever is to pause releases and fix the cause.
+to resume; there is no lost money either way. Do **not** revert the cancellation path: when an order is
+cancelled, pending awards must always be cancelled with it, before the `unilevel_reversal_enabled`
+check. Do not bypass **Enable Cancel of Order** with a direct SQL status change either; turning the
+switch on is the supported way to open the path. If a bad release must be undone, that is a reversal
+decision for the developer and finance, not an `UPDATE`; the supported lever is to pause releases and
+fix the cause.
 
 **The month clock (weekly, and on the 1st).** The Active rule reads the month that just ended. Confirm
 the snapshot exists before you trust a "not Active" complaint:
@@ -444,7 +448,8 @@ clock it reads.
    cancellation recomputes it; a manual correction is a developer script, never an
    `UPDATE … SET unilevel_total`.
 
-**Reversing a payout.** Admin-cancel the paid order (`/admin/orders/{id}`):
+**Reversing a payout.** Turn on **Settings → Shop → Enable Cancel of Order** for the special case,
+then admin-cancel the paid order (`/admin/orders/{id}`). Turn the switch back off afterwards.
 
 - **Before release**, its `pending` awards become `cancelled`: **no wallet debit, no reversal row, no
   shortfall**. The buyer is refunded as usual and the order's `unilevel_total` drops to `0`. This is
@@ -455,7 +460,8 @@ clock it reads.
   credited awards alone — a business decision, not a repair path. In the current lifecycle an order
   cannot be cancelled after it ships, so this path is legacy.
 
-A negative balance is impossible and a cancellation is never blocked.
+A negative balance is impossible. A wallet rule never blocks a cancellation; the only gate is the
+operator's **Enable Cancel of Order** switch, which ships off.
 
 **Turning it off.** Set `settings.unilevel_enabled = 0` first; new payments are stamped and pay
 nothing immediately. Existing `pending` awards still release unless `unilevel_release_enabled` is also
@@ -489,7 +495,8 @@ Full instructions are in [`deploy.md`](deploy.md). The short version:
 1. Back up the database (§3) and the current files.
 2. Copy the files; keep `config.local.php` and `uploads/` from the server.
 3. Apply migrations in order — the current build is at
-   **021_unilevel_bonus_escrow.sql** (the repeat-purchase escrow; the Phase 17 build was `020`).
+   **022_shop_cancel_toggle.sql** (the order-cancellation kill switch, off by default; the
+   repeat-purchase escrow was `021` and the Phase 17 build was `020`).
    `php bin` has no migration runner; import with the MySQL client, then compare with
    `database\schema.sql` (`php tests\run.php Migration` does that automatically on a scratch
    schema). Never import `database/install.sql` into an existing database: it is fresh-install
@@ -558,9 +565,9 @@ database dump before investigating further.
 
 ## 7. Go-live checklist (plan §9.6)
 
-- [ ] Production database created and migrated to `021`; `schema.sql` matches. A fresh install
+- [ ] Production database created and migrated to `022`; `schema.sql` matches. A fresh install
       was verified with the pack in [deploy.md §11.6](deploy.md#116-check-the-database):
-      **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+      **31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
 - [ ] Seeds replaced or removed: **only one admin and one superadmin**, no demo members, codes,
       orders or wallets (the `005_demo_tree.sql` data is demo only). The two demo queries in
       [deploy.md §12](deploy.md#12-secure-and-clean-up) both return `0`.

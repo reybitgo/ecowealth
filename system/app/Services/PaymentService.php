@@ -547,6 +547,13 @@ final class PaymentService
      * left "awaiting review", and refunds a wallet-paid order to the
      * same buckets the purchase spent from.
      *
+     * The operator can close this path with `shop_cancel_enabled = 0`
+     * (the default, Settings → Shop → **Enable Cancel of Order**). The
+     * status guard runs first, then the policy guard; once cancellation
+     * is open the escrow contract is unchanged: pending repeat-purchase
+     * awards are always cancelled (plan §8, ESC-06) and credited ones are
+     * only reversed while `unilevel_reversal_enabled` is on.
+     *
      * @return array{order_id:int, status:string, refunded:float, reason:string}
      */
     public function cancelByAdmin(int $adminId, int $orderId, string $reasonCode, string $note = ''): array
@@ -582,6 +589,10 @@ final class PaymentService
 
             if (!in_array($status, Order::ADMIN_CANCELLABLE, true)) {
                 throw PaymentException::status('cancelled', $status);
+            }
+
+            if (!Order::cancelEnabled()) {
+                throw PaymentException::cancelDisabled();
             }
 
             $reasonText = self::CANCEL_REASONS[$reasonCode] . ($note === '' ? '' : ' — ' . $note);
@@ -724,6 +735,10 @@ final class PaymentService
     {
         $mode = $fromSettings ? 'settings' : 'stamps';
 
+        /* The cancellation switch (`shop_cancel_enabled`, default off) is
+         * deliberately not read here: expiry is housekeeping on an unpaid
+         * order, which never produced an award or a refund. Its own
+         * `shop_expiry_enabled` switch governs it. */
         if (!self::expiryEnabled()) {
             return [
                 'expired'    => 0,

@@ -234,7 +234,12 @@ return [
 
     'bad credentials map to a 1045 hint and never echo the password' => function (): void {
         $secret = 'S3cr3t-' . bin2hex(random_bytes(6));
-        $target = new DbTarget(DB_HOST, DB_PORT, 'ecowealth_no_such_user', $secret, DB_CHARSET, DB_TIMEZONE);
+
+        /* A real user with the wrong password. An unknown user can make
+         * MySQL 8.4 report the missing mysql_native_password plugin
+         * (1524) before it reports "access denied", which is a server
+         * configuration path, not the credential refusal this case pins. */
+        $target = new DbTarget(DB_HOST, DB_PORT, DB_USER, $secret, DB_CHARSET, DB_TIMEZONE);
 
         $e = assert_throws(static fn (): PDO => $target->connect(), DatabaseToolException::class);
 

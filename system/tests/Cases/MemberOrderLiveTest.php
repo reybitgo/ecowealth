@@ -86,6 +86,8 @@ return [
     },
 
     'placement, cancellation and fulfilment bump the member order surfaces' => function () use ($makeProduct, $makeMember, $fund, $orderInput): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct();
@@ -202,6 +204,8 @@ return [
     },
 
     'the order detail feed renders every card with the forms held' => function () use ($makeProduct, $makeMember, $orderInput): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct();

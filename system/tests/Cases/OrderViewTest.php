@@ -523,6 +523,8 @@ return [
     },
 
     'P6-T11 a cancelled order shows its reason and no cancel form' => function () use ($render, $makeProduct, $makeMember, $placeOrder): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['price' => '30.00']);
 

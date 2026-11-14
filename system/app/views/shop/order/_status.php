@@ -20,6 +20,8 @@ declare(strict_types=1);
  * @var array<string, string> $instructions
  * @var bool   $can_confirm
  * @var bool   $can_cancel
+ * @var bool   $cancel_enabled
+ * @var bool   $cancel_disabled
  * @var int    $auto_days
  */
 
@@ -31,6 +33,9 @@ $latestProof    = $latest_proof ?? null;
 $instructions   = $instructions ?? [];
 $canConfirm     = (bool) ($can_confirm ?? false);
 $canCancel      = (bool) ($can_cancel ?? false);
+$cancelEnabled  = (bool) ($cancel_enabled ?? Order::cancelEnabled());
+$cancelDisabled = (bool) ($cancel_disabled
+    ?? (!$cancelEnabled && Order::isMemberCancellableStatus($order)));
 $autoDays       = (int) ($auto_days ?? FulfilmentService::autoCompleteDays());
 $overdue        = (bool) ($overdue ?? false);
 ?>
@@ -339,7 +344,12 @@ $overdue        = (bool) ($overdue ?? false);
 <?php if (($window['reason'] ?? '') === 'attempts'): ?>
                           <i class="icon-base bx bx-info-circle me-1"></i> No proof attempts left. Please contact support with your reference number.
 <?php elseif ($overdue): ?>
-                          <i class="icon-base bx bx-time me-1"></i> The payment window has closed, so a proof can no longer be uploaded. You can cancel this order below and place a new one.
+                          <i class="icon-base bx bx-time me-1"></i>
+<?php if ($canCancel): ?>
+                          The payment window has closed, so a proof can no longer be uploaded. You can cancel this order below and place a new one.
+<?php else: ?>
+                          The payment window has closed, so a proof can no longer be uploaded and order cancellation is currently unavailable. Please contact support.
+<?php endif; ?>
 <?php else: ?>
                           <i class="icon-base bx bx-info-circle me-1"></i> A payment proof cannot be uploaded for this order right now.
 <?php endif; ?>
@@ -369,6 +379,15 @@ $overdue        = (bool) ($overdue ?? false);
                             <i class="icon-base bx bx-x me-1"></i> Cancel order
                           </button>
                         </form>
+                      </div>
+<?php endif; ?>
+
+<?php if (!$canCancel && $cancelDisabled && !$overdue): ?>
+                      <div class="card-footer">
+                        <p class="text-body-secondary small mb-0">
+                          <i class="icon-base bx bx-lock-alt me-1"></i>
+                          Order cancellation is turned off. Please contact support if you need to change this order.
+                        </p>
                       </div>
 <?php endif; ?>
                     </div>

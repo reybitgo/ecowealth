@@ -21,7 +21,11 @@ payment to release: a paid order writes **`pending`** awards and moves no money,
 credits the upline's withdrawable wallet after delivery + the award's snapshotted hold, cancellation
 before release cancels the awards with no shortfall, and the member/admin surfaces show **Pending
 release** and **Total funds**. The stream ships **off** and pays nothing until an operator configures
-a product and turns the global master on.
+a product and turns the global master on. A Phase 18 follow-up adds the **order-cancellation kill
+switch**: `shop_cancel_enabled` (**Settings → Shop → Enable Cancel of Order**) ships **off**, so
+neither a member nor an administrator can cancel an order — and therefore no wallet refund or
+repeat-purchase escrow reversal runs — until an operator opens it for a special case. Automatic
+expiry keeps its own switch and still closes unpaid orders.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -128,7 +132,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 31 tables, the 56 settings, both staff accounts,
+   `database/install.sql` creates the 31 tables, the 57 settings, both staff accounts,
    the seven starter products and the two packages. It seeds **no** demo members, demo
    codes or demo wallets, and it refuses to run against a non-empty schema.
 
@@ -139,7 +143,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 31 | 56 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 31 | 57 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
    The bundle is **generated** from `database/schema.sql` and seeds 001–004. Edit those
    sources, then rebuild and verify:
@@ -469,15 +473,15 @@ system/
 │   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
 │   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 020_unilevel_repeat_purchase
+│   ├── migrations/            001_settings_roles … 022_shop_cancel_toggle
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures, the
     │                          scratch-schema and information_schema helpers
     ├── run.php                php tests/run.php [filter]
     ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5, P17B-T1 … P17F-T11)
-    ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, View, Upload,
-    │                          Migration, Product, ProductView, Package, PackageView, Cart,
+    ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, CancelSetting, View,
+    │                          Upload, Migration, Product, ProductView, Package, PackageView, Cart,
     │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
     │                          PaymentView, PaymentDetails, Fulfilment, FulfilmentView, Invoice,
     │                          Cron, Membership, MembershipView, Live, Commission, Transfer,
@@ -703,7 +707,7 @@ page is the complete settings surface — **eight independent cards**, each with
 | Card | Keys |
 |---|---|
 | **General** | `site_name` (rendered in the title and header), `site_tagline`, `maintenance_mode` |
-| **Shop** | `shop_enabled` |
+| **Shop** | `shop_enabled`, `shop_cancel_enabled` (**Enable Cancel of Order**, off by default) |
 | **Receiving accounts** | `payment_gcash_*`, `payment_maya_*`, `payment_bank_*` |
 | **Payout methods** | `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee`, `payout_<method>_enabled` |
 | **Payment windows** | `shop_payment_deadline_hours`, `shop_correction_window_hours`, `shop_max_proof_attempts`, `shop_expiry_enabled` |
@@ -1510,6 +1514,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `019_audit_and_reporting.sql` | the Phase 15 report indexes (`audit_log.action`, `audit_log.created_at`, `shop_orders.created_at/paid_at`, `ewallet_ledger.created_at`, `commissions.level`, `reg_codes.created_at`); re-creates `audit_log` when an old install skipped it; every step is idempotent |
 | `020_unilevel_repeat_purchase.sql` | `product_unilevel_levels`, `unilevel_awards`, `unilevel_periods`, `unilevel_activity`; `products.pv` + `unilevel_base` + `unilevel_enabled`; `shop_order_items.unit_base` + `base_total`; `shop_orders.unilevel_processed_at` + `unilevel_total`; two order indexes; `ewallet_ledger.ref_type` gains `unilevel` and `unilevel_reversal`; the six `unilevel%` settings (all off by default); additive and re-runnable |
 | `021_unilevel_bonus_escrow.sql` | `unilevel_awards.hold_days` (`SMALLINT UNSIGNED`, default 0) + `credited_at`; the status enum gains `pending` (the new default) and `cancelled`; `idx_unilevel_user_status` + `idx_unilevel_order_status`; `credited_at` backfilled from `created_at` for existing `credited`/`voided` rows; the two settings `unilevel_hold_days` (7) and `unilevel_release_enabled` (1); additive and re-runnable, **no new table and no retroactive lock** |
+| `022_shop_cancel_toggle.sql` | The setting `shop_cancel_enabled` (**Enable Cancel of Order**, **0** = closed) only; additive and re-runnable, **no table, no column**, so an upgraded database gets the safe default |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

@@ -25,6 +25,8 @@ declare(strict_types=1);
  * @var bool|null $is_self
  * @var bool|null $can_review
  * @var bool|null $can_cancel
+ * @var bool|null $cancel_enabled
+ * @var bool|null $cancel_disabled
  * @var bool|null $refund_on_cancel
  * @var array<string, string>|null $reject_reasons
  * @var array<string, string>|null $cancel_reasons
@@ -59,6 +61,8 @@ if (!isset($ctx) || !is_array($ctx)) {
         'is_self'          => (bool) ($is_self ?? false),
         'can_review'       => (bool) ($can_review ?? false),
         'can_cancel'       => (bool) ($can_cancel ?? false),
+        'cancel_enabled'   => (bool) ($cancel_enabled ?? Order::cancelEnabled()),
+        'cancel_disabled'  => (bool) ($cancel_disabled ?? false),
         'refund_on_cancel' => (bool) ($refund_on_cancel ?? false),
         'reject_reasons'   => $reject_reasons ?? PaymentService::REJECT_REASONS,
         'cancel_reasons'   => $cancel_reasons ?? PaymentService::CANCEL_REASONS,

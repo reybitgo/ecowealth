@@ -637,6 +637,28 @@ function test_legacy_credit_unilevel(int $orderId): void
     }
 }
 
+/**
+ * Open or close the order-cancellation kill switch for a case.
+ *
+ * `shop_cancel_enabled` is off in the production seed and in this test
+ * schema, because that is the shipped default. Cases that exercise the
+ * legacy cancellation/refund path (or a page that offers the Cancel order
+ * form) opt in explicitly; the default-off cases live in
+ * `CancelSettingTest`. The setting change rolls back with the case.
+ */
+function test_enable_order_cancel(bool $enabled = true): void
+{
+    setting_set('shop_cancel_enabled', $enabled ? '1' : '0');
+    setting_cache_clear();
+
+    /* Reload the full table immediately. Without this, the next
+     * setting_set() in a case would create a cache containing only the
+     * keys that case writes, and a later setting() for
+     * shop_cancel_enabled would miss the row while the raw database has
+     * it (the setting would read off even though it was turned on). */
+    setting_all();
+}
+
 /** Sign the harness in as the given user row (for layout/guard tests). */
 function test_signed_in_as(?array $user): void{
     /* Never let an S-Login fixture leak between cases: the transport

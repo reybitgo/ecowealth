@@ -283,6 +283,9 @@ final class OrderController
             'shipment'        => $shipment,
             'invoice'         => $invoice,
             'can_cancel'      => Order::canMemberCancel($order),
+            'cancel_enabled'  => Order::cancelEnabled(),
+            'cancel_disabled' => !Order::cancelEnabled()
+                && Order::isMemberCancellableStatus($order),
             'can_confirm'     => Order::canMemberConfirm($order),
             'auto_days'       => FulfilmentService::autoCompleteDays(),
             'status'          => $status,
@@ -372,6 +375,8 @@ final class OrderController
                     'instructions'    => $data['instructions'],
                     'can_confirm'     => $data['can_confirm'],
                     'can_cancel'      => $data['can_cancel'],
+                    'cancel_enabled'  => $data['cancel_enabled'],
+                    'cancel_disabled' => $data['cancel_disabled'],
                     'auto_days'       => $data['auto_days'],
                     'courier'         => $data['courier'],
                     'tracking'        => $data['tracking'],

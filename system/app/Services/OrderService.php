@@ -357,6 +357,13 @@ final class OrderService
      * it through PaymentService::cancelByAdmin(), which refunds a
      * wallet-paid order and releases the stock (Phase 7, P7-T12).
      *
+     * The operator can close this path with `shop_cancel_enabled = 0`
+     * (the default, Settings → Shop → **Enable Cancel of Order**). The
+     * status check runs first so an already-cancelled order still gets
+     * the precise status message; the policy check then refuses every
+     * otherwise valid request. Closing the path also closes the escrow
+     * reversal, because cancellation is its only trigger.
+     *
      * @return array{order_id:int, status:string, reason:string}
      */
     public function cancelByMember(int $userId, int $orderId, string $reason = ''): array
@@ -380,6 +387,10 @@ final class OrderService
 
             if (!in_array($status, Order::MEMBER_CANCELLABLE, true)) {
                 throw OrderException::notCancellable($status);
+            }
+
+            if (!Order::cancelEnabled()) {
+                throw OrderException::cancelDisabled();
             }
 
             $productIds = $this->productIdsForOrder($orderId);

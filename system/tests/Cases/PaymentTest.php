@@ -675,6 +675,8 @@ return [
     /* ---------- P7-T12: admin cancellation and refunds ------------- */
 
     'P7-T12 cancelling a wallet-paid order refunds the buckets it spent' => function () use ($makeProduct, $makeMember, $fund, $placeOrder): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['price' => '120.00', 'stock' => '3']);
@@ -728,6 +730,8 @@ return [
     },
 
     'P7-T12 cancelling a proof-paid order refunds nothing' => function () use ($makeProduct, $makeMember, $placeOrder, $submit): void {
+        test_enable_order_cancel();
+
         $member   = $makeMember();
         $userId   = (int) $member['id'];
         $product  = $makeProduct(['price' => '35.00', 'stock' => '3']);
@@ -753,6 +757,8 @@ return [
     },
 
     'P7-T12 an admin cancel rejects a pending proof and never double-cancels' => function () use ($makeProduct, $makeMember, $placeOrder, $submit): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['price' => '25.00', 'stock' => '2']);

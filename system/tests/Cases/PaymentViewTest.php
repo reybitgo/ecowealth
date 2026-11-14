@@ -250,6 +250,8 @@ return [
     },
 
     'P7-T5 the rejected page shows the reason, the window and the retry form' => function () use ($render, $makeProduct, $makeMember, $placeOrder, $submit, $memberOrderHtml): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['price' => '40.00']);
         $orderId = $placeOrder($member, $product);
@@ -347,6 +349,8 @@ return [
     },
 
     'P7-T12 a cancelled order says what happened to the money' => function () use ($render, $makeProduct, $makeMember, $placeOrder, $fund, $memberOrderHtml): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $userId  = (int) $member['id'];
         $product = $makeProduct(['price' => '40.00']);
@@ -430,6 +434,8 @@ return [
     },
 
     'P7-T12 a paid order shows the refunding cancel action' => function () use ($makeProduct, $makeMember, $placeOrder, $fund, $adminOrderHtml): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['price' => '40.00']);
 
@@ -453,6 +459,8 @@ return [
     },
 
     'P7-T5 the rejected order tells the admin the correction window is open' => function () use ($makeProduct, $makeMember, $placeOrder, $submit, $adminOrderHtml): void {
+        test_enable_order_cancel();
+
         $member  = $makeMember();
         $product = $makeProduct(['price' => '40.00']);
         $orderId = $placeOrder($member, $product);

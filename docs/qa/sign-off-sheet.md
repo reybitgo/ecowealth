@@ -727,7 +727,7 @@ php bin/unilevel_release.php --doctor      # cancelled_due 0, due_now 0 after th
 
 | # | Result |
 |---|---|
-| Migration `021` applied twice (idempotent); a fresh install reads **31 tables / 56 settings** | ☐ Pass ☐ Fail ☐ Blocked |
+| Migrations `021` and `022` applied twice (idempotent); a fresh install reads **31 tables / 57 settings** | ☐ Pass ☐ Fail ☐ Blocked |
 | A paid order writes `pending` awards and **zero** wallet movements | ☐ Pass ☐ Fail ☐ Blocked |
 | The release job credits exactly once, and a second run credits nothing | ☐ Pass ☐ Fail ☐ Blocked |
 | `php bin/unilevel_release.php --doctor` is clean (`cancelled_due` 0) | ☐ Pass ☐ Fail ☐ Blocked |
@@ -741,7 +741,7 @@ php bin/unilevel_release.php --doctor      # cancelled_due 0, due_now 0 after th
 | C1a | At payment the upline's wallet does **not** move: **Pending release ₱12.50**, **Total funds** +₱12.50, no statement row | ☐ Pass ☐ Fail ☐ Blocked | `6_c1a_maria_pending.jpeg` |
 | C1b | After delivery + the release run the wallet rises by exactly ₱12.50 once; the award is **Credited** with a release date | ☐ Pass ☐ Fail ☐ Blocked | `6_c1b_maria_released.jpeg`, `6_c1b_admin_order_released.jpeg` |
 | C4 | The buyer's own statement has no award, and their wallet shows no pending bonus for their own purchase | ☐ Pass ☐ Fail ☐ Blocked | `6_c4_buyer_statement.jpeg` |
-| E4 | Cancelling a paid-but-undelivered order: rows **Cancelled before release**, no wallet debit or reversal, **Unrecovered ₱0.00**, and a release run pays it nothing | ☐ Pass ☐ Fail ☐ Blocked | `8_e4_cancel_order.jpeg`, `8_e4_admin_after_cancel.jpeg` |
+| E4 | Cancelling a paid-but-undelivered order (turn on **Enable Cancel of Order** first; it ships off): rows **Cancelled before release**, no wallet debit or reversal, **Unrecovered ₱0.00**, and a release run pays it nothing | ☐ Pass ☐ Fail ☐ Blocked | `8_e4_cancel_order.jpeg`, `8_e4_admin_after_cancel.jpeg` |
 | E5 | The payout page shows **Pending release**, the form says it is not included, the over-limit refusal names it, and the success flash names it — no modal, no checkbox | ☐ Pass ☐ Fail ☐ Blocked | `10_e5_payout_reminder.jpeg`, `10_e5_over_limit.jpeg` |
 | E6 | With `unilevel_hold_days = 7`, a delivered order's award stays **Pending release** until the hold elapses (no waiting: the check proves the hold) | ☐ Pass ☐ Fail ☐ Blocked | `10_e6_hold_still_pending.jpeg` |
 
@@ -803,7 +803,8 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 17E | ☑ Yes ☐ No | 9 / 9 checks passed; 938 / 938 PHP cases, 223 / 223 smoke checks; the member panel, preview, order card, repeat tab, tile and paragraph green, including the 390 px pass. |
 | Phase 17F | ☑ Yes ☐ No | 7 / 7 checks passed; 948 / 948 PHP cases, 223 / 223 smoke checks; the doctor, dry run, real close, idempotency, period edges, URL entry and `.cmd` green. |
 | Phase 17G | ☑ Yes ☐ No | 6 / 6 checks passed; 948 / 948 PHP cases, 225 / 225 smoke checks, `build_install_sql --check` exit 0, `wallet_reconcile` exit 0, `APP_PHASE = 17`; the release acceptance table 27 / 27 and the scratch-install deploy replay green; three deviations recorded (no build-phase badge, nine documentation corrections, the automated manual pass). |
-| Phase 18 | ☐ Yes ☐ No | Post-17 point release (`APP_PHASE` stays 17): migration `021`, **31 tables / 56 settings**, five cron jobs; the escrow checks C1a, C1b, C4, E4, E5, E6 in §19, plus the automated pending/release/reconcile rows. Record the counts and the evidence names on the lines above. |
+| Phase 18 | ☐ Yes ☐ No | Post-17 point release (`APP_PHASE` stays 17): migrations `021`–`022`, **31 tables / 57 settings**, five cron jobs; the escrow checks C1a, C1b, C4, E4, E5, E6 in §19 (E4 needs **Enable Cancel of Order** on), plus the automated pending/release/reconcile rows. Record the counts and the evidence names on the lines above. |
+| Phase 18 follow-up | ☐ Yes ☐ No | Order-cancellation kill switch (`shop_cancel_enabled`, **off** by default): both cancellation services refuse with `cancel_disabled` and no refund/escrow reversal runs while it is off; enabling it restores the plan §8 escrow contract. `CancelSettingTest` plus the full PHP/smoke gates. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

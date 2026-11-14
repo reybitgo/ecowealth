@@ -759,6 +759,7 @@ return [
 
     'P18-T41 a cancelled award is not a shortfall and reads Cancelled before release' => function (): void {
         test_signed_in_as(test_user('p18_cancel_admin', 'admin'));
+        test_enable_order_cancel();
 
         foreach ([
             'unilevel_enabled' => '1', 'unilevel_max_levels' => '10',

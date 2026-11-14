@@ -147,6 +147,8 @@ return [
         assert_not_contains('name="min_payout"', $transfers);
 
         assert_contains('name="shop_enabled"', $shop);
+        assert_contains('name="shop_cancel_enabled"', $shop);
+        assert_contains('Enable Cancel of Order', $shop);
         assert_not_contains('name="payment_gcash_number"', $shop);
         assert_not_contains('name="seller_name"', $shop);
 
@@ -287,6 +289,34 @@ return [
         assert_contains('card', $fulfilment);
     },
 
+    'the shop card renders Enable Cancel of Order off by default and on when enabled' => function () use ($render, $form): void {
+        test_signed_in_as(test_user('st_admin', 'admin'));
+
+        assert_same('0', setting('shop_cancel_enabled'), 'the seed ships the switch off');
+        assert_false(Order::cancelEnabled());
+
+        $html = $render();
+        $shop = $form($html, 'settings-shop');
+
+        assert_contains('name="shop_cancel_enabled"', $shop);
+        assert_contains('Enable Cancel of Order', $shop);
+        assert_contains('Off by default', $shop);
+
+        preg_match('/<input\b[^>]*name="shop_cancel_enabled"[^>]*>/', $shop, $input);
+        assert_true($input !== [], 'the switch renders');
+        assert_not_contains('checked', $input[0], 'the default is unchecked');
+
+        test_enable_order_cancel();
+        assert_true(Order::cancelEnabled());
+
+        $html = $render();
+        $shop = $form($html, 'settings-shop');
+
+        preg_match('/<input\b[^>]*name="shop_cancel_enabled"[^>]*>/', $shop, $input);
+        assert_true($input !== [], 'the switch renders after the save');
+        assert_contains('checked', $input[0], 'an enabled switch renders checked');
+    },
+
     /* ---------- The section catalogue behind the save ------------- */
 
     'P7-T4 the field catalog is partitioned by section' => function () use ($sectionMethod): void {
@@ -363,7 +393,7 @@ return [
     },
 
     'P7-T4 each section validates and saves only its own keys' => function () use ($sectionMethod): void {
-        assert_same(['shop_enabled'], $sectionMethod('sectionToggles', 'shop'));
+        assert_same(['shop_enabled', 'shop_cancel_enabled'], $sectionMethod('sectionToggles', 'shop'));
         assert_same(
             [
                 'payout_gcash_enabled',
@@ -396,7 +426,7 @@ return [
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 
         $shopRules = $sectionMethod('sectionRules', 'shop');
-        assert_same(['shop_enabled'], array_keys($shopRules));
+        assert_same(['shop_enabled', 'shop_cancel_enabled'], array_keys($shopRules));
 
         $accountRules = $sectionMethod('sectionRules', 'accounts');
         assert_same(

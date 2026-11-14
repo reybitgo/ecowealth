@@ -98,6 +98,8 @@ return [
         assert_contains('data-live-region="settings-shop"', $shop);
         assert_contains('data-live-hold="dirty"', $shop);
         assert_contains('name="shop_enabled"', $shop);
+        assert_contains('name="shop_cancel_enabled"', $shop);
+        assert_contains('Enable Cancel of Order', $shop);
 
         assert_contains('data-live-region="settings-accounts"', $accounts);
         assert_contains('data-live-hold="dirty"', $accounts);

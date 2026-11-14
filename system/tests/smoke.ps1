@@ -259,6 +259,16 @@ $maintenanceBefore = '0'
 $selfOrderId       = 0
 $settingsSnapshot  = @{}
 
+# Order cancellation ships off (Settings -> Shop -> Enable Cancel of Order).
+# This run exercises the legacy member/admin cancellation and refund paths,
+# so open the switch for the run and let the finally block put the
+# operator's value back. A database that predates migration 022 has no row;
+# restore the documented default ('0') in that case, not an empty string.
+$cancelBefore = [string] (Get-SettingValue 'shop_cancel_enabled')
+if ([string]::IsNullOrWhiteSpace($cancelBefore)) { $cancelBefore = '0' }
+$settingsSnapshot['shop_cancel_enabled'] = $cancelBefore
+Set-SettingValue 'shop_cancel_enabled' '1'
+
 # Phase 9 fixtures created by this run (removed in the finally block).
 $p9Users       = @()
 $p9CodeIds     = @()
@@ -1610,14 +1620,17 @@ try {
         '_csrf'        = $settingsToken
         'section'      = 'shop'
         'shop_enabled' = '0'
+        'shop_cancel_enabled' = '1'
     }
     $shopOffValue = Get-SettingValue 'shop_enabled'
+    $cancelAfterShopOff = Get-SettingValue 'shop_cancel_enabled'
     $deadlineAfterShop = Get-SettingValue 'shop_payment_deadline_hours'
 
     $shopOn = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
         '_csrf'        = $settingsToken
         'section'      = 'shop'
         'shop_enabled' = '1'
+        'shop_cancel_enabled' = '1'
     }
     $shopOnValue = Get-SettingValue 'shop_enabled'
 
@@ -1630,6 +1643,8 @@ try {
             -and $settingsPage.Body -match 'name="site_name"' `
             -and $settingsPage.Body -match 'name="commission_direct_enabled"' `
             -and $settingsPage.Body -match 'name="ewallet_transfer_fee"' `
+            -and $settingsPage.Body -match 'name="shop_cancel_enabled"' `
+            -and $settingsPage.Body -match 'Enable Cancel of Order' `
             -and $sectionForms -eq 8 -and $saveButtons -eq 8 `
             -and $saveAccounts.Status -eq 302 -and $gcashSaved -eq '0917 123 4567' `
             -and $saveFulfilment.Status -eq 302 -and $sellerSaved -eq 'EcoWealth Smoke Trading' `
@@ -1637,6 +1652,7 @@ try {
             -and $saveWindows.Status -eq 302 -and $settingsSaved -eq '30|' `
             -and $attemptsSaved -eq '4' -and $expirySaved -eq '1' `
             -and $shopOff.Status -eq 302 -and $shopOffValue -eq '0' `
+            -and $cancelAfterShopOff -eq '1' `
             -and $shopOn.Status -eq 302 -and $shopOnValue -eq '1') `
         "each settings card has its own form + Save settings (forms=$sectionForms, buttons=$saveButtons, accounts=$gcashSaved, seller=$sellerSaved, deadline=$settingsSaved)"
 

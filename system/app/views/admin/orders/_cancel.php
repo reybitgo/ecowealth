@@ -4,10 +4,12 @@ declare(strict_types=1);
 /**
  * Admin order page — cancel order.
  *
- * The card only exists while the order is still cancellable. The hidden
- * wrapper keeps the region in the DOM so another administrator's cancel
- * removes it on the next refresh instead of leaving a stale form behind.
- * The visible card owns a form, so it carries data-live-hold="dirty".
+ * The card exists while the order's status is cancellable. It has two
+ * states: a form when Settings → Shop → **Enable Cancel of Order** is on,
+ * and a short explanatory card when that switch is off (the default). The
+ * hidden wrapper keeps the region in the DOM so another administrator's
+ * change replaces it on the next refresh instead of leaving a stale form
+ * behind. Only the form card carries data-live-hold="dirty".
  *
  * @var array<string, mixed> $ctx
  */
@@ -15,11 +17,29 @@ declare(strict_types=1);
 $order          = $ctx['order'];
 $orderId        = (int) $order['id'];
 $canCancel      = (bool) $ctx['can_cancel'];
+$cancelEnabled  = (bool) ($ctx['cancel_enabled'] ?? Order::cancelEnabled());
+$cancelDisabled = (bool) ($ctx['cancel_disabled']
+    ?? (!$canCancel && !$cancelEnabled && Order::isAdminCancellableStatus($order)));
 $refundOnCancel = (bool) $ctx['refund_on_cancel'];
 $cancelReasons  = $ctx['cancel_reasons'];
 ?>
-<?php if (!$canCancel): ?>
+<?php if (!$canCancel && !$cancelDisabled): ?>
                   <div class="card" data-live-region="order-cancel" hidden></div>
+<?php elseif ($cancelDisabled): ?>
+                  <div class="card order-cancel-card" data-live-region="order-cancel">
+                    <div class="card-header"><h5 class="mb-0">Cancel order</h5></div>
+                    <div class="card-body">
+                      <p class="text-body-secondary small mb-3">
+                        <i class="icon-base bx bx-lock-alt me-1"></i>
+                        <strong>Order cancellation is turned off.</strong>
+                        Members and administrators cannot cancel an order while this switch is off, so no wallet
+                        refund or repeat-purchase escrow reversal is issued.
+                      </p>
+                      <a href="<?= e(url('admin/settings') . '#settings-shop') ?>" class="btn btn-sm btn-label-primary w-100">
+                        <i class="icon-base bx bx-cog me-1"></i> Open Settings → Shop
+                      </a>
+                    </div>
+                  </div>
 <?php else: ?>
                   <div class="card order-cancel-card" data-live-region="order-cancel" data-live-hold="dirty">
                     <div class="card-header"><h5 class="mb-0">Cancel order</h5></div>

@@ -23,7 +23,7 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      31 tables · 51 settings · 2 staff accounts · 7 products
+--      31 tables · 57 settings · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
 --
 --  It seeds NO demo members, NO demo registration codes and NO demo wallet
@@ -1096,7 +1096,7 @@ CREATE TABLE IF NOT EXISTS live_revisions (
 
 -- ===========================================================================
 --  SECTION 2/7 — SETTINGS
---  source: database/seeds/001_settings.sql sha256=2ffcfc6de3d6a0d4f3902d63bad60f0b6c063931997d8f8e63bff0774ff1734d
+--  source: database/seeds/001_settings.sql sha256=560f6a853ad5b966e7901465cd6470e6c3097fdd8cf5318277d82ba76d30b762
 -- ===========================================================================
 
 -- =============================================================
@@ -1117,6 +1117,12 @@ INSERT INTO settings (key_name, value) VALUES
   ('currency',                         'PHP'),
   ('maintenance_mode',                 '0'),
   ('shop_enabled',                     '1'),
+
+  -- Order cancellation kill switch (post-Phase 18). Off by default: a
+  -- member or an administrator cannot cancel an order, so no wallet refund
+  -- and no repeat-purchase escrow reversal happens in normal operation.
+  -- Automatic expiry of unpaid orders stays under `shop_expiry_enabled`.
+  ('shop_cancel_enabled',              '0'),
 
   -- Manual payment accounts (placeholders — replace before go-live)
   ('payment_gcash_name',               'EcoWealth Trading'),
@@ -1441,7 +1447,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=2b2f1413a37b40681a4a36416a944c3a96b58e53ab03158b74c62a7222ed5dc4
+--  source: database/install/footer.sql sha256=1bc286075f1bb97859f6fd585eae1b49bb4f7b2e7b3f306857742830c776d8ca
 -- ===========================================================================
 
 -- ===========================================================================
@@ -1469,14 +1475,14 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=2b2f1413a37b40681a4a36416a944c3a96b58e53ab03158b74c62a7222ed5dc4
+--  source: database/install/footer.sql sha256=1bc286075f1bb97859f6fd585eae1b49bb4f7b2e7b3f306857742830c776d8ca
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 31    settings_rows = 56    staff_rows    = 2
+--      tables_created = 31    settings_rows = 57    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --
