@@ -1135,12 +1135,12 @@ Read-only and scoped to the session member; nothing here can pay, claim or chang
 
 | Surface | What a member sees |
 |---|---|
-| `/shop/{id}` | the ten-level *Repeat-purchase bonus* panel on the product's bonus base, the **Up to 29%** total and the sentence that the buyer earns no rebate on their own purchase |
+| `/shop/{id}` | the ten-level *Repeat-purchase bonus* panel in the Team chain voice: the per-unit level incomes on the product's bonus base, the **Up to 29%** total, the monthly minimum and the sentence that the member's own purchase does not pay them |
 | `/shop` | the **Up to 29% repeat bonus** badge on a configured card |
-| `/checkout` | one preview line: "up to ₱X goes to your sponsor chain when this order is paid" |
-| `/orders/{id}` | the order's total to the sponsor chain — never which upline received what |
-| `/earnings?ledger=repeat` | the member's own awards, the 1–10 breakdown, the two-clock Active panel, filters and a 13-column CSV |
-| `/dashboard` · `/membership` | the repeat-purchase tile and the one-sentence Active paragraph |
+| `/checkout` | one preview line: "up to ₱X is paid to the members above you when this order is paid", then the Team chain pivot |
+| `/orders/{id}` | the order's total paid to the members above — never which member received what |
+| `/earnings?ledger=repeat` | the member's own awards, the Team chain by level (1–10), the two-clock Active panel, filters and a 13-column CSV |
+| `/dashboard` · `/membership` | the repeat-purchase tile and the one-sentence Active paragraph, both in the Team chain voice |
 
 The panel, the badge and the preview disappear while the global master or the product's ladder is off;
 the earnings tab stays reachable because a disabled stream can still have history. The package earnings

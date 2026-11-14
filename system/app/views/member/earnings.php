@@ -11,12 +11,14 @@ declare(strict_types=1);
  *   Package commissions      every activation award, credited or
  *                            skipped, with its level breakdown.
  *   Repeat-purchase bonus    every repeat-purchase award the member
- *                            earned as an upline, with the two-clock
- *                            Active panel and the 1–10 breakdown.
+ *                            earned from their Team chain, with the
+ *                            two-clock Active panel and the 1–10
+ *                            breakdown.
  *
  * The package tab is the Phase 10–11 statement, unchanged below the
- * new tab pills. The repeat tab has no "as buyer" figure: a member
- * earns nothing on their own purchase (Rule 9).
+ * new tab pills. The repeat tab is Team chain directed (plan §9): the
+ * member's own purchases never pay them, they only set the Active flag
+ * for the income their Team chain's purchases produce.
  *
  * One live surface per member (`member.earnings:{id}`). The summary
  * cards, the status panel, the breakdown, the card heading, the rows
@@ -143,7 +145,7 @@ if ($isRepeat) {
 <?php if ($isRepeat): ?>
                   <h4 class="mb-1">Repeat-purchase bonus</h4>
                   <p class="text-body-secondary mb-0">
-                    Every repeat-purchase award your team's paid purchases earned you.
+                    Every repeat-purchase award your <strong>Team chain</strong>'s paid purchases earned you.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
 <?php else: ?>

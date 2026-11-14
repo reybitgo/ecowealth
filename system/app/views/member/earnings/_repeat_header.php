@@ -11,8 +11,9 @@ declare(strict_types=1);
                   <div>
                     <h5 class="mb-1">Your repeat-purchase awards</h5>
                     <p class="text-body-secondary mb-0 small">
-                      One row per paid order line, product and level. A level is credited only when
-                      you are eligible and Active that month.
+                      One row per paid order line, product and level — each one a purchase from your
+                      <strong>Team chain</strong> that credited your level. A level is paid only when you
+                      are eligible and Active that month.
                     </p>
                   </div>
                   <span class="badge bg-label-primary"><?= (int) $pager->total ?> award<?= $pager->total === 1 ? '' : 's' ?></span>

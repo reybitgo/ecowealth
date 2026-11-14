@@ -298,10 +298,12 @@ final class ShopController
      * `quoteLine()` is the 17C preview API: it prices the configured
      * ladder on the product's current base and never evaluates a chain
      * or an Active flag, which is exactly why every sentence around it
-     * says "up to" (plan §9 Rule 2). The panel and the badge are
+     * says "up to" (plan §9 Rule 1). The panel and the badge are
      * absent when the global stream is off, the product's switch is
      * off, or the ladder adds up to 0% — a promise that cannot pay is
-     * never rendered.
+     * never rendered. The quote carries the monthly-minimum facts as
+     * well, so the member panel can state the Team chain rule in the
+     * same voice as the Active panel.
      *
      * @param array<string, mixed> $product
      * @return array<string, mixed>|null
@@ -328,8 +330,10 @@ final class ShopController
             return null;
         }
 
-        $quote['total_percent'] = round($totalPercent, 3);
-        $quote['paying_levels'] = $paying;
+        $quote['total_percent']    = round($totalPercent, 3);
+        $quote['paying_levels']    = $paying;
+        $quote['requires_active']  = setting_bool('unilevel_requires_active_upline', true);
+        $quote['active_threshold'] = UnilevelCycle::threshold();
 
         return $quote;
     }

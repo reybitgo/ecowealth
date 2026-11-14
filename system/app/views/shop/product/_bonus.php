@@ -4,24 +4,31 @@ declare(strict_types=1);
 /**
  * Product detail — the repeat-purchase ladder panel (Phase 17E, plan §9).
  *
- * What this panel is allowed to say is normative (plan §9, Rules 1–6):
+ * Member copy is **Team chain directed**: it answers "what do I earn?".
+ * When someone in this member's Team chain buys the product, the level
+ * that buyer sits at pays the listed level income — level 1 when a
+ * member the reader personally sponsored buys, level 2 when their
+ * recruits buy, and so on. The reader's own purchase never pays them;
+ * it counts toward the monthly minimum that keeps them Active.
  *
- *   · it says "repeat-purchase bonus", never "unilevel" alone;
- *   · it says "up to", never "you will earn";
- *   · it says the money is credited when the order is paid;
- *   · it never calls the money a rebate or cashback — the buyer is not
- *     a recipient, and the panel says so in one deliberate sentence;
- *   · it never labels level 1 "direct" or the rest "indirect": one
- *     ladder, the level number is the whole story (D-17);
+ * Copy rules for this panel (plan §9, member-facing):
+ *
+ *   · say "Team chain", never "sponsor chain";
+ *   · say "repeat-purchase bonus" and version the level incomes;
+ *   · say "up to", never "you will earn" a fixed total;
+ *   · state the monthly minimum and that the money is credited when the
+ *     order is paid;
  *   · all ten levels are always listed, and a level with no rate reads
- *     "—" instead of "0.000%".
+ *     "—" instead of "0.000%";
+ *   · never tell the member they earn on their own purchase.
  *
  * The numbers come from `UnilevelService::quoteLine($id, 1)` (17C), so
  * the panel, the checkout line and the engine share one definition of
  * every amount. The quote is a preview: the real chain and the
  * recipients' Active flags decide what is actually paid.
  *
- * @var array<string, mixed> $bonus quoteLine() plus total_percent/paying_levels
+ * @var array<string, mixed> $bonus quoteLine() plus total_percent/paying_levels,
+ *                                  requires_active and active_threshold
  */
 
 $levels       = is_array($bonus['levels'] ?? null) ? $bonus['levels'] : [];
@@ -31,6 +38,20 @@ $payingLevels = (int) ($bonus['paying_levels'] ?? 0);
 $base         = (float) ($bonus['base'] ?? 0);
 $baseSource   = (string) ($bonus['base_source'] ?? 'price');
 $baseLabel    = $baseSource === 'pv' ? 'P.V.' : 'price';
+
+$requiresActive = (bool) ($bonus['requires_active'] ?? true);
+$threshold      = (float) ($bonus['active_threshold'] ?? 0.0);
+
+if (!$requiresActive) {
+    $activeNote   = 'The monthly Active rule is currently off, so every eligible member is paid without a purchase check.';
+    $inactiveSkip = false;
+} elseif ($threshold > 0) {
+    $activeNote   = 'Meet the ' . money($threshold) . ' monthly minimum to stay Active: your counted purchases last month decide this month, and only an Active member is paid.';
+    $inactiveSkip = true;
+} else {
+    $activeNote   = 'The monthly minimum is ' . money($threshold) . ', so every member is Active.';
+    $inactiveSkip = false;
+}
 ?>
                     <div class="product-bonus-panel" data-bonus-panel>
                       <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
@@ -39,9 +60,13 @@ $baseLabel    = $baseSource === 'pv' ? 'P.V.' : 'price';
                             <i class="icon-base bx bx-gift me-1"></i> Repeat-purchase bonus
                           </h6>
                           <p class="text-body-secondary small mb-0">
-                            When this order is paid, up to
+                            Your <strong>Team chain</strong> is your repeat-purchase income.
+                            When someone in your Team chain buys this product, the level that buyer
+                            sits at pays you that level's share: <strong>Level 1</strong> when a member
+                            you personally sponsored buys, <strong>Level 2</strong> when their recruits
+                            buy, and so on up to <strong>Level 10</strong>. The full ladder pays up to
                             <strong><?= e(number_format($totalPercent, 3, '.', '')) ?>%</strong>
-                            of its bonus base goes to your sponsor chain — one share per level, levels 1&ndash;10.
+                            of the bonus base, one share per level.
                           </p>
                         </div>
                         <span class="badge bg-label-info">Up to <?= (int) round($totalPercent) ?>%</span>
@@ -52,8 +77,8 @@ $baseLabel    = $baseSource === 'pv' ? 'P.V.' : 'price';
                           Bonus base
                           <strong><?= e(money($base)) ?></strong> per unit
                           (the product's <?= e($baseLabel) ?>).
-                          Amounts below are for <strong>one unit</strong>;
-                          your cart quantity multiplies them.
+                          Each level below is what you earn when a Team chain member at that depth buys
+                          <strong>one unit</strong>; their cart quantity multiplies it.
                         </span>
                         <span class="text-body-secondary small">
                           <?= $payingLevels ?> of 10 levels pay on this base.
@@ -63,10 +88,10 @@ $baseLabel    = $baseSource === 'pv' ? 'P.V.' : 'price';
                       <div class="product-bonus-grid">
 <?php foreach ($levels as $level): ?>
 <?php
-    $number  = (int) ($level['level'] ?? 0);
-    $rate    = (float) ($level['rate'] ?? 0);
-    $amount  = (float) ($level['amount'] ?? 0);
-    $label   = $number === 1 ? 'Your sponsor' : 'Upline ' . $number;
+    $number = (int) ($level['level'] ?? 0);
+    $rate   = (float) ($level['rate'] ?? 0);
+    $amount = (float) ($level['amount'] ?? 0);
+    $label  = $number === 1 ? 'Your direct recruit' : 'Your Team chain';
 ?>
                         <div class="product-bonus-item<?= $rate > 0 ? ' is-paying' : '' ?>">
                           <div class="d-flex align-items-center justify-content-between gap-2">
@@ -87,16 +112,21 @@ $baseLabel    = $baseSource === 'pv' ? 'P.V.' : 'price';
                           <span class="fw-semibold"><?= e(money($totalAmount)) ?> per unit</span>
                         </div>
                         <p class="text-body-secondary small mb-0 mt-2">
-                          <i class="icon-base bx bx-info-circle me-1"></i>
-                          This is the most the ladder can pay on this base. The amount is credited to the
-                          upline's e-wallet <strong>when the order is paid</strong>, and only to an upline who
-                          is eligible and Active that month; a level that falls on someone who is not Active is
-                          skipped and never moved to another level.
+                          <i class="icon-base bx bx-wallet me-1"></i>
+                          Across all ten levels. Your own share is the rate on the level where your
+                          Team chain member sits, and it is credited to your e-wallet
+                          <strong>when that order is paid</strong>, to an eligible member who is Active
+                          for the month.
+                        </p>
+                        <p class="text-body-secondary small mb-0 mt-2">
+                          <i class="icon-base bx bx-calendar-check me-1"></i>
+                          <?= e($activeNote) ?><?php if ($inactiveSkip): ?> If a level falls on you while
+                          you are not Active, it is skipped and never moved to another level.<?php endif; ?>
                         </p>
                         <p class="text-body-secondary small mb-0 mt-2">
                           <i class="icon-base bx bx-user-check me-1"></i>
-                          You do not earn a rebate on your own purchase &mdash; the bonus goes to your sponsor
-                          chain, not to you.
+                          Your own purchase does not pay you. It counts toward your monthly minimum;
+                          the purchases your Team chain makes are what pay your level income.
                         </p>
                       </div>
                     </div>

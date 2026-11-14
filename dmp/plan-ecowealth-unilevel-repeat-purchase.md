@@ -1188,9 +1188,10 @@ anything this phase writes.
 
 ## 9. Phase 17E — Member visibility
 
-**Goal.** A member can see what a purchase pays **to their sponsor chain** before buying, what it
-actually paid afterwards, and what they themselves have earned as an upline — with copy that never
-suggests the buyer earns a rebate.
+**Goal.** A member can see what a Team chain purchase pays **them** before buying, what their own
+order paid to the members above them afterwards, and what they themselves have earned from their Team
+chain — with copy that is Team chain directed, states the monthly minimum, and never suggests the
+buyer earns a rebate on their own purchase.
 
 **Builds on.** 17C (`quoteLine()`, `quoteCart()`, `totalsFor()`, `UnilevelAward`'s member queries).
 
@@ -1230,20 +1231,29 @@ and the phase badge, and neither changes member-facing behaviour.
 **Rules — the copy rules are normative**
 
 1. **Say "repeat-purchase bonus", never "unilevel" alone**, in member-facing copy. "Unilevel" stays in
-   admin labels and ledger names because it is the plan's own term.
-2. **Say "up to X%", never "you will earn X%".** The chain length and the Active rule decide the actual
-   amount.
+   admin labels and ledger names because it is the plan's own term. Say **"up to X%"**, never "you will
+   earn X%": the chain length and the Active rule decide the actual amount.
+2. **Say "Team chain", never "sponsor chain", in member-facing copy.** "Sponsor chain" stays in admin
+   copy and code comments. Level 1 is the member the reader personally sponsored, level 2 their
+   recruits, and so on to level 10 — every level is an income the reader can earn when that member buys.
 3. **Always say the money is credited when the order is paid**, not when it is placed.
-4. **Never call it a rebate or cashback.** The buyer is not a recipient. Say "your sponsor chain earns",
-   and on the product panel say "you do not earn a rebate on your own purchase".
+4. **Never call it a rebate or cashback.** The member's own purchase pays the members above them, not
+   the member. On the product panel say "your own purchase does not pay you", and stress that it counts
+   toward the monthly minimum so the reader stays Active for their Team chain's orders. The
+   **monthly minimum** (the Active rule) must be stated: counted purchases last month decide this
+   month, and only an Active member is paid.
 5. **Never describe level 1 as a "direct bonus"** or the rest as an "indirect ladder". It is one ladder;
-   the level number is the label (D-17).
+   the level number is the label (D-17). Level 1 may be called the reader's **direct recruit**, because
+   that is the Team chain relationship, not a bonus type.
 6. **The product panel shows all ten levels**, even the zero ones, with the per-unit amount at the
-   current base. A level with no rate reads `—`, not `0.000%`.
+   current base. A level with no rate reads `—`, not `0.000%`. Each level card is what the reader earns
+   when a Team chain member at that depth buys one unit; the "Total up to" line is what the whole ladder
+   pays in total across the ten levels.
 7. **The checkout line is informational**, never a promise, never styled as money the buyer will
-   receive, and absent when no cart product has a ladder.
-8. **The order page shows the order's total only.** Which upline received which amount is admin-only,
-   the same rule as package commissions.
+   receive, and absent when no cart product has a ladder. It states the order's payment to the members
+   above the buyer and pivots to the reader's own Team chain.
+8. **The order page shows the order's total only.** Which member above received which amount is
+   admin-only, the same rule as package commissions.
 9. **The earnings tab has no "as buyer" stat.** A member earns nothing on their own purchase; their own
    purchases appear only in the two-clock status panel, because they feed next month's Active flag.
 10. **Both tabs stay live.** The package tab keeps its URL and behaviour; the repeat tab is
@@ -1255,28 +1265,29 @@ and the phase badge, and neither changes member-facing behaviour.
 
 | ID | Test | Expected |
 |---|---|---|
-| P17E-T1 | `shop/product` for a configured product | The panel lists levels 1–10 with rates and per-unit amounts; the base and *Total 29.000%* are right; the "you do not earn a rebate" note is present |
+| P17E-T1 | `shop/product` for a configured product | The Team chain panel lists levels 1–10 with rates and per-unit amounts; the base and *Total 29.000%* are right; the monthly minimum and "your own purchase does not pay you" are present |
 | P17E-T2 | `shop/product` for an unconfigured product | No panel at all |
 | P17E-T3 | Catalogue card | *Up to 29% repeat bonus* when the ladder is on; nothing when off; one batched query for the page |
-| P17E-T4 | Checkout summary with a configured cart | "Up to ₱145.00 goes to your sponsor chain…" with the "paid when the order is paid" note; the word *rebate* appears nowhere |
+| P17E-T4 | Checkout summary with a configured cart | "Up to ₱145.00 is paid to the members above you…" with the "paid when the order is paid" note and the Team chain pivot; the words *sponsor chain*, *rebate* and *cashback* appear nowhere |
 | P17E-T5 | Checkout summary with no configured product | No line |
 | P17E-T6 | Checkout live feed | `bonus_preview` is present in the refreshed summary fragment and matches the first render |
-| P17E-T7 | `member/order.php` for a paid order with awards | The total paid to the sponsor chain; no per-upline amounts; nothing for an order without awards |
-| P17E-T8 | `/earnings?ledger=repeat` | Stats, the two-clock status panel, the 1–10 breakdown, the rows and the filters; **no** "as buyer" stat |
+| P17E-T7 | `member/order.php` for a paid order with awards | The total paid to the members above; no per-member amounts; nothing for an order without awards |
+| P17E-T8 | `/earnings?ledger=repeat` | Stats, the two-clock status panel, the 1–10 Team chain breakdown, the rows and the filters; **no** "as buyer" stat; no *sponsor chain* |
 | P17E-T9 | `/earnings?ledger=repeat` filters + export | Filters work; the CSV opens with the documented columns and the member's own rows only |
 | P17E-T10 | `/earnings` (package tab) | Unchanged — regression |
 | P17E-T11 | `/earnings?ledger=repeat&user_id={other}` | Ignored: the page still shows only the session member's rows |
-| P17E-T12 | `/dashboard` and `/membership` | The tile and the paragraph render with the current Active status; no action, no form |
+| P17E-T12 | `/dashboard` and `/membership` | The tile and the paragraph render with the current Active status in the Team chain voice; no action, no form |
 | P17E-T13 | Mobile width (390 px) | The product panel, the checkout line and the earnings tab render without horizontal scroll |
 
 **Manual gate — `QA17E-01` … `QA17E-09`**
 
-1. `QA17E-01` — open a configured product as a member: the panel shows ten levels, the per-unit
-   amounts on the shown base, the total, and the sentence about the buyer not earning a rebate.
-2. `QA17E-02` — add 2 to the cart and open `/checkout`: the "up to" line matches the panel × 2 and says
-   the money is paid when the order is paid.
+1. `QA17E-01` — open a configured product as a member: the Team chain panel shows ten levels, the
+   per-unit amounts on the shown base, the total, the monthly minimum and the sentence that the
+   member's own purchase does not pay them.
+2. `QA17E-02` — add 2 to the cart and open `/checkout`: the "up to" line matches the panel × 2, says the
+   money is paid when the order is paid, and pivots to the reader's Team chain.
 3. `QA17E-03` — place and pay the order. Open `/orders/{id}`: the card shows the total paid to the
-   sponsor chain and **no** individual upline amounts.
+   members above and **no** individual recipient amounts.
 4. `QA17E-04` — as `c` (level 1 of that order), open `/earnings?ledger=repeat`: the ₱25.00 award is in
    the rows and in the level-1 breakdown; the monthly status panel shows last month's purchases and
    this month's progress.
@@ -1287,7 +1298,7 @@ and the phase badge, and neither changes member-facing behaviour.
 7. `QA17E-07` — as the **buyer** of the order: their repeat tab has no row for their own purchase and no
    "as buyer" stat; their own purchase appears only in the status panel.
 8. `QA17E-08` — `/dashboard` shows the repeat tile with the current Active status; `/membership` shows
-   the paragraph. Neither offers an action.
+   the paragraph. Neither offers an action, and both call the reader's team their Team chain.
 9. `QA17E-09` — repeat the product panel and the earnings tab at 390 px: no horizontal scroll.
 
 **Exit gate**
@@ -1295,7 +1306,8 @@ and the phase badge, and neither changes member-facing behaviour.
 ```
 [ ] The universal gate of §2.4
 [ ] P17E-T1 … P17E-T13 pass
-[ ] A word search of every new view for "rebate"/"cashback" finds only the deliberate negation
+[ ] A word search of every new view for "rebate"/"cashback" finds nothing
+[ ] A word search of every new member view for "sponsor chain" finds nothing; the copy says "Team chain"
 [ ] The package earnings tab is unchanged (regression)
 [ ] No new route; ParityTest green
 [ ] Tag p17e-member; phase log; Appendix G row
@@ -1536,7 +1548,7 @@ The single acceptance list of the earlier draft, distributed to the phase that p
 | A member with no snapshot is Active | 17C — T42 |
 | A closed period is never rewritten; the job is idempotent and catches up | 17C — T45; 17F — T3, T4 |
 | Every surface shows the numbers the fixture predicts | 17D — T2–T13; 17E — T1–T12 |
-| The product page and checkout say "your sponsor chain earns", never "you earn" | 17E — T1, T4 |
+| The member pages say "Team chain" and "what you can earn", never "sponsor chain"; the monthly minimum is stated | 17E — T1, T4, T7, T8, T12 |
 | The package-commission pages are unchanged | 17D — T1; 17E — T10 |
 | Both CSV exports open with the documented columns | 17D — T8; 17E — T9 |
 | The migration is idempotent; migrated equals fresh | 17A — T2, T3 |
@@ -1618,7 +1630,8 @@ subsection.
 | **ladder** | A product's ten percentage rows, level 1 … 10 (§12.4) | 17B |
 | **buyer** | `shop_orders.user_id` — the member who checked out; **never a recipient** in this stream | 17C |
 | **recipient** | The member credited at one level: the buyer's direct sponsor at level 1, an upline at levels 2–10 | 17C |
-| **sponsor chain** | `users.sponsor_id` links, walked upward from the buyer. A blank-sponsor signup is placed under the **company account** (the primary admin, `Member::primaryAdmin()`), which is a real row; the walk ends when `sponsor_id` is `NULL` | 17C |
+| **sponsor chain** | `users.sponsor_id` links, walked upward from the buyer. A blank-sponsor signup is placed under the **company account** (the primary admin, `Member::primaryAdmin()`), which is a real row; the walk ends when `sponsor_id` is `NULL`. Admin wording only | 17C |
+| **Team chain** | The member-facing name for the same level structure seen from the reader's side: level 1 = the members the reader personally sponsored, level 2 their recruits, and so on. The official description on every member repeat-purchase surface; "sponsor chain" is never shown to a member | 17E |
 | **company account** | The primary admin — the default sponsor and the account that receives company revenue. It is **never paid** a repeat-purchase bonus (§12.6) | 17C |
 | **direct sponsor** | `users.sponsor_id(buyer)` — chain hop 1, the level-1 recipient | 17C |
 | **period** | A calendar month in `Asia/Manila`, written `YYYY-MM` (e.g. `2026-11`) | 17C |

@@ -1267,21 +1267,27 @@ Read-only: no admin page writes an award, a wallet row or a period.
 
 Read-only and scoped to the session member; no page offers a repeat-purchase action.
 
-- **The product panel** (`/shop/{id}`) renders all ten levels on the product's bonus base with the
-  per-unit amounts, the **Up to 29%** total and the sentence that the buyer earns no rebate on their own
-  purchase. It is absent while the product's ladder or the global master is off.
+- **The product panel** (`/shop/{id}`) is **Team chain directed**: it renders all ten levels on the
+  product's bonus base with the per-unit amounts, the **Up to 29%** total, the **₱500.00 monthly
+  minimum** and the sentence that the member's own purchase does not pay them. Level 1 is the reader's
+  direct recruit; levels 2–10 are their Team chain. It is absent while the product's ladder or the
+  global master is off.
 - **The catalogue badge** (`Up to 29% repeat bonus`) reads the batched `totalsMap()` — one query for the
   page, not one per card.
-- **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X goes to your sponsor
-  chain when this order is paid" — and is absent when no cart product has a payable ladder.
-- **The order card** (`/orders/{id}`) shows the total that went to the sponsor chain, never which upline
-  received what; it is a live region, so a verification appears without a reload.
+- **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X is paid to the
+  members above you when this order is paid" — then pivots to the reader's Team chain income, and is
+  absent when no cart product has a payable ladder.
+- **The order card** (`/orders/{id}`) shows the total that was paid to the members above, never which
+  member received what, then points the buyer at their own Team chain statement; it is a live region,
+  so a verification appears without a reload.
 - **The repeat tab** (`/earnings?ledger=repeat`) carries four counters, the **two-clock Active panel**
   (this month's status, the previous month it is computed from, the threshold and the missing-flag
-  sentence), the 1–10 **team** breakdown — each level card lists its members and paginates on its own,
-  ten rows by default with the usual 5/10/15… control under its own `?levelN_page` / `?levelN_per_page`
-  keys, so one crowded level never moves the others — the rows, filters and a 13-column CSV.
-- **The dashboard tile** and the **membership paragraph** read the same `UnilevelCycle::memberStatus()`.
+  sentence), the 1–10 **Team chain** breakdown — each level card lists its members and paginates on its
+  own, ten rows by default with the usual 5/10/15… control under its own `?levelN_page` /
+  `?levelN_per_page` keys, so one crowded level never moves the others — the rows, filters and a
+  13-column CSV.
+- **The dashboard tile** and the **membership paragraph** read the same `UnilevelCycle::memberStatus()`
+  and say **Team chain**, never "sponsor chain".
 - The package earnings tab is unchanged (P17E-T10); `?user_id=` is ignored (P17E-T11).
 
 ```bash

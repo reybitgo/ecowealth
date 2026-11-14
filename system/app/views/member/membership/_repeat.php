@@ -7,8 +7,9 @@ declare(strict_types=1);
  * Informational, never an action: the member cannot "become Active"
  * from a button, and there is no repeat-purchase form on this page
  * (QA17E-08). The paragraph states the two-clock rule in one sentence,
- * names the member's status for the current month, and repeats the
- * copy rule that matters most: the buyer is not a recipient.
+ * names the member's status for the current month, and keeps the copy
+ * Team chain directed — the member's own purchases keep them Active;
+ * the income comes from their Team chain's paid orders.
  *
  * The region element is always rendered, even when the paragraph is
  * empty, so a live refresh can add it once an operator switches the
@@ -41,16 +42,19 @@ $credited    = (float) ($totals['credited'] ?? 0);
                         </h6>
                         <p class="text-body-secondary small mb-0">
 <?php if (!$requires): ?>
-                          The monthly Active rule is currently turned off, so every eligible upline is paid
+                          The monthly Active rule is currently turned off, so every eligible member is paid
                           regardless of their purchases.
 <?php elseif ($active): ?>
-                          You are <strong>Active for <?= e($periodLabel) ?></strong>: a repeat-purchase level
-                          that falls on you this month is paid into your e-wallet.
+                          You are <strong>Active for <?= e($periodLabel) ?></strong>: a
+                          <strong>Team chain</strong> purchase that reaches your level this month pays your
+                          share into your e-wallet.
 <?php else: ?>
-                          You are <strong>not Active for <?= e($periodLabel) ?></strong>: a repeat-purchase
-                          level that falls on you this month is skipped and never moved to another upline.
+                          You are <strong>not Active for <?= e($periodLabel) ?></strong>: a
+                          <strong>Team chain</strong> purchase that reaches your level this month is skipped
+                          and never moved to another member.
 <?php endif; ?>
-                          Your own purchases decide this — not your rank — and you do not earn on your own purchase.
+                          Your own purchases decide this — not your rank — and they keep you Active so your
+                          Team chain's purchases can pay you.
                         </p>
                       </div>
                       <div class="text-end">
@@ -58,7 +62,7 @@ $credited    = (float) ($totals['credited'] ?? 0);
                           <?= $active ? 'Active' : 'Not Active' ?> for <?= e($periodLabel) ?>
                         </span>
                         <div class="small text-body-secondary mt-2">
-                          <?= e(money($credited)) ?> credited as an upline
+                          <?= e(money($credited)) ?> earned from your Team chain
                         </div>
                       </div>
                     </div>

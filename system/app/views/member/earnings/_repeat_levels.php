@@ -2,24 +2,24 @@
 declare(strict_types=1);
 
 /**
- * Member repeat-purchase statement — the 1–10 team breakdown (Phase 17E;
- * 17E follow-up lists the team).
+ * Member repeat-purchase statement — the 1–10 Team chain breakdown
+ * (Phase 17E; 17E follow-up lists the team).
  *
  * The card answers two questions at once:
  *
- *   • who is at level N? Level 1 is the members the session member
- *     sponsored, level 2 their recruits, and so on — the same
- *     breadth-first sponsor chain the genealogy "Team by level" card
+ *   · who is at level N? Level 1 is the members the session member
+ *     personally sponsored, level 2 their recruits, and so on — the same
+ *     breadth-first Team chain the genealogy "Team by level" card
  *     shows.
- *   • what did that level earn? Each member row carries the credited
+ *   · what did that level earn? Each member row carries the credited
  *     repeat-purchase money their purchases paid at that level, and the
  *     level header carries the full credited total at that depth.
  *
  * The ladder is still one ladder (D-17): there is no direct/indirect
- * split and the level number is the whole label. A level with no team
- * members stays visible with its ₱0.00 total, so the whole 1–10 ladder
- * remains on one screen. A member with no credited purchase also stays
- * visible at ₱0.00 — the roster is the team, not only the payers.
+ * split and the level number is the whole label. A level with no Team
+ * chain members stays visible with its ₱0.00 total, so the whole 1–10
+ * ladder remains on one screen. A member with no credited purchase also
+ * stays visible at ₱0.00 — the roster is the team, not only the payers.
  *
  * Each level card paginates on its own, exactly like the genealogy
  * "Team by level" card: ten rows by default, a rows-per-page control
@@ -60,9 +60,10 @@ for ($level = UnilevelAward::LEVEL_MIN; $level <= UnilevelAward::LEVEL_MAX; $lev
                   <div>
                     <h5 class="mb-1">Repeat-purchase by level</h5>
                     <p class="text-body-secondary mb-0 small">
-                      Your team by level — level 1 is the members you personally sponsored, level 2 their
-                      recruits, and so on. Each row shows what that member's repeat purchases paid you at
-                      that depth; the level total is the Unilevel Repeat-purchase Bonus you earned there.
+                      Your <strong>Team chain</strong> by level — Level 1 is the members you personally
+                      sponsored, Level 2 their recruits, and so on. Each row shows what that member's
+                      repeat purchases paid you at that depth; the level total is the Unilevel
+                      Repeat-purchase Bonus you earned there.
                     </p>
                   </div>
                   <span class="badge bg-label-info">
@@ -110,7 +111,7 @@ for ($level = UnilevelAward::LEVEL_MIN; $level <= UnilevelAward::LEVEL_MAX; $lev
 
 <?php if ($members === []): ?>
                         <p class="small text-body-secondary mt-3 mb-0">
-                          No team members at this level yet.
+                          No <strong>Team chain</strong> members at this level yet.
                         </p>
 <?php else: ?>
                         <ul class="list-unstyled commission-team-list mb-0 small">
@@ -158,9 +159,10 @@ for ($level = UnilevelAward::LEVEL_MIN; $level <= UnilevelAward::LEVEL_MAX; $lev
 <?php endfor; ?>
                   </div>
                   <p class="small text-body-secondary mt-3 mb-0">
-                    The level total counts only credited awards. A member with no credited amount has not
-                    had a paid repeat purchase credited to you; skipped and voided awards stay in your
-                    statement below. A level with no members simply means your team is not that deep yet.
+                    The level total counts only credited awards. A member with no credited amount has
+                    not had a paid repeat purchase credited to you; skipped and voided awards stay in
+                    your statement below. A level with no members simply means your
+                    <strong>Team chain</strong> is not that deep yet.
                   </p>
                 </div>
               </div>

@@ -97,7 +97,7 @@ Phase 17E's share:
 
 | Group | Cases | What it proves for 17E |
 |---|---|---|
-| `UnilevelMemberViewTest` (new) | 14 | P17E-T1 (the product panel: ten levels, the P.V. base, the per-unit amounts, the 29.000% total, the no-rebate sentence, no direct/indirect label), T2 (an unconfigured product has no panel; a zero rate reads `—`; the global master off removes it), T3 (the catalogue badge and its one batched query), T4/T5/T6 (the checkout preview: ₱145.00 for 2 units, "when this order is paid", absent without a ladder, stable in the live feed), T7 (the order card: total only, no recipients, no per-upline amounts), T8 (the repeat tab's counters, two-clock panel, breakdown, rows and `memberStatus()` on a live month and a closed snapshot), T9 (filters, silent fallback and the 13-column member CSV), T10 (the package tab unchanged), T11 (`?user_id=` ignored), T12 (the dashboard tile and the membership paragraph, no action), T13 (the 390 px responsive hooks) |
+| `UnilevelMemberViewTest` (new) | 14 | P17E-T1 (the Team chain product panel: ten levels, the P.V. base, the per-unit amounts, the 29.000% total, the monthly minimum, the no-self-payment sentence, no direct/indirect label, no sponsor chain), T2 (an unconfigured product has no panel; a zero rate reads `—`; the global master off removes it), T3 (the catalogue badge and its one batched query), T4/T5/T6 (the checkout preview: ₱145.00 for 2 units, "when this order is paid", the Team chain pivot, absent without a ladder, stable in the live feed), T7 (the order card: total only, no recipients, no per-recipient amounts), T8 (the repeat tab's counters, two-clock panel, Team chain breakdown, rows and `memberStatus()` on a live month and a closed snapshot), T9 (filters, silent fallback and the 13-column member CSV), T10 (the package tab unchanged), T11 (`?user_id=` ignored), T12 (the dashboard tile and the membership paragraph, no action), T13 (the 390 px responsive hooks) |
 | `MemberOrderLiveTest` / `MemberMembershipLiveTest` (widened) | 2 | The order feed returns the new `member-order-bonus` region (empty for a pending order) and the membership feed returns `membership-repeat`; no other fragment moved |
 
 Phase 17F's share:
@@ -1235,13 +1235,21 @@ Expected
 
 ## 11. Section E — Member visibility (`QA17E-01` … `QA17E-09`)
 
+> **Copy revision (post-sign-off, 2026-11-14).** The member-facing repeat-purchase copy is now
+> **Team chain directed** (plan §9): the reader is shown what they earn when their Team chain buys,
+> their own purchase is described as the minimum-qualifying purchase rather than a payment to their
+> sponsor chain, and the words *sponsor chain* never appear on a member surface. The expected strings
+> below reflect the current build; the signed transcripts under `docs/qa/evidence/phase-17/QA17E-*`
+> predate the revision. Re-run this section for a fresh acceptance record.
+
 **Prerequisites.** The `p17e-member` tag (17A + 17B + 17C applied and the money engine proven), a
 member session, a backup of the development copy, and the green automated gate (§1). **Expected
 suite:** 938 / 938. **Time:** 30–40 min.
 
-**What this section proves.** A member can see what a purchase pays **to their sponsor chain** before
-buying, what it actually paid afterwards, and what they have earned as an upline — with copy that never
-suggests the buyer earns a rebate, and with every query scoped to the session member. The phase is
+**What this section proves.** A member can see what a Team chain purchase pays **them** before buying,
+what their own order paid the members above them afterwards, and what they have earned from their Team
+chain — with copy that is Team chain directed, states the monthly minimum, and never suggests the buyer
+earns a rebate on their own purchase. Every query is scoped to the session member. The phase is
 presentation only: no page offers a repeat-purchase action, and the money cannot move from here.
 
 **Fixture used by the section.** One product (price ₱300, P.V. ₱250, base *Auto*, reference ladder
@@ -1255,9 +1263,9 @@ a ₱25.00 and boss ₱15.00 — ₱90.00 in total. The buyer is never paid.
 awards, then deletes every row it created and restores the five settings it changed. The transcript is
 `QA17E-00-setup-cleanup.txt` (fixture rows back to 0, `wallet_reconcile.php` exit 0).
 
-### QA17E-01 — The product panel shows ten levels, the per-unit amounts and the no-rebate sentence
+### QA17E-01 — The product panel shows ten levels, the per-unit amounts and the monthly minimum
 
-| Why it matters | This is the only place a member sees the whole ladder before buying; it must be complete and it must not promise a rebate. |
+| Why it matters | This is the only place a member sees the whole ladder before buying; it must be complete, Team chain directed, and it must not promise a rebate. |
 |---|---|
 | Where | `/shop/{configured product}` |
 | Evidence | `QA17E-01-product-panel.txt`, `QA17E-09-product-390*.png` |
@@ -1274,12 +1282,15 @@ Expected
 
 - Heading **Repeat-purchase bonus**, badge **Up to 29%**, base **₱250.00 per unit** (the product's P.V.),
   and **10 of 10 levels pay on this base**.
+- The lead names **Team chain** and explains Level 1 as the member the reader personally sponsored.
 - Ten rows, level 1 … 10, rates **5.000 / 5.000 / 5.000 / 3.000 / 3.000 / 2.000 / 2.000 / 2.000 / 1.000 /
   1.000 %**, amounts **₱12.50 / ₱12.50 / ₱12.50 / ₱7.50 / ₱7.50 / ₱5.00 / ₱5.00 / ₱5.00 / ₱2.50 / ₱2.50**
-  per unit. Level 1 reads **Your sponsor**.
-- Footer: **Total up to 29.000% — ₱72.50 per unit**, then the "credited when the order is paid" paragraph
-  and the sentence **You do not earn a rebate on your own purchase**.
-- No "direct" or "indirect" label anywhere in the panel; no "cashback".
+  per unit. Level 1 reads **Your direct recruit**; levels 2–10 read **Your Team chain**.
+- Footer: **Total up to 29.000% — ₱72.50 per unit**, then the "credited when that order is paid"
+  paragraph, the **₱500.00 monthly minimum** paragraph and the sentence **Your own purchase does not pay
+  you**.
+- No **sponsor chain**, no "direct" or "indirect" bonus label anywhere in the panel; no "rebate" and no
+  "cashback".
 - A level with rate 0 reads **—** (a dash), never **0.000%**.
 
 ### QA17E-02 — The checkout preview is the panel × 2 and says the money is paid with the order
@@ -1297,10 +1308,10 @@ Steps
 
 Expected
 
-- **Up to ₱145.00 goes to your sponsor chain when this order is paid.** (₱72.50 × 2).
-- **It is credited when the order is paid, and only to an upline who is eligible and Active that
-  month. It is not paid to you.**
-- The word **rebate** appears nowhere on the page, and neither does **cashback**.
+- **Up to ₱145.00 is paid to the members above you when this order is paid.** (₱72.50 × 2).
+- **The same repeat-purchase ladder pays you when your Team chain buys these products**, with Level 1
+  for the reader's direct recruits up to Level 10 and the monthly-minimum reminder.
+- The words **sponsor chain**, **rebate** and **cashback** appear nowhere on the page.
 - With a cart that has no configured product, the line is absent entirely.
 
 ### QA17E-03 — The order page shows the total only
@@ -1319,14 +1330,15 @@ Steps
 
 Expected
 
-- **₱90.00 went to your sponsor chain when this order was paid.** and **Only the order's total is shown
-  here; this money is not paid to you.**
+- **₱90.00 was paid to the members above you when this order was paid.**, then the Team chain pivot:
+  the same ladder credits the reader's level when their own Team chain buys, with the monthly-minimum
+  reminder and a link to the Team chain statement.
 - The four awards are 25 / 25 / 25 / 15 against levels 1–4, and the order reads
   `paid | 600.00 | 90.00 | <processed_at>`.
-- No recipient username and no per-upline amount appear on the buyer's page.
+- No recipient username, no **sponsor chain** and no per-member amount appear on the buyer's page.
 - An order with no awards renders the empty region and no card.
 
-### QA17E-04 — The upline's repeat tab carries the award, the level-1 breakdown and the two clocks
+### QA17E-04 — The Team chain earner's repeat tab carries the award, the level-1 breakdown and the two clocks
 
 | Why it matters | This is the member's statement; the number must equal the wallet credit and the status panel must explain the monthly rule. |
 |---|---|
@@ -1346,10 +1358,11 @@ Expected
 - **Total credited ₱25.00 — 1 award · withdrawable**; **This month ₱25.00**; **Awards 1**; **Not paid 0**.
 - The status panel reads **Active for November 2026**, shows **October 2026 purchases ₱0.00** with the
   missing-flag sentence (no counted purchases that month), then **November 2026 purchases so far
-  ₱0.00** with its progress line, and the note that the member's own purchases never pay them a bonus.
-- The breakdown lists `c`'s **team** by level: level 1 names the buyer (the direct recruit) at
+  ₱0.00** with its progress line, and the note that the member's own purchases keep them Active rather
+  than paying them.
+- The breakdown lists `c`'s **Team chain** by level: level 1 names the buyer (the direct recruit) at
   **₱25.00** and every other direct recruit at **₱0.00**, with **Level total ₱25.00**; deeper levels
-  name their own members at **₱0.00**, or read **No team members at this level yet**.
+  name their own members at **₱0.00**, or read **No Team chain members at this level yet**.
 - Each level card carries its own pager, like the genealogy **Team by level** card: a **Rows per page**
   control and a **Showing 1–1 of 1** summary for the level's whole roster, plus page links once a level
   holds more than ten members. A level with no member shows no pager.
@@ -1413,15 +1426,15 @@ Steps
 
 Expected
 
-- **No repeat-purchase bonus yet** and the empty state that says **You do not earn on your own
-  purchase**.
+- **No repeat-purchase bonus yet** and the empty state that says **Your own purchase counts toward your
+  monthly minimum, not your income**.
 - **No award row** and **no "as buyer" statistic**.
 - The status panel shows the purchase as **this month's purchases ₱600.00** and the sentence that
   reaching the threshold makes them Active for December 2026.
 
 ### QA17E-08 — The dashboard tile and the membership paragraph
 
-| Why it matters | The status has to be visible where the member already looks, without offering an action. |
+| Why it matters | The status has to be visible where the member already looks, in the Team chain voice, without offering an action. |
 |---|---|
 | Where | `/dashboard` · `/membership` as `c` |
 | Evidence | `QA17E-08-dashboard-membership.txt` |
@@ -1434,11 +1447,13 @@ Steps
 
 Expected
 
-- The dashboard tile reads **Repeat-purchase bonus**, **Active for November 2026**, **Credited as an
-  upline ₱25.00**, **1 award at levels 1–10**, and links to the repeat-purchase statement.
-- The membership paragraph reads **Repeat-purchase bonus**, the status pill, the sentence that a level
-  falling on an Active upline is paid, and **you do not earn on your own purchase**.
-- Neither surface contains a `<form>`, an `<input>` or a `<button>` for the repeat-purchase stream.
+- The dashboard tile reads **Repeat-purchase bonus**, **Active for November 2026**, **Earned from your
+  Team chain ₱25.00**, **1 award at levels 1–10**, and links to the repeat-purchase statement.
+- The membership paragraph reads **Repeat-purchase bonus**, the status pill, the sentence that a Team
+  chain purchase reaching an Active member's level pays their share, and that the member's own purchases
+  keep them Active.
+- Neither surface contains a `<form>`, an `<input>` or a `<button>` for the repeat-purchase stream, and
+  neither says **sponsor chain**.
 
 ### QA17E-09 — The product panel and the repeat tab at 390 px
 

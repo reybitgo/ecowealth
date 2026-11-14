@@ -111,7 +111,7 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
                       </div>
                       <div class="small text-body-secondary mt-2">
                         Referral code <strong><?= e($referral_code) ?></strong> · every signup through this link is
-                        recorded under your sponsor chain.
+                        recorded in your Team chain.
                       </div>
                     </div>
                   </div>

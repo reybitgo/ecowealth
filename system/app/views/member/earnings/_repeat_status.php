@@ -10,10 +10,10 @@ declare(strict_types=1);
  *      the flag used this month    ← last month's personal purchases
  *      the flag used next month    ← this month's personal purchases
  *
- * Copy rules that apply here: the money is never described as
- * something the member earns on their own purchase (they are not a
- * recipient), and a skipped level is never hidden — the panel says
- * what the rule does and why.
+ * Member copy is **Team chain directed**: the member's own purchases do
+ * not pay them; they keep the member Active so the repeat-purchase
+ * income their Team chain produces can be credited. A skipped level is
+ * never hidden — the panel says what the rule does and why.
  *
  * @var array{
  *   period:string, previous:string, next:string, active:bool,
@@ -83,7 +83,7 @@ $previousCopy = match (true) {
     ),
     default => sprintf(
         'You bought %s in %s, below the %s threshold, so you are not Active for %s. '
-            . 'A repeat-purchase level that falls on you in %s is skipped and never moved to another upline.',
+            . 'A Team chain purchase that reaches your level in %s is skipped and never moved to another member.',
         money($previousPaid),
         $previousLabel,
         money($threshold),
@@ -125,7 +125,7 @@ $nextCopy = match (true) {
 <?php if (!$requires): ?>
                   <div class="alert alert-info py-2 small mb-4">
                     <i class="icon-base bx bx-info-circle me-1"></i>
-                    The monthly Active rule is currently turned off, so every eligible upline is paid
+                    The monthly Active rule is currently turned off, so every eligible member is paid
                     regardless of their purchases. The figures below are still recorded, but they do not
                     gate a payment while the rule is off.
                   </div>
@@ -169,9 +169,9 @@ $nextCopy = match (true) {
 
                   <p class="small text-body-secondary border-top pt-3 mt-4 mb-0">
                     <i class="icon-base bx bx-info-circle me-1"></i>
-                    These are your own purchases, and they never pay you a bonus — a repeat-purchase award
-                    goes to the uplines above the buyer. Your purchases only decide whether you are Active,
-                    so a bonus can reach you when your team buys.
+                    These are your own purchases: they never pay you a repeat-purchase bonus. Your
+                    awards come from your <strong>Team chain</strong>'s paid orders. Your purchases
+                    keep you Active, and that is what lets your level income be paid.
                   </p>
                 </div>
               </div>

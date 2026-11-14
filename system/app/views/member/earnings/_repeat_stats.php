@@ -4,10 +4,12 @@ declare(strict_types=1);
 /**
  * Member repeat-purchase statement — the four counters (Phase 17E, plan §9).
  *
- * There is deliberately **no "as buyer" figure** (Rule 9): a member
- * earns nothing on their own purchase, so a tile describing their own
- * spending as earnings would be a lie. Their purchases appear in the
- * two-clock status panel instead, where they belong.
+ * Team chain directed: every counter describes the income the member
+ * earned from their Team chain's paid orders. There is deliberately
+ * **no "as buyer" figure**: a member earns nothing on their own
+ * purchase, so a tile describing their own spending as earnings would
+ * be a lie. Their purchases appear in the two-clock status panel
+ * instead, where they belong.
  *
  * @var array{count:int, credited:float, this_month:float, skipped:int, last_at:?string} $totals
  */
@@ -37,7 +39,7 @@ $cards = [
     [
         'label' => 'Awards',
         'value' => (string) (int) $totals['count'],
-        'hint'  => 'Levels that were credited to you',
+        'hint'  => 'Team chain purchases that credited your level',
         'icon'  => 'bx-receipt',
         'tone'  => 'info',
     ],
@@ -46,7 +48,7 @@ $cards = [
         'value' => (string) (int) $totals['skipped'],
         'hint'  => $totals['skipped'] === 0
             ? 'No level was skipped'
-            : 'Levels skipped — you were not eligible that month',
+            : 'Your level was skipped — you were not eligible that month',
         'icon'  => 'bx-block',
         'tone'  => 'warning',
     ],

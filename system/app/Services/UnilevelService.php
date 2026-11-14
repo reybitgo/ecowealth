@@ -430,7 +430,7 @@ final class UnilevelService
     /**
      * The ladder as it could pay on the product's current rates. No
      * writes and no chain/Active evaluation — the copy says "up to",
-     * never "your sponsor will receive" (plan §14.10).
+     * never "your Team chain will receive" (plan §14.10).
      *
      * @return array<string, mixed>
      */
@@ -464,7 +464,7 @@ final class UnilevelService
                 'level'     => $level,
                 'rate'      => $rate,
                 'amount'    => $amount,
-                'recipient' => $level === 1 ? 'Your sponsor' : 'Upline ' . $level,
+                'recipient' => $level === 1 ? 'Your direct recruit' : 'Your Team chain',
             ];
 
             $total = round($total + $amount, 2);

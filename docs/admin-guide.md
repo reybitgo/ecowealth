@@ -297,17 +297,19 @@ changes or claims a bonus; every number comes from the same engine and ledger th
 
 | Surface | What it shows | Where |
 |---|---|---|
-| **Product page panel** | all ten levels with the per-unit rate and amount on the product's bonus base, the "up to" total, and the sentence that the buyer does not earn on their own purchase | any product whose switch is on |
+| **Product page panel** | all ten levels with the per-unit rate and amount on the product's bonus base, the "up to" total, the monthly minimum, and the sentence that the member's own purchase does not pay them | any product whose switch is on |
 | **Catalogue badge** | *Up to 29% repeat bonus* on a card whose ladder is on | Shop |
-| **Checkout preview** | "Up to ₱145.00 goes to your sponsor chain when this order is paid" — the whole cart's ladder, one line | Checkout |
-| **Order page card** | the order's total that went to the sponsor chain; never which upline received which amount | `/orders/{id}` |
-| **Earnings → Repeat-purchase bonus** | the member's own awards, the team by level (each member's credited amount and the level total) and a two-clock Active panel | `/earnings?ledger=repeat` |
-| **Dashboard tile** | what the member has earned as an upline plus their current Active status | `/dashboard` |
+| **Checkout preview** | "Up to ₱145.00 is paid to the members above you when this order is paid" — the whole cart's ladder, one line — then the Team chain pivot | Checkout |
+| **Order page card** | the order's total that was paid to the members above the buyer; never which member received which amount | `/orders/{id}` |
+| **Earnings → Repeat-purchase bonus** | the member's own awards, the Team chain by level (each member's credited amount and the level total) and a two-clock Active panel | `/earnings?ledger=repeat` |
+| **Dashboard tile** | what the member has earned from their Team chain plus their current Active status | `/dashboard` |
 | **Membership paragraph** | the same status, in one sentence | `/membership` |
 
 The tiles, the panel and the preview are **absent** while the global repeat-purchase master is off or
 the product's ladder is off/empty. The earnings tab and its export stay reachable either way, because a
-disabled stream can still have history.
+disabled stream can still have history. Every member surface that describes the repeat-purchase bonus
+calls the reader's downline their **Team chain**; "sponsor chain" is admin wording and is never shown
+to a member.
 
 ### The two clocks a member asks about
 
@@ -321,8 +323,8 @@ decide next month. The threshold is **Settings → Commissions → Active thresh
 - A level that falls on someone who is **not Active** is *skipped*: no money, no compression, the next
   upline keeps its own level number.
 
-The member's own purchases never pay them a bonus; they only decide whether a bonus from their team
-reaches them. This is the sentence to use in support replies.
+The member's own purchases never pay them a bonus; they only keep them Active so the income their
+Team chain produces can be credited. This is the sentence to use in support replies.
 
 ### Support checklist: "my repeat-purchase bonus is zero"
 
@@ -336,5 +338,6 @@ reaches them. This is the sentence to use in support replies.
 6. **Membership** — an inactive/suspended recipient is skipped, exactly like a not-Active one.
 
 The admin ledger is **Finance → Commissions → Repeat-purchase bonus** (§9). Copy rules for support:
-say **repeat-purchase bonus**, say **up to**, say **paid when the order is paid**, and never call it a
-rebate or cashback — the buyer is not a recipient.
+say **repeat-purchase bonus**, say **Team chain** (never "sponsor chain" to a member), say **up to**,
+say **paid when the order is paid**, state the **monthly minimum**, and never call it a rebate or
+cashback — the member's own purchase pays the members above them, not the member.

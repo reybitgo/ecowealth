@@ -19,9 +19,10 @@ $team          = $team ?? ['direct' => 0, 'team' => 0, 'levels' => 0];
 $recentHistory = $recent_history ?? [];
 $unilevel      = $unilevel ?? null;
 
-/* The repeat-purchase tile is a read-out: the member's upline earnings
- * plus the two-clock Active status (17E, plan §9). It is hidden only
- * when the stream has never been on and the member has no history. */
+/* The repeat-purchase tile is a read-out: the member's Team chain
+ * earnings plus the two-clock Active status (17E, plan §9). It is
+ * hidden only when the stream has never been on and the member has no
+ * history. */
 $repeatOn      = is_array($unilevel);
 $repeatTotals  = $repeatOn ? ($unilevel['totals'] ?? []) : [];
 $repeatStatus  = $repeatOn ? ($unilevel['status'] ?? []) : [];
@@ -108,15 +109,15 @@ $repeatActive = (bool) ($repeatStatus['active'] ?? true);
                         </span>
                       </div>
                       <div class="d-flex align-items-center justify-content-between gap-2">
-                        <span class="text-body-secondary small">Credited as an upline</span>
+                        <span class="text-body-secondary small">Earned from your Team chain</span>
                         <strong class="h6 mb-0"><?= e(money($repeatCredited)) ?></strong>
                       </div>
                       <p class="small text-body-secondary mt-2 mb-0">
                         <?= $repeatAwards === 0
-                            ? 'No awards yet — a level is credited when a paid order in your team reaches it.'
+                            ? 'No awards yet — a Team chain order credits your level when it is paid.'
                             : $repeatAwards . ' award' . ($repeatAwards === 1 ? '' : 's') . ' at levels 1–10.' ?>
-                        Your own purchases never pay you;
-                        <a href="<?= e(url('earnings?ledger=repeat')) ?>">see the repeat-purchase statement</a>.
+                        Your own purchases keep you Active; your Team chain pays you.
+                        <a href="<?= e(url('earnings?ledger=repeat')) ?>">See the repeat-purchase statement</a>.
                       </p>
 <?php endif; ?>
                     </div>

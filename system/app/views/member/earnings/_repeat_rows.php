@@ -4,11 +4,11 @@ declare(strict_types=1);
 /**
  * Member repeat-purchase statement — award rows (Phase 17E, plan §9).
  *
- * Each row is one level of one paid order line. The buyer is named
- * because an upline's statement has always named the member whose
- * purchase paid it (the package statement does the same); the order
- * number is plain text, not a link — the order belongs to the buyer
- * and is not the upline's to open (Rule 8, admin-only detail).
+ * Each row is one level of one paid order line from the member's Team
+ * chain. The buyer is named because the statement shows which Team
+ * chain member's purchase paid it; the order number is plain text, not
+ * a link — the order belongs to the buyer and is not the recipient's
+ * to open (Rule 8, admin-only detail).
  *
  * A skipped row shows the amount that was due and why it was not
  * paid; a voided row shows how much of it was reversed. Neither is
@@ -40,8 +40,9 @@ $hasFilters = (string) $filters['level'] !== ''
         'title'        => $hasFilters ? 'No awards match these filters' : 'No repeat-purchase bonus yet',
         'text'         => $hasFilters
             ? 'Try a different level, status, product or date range.'
-            : 'When someone in your team buys a product with a repeat-purchase ladder and the order is '
-                . 'paid, your level\'s share is credited here. You do not earn on your own purchase.',
+            : 'When someone in your Team chain buys a product with a repeat-purchase ladder and the '
+                . 'order is paid, your level\'s share is credited here. Your own purchase counts toward '
+                . 'your monthly minimum, not your income.',
         'action_href'  => $hasFilters ? 'earnings?ledger=repeat' : 'shop',
         'action_label' => $hasFilters ? 'Clear filters' : 'Open the shop',
     ]);

@@ -1106,7 +1106,8 @@ return [
         assert_same('pv', $quote['base_source']);
         assert_same(145.0, $quote['total']);
         assert_same([25.0, 25.0, 25.0, 15.0, 15.0, 10.0, 10.0, 10.0, 5.0, 5.0], array_column($quote['levels'], 'amount'));
-        assert_same('Your sponsor', $quote['levels'][0]['recipient']);
+        assert_same('Your direct recruit', $quote['levels'][0]['recipient']);
+        assert_same('Your Team chain', $quote['levels'][1]['recipient']);
 
         $after = [
             (int) db()->query('SELECT COUNT(*) FROM unilevel_awards')->fetchColumn(),

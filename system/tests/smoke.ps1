@@ -3261,21 +3261,25 @@ try {
     # restores the setting from the snapshot it took before the run.
     Set-SettingValue 'unilevel_enabled' '1'
 
-    # P17E-T1 / QA17E-01 - the product page renders the ten-level panel,
-    # the per-unit amounts on the P.V. base, the 29.000% total and the one
-    # deliberate sentence about the buyer not earning on their purchase.
+    # P17E-T1 / QA17E-01 - the product page renders the ten-level Team
+    # chain panel, the per-unit amounts on the P.V. base, the 29.000%
+    # total and the monthly-minimum note.
     $p17eProduct = Invoke-App -Path "/shop/$p17bId" -Session 'member'
     Assert-That 'P17E-T1' ($p17eProduct.Status -eq 200 `
             -and $p17eProduct.Body -match 'data-bonus-panel' `
             -and $p17eProduct.Body -match 'Level 1<' `
             -and $p17eProduct.Body -match 'Level 10<' `
             -and $p17eProduct.Body -match 'Bonus base' `
+            -and $p17eProduct.Body -match 'Your direct recruit' `
+            -and $p17eProduct.Body -match 'Your Team chain' `
             -and $p17eProduct.Body -match 'Total up to 29\.000%' `
-            -and $p17eProduct.Body -match 'You do not earn a rebate on your own purchase' `
-            -and $p17eProduct.Body -match 'when the order is paid' `
+            -and $p17eProduct.Body -match 'Your own purchase does not pay you' `
+            -and $p17eProduct.Body -match 'monthly minimum' `
+            -and $p17eProduct.Body -match 'when that order is paid' `
+            -and $p17eProduct.Body -notmatch 'sponsor chain' `
             -and $p17eProduct.Body -notmatch 'direct_unilevel' `
             -and $p17eProduct.Body -notmatch 'indirect_unilevel') `
-        "GET /shop/{configured} renders the ten-level panel and the no-rebate sentence (status=$($p17eProduct.Status))"
+        "GET /shop/{configured} renders the ten-level Team chain panel and the minimum note (status=$($p17eProduct.Status))"
 
     # P17E-T2 - with the global stream off the panel is absent: a promise
     # that cannot pay is never rendered.
@@ -3296,7 +3300,8 @@ try {
 
     # P17E-T4 / QA17E-02 - two units in the cart preview exactly twice the
     # panel's per-unit total, and the line says the money is paid when the
-    # order is paid. "rebate" appears nowhere on this page.
+    # order is paid and pivots to the reader's own Team chain. "rebate"
+    # appears nowhere on this page.
     Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id JOIN users u ON u.id = c.user_id WHERE u.username = '$memberUsername';" | Out-Null
     $p17eCartToken = Get-Csrf $p17eProduct.Body
     Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
@@ -3305,11 +3310,14 @@ try {
     $p17eCheckout = Invoke-App -Path '/checkout' -Session 'member'
     Assert-That 'P17E-T4' ($p17eCheckout.Status -eq 200 `
             -and $p17eCheckout.Body -match 'data-bonus-preview' `
-            -and $p17eCheckout.Body -match 'Up to [^<]{0,4}145\.00 goes to your sponsor chain' `
+            -and $p17eCheckout.Body -match 'Up to [^<]{0,4}145\.00 is paid to the members above you' `
             -and $p17eCheckout.Body -match 'when this order is paid' `
+            -and $p17eCheckout.Body -match 'Team chain' `
+            -and $p17eCheckout.Body -match 'monthly minimum' `
+            -and $p17eCheckout.Body -notmatch 'sponsor chain' `
             -and $p17eCheckout.Body -notmatch 'rebate' `
             -and $p17eCheckout.Body -notmatch 'cashback') `
-        "GET /checkout previews the 2-unit ladder at 145.00 and never says rebate (status=$($p17eCheckout.Status))"
+        "GET /checkout previews the 2-unit ladder at 145.00 in the Team chain voice (status=$($p17eCheckout.Status))"
 
     # P17E-T8 / T10 - the earnings tabs: the repeat tab carries its own
     # regions and no "as buyer" figure; the package tab is unchanged.
@@ -3322,6 +3330,8 @@ try {
             -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-rows"' `
             -and $p17eRepeat.Body -match 'Your Active status' `
             -and $p17eRepeat.Body -match 'Repeat-purchase by level' `
+            -and $p17eRepeat.Body -match 'Team chain' `
+            -and $p17eRepeat.Body -notmatch 'sponsor chain' `
             -and $p17eRepeat.Body -match 'name="ledger" value="repeat"' `
             -and $p17eRepeat.Body -notmatch 'As buyer') `
         "GET /earnings?ledger=repeat renders the repeat tab without an as-buyer stat (status=$($p17eRepeat.Status))"

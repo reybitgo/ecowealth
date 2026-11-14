@@ -6,13 +6,14 @@ declare(strict_types=1);
  *
  *  Proves the member-facing half of the repeat-purchase stream:
  *
- *      product     the ladder panel, all ten levels, the per-unit
- *                  amounts, the "up to" total and the one deliberate
- *                  sentence about not earning on your own purchase
+ *      product     the Team chain ladder panel, all ten levels, the
+ *                  per-unit amounts, the "up to" total and the monthly
+ *                  minimum note
  *      catalogue   the one-query "Up to 29% repeat bonus" badge
- *      checkout    the batched "up to ₱… goes to your sponsor chain"
- *                  line, paid-when-paid copy, absent when nothing pays
- *      order       the order's total only — no per-upline amounts
+ *      checkout    the batched "up to ₱… is paid to the members above
+ *                  you" line, the Team chain pivot, paid-when-paid copy,
+ *                  absent when nothing pays
+ *      order       the order's total only — no per-recipient amounts
  *      earnings    the ?ledger=repeat tab: counters without an
  *                  "as buyer" figure, the two-clock status panel, the
  *                  1–10 team breakdown (rosters and per-member money),
@@ -139,7 +140,7 @@ return [
      *  P17E-T1 — the product panel
      * ========================================================== */
 
-    'P17E-T1 the product panel lists levels 1–10, the per-unit amounts, the 29.000% total and the no-rebate note' => function () use (
+    'P17E-T1 the product panel lists levels 1–10, the per-unit amounts, the 29.000% total and the monthly minimum' => function () use (
         $enable,
         $makeProduct,
         $render
@@ -178,13 +179,17 @@ return [
         assert_contains(money(250), $card, 'the base is shown per unit');
         assert_contains('Level 1', $card);
         assert_contains('Level 10', $card);
-        assert_contains('Your sponsor', $card);
+        assert_contains('Your direct recruit', $card);
+        assert_contains('Your Team chain', $card);
         assert_contains('5.000%', $card);
         assert_contains(money(12.5), $card);
         assert_contains('Total up to 29.000%', $card);
         assert_contains(money(72.5), $card);
-        assert_contains('You do not earn a rebate on your own purchase', $card);
-        assert_contains('when the order is paid', $card);
+        assert_contains('Your own purchase does not pay you', $card);
+        assert_contains('monthly minimum', $card);
+        assert_contains(money(500), $card, 'the monthly minimum amount is stated');
+        assert_contains('when that order is paid', $card);
+        assert_not_contains('sponsor chain', $card);
         assert_not_contains('direct bonus', $card);
         assert_not_contains('indirect ladder', $card);
         assert_not_contains('cashback', $card);
@@ -313,7 +318,7 @@ return [
      *  P17E-T4 / T5 / T6 — the checkout preview
      * ========================================================== */
 
-    'P17E-T4 the checkout summary says up to ₱145.00 goes to the sponsor chain and never says rebate' => function () use (
+    'P17E-T4 the checkout summary says up to ₱145.00 is paid to the members above you and pivots to the Team chain' => function () use (
         $enable,
         $makeProduct
     ): void {
@@ -338,9 +343,11 @@ return [
 
         assert_contains('data-bonus-preview', $summary);
         assert_contains('Up to ' . money(145), $summary);
-        assert_contains('goes to your sponsor chain', $summary);
+        assert_contains('is paid to the members above you', $summary);
         assert_contains('when this order is paid', $summary);
-        assert_contains('It is not paid to you', $summary);
+        assert_contains('<strong>Team chain</strong>', $summary);
+        assert_contains('monthly minimum', $summary);
+        assert_not_contains('sponsor chain', $summary);
         assert_not_contains('rebate', $summary);
         assert_not_contains('cashback', $summary);
         assert_not_contains('you will earn', $summary);
@@ -395,7 +402,7 @@ return [
         $payload = $controller->feedPayload(5, '"checkout:5:abc"', $data);
 
         assert_not_contains('data-bonus-preview', $payload['fragments']['checkout-summary']);
-        assert_not_contains('goes to your sponsor chain', $payload['fragments']['checkout-summary']);
+        assert_not_contains('is paid to the members above you', $payload['fragments']['checkout-summary']);
     },
 
     'P17E-T6 the checkout feed carries bonus_preview in the refreshed summary and matches the first render' => function () use (
@@ -433,7 +440,7 @@ return [
      *  P17E-T7 — the order page
      * ========================================================== */
 
-    'P17E-T7 the order page shows the total paid to the sponsor chain and no per-upline amounts' => function () use (
+    'P17E-T7 the order page shows the total paid to the members above and no per-recipient amounts' => function () use (
         $enable,
         $makeProduct,
         $paidOrder
@@ -449,10 +456,13 @@ return [
         assert_contains('data-live-region="member-order-bonus"', $html);
         assert_contains('Repeat-purchase bonus', $html);
         assert_contains(money(90), $html, 'the order total');
-        assert_contains('went to your sponsor chain', $html);
-        assert_contains('not paid to you', $html);
+        assert_contains('was paid to the members above you', $html);
+        assert_contains('Your <strong>Team chain</strong>', $html);
+        assert_contains('monthly minimum', $html);
+        assert_contains('earnings?ledger=repeat', $html, 'the card links to the Team chain statement');
+        assert_not_contains('sponsor chain', $html);
 
-        /* Which upline got which amount is admin-only. */
+        /* Which member above got which amount is admin-only. */
         foreach ($fixture['levels'] as $level => $upline) {
             assert_not_contains((string) $upline['username'], $html, 'level ' . $level . ' is not named');
         }
@@ -545,7 +555,9 @@ return [
         assert_contains('purchases', $statusPanel);
         assert_contains('Threshold ' . money(500), $statusPanel);
         assert_contains('Counts toward', $statusPanel);
-        assert_contains('they never pay you a bonus', $statusPanel);
+        assert_contains('they never pay you a repeat-purchase bonus', $statusPanel);
+        assert_contains('Team chain', $statusPanel);
+        assert_not_contains('sponsor chain', $statusPanel);
         assert_not_contains('rebate', $statusPanel);
 
         $levels = $payload['fragments']['earnings-repeat-levels'];
@@ -790,7 +802,9 @@ return [
         assert_contains('data-live-region="membership-repeat"', $paragraph);
         assert_contains('Repeat-purchase bonus', $paragraph);
         assert_contains('Active for ', $paragraph);
-        assert_contains('you do not earn on your own purchase', $paragraph);
+        assert_contains('Team chain', $paragraph);
+        assert_contains('keep you Active', $paragraph);
+        assert_not_contains('sponsor chain', $paragraph);
         assert_not_contains('<form', $paragraph);
         assert_not_contains('<input', $paragraph);
         assert_not_contains('<button', $paragraph);
@@ -861,8 +875,8 @@ return [
     },
 
     /* ==========================================================
-     *  P17E-T14 / T15 — the breakdown lists the team, not the
-     *  sponsor chain (17E follow-up)
+     *  P17E-T14 / T15 — the breakdown lists the Team chain
+     *  (17E follow-up)
      * ========================================================== */
 
     'P17E-T14 the repeat card lists the team at each level with the money each member paid' => function () use (
@@ -918,7 +932,8 @@ return [
         assert_contains('@' . (string) $buyer['username'], $html, 'the member row names the team member');
         assert_contains('Level total', $html);
         assert_contains(money(25), $html);
-        assert_contains('No team members at this level yet.', $html);
+        assert_contains('Team chain', $html);
+        assert_contains('members at this level yet.', $html);
         assert_contains('Level 10', $html);
 
         /* One member is one page, and the page still offers its pager:
@@ -932,9 +947,10 @@ return [
         assert_not_contains('aria-label="Level 1 pagination"', $html, 'one page needs no page links');
         assert_not_contains('name="level2_per_page"', $html, 'an empty level has no pager');
 
-        /* The card no longer explains the buyer's sponsor chain. */
+        /* The card explains the Team chain, never the old sponsor chain. */
         assert_not_contains("buyer's sponsor", $html);
         assert_not_contains("sponsor's sponsor", $html);
+        assert_not_contains('sponsor chain', $html);
         assert_not_contains('up the chain', $html);
         assert_not_contains('Direct', $html);
         assert_not_contains('Indirect', $html);
