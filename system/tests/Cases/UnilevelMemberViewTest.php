@@ -15,7 +15,8 @@ declare(strict_types=1);
  *      order       the order's total only — no per-upline amounts
  *      earnings    the ?ledger=repeat tab: counters without an
  *                  "as buyer" figure, the two-clock status panel, the
- *                  1–10 breakdown, filters, CSV and session scoping
+ *                  1–10 team breakdown (rosters and per-member money),
+ *                  filters, CSV and session scoping
  *      dashboard   the repeat tile with the current Active status
  *      membership  the paragraph, with no action and no form
  *      phones      the responsive hooks at 390 px
@@ -576,6 +577,7 @@ return [
         assert_contains('name="ledger" value="repeat"', $html);
         assert_contains('data-live-region="earnings-repeat-status"', $html);
         assert_contains('data-live-region="earnings-repeat-rows"', $html);
+        assert_contains('data-live-config="' . Live::GENEALOGY_TEAM . '"', $html, 'a team change wakes the repeat tab');
         assert_contains('name="level"', $html);
         assert_contains('name="product_id"', $html);
         assert_not_contains('As buyer', $html);
@@ -681,6 +683,7 @@ return [
         assert_contains('data-live-region="earnings-rows"', $html);
         assert_contains('Unilevel breakdown', $html);
         assert_not_contains('data-live-region="earnings-repeat-', $html);
+        assert_not_contains('data-live-config', $html, 'the package tab does not depend on the team revision');
         assert_not_contains('Repeat-purchase by level', $html);
         assert_contains('Package commissions', $html);
         assert_contains('Repeat-purchase bonus', $html, 'the pill is the only new copy on this tab');
@@ -855,6 +858,186 @@ return [
         $commissionsCss = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/commissions.css');
         assert_contains('.commission-col-base', $commissionsCss);
         assert_contains('@media (max-width: 767.98px)', $commissionsCss);
+    },
+
+    /* ==========================================================
+     *  P17E-T14 / T15 — the breakdown lists the team, not the
+     *  sponsor chain (17E follow-up)
+     * ========================================================== */
+
+    'P17E-T14 the repeat card lists the team at each level with the money each member paid' => function () use (
+        $enable,
+        $makeProduct,
+        $paidOrder
+    ): void {
+        $enable();
+        $fixture = $paidOrder($makeProduct());
+
+        $member = $fixture['levels'][1];
+        $userId = (int) $member['id'];
+        $buyer  = $fixture['buyer'];
+
+        test_signed_in_as($member);
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=repeat';
+
+        $controller = new EarningsController();
+        $data       = $controller->context($userId);
+        $levels     = $data['levels'];
+
+        /* The model read behind the rows groups the ledger by the buyer
+         * and the level in one query. */
+        $credited = UnilevelAward::creditedByBuyer($userId);
+        assert_same(25.0, (float) $credited[1][(int) $buyer['id']]['amount']);
+        assert_same(1, (int) $credited[1][(int) $buyer['id']]['count']);
+
+        /* Level 1 is the direct recruit roster, with the ₱25 that
+         * member's purchase credited at this depth. */
+        assert_same(25.0, (float) $levels[1]['amount']);
+        assert_same(1, (int) $levels[1]['count']);
+        assert_same(1, (int) $levels[1]['team_count']);
+        assert_same(1, $levels[1]['pager']->total);
+        assert_count(1, $levels[1]['members']);
+        assert_same((int) $buyer['id'], (int) $levels[1]['members'][0]['id']);
+        assert_same((string) $buyer['username'], (string) $levels[1]['members'][0]['username']);
+        assert_same(25.0, (float) $levels[1]['members'][0]['amount']);
+        assert_same(1, (int) $levels[1]['members'][0]['count']);
+
+        /* The ladder still renders every level, empty ones included. A
+         * deeper level with no recruit is a roster of zero, never a
+         * missing card. */
+        assert_same(0, (int) $levels[2]['team_count']);
+        assert_count(0, $levels[2]['members']);
+        assert_same(0, (int) $levels[10]['team_count']);
+        assert_count(0, $levels[10]['members']);
+
+        $payload = $controller->feedPayload(11, '"member.earnings:' . $userId . ':11:abc"', $data);
+        $html    = $payload['fragments']['earnings-repeat-levels'];
+
+        assert_contains('data-live-region="earnings-repeat-levels"', $html);
+        assert_contains('@' . (string) $buyer['username'], $html, 'the member row names the team member');
+        assert_contains('Level total', $html);
+        assert_contains(money(25), $html);
+        assert_contains('No team members at this level yet.', $html);
+        assert_contains('Level 10', $html);
+
+        /* One member is one page, and the page still offers its pager:
+         * the genealogy "Team by level" card shows the rows control and
+         * the summary even when a level fits on a single page, and this
+         * card now does the same. A level with no member stays quiet. */
+        assert_contains('data-pagination-anchor', $html, 'each level card anchors its own pager');
+        assert_contains('Rows per page', $html);
+        assert_contains('name="level1_per_page"', $html, 'the rows control is namespaced to level 1');
+        assert_contains('Showing 1–1 of 1', $html);
+        assert_not_contains('aria-label="Level 1 pagination"', $html, 'one page needs no page links');
+        assert_not_contains('name="level2_per_page"', $html, 'an empty level has no pager');
+
+        /* The card no longer explains the buyer's sponsor chain. */
+        assert_not_contains("buyer's sponsor", $html);
+        assert_not_contains("sponsor's sponsor", $html);
+        assert_not_contains('up the chain', $html);
+        assert_not_contains('Direct', $html);
+        assert_not_contains('Indirect', $html);
+
+        /* The same ladder read from the level-2 member: their direct
+         * recruit is u1 at ₱0.00, and the buyer sits at level 2 with the
+         * ₱25 award. The amount follows the level in the ledger, never
+         * the buyer's username alone. */
+        $upline = $fixture['levels'][2];
+        test_signed_in_as($upline);
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=repeat';
+
+        $second = (new EarningsController())->context((int) $upline['id']);
+        $secondLevels = $second['levels'];
+
+        assert_same(1, (int) $secondLevels[1]['team_count']);
+        assert_same((int) $fixture['levels'][1]['id'], (int) $secondLevels[1]['members'][0]['id']);
+        assert_same(0.0, (float) $secondLevels[1]['members'][0]['amount']);
+
+        assert_same(1, (int) $secondLevels[2]['team_count']);
+        assert_same((int) $buyer['id'], (int) $secondLevels[2]['members'][0]['id']);
+        assert_same(25.0, (float) $secondLevels[2]['members'][0]['amount']);
+        assert_same(1, (int) $secondLevels[2]['members'][0]['count']);
+
+        /* The roster is user-controlled text: it must escape. */
+        db()->prepare('UPDATE users SET username = ? WHERE id = ?')
+            ->execute(['<b>Hostile Team</b>', (int) $buyer['id']]);
+
+        $_GET = ['ledger' => 'repeat'];
+
+        $hostileData = $controller->repeatContext($userId);
+        $hostile     = $controller->feedPayload(
+            13,
+            '"member.earnings:' . $userId . ':13:abc"',
+            $hostileData
+        );
+        $hostileLevels = $hostile['fragments']['earnings-repeat-levels'];
+
+        assert_contains('&lt;b&gt;Hostile Team&lt;/b&gt;', $hostileLevels);
+        assert_not_contains('<b>Hostile Team</b>', $hostileLevels);
+    },
+
+    'P17E-T15 the team list shows ten members per level and pages each level separately' => function () use (
+        $enable,
+        $makeProduct,
+        $paidOrder
+    ): void {
+        $enable();
+        $fixture = $paidOrder($makeProduct());
+
+        $member = $fixture['levels'][1];
+        $userId = (int) $member['id'];
+
+        /* Twelve direct recruits: the paid buyer plus eleven accounts
+         * with no orders. The roster counts all twelve; the card shows
+         * the first ten and offers a second page. */
+        for ($i = 0; $i < 11; $i++) {
+            $extra = test_user('p17e_team_' . $i . '_' . bin2hex(random_bytes(3)));
+
+            db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+                ->execute([$userId, (int) $extra['id']]);
+        }
+
+        test_signed_in_as($member);
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=repeat';
+
+        $controller = new EarningsController();
+        $first      = $controller->context($userId);
+
+        assert_same(12, (int) $first['levels'][1]['team_count']);
+        assert_same(12, $first['levels'][1]['pager']->total);
+        assert_same(2, $first['levels'][1]['pager']->pages);
+        assert_same(1, $first['levels'][1]['pager']->page);
+        assert_count(10, $first['levels'][1]['members']);
+
+        /* The other levels did not move: level 2 still has no recruit
+         * and its pager stays on page 1. */
+        assert_same(0, (int) $first['levels'][2]['team_count']);
+        assert_same(1, $first['levels'][2]['pager']->page);
+
+        $firstHtml = $controller
+            ->feedPayload(11, '"member.earnings:' . $userId . ':11:abc"', $first)['fragments']['earnings-repeat-levels'];
+
+        assert_contains('Showing 1–10 of 12', $firstHtml, 'the first page shows its pager');
+        assert_contains('level1_page=2', $firstHtml, 'the pager links to the second page');
+        assert_not_contains('level2_page', $firstHtml, 'the empty level 2 has no page links');
+
+        $_GET = ['ledger' => 'repeat', 'level1_page' => '2'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=repeat&level1_page=2';
+
+        $second = (new EarningsController())->context($userId);
+
+        assert_same(2, $second['levels'][1]['pager']->page);
+        assert_count(2, $second['levels'][1]['members']);
+        assert_same(1, $second['levels'][2]['pager']->page);
+
+        $payload = $controller->feedPayload(12, '"member.earnings:' . $userId . ':12:abc"', $second);
+        $html    = $payload['fragments']['earnings-repeat-levels'];
+
+        assert_contains('data-pagination=', $html, 'the second page offers the shared pager');
+        assert_contains('Showing 11–12 of 12', $html);
     },
 
     /* ==========================================================

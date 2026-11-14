@@ -36,7 +36,8 @@ in one place.
 - A surface can depend on a *shared* revision it mixes into its ETag by
   declaring `data-live-config="config"` (comma-separated for more than one).
   A broadcast of that key revalidates it even though its own surface key did
-  not change.
+  not change. Settings-backed pages use `config`; the repeat-purchase earnings
+  tab uses `member.genealogy` for the team it lists.
 - A hidden tab marks itself dirty and waits for `visibilitychange`; it makes no
   polling requests.
 
@@ -187,7 +188,9 @@ clock-relative label, so it does not widen the scope with the day or hour.
 
 The member's own `/earnings` page is `member.earnings:{id}`.
 `CommissionService` calls `touchEarnings()` after every credited and every
-skipped award; a replayed award writes no row and does not bump. The page
+skipped commission award; `UnilevelService` does the same after every credited
+and every skipped repeat-purchase award (and after a reversal). A replayed
+award writes no row and does not bump. The page
 renders six regions: the four summary cards, the level breakdown (levels 1–10,
 counts and amounts), the skipped-award alert, the card heading with its row
 count, the award rows and the pagination. The skipped alert is always present
@@ -197,6 +200,17 @@ indirect award can move a bar without a full reload. The filter form stays
 outside the regions, so a background refresh never discards an unsubmitted
 filter. The ETag scope includes the hour because the "last award" label is
 relative and "this month" counts from `CURDATE()`.
+
+On the repeat tab, the level breakdown lists the member's **team** by level:
+level 1 is the direct recruits, level 2 their recruits, and so on, and each
+member row carries the credited repeat-purchase money that member's purchases
+paid at that depth. The roster is a live dependency on the team, so this tab's
+ETag also mixes the shared `member.genealogy` revision and the page container
+declares `data-live-config="member.genealogy"`: a registration, an activation,
+a status change or a profile-name change refreshes an open repeat tab
+immediately, not only on its next poll. The per-level roster paginates on
+namespaced `levelN_page`/`levelN_per_page` keys, so one crowded level never
+moves the award table below it.
 
 The member's own `/genealogy` page is `member.genealogy:{id}`. It renders six
 regions: the heading's team badges, the upline card, the direct-recruit count
@@ -493,10 +507,12 @@ include the day: `new_week` counts from `CURDATE()` and the ledger's “this mon
 moves at the month boundary. The wallet monitor adds the hour as well, because its
 directory shows a relative “last movement” label; a tab left open therefore revalidates
 on its next poll without a write. The member earnings page adds the hour too, because its
-“last award” label is relative and “this month” counts from `CURDATE()`. The member order
-page adds the hour too, because its payment/correction window labels read the clock. Every
-genealogy page adds the shared team revision instead of a clock: an activation, a status
-change or a profile-name change rewrites the upline row on a descendant's page, so the
+“last award” label is relative and “this month” counts from `CURDATE()`; the repeat tab also
+adds the shared team revision, because its level cards list the team, and declares
+`data-live-config="member.genealogy"` so the writer's broadcast wakes it immediately. The
+member order page adds the hour too, because its payment/correction window labels read the
+clock. Every genealogy page adds the shared team revision instead of a clock: an activation, a
+status change or a profile-name change rewrites the upline row on a descendant's page, so the
 per-page key alone would leave half the tree stale. The membership and member order pages
 add the shared `CONFIG` revision because their activation channels and payment
 instructions read the receiving accounts. The checkout page adds the `shop.catalog`
@@ -588,7 +604,7 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `member.membership:{id}` | `/membership` | header, current membership, activation paths, history |
 | `member.wallet:{id}` | `/wallet` | buckets, send-funds card, withdraw card, statement |
 | `member.payouts:{id}` | `/payouts` | withdrawable card, request card (form / open request, held while dirty), history, pagination (also follows the payout-settings fingerprint) |
-| `member.earnings:{id}` | `/earnings` | stats, level breakdown, skipped notice, header, rows, pagination |
+| `member.earnings:{id}` | `/earnings` | stats, level breakdown (team by level on the repeat tab), skipped notice, header, rows, pagination |
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |
 | `member.cart:{id}` | `/cart` | cart content (notice, stock warnings, lines, summary, empty state) |

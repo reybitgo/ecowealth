@@ -1347,7 +1347,12 @@ Expected
 - The status panel reads **Active for November 2026**, shows **October 2026 purchases ₱0.00** with the
   missing-flag sentence (no counted purchases that month), then **November 2026 purchases so far
   ₱0.00** with its progress line, and the note that the member's own purchases never pay them a bonus.
-- The breakdown shows level 1 at **1 award · ₱25.00**; levels 2–10 read **No awards yet**.
+- The breakdown lists `c`'s **team** by level: level 1 names the buyer (the direct recruit) at
+  **₱25.00** and every other direct recruit at **₱0.00**, with **Level total ₱25.00**; deeper levels
+  name their own members at **₱0.00**, or read **No team members at this level yet**.
+- Each level card carries its own pager, like the genealogy **Team by level** card: a **Rows per page**
+  control and a **Showing 1–1 of 1** summary for the level's whole roster, plus page links once a level
+  holds more than ten members. A level with no member shows no pager.
 - The row shows the buyer, **L1**, base ₱500.00, rate 5.000%, **+₱25.00**, **Credited**.
 - The page has **no "as buyer" statistic**.
 - Wallets after the order: c/b/a/boss = **25.00 / 25.00 / 25.00 / 15.00**, all withdrawable.

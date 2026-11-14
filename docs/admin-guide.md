@@ -301,7 +301,7 @@ changes or claims a bonus; every number comes from the same engine and ledger th
 | **Catalogue badge** | *Up to 29% repeat bonus* on a card whose ladder is on | Shop |
 | **Checkout preview** | "Up to ₱145.00 goes to your sponsor chain when this order is paid" — the whole cart's ladder, one line | Checkout |
 | **Order page card** | the order's total that went to the sponsor chain; never which upline received which amount | `/orders/{id}` |
-| **Earnings → Repeat-purchase bonus** | the member's own awards as an upline, the 1–10 breakdown and a two-clock Active panel | `/earnings?ledger=repeat` |
+| **Earnings → Repeat-purchase bonus** | the member's own awards, the team by level (each member's credited amount and the level total) and a two-clock Active panel | `/earnings?ledger=repeat` |
 | **Dashboard tile** | what the member has earned as an upline plus their current Active status | `/dashboard` |
 | **Membership paragraph** | the same status, in one sentence | `/membership` |
 

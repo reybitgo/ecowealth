@@ -224,11 +224,11 @@ final class SponsorService
      * The whole downline up to `$maxLevels`, breadth-first so the
      * result is ordered by level (level 1 first, then level 2, …).
      *
-     * Uses one query per level rather than one per member, and a
-     * visited set so a corrupted chain cannot duplicate or loop. Each
-     * row carries its sponsor's username (`sponsor_username`) as well,
-     * so the Team by level card can label a row "@member → @sponsor"
-     * without a query per row.
+     * One query per level (`WHERE sponsor_id IN (…frontier…)`), never
+     * one per member, and a visited set so a corrupted chain cannot
+     * duplicate or loop. Each row carries its sponsor's username
+     * (`sponsor_username`) as well, so the Team by level card can label
+     * a row "@member → @sponsor" without a query per row.
      *
      * @return list<array<string, mixed>> each row carries `level` and `sponsor_username`
      */
@@ -239,36 +239,37 @@ final class SponsorService
         $frontier  = [$userId];
         $rows      = [];
 
-        $stmt = $this->pdo->prepare(
-            'SELECT u.id, u.username, u.full_name, u.member_status, u.is_active,
-                    u.referral_code, u.activated_at, u.created_at,
-                    p.name AS package_name,
-                    sp.username AS sponsor_username
-               FROM users u
-               LEFT JOIN packages p ON p.id = u.package_id
-               LEFT JOIN users sp ON sp.id = u.sponsor_id
-              WHERE u.sponsor_id = ? AND u.role = ?
-              ORDER BY u.created_at ASC, u.id ASC'
-        );
-
         for ($level = 1; $level <= $maxLevels && $frontier !== []; $level++) {
+            $ids          = array_values(array_map('intval', $frontier));
+            $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+            $params       = $ids;
+            $params[]     = 'member';
+
+            $stmt = $this->pdo->prepare(
+                'SELECT u.id, u.username, u.full_name, u.member_status, u.is_active,
+                        u.referral_code, u.activated_at, u.created_at,
+                        p.name AS package_name,
+                        sp.username AS sponsor_username
+                   FROM users u
+                   LEFT JOIN packages p ON p.id = u.package_id
+                   LEFT JOIN users sp ON sp.id = u.sponsor_id
+                  WHERE u.sponsor_id IN (' . $placeholders . ') AND u.role = ?
+                  ORDER BY u.created_at ASC, u.id ASC'
+            );
+            $stmt->execute($params);
             $next = [];
 
-            foreach ($frontier as $parentId) {
-                $stmt->execute([$parentId, 'member']);
+            foreach ($stmt->fetchAll() as $row) {
+                $id = (int) $row['id'];
 
-                foreach ($stmt->fetchAll() as $row) {
-                    $id = (int) $row['id'];
-
-                    if (isset($visited[$id])) {
-                        continue;
-                    }
-
-                    $visited[$id]    = true;
-                    $row['level']    = $level;
-                    $rows[]          = $row;
-                    $next[]          = $id;
+                if (isset($visited[$id])) {
+                    continue;
                 }
+
+                $visited[$id] = true;
+                $row['level'] = $level;
+                $rows[]       = $row;
+                $next[]       = $id;
             }
 
             $frontier = $next;

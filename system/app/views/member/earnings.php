@@ -45,7 +45,13 @@ declare(strict_types=1);
  *
  * Repeat tab:
  * @var array{count:int, credited:float, this_month:float, skipped:int, last_at:?string} $totals
- * @var array<int, array{amount:float, count:int}> $levels
+ * @var array<int, array{
+ *   amount:float, count:int, team_count:int, pager:Paginator,
+ *   members:list<array{
+ *     id:int, username:string, full_name:string, package_name:?string,
+ *     member_status:string, amount:float, count:int
+ *   }>
+ * }> $levels
  * @var array{level:string, status:string, product_id:string, from:string, to:string, q:string} $filters
  * @var list<array<string, mixed>> $awards
  * @var list<array<string, mixed>> $products
@@ -126,6 +132,9 @@ if ($isRepeat) {
               data-live-revision="<?= (int) $live['revision'] ?>"
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
+<?php if ($isRepeat): ?>
+              data-live-config="<?= e(Live::GENEALOGY_TEAM) ?>"
+<?php endif; ?>
             >
               <?= flash_render() ?>
 
@@ -134,7 +143,7 @@ if ($isRepeat) {
 <?php if ($isRepeat): ?>
                   <h4 class="mb-1">Repeat-purchase bonus</h4>
                   <p class="text-body-secondary mb-0">
-                    Every repeat-purchase award you earned as an upline.
+                    Every repeat-purchase award your team's paid purchases earned you.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
 <?php else: ?>

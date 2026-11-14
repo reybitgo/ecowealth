@@ -31,7 +31,10 @@ declare(strict_types=1);
  *  The page is one per-member live surface (`member.earnings:{id}`).
  *  The two tabs share it: a repeat award bumps the same revision the
  *  package tab already listens to, so an open repeat tab refreshes
- *  without a second surface (Rule 10).
+ *  without a second surface (Rule 10). The repeat tab also mixes the
+ *  shared genealogy revision into its ETag: its level cards list the
+ *  team, so a registration, activation or status change refreshes them
+ *  too, exactly like the genealogy page.
  * ============================================================== */
 
 final class EarningsController
@@ -171,7 +174,7 @@ final class EarningsController
             'tab'           => self::TAB_REPEAT,
             'user_id'       => $userId,
             'totals'        => UnilevelAward::totalsForUser($userId),
-            'levels'        => UnilevelAward::levelBreakdown($userId),
+            'levels'        => $this->repeatLevels($userId),
             'filters'       => $filters,
             'pager'         => $pager,
             'awards'        => $rows,
@@ -185,6 +188,77 @@ final class EarningsController
             'statement_url' => url('earnings?ledger=repeat'),
             'export_url'    => url('earnings/export' . self::repeatQueryString($filters)),
         ];
+    }
+
+    /**
+     * The 1–10 repeat-purchase breakdown, enriched with the member's
+     * team at each level (17E follow-up).
+     *
+     * The ledger total for a level is unchanged: credited awards at that
+     * depth, from `UnilevelAward::levelBreakdown()`. What is new is the
+     * roster beside it — level 1 is the members the session member
+     * sponsored, level 2 their recruits, and so on, exactly the
+     * genealogy "Team by level" shape. Each member row carries the
+     * money that member's purchases credited at that level, so the two
+     * halves of the card answer "who is at this level?" and "what did
+     * they earn me?" from one screen.
+     *
+     * The team is read once, then paginated per level with namespaced
+     * keys (`level1_page`, `level1_per_page`, …) so one crowded level
+     * never moves the award table below. A member with no credited
+     * purchase stays in the list at ₱0.00: the roster is the team, not
+     * only the payers.
+     *
+     * @return array<int, array{
+     *   amount:float, count:int, team_count:int, pager:Paginator,
+     *   members:list<array{
+     *     id:int, username:string, full_name:string, package_name:?string,
+     *     member_status:string, amount:float, count:int
+     *   }>
+     * }>
+     */
+    private function repeatLevels(int $userId): array
+    {
+        $levels = UnilevelAward::levelBreakdown($userId);
+        $earned = UnilevelAward::creditedByBuyer($userId);
+        $team   = (new SponsorService())->downline($userId, UnilevelAward::LEVEL_MAX);
+
+        $byLevel = [];
+
+        foreach ($team as $row) {
+            $byLevel[(int) $row['level']][] = $row;
+        }
+
+        for ($level = UnilevelAward::LEVEL_MIN; $level <= UnilevelAward::LEVEL_MAX; $level++) {
+            $rows  = $byLevel[$level] ?? [];
+            $pager = Paginator::fromTableRequest(
+                count($rows),
+                'level' . $level . '_page',
+                'level' . $level . '_per_page'
+            );
+            $members = [];
+
+            foreach (array_slice($rows, $pager->offset, $pager->perPage) as $row) {
+                $id   = (int) $row['id'];
+                $stat = $earned[$level][$id] ?? ['amount' => 0.0, 'count' => 0];
+
+                $members[] = [
+                    'id'            => $id,
+                    'username'      => (string) $row['username'],
+                    'full_name'     => (string) ($row['full_name'] ?? ''),
+                    'package_name'  => $row['package_name'] === null ? null : (string) $row['package_name'],
+                    'member_status' => (string) $row['member_status'],
+                    'amount'        => round((float) $stat['amount'], 2),
+                    'count'         => (int) $stat['count'],
+                ];
+            }
+
+            $levels[$level]['members']    = $members;
+            $levels[$level]['pager']      = $pager;
+            $levels[$level]['team_count'] = count($rows);
+        }
+
+        return $levels;
     }
 
     /**
@@ -347,10 +421,22 @@ final class EarningsController
      * revalidates without a write instead of showing a stale age.
      * `Live::scope()` carries the query string, so the two tabs never
      * share an ETag.
+     *
+     * The repeat tab also lists the member's team by level, so it mixes
+     * in the shared `GENEALOGY_TEAM` revision: a registration, an
+     * activation or a member status change moves a roster even though no
+     * award row was written (the same revision the genealogy and
+     * dashboard pages use).
      */
     private function earningsScope(int $userId): string
     {
-        return Live::scope($_GET, $userId) . '|hour:' . date('Y-m-d H');
+        $scope = Live::scope($_GET, $userId) . '|hour:' . date('Y-m-d H');
+
+        if (self::tab() === self::TAB_REPEAT) {
+            $scope .= '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM);
+        }
+
+        return $scope;
     }
 
     /**

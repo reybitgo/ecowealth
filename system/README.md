@@ -1278,7 +1278,9 @@ Read-only and scoped to the session member; no page offers a repeat-purchase act
   received what; it is a live region, so a verification appears without a reload.
 - **The repeat tab** (`/earnings?ledger=repeat`) carries four counters, the **two-clock Active panel**
   (this month's status, the previous month it is computed from, the threshold and the missing-flag
-  sentence), the 1–10 breakdown, the rows, filters and a 13-column CSV.
+  sentence), the 1–10 **team** breakdown — each level card lists its members and paginates on its own,
+  ten rows by default with the usual 5/10/15… control under its own `?levelN_page` / `?levelN_per_page`
+  keys, so one crowded level never moves the others — the rows, filters and a 13-column CSV.
 - **The dashboard tile** and the **membership paragraph** read the same `UnilevelCycle::memberStatus()`.
 - The package earnings tab is unchanged (P17E-T10); `?user_id=` is ignored (P17E-T11).
 
@@ -1287,7 +1289,7 @@ php tests/run.php Unilevel                # every Phase 17 case: foundation, con
 php tests/run.php UnilevelConfiguration   # 24 configuration cases (17B)
 php tests/run.php UnilevelEngine          # 38 engine cases (17C)
 php tests/run.php UnilevelCycle           # 11 monthly-clock cases (17C)
-php tests/run.php UnilevelMemberView      # 14 member-surface cases (17E)
+php tests/run.php UnilevelMemberView      # 16 member-surface cases (17E)
 php tests/run.php Cron                    # 18 job cases, 10 of them the month close (17F)
 php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 ```

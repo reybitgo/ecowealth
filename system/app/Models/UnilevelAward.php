@@ -426,6 +426,59 @@ final class UnilevelAward
     }
 
     /**
+     * Credited earnings for one recipient, split by the buying team
+     * member and by level (17E follow-up).
+     *
+     * The earnings tab shows the member's team by level: a level-1 row
+     * is a direct recruit, a level-2 row is one of their recruits, and
+     * so on. Each row needs the money that member's purchases credited
+     * to the session member at that depth, so this read groups the
+     * credited ledger by `(level, buyer_id)` in one query instead of
+     * one query per team row.
+     *
+     * Only `credited` rows count as money (plan §13.7), exactly like
+     * `levelBreakdown()`. A buyer with no credited award never appears
+     * in the result and is rendered at ₱0.00 by the caller.
+     *
+     * @return array<int, array<int, array{amount:float, count:int}>>
+     *         level => buyer id => credited amount + award count
+     */
+    public static function creditedByBuyer(int $userId, ?PDO $pdo = null): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT level, buyer_id, COUNT(*) AS award_count, COALESCE(SUM(amount), 0) AS amount
+               FROM unilevel_awards
+              WHERE user_id = ? AND status = 'credited'
+              GROUP BY level, buyer_id"
+        );
+        $stmt->execute([$userId]);
+
+        $earned = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $level = (int) $row['level'];
+            $buyer = (int) $row['buyer_id'];
+
+            if ($level < self::LEVEL_MIN || $level > self::LEVEL_MAX || $buyer <= 0) {
+                continue;
+            }
+
+            $earned[$level][$buyer] = [
+                'amount' => round((float) $row['amount'], 2),
+                'count'  => (int) $row['award_count'],
+            ];
+        }
+
+        return $earned;
+    }
+
+    /**
      * Per-level credited totals (1 … 10) for the breakdown card.
      *
      * @param int|null $userId null for the whole ledger (admin view)

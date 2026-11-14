@@ -103,6 +103,69 @@
   background-color: var(--bs-secondary-bg);
 }
 
+/* ---------- Repeat-purchase team by level (17E follow-up) ----------
+ * The breakdown card now lists the member's team at each depth, so it
+ * reuses the genealogy "Team by level" card shape: one card per level,
+ * a chip-like total header, a compact member list and a pager of its
+ * own, shown whenever the level has a member. The card keeps its own
+ * natural height, so an empty level never stretches to a crowded one. */
+.commission-team-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.commission-team-card.is-paid {
+  border-color: var(--bs-info-border-subtle) !important;
+  background: var(--bs-info-bg-subtle);
+}
+
+.commission-team-list {
+  margin-top: 0.75rem;
+}
+
+.commission-team-member {
+  padding-block: 0.45rem;
+}
+
+.commission-team-member-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.commission-team-member-info > * {
+  min-width: 0;
+}
+
+.commission-team-member + .commission-team-member {
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.commission-team-member .badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+}
+
+.commission-team-amount {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.commission-team-amount > div:last-child {
+  font-size: 0.75rem;
+}
+
+.commission-team-pagination {
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+/* The shared bar's table-sized top margin would push the pager off the
+ * card's edge; the wrapper above owns the spacing here. */
+.commission-team-pagination .pagination-bar {
+  margin-top: 0 !important;
+  gap: 0.5rem !important;
+}
+
 /* ---------- Detail drawer ---------- */
 .commission-detail-list dt {
   font-size: 0.82rem;

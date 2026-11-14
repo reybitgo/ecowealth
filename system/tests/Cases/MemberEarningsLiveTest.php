@@ -13,6 +13,7 @@ declare(strict_types=1);
  *    · the feed renders every region, keeps the filter form out of the
  *      payload, escapes source names and clamps an out-of-range page;
  *    · a skipped award appears live and never claims money;
+ *    · the repeat tab revalidates when the member's team changes;
  *    · the page declares its live surface and regions.
  * ============================================================== */
 
@@ -276,8 +277,7 @@ return [
         assert_contains(money(0), $stats, 'a skipped award is not money');
     },
 
-    'the earnings page declares its live surface and regions' => function () use ($makeMember): void {
-        $member = $makeMember();
+    'the earnings page declares its live surface and regions' => function () use ($makeMember): void {        $member = $makeMember();
 
         test_signed_in_as($member);
 
@@ -334,5 +334,64 @@ return [
         assert_contains('id="commissionDetail"', $html);
         assert_contains('app-commissions.js', $html);
         assert_contains('No commissions yet', $html);
+    },
+
+    'the repeat tab revalidates when the member\'s team changes' => function () use ($makeMember): void {
+        $member = $makeMember();
+        $id     = (int) $member['id'];
+
+        test_signed_in_as($member);
+
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=repeat';
+
+        $controller = new EarningsController();
+        $before     = $controller->repeatContext($id);
+
+        assert_same(0, (int) $before['levels'][1]['team_count']);
+
+        /* The scope is private; the test reads it through reflection
+         * because the point is the ETag the browser will revalidate. */
+        $scope = new ReflectionMethod(EarningsController::class, 'earningsScope');
+        $scope->setAccessible(true);
+
+        $beforeScope = (string) $scope->invoke($controller, $id);
+        $beforeEtag  = Live::etag(
+            Live::earningsSurface($id),
+            Live::revision(Live::earningsSurface($id)),
+            $beforeScope
+        );
+
+        /* A registration under the member is a team change: the row is
+         * written and the shared genealogy revision moves. The earnings
+         * surface itself is not bumped — that is exactly why the scope
+         * has to carry the team revision. */
+        $recruit = test_user('mel_team_' . bin2hex(random_bytes(4)));
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([$id, (int) $recruit['id']]);
+        Live::touchGenealogy();
+
+        $afterScope = (string) $scope->invoke($controller, $id);
+        $afterEtag  = Live::etag(
+            Live::earningsSurface($id),
+            Live::revision(Live::earningsSurface($id)),
+            $afterScope
+        );
+
+        assert_contains('team:', $afterScope, 'the repeat scope carries the team revision');
+        assert_not_same($beforeScope, $afterScope);
+        assert_not_same($beforeEtag, $afterEtag, 'a team change revalidates the repeat tab');
+
+        $after = $controller->repeatContext($id);
+
+        assert_same(1, (int) $after['levels'][1]['team_count']);
+        assert_same((int) $recruit['id'], (int) $after['levels'][1]['members'][0]['id']);
+
+        $payload = $controller->feedPayload(6, $afterEtag, $after);
+        $levels  = $payload['fragments']['earnings-repeat-levels'];
+
+        assert_contains('data-live-region="earnings-repeat-levels"', $levels);
+        assert_contains('@' . (string) $recruit['username'], $levels);
     },
 ];

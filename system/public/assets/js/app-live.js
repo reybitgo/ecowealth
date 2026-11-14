@@ -215,9 +215,11 @@
    *
    * A page that mixes a shared revision into its ETag declares it with
    * `data-live-config="config"` — the two payout pages do, for the payout
-   * settings they hash. Without this a settings save would only reach
-   * those pages through their next 30s poll, because their own surface
-   * key never changes.
+   * settings they hash, and the repeat-purchase earnings tab declares
+   * `data-live-config="member.genealogy"` for the team it lists. Without
+   * this a settings save (or a registration) would only reach those
+   * pages through their next 30s poll, because their own surface key
+   * never changes.
    */
   function configMatches(surface, messageKeys) {
     if (!surface.config || surface.config.length === 0) {
