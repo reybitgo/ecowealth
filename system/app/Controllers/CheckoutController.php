@@ -187,18 +187,26 @@ final class CheckoutController
      * The query string keeps the selected address; the shared shop
      * revision revalidates the summary when a product price or the
      * available stock changes, without a per-member fan-out.
+     *
+     * The shared config revision revalidates the repeat-purchase preview:
+     * its master switch (`unilevel_enabled`) and the other Commissions
+     * values live on `/admin/settings` and are saved in another tab, so a
+     * settings save must turn the "up to ₱…" line on or off without a
+     * reload. Public so the live tests can prove the mixing without a
+     * request.
      */
-    private function checkoutScope(int $userId): string
+    public function checkoutScope(int $userId): string
     {
         return Live::scope($_GET, $userId)
-            . '|shop:' . Live::revisionOrZero('shop.catalog');
+            . '|shop:' . Live::revisionOrZero('shop.catalog')
+            . '|config:' . Live::revisionOrZero(Live::CONFIG);
     }
 
     /**
      * JSON feed for the open checkout page.
      *
      * The 304 check runs before checkoutContext(), so an unchanged page
-     * costs two revision lookups and no cart/address/wallet queries. No
+     * costs three revision lookups and no cart/address/wallet queries. No
      * fragment renders a CSRF field, so the session lock is released
      * immediately.
      */

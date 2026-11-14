@@ -9,6 +9,10 @@ declare(strict_types=1);
  * the catalogue; nothing on this form is trusted for money. The hidden
  * idempotency key makes a double submit resolve to one order.
  *
+ * The surface follows the shared `config` revision (`data-live-config`),
+ * so the repeat-purchase master switch saved on `/admin/settings` adds or
+ * removes the summary's preview line without a reload.
+ *
  * @var array{
  *   items: list<array<string, mixed>>,
  *   totals: array{items:int, quantity:int, subtotal:float}
@@ -61,6 +65,7 @@ $live = $live ?? [
               data-live-revision="<?= (int) $live['revision'] ?>"
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
+              data-live-config="<?= e(Live::CONFIG) ?>"
             >
               <div class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none" data-live-stale role="status" aria-live="polite">
                 <i class="icon-base bx bx-error-circle fs-5"></i>

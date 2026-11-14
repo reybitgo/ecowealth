@@ -113,7 +113,8 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
 - `profileSurface($id)` / `touchProfile($id)` — the member's own `/profile`
   page (name, payout accounts and address book)
 - `checkoutSurface($id)` / `touchCheckout($id)` — the checkout page's saved
-  addresses, order summary and payment/wallet card
+  addresses, order summary and payment/wallet card; its ETag also mixes the
+  shared `CONFIG` revision for the repeat-purchase preview
 - `touchAddressBook($id)` — bumps the profile and checkout surfaces together
   after an address-book write
 - `touchPackages()` — bumps the `admin.packages` list, the `shop.packages`
@@ -121,8 +122,8 @@ Response headers: `ETag`, `Cache-Control: private, no-store`,
 - `touchSettings()` — bumps the `admin.settings` page and the shared `CONFIG`
   revision
 - `CONFIG` / `revisionOrZero($surface)` — the shared configuration revision
-  mixed into the membership and order ETags, and a safe read used while a
-  scope is being built
+  mixed into the membership, order and checkout ETags, and a safe read used
+  while a scope is being built
 - `PayoutService::settingsFingerprint()` — a short hash of the effective
   withdrawal rules (`min_payout`, the four fees, `usdt_rate`, both gas fees and
   the four channel switches), mixed into the `/payouts` and `/admin/payouts`
@@ -265,7 +266,12 @@ highlighted card, and a stale id falls back to the default and is removed from
 the canonical URL. The ETag scope includes the `shop.catalog` revision, so a
 price or stock change re-renders the summary without touching every member's
 cart; `CartService` and `WalletService` bump the per-member checkout surface
-after a cart or balance movement.
+after a cart or balance movement. The scope also mixes the shared `CONFIG`
+revision and the container declares `data-live-config="config"`, so the
+**Repeat-purchase bonus enabled** switch saved on `/admin/settings` adds or
+removes the summary's "up to ₱…" preview — immediately from the save's
+broadcast in the same browser, and on the next poll from another browser —
+without a reload.
 
 The member directory and one member page are two surfaces: `admin.members`
 and `admin.members:{id}`. `touchMember()` bumps both. It is called by
@@ -297,17 +303,20 @@ activation options read the active packages. The member package page renders
 one `package-cards` region (the grid or the empty state); the heading and the
 explanatory alert stay static.
 
-The admin settings page is `admin.settings`. It renders six regions: the
-placeholder-accounts notice and the five card bodies (shop, receiving
-accounts, payout methods, payment windows, fulfilment & invoices). Each body is
-held while the admin has typed into that card, and the card headers, footers and
-Save buttons stay static. A settings save calls `touchSettings()`, which bumps
-this surface and the shared `CONFIG` revision; the membership and order pages
-include that revision in their ETags because their activation channels and
-payment instructions read the receiving accounts. A `shop_enabled` change also
-keeps the existing `touchShop()` call. The **Payout methods** card writes the
+The admin settings page is `admin.settings`. It renders nine regions: the
+placeholder-accounts notice and the eight card bodies (general, shop, receiving
+accounts, payout methods, payment windows, fulfilment & invoices, commissions,
+transfers). Each body is held while the admin has typed into that card, and the
+card headers, footers and Save buttons stay static. A settings save calls
+`touchSettings()`, which bumps this surface and the shared `CONFIG` revision; the
+membership and order pages include that revision in their ETags because their
+activation channels and payment instructions read the receiving accounts, and the
+checkout page includes it for its repeat-purchase preview. A `shop_enabled` change
+also keeps the existing `touchShop()` call. The **Payout methods** card writes the
 withdrawal rules (`min_payout`, `service_fee_<method>`, `usdt_rate`,
-`usdt_*_gas_fee`, `payout_*_enabled`); the two payout pages below read them.
+`usdt_*_gas_fee`, `payout_*_enabled`); the two payout pages below read them. The
+**Commissions** card writes the repeat-purchase master switch and the values the
+checkout preview reads.
 
 The member's `/payouts` page is `member.payouts:{id}` and the admin queue is
 `admin.payouts`. The member page renders four regions — the withdrawable card
@@ -516,9 +525,12 @@ status change or a profile-name change rewrites the upline row on a descendant's
 per-page key alone would leave half the tree stale. The membership and member order pages
 add the shared `CONFIG` revision because their activation channels and payment
 instructions read the receiving accounts. The checkout page adds the `shop.catalog`
-revision so a price or stock change re-renders its summary. The storefront catalogue and
-product pages include the `shop_enabled` setting for the same reason: closing the shop must
-reach an open tab without a product write. The navbar notification dropdown sits outside
+revision so a price or stock change re-renders its summary, and the shared `CONFIG`
+revision (with `data-live-config="config"`) so the **Repeat-purchase bonus enabled**
+switch saved on the settings page removes or restores the preview line. The
+storefront catalogue and product pages include the `shop_enabled` setting for the
+same reason: closing the shop must reach an open tab without a product write. The
+navbar notification dropdown sits outside
 the dashboard surface and updates on the next full navigation; it is a candidate for a
 future shell surface.
 
@@ -608,7 +620,7 @@ canonical URL keeps `tab=` and the filters while clamping only the page number.
 | `member.genealogy:{id}` | `/genealogy` | team badges, upline, recruits count/rows/pagination, team by level |
 | `member.profile:{id}` | `/profile` | name form, payout form, address list, address form |
 | `member.cart:{id}` | `/cart` | cart content (notice, stock warnings, lines, summary, empty state) |
-| `member.checkout:{id}` | `/checkout` | saved addresses, order summary, payment/wallet card |
+| `member.checkout:{id}` | `/checkout` | saved addresses, order summary, payment/wallet card (also follows the shared config revision) |
 | `member.orders:{id}` | `/orders` | rows, pagination |
 | `member.order:{id}` | `/orders/{id}` | header, status, payment attempts, delivery, payment summary, history |
 | `shop.catalog` | `/shop` | heading, result states, quick-view JSON |

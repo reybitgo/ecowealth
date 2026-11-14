@@ -243,8 +243,10 @@ final class Live
     /**
      * The member's own checkout page (`member.checkout:42`).
      *
-     * Only the saved-address picker is live; the delivery/payment form is
-     * the member's input and stays outside every region.
+     * The saved-address picker, the order summary and the payment card are
+     * live regions; the delivery form is the member's input and stays
+     * outside every region. The page also mixes the shared `CONFIG`
+     * revision so a settings save reaches its repeat-purchase preview.
      */
     public static function checkoutSurface(int $userId): string
     {

@@ -436,6 +436,61 @@ return [
         assert_not_contains('data-bonus-preview', (string) ($first['meta']['canonical'] ?? ''));
     },
 
+    'P17E-T16 the checkout follows the shared config revision so the master switch reaches an open tab' => function () use (
+        $enable,
+        $makeProduct
+    ): void {
+        $enable();
+        $productId = $makeProduct();
+
+        $buyer = test_user('p17e_checkout_config_' . bin2hex(random_bytes(3)));
+        (new CartService())->add((int) $buyer['id'], $productId, 2);
+
+        test_signed_in_as($buyer);
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/checkout';
+
+        $controller = new CheckoutController();
+        $surface    = Live::checkoutSurface((int) $buyer['id']);
+        $scope      = $controller->checkoutScope((int) $buyer['id']);
+
+        assert_contains(
+            '|config:' . Live::revisionOrZero(Live::CONFIG),
+            $scope,
+            'the scope follows the shared configuration revision'
+        );
+
+        $onEtag = Live::etag($surface, 3, $scope);
+        $on     = $controller->feedPayload(3, $onEtag, $controller->checkoutContext($buyer));
+
+        assert_contains('data-bonus-preview', $on['fragments']['checkout-summary']);
+        assert_true(Live::matchesIfNoneMatch($onEtag, $onEtag), 'the first render answers 304 when unchanged');
+
+        /* The administrator saves the master switch off on /admin/settings:
+         * the save bumps the shared revision, so the checkout tab's next
+         * poll answers 200 and the preview line disappears. */
+        setting_set('unilevel_enabled', '0');
+        Live::touchSettings();
+
+        $offEtag = Live::etag($surface, 3, $controller->checkoutScope((int) $buyer['id']));
+        $off     = $controller->feedPayload(3, $offEtag, $controller->checkoutContext($buyer));
+
+        assert_not_same($onEtag, $offEtag, 'a settings save moves the checkout ETag');
+        assert_false(Live::matchesIfNoneMatch($onEtag, $offEtag), 'the old ETag is a 200, not a 304');
+        assert_true(Live::matchesIfNoneMatch($offEtag, $offEtag), 'the current ETag answers 304');
+        assert_not_contains('data-bonus-preview', $off['fragments']['checkout-summary']);
+
+        /* Saving the switch back on restores it the same way. */
+        setting_set('unilevel_enabled', '1');
+        Live::touchSettings();
+
+        $backEtag = Live::etag($surface, 3, $controller->checkoutScope((int) $buyer['id']));
+        $back     = $controller->feedPayload(3, $backEtag, $controller->checkoutContext($buyer));
+
+        assert_not_same($offEtag, $backEtag);
+        assert_contains('data-bonus-preview', $back['fragments']['checkout-summary']);
+    },
+
     /* ==========================================================
      *  P17E-T7 — the order page
      * ========================================================== */

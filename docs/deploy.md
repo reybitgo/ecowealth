@@ -684,6 +684,12 @@ If you imported your existing database, use your existing credentials.
     refresh, while the greeting and the referral card (with its copy button) stay
     untouched. Register a new member under them: the team/earnings figures should move on
     the next poll.
+28. Open `<app-url>/checkout` with a repeat-purchase product in the cart, then open
+    `<app-url>/admin/settings#settings-commissions` in another tab and toggle
+    **Repeat-purchase bonus enabled** (save the card). Switch back to the checkout tab:
+    the "up to … is paid to the members above you" preview must disappear, and return
+    when the switch is saved on again, without a reload. If the browser did not receive
+    the tab-to-tab signal, wait for the 30-second poll.
 
 If the page works but live updates do not:
 
@@ -977,6 +983,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-11 | Phases 12–15: migrations 015–019, transfer/payout settings, S-Login, and the Phase 15 hardening/reports addendum below. |
 | 2026-11-12 | Install/reset workstream (IR-1 … IR-8): §5B becomes the one-file `install.sql` bundle plus the key-gated web installer and the optional CLI installer; §6 lists the temporary tool files; §7 documents `INSTALL_KEY` and `DB_RESET_ENABLED`; §11.6 is the verification pack; §12/§16 add tool deletion, lock, key, demo, default-password and verification checks. |
 | 2026-11-12 | Phase 17 (17A → 17G): migration 020 and the six repeat-purchase settings (§Phase 17 addendum), the money engine and the admin surfaces (§Phase 17C/17D addendum), the member surfaces and the fourth cron job (§Phase 17E/17F/17G addendum); §5B and §16 now read 31 tables / 54 settings, §13 names the four jobs, and `APP_PHASE` is 17. |
+| 2026-11-14 | Live update: the checkout page follows the shared `config` revision, so saving **Repeat-purchase bonus enabled** on `/admin/settings` removes or restores the preview line on an open checkout without a reload; §11.4 adds check 28. |
 
 ---
 

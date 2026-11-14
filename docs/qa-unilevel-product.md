@@ -475,7 +475,7 @@ the walkthrough, and §9 restores it to **Off**.
 |---|---|
 | **Why it matters** | This is the only place an operator decides what a product pays. If the card is missing or misleading, no product can be configured correctly. |
 | **Where** | Admin → **Products** → **New product** (`/admin/products/new`) |
-| **Evidence** | `A1-product-form.png` |
+| **Evidence** | `4_a1_admin_product_new.jpeg` |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -539,7 +539,7 @@ the walkthrough depends on this card.
 |---|---|
 | **Why it matters** | This is the whole configuration path: set the base, load the ladder, switch the product on, and see the result in the catalogue. |
 | **Where** | Same form → **Create product** → `/admin/products` → the product's **Edit** page |
-| **Evidence** | `A2-product-saved.png`, `A2-product-list.png` |
+| **Evidence** | `4_a2_admin_product_new_complete.jpeg`, `4_a2_admin_product_new_created.jpeg` |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -611,7 +611,7 @@ rates, and save again. Do not continue until the badge says **29%**.
 |---|---|
 | **Why it matters** | A product can be fully configured and still pay nothing if the global master switch is off. Both switches must be on. |
 | **Where** | Admin → **Settings** → **Commissions** (`/admin/settings#settings-commissions`) |
-| **Evidence** | `A3-settings.png` |
+| **Evidence** | `4_a3_admin_settings_global_unilevel_product.jpeg` |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -665,14 +665,26 @@ stamped as processed with a zero total. The admin order page explains which case
 From here on, do the checks in order. B1–B4 are one continuous journey: find the product, read the
 offer, buy it, read the result.
 
+> **Buyer-journey run — 14 November 2026, 14:56–17:21 (Asia/Manila), local development copy.** All four
+> checks passed, with one **Minor** cosmetic note on the product panel recorded under B2. The values
+> below were read on `peter`'s own screens as the journey ran; the paid order was read again on the order
+> page and in the ledger after the run. Screenshots are in `docs/qa/evidence/unilevel-product/`.
+
+| Check | Result | What the screen showed | Saved screenshot |
+|---|---|---|---|
+| **B1** | **Pass** | **Shop** with **1 result** after searching `QA Repeat Product`; card **QA Repeat Product**, SKU **QA-REPEAT-01**, **In stock**, blue **Up to 29% repeat bonus** badge, **₱300.00**, an icon cart button and **Details**. | `5_b1_shop_unilevel_product.jpeg` |
+| **B2** | **Pass** | **Repeat-purchase bonus** panel: base **₱250.00** (P.V.), badge **Up to 29%**, **10 of 10 levels pay on this base**, the ten rates **5 / 5 / 5 / 3 / 3 / 2 / 2 / 2 / 1 / 1** worth **₱12.50 … ₱2.50**, footer **Total up to 29.000%** and **₱72.50 per unit**; Team chain voice throughout. One **Minor** clipped label. | `5_b2_shop_unilevel_product_detail.jpeg` |
+| **B3** | **Pass** | Checkout: **QA Repeat Product 1 × ₱300.00**, **Subtotal ₱300.00**, **Total ₱300.00**, **E-wallet ₱1,700.00**, and the note **Up to ₱72.50 is paid to the members above you when this order is paid.** plus the Team chain paragraph; the order was placed. | `5_b3_shop_unilevel_product_checkout.jpeg` |
+| **B4** | **Pass** | Paid order **EW26111400861**: **Payment received**, **Paid**, total **₱300.00**, the bonus card **₱25.00 was paid to the members above you…** with no recipient named; buyer's **E-wallet** **₱1,400.00**. | `5_b4_shop_unilevel_product_order.jpeg` |
+
 ### B1 — The catalogue shows the offer
 
 | | |
 |---|---|
 | **Why it matters** | A repeat-purchase product must be identifiable in the shop before the member opens it. |
 | **Where** | Member → **Shop** (`/shop`), signed in as `peter` |
-| **Evidence** | `B1-shop-badge.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `5_b1_shop_unilevel_product.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -690,6 +702,15 @@ offer, buy it, read the result.
 - Products without a repeat-purchase ladder do **not** show the badge. (You do not need to open them
   now; E2 checks one.)
 
+**Observed:** signed in as `peter`, **Shop** (`/shop`) showed the heading **Shop** with the count
+**1 result** after `QA Repeat Product` was typed in **Search products…** and **Search** was clicked. The
+single card carried the green **In stock** pill, the SKU **QA-REPEAT-01** above the title **QA Repeat
+Product**, the blue badge **Up to 29% repeat bonus** under the title, the short description
+**Repeat-purchase QA product**, the price **₱300.00** at the bottom, and an icon-only **Add to cart**
+button next to **Details**. The search narrowed the catalogue to that one card, so no unconfigured
+product was on the page to compare; E2 covers that case. Screenshot:
+`docs/qa/evidence/unilevel-product/5_b1_shop_unilevel_product.jpeg`.
+
 **If the badge is missing:** the global switch (A3), the product switch (A2) or the product's active
 status is wrong. Do not continue; fix the setup and reload the shop.
 
@@ -699,8 +720,8 @@ status is wrong. Do not continue; fix the setup and reload the shop.
 |---|---|
 | **Why it matters** | This is the only place a member sees the full ladder, the base and the per-level amounts before buying. It must be complete, and it must be Team chain directed: it shows what the reader earns when their Team chain buys, and that their own purchase does not pay them. |
 | **Where** | `/shop/{id}` — click **Details** on the product card |
-| **Evidence** | `B2-product-panel.png` (take a full-page screenshot; the panel is at the bottom) |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `5_b2_shop_unilevel_product_detail.jpeg` (full-page screenshot; the panel is at the bottom) |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -750,6 +771,27 @@ chain**. **Your direct recruit** is the Team chain relationship, not a bonus typ
 and **cashback** must not appear anywhere on this panel. The ten levels are one ladder; there is no
 direct/indirect split.
 
+**Observed:** **Details** opened the product page with the breadcrumb **Shop / QA Repeat Product**, the
+price **₱300.00**, **50 available**, the **In stock** pill, **SKU** `QA-REPEAT-01` and **Availability 50
+units available**. Below **About this product** and that list, the panel **Repeat-purchase bonus** carried
+the gift icon, the blue badge **Up to 29%**, and the Team chain paragraph quoted above, word for word.
+The base line read **Bonus base ₱250.00 per unit (the product's P.V.). Each level below is what you earn
+when a Team chain member at that depth buys one unit; their cart quantity multiplies it.**, followed by
+**10 of 10 levels pay on this base.** The ten tiles read **Level 1 5.000% ₱12.50**, **Level 2 5.000%
+₱12.50**, **Level 3 5.000% ₱12.50**, **Level 4 3.000% ₱7.50**, **Level 5 3.000% ₱7.50**, **Level 6
+2.000% ₱5.00**, **Level 7 2.000% ₱5.00**, **Level 8 2.000% ₱5.00**, **Level 9 1.000% ₱2.50** and
+**Level 10 1.000% ₱2.50**, each carrying **Your direct recruit** (level 1) or **Your Team chain** (levels
+2–10) beneath it. The footer read **Total up to 29.000%** on the left and **₱72.50 per unit** on the
+right, and the three explanatory paragraphs appeared as quoted above. The words **cashback**,
+**direct bonus**, **indirect**, **sponsor chain** and **rebate** were not present anywhere in the panel.
+Screenshot: `docs/qa/evidence/unilevel-product/5_b2_shop_unilevel_product_detail.jpeg`.
+
+**Minor (cosmetic) — recorded, not a failure.** At this window width the **Level 1** tile cuts its
+sub-label to **Your direct recr…**; the page's own label is **Your direct recruit**, and the longer text
+overflows the tile's column and is trimmed with an ellipsis, while **Your Team chain** on levels 2–10
+fits. The level number, the rate and the amount are unaffected, and nothing else on the panel changes.
+Recorded as a **Minor** presentation note per Appendix B.2; the check is **Pass**.
+
 > **"10 of 10 levels pay" does not mean ten people will be paid.** It means all ten rates on this
 > product are above zero. The real chain is only three levels deep, and the company account at level 3
 > is skipped. That is why the order will pay ₱25.00, not ₱72.50.
@@ -760,8 +802,8 @@ direct/indirect split.
 |---|---|
 | **Why it matters** | The preview is the last thing a buyer reads before paying. It states the fact of the order, then turns the reader toward the income their own Team chain can produce. |
 | **Where** | Product page → **Add to cart** → **Cart** → **Proceed to checkout** (`/checkout`) |
-| **Evidence** | `B3-checkout-preview.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `5_b3_shop_unilevel_product_checkout.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -795,6 +837,22 @@ direct/indirect split.
 - After **Place order**, the page moves to the order page with a green flash:
   **"Order placed and paid. Thank you!"**
 
+**Observed:** **Add to cart** with the quantity left at **1** put one line in the cart, **QA Repeat
+Product 1 × ₱300.00**. **Cart → Proceed to checkout** opened `/checkout`, which restored the delivery
+details from the earlier attempt and showed the blue notice **"Your checkout details were restored. The
+delivery details and payment method you typed earlier were filled back in; nothing was submitted."**
+The **Order summary** card read **QA Repeat Product ₱300.00**, **1 × ₱300.00**, **Items 1**, **Subtotal
+₱300.00**, **Shipping Free**, **Total ₱300.00**; below it the **E-wallet** tile showed **₱1,700.00** with
+**"₱900.00 of it is withdrawable."** and **View wallet**. The repeat-purchase note read, in full,
+**"Up to ₱72.50 is paid to the members above you when this order is paid."** and **"The same
+repeat-purchase ladder pays you when your Team chain buys these products: Level 1 for the members you
+personally sponsored, Level 2 for their recruits, up to Level 10. Keep your monthly minimum to stay
+Active, so your level income is credited when their order is paid."** — with no **sponsor chain**,
+**rebate** or **cashback** wording. **Payment method** had **E-wallet** selected and showing **₱1,700.00**,
+the terms checkbox was ticked, and **Place order** moved to the order page with the green flash
+**"Order placed and paid. Thank you!"** (captured at the top of the B4 screenshot). Screenshot:
+`docs/qa/evidence/unilevel-product/5_b3_shop_unilevel_product_checkout.jpeg`.
+
 **If the preview is missing:** the global switch, the product switch, or the product's ladder is not
 active. Do not place the order; fix the setup first.
 
@@ -804,8 +862,8 @@ active. Do not place the order; fix the setup first.
 |---|---|
 | **Why it matters** | The buyer must see what the order actually paid, with no recipient names or per-upline amounts. The buyer must also see their own wallet debit. |
 | **Where** | The order page (`/orders/{id}`) and Peter → **E-wallet** (`/wallet`) |
-| **Evidence** | `B4-order-bonus.png`, `B4-buyer-wallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `5_b4_shop_unilevel_product_order.jpeg` (the paid order page; the wallet reading is recorded in the observed note) |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -833,6 +891,25 @@ active. Do not place the order; fix the setup first.
 **Why ₱25.00 and not ₱72.50:** see §1.3. The preview shows the ladder's maximum; the order shows what
 the real chain paid. The company account at level 3 is skipped, and its ₱12.50 is not moved.
 
+**Observed:** the order page opened in **My orders** and showed the green flash **"Order placed and
+paid. Thank you!"**, the **Paid** pill, the order number **EW26111400861**, **Placed Nov 14, 2026 5:20 PM
+· E-wallet**, and the total **₱300.00** at the top right. The status card read **Payment received** with
+**"Thank you! We are preparing your order for delivery. The courier and the tracking number appear here
+as soon as the order ships."** The **Items** table showed **QA Repeat Product**, **QA-REPEAT-01**, **QTY
+1**, **UNIT PRICE ₱300.00**, **LINE TOTAL ₱300.00**, then **Subtotal ₱300.00**, **Shipping Free** and
+**Total ₱300.00**; the **Payment** card repeated **Method E-wallet**, **Subtotal ₱300.00**, **Shipping
+Free**, **Total ₱300.00** and **Paid Nov 14, 2026 5:20 PM**. The **Repeat-purchase bonus** card (gift
+icon) read **"₱25.00 was paid to the members above you when this order was paid."** and **"Your Team
+chain is your earning side: when a member you sponsored buys these products, the same ladder credits your
+level's share to your e-wallet — Level 1 for your direct recruits, up to Level 10. Keep your monthly
+minimum to stay Active. See your Team chain statement."** It named no recipient and showed no per-member
+amount. The **History** card recorded **Pending — Member · @peter — Order placed via E-wallet** and
+**Pending → Paid — System — Paid from the e-wallet**, both at **Nov 14, 2026 5:20 PM**. Peter's
+**E-wallet** then showed the **Shop order** debit of **₱300.00** (note **Order EW26111400861**) and a
+**Total balance** of **₱1,400.00** — exactly **₱300.00** below the **₱1,700.00** recorded for S4 — with
+the **Withdrawable** bucket unchanged at **₱900.00**. Screenshot:
+`docs/qa/evidence/unilevel-product/5_b4_shop_unilevel_product_order.jpeg`.
+
 **If the card is missing:** open the admin order page (D1) and read the **Repeat-purchase bonus** card
 there. It will say **No bonus** and explain why: the order is not paid, the stream was off when it was
 paid, no product had a ladder, or there was no sponsor chain. Do not guess; the admin card tells you.
@@ -843,14 +920,27 @@ paid, no product had a ladder, or there was no sponsor chain. Do not guess; the 
 
 The money has been paid. Now look at it from the two uplines' side, and from the buyer's own side.
 
+> **Upline-journey run — 14 November 2026, 17:33–18:00 (Asia/Manila), local development copy.** All five
+> checks passed, with no defects and no cosmetic notes. Every value below was read on `maria`'s,
+> `juan`'s and `peter`'s own screens, and each upline's statement was read against the same wallet.
+> Screenshots are in `docs/qa/evidence/unilevel-product/`.
+
+| Check | Result | What the screen showed | Saved screenshot |
+|---|---|---|---|
+| **C1** | **Pass** | Maria's **E-wallet**: **Total balance ₱1,232.50** and **Withdrawable ₱1,032.50** (₱12.50 above the **₱1,020.00** before value), **Non-withdrawable ₱200.00** unchanged; newest statement row **Credit · Repeat-purchase bonus · Repeat-purchase bonus — QA Repeat Product (level 1) — order EW26111400861 · +₱12.50**. | `6_c1_maria_wallet.jpeg` |
+| **C2** | **Pass** | Maria's statement: tiles **₱12.50 / ₱12.50 / 1 / 0**, **Active for November 2026**, the Team chain by level card (**1 level award · ₱12.50**, Level 1 total **₱12.50** from `@peter`) and the award row **@peter · L1 · ₱250.00 · 5.000% · +₱12.50 · Credited · EW26111400861**; Team chain voice throughout. | `6_c2_maria_statement.jpeg` |
+| **C3** | **Pass** | Juan's statement: the same **₱12.50 / ₱12.50 / 1 / 0** tiles, Level 1 `@maria` at **₱0.00**, Level 2 `@peter` at **₱12.50**, award row **L2**; wallet **Withdrawable ₱396.00 → ₱408.50** with a **(level 2)** repeat-purchase credit. | `6_c3_juan_statement.jpeg`, `6_c3_juan_wallet.jpeg` |
+| **C4** | **Pass** | Peter's statement: the **No repeat-purchase bonus yet** empty state with **Your own purchase counts toward your monthly minimum, not your income.**, no award row; **November 2026 purchases so far ₱300.00** (about **60%** of the **₱500.00** minimum), green badge **Active for November 2026**. | `6_c4_buyer_statement.jpeg` |
+| **C5** | **Pass** | Dashboard **Repeat-purchase bonus** block: **Active for November 2026**, **Earned from your Team chain ₱0.00**, the "No awards yet…" and "Your own purchases keep you Active…" sentences with the statement link. Membership card: the same badge, the **"You are Active for November 2026…"** sentence and **₱0.00 earned from your Team chain**. No form, input or claim button. | `6_c5_dashboard.jpeg`, `6_c5_membership.jpeg` |
+
 ### C1 — Level 1's wallet shows the credit
 
 | | |
 |---|---|
 | **Why it matters** | The award must be real, withdrawable wallet money — not a number on a report. |
 | **Where** | Maria → **E-wallet** (`/wallet`) |
-| **Evidence** | `C1-maria-wallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `6_c1_maria_wallet.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -879,6 +969,20 @@ The money has been paid. Now look at it from the two uplines' side, and from the
 - **Withdrawable** is where commissions land. The fact that this money is withdrawable, while an admin
   top-up is not, is the difference between earnings and spending money.
 
+**Observed:** signed in as `maria`, **E-wallet** showed **Total balance ₱1,232.50**,
+**Withdrawable ₱1,032.50** and **Non-withdrawable ₱200.00**. The withdrawable bucket had been
+**₱1,020.00** before the credit (worksheet row 2), so it rose by exactly **₱12.50**; the total balance
+rose by the same **₱12.50** from the **₱1,220.00** recorded on the previous statement row, and the
+non-withdrawable bucket did not move. The **Withdraw earnings** card offered
+**"Take up to ₱1,032.50 by GCash, Maya or USDT. Minimum ₱500.00."**, so the credit sits in cashable
+money. The **Statement** card counted **6 movements**; its newest row read **Nov 14, 2026 5:20 PM**, a
+green **Credit** badge, the source **Repeat-purchase bonus**, the note
+**Repeat-purchase bonus — QA Repeat Product (level 1) — order EW26111400861**, the amount **+₱12.50**,
+and **₱1,232.50** with **₱1,032.50 withdrawable** after the row. The card footer read
+**Credits ₱1,732.50**, **Debits ₱500.00**, **Net +₱1,232.50** and **Showing 1–6 of 6**. The screenshot
+records the statement after step 6's **Source → Repeat-purchase bonus** filter was cleared back to
+**All sources**. Screenshot: `docs/qa/evidence/unilevel-product/6_c1_maria_wallet.jpeg`.
+
 **If the wallet did not change:** open Maria's **Earnings → Repeat-purchase bonus** (C2) and read the
 row's status and reason. A **Skipped** row is not money; the reason tells you why. A **Credited** row
 with an unchanged wallet would be a real defect — record it.
@@ -889,8 +993,8 @@ with an unchanged wallet would be a real defect — record it.
 |---|---|
 | **Why it matters** | This is the Team chain earner's statement. It must match the wallet, name the buyer and the level, and explain the monthly Active rule. |
 | **Where** | Maria → **Earnings** → **Repeat-purchase bonus** (`/earnings?ledger=repeat`) |
-| **Evidence** | `C2-maria-statement.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `6_c2_maria_statement.jpeg` (full-page screenshot; the award row is at the bottom) |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -948,6 +1052,31 @@ with an unchanged wallet would be a real defect — record it.
   - **Order**: the **EW…** order number, as plain text (not a link — the order belongs to the buyer).
 - **No "as buyer" statistic** anywhere on the page. Maria's own purchases are not earnings.
 
+**Observed:** still signed in as `maria`, **Earnings → Repeat-purchase bonus** opened with the heading
+**Repeat-purchase bonus** and the subtitle **"Every repeat-purchase award your Team chain's paid
+purchases earned you."** The four tiles read **Total credited ₱12.50** (**1 award · withdrawable**),
+**This month ₱12.50** (**Last award 25 min ago**), **Awards 1** (**Team chain purchases that credited
+your level**) and **Not paid 0** (**No level was skipped**). The **Your Active status** card showed the
+green badge **Active for November 2026** and two columns: **October 2026 purchases ₱0.00** with
+**Threshold ₱500.00 · not closed yet, this total is live** and the missing-flag sentence **"You have no
+counted purchases in October 2026, so no flag was set — a missing flag counts as Active for November
+2026."**, and **November 2026 purchases so far ₱0.00** with **Counts toward December 2026** and the note
+**"You have bought ₱0.00 in November 2026. Reach ₱500.00 this month and you will be Active for December
+2026."** Beneath them sat the paragraph that a member's own purchases never pay them a repeat-purchase
+bonus. The **Repeat-purchase by level** card carried the badge
+**1 level award · ₱12.50** and listed **maria's** own Team chain, level by level: **Level 1**
+(**3 members · 1 award**, level total **₱12.50**) held `@peter` **Active · Package A · ₱12.50 ·
+1 award**, plus `@sarah` and `@david` **Active** at **₱0.00** with **No credited award**, paged
+**Rows per page 10 · Showing 1–3 of 3**; **Level 2** (**2 members · 0 awards**, total **₱0.00**) held
+`@test10` and `@test11` at **₱0.00**, **Showing 1–2 of 2**; **Level 3** read
+**No Team chain members at this level yet**, and so did levels 4–10, each with a **₱0.00** level total.
+Every level card carried its own **Rows per page** control. The award row read **Nov 14, 2026 5:20 PM**,
+buyer **@peter / Peter Reyes**, product **QA Repeat Product / QA-REPEAT-01**, level **L1**, base
+**₱250.00**, rate **5.000%**, amount **+₱12.50**, status **Credited**, order **EW26111400861**, with
+**Awards · Showing 1–1 of 1**. No **as buyer** statistic appeared anywhere, and the words **sponsor
+chain**, **rebate** and **cashback** were absent from the page. Screenshot:
+`docs/qa/evidence/unilevel-product/6_c2_maria_statement.jpeg`.
+
 **If the tile says ₱0.00 or the row is missing:** check the admin order page (D1). A skipped row with a
 reason is the likely cause. If the admin page shows a credited row and Maria's page does not, that is a
 real defect.
@@ -958,8 +1087,8 @@ real defect.
 |---|---|
 | **Why it matters** | Each level is paid separately. Level 2 must see a level-2 row and its own wallet credit, not level 1's. |
 | **Where** | Juan → **Earnings** → **Repeat-purchase bonus** · Juan → **E-wallet** |
-| **Evidence** | `C3-juan-statement.png`, `C3-juan-wallet.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `6_c3_juan_statement.jpeg`, `6_c3_juan_wallet.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -976,12 +1105,35 @@ real defect.
   - **Level 1** lists maria at **₱0.00** (no paid repeat purchase from her yet);
   - **Level 2** lists `peter` at **₱12.50** and any other level-2 member at **₱0.00**, with the
     level total **₱12.50**;
-  - deeper levels are empty or show **No Team chain members at this level yet** at **₱0.00**.
+  - deeper levels list their own members at **₱0.00** or read **No Team chain members at this level
+    yet**, with level totals of **₱0.00**.
 - The award row shows **@peter** as the buyer, **L2** as the level, base **₱250.00**, rate **5.000%**,
   amount **+₱12.50**, status **Credited**.
 - Juan's **E-wallet** shows **Withdrawable** up by exactly **₱12.50**, with a
   **Repeat-purchase bonus** row whose note says **(level 2)**.
 - Juan does **not** see maria's level-1 amount as his own; each upline sees only their own level.
+
+**Observed:** signed in as `juan`, the same **Repeat-purchase bonus** page showed the same four tiles —
+**Total credited ₱12.50** (**1 award · withdrawable**), **This month ₱12.50** (**Last award 30 min
+ago**), **Awards 1** and **Not paid 0** — and the same green **Active for November 2026** badge with
+**October 2026 purchases ₱0.00** and **November 2026 purchases so far ₱0.00**. The **Repeat-purchase by
+level** card carried **1 level award · ₱12.50** and listed **juan's** Team chain: **Level 1**
+(**10 members · 0 awards**, level total **₱0.00**) began with `@maria` **Active · Package A · ₱0.00 ·
+No credited award** and paged **Showing 1–10 of 10**; **Level 2** (**4 members · 1 award**, total
+**₱12.50**) held `@peter` at **₱12.50 · 1 award** with `@sarah`, `@david` and `@test8` at **₱0.00**,
+**Showing 1–4 of 4**; **Level 3** (**2 members · 0 awards**) showed `@test10` and `@test11` at **₱0.00**,
+and levels 4–10 read **No Team chain members at this level yet**. The award row read **Nov 14, 2026
+5:20 PM**, buyer **@peter / Peter Reyes**, product **QA Repeat Product / QA-REPEAT-01**, level **L2**,
+base **₱250.00**, rate **5.000%**, amount **+₱12.50**, status **Credited**, order **EW26111400861** —
+**L2**, not maria's **L1**. Juan's **E-wallet** then showed **Total balance ₱408.50**,
+**Withdrawable ₱408.50** and **Non-withdrawable ₱0.00**, so the withdrawable bucket rose by exactly
+**₱12.50** against the **₱396.00** before value in worksheet row 3 — the same **₱396.00** that the
+previous statement row (10 November) recorded. The **Statement** card counted **14 movements** and its
+newest row read **Nov 14, 2026 5:20 PM**, a green **Credit** badge, source **Repeat-purchase bonus**, the
+note **Repeat-purchase bonus — QA Repeat Product (level 2) — order EW26111400861**, **+₱12.50**, and
+**₱408.50** with **₱408.50 withdrawable** after the row. Maria's level-1 **₱12.50** was not shown as
+Juan's own amount anywhere. Screenshots:
+`docs/qa/evidence/unilevel-product/6_c3_juan_statement.jpeg` and `6_c3_juan_wallet.jpeg`.
 
 ### C4 — The buyer's own statement is empty and explains why
 
@@ -989,8 +1141,8 @@ real defect.
 |---|---|
 | **Why it matters** | A buyer must never be shown their own purchase as earnings. This is the rule that prevents the most damaging misunderstanding of the feature. |
 | **Where** | Peter → **Earnings** → **Repeat-purchase bonus** |
-| **Evidence** | `C4-buyer-statement.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `6_c4_buyer_statement.jpeg` (full-page screenshot; the empty state is at the bottom) |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -1017,6 +1169,24 @@ real defect.
   - the note that peter's own purchases never pay him a repeat-purchase bonus; they keep him Active so
     his Team chain's purchases can pay him.
 
+**Observed:** signed in as `peter`, **Earnings → Repeat-purchase bonus** showed the same heading and
+subtitle with the four tiles at **Total credited ₱0.00** (**No awards yet**), **This month ₱0.00**
+(**Nothing credited yet**), **Awards 0** and **Not paid 0**. There was **no award row**: the
+**Your repeat-purchase awards** card showed the badge **0 awards** and the empty state
+**No repeat-purchase bonus yet** with the paragraph **"When someone in your Team chain buys a product
+with a repeat-purchase ladder and the order is paid, your level's share is credited here. Your own
+purchase counts toward your monthly minimum, not your income."** and the **Open the shop** button, and
+its footer read **Awards No records**. The **Your Active status** card showed the green badge
+**Active for November 2026**, **October 2026 purchases ₱0.00**, and **November 2026 purchases so far
+₱300.00** — exactly **₱300.00** more than the **₱0.00** before value in worksheet row 6 — with the
+progress bar filled to about **60%** of the **₱500.00** threshold and the sentence **"You have bought
+₱300.00 in November 2026. Reach ₱500.00 this month and you will be Active for December 2026."**, so the
+purchase makes peter Active **next** month, not this one. The **Repeat-purchase by level** card read
+**0 level awards · ₱0.00**: **Level 1** (**1 member · 0 awards**) listed `@test10` at **₱0.00 ·
+No credited award**, and levels 2–10 read **No Team chain members at this level yet**. No **as buyer**
+statistic and no tile counted peter's own spending as earnings. Screenshot:
+`docs/qa/evidence/unilevel-product/6_c4_buyer_statement.jpeg`.
+
 **If peter has an award row:** that is a serious defect. The buyer must never be a recipient. Capture
 the row and report it.
 
@@ -1026,8 +1196,8 @@ the row and report it.
 |---|---|
 | **Why it matters** | The monthly Active status must be visible where the member already looks, and it must never look like something the member can "claim". |
 | **Where** | Peter → **Dashboard** (`/dashboard`) · Peter → **Membership** (`/membership`) |
-| **Evidence** | `C5-dashboard.png`, `C5-membership.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `6_c5_dashboard.jpeg`, `6_c5_membership.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -1062,6 +1232,22 @@ On **Membership**:
 **Both pages:** no form, no input box and no button for the repeat-purchase stream. There is nothing to
 claim; the money is paid automatically when a paid order reaches an eligible level.
 
+**Observed:** still signed in as `peter`, the **Dashboard** opened on **Welcome back, Peter Reyes** with
+the **Active associate** badge, and the **Earnings** card's **Repeat-purchase bonus** block sat at its
+bottom: the badge **Active for November 2026**, **Earned from your Team chain ₱0.00**, the sentence
+**"No awards yet — a Team chain order credits your level when it is paid."** and the sentence
+**"Your own purchases keep you Active; your Team chain pays you. See the repeat-purchase statement."**
+with the statement link. **Membership** showed the **Repeat-purchase bonus** card with the gift icon, the
+paragraph **"You are Active for November 2026: a Team chain purchase that reaches your level this month
+pays your share into your e-wallet. Your own purchases decide this — not your rank — and they keep you
+Active so your Team chain's purchases can pay you."**, the badge **Active for November 2026**, and
+**₱0.00 earned from your Team chain** on the right. Neither page carried a form, an input, a button or
+any "claim" action for the repeat-purchase stream — only the read-only statement link — so there is
+nothing for peter to claim. The dashboard's own figures agreed with B4 and C4: **E-wallet ₱1,400.00**
+(**₱900.00 withdrawable**), the order **EW26111400861** at **₱300.00 · Paid**, and **₱300.00** counted
+for November. Screenshots: `docs/qa/evidence/unilevel-product/6_c5_dashboard.jpeg` and
+`6_c5_membership.jpeg`.
+
 > **"Active" here is the monthly purchase rule from §1.4, not employment status and not package rank.**
 > Peter's purchase this month makes him Active for **next** month; it does not pay him anything today.
 
@@ -1072,14 +1258,24 @@ claim; the money is paid automatically when a paid order reaches an eligible lev
 The buyer sees only the order total. The administrator sees the audit detail: who was paid, at which
 level, on what base, and why a level was skipped.
 
+> **Admin audit run — 14 November 2026, 18:14–18:18 (Asia/Manila), local development copy.** Both
+> checks passed, with no defects and no cosmetic notes. Every value below was read on the
+> administrator's own screens, and each number was traced back to order **EW26111400861** and to the
+> wallets recorded under §6. Screenshots are in `docs/qa/evidence/unilevel-product/`.
+
+| Check | Result | What the screen showed | Saved screenshot |
+|---|---|---|---|
+| **D1** | **Pass** | Admin order **EW26111400861**: badge **₱25.00 to the sponsor chain**; **L1 @maria** and **L2 @juan** at **₱250.00 · 5.000% · +₱12.50 · Credited**, **L3 @admin** at **₱12.50 · Skipped — company account is not paid**; footer **Credited to the sponsor chain ₱25.00**; read-only. | `7_d1_admin_order.jpeg` |
+| **D2** | **Pass** | **Repeat-purchase bonus** ledger: tiles **₱25.00 / ₱25.00 / 2 / 2 / 1 / ₱0.00**, the same three rows with **EW26111400861** linked to the order; **Level 1** left only the maria row (**1 row**), **Clear** restored the list; **Closed months** empty. | `7_d2_admin_ledger.jpeg` |
+
 ### D1 — The admin order page shows every level and every reason
 
 | | |
 |---|---|
 | **Why it matters** | This is the only screen where an administrator can see which upline received which amount, and why a level was skipped. Finance and support depend on it. |
 | **Where** | Admin → **Orders** → search `EW…` → open the order |
-| **Evidence** | `D1-admin-order.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `7_d1_admin_order.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -1113,6 +1309,25 @@ level, on what base, and why a level was skipped.
 records the level and the amount that would have been due, marks it **Skipped**, and explains why. It
 is an audit record, not money. The credited total is only the two green rows: ₱25.00.
 
+**Observed:** signed in as `admin`, **Orders** → the search box (`Order # or member…`) was given
+`EW26111400861` and the result opened the order. The page showed the breadcrumb
+**Orders › EW26111400861**, the heading **Order EW26111400861**, the **Paid** pill and **₱300.00** at the
+top right, the line **Placed Nov 14, 2026 5:20 PM · E-wallet**, and **Back to orders**. The
+**Payment review** card above the bonus card carried **No proof required** and
+**Payment verified · Nov 14, 2026 5:20 PM. Use the fulfilment panel below to pack and ship it.** The
+**Repeat-purchase bonus** card then showed the badge **₱25.00 to the sponsor chain** and a table with the
+columns **Lvl · Recipient · Product · Base · Rate · Amount · Status**, holding exactly three rows:
+**L1 @maria** and **L2 @juan**, both **QA Repeat Product · ₱250.00 · 5.000% · +₱12.50 · Credited** (green
+amount), and **L3 @admin** at the same product, base and rate, **₱12.50** without a plus sign, the grey
+**Skipped** pill and the small reason **company account is not paid**. The footer read **Credited to the
+sponsor chain** **₱25.00**; the note read **One row per order line, recipient and level. A skipped level
+keeps its number — no money is redirected. The buyer never receives a rebate.**, and the card footer
+**Order EW26111400861 · processed Nov 14, 2026 5:20 PM**. The two recipients were links to their admin
+wallet pages, and the card held no field, no edit, no delete and no "pay again" button, so it is
+read-only. The **Member** card on the right agreed with B4 and C1: **peter (Peter Reyes)**,
+**E-wallet ₱1,400.00**, **Withdrawable ₱900.00**. Screenshot:
+`docs/qa/evidence/unilevel-product/7_d1_admin_order.jpeg`.
+
 **If there are more than three rows:** the real chain is deeper than the three people in this
 walkthrough. The extra levels may be credited if they have eligible members. Stop and compare with
 §2.2; the expected amounts in this guide assume exactly two uplines plus the company.
@@ -1123,8 +1338,8 @@ walkthrough. The extra levels may be credited if they have eligible members. Sto
 |---|---|
 | **Why it matters** | Finance must be able to find the same three rows in the commission ledger, filter them, and reconcile the total with the order. |
 | **Where** | Admin → **Commissions** → **Repeat-purchase bonus** (`/admin/commissions?ledger=repeat`) |
-| **Evidence** | `D2-admin-ledger.png` |
-| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+| **Evidence** | `7_d2_admin_ledger.jpeg` |
+| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -1164,6 +1379,30 @@ walkthrough. The extra levels may be credited if they have eligible members. Sto
 - The **Closed months** card is a read-only history of the monthly close. On a clean copy it says
   **No month has been closed yet…**. You do not need to change it for this walkthrough.
 
+**Observed:** still signed in as `admin`, **Commissions** opened `/admin/commissions`, and the
+**Repeat-purchase bonus** pill opened `/admin/commissions?ledger=repeat` as the active tab beside
+**Package commissions**, with **Export CSV** and **E-wallet monitor** at the top right. The heading read
+**Repeat-purchase bonus** with the subtitle **"Every award a product ladder paid on a paid order. One row
+per line, recipient and level 1–10."** The six tiles read **Total credited ₱25.00**
+(**2 members paid**), **This month ₱25.00** (**Since the 1st**), **Awards 2** (**Average ₱12.50**),
+**Recipients 2** (**Uplines credited at least once**), **Skipped 1** (**Ineligible upline — no money
+moved**) and **Unrecovered ₱0.00** (**0 voided awards — shortfall after reversal**) — the same **₱25.00**
+as D1. The **Closed months** card showed the badge **0 closed** and **No month has been closed yet. Until
+a month is closed, a member with no snapshot is treated as Active — the live fallback keeps payouts
+correct.**, and offered no action. The **Repeat-purchase ledger** card carried the badge **3 rows** and
+listed the same three rows as D1 under the columns **Lvl · Recipient · Buyer · Product · Base · Rate ·
+Amount · Status · Order · Awarded · Wallet**: **L1 @maria (Maria Santos)**, buyer **@peter (Nov 14,
+2026)**, **QA Repeat Product (QA-REPEAT-01)**, **₱250.00**, **5.000%**, **+₱12.50**, **Credited**, order
+**EW26111400861** with its small **Paid** pill, **Nov 14, 2026 5:20 PM**; **L2 @juan** with the same base,
+rate, amount, status, order and time; and **L3 @admin** at **₱250.00 · 5.000% · ₱12.50** with the small
+line **not paid**, the **Skipped** pill and **company account is not paid**, its **Wallet** cell reading
+**—** (no wallet movement). Each order number linked to the admin order page, and each credited row
+carried a wallet-icon button in its **Wallet** column that links to that recipient's wallet filtered to
+the order. With **Product → QA Repeat Product** and **Filter** the three rows stayed; with **Level → 1**
+and **Filter** only the maria row remained — badge **1 row** and footer **Rows per page 10 · Awards ·
+Showing 1–1 of 1**, which is the state the screenshot records — and **Clear** restored the full list.
+Screenshot: `docs/qa/evidence/unilevel-product/7_d2_admin_ledger.jpeg`.
+
 **If the tiles show different numbers:** the copy may already have other repeat-purchase awards from
 earlier tests. The **table rows for your order** and the **difference** of ₱25.00 are what matter. If
 the table cannot be filtered down to your three rows, capture the filter and the row count.
@@ -1182,7 +1421,7 @@ returns the test money.
 |---|---|
 | **Why it matters** | An operator must be able to stop the whole programme without editing every product. |
 | **Where** | Admin → **Settings** → **Commissions** · Peter → **Shop** / product / **Checkout** |
-| **Evidence** | `E1-master-off.png` |
+| **Evidence** | `8_e1_master_off.jpeg` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
 
 **Do this**
@@ -1215,7 +1454,7 @@ and confirm the switch is off before you conclude it is a defect.
 |---|---|
 | **Why it matters** | The bonus is per product. A product with no ladder must not show a badge, a panel or a checkout preview. |
 | **Where** | Member → **Shop** → a product with no **Repeat bonus** badge · **Checkout** |
-| **Evidence** | `E2-no-ladder.png` |
+| **Evidence** | `8_e2_no_ladder.jpeg` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
 
 **Do this**
@@ -1244,7 +1483,7 @@ product. Use a cart containing only the unconfigured product for this check.
 |---|---|
 | **Why it matters** | A ladder that pays more than 100%, or a switched-on product that pays nothing, is a configuration error. The form must refuse it clearly and leave the saved product alone. |
 | **Where** | Admin → **Products** → **QA Repeat Product** → **Edit** |
-| **Evidence** | `E3-empty-error.png`, `E3-sum-error.png` |
+| **Evidence** | `8_e3_empty_error.jpeg`, `8_e3_sum_error.jpeg` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
 
 **Do this**
@@ -1282,7 +1521,7 @@ after, and the list badge.
 |---|---|
 | **Why it matters** | A cancelled sale must not leave the bonus behind. The buyer must be refunded, the uplines must be debited, and every screen must show the reversal honestly. |
 | **Where** | Admin → **Orders** → the paid order → **Cancel order** |
-| **Evidence** | `E4-cancel-order.png`, `E4-maria-after-cancel.png`, `E4-admin-after-cancel.png` |
+| **Evidence** | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_after_cancel.jpeg` |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
 
 **Do this**
@@ -1363,29 +1602,29 @@ Copy this table into your report, or print it and fill it in by hand. Use the ch
 
 | ID | Check | Result | Evidence | What I saw instead / notes |
 |---|---|---|---|---|
-| A1 | The product form has the repeat-purchase card | ☐ Pass ☐ Fail ☐ Blocked | `A1-product-form.png` | |
-| A2 | Save the product and see the badge | ☐ Pass ☐ Fail ☐ Blocked | `A2-product-saved.png`, `A2-product-list.png` | |
-| A3 | Turn on the global bonus stream | ☐ Pass ☐ Fail ☐ Blocked | `A3-settings.png` | |
-| B1 | The catalogue shows the offer | ☐ Pass ☐ Fail ☐ Blocked | `B1-shop-badge.png` | |
-| B2 | The product page explains the ladder | ☐ Pass ☐ Fail ☐ Blocked | `B2-product-panel.png` | |
-| B3 | The checkout preview is honest | ☐ Pass ☐ Fail ☐ Blocked | `B3-checkout-preview.png` | |
-| B4 | The paid order reports the actual total | ☐ Pass ☐ Fail ☐ Blocked | `B4-order-bonus.png` | |
-| C1 | Level 1's wallet shows the credit | ☐ Pass ☐ Fail ☐ Blocked | `C1-maria-wallet.png` | |
-| C2 | Level 1's statement explains the row | ☐ Pass ☐ Fail ☐ Blocked | `C2-maria-statement.png` | |
-| C3 | Level 2's statement and wallet show their share | ☐ Pass ☐ Fail ☐ Blocked | `C3-juan-statement.png`, `C3-juan-wallet.png` | |
-| C4 | The buyer's own statement is empty | ☐ Pass ☐ Fail ☐ Blocked | `C4-buyer-statement.png` | |
-| C5 | The dashboard and membership explain the status | ☐ Pass ☐ Fail ☐ Blocked | `C5-dashboard.png`, `C5-membership.png` | |
-| D1 | The admin order shows every level and reason | ☐ Pass ☐ Fail ☐ Blocked | `D1-admin-order.png` | |
-| D2 | The admin ledger shows the same money | ☐ Pass ☐ Fail ☐ Blocked | `D2-admin-ledger.png` | |
+| A1 | The product form has the repeat-purchase card | ☐ Pass ☐ Fail ☐ Blocked | `4_a1_admin_product_new.jpeg` | |
+| A2 | Save the product and see the badge | ☐ Pass ☐ Fail ☐ Blocked | `4_a2_admin_product_new_complete.jpeg`, `4_a2_admin_product_new_created.jpeg` | |
+| A3 | Turn on the global bonus stream | ☐ Pass ☐ Fail ☐ Blocked | `4_a3_admin_settings_global_unilevel_product.jpeg` | |
+| B1 | The catalogue shows the offer | ☐ Pass ☐ Fail ☐ Blocked | `5_b1_shop_unilevel_product.jpeg` | |
+| B2 | The product page explains the ladder | ☐ Pass ☐ Fail ☐ Blocked | `5_b2_shop_unilevel_product_detail.jpeg` | |
+| B3 | The checkout preview is honest | ☐ Pass ☐ Fail ☐ Blocked | `5_b3_shop_unilevel_product_checkout.jpeg` | |
+| B4 | The paid order reports the actual total | ☐ Pass ☐ Fail ☐ Blocked | `5_b4_shop_unilevel_product_order.jpeg` | |
+| C1 | Level 1's wallet shows the credit | ☐ Pass ☐ Fail ☐ Blocked | `6_c1_maria_wallet.jpeg` | |
+| C2 | Level 1's statement explains the row | ☐ Pass ☐ Fail ☐ Blocked | `6_c2_maria_statement.jpeg` | |
+| C3 | Level 2's statement and wallet show their share | ☐ Pass ☐ Fail ☐ Blocked | `6_c3_juan_statement.jpeg`, `6_c3_juan_wallet.jpeg` | |
+| C4 | The buyer's own statement is empty | ☐ Pass ☐ Fail ☐ Blocked | `6_c4_buyer_statement.jpeg` | |
+| C5 | The dashboard and membership explain the status | ☐ Pass ☐ Fail ☐ Blocked | `6_c5_dashboard.jpeg`, `6_c5_membership.jpeg` | |
+| D1 | The admin order shows every level and reason | ☐ Pass ☐ Fail ☐ Blocked | `7_d1_admin_order.jpeg` | |
+| D2 | The admin ledger shows the same money | ☐ Pass ☐ Fail ☐ Blocked | `7_d2_admin_ledger.jpeg` | |
 
 ### Optional checks
 
 | ID | Check | Result | Evidence | What I saw instead / notes |
 |---|---|---|---|---|
-| E1 | The master switch hides the offer | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `E1-master-off.png` | |
-| E2 | A product without a ladder has no offer | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `E2-no-ladder.png` | |
-| E3 | Impossible ladders are refused | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `E3-empty-error.png`, `E3-sum-error.png` | |
-| E4 | Cancelling reverses the bonus | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `E4-cancel-order.png`, `E4-maria-after-cancel.png`, `E4-admin-after-cancel.png` | |
+| E1 | The master switch hides the offer | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e1_master_off.jpeg` | |
+| E2 | A product without a ladder has no offer | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e2_no_ladder.jpeg` | |
+| E3 | Impossible ladders are refused | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e3_empty_error.jpeg`, `8_e3_sum_error.jpeg` | |
+| E4 | Cancelling reverses the bonus | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_after_cancel.jpeg` | |
 
 ### Sign-off
 
@@ -1579,16 +1818,17 @@ For every check, capture the **whole browser window**, including the address bar
 identified. For amount checks, make sure the account name, the amount and the page header are all
 visible.
 
-Use this naming convention:
+Use this naming convention: the **part number** of the section the check lives in, the **check ID** in
+lower case, and the **screen or state**, joined with underscores and saved as a `.jpeg` —
+`<part>_<check>_<screen>.jpeg`.
 
 ```text
-A1-product-form.png
-A2-product-saved.png
-A2-product-list.png
-B2-product-panel.png
-B4-order-bonus.png
-C2-maria-statement.png
-D1-admin-order.png
+4_a1_admin_product_new.jpeg
+4_a2_admin_product_new_created.jpeg
+5_b2_shop_unilevel_product_detail.jpeg
+5_b4_shop_unilevel_product_order.jpeg
+6_c2_maria_statement.jpeg
+7_d1_admin_order.jpeg
 ```
 
 If a check fails, capture **two** screenshots: what you expected to see (the closest correct screen)
@@ -1607,7 +1847,7 @@ Expected:         "₱25.00 was paid to the members above you when this order wa
 Actual:           "₱12.50 was paid to the members above you when this order was paid."
 Steps:            1. ... 2. ... 3. ...
 Severity:         Major
-Evidence:         B4-order-bonus.png, D1-admin-order.png
+Evidence:         5_b4_shop_unilevel_product_order.jpeg, 7_d1_admin_order.jpeg
 Notes:            The admin order page shows two credited rows totalling ₱25.00,
                   so only the member-facing card is wrong.
 ```

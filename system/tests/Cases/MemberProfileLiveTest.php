@@ -426,6 +426,7 @@ return [
         assert_contains('data-live-surface="member.checkout:' . (int) $member['id'] . '"', $html);
         assert_contains('data-live-enabled="1"', $html);
         assert_contains('data-live-interval="30000"', $html);
+        assert_contains('data-live-config="config"', $html, 'a settings save reaches the checkout');
         assert_contains('data-live-region="checkout-addresses"', $html);
         assert_contains('data-live-region="checkout-summary"', $html);
         assert_contains('data-live-region="checkout-payment"', $html);

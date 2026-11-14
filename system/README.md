@@ -709,7 +709,9 @@ the before/after value per key). Money values keep their column precision (`deci
 and fees, `decimal:4` for the rate and gas) and a percentage is capped at 100 so a service never has
 to clamp a saved value. Cross-field rules reject a weekly limit below the daily limit and a minimum
 above the daily limit. A save bumps the settings page and the shared `config` live revision, so open
-membership/order pages revalidate; the two payout pages also mix `PayoutService::settingsFingerprint()`.
+membership/order pages revalidate and the checkout page's repeat-purchase preview turns on or off
+(it declares `data-live-config="config"`); the two payout pages also mix
+`PayoutService::settingsFingerprint()`.
 
 Maintenance mode is `maintenance_mode=1`: guests see a branded **503** with
 `Retry-After: 3600`, admin and superadmin sessions pass straight through.
@@ -1248,7 +1250,9 @@ product **and** turns the global switch on.
   (1–10), `Monthly personal-purchase minimum` (₱), and the three switches `unilevel_enabled`,
   `unilevel_requires_active_upline`, `unilevel_reversal_enabled`. The sixth key,
   `unilevel_ledger_since`, is a reconciliation baseline and is never rendered. Saving the card validates
-  and audits exactly like the Phase 15 cards (`settings.update`).
+  and audits exactly like the Phase 15 cards (`settings.update`). The save also bumps the shared `config`
+  live revision, and the checkout page follows it (`data-live-config="config"`), so toggling
+  **Repeat-purchase bonus enabled** removes or restores an open checkout's preview line without a reload.
 
 ### The admin surfaces (17D)
 
@@ -1281,7 +1285,8 @@ Read-only and scoped to the session member; no page offers a repeat-purchase act
   page, not one per card.
 - **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X is paid to the
   members above you when this order is paid" — then pivots to the reader's Team chain income, and is
-  absent when no cart product has a payable ladder.
+  absent when no cart product has a payable ladder. It is a live region that follows the shared `config`
+  revision, so toggling the master switch on the settings page adds or removes it without a reload.
 - **The order card** (`/orders/{id}`) shows the total that was paid to the members above, never which
   member received what, then points the buyer at their own Team chain statement; it is a live region,
   so a verification appears without a reload.
@@ -1300,7 +1305,7 @@ php tests/run.php Unilevel                # every Phase 17 case: foundation, con
 php tests/run.php UnilevelConfiguration   # 24 configuration cases (17B)
 php tests/run.php UnilevelEngine          # 38 engine cases (17C)
 php tests/run.php UnilevelCycle           # 11 monthly-clock cases (17C)
-php tests/run.php UnilevelMemberView      # 16 member-surface cases (17E)
+php tests/run.php UnilevelMemberView      # 17 member-surface cases (17E)
 php tests/run.php Cron                    # 18 job cases, 10 of them the month close (17F)
 php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 ```
