@@ -11,13 +11,14 @@ declare(strict_types=1);
  * recruits buy, and so on. The reader's own purchase never pays them;
  * it counts toward the monthly minimum that keeps them Active.
  *
- * Copy rules for this panel (plan §9, member-facing):
+ * Copy rules for this panel (plan §9, §10.6, member-facing):
  *
  *   · say "Team chain", never "sponsor chain";
  *   · say "repeat-purchase bonus" and version the level incomes;
  *   · say "up to", never "you will earn" a fixed total;
- *   · state the monthly minimum and that the money is credited when the
- *     order is paid;
+ *   · state the monthly minimum and that the money is **earned** when
+ *     the order is paid and **released** to the e-wallet after the
+ *     return window — never an exact date before delivery;
  *   · all ten levels are always listed, and a level with no rate reads
  *     "—" instead of "0.000%";
  *   · never tell the member they earn on their own purchase.
@@ -38,6 +39,9 @@ $payingLevels = (int) ($bonus['paying_levels'] ?? 0);
 $base         = (float) ($bonus['base'] ?? 0);
 $baseSource   = (string) ($bonus['base_source'] ?? 'price');
 $baseLabel    = $baseSource === 'pv' ? 'P.V.' : 'price';
+
+$holdDays = UnilevelService::holdDays();
+$holdCopy = $holdDays > 0 ? 'delivery + ' . $holdDays . ' days' : 'delivery';
 
 $requiresActive = (bool) ($bonus['requires_active'] ?? true);
 $threshold      = (float) ($bonus['active_threshold'] ?? 0.0);
@@ -114,9 +118,9 @@ if (!$requiresActive) {
                         <p class="text-body-secondary small mb-0 mt-2">
                           <i class="icon-base bx bx-wallet me-1"></i>
                           Across all ten levels. Your own share is the rate on the level where your
-                          Team chain member sits, and it is credited to your e-wallet
-                          <strong>when that order is paid</strong>, to an eligible member who is Active
-                          for the month.
+                          Team chain member sits. It is <strong>earned when that order is paid</strong>
+                          and released to your e-wallet <strong>after the return window</strong>
+                          (<?= e($holdCopy) ?>), to an eligible member who is Active for the month.
                         </p>
                         <p class="text-body-secondary small mb-0 mt-2">
                           <i class="icon-base bx bx-calendar-check me-1"></i>

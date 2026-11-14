@@ -222,6 +222,12 @@ final class ReportService
      * Every repeat-purchase award in the window, exactly the columns the
      * admin ledger shows (plan §8 Rule 8: screen and CSV agree).
      *
+     * Phase 18: the header and rows come from `UnilevelAward::csvHeader()`
+     * / `csvRows()`, so the export inherits the escrow columns (`Hold
+     * days`, `Released at`) and the `pending` / `cancelled` statuses
+     * without a second definition here (plan §19.6). Adding a column to
+     * the ledger therefore adds it to both CSVs at once.
+     *
      * @return array{filename:string, header:list<string>, rows:list<list<string>>}
      */
     private function unilevelExport(string $from, string $to): array

@@ -274,6 +274,9 @@ final class AdminMemberController
             'activations_pager' => $activationsPager,
             'orders'            => Order::statsForUser($userId),
             'commissions'       => (new CommissionService())->totalsFor($userId),
+            /* Phase 18: earned but not in the wallet; the card shows it
+             * as a separate line (plan §19.5). */
+            'pending_repeat'    => UnilevelAward::pendingSummaryForUser($userId),
             'team'              => (new SponsorService())->teamStats($userId),
             'upline'            => (new SponsorService())->chain($userId, SponsorService::MAX_LEVELS),
             'audits'            => AuditLog::forSubject('user', $userId, 8),
@@ -355,13 +358,14 @@ final class AdminMemberController
                     'team'         => $data['team'],
                 ]),
                 'member-wallet' => View::capture('admin/members/_wallet', [
-                    'member'        => $member,
-                    'balance'       => $data['balance'],
-                    'withdrawable'  => $data['withdrawable'],
-                    'orders'        => $data['orders'],
-                    'commissions'   => $data['commissions'],
-                    'activations'   => $data['activations'],
-                    'statement_url' => $data['statement_url'],
+                    'member'         => $member,
+                    'balance'        => $data['balance'],
+                    'withdrawable'   => $data['withdrawable'],
+                    'orders'         => $data['orders'],
+                    'commissions'    => $data['commissions'],
+                    'pending_repeat' => $data['pending_repeat'],
+                    'activations'    => $data['activations'],
+                    'statement_url'  => $data['statement_url'],
                 ]),
                 'member-activations' => View::capture('admin/members/_activations', [
                     'activations'       => $data['activations'],

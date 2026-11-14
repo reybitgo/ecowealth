@@ -12,6 +12,11 @@ declare(strict_types=1);
  *     floor — explain why instead of showing a form that cannot work;
  *   · otherwise the request form.
  *
+ * Phase 18 names the escrow beside an open request (plan §11.5,
+ * Appendix C.6): the held amount and the pending release are two
+ * different piles of money, and a member reading "₱500 held" while
+ * ₱12.50 is pending needs both figures side by side.
+ *
  * The region is held while it has unsaved input, so a background refresh
  * can never wipe a half-typed amount or account.
  *
@@ -27,6 +32,9 @@ $min       = (float) ($options['min'] ?? 0);
 $channels  = (int) ($options['channels_open'] ?? 0);
 $methods   = $options['methods'] ?? [];
 $badges    = ['approved' => ['Approved', 'info'], 'pending' => ['Pending review', 'warning']];
+
+$pending      = is_array($options['pending_repeat'] ?? null) ? $options['pending_repeat'] : [];
+$pendingTotal = round((float) ($pending['total'] ?? 0), 2);
 ?>
               <div data-live-region="payout-request" data-live-hold="dirty">
 <?php if (is_array($open)): ?>
@@ -99,6 +107,14 @@ $badges    = ['approved' => ['Approved', 'info'], 'pending' => ['Pending review'
                         <span class="fw-medium text-body"><?= e(format_datetime((string) $open['requested_at'])) ?></span>
                       </li>
                     </ul>
+
+<?php if ($pendingTotal > 0): ?>
+                    <p class="small text-body-secondary mb-3">
+                      <i class="icon-base bx bx-time-five me-1"></i>
+                      Your open request holds <strong><?= e(money((float) $open['amount'])) ?></strong>.
+                      <strong><?= e(money($pendingTotal)) ?></strong> pending release is separate and is not included.
+                    </p>
+<?php endif; ?>
 
                     <div class="alert alert-info mb-0" role="status">
                       <div class="small">

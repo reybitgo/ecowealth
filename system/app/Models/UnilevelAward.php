@@ -10,20 +10,30 @@ declare(strict_types=1);
  *  buyer is never a recipient (D-09), so `buyer_id` is the source of
  *  the purchase and `user_id` is the upline who was paid.
  *
- *  Status machine:
+ *  Status machine (Phase 18 adds the escrow states):
  *
- *      credited   the wallet was credited (ledger_id is set)
+ *      pending    earned at payment, not in the wallet yet. No ledger
+ *                 row, no wallet movement; the money is non-spendable
+ *                 and non-withdrawable until release (plan ESC-09)
+ *      credited   released: the wallet was credited (ledger_id and
+ *                 credited_at are set)
  *      skipped    the award was due but the recipient was ineligible
  *                 (account disabled, membership, not Active, company
  *                 account); audited, never paid
+ *      cancelled  the order was cancelled before release; the award
+ *                 will never pay. No ledger row, no shortfall
  *      voided     paid, then reversed after the order was cancelled;
  *                 the money columns never change — only the reversal
  *                 columns do (plan §14.9)
  *
+ *  `hold_days` is snapshotted at payment: a later setting change cannot
+ *  move an award's promised release date (plan ESC-04).
+ *
  *  Writes live here and are called by UnilevelService only, inside the
- *  caller's transaction. Reads are shared by the member page (17E) and
- *  the admin ledger (17D); this file ships the whole read API they
- *  need so neither later phase invents a second implementation.
+ *  caller's transaction. Reads are shared by the member page (17E), the
+ *  admin ledger (17D) and the escrow presentation (18); this file ships
+ *  the whole read API they need so no later phase invents a second
+ *  implementation.
  *
  *  The unique key (order_item_id, user_id, level) is the money anchor:
  *  the same line cannot pay the same upline at the same level twice.
@@ -38,16 +48,27 @@ final class UnilevelAward
     public const LEVEL_MAX = 10;
 
     /** Values `unilevel_awards.status` accepts. */
-    public const STATUSES = ['credited', 'skipped', 'voided'];
+    public const STATUSES = ['pending', 'credited', 'skipped', 'voided', 'cancelled'];
+
+    /** The statuses that count as awarded money (plan ESC-08). */
+    public const AWARDED_STATUSES = ['pending', 'credited'];
 
     /** Values `unilevel_awards.base_source` accepts. */
     public const BASE_SOURCES = ['line', 'product'];
 
     /** Human labels for the status pill. */
     public const STATUS_LABELS = [
-        'credited' => 'Credited',
-        'skipped'  => 'Skipped',
-        'voided'   => 'Voided',
+        'pending'   => 'Pending release',
+        'credited'  => 'Credited',
+        'skipped'   => 'Skipped',
+        'voided'    => 'Voided',
+        'cancelled' => 'Cancelled',
+    ];
+
+    /** The label overrides the repeat views pass to status_badge(). */
+    public const STATUS_BADGES = [
+        'pending'   => ['Pending release', 'warning'],
+        'cancelled' => ['Cancelled before release', 'secondary'],
     ];
 
     /** @var array{level:string, status:string, product_id:string, from:string, to:string, q:string} */
@@ -393,55 +414,92 @@ final class UnilevelAward
      * ---------------------------------------------------------- */
 
     /**
-     * Totals for one member: what was credited, when, and what was
-     * skipped. Only `credited` rows count as money (plan §13.7).
+     * Totals for one member: what was credited, what is still pending
+     * release, when the next release is due, and what was skipped or
+     * cancelled.
      *
-     * @return array{count:int, credited:float, this_month:float, skipped:int, last_at:?string}
+     * `credited` / `count` / `this_month` keep their Phase 17 meaning:
+     * released money. `pending` is the escrow figure (earned, not in
+     * the wallet); `total_awarded` is the presentation sum the member's
+     * pages show as "earned" (plan ESC-08, §15.6).
+     *
+     * @return array{
+     *   count:int, credited:float, this_month:float, skipped:int, last_at:?string,
+     *   pending:float, pending_count:int, cancelled:int,
+     *   next_release_at:?string, total_awarded:float, earned_this_month:float
+     * }
      */
     public static function totalsForUser(int $userId, ?PDO $pdo = null): array
     {
         $pdo = $pdo ?? db();
 
         $stmt = $pdo->prepare(
-            "SELECT COUNT(CASE WHEN status = 'credited' THEN 1 END) AS total_count,
-                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited,
-                    COALESCE(SUM(CASE WHEN status = 'credited'
-                                       AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                                      THEN amount ELSE 0 END), 0) AS this_month,
-                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped_count,
-                    MAX(CASE WHEN status = 'credited' THEN created_at END) AS last_at
-               FROM unilevel_awards
-              WHERE user_id = ?"
+            "SELECT COUNT(CASE WHEN a.status = 'credited' THEN 1 END) AS total_count,
+                    COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS credited,
+                    COALESCE(SUM(CASE WHEN a.status = 'credited'
+                                       AND a.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN a.amount ELSE 0 END), 0) AS this_month,
+                    COUNT(CASE WHEN a.status = 'skipped' THEN 1 END) AS skipped_count,
+                    MAX(CASE WHEN a.status = 'credited' THEN a.created_at END) AS last_at,
+                    COALESCE(SUM(CASE WHEN a.status = 'pending' THEN a.amount ELSE 0 END), 0) AS pending,
+                    COUNT(CASE WHEN a.status = 'pending' THEN 1 END) AS pending_count,
+                    COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) AS cancelled_count,
+                    COALESCE(SUM(CASE WHEN a.status IN ('pending','credited')
+                                       AND a.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN a.amount ELSE 0 END), 0) AS earned_this_month,
+                    MIN(CASE WHEN a.status = 'pending'
+                              AND o.status IN ('delivered','completed')
+                              AND COALESCE(o.delivered_at, o.completed_at) IS NOT NULL
+                             THEN DATE_ADD(COALESCE(o.delivered_at, o.completed_at),
+                                           INTERVAL a.hold_days DAY)
+                        END) AS next_release_at
+               FROM unilevel_awards a
+               LEFT JOIN shop_orders o ON o.id = a.order_id
+              WHERE a.user_id = ?"
         );
         $stmt->execute([$userId]);
         $row = $stmt->fetch() ?: [];
 
+        $credited = round((float) ($row['credited'] ?? 0), 2);
+        $pending  = round((float) ($row['pending'] ?? 0), 2);
+
         return [
-            'count'      => (int) ($row['total_count'] ?? 0),
-            'credited'   => round((float) ($row['credited'] ?? 0), 2),
-            'this_month' => round((float) ($row['this_month'] ?? 0), 2),
-            'skipped'    => (int) ($row['skipped_count'] ?? 0),
-            'last_at'    => ($row['last_at'] ?? null) === null ? null : (string) $row['last_at'],
+            'count'             => (int) ($row['total_count'] ?? 0),
+            'credited'          => $credited,
+            'this_month'        => round((float) ($row['this_month'] ?? 0), 2),
+            'skipped'           => (int) ($row['skipped_count'] ?? 0),
+            'last_at'           => ($row['last_at'] ?? null) === null ? null : (string) $row['last_at'],
+            'pending'           => $pending,
+            'pending_count'     => (int) ($row['pending_count'] ?? 0),
+            'cancelled'         => (int) ($row['cancelled_count'] ?? 0),
+            'next_release_at'   => ($row['next_release_at'] ?? null) === null
+                ? null
+                : (string) $row['next_release_at'],
+            'total_awarded'     => round($credited + $pending, 2),
+            'earned_this_month' => round((float) ($row['earned_this_month'] ?? 0), 2),
         ];
     }
 
     /**
-     * Credited earnings for one recipient, split by the buying team
-     * member and by level (17E follow-up).
+     * Per-recipient earnings split by the buying team member and by
+     * level (17E follow-up, extended in 18).
      *
      * The earnings tab shows the member's team by level: a level-1 row
      * is a direct recruit, a level-2 row is one of their recruits, and
      * so on. Each row needs the money that member's purchases credited
      * to the session member at that depth, so this read groups the
-     * credited ledger by `(level, buyer_id)` in one query instead of
-     * one query per team row.
+     * ledger by `(level, buyer_id, status)` in one query instead of one
+     * query per team row.
      *
-     * Only `credited` rows count as money (plan §13.7), exactly like
-     * `levelBreakdown()`. A buyer with no credited award never appears
-     * in the result and is rendered at ₱0.00 by the caller.
+     * `amount` / `count` keep their Phase 17 meaning (released money);
+     * `pending_amount` / `pending_count` are the escrow figure, so the
+     * team card can show both without a second query. A buyer with no
+     * award never appears in the result and is rendered at ₱0.00 by the
+     * caller.
      *
-     * @return array<int, array<int, array{amount:float, count:int}>>
-     *         level => buyer id => credited amount + award count
+     * @return array<int, array<int, array{
+     *   amount:float, count:int, pending_amount:float, pending_count:int
+     * }>> level => buyer id => released + pending figures
      */
     public static function creditedByBuyer(int $userId, ?PDO $pdo = null): array
     {
@@ -452,10 +510,10 @@ final class UnilevelAward
         $pdo = $pdo ?? db();
 
         $stmt = $pdo->prepare(
-            "SELECT level, buyer_id, COUNT(*) AS award_count, COALESCE(SUM(amount), 0) AS amount
+            "SELECT level, buyer_id, status, COUNT(*) AS award_count, COALESCE(SUM(amount), 0) AS amount
                FROM unilevel_awards
-              WHERE user_id = ? AND status = 'credited'
-              GROUP BY level, buyer_id"
+              WHERE user_id = ? AND status IN ('pending','credited')
+              GROUP BY level, buyer_id, status"
         );
         $stmt->execute([$userId]);
 
@@ -469,20 +527,34 @@ final class UnilevelAward
                 continue;
             }
 
-            $earned[$level][$buyer] = [
-                'amount' => round((float) $row['amount'], 2),
-                'count'  => (int) $row['award_count'],
+            $earned[$level][$buyer] ??= [
+                'amount'         => 0.0,
+                'count'          => 0,
+                'pending_amount' => 0.0,
+                'pending_count'  => 0,
             ];
+
+            if ((string) $row['status'] === 'pending') {
+                $earned[$level][$buyer]['pending_amount'] = round((float) $row['amount'], 2);
+                $earned[$level][$buyer]['pending_count']  = (int) $row['award_count'];
+            } else {
+                $earned[$level][$buyer]['amount'] = round((float) $row['amount'], 2);
+                $earned[$level][$buyer]['count']  = (int) $row['award_count'];
+            }
         }
 
         return $earned;
     }
 
     /**
-     * Per-level credited totals (1 … 10) for the breakdown card.
+     * Per-level totals (1 … 10) for the breakdown card.
+     *
+     * `amount` / `count` keep their Phase 17 meaning (released money);
+     * `pending_amount` / `pending_count` are the escrow figure, so the
+     * card can show both without adding a second query.
      *
      * @param int|null $userId null for the whole ledger (admin view)
-     * @return array<int, array{amount:float, count:int}>
+     * @return array<int, array{amount:float, count:int, pending_amount:float, pending_count:int}>
      */
     public static function levelBreakdown(?int $userId = null, ?PDO $pdo = null): array
     {
@@ -490,12 +562,17 @@ final class UnilevelAward
         $levels = [];
 
         for ($level = self::LEVEL_MIN; $level <= self::LEVEL_MAX; $level++) {
-            $levels[$level] = ['amount' => 0.0, 'count' => 0];
+            $levels[$level] = [
+                'amount'         => 0.0,
+                'count'          => 0,
+                'pending_amount' => 0.0,
+                'pending_count'  => 0,
+            ];
         }
 
-        $sql    = "SELECT level, COUNT(*) AS rows_count, COALESCE(SUM(amount), 0) AS amount
+        $sql    = "SELECT level, status, COUNT(*) AS rows_count, COALESCE(SUM(amount), 0) AS amount
                      FROM unilevel_awards
-                    WHERE status = 'credited'";
+                    WHERE status IN ('pending','credited')";
         $params = [];
 
         if ($userId !== null) {
@@ -503,17 +580,22 @@ final class UnilevelAward
             $params[] = $userId;
         }
 
-        $stmt = $pdo->prepare($sql . ' GROUP BY level');
+        $stmt = $pdo->prepare($sql . ' GROUP BY level, status');
         $stmt->execute($params);
 
         foreach ($stmt->fetchAll() as $row) {
             $level = (int) $row['level'];
 
-            if (isset($levels[$level])) {
-                $levels[$level] = [
-                    'amount' => round((float) $row['amount'], 2),
-                    'count'  => (int) $row['rows_count'],
-                ];
+            if (!isset($levels[$level])) {
+                continue;
+            }
+
+            if ((string) $row['status'] === 'pending') {
+                $levels[$level]['pending_amount'] = round((float) $row['amount'], 2);
+                $levels[$level]['pending_count']  = (int) $row['rows_count'];
+            } else {
+                $levels[$level]['amount'] = round((float) $row['amount'], 2);
+                $levels[$level]['count']  = (int) $row['rows_count'];
             }
         }
 
@@ -521,14 +603,18 @@ final class UnilevelAward
     }
 
     /**
-     * Counters for the admin ledger header (17D).
+     * Counters for the admin ledger header (17D, extended in 18).
      *
-     * `unrecovered` is the part of a voided award the wallet could not
-     * return — never hidden (plan §8 Rule 6).
+     * `unrecovered` counts ONLY `voided` awards: a `cancelled` award was
+     * never paid, so it is not a shortfall (plan §15.7). `recipients`
+     * and `average` stay based on released money; `pending_recipients`
+     * is the separate escrow count.
      *
      * @return array{
      *   credited_total:float, this_month:float, credited:int, skipped:int,
-     *   recipients:int, average:float, top_level:int, voided:int, unrecovered:float
+     *   recipients:int, average:float, top_level:int, voided:int, unrecovered:float,
+     *   pending_total:float, pending:int, cancelled:int, cancelled_total:float,
+     *   total_awarded:float, next_release_at:?string, pending_recipients:int
      * }
      */
     public static function stats(?PDO $pdo = null): array
@@ -536,38 +622,63 @@ final class UnilevelAward
         $pdo = $pdo ?? db();
 
         $row = $pdo->query(
-            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
-                    COALESCE(SUM(CASE WHEN status = 'credited'
-                                       AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                                      THEN amount ELSE 0 END), 0) AS this_month,
-                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_count,
-                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped_count,
-                    COUNT(CASE WHEN status = 'voided' THEN 1 END) AS voided_count,
-                    COALESCE(SUM(CASE WHEN status = 'voided'
-                                      THEN amount - reversed_amount ELSE 0 END), 0) AS unrecovered,
-                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
-                    MAX(CASE WHEN status = 'credited' THEN level END) AS top_level
-               FROM unilevel_awards"
+            "SELECT COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS credited_total,
+                    COALESCE(SUM(CASE WHEN a.status = 'credited'
+                                       AND a.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN a.amount ELSE 0 END), 0) AS this_month,
+                    COUNT(CASE WHEN a.status = 'credited' THEN 1 END) AS credited_count,
+                    COUNT(CASE WHEN a.status = 'skipped' THEN 1 END) AS skipped_count,
+                    COUNT(CASE WHEN a.status = 'voided' THEN 1 END) AS voided_count,
+                    COALESCE(SUM(CASE WHEN a.status = 'voided'
+                                      THEN a.amount - a.reversed_amount ELSE 0 END), 0) AS unrecovered,
+                    COUNT(DISTINCT CASE WHEN a.status = 'credited' THEN a.user_id END) AS recipients,
+                    MAX(CASE WHEN a.status = 'credited' THEN a.level END) AS top_level,
+                    COALESCE(SUM(CASE WHEN a.status = 'pending' THEN a.amount ELSE 0 END), 0) AS pending_total,
+                    COUNT(CASE WHEN a.status = 'pending' THEN 1 END) AS pending_count,
+                    COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END) AS cancelled_count,
+                    COALESCE(SUM(CASE WHEN a.status = 'cancelled' THEN a.amount ELSE 0 END), 0) AS cancelled_total,
+                    COUNT(DISTINCT CASE WHEN a.status = 'pending' THEN a.user_id END) AS pending_recipients,
+                    MIN(CASE WHEN a.status = 'pending'
+                              AND o.status IN ('delivered','completed')
+                              AND COALESCE(o.delivered_at, o.completed_at) IS NOT NULL
+                             THEN DATE_ADD(COALESCE(o.delivered_at, o.completed_at),
+                                           INTERVAL a.hold_days DAY)
+                        END) AS next_release_at
+               FROM unilevel_awards a
+               LEFT JOIN shop_orders o ON o.id = a.order_id"
         )->fetch() ?: [];
 
         $credited = round((float) ($row['credited_total'] ?? 0), 2);
+        $pending  = round((float) ($row['pending_total'] ?? 0), 2);
         $count    = (int) ($row['credited_count'] ?? 0);
 
         return [
-            'credited_total' => $credited,
-            'this_month'     => round((float) ($row['this_month'] ?? 0), 2),
-            'credited'       => $count,
-            'skipped'        => (int) ($row['skipped_count'] ?? 0),
-            'voided'         => (int) ($row['voided_count'] ?? 0),
-            'unrecovered'    => round((float) ($row['unrecovered'] ?? 0), 2),
-            'recipients'     => (int) ($row['recipients'] ?? 0),
-            'average'        => $count === 0 ? 0.0 : round($credited / $count, 2),
-            'top_level'      => (int) ($row['top_level'] ?? 0),
+            'credited_total'     => $credited,
+            'this_month'         => round((float) ($row['this_month'] ?? 0), 2),
+            'credited'           => $count,
+            'skipped'            => (int) ($row['skipped_count'] ?? 0),
+            'voided'             => (int) ($row['voided_count'] ?? 0),
+            'unrecovered'        => round((float) ($row['unrecovered'] ?? 0), 2),
+            'recipients'         => (int) ($row['recipients'] ?? 0),
+            'average'            => $count === 0 ? 0.0 : round($credited / $count, 2),
+            'top_level'          => (int) ($row['top_level'] ?? 0),
+            'pending_total'      => $pending,
+            'pending'            => (int) ($row['pending_count'] ?? 0),
+            'cancelled'          => (int) ($row['cancelled_count'] ?? 0),
+            'cancelled_total'    => round((float) ($row['cancelled_total'] ?? 0), 2),
+            'total_awarded'      => round($credited + $pending, 2),
+            'next_release_at'    => ($row['next_release_at'] ?? null) === null
+                ? null
+                : (string) $row['next_release_at'],
+            'pending_recipients' => (int) ($row['pending_recipients'] ?? 0),
         ];
     }
 
     /**
-     * The CSV columns, in the documented order (17D/17E).
+     * The CSV columns, in the documented order (17D/17E/18).
+     *
+     * The two Phase 18 columns are appended so an existing export
+     * consumer keeps its positional columns (plan §26 #19).
      *
      * @param list<array<string, mixed>> $rows
      * @return list<array<int, string>>
@@ -591,6 +702,8 @@ final class UnilevelAward
                 (string) $row['status'],
                 (string) ($row['reason'] ?? ''),
                 number_format((float) $row['reversed_amount'], 2, '.', ''),
+                (string) (int) ($row['hold_days'] ?? 0),
+                (string) ($row['credited_at'] ?? ''),
             ];
         }
 
@@ -603,6 +716,7 @@ final class UnilevelAward
         return [
             'Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Product', 'Level',
             'Base', 'Rate %', 'Amount', 'Status', 'Reason', 'Recovered',
+            'Hold days', 'Released at',
         ];
     }
 
@@ -613,17 +727,22 @@ final class UnilevelAward
     /**
      * Insert one award row.
      *
-     * The caller owns the transaction: the row and its wallet credit
-     * must commit (or roll back) together (plan §14.5). A zero amount
+     * The caller owns the transaction: the row and (from Phase 18 on)
+     * the order stamp must commit or roll back together. A zero amount
      * is refused here — the engine never writes a `0.00` row
      * (plan §12.8); a zero rate/base means "no row", not "a zero row".
+     *
+     * A new award defaults to `pending`: it is earned at payment and the
+     * wallet is credited later by the release job (plan ESC-02). The
+     * caller may still pass `status` (a `skipped` decision, or the
+     * legacy `credited` shape a test fixture wants).
      *
      * @param array{
      *   order_id:int, order_item_id:int, product_id:int, buyer_id:int,
      *   user_id:int, level:int, base_amount?:float|string, base?:float|string,
      *   base_source?:string, rate_pct?:float|string, rate?:float|string,
      *   amount:float|string, status?:string, reason?:?string,
-     *   paid_at?:string
+     *   hold_days?:int|string, paid_at?:string
      * } $data
      * @return int the new award id
      */
@@ -643,7 +762,7 @@ final class UnilevelAward
             throw new InvalidArgumentException('Repeat-purchase level out of range: ' . $level);
         }
 
-        $status = (string) ($data['status'] ?? 'credited');
+        $status = (string) ($data['status'] ?? 'pending');
 
         if (!in_array($status, self::STATUSES, true)) {
             throw new InvalidArgumentException('Unknown repeat-purchase status: ' . $status);
@@ -673,6 +792,10 @@ final class UnilevelAward
             throw new InvalidArgumentException('Repeat-purchase rate out of range: ' . $rate);
         }
 
+        /* The hold is snapshotted per award (plan ESC-04): clamp to the
+         * column's documented range instead of trusting a caller. */
+        $holdDays = max(0, min(365, (int) ($data['hold_days'] ?? 0)));
+
         $reason = trim((string) ($data['reason'] ?? ''));
 
         if ($status === 'skipped' && $reason === '') {
@@ -688,8 +811,9 @@ final class UnilevelAward
         $pdo->prepare(
             'INSERT INTO unilevel_awards
                (order_id, order_item_id, product_id, buyer_id, user_id, level,
-                base_amount, base_source, rate_pct, amount, status, reason, paid_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                base_amount, base_source, rate_pct, amount, hold_days,
+                status, reason, paid_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             (int) $data['order_id'],
             (int) $data['order_item_id'],
@@ -701,6 +825,7 @@ final class UnilevelAward
             $baseSource,
             number_format($rate, 3, '.', ''),
             number_format($amount, 2, '.', ''),
+            $holdDays,
             $status,
             $reason === '' ? null : mb_substr($reason, 0, 120),
             $paidAt,
@@ -716,6 +841,58 @@ final class UnilevelAward
 
         $pdo->prepare('UPDATE unilevel_awards SET ledger_id = ? WHERE id = ?')
             ->execute([max(1, $ledgerId), $awardId]);
+    }
+
+    /**
+     * Release one pending award: point it at the wallet movement that
+     * paid it and stamp the release date (plan §15.3, Appendix B).
+     *
+     * The `AND status = 'pending'` guard makes a replayed release a
+     * no-op, even if the caller's order lock somehow allowed it.
+     *
+     * @return bool true when this call released the row
+     */
+    public static function markCredited(int $awardId, int $ledgerId, ?PDO $pdo = null): bool
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "UPDATE unilevel_awards
+                SET status = 'credited', ledger_id = ?, credited_at = NOW()
+              WHERE id = ? AND status = 'pending'"
+        );
+        $stmt->execute([max(1, $ledgerId), $awardId]);
+
+        return $stmt->rowCount() === 1;
+    }
+
+    /**
+     * Cancel a pending award before any money moved (plan §15.3, §8).
+     *
+     * `reversed_amount` stays 0 and `reversal_ledger_id` stays NULL:
+     * nothing was paid, so there is nothing to recover and no
+     * shortfall. The `AND status = 'pending'` guard means a cancelled
+     * award can never be marked paid afterwards.
+     *
+     * @return bool true when this call cancelled the row
+     */
+    public static function cancel(int $awardId, string $reason, ?PDO $pdo = null): bool
+    {
+        $pdo = $pdo ?? db();
+
+        $reason = trim($reason);
+
+        $stmt = $pdo->prepare(
+            "UPDATE unilevel_awards
+                SET status = 'cancelled', voided_at = NOW(), void_reason = ?
+              WHERE id = ? AND status = 'pending'"
+        );
+        $stmt->execute([
+            $reason === '' ? 'Order cancelled before release' : mb_substr($reason, 0, 160),
+            $awardId,
+        ]);
+
+        return $stmt->rowCount() === 1;
     }
 
     /**
@@ -762,7 +939,12 @@ final class UnilevelAward
 
     /**
      * Keep `shop_orders.unilevel_total` in step with the ledger after a
-     * reversal (plan §13.7 #4, §14.9).
+     * cancellation or reversal (plan §13.7 #4, §14.9).
+     *
+     * The total is the **awarded** figure: pending + credited
+     * (plan ESC-08). A released award and a pending one both count, so
+     * a release job run never changes the order card's headline; after
+     * a full cancellation the total is 0.
      */
     public static function recomputeOrderTotal(int $orderId, ?PDO $pdo = null): float
     {
@@ -770,7 +952,7 @@ final class UnilevelAward
 
         $stmt = $pdo->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM unilevel_awards
-              WHERE order_id = ? AND status = 'credited'"
+              WHERE order_id = ? AND status IN ('pending','credited')"
         );
         $stmt->execute([$orderId]);
         $total = round((float) $stmt->fetchColumn(), 2);
@@ -779,6 +961,101 @@ final class UnilevelAward
             ->execute([number_format($total, 2, '.', ''), $orderId]);
 
         return $total;
+    }
+
+    /* ----------------------------------------------------------
+     *  Escrow presentation (Phase 18 A++)
+     * ---------------------------------------------------------- */
+
+    /**
+     * Everything the A++ pages need about one member's escrowed money
+     * (plan §15.11):
+     *
+     *   total / count     pending release amount and rows
+     *   next_release_at   earliest promised date among awards on a
+     *                     delivered/completed order (null when every
+     *                     pending award is still undelivered)
+     *   undelivered       pending rows whose order has not been
+     *                     delivered/completed yet
+     *   overdue           pending rows already due (the release job has
+     *                     not paid them yet)
+     *   release_enabled   the operator's release switch
+     *
+     * Guarded by a table-exists check, so an old scratch schema (or a
+     * reset target before Phase 17) returns zeroes instead of throwing
+     * (plan §26 #12).
+     *
+     * @return array{
+     *   total:float, count:int, next_release_at:?string,
+     *   undelivered:int, overdue:int, release_enabled:bool
+     * }
+     */
+    public static function pendingSummaryForUser(int $userId, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $empty = [
+            'total'           => 0.0,
+            'count'           => 0,
+            'next_release_at' => null,
+            'undelivered'     => 0,
+            'overdue'         => 0,
+            'release_enabled' => setting_bool('unilevel_release_enabled', true),
+        ];
+
+        if ($userId <= 0 || !self::tableExists($pdo)) {
+            return $empty;
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) AS pending_count,
+                    COALESCE(SUM(a.amount), 0) AS pending_total,
+                    MIN(CASE
+                          WHEN o.status IN ('delivered','completed')
+                           AND COALESCE(o.delivered_at, o.completed_at) IS NOT NULL
+                          THEN DATE_ADD(COALESCE(o.delivered_at, o.completed_at),
+                                        INTERVAL a.hold_days DAY)
+                        END) AS next_release_at,
+                    COALESCE(SUM(CASE
+                          WHEN o.status NOT IN ('delivered','completed')
+                            OR COALESCE(o.delivered_at, o.completed_at) IS NULL
+                          THEN 1 ELSE 0
+                        END), 0) AS undelivered,
+                    COALESCE(SUM(CASE
+                          WHEN o.status IN ('delivered','completed')
+                           AND DATE_ADD(COALESCE(o.delivered_at, o.completed_at),
+                                        INTERVAL a.hold_days DAY) < NOW()
+                          THEN 1 ELSE 0
+                        END), 0) AS overdue
+               FROM unilevel_awards a
+               JOIN shop_orders o ON o.id = a.order_id
+              WHERE a.user_id = ? AND a.status = 'pending'"
+        );
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch() ?: [];
+
+        return [
+            'total'           => round((float) ($row['pending_total'] ?? 0), 2),
+            'count'           => (int) ($row['pending_count'] ?? 0),
+            'next_release_at' => ($row['next_release_at'] ?? null) === null
+                ? null
+                : (string) $row['next_release_at'],
+            'undelivered'     => (int) ($row['undelivered'] ?? 0),
+            'overdue'         => (int) ($row['overdue'] ?? 0),
+            'release_enabled' => setting_bool('unilevel_release_enabled', true),
+        ];
+    }
+
+    /** Does this connection's schema still carry the Phase 17 table? */
+    private static function tableExists(PDO $pdo): bool
+    {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?'
+        );
+        $stmt->execute(['unilevel_awards']);
+
+        return (int) $stmt->fetchColumn() > 0;
     }
 
     /* ----------------------------------------------------------
@@ -797,6 +1074,8 @@ final class UnilevelAward
                        p.sku            AS product_sku,
                        o.order_no       AS order_no,
                        o.status         AS order_status,
+                       o.delivered_at   AS order_delivered_at,
+                       o.completed_at   AS order_completed_at,
                        l.balance_after      AS wallet_balance_after,
                        l.withdrawable_after AS wallet_withdrawable_after
                   FROM unilevel_awards a

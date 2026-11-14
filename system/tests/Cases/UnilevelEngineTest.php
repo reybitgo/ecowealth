@@ -225,7 +225,64 @@ $place = static function (int $userId, array $lines, string $method = 'ewallet')
  *  Assertions and small readers
  * -------------------------------------------------------------- */
 
-$run = static fn (int $orderId): array => (new UnilevelService())->onOrderPaid($orderId);
+/** Mark a paid fixture order delivered (the release precondition). */
+$deliver = static function (int $orderId): void {
+    db()->prepare(
+        "UPDATE shop_orders
+            SET status = 'delivered', delivered_at = NOW()
+          WHERE id = ? AND status IN ('paid','packing','ready_to_ship','shipped','delivered')"
+    )->execute([$orderId]);
+};
+
+/** Deliver the order and run the release job for it (idempotent). */
+$release = static function (int $orderId) use ($deliver): array {
+    $deliver($orderId);
+
+    return (new UnilevelService())->releaseForOrder($orderId);
+};
+
+/**
+ * Reproduce the Phase 17 shape for a legacy case: the awards are already
+ * credited and the order is still in a cancellable state (an order paid
+ * before Phase 18 is never delivered). The post-release reversal path
+ * must keep working for exactly these rows (plan §6.4).
+ */
+$legacyCredit = static function (int $orderId): void {
+    $wallet = new WalletService();
+
+    foreach (UnilevelAward::forOrder($orderId) as $row) {
+        if ((string) $row['status'] !== 'pending') {
+            continue;
+        }
+
+        $movement = $wallet->credit(
+            (int) $row['user_id'],
+            (float) $row['amount'],
+            'unilevel',
+            (int) $row['id'],
+            'Legacy repeat-purchase award',
+            true
+        );
+
+        UnilevelAward::markCredited((int) $row['id'], (int) $movement['ledger_id']);
+    }
+};
+
+/**
+ * Pay the ladder and release it: the Phase 17 "money is in the wallet"
+ * state these cases were written against. Phase 18 split that into two
+ * events (pending at payment, credited at release); a case that needs
+ * the pre-release state calls onOrderPaid() directly instead — see
+ * UnilevelEscrowTest.
+ *
+ * @return array<string, mixed> the onOrderPaid() result
+ */
+$run = static function (int $orderId) use ($release): array {
+    $summary = (new UnilevelService())->onOrderPaid($orderId);
+    $release($orderId);
+
+    return $summary;
+};
 
 $settings = static function (array $values): void {
     foreach ($values as $key => $value) {
@@ -240,6 +297,10 @@ $enable = static function (int $maxLevels = 10, bool $requiresActive = true) use
         'unilevel_requires_active_upline' => $requiresActive ? 1 : 0,
         'unilevel_active_threshold'       => 500,
         'unilevel_reversal_enabled'       => 1,
+        /* Phase 18: the engine test releases immediately, so the hold is
+         * 0. The escrow test file proves the hold itself. */
+        'unilevel_hold_days'              => 0,
+        'unilevel_release_enabled'        => 1,
     ]);
 };
 
@@ -303,7 +364,7 @@ return [
      *  Awards (P17C-T1, T3 … T16)
      * ========================================================== */
 
-    'P17C-T1 an e-wallet order pays the four-deep ladder and credits each wallet once' => function () use ($enable, $p1, $makeChain, $fund, $place, $run, $awards, $sumAmounts, $withdrawable, $repeatLedger): void {
+    'P17C-T1 an e-wallet order pays the four-deep ladder and credits each wallet once' => function () use ($enable, $p1, $makeChain, $fund, $place, $release, $awards, $sumAmounts, $withdrawable, $repeatLedger): void {
         $enable();
         $product = $p1();
         $chain   = $makeChain(4, 'p17c_t1');
@@ -317,6 +378,10 @@ return [
         assert_same('paid', $order['status'], 'the e-wallet path pays at checkout');
         assert_not_null($order['unilevel_processed_at'], 'the order is stamped');
         assert_same('90.00', number_format((float) $order['unilevel_total'], 2, '.', ''));
+
+        /* Phase 18: payment records the awards as pending; the release
+         * job is what credits the wallets. */
+        $release($orderId);
 
         $rows = $awards($orderId);
         assert_count(4, $rows, 'four chain hops pay four awards');
@@ -1121,7 +1186,7 @@ return [
      *  Reversal (T36 … T39)
      * ========================================================== */
 
-    'P17C-T36 cancelling a paid order voids every award and debits the wallets' => function () use ($enable, $p1, $makeChain, $fund, $place, $run, $awards, $withdrawable, $balance, $repeatLedger): void {
+    'P17C-T36 cancelling a paid order voids every award and debits the wallets' => function () use ($enable, $p1, $makeChain, $fund, $place, $legacyCredit, $awards, $withdrawable, $balance, $repeatLedger): void {
         $enable();
         $chain   = $makeChain(4, 'p17c_t36');
         $buyerId = (int) $chain['buyer']['id'];
@@ -1130,6 +1195,12 @@ return [
 
         $orderId = $place($buyerId, [['product' => $p1(), 'quantity' => 2]]);
         assert_same(90.0, (float) Order::find($orderId)['unilevel_total']);
+
+        /* Phase 18: the post-release reversal path is only reachable for
+         * legacy awards (an order cancelled after delivery is a future
+         * returns flow). Reproduce the Phase 17 shape: credited rows on a
+         * still-cancellable paid order. */
+        $legacyCredit($orderId);
 
         $adminId = (int) Member::primaryAdmin()['id'];
         (new PaymentService())->cancelByAdmin($adminId, $orderId, 'admin_cancel');
@@ -1161,7 +1232,7 @@ return [
         assert_same(90.0, $reconcile['reversal_total']);
     },
 
-    'P17C-T37 a partly spent wallet reverses only what it still holds' => function () use ($enable, $p1, $makeChain, $makeUser, $fund, $place, $run, $awards, $withdrawable, $balance): void {
+    'P17C-T37 a partly spent wallet reverses only what it still holds' => function () use ($enable, $p1, $makeChain, $makeUser, $fund, $place, $legacyCredit, $awards, $withdrawable, $balance): void {
         $enable();
         $chain   = $makeChain(4, 'p17c_t37');
         $buyerId = (int) $chain['buyer']['id'];
@@ -1169,6 +1240,9 @@ return [
 
         $fund($buyerId, '1000.00');
         $orderId = $place($buyerId, [['product' => $p1(), 'quantity' => 2]]);
+
+        /* Phase 18: a legacy credited award (see T36). */
+        $legacyCredit($orderId);
 
         assert_same(25.0, $withdrawable($cId));
 
@@ -1201,13 +1275,16 @@ return [
         assert_same(0.0, $balance($cId), 'no negative balance');
     },
 
-    'P17C-T38 the reversal switch off leaves the awards credited' => function () use ($enable, $p1, $makeChain, $fund, $place, $run, $awards, $settings, $withdrawable, $repeatLedger): void {
+    'P17C-T38 the reversal switch off leaves the awards credited' => function () use ($enable, $p1, $makeChain, $fund, $place, $legacyCredit, $awards, $settings, $withdrawable, $repeatLedger): void {
         $enable();
         $chain   = $makeChain(4, 'p17c_t38');
         $buyerId = (int) $chain['buyer']['id'];
 
         $fund($buyerId, '1000.00');
         $orderId = $place($buyerId, [['product' => $p1(), 'quantity' => 2]]);
+
+        /* Phase 18: the switch only governs money that was released. */
+        $legacyCredit($orderId);
 
         $settings(['unilevel_reversal_enabled' => 0]);
 

@@ -334,12 +334,19 @@ final class PayoutService
         $methods   = $this->methodsFor($account);
         $available = count(array_filter($methods, static fn (array $m): bool => $m['available'] === true));
 
+        /* Phase 18: the escrow reminder. `pending_repeat` is money that
+         * was earned but is not in either wallet bucket, so it is shown
+         * next to the withdrawable figure and never added to it
+         * (plan §11.1). */
+        $pending = $this->pendingSummaryFor($userId);
+
         return [
             'user_id'          => $userId,
             'username'         => (string) ($account['username'] ?? ''),
             'balance'          => $balance,
             'withdrawable'     => $withdrawable,
             'non_withdrawable' => round($balance - $withdrawable, 2),
+            'pending_repeat'   => $pending,
             'min'              => $min,
             'max_amount'       => $withdrawable,
             'methods'          => $methods,
@@ -354,6 +361,19 @@ final class PayoutService
                 && ($min <= 0 || $withdrawable >= $min),
             'usdt_rate'        => self::usdtRate(),
         ];
+    }
+
+    /**
+     * One member's repeat-purchase escrow summary (plan §16.5).
+     *
+     * @return array{
+     *   total:float, count:int, next_release_at:?string,
+     *   undelivered:int, overdue:int, release_enabled:bool
+     * }
+     */
+    public function pendingSummaryFor(int $userId): array
+    {
+        return UnilevelAward::pendingSummaryForUser($userId, $this->pdo);
     }
 
     /**
@@ -438,11 +458,24 @@ final class PayoutService
             }
 
             /* 1. The withdrawable bucket — the authoritative check, taken
-             *    under the same row lock WalletService will debit. */
+             *    under the same row lock WalletService will debit.
+             *    Phase 18: an over-limit refusal names any pending
+             *    repeat-purchase money, so "where is the rest of my
+             *    money?" is answered at the moment it is asked
+             *    (plan §11.3). */
             $withdrawable = round((float) $locked['withdrawable_balance'], 2);
 
             if ($amount > $withdrawable) {
-                throw PayoutException::aboveWithdrawable($amount, $withdrawable);
+                $pending = $this->pendingSummaryFor($userId);
+
+                throw PayoutException::aboveWithdrawable(
+                    $amount,
+                    $withdrawable,
+                    (float) $pending['total'],
+                    $pending['next_release_at'] === null
+                        ? null
+                        : format_date((string) $pending['next_release_at'])
+                );
             }
 
             /* 2. One open request at a time. The account row is locked, so
@@ -511,6 +544,10 @@ final class PayoutService
 
             Live::touchPayout($userId);
 
+            /* Phase 18: the success flash names the pending escrow, so
+             * the controller does not have to re-query it (plan §11.4). */
+            $pending = $this->pendingSummaryFor($userId);
+
             return [
                 'ok'                 => true,
                 'payout_id'          => $payoutId,
@@ -531,6 +568,7 @@ final class PayoutService
                 'ledger_id'          => (int) $movement['ledger_id'],
                 'balance_after'      => round((float) $movement['balance_after'], 2),
                 'withdrawable_after' => round((float) $movement['withdrawable_after'], 2),
+                'pending_repeat'     => $pending,
             ];
         });
     }

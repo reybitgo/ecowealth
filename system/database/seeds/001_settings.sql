@@ -67,6 +67,14 @@ INSERT INTO settings (key_name, value) VALUES
   ('unilevel_reversal_enabled',        '1'),
   ('unilevel_ledger_since',            DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
+  -- Repeat-purchase bonus escrow (Phase 18). A paid order writes `pending`
+  -- awards and moves no money; the release job credits the wallet after
+  -- delivery + `unilevel_hold_days`. `unilevel_release_enabled` pauses the
+  -- job without stranding earned awards (cancelling an order still cancels
+  -- its pending awards, whatever these two say).
+  ('unilevel_hold_days',               '7'),
+  ('unilevel_release_enabled',         '1'),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Admin repeat-purchase ledger — rows (Phase 17D, plan §8).
+ * Admin repeat-purchase ledger — rows (Phase 17D/18, plan §8, §19.3).
  *
  * One ladder, levels 1–10: the `Lvl` column is the whole story and
  * there is no direct/indirect column (D-17). Every row links to the
@@ -10,6 +10,9 @@ declare(strict_types=1);
  * filtered to that order, so a number is one click from both its
  * sources (plan §8 Rule 8).
  *
+ * Phase 18 adds the escrow states: a `pending` row is earned but not in
+ * a wallet yet (it shows its due date and has no wallet movement to
+ * link); a `cancelled` row was never paid, so it is not a shortfall.
  * A `skipped` row shows the amount that was due and why it was not
  * paid; it never enters a credited total. A `voided` row shows how much
  * of the award the wallet could return (plan §8 Rules 5–6).
@@ -26,6 +29,25 @@ $hasFilters = (string) $filters['level'] !== ''
     || (string) $filters['from'] !== ''
     || (string) $filters['to'] !== ''
     || (string) $filters['q'] !== '';
+
+/** When a pending award is due: delivery (or completion) + its hold. */
+$dueAt = static function (array $award): ?string {
+    $delivered = $award['order_delivered_at'] ?? null;
+    $completed = $award['order_completed_at'] ?? null;
+    $base      = $delivered !== null && $delivered !== ''
+        ? (string) $delivered
+        : ($completed !== null && $completed !== '' ? (string) $completed : '');
+
+    if ($base === '') {
+        return null;
+    }
+
+    $timestamp = strtotime($base);
+
+    return $timestamp === false
+        ? null
+        : date('Y-m-d H:i:s', $timestamp + max(0, (int) ($award['hold_days'] ?? 0)) * 86400);
+};
 ?>
                     <tbody data-live-region="repeat-rows">
 <?php if ($awards === []): ?>
@@ -48,17 +70,21 @@ $hasFilters = (string) $filters['level'] !== ''
 <?php endif; ?>
 <?php foreach ($awards as $award): ?>
 <?php
-    $id       = (int) $award['id'];
-    $status   = (string) $award['status'];
-    $level    = (int) $award['level'];
-    $amount   = (float) $award['amount'];
-    $rate     = (float) $award['rate_pct'];
-    $reason   = trim((string) ($award['reason'] ?? ''));
-    $reversed = (float) ($award['reversed_amount'] ?? 0);
-    $orderNo  = (string) ($award['order_no'] ?? '');
-    $credited = $status === 'credited';
-    $voided   = $status === 'voided';
+    $id        = (int) $award['id'];
+    $status    = (string) $award['status'];
+    $level     = (int) $award['level'];
+    $amount    = (float) $award['amount'];
+    $rate      = (float) $award['rate_pct'];
+    $reason    = trim((string) ($award['reason'] ?? ''));
+    $reversed  = (float) ($award['reversed_amount'] ?? 0);
+    $orderNo   = (string) ($award['order_no'] ?? '');
+    $credited  = $status === 'credited';
+    $pending   = $status === 'pending';
+    $cancelled = $status === 'cancelled';
+    $voided    = $status === 'voided';
     $shortfall = $voided ? round(max(0.0, $amount - $reversed), 2) : 0.0;
+    $holdDays  = max(0, (int) ($award['hold_days'] ?? 0));
+    $rowDue    = $pending ? $dueAt($award) : null;
     $walletUrl = url('admin/wallets/' . (int) $award['user_id'] . '?q=' . rawurlencode($orderNo));
 ?>
                       <tr data-live-key="<?= $id ?>">
@@ -90,13 +116,23 @@ $hasFilters = (string) $filters['level'] !== ''
                         <td class="text-end text-nowrap"><?= e(number_format($rate, 3, '.', '')) ?>%</td>
                         <td class="text-end text-nowrap fw-semibold <?= $credited ? 'commission-amount-credit' : 'text-body-secondary' ?>">
                           <?= e($credited ? money($amount, true) : money($amount)) ?>
-<?php if (!$credited): ?>
+<?php if ($status === 'skipped'): ?>
                           <div class="small text-body-secondary fw-normal">not paid</div>
 <?php endif; ?>
                         </td>
                         <td>
-                          <?= status_badge($status) ?>
-<?php if ($status === 'skipped' && $reason !== ''): ?>
+                          <?= status_badge($status, UnilevelAward::STATUS_BADGES) ?>
+<?php if ($pending): ?>
+                          <div class="small text-body-secondary commission-reason">
+<?php if ($rowDue !== null): ?>
+                            due <?= e(format_date($rowDue)) ?>
+<?php else: ?>
+                            after delivery + <?= $holdDays ?> day<?= $holdDays === 1 ? '' : 's' ?>
+<?php endif; ?>
+                          </div>
+<?php elseif ($cancelled): ?>
+                          <div class="small text-body-secondary commission-reason">no money moved</div>
+<?php elseif ($status === 'skipped' && $reason !== ''): ?>
                           <div class="small text-body-secondary commission-reason"><?= e($reason) ?></div>
 <?php endif; ?>
 <?php if ($voided): ?>
@@ -119,7 +155,7 @@ $hasFilters = (string) $filters['level'] !== ''
                           <div class="small text-body-secondary"><?= e(date('g:i A', (int) strtotime((string) $award['created_at']))) ?></div>
                         </td>
                         <td class="text-end">
-<?php if ($award['ledger_id'] !== null): ?>
+<?php if (($award['ledger_id'] ?? null) !== null): ?>
                           <a
                             href="<?= e($walletUrl) ?>"
                             class="btn btn-sm btn-icon btn-label-secondary"

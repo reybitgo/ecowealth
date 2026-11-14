@@ -1,9 +1,9 @@
-# EcoWealth — Manual QA pack (Phases 1–17)
+# EcoWealth — Manual QA pack (Phases 1–18)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11, 12, 13, 14, 15, 16 and 17. The automated suites are already green; these documents let
-a tester who has never seen the project walk through every screen, compare it with the expected result,
-capture evidence and sign the phase off.
+7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 and 18. The automated suites are already green; these documents
+let a tester who has never seen the project walk through every screen, compare it with the expected
+result, capture evidence and sign the phase off.
 
 > **Phase 16 is the install/reset workstream** (`dmp/plan-ecowealth-install-reset.md`, IR-1 … IR-8),
 > not an application phase. Its checks run on scratch schemas and its evidence lives in
@@ -12,6 +12,13 @@ capture evidence and sign the phase off.
 > **Phase 17 is the unilevel repeat-purchase workstream** (`dmp/plan-ecowealth-unilevel-repeat-purchase.md`),
 > delivered in seven gated phases **17A → 17G**. Its evidence lives in `evidence/phase-17/`, indexed by
 > that folder's `README.md`.
+
+> **Phase 18 is the repeat-purchase bonus escrow** (`dmp/plan-ecowealth-unilevel-bonus-escrow.md`), a
+> **post-17 point release**: `APP_PHASE` stays 17 and the walkthrough is
+> [`../qa-unilevel-product.md`](../qa-unilevel-product.md) **v2** (outside this folder, because it is a
+> beginner's narrative rather than a numbered check pack). Its new evidence lives in
+> `evidence/unilevel-escrow/`; the original Phase 17 walkthrough screenshots stay in
+> `evidence/unilevel-product/`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -40,7 +47,8 @@ capture evidence and sign the phase off.
 | [phase-15-launch.md](phase-15-launch.md) | 15 — dashboards, reports/exports, the eight settings cards, audit desk, hardening, UAT and launch | 12 | 40–55 min |
 | [phase-16-install-reset.md](phase-16-install-reset.md) | 16 — install bundle, CLI/web installers, CLI/web reset, demo + parity, production gates, go-live | 16 | 90–120 min |
 | [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G, **signed** | 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) | 4–5.5 h in all (A 35–45 · B 30–40 · C 45–60 · D 30–40 · E 30–40 · F 15–20 · G 60–75 min) |
-| [sign-off-sheet.md](sign-off-sheet.md) | all eighteen | — | 10 min to complete |
+| [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
+| [sign-off-sheet.md](sign-off-sheet.md) | all nineteen | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
@@ -50,7 +58,9 @@ ship reference screenshots produced headlessly in a real browser — `evidence/p
 `evidence/phase-13/*.png`, `evidence/phase-14/*.png` and `evidence/phase-15/*.png`. Phase 16 keeps
 its screenshots and terminal transcripts in `evidence/install-reset/`, indexed by that folder's
 `README.md`; Phase 17 keeps its 57 checks' screenshots, CSVs and terminal transcripts in
-`evidence/phase-17/`, indexed by that folder's `README.md`.
+`evidence/phase-17/`, indexed by that folder's `README.md`. Phase 18's escrow checks use
+`evidence/unilevel-escrow/`; the Phase 17 product walkthrough's images stay in
+`evidence/unilevel-product/`.
 
 ---
 
@@ -231,6 +241,16 @@ Passed: 225   Failed: 0
   every refusal, `--json`). The HTTP smoke script adds **30** checks across that surface, and the 390 px
   browser pass covers the product panel and the repeat earnings tab. The manual pass adds what automation cannot: **does the page actually look right in a real browser,
 and does the flow feel right when clicked by a human** — the visual sign-off.
+- Phase 18 (repeat-purchase bonus escrow, a post-17 point release): the migration's two columns, the
+  `pending`/`cancelled` states, two indexes and the two settings, with migrated ≡ fresh and an
+  idempotent re-run; `onOrderPaid()` writing `pending` awards and **no** wallet movement; the release
+  job crediting exactly once after delivery + the snapshotted hold, its dry run, doctor, lock, log and
+  JSON, and a second run crediting nothing; cancellation before release moving no money and leaving no
+  shortfall (including with the reversal switch off); the release honouring the hold snapshot; the
+  payout options/refusal/success copy; the pending-aware reconcile; the monthly close's
+  `award_total = pending + credited`; and the admin/member pending states. What automation cannot
+  cover — whether **Pending release**, **Total funds** and the payout reminder read correctly on a real
+  screen — is section **v2** of [`../qa-unilevel-product.md`](../qa-unilevel-product.md).
 
 ---
 
@@ -415,6 +435,11 @@ These are deliberate for the current build — do not report them as defects:
   (decision D23). Type the app URL directly.
 - Product copy and prices are placeholders until the official price list is provided (decision D10).
 - The member dashboard is a presentation-style “Growth overview”, not a live data console yet.
+- **A repeat-purchase bonus is not credited when the order is paid** (Phase 18). The award is
+  **Pending release** until the order is delivered and the award's hold window has passed, and only
+  then does the release job credit the wallet. Pending money is not spendable, not withdrawable and not
+  part of the payout maximum. That is the escrow, not a missing payment — the wallet, dashboard,
+  earnings tab and payout page all show it deliberately.
 
 If something looks different from this list, it may be a real defect — report it.
 
@@ -449,9 +474,11 @@ failed check afterwards and updates the row to **Closed**.
 ## 8. Sign-off flow
 
 1. Run the automated commands in §1 and copy their final summary lines into the sign-off sheet.
-2. Work through the phase documents in order (Phase 1 → 16). Each phase assumes the
-   previous one is done. Phase 16 runs on scratch schemas and can be done without touching the
-   development database.
+2. Work through the phase documents in order (Phase 1 → 17). Each phase assumes the previous one is
+   done. Phase 16 runs on scratch schemas and can be done without touching the development database.
+   Phase 18's escrow walkthrough (`../qa-unilevel-product.md` v2) is a short separate pass: it needs
+   a paid order, a delivery and the release job, and it supersedes the Phase 17 walkthrough's payment
+   expectations wherever the two differ.
 3. Fill in one block of [sign-off-sheet.md](sign-off-sheet.md) per phase: pass/fail counts, defects,
    decision.
 4. Hand the sheet plus the `evidence/` folder to the project lead.
@@ -517,6 +544,7 @@ docs/qa/
 ├── phase-15-launch.md                 ← manual checks for Phase 15
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
+├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + install-reset/ + phase-17/)
+├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + install-reset/ + phase-17/ + unilevel-escrow/)
 ```

@@ -235,11 +235,14 @@ final class AdminSettingsController
     ];
 
     /**
-     * The repeat-purchase bonus (Phase 17B keys, exposed in 17B).
+     * The repeat-purchase bonus (Phase 17B keys, exposed in 17B;
+     * Phase 18 adds the release delay).
      *
-     * Five of the six `unilevel*` keys are operator-facing; the sixth,
-     * `unilevel_ledger_since`, is a reconciliation baseline written by
-     * migration 020 and is deliberately never rendered (plan §13.5).
+     * Seven of the eight `unilevel*` keys are operator-facing; the
+     * eighth, `unilevel_ledger_since`, is a reconciliation baseline
+     * written by migration 020 and is deliberately never rendered
+     * (plan §13.5). Phase 18's two keys: `unilevel_hold_days` here and
+     * `unilevel_release_enabled` in REPEAT_TOGGLES.
      *
      * Same `{key,label,rule,suffix,hint}` shape as COMMISSION_FIELDS, plus
      * the input attributes the view needs (`min`, `max`, `step`).
@@ -265,13 +268,23 @@ final class AdminSettingsController
             'max'    => 1000000,
             'step'   => '0.01',
         ],
+        [
+            'key'    => 'unilevel_hold_days',
+            'label'  => 'Release delay after delivery',
+            'rule'   => 'required|integer|gte:0|lte:365',
+            'suffix' => 'days',
+            'hint'   => 'Days after delivery before a repeat-purchase bonus becomes withdrawable. 0 releases at delivery. Applies to new awards only; each award keeps the value it was given at payment.',
+            'min'    => 0,
+            'max'    => 365,
+            'step'   => '1',
+        ],
     ];
 
-    /** The repeat-purchase switches, in display order (plan §13.5). */
+    /** The repeat-purchase switches, in display order (plan §9, §13.5). */
     private const REPEAT_TOGGLES = [
         'unilevel_enabled' => [
             'label' => 'Repeat-purchase bonus enabled',
-            'hint'  => 'The global master switch. Off: a paid order stamps itself as processed but pays no bonus, whatever a product says.',
+            'hint'  => 'Off hides the offer and stops new awards. Bonuses already pending still release unless Release repeat-purchase bonuses is also off.',
         ],
         'unilevel_requires_active_upline' => [
             'label' => 'Require the monthly Active rule',
@@ -279,7 +292,11 @@ final class AdminSettingsController
         ],
         'unilevel_reversal_enabled' => [
             'label' => 'Reverse awards when a paid order is cancelled',
-            'hint'  => 'On: cancelling a paid order claws the bonus back from the recipients. Off: the bonus stays where it was paid.',
+            'hint'  => 'On: cancelling an order after its bonus was released claws the bonus back. Off: a released bonus stays. Pending bonuses are always cancelled.',
+        ],
+        'unilevel_release_enabled' => [
+            'label' => 'Release repeat-purchase bonuses',
+            'hint'  => 'Off pauses the release job; pending bonuses stay pending. Cancelling an order still cancels its pending awards.',
         ],
     ];
 
@@ -755,9 +772,10 @@ final class AdminSettingsController
             $rules[(string) $key] = 'required|in:0,1';
         }
 
-        /* The repeat-purchase block: two numbers and three switches
-         * (plan §13.5). The depth is capped at the ladder's ten levels
-         * and the threshold keeps the money precision of its column. */
+        /* The repeat-purchase block: three numbers and four switches
+         * (plan §9, §13.5). The depth is capped at the ladder's ten
+         * levels, the threshold keeps the money precision of its column
+         * and the hold is a whole number of days in the award's range. */
         foreach (self::REPEAT_FIELDS as $field) {
             $rules[(string) $field['key']] = (string) $field['rule'];
         }

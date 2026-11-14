@@ -4829,3 +4829,195 @@ The workstream is **closed**. `APP_PHASE` is 17, every gate is signed, and the Q
 The deferred items in §18 (a level-0 rebate, a backfill, a per-order cap) are new streams with their
 own economics: each may start without reopening any of the seven Phase 17 gates, exactly as the plan's
 hand-off says.
+
+---
+
+## Phase 18 — Repeat-purchase bonus escrow (2026-11-14)
+
+**Status:** complete · **Numbering:** Phase 18 as a **post-17 point release** — `APP_PHASE` stays **17** ·
+**Branch:** `feature/unilevel` · **Schema:** 31 tables, **54 → 56** settings (migration `021`; no new
+table) · **Cron:** four → **five** jobs · **QA:** `docs/qa-unilevel-product.md` **v2**.
+
+Plan: `dmp/plan-ecowealth-unilevel-bonus-escrow.md` §6–§13, §17, §20.4, §24, §25, Appendix C/F.
+This phase moves the **cash event**, not the earning: a paid order now writes **`pending`** awards and
+moves **no money**; an hourly release job credits each award to the upline's **withdrawable** wallet
+after the order is delivered and the award's snapshotted hold window has passed. It adds the A++
+presentation — `Pending release` and `Total funds` on the wallet, pending figures on the dashboard,
+earnings, order and admin surfaces, and the payout-page escrow reminder — without a third wallet
+bucket and without a new table.
+
+### Database
+
+- **`021_unilevel_bonus_escrow.sql`** (new, additive and re-runnable): `unilevel_awards.hold_days`
+  (`SMALLINT UNSIGNED NOT NULL DEFAULT 0`), `credited_at` (`DATETIME NULL`), the status enum gains
+  `pending` (new default) and `cancelled`, two indexes (`idx_unilevel_user_status`,
+  `idx_unilevel_order_status`), and the two settings `unilevel_hold_days = 7` and
+  `unilevel_release_enabled = 1`.
+- **Backfill, no retroactive lock:** `credited_at = created_at` for existing `credited`/`voided` rows;
+  `hold_days = 0` for every existing row. Existing `credited` awards stay credited and withdrawable;
+  no `pending` row is created for an earlier order.
+- **`schema.sql` / `install.sql`** carry the same columns, enum, indexes and settings;
+  `DatabaseInstaller::EXPECTED['settings_rows']` is **56**. A fresh install reports
+  **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**; the bundle is **58 statements, 74,047 bytes**.
+
+### Code
+
+- **`UnilevelAward`** — the five statuses and their labels/badges (`pending` → **Pending release**,
+  `cancelled` → **Cancelled before release**), `create()` defaults to `pending` with `hold_days`,
+  `markCredited()`/`cancel()`, `recomputeOrderTotal()` sums `pending + credited`, pending-aware
+  `totalsForUser()`/`stats()`/`levelBreakdown()`, `pendingSummaryForUser()`, and the CSV gains
+  **`Hold days`** and **`Released at`** (15 columns). `unrecovered` sums `voided` only.
+- **`UnilevelService`** — `onOrderPaid()` writes pending drafts and no wallet credit;
+  `releaseForOrder()`/`releaseDue()` credit due awards once (one transaction per order, order row
+  locked first, `unilevel.release` audit); `reverseForOrder()` cancels **pending** awards before the
+  `unilevel_reversal_enabled` check and only then reverses `credited` ones; `reconcile()` reports
+  pending/cancelled and checks that no pending row belongs to a cancelled order.
+- **`UnilevelCycle::close()`** — the period's `award_total` is the month's **earned** money,
+  `pending + credited` (immutable once closed).
+- **`PayoutService` / `PayoutException` / `PayoutController`** — `pending_repeat` in the page context,
+  the over-limit refusal names the pending amount, and the success flash names it; there is **no**
+  modal and **no** checkbox.
+- **Member surfaces** — wallet **Pending release** / **Total funds** (presentation only, hidden at 0),
+  dashboard repeat tile (**Credited / Pending release / Total earned**), earnings repeat tab
+  (**Pending release** tile, **Next release** line, pending/cancelled badges and row notes), buyer order
+  card (**reserved** … released after the return window … **released** once credited), and
+  product/checkout copy (“earned when this order is paid … released after the return window”).
+- **Admin surfaces** — order card pending/released/cancelled states (wallet link only on released
+  rows), repeat ledger **Pending release** and **Cancelled before release** tiles, filters for
+  `pending`/`cancelled`, and the CSV columns above; the wallet monitor gains a **Pending repeat
+  bonuses** liability tile.
+- **The job** — `bin/unilevel_release.php` (flags `--limit`, `--order`, `--dry-run`, `--json`,
+  `--doctor`, `--log-dir`, `--quiet`, `--help`; `CronLock('unilevel_release')`; log
+  `storage/logs/unilevel_release-YYYY-MM.log`), `bin/unilevel_release.cmd`, and the one-`require` web
+  entry `public/cron/unilevel_release.php` (loopback trusted, otherwise `?key=` matching `CRON_KEY`).
+
+### Tests
+
+Two new files carry the Phase 18 cases:
+
+- **`tests/Cases/UnilevelEscrowTest`** (**27** cases) — the lifecycle in plan §23.2: pending at
+  payment with no wallet movement, the order stamp, replay idempotency, release before delivery and
+  before the hold, release at delivery + 0 and + 7 days, release twice, one order of two, the wallet
+  failure rollback, the hold snapshot, cancellation before/after release, the release switch off, the
+  pending summary, payout options/exception/success message, reconcile after cancel/release, a
+  pending row left on a cancelled order, the monthly close, the CSV columns and the admin filters.
+- **`tests/Cases/UnilevelReleaseJobTest`** (**8** cases) — the real CLI against a committed scratch
+  schema: `--dry-run` changes nothing, `--doctor`, the real run's one-credit-and-one-log-line
+  behaviour, the kill switch, a held lock, `--order=ID`, an undelivered refusal, and `--json` matching
+  the log fields.
+
+Existing files updated for the pending default: `UnilevelEngineTest` (deliver + release helper, legacy
+credited fixture for the post-release reversal), `UnilevelCycleTest`, `UnilevelMemberViewTest`,
+`AdminCommissionLiveTest` (+P18-T40/T41), `AdminOrderLiveTest` (+P18-T42/T43), `AdminWalletLiveTest`
+(+P18-T44), `AdminMemberLiveTest` (+P18-T45), `ReportTest` (+P18-T46), `ReportViewTest` (+P18-T47), `PayoutViewTest` (+P18-T48/T49: the payout escrow reminder and the all-pending state),
+`UnilevelConfigurationTest`, `SettingsPageTest`, `UnilevelFoundationTest`, `DbResetTest`,
+`MigrationTest` (+P18-T25 for `021`), `InstallTest`, `InstallSqlTest`, and `tests/bootstrap.php`
+(`test_release_unilevel`, `test_legacy_credit_unilevel`, `test_deliver_order`). `tests/smoke.ps1`
+gained the release-job doctor/dry-run and wallet/payout region checks (P18-T29/T30) and the 15-column
+CSV expectations.
+
+**Results (2026-11-14):** `php tests/run.php` → **998 cases, 998 passed, 0 failed**;
+`powershell -File tests/smoke.ps1` → **229 checks, 229 passed, 0 failed**;
+`php bin/wallet_reconcile.php` → exit 0; `php bin/build_install_sql.php --check` → exit 0.
+
+### Docs
+
+- **`docs/cron.md`** — the fifth job as **§6** (purpose, three entries, flags, hourly `:20` schedule,
+  log line and its fields, lock, kill switch, paused behaviour, dry run, doctor, failure modes, web
+  access); the intro and the Windows Task Scheduler block now read **five** jobs and include the
+  release task and `.cmd`.
+- **`docs/deploy.md`** — migration `021`, **31 tables / 56 settings / five jobs**, the verification
+  commands and expected counts, the **two-stage rollout** and the rollback, and a new **Phase 18
+  addendum**; the Phase 17 addendum points at it.
+- **`docs/runbook.md`** — the fifth job in §2; the invariants now say `unilevel_total = pending +
+  credited`; the repeat-purchase section is rewritten for the escrow with the five pending/stuck
+  queries, the job/doctor commands, pause, rollback/roll-forward, “do not hand-edit award rows”, and the
+  note that the monthly close's `award_total` includes pending.
+- **`docs/admin-guide.md`** — the escrow explanation and money path, the two settings with their
+  hints, the award states and what **Unrecovered** means, the payout reminder and the member's
+  **Total funds**, the release job and its doctor, the no-retroactive-lock policy, the 15-column CSV,
+  and a support/copy section for “where is my bonus?”.
+- **`docs/qa-unilevel-product.md`** — **v2**: B4/C1–C5/D1–D2 rewritten for escrow, **C1a** (payment
+  moves no money) and **C1b** (delivery + release credits), the fulfilment step added to the
+  walkthrough, **E4** rewritten (cancel before release pays nothing), **E5** (payout reminder) and
+  **E6** (the hold actually holds) added, the cleanup note corrected, and glossary terms
+  **Pending release** / **Released** / **Cancelled before release** added.
+- **`docs/install-reset.md`** — 31 tables / 56 settings throughout, the 58-statement/74,047-byte
+  bundle, and the reset-verification note (no new table, settings preserved, the same
+  `ok`/`mismatches` shape).
+- **`docs/qa/README.md`** — a Phase 18 row and note for the escrow QA; **`docs/qa/sign-off-sheet.md`**
+  — a Phase 18 section with the escrow checks (C1a, C1b, C4, E4, E5, E6) and the results table.
+- **`system/README.md`** — the cron section lists **five** jobs and the new entry points; the status,
+  quick start and migration table carry **56** settings and `021`.
+- **`dmp/plan-ecowealth-unilevel-repeat-purchase.md`** — D-04 and Q5 annotated: the award is still
+  **earned** at `paid`; the wallet credit is **released** after delivery + the hold.
+
+### Gate
+
+Documentation gate (this pass):
+
+- [x] Migration `021` exists, is additive and re-runnable, and adds no table.
+- [x] The counts read **31 tables / 56 settings / five cron jobs** in every touched document;
+      `DatabaseInstaller` expects 56 and `install.sql` contains the two settings.
+- [x] `php bin/build_install_sql.php --check`’s bundle is **58 statements, 74,047 bytes**, matching
+      the numbers in `docs/install-reset.md`.
+- [x] `APP_PHASE` is **17** and no document claims a new phase constant; the phase is framed as a
+      **post-17 point release**.
+- [x] The two new settings, their defaults/ranges/hints, the five award states, `unilevel_total =
+      pending + credited`, and “Unrecovered counts `voided` only” are stated identically in the cron,
+      deploy, runbook, admin-guide and QA documents.
+- [x] The release job's flags, lock name, log path and log fields match the implementation
+      (`bin/unilevel_release.php`), and the hourly `:20` cron line and `--limit=200` example are
+      reproduced exactly.
+- [x] The QA doc is **v2**, with C1a/C1b/C2–C5/D1–D2/E4 restated and E5/E6 added; new evidence is
+      named under `docs/qa/evidence/unilevel-escrow/` and marked as expected, not as existing files.
+- [x] No PHP, SQL, view or test file was edited by this pass; no “release now” button, returns module
+      or third wallet bucket is claimed anywhere.
+
+Acceptance summary (plan §27, where the docs can attest it):
+
+1. A paid order creates `pending` awards and zero wallet movements — documented in cron §6, runbook §4
+   and QA C1a.
+2. `unilevel_total` equals pending + credited — runbook invariant 9, admin-guide §6/§15.
+3. `max_amount` is the withdrawable balance only, and no pending award can be requested — admin-guide
+   §15, QA E5.
+4–6. The payout page, refusal and success flash name the pending amount — admin-guide §15, QA E5.
+7. Wallet/dashboard show **Pending release** and **Total funds** when pending > 0 — admin-guide §14/§15,
+   QA C1a/C5.
+8. Earnings shows pending rows with a release date and cancelled rows with no money — QA C2/E4.
+9. The admin order card never links a pending row to a wallet — admin-guide §6, QA D1.
+10. The ledger shows pending/cancelled, and Unrecovered is voided only — admin-guide §9, QA D2.
+11. Cancelling a paid-but-undelivered order moves no money and records Unrecovered ₱0.00 — QA E4.
+12–13. Release credits exactly once and a second run does not double-credit — cron §6, QA C1b.
+14. `unilevel_reversal_enabled = 0` still cancels pending awards — cron §6, admin-guide §15.
+15. Existing credited awards remain withdrawable (no retroactive lock) — deploy §Phase 18 addendum,
+    admin-guide §15.
+16–20. Reconcile, the full suite/smoke, the bundle check, the cron/doctor documentation and QA v2 —
+    `wallet_reconcile` exit 0, **998/998** PHP cases, **229/229** smoke checks,
+    `build_install_sql --check` exit 0, cron §6 and QA E5/E6 document the remaining two.
+
+### Deviations
+
+1. **The phase is numbered 18 but `APP_PHASE` stays 17.** Plan §29 (open decision 9) allowed either a
+   Phase 18 constant or a post-17 point release; the build keeps **17**, so the footer and the suite
+   header do not move. Every document frames it as “Phase 18 — repeat-purchase escrow (post-17 point
+   release)”.
+2. **The QA doc's v1 “Observed” narratives were captured before the escrow.** They described a wallet
+   credited at payment, which is no longer the expected behaviour; the affected sections are rewritten
+   as v2 and the new evidence names are marked **expected** under
+   `docs/qa/evidence/unilevel-escrow/` rather than presented as captured files.
+3. **`system/database/install/footer.sql` was updated too.** Its verification comment said
+   `settings_rows = 54`; it now says **56**, matching the live query and `DatabaseInstaller::EXPECTED`.
+   `install.sql` was regenerated and `--check` exits 0.
+4. **No manual “release now” action.** Plan §26.1 leaves it as a follow-up; an undelivered order's
+   pending awards stay pending indefinitely, and that is documented as the intended behaviour, not a
+   missing feature.
+
+### Hand-off
+
+The escrow is live for new awards and the A++ surfaces are in place. Operations must register the fifth
+cron entry (`20 * * * *`, `--limit=200`), keep `unilevel_release_enabled = 1`, and watch
+`bin/unilevel_release.php --doctor` (`cancelled_due` must stay 0). Deferred by decision: a
+superadmin-only manual release (plan §26.1) and the returns module that would use the same
+cancel-before-release contract (plan §26.2). Neither reopens this phase's gate.
+

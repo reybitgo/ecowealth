@@ -496,4 +496,37 @@ return [
         assert_same(2, $dashboard['unilevel']['count']);
         assert_same(2, $dashboard['unilevel']['recipients']);
     },
+
+    /* ---------- Phase 18: the escrow figures in the repeat report ------ */
+
+    'P18-T46 the repeat report keeps credited money separate from the pending liability' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 1, 'amount' => 15.00, 'status' => 'pending']);
+        $unilevelAward(['level' => 2, 'amount' => 10.00, 'status' => 'pending']);
+        $unilevelAward(['level' => 2, 'amount' => 5.00, 'status' => 'cancelled']);
+
+        $summary = Report::unilevelSummary(date('Y-m-d'), date('Y-m-d'));
+
+        assert_same(25.0, (float) $summary['amount'], 'credited money only');
+        assert_same(1, (int) $summary['count']);
+        assert_same(25.0, (float) $summary['pending_amount']);
+        assert_same(2, (int) $summary['pending_count']);
+        assert_same(1, (int) $summary['cancelled_count']);
+        assert_same(0.0, (float) $summary['unrecovered'], 'a cancelled award is never a shortfall');
+
+        $byLevel = Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d'));
+        $level1  = $byLevel[0];
+
+        assert_same(1, (int) $level1['level']);
+        assert_same(1, (int) $level1['count'], 'the credited row');
+        assert_same(25.0, (float) $level1['amount']);
+        assert_same(1, (int) $level1['pending_count'], 'the pending row is counted separately');
+        assert_same(15.0, (float) $level1['pending_amount']);
+
+        $byProduct = Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d'));
+
+        assert_true($byProduct !== []);
+        assert_same(2, (int) $byProduct[0]['pending_count'], 'the product card counts pending rows');
+        assert_same(25.0, (float) $byProduct[0]['pending_amount']);
+    },
 ];

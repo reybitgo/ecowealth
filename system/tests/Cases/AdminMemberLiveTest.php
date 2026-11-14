@@ -347,4 +347,60 @@ return [
         assert_contains('action="' . url('admin/members/' . (int) $maria['id'] . '/status') . '"', $detailHtml);
         assert_not_contains('data-live-stale', $detailHtml, 'the member page has no held form region');
     },
+
+    'P18-T45 the member page shows the pending repeat-purchase outside the wallet balance' => function (): void {
+        $admin  = test_user('p18_member_admin', 'admin');
+        $member = test_user('p18_member_pending_' . bin2hex(random_bytes(3)));
+        $buyer  = test_user('p18_member_buyer_' . bin2hex(random_bytes(3)));
+
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'delivered', [
+            'paid_at'      => date('Y-m-d H:i:s'),
+            'delivered_at' => date('Y-m-d H:i:s'),
+            'total'        => '100.00',
+        ]);
+        $itemId = (int) db()->query('SELECT id FROM shop_order_items WHERE order_id = ' . $orderId)->fetchColumn();
+
+        UnilevelAward::create([
+            'order_id'      => $orderId,
+            'order_item_id' => $itemId,
+            'product_id'    => $productId,
+            'buyer_id'      => (int) $buyer['id'],
+            'user_id'       => (int) $member['id'],
+            'level'         => 1,
+            'base_amount'   => 500.00,
+            'rate_pct'      => 5.0,
+            'amount'        => 25.00,
+            'hold_days'     => 7,
+            'status'        => 'pending',
+            'paid_at'       => date('Y-m-d H:i:s'),
+        ]);
+
+        test_signed_in_as($admin);
+
+        $controller = new AdminMemberController();
+        $data       = $controller->memberContext(Member::find((int) $member['id']));
+
+        assert_same(25.0, (float) $data['pending_repeat']['total']);
+        assert_same(1, (int) $data['pending_repeat']['count']);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members/' . (int) $member['id'];
+
+        ob_start();
+
+        try {
+            View::page('admin', 'admin/members/show', $data + [
+                'page_title'  => 'Member',
+                'current_nav' => 'admin.members',
+                'live'        => Live::meta('admin.members:' . (int) $member['id'], 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('Pending repeat-purchase', $html);
+        assert_contains('Not in the wallet balance', $html);
+        assert_contains(money(25), $html);
+    },
 ];

@@ -33,6 +33,7 @@ $migrations    = [
     $migrationDir . '018_impersonation.sql',
     $migrationDir . '019_audit_and_reporting.sql',
     $migrationDir . '020_unilevel_repeat_purchase.sql',
+    $migrationDir . '021_unilevel_bonus_escrow.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -409,8 +410,8 @@ return [
             'the migrated enum must equal the fresh-install enum'
         );
 
-        /* ---- 4. the six settings, off by default --------------------- */
-        assert_same(6, (int) $pdo->query(
+        /* ---- 4. the eight settings, off by default ------------------- */
+        assert_same(8, (int) $pdo->query(
             "SELECT COUNT(*) FROM settings WHERE key_name LIKE 'unilevel%'"
         )->fetchColumn());
 
@@ -420,6 +421,9 @@ return [
             'unilevel_requires_active_upline' => '1',
             'unilevel_active_threshold'       => '500',
             'unilevel_reversal_enabled'       => '1',
+            /* Phase 18 escrow keys (migration 021). */
+            'unilevel_hold_days'              => '7',
+            'unilevel_release_enabled'        => '1',
         ] as $key => $value) {
             assert_same(
                 $value,
@@ -588,6 +592,97 @@ return [
         $pdo->exec("DELETE FROM users WHERE id = {$uplineId}");
         assert_same(1, (int) $pdo->query('SELECT COUNT(*) FROM unilevel_periods')->fetchColumn(), 'the period survives its closer');
         assert_null($pdo->query("SELECT closed_by FROM unilevel_periods WHERE period = '2026-10'")->fetchColumn());
+    },
+
+    'P18-T25 migration 021 adds the escrow columns, states and settings, and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
+        $pdo   = $buildMigrated();
+        $fresh = test_pdo(['db' => DB_NAME]);
+
+        /* ---- 1. the two new columns and the two new indexes ---------- */
+        $columns = array_column($pdo->query('SHOW COLUMNS FROM unilevel_awards')->fetchAll(), 'Field');
+
+        foreach (['hold_days', 'credited_at'] as $column) {
+            assert_true(in_array($column, $columns, true), 'unilevel_awards.' . $column . ' is missing');
+        }
+
+        assert_same(
+            test_column_list($fresh, DB_NAME)['unilevel_awards'],
+            test_column_list($pdo)['unilevel_awards'],
+            'unilevel_awards columns differ from schema.sql'
+        );
+
+        assert_same(
+            test_index_list($fresh, DB_NAME)['unilevel_awards'],
+            test_index_list($pdo)['unilevel_awards'],
+            'unilevel_awards indexes differ from schema.sql'
+        );
+
+        /* ---- 2. the status enum gained pending (default) + cancelled - */
+        $status = (string) $pdo->query("SHOW COLUMNS FROM unilevel_awards LIKE 'status'")->fetch()['Type'];
+        assert_contains("'pending'", $status);
+        assert_contains("'cancelled'", $status);
+        assert_contains("'credited'", $status);
+        assert_contains("'skipped'", $status);
+        assert_contains("'voided'", $status);
+        assert_same('pending', (string) $pdo->query("SHOW COLUMNS FROM unilevel_awards LIKE 'status'")->fetch()['Default']);
+        assert_same(
+            (string) $fresh->query("SHOW COLUMNS FROM unilevel_awards LIKE 'status'")->fetch()['Type'],
+            $status,
+            'the migrated status enum must equal the fresh-install enum'
+        );
+
+        /* ---- 3. the hold column is wide enough for the 365-day setting */
+        $hold = (string) $pdo->query("SHOW COLUMNS FROM unilevel_awards LIKE 'hold_days'")->fetch()['Type'];
+        assert_contains('smallint', strtolower($hold));
+
+        /* ---- 4. existing rows are grandfathered --------------------- */
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        $orderId = (int) $pdo->query("SELECT id FROM shop_orders LIMIT 1")->fetchColumn();
+
+        /* The 020 fixture leaves no awards behind; make a legacy credited
+         * one and prove 021 backfills its release date and never locks it. */
+        $productId = (int) $pdo->query("SELECT id FROM products LIMIT 1")->fetchColumn();
+        $itemId    = (int) $pdo->query("SELECT id FROM shop_order_items LIMIT 1")->fetchColumn();
+
+        if ($orderId > 0 && $itemId > 0 && $productId > 0) {
+            $pdo->exec(
+                "INSERT INTO unilevel_awards
+                   (order_id, order_item_id, product_id, buyer_id, user_id, level,
+                    base_amount, base_source, rate_pct, amount, status, paid_at, created_at)
+                 VALUES ({$orderId}, {$itemId}, {$productId}, {$userId}, {$userId}, 1,
+                         100.00, 'line', 25.000, 25.00, 'credited', NOW(),
+                         '2026-01-02 03:04:05')"
+            );
+            $awardId = (int) $pdo->lastInsertId();
+
+            /* Apply 021 again: the backfill must fill credited_at and the
+             * status must stay credited (no retroactive lock). */
+            test_run_sql_file($pdo, $migrationDir . '021_unilevel_bonus_escrow.sql');
+
+            $row = $pdo->query("SELECT status, credited_at, hold_days FROM unilevel_awards WHERE id = {$awardId}")->fetch();
+            assert_same('credited', (string) $row['status'], 'a legacy credited award stays withdrawable');
+            assert_same('2026-01-02 03:04:05', (string) $row['credited_at'], 'credited_at is backfilled from created_at');
+            assert_same(0, (int) $row['hold_days'], 'an existing award had no hold');
+
+            $pdo->exec("DELETE FROM unilevel_awards WHERE id = {$awardId}");
+        }
+
+        /* ---- 5. the two settings keep an operator value on re-run ---- */
+        $pdo->exec("UPDATE settings SET value = '3' WHERE key_name = 'unilevel_hold_days'");
+        $pdo->exec("UPDATE settings SET value = '0' WHERE key_name = 'unilevel_release_enabled'");
+
+        test_run_sql_file($pdo, $migrationDir . '021_unilevel_bonus_escrow.sql');
+
+        assert_same(
+            '3',
+            (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'unilevel_hold_days'")->fetchColumn(),
+            'the saved hold window survives a second run'
+        );
+        assert_same(
+            '0',
+            (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'unilevel_release_enabled'")->fetchColumn(),
+            'the saved release switch survives a second run'
+        );
     },
 
     'migration guards the ledger enum and the idempotency key' => function () use ($buildMigrated): void {

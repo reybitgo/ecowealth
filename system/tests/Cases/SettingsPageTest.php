@@ -301,9 +301,14 @@ return [
 
         assert_same(['site_name', 'site_tagline'], $general);
         assert_same(
-            ['commission_indirect_max_levels', 'unilevel_max_levels', 'unilevel_active_threshold'],
+            [
+                'commission_indirect_max_levels',
+                'unilevel_max_levels',
+                'unilevel_active_threshold',
+                'unilevel_hold_days',
+            ],
             $commissions,
-            'the commissions card owns the referral depth and both repeat-purchase numbers'
+            'the commissions card owns the referral depth, both repeat-purchase numbers and the escrow hold'
         );
         assert_same(
             [
@@ -383,9 +388,10 @@ return [
                 'unilevel_enabled',
                 'unilevel_requires_active_upline',
                 'unilevel_reversal_enabled',
+                'unilevel_release_enabled',
             ],
             $sectionMethod('sectionToggles', 'commissions'),
-            'one switch per compensation rule, including the three repeat-purchase switches'
+            'one switch per compensation rule, including the four repeat-purchase switches'
         );
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 

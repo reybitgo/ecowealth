@@ -21,6 +21,13 @@ declare(strict_types=1);
  *  the KPI row, the E-wallet card, the membership card, the recent-orders
  *  card and the earnings card. The greeting, the referral card and the
  *  static explanatory copy stay outside the regions.
+ *
+ *  Phase 18 adds the escrow read-out (`pending_repeat`): the repeat
+ *  bonus the member has earned but that is not in the wallet yet. The
+ *  KPI row and the E-wallet card state it beside the withdrawable
+ *  figure, and the earnings card splits the repeat-purchase total into
+ *  credited / pending release / total (plan §10.2). The existing
+ *  balance and withdrawable figures never change meaning.
  * ============================================================== */
 
 final class DashboardController
@@ -113,6 +120,10 @@ final class DashboardController
             'activation_count' => count($history),
             'recent_history'   => array_slice($history, 0, 3),
             'unilevel'         => $this->unilevelSummary($userId),
+            /* The escrow projection the KPI row and the E-wallet card
+             * read (plan §10.2, §18.2). The model guards a missing
+             * table, so this is zero on an install without Phase 17. */
+            'pending_repeat'   => UnilevelAward::pendingSummaryForUser($userId),
             'referral_code'    => (string) ($member['referral_code'] ?? ''),
             'referral_link'    => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
         ];
@@ -218,15 +229,17 @@ final class DashboardController
                     'member' => $member,
                 ]),
                 'dashboard-kpis' => View::capture('member/dashboard/_kpis', [
-                    'member'      => $member,
-                    'commissions' => $data['commissions'],
-                    'team'        => $data['team'],
-                    'balance'     => $data['balance'],
-                    'withdrawable' => $data['withdrawable'],
+                    'member'         => $member,
+                    'commissions'    => $data['commissions'],
+                    'team'           => $data['team'],
+                    'balance'        => $data['balance'],
+                    'withdrawable'   => $data['withdrawable'],
+                    'pending_repeat' => $data['pending_repeat'] ?? [],
                 ]),
                 'dashboard-wallet' => View::capture('member/dashboard/_wallet_card', [
-                    'balance'      => $data['balance'],
-                    'withdrawable' => $data['withdrawable'],
+                    'balance'        => $data['balance'],
+                    'withdrawable'   => $data['withdrawable'],
+                    'pending_repeat' => $data['pending_repeat'] ?? [],
                 ]),
                 'dashboard-membership' => View::capture('member/dashboard/_membership', [
                     'member'           => $member,

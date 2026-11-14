@@ -52,6 +52,9 @@ $enable = static function (): void {
     setting_set('unilevel_requires_active_upline', '1');
     setting_set('unilevel_active_threshold', '500');
     setting_set('unilevel_reversal_enabled', '1');
+    /* Phase 18: the fixture releases at delivery, so the hold is 0. */
+    setting_set('unilevel_hold_days', '0');
+    setting_set('unilevel_release_enabled', '1');
 };
 
 /** A configured product: price ₱300, P.V. ₱250, base auto. */
@@ -109,6 +112,10 @@ $paidOrder = static function (int $productId, ?array $buyer = null): array {
     )->execute(['P17E Coffee', 'P17E-1', $itemId]);
 
     (new UnilevelService())->onOrderPaid($orderId);
+
+    /* Phase 18: payment records pending awards; deliver + release so the
+     * earnings page has the released rows these cases assert. */
+    test_release_unilevel($orderId);
 
     return [
         'product_id' => $productId,
@@ -343,8 +350,10 @@ return [
 
         assert_contains('data-bonus-preview', $summary);
         assert_contains('Up to ' . money(145), $summary);
-        assert_contains('is paid to the members above you', $summary);
+        /* Phase 18: earned when paid, released after the return window. */
+        assert_contains('is earned by the members above you', $summary);
         assert_contains('when this order is paid', $summary);
+        assert_contains('released', $summary);
         assert_contains('<strong>Team chain</strong>', $summary);
         assert_contains('monthly minimum', $summary);
         assert_not_contains('sponsor chain', $summary);
@@ -511,7 +520,7 @@ return [
         assert_contains('data-live-region="member-order-bonus"', $html);
         assert_contains('Repeat-purchase bonus', $html);
         assert_contains(money(90), $html, 'the order total');
-        assert_contains('was paid to the members above you', $html);
+        assert_contains('was released to the members above you', $html);
         assert_contains('Your <strong>Team chain</strong>', $html);
         assert_contains('monthly minimum', $html);
         assert_contains('earnings?ledger=repeat', $html, 'the card links to the Team chain statement');
@@ -676,19 +685,19 @@ return [
         assert_contains('level=1', $data['export_url']);
         assert_contains('status=credited', $data['export_url']);
 
-        /* The CSV the controller writes: the documented 13 columns and
+        /* The CSV the controller writes: the documented 15 columns and
          * only this member's rows. */
         $rows = UnilevelAward::exportRows($userId, $data['filters']);
         assert_same(1, count($rows));
 
         $header = UnilevelAward::csvHeader();
         assert_same(
-            ['Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Product', 'Level', 'Base', 'Rate %', 'Amount', 'Status', 'Reason', 'Recovered'],
+            ['Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Product', 'Level', 'Base', 'Rate %', 'Amount', 'Status', 'Reason', 'Recovered', 'Hold days', 'Released at'],
             $header
         );
 
         $csv = UnilevelAward::csvRows($rows);
-        assert_same(13, count($csv[0]));
+        assert_same(15, count($csv[0]));
         assert_same((string) $userId, (string) $rows[0]['user_id']);
         assert_same('25.00', $csv[0][9]);
         assert_same('1', $csv[0][6]);

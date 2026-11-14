@@ -858,7 +858,7 @@ return [
      *  The settings card (P17B-T18, T19)
      * ========================================================== */
 
-    'P17B-T18 the commissions card holds the five repeat-purchase keys' => function (): void {
+    'P17B-T18 the commissions card holds the seven repeat-purchase keys' => function (): void {
         test_signed_in_as(test_user('p17b_settings_admin', 'admin'));
 
         $controller = new AdminSettingsController();
@@ -885,6 +885,11 @@ return [
         assert_contains('name="unilevel_enabled"', $card);
         assert_contains('name="unilevel_requires_active_upline"', $card);
         assert_contains('name="unilevel_reversal_enabled"', $card);
+        /* Phase 18 escrow keys. */
+        assert_contains('name="unilevel_hold_days"', $card);
+        assert_contains('name="unilevel_release_enabled"', $card);
+        assert_contains('Release delay after delivery', $card);
+        assert_contains('Release repeat-purchase bonuses', $card);
 
         /* The depth is an integer 1–10, the threshold is money. */
         preg_match('/<input\b[^>]*name="unilevel_max_levels"[^>]*>/', $card, $depth);
@@ -897,9 +902,16 @@ return [
         assert_true($threshold !== []);
         assert_contains('step="0.01"', $threshold[0]);
 
-        /* Five visible keys, and never the reconciliation baseline. */
+        /* The hold is a whole number of days, 0–365. */
+        preg_match('/<input\b[^>]*name="unilevel_hold_days"[^>]*>/', $card, $hold);
+        assert_true($hold !== []);
+        assert_contains('min="0"', $hold[0]);
+        assert_contains('max="365"', $hold[0]);
+        assert_contains('step="1"', $hold[0]);
+
+        /* Seven visible keys, and never the reconciliation baseline. */
         preg_match_all('/name="(unilevel_[a-z_]+)"/', $card, $names);
-        assert_count(5, array_unique($names[1]), 'five repeat-purchase keys, no sixth');
+        assert_count(7, array_unique($names[1]), 'seven repeat-purchase keys, no eighth');
         assert_not_contains('unilevel_ledger_since', $html, 'the sixth key is never rendered');
         assert_same(1, substr_count($card, 'Save settings'), 'the card still has one save button');
     },
@@ -919,6 +931,9 @@ return [
         assert_same('required|in:0,1', $rules['unilevel_enabled'] ?? '');
         assert_same('required|in:0,1', $rules['unilevel_requires_active_upline'] ?? '');
         assert_same('required|in:0,1', $rules['unilevel_reversal_enabled'] ?? '');
+        /* Phase 18: the hold is a day count 0–365; the release is a switch. */
+        assert_same('required|integer|gte:0|lte:365', $rules['unilevel_hold_days'] ?? '');
+        assert_same('required|in:0,1', $rules['unilevel_release_enabled'] ?? '');
         assert_false(array_key_exists('unilevel_ledger_since', $rules), 'the baseline is not editable');
 
         $input = static fn (string $depth, string $threshold = '500.00', string $enabled = '0'): array => [
@@ -933,6 +948,8 @@ return [
             'unilevel_enabled'                  => $enabled,
             'unilevel_requires_active_upline'   => '1',
             'unilevel_reversal_enabled'         => '1',
+            'unilevel_hold_days'                => '7',
+            'unilevel_release_enabled'          => '1',
         ];
 
         /* 0 and 11 are both refused, on the field itself. */
@@ -947,6 +964,13 @@ return [
         $errors = Validator::check($input('10', '500.001'), array_intersect_key($rules, $input('10', '500.001')), $labels);
         assert_true(isset($errors['unilevel_active_threshold']), 'the threshold keeps two decimals');
 
+        /* The hold refuses a negative or out-of-range day count. */
+        foreach (['-1', '366', 'seven'] as $bad) {
+            $row    = ['unilevel_hold_days' => $bad] + $input('10');
+            $errors = Validator::check($row, array_intersect_key($rules, $row), $labels);
+            assert_true(isset($errors['unilevel_hold_days']), 'hold days ' . $bad . ' is refused');
+        }
+
         /* Persistence is per key, exactly what the controller writes. The
          * `settings.update` audit entry is proved over HTTP by the smoke
          * suite, because save() ends in a redirect. */
@@ -955,6 +979,8 @@ return [
         setting_set('unilevel_enabled', '1');
         setting_set('unilevel_requires_active_upline', '0');
         setting_set('unilevel_reversal_enabled', '0');
+        setting_set('unilevel_hold_days', '3');
+        setting_set('unilevel_release_enabled', '0');
         setting_cache_clear();
 
         assert_same('7', setting('unilevel_max_levels'));
@@ -962,8 +988,12 @@ return [
         assert_same('1', setting('unilevel_enabled'));
         assert_same('0', setting('unilevel_requires_active_upline'));
         assert_same('0', setting('unilevel_reversal_enabled'));
+        assert_same('3', setting('unilevel_hold_days'));
+        assert_same('0', setting('unilevel_release_enabled'));
         assert_same(7, setting_int('unilevel_max_levels'));
         assert_same(250.0, setting_float('unilevel_active_threshold'));
+        assert_same(3, UnilevelService::holdDays());
+        assert_same(false, UnilevelService::releaseEnabled());
         assert_true(setting_bool('unilevel_enabled'));
     },
 ];

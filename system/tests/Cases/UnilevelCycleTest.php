@@ -91,7 +91,7 @@ $sum = static function (array $rows): float {
     $total = 0.0;
 
     foreach ($rows as $row) {
-        if ((string) $row['status'] === 'credited') {
+        if (in_array((string) $row['status'], ['pending', 'credited'], true)) {
             $total += (float) $row['amount'];
         }
     }
@@ -140,7 +140,7 @@ return [
         assert_same('skipped', $rows[0]['status']);
         assert_same('recipient is not Active for 2026-10', $rows[0]['reason']);
         assert_same(2, (int) $rows[1]['level']);
-        assert_same('credited', $rows[1]['status']);
+        assert_same('pending', $rows[1]['status'], 'Phase 18 records the award as pending release');
         assert_same(65.0, $sum($rows));
     },
 
@@ -172,7 +172,7 @@ return [
         $rows = $awards($december);
 
         assert_count(4, $rows);
-        assert_same('credited', $rows[0]['status']);
+        assert_same('pending', $rows[0]['status'], 'Phase 18 records the award as pending release');
         assert_same(90.0, $sum($rows));
     },
 
@@ -202,7 +202,7 @@ return [
         $rows = UnilevelAward::forOrder($order);
 
         assert_count(1, $rows);
-        assert_same('credited', $rows[0]['status']);
+        assert_same('pending', $rows[0]['status'], 'Phase 18 records the award as pending release');
         assert_same(12.5, (float) $rows[0]['amount']);
     },
 
@@ -249,8 +249,11 @@ return [
 
         assert_same($before, $after, 'a closed period is immutable');
 
+        /* Phase 18: the award was pending (no money had moved), so the
+         * cancellation marks it `cancelled` and writes no reversal. */
         foreach (UnilevelAward::forOrder($paid) as $row) {
-            assert_same('voided', $row['status'], 'the award is still voided');
+            assert_same('cancelled', $row['status'], 'a pending award is cancelled, never voided');
+            assert_same(0.0, (float) $row['reversed_amount'], 'nothing was paid, so nothing is recovered');
         }
     },
 
@@ -285,7 +288,7 @@ return [
         $header = db()->query("SELECT * FROM unilevel_periods WHERE period = '2026-10'")->fetch();
         assert_same($result['members'], (int) $header['members_total']);
         assert_same($result['qualified'], (int) $header['qualified_count']);
-        assert_same(90.0, (float) $header['award_total'], 'the credited awards of the period are snapshotted');
+        assert_same(90.0, (float) $header['award_total'], 'the awarded (pending + credited) money of the period is snapshotted');
         assert_same(500.0, (float) $header['threshold']);
     },
 

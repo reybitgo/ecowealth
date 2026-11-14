@@ -2,12 +2,18 @@
 declare(strict_types=1);
 
 /**
- * Reports — repeat-purchase money per product (Phase 17D, plan §8).
+ * Reports — repeat-purchase money per product (Phase 17D/18, plan §8, §19.6).
  *
  * Each product has its own ten-row ladder, so this is where a margin
  * review starts: how much a product's bonus cost in the window.
  *
- * @var list<array{product_id:int, product:string, count:int, amount:float, skipped:int}> $unilevel_products
+ * `count` / `amount` are released money; the Pending column is the
+ * escrow figure for the same product (earned, not in a wallet yet).
+ *
+ * @var list<array{
+ *   product_id:int, product:string, count:int, amount:float, skipped:int,
+ *   pending_count:int, pending_amount:float
+ * }> $unilevel_products
  * @var array{from:string, to:string, days:int, label:string} $range
  */
 
@@ -31,11 +37,16 @@ $range = $range ?? ['label' => ''];
                         <th scope="col">Product</th>
                         <th scope="col" class="text-end">Awards</th>
                         <th scope="col" class="text-end">Amount</th>
+                        <th scope="col" class="text-end">Pending</th>
                         <th scope="col" class="text-end">Skipped</th>
                       </tr>
                     </thead>
                     <tbody>
 <?php foreach ($rows as $row): ?>
+<?php
+    $pendingCount  = (int) ($row['pending_count'] ?? 0);
+    $pendingAmount = (float) ($row['pending_amount'] ?? 0);
+?>
                       <tr>
                         <td>
                           <a href="<?= e(url('admin/products/' . (int) $row['product_id'] . '/edit')) ?>" class="text-body">
@@ -44,11 +55,17 @@ $range = $range ?? ['label' => ''];
                         </td>
                         <td class="text-end"><?= (int) $row['count'] ?></td>
                         <td class="text-end"><?= e(money($row['amount'])) ?></td>
+                        <td class="text-end">
+                          <?= e(money($pendingAmount)) ?>
+<?php if ($pendingCount > 0): ?>
+                          <div class="small text-body-secondary"><?= $pendingCount ?> award<?= $pendingCount === 1 ? '' : 's' ?></div>
+<?php endif; ?>
+                        </td>
                         <td class="text-end"><?= (int) $row['skipped'] ?></td>
                       </tr>
 <?php endforeach; ?>
 <?php if ($rows === []): ?>
-                      <tr><td colspan="4" class="text-body-secondary">No product paid a repeat-purchase bonus in this window.</td></tr>
+                      <tr><td colspan="5" class="text-body-secondary">No product paid a repeat-purchase bonus in this window.</td></tr>
 <?php endif; ?>
                     </tbody>
                   </table>

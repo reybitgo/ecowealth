@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Admin repeat-purchase ledger — card heading (Phase 17D, plan §8).
+ * Admin repeat-purchase ledger — card heading (Phase 17D/18, plan §8, §19.3).
  *
  * @var Paginator $pager
  */
@@ -11,7 +11,7 @@ declare(strict_types=1);
                   <div>
                     <h5 class="mb-1">Repeat-purchase ledger</h5>
                     <p class="text-body-secondary mb-0 small">
-                      Every award a paid shop order produced, credited, skipped or voided.
+                      Every award a paid shop order produced, credited, pending, skipped or cancelled.
                       One row per order line, recipient and level.
                     </p>
                   </div>

@@ -207,6 +207,10 @@ final class AdminReportController
                     'payouts'     => $data['payouts'],
                     'codes'       => $data['codes'],
                     'range'       => $data['range'],
+                    /* Phase 18: the escrow figures travel with the KPI
+                     * fragment too, so a "Pending liability" card can be
+                     * added without a second read (plan §19.6). */
+                    'unilevel'    => $data['unilevel'],
                 ]),
                 'report-sales' => View::capture('admin/reports/_sales', [
                     'sales'           => $data['sales'],
@@ -234,6 +238,10 @@ final class AdminReportController
                     'orders'      => $data['orders'],
                     'open_orders' => $data['open_orders'],
                 ]),
+                /* `Report::unilevelSummary()` carries the escrow figures
+                 * (pending_amount, pending_count, cancelled_count) beside
+                 * the credited money, so the card can render both without
+                 * a second query (plan §19.6). */
                 'report-unilevel' => View::capture('admin/reports/_unilevel', [
                     'unilevel' => $data['unilevel'],
                     'range'    => $data['range'],

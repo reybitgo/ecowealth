@@ -18,6 +18,12 @@ declare(strict_types=1);
  * the transfer form). `min`/`max` stay for assistive technology and the
  * number spinner; assets/js/app-payout.js only previews the cost.
  *
+ * Phase 18 puts the escrow reminder above the amount field (plan §11.2,
+ * Appendix C.3): one informational alert naming the pending release and
+ * the reason it is not in this request. It is **not** a modal and **not**
+ * a checkbox, and it never blocks the request — the only limit stays the
+ * withdrawable balance (ESC-10).
+ *
  * @var array<string, mixed> $options
  * @var string $payout_url
  * @var list<array<string, mixed>> $methods
@@ -27,6 +33,36 @@ $methods   = $methods ?? ($options['methods'] ?? []);
 $min       = (float) ($options['min'] ?? 0);
 $maxAmount = (float) ($options['max_amount'] ?? 0);
 $usdtRate  = (float) ($options['usdt_rate'] ?? 0);
+
+$pending       = is_array($options['pending_repeat'] ?? null) ? $options['pending_repeat'] : [];
+$pendingTotal  = round((float) ($pending['total'] ?? 0), 2);
+$pendingNext   = $pending['next_release_at'] ?? null;
+$pendingPaused = !(bool) ($pending['release_enabled'] ?? true);
+$pendingDue    = (int) ($pending['overdue'] ?? 0) > 0;
+
+/* The reminder reads the same summary the balance card shows, so the
+ * two can never name a different amount. The branches follow the plan's
+ * copy order: paused beats "due" (nothing will run while it is off),
+ * then a known date, then the snapshotted hold before delivery. */
+$pendingNote = '';
+
+if ($pendingTotal > 0) {
+    $pendingNote = '<strong>' . e(money($pendingTotal)) . '</strong> of repeat-purchase bonus is '
+        . '<strong>pending release</strong> and is <strong>not included</strong> in this request. ';
+
+    if ($pendingPaused) {
+        $pendingNote .= 'It will be released after the return window. '
+            . 'Release is currently paused by the administrator.';
+    } elseif ($pendingDue) {
+        $pendingNote .= 'It is being finalized and will be added on the next release run.';
+    } elseif ($pendingNext !== null && trim((string) $pendingNext) !== '') {
+        $pendingNote .= 'It will be released after the return window (next: <strong>'
+            . e(format_date((string) $pendingNext)) . '</strong>).';
+    } else {
+        $pendingNote .= 'It will be released after delivery + <strong>'
+            . UnilevelService::holdDays() . ' days</strong>.';
+    }
+}
 
 $available = array_values(array_filter(
     $methods,
@@ -62,6 +98,13 @@ $amount = old('amount');
                       data-currency="<?= e(CURRENCY_SYMBOL) ?>"
                     >
                       <?= csrf_field() ?>
+
+<?php if ($pendingNote !== ''): ?>
+                      <div class="alert alert-info d-flex align-items-start gap-2" role="status">
+                        <i class="icon-base bx bx-time-five fs-5"></i>
+                        <div class="small"><?= $pendingNote ?></div>
+                      </div>
+<?php endif; ?>
 
                       <div class="mb-4">
                         <label class="form-label" for="payoutAmount">Amount</label>

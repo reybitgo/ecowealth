@@ -58,16 +58,39 @@ final class PayoutException extends InvalidArgumentException
         );
     }
 
-    public static function aboveWithdrawable(float $amount, float $withdrawable): self
-    {
-        return new self(
-            sprintf(
-                'You can withdraw up to %s — the withdrawable part of your balance. %s is more than that.',
-                money($withdrawable),
-                money($amount)
-            ),
-            'withdrawable'
-        );
+    /**
+     * The amount is above the withdrawable bucket.
+     *
+     * Phase 18: when the member also has repeat-purchase money pending
+     * release, the refusal names it — that is the A++ reminder at the
+     * exact moment the gap is noticed (plan §11.3). The reason code
+     * stays `withdrawable`, so callers keep their existing branching.
+     *
+     * @param float $pendingTotal repeat-purchase money pending release
+     * @param string|null $nextRelease formatted date of the next release
+     */
+    public static function aboveWithdrawable(
+        float $amount,
+        float $withdrawable,
+        float $pendingTotal = 0.0,
+        ?string $nextRelease = null
+    ): self {
+        $message = sprintf('You can withdraw up to %s.', money($withdrawable));
+
+        if ($pendingTotal > 0) {
+            $message .= sprintf(
+                ' Your %s repeat-purchase bonus is pending release and is not yet withdrawable.',
+                money($pendingTotal)
+            );
+
+            if ($nextRelease !== null && trim($nextRelease) !== '') {
+                $message .= ' The next release is on ' . trim($nextRelease) . '.';
+            }
+        } else {
+            $message .= sprintf(' %s is more than that.', money($amount));
+        }
+
+        return new self($message, 'withdrawable');
     }
 
     public static function openRequest(string $status = 'pending'): self

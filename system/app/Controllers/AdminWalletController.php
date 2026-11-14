@@ -80,6 +80,24 @@ final class AdminWalletController
 
         $totals = Wallet::monitorTotals() + Transfer::monitorTotals();
 
+        /* Phase 18: pending repeat-purchase bonuses are a separate
+         * liability — the money is earned but not in any wallet, so it is
+         * never part of the float or of `Wallet::totals()['locked']`
+         * (plan §19.4). One aggregate read, shared by page and feed. */
+        $repeat = UnilevelAward::stats();
+        $repeatPending = [
+            'total'           => $repeat['pending_total'],
+            'count'           => $repeat['pending'],
+            'recipients'      => $repeat['pending_recipients'],
+            'next_release_at' => $repeat['next_release_at'],
+            'release_enabled' => UnilevelService::releaseEnabled(),
+        ];
+
+        /* The monitor page template hands only `totals` down to the stats
+         * card, so the liability travels with it on the first render; the
+         * feed passes its own `repeat_pending` key as well. */
+        $totals['repeat_pending'] = $repeatPending;
+
         /* Tab badges always show the total for that list, not the active
          * tab's paginated/filtered subset. */
         $tabCounts = [
@@ -132,6 +150,7 @@ final class AdminWalletController
 
         return [
             'totals'         => $totals,
+            'repeat_pending' => $repeatPending,
             'tab'            => $tab,
             'tab_counts'     => $tabCounts,
             'query'          => $query,
@@ -216,7 +235,8 @@ final class AdminWalletController
                 'totals' => $data['totals'],
             ]),
             'wallet-stats' => View::capture('admin/wallets/_stats', [
-                'totals' => $data['totals'],
+                'totals'         => $data['totals'],
+                'repeat_pending' => $data['repeat_pending'],
             ]),
             'wallet-tabs' => View::capture('admin/wallets/_tabs', [
                 'tab'        => $tab,
@@ -373,6 +393,9 @@ final class AdminWalletController
             'show_member'     => false,
             'topups'          => $topups,
             'topups_pager'    => $topupsPager,
+            /* Phase 18: earned but not in the wallet, so it is shown
+             * outside the two buckets (plan §19.4). */
+            'pending_repeat'  => UnilevelAward::pendingSummaryForUser($userId),
         ];
     }
 
@@ -437,7 +460,8 @@ final class AdminWalletController
                     'member' => $member,
                 ]),
                 'wallet-buckets' => View::capture('admin/wallets/_buckets', [
-                    'member' => $member,
+                    'member'         => $member,
+                    'pending_repeat' => $data['pending_repeat'],
                 ]),
                 'wallet-statement' => View::capture('admin/wallets/_statement', [
                     'filters'         => $data['filters'],

@@ -441,7 +441,7 @@ introduces the rule; no later phase may change it.
 | **D-01** | The ladder is **per product**, with ten percentage rows, level 1–10 | The operator asked for per-product settings; products differ in margin | One global ladder on `/admin/settings` — simpler, but the requirement says per product | 17A/17B |
 | **D-02** | Rates are **percentages** (0–100), not peso amounts | The reference model is percentage-based; margin scales automatically with price/P.V. | Fixed peso amounts per level (package style) — would need editing on every price change | 17B |
 | **D-03** | The base is **P.V. when set, else price**, and is snapshotted on the line | Matches the reference's "P.V." wording; the column already exists; a price change between placement and verification cannot rewrite the payout | Always `line_total` — ignores P.V.; always `pv` — breaks products without a P.V. | 17B/17C |
-| **D-04** | Award on the transition to **`paid`**, not at placement | Unpaid orders can expire; the wallet ledger must match real money | Award at placement — pays on unpaid orders, then needs clawbacks on expiry | 17C |
+| **D-04** | Award on the transition to **`paid`**, not at placement — and since Phase 18 the award is **earned** at `paid` but the wallet credit is **released** after delivery + the hold (see `plan-ecowealth-unilevel-bonus-escrow.md`, ESC-02/ESC-03) | Unpaid orders can expire; the wallet ledger must match real money | Award at placement — pays on unpaid orders, then needs clawbacks on expiry | 17C |
 | **D-05** | A **separate `unilevel_awards` ledger**, not `commissions` | `commissions` is unique on `(type, source, recipient, level)`, which cannot hold two orders from the same buyer; its FKs require an activation/package | Extend `commissions` — breaks the Phase 10–11 money anchor and every join | 17A/17C |
 | **D-06** | The **base** is frozen at placement; the **rates** are read at payment | The line snapshot already exists; rates are the company's current published terms | Freeze rates at placement too — needs a 10-rate snapshot per line; deferred | 17B/17C |
 | **D-07** | **No compression**; a blocked level writes a `skipped` row | The reference model is explicit; `skipped` rows explain missing money | Compress to the next eligible upline — changes the plan's economics silently | 17C |
@@ -456,6 +456,14 @@ introduces the rule; no later phase may change it.
 | **D-16** | No retroactive awards for orders paid before the switch is on | The company never agreed to pay them; a backfill would be a large, risky payout | Backfill from `shop_orders` — out of scope, see §18 Q13 | 17C |
 | **D-17** | **One ladder, levels 1–10.** No `direct_unilevel`/`indirect_unilevel` type, no separate direct field, no read-only level 1, no per-leg switches and no "leg" column | The operator's explicit simplification: level 1 is just the first level, level 2 the second, and so on; one table and one loop are easier to configure and audit | The package's two-leg shape (direct at level 1 + indirect at 2–10) — rejected: it adds a second field, a second switch and a type column for no business difference | 17B/17C |
 | **D-18** | The **sum of levels 1–10** is capped at **100%** of the base | Percentages, unlike package peso amounts, can sum past the purchase; a 100% ceiling keeps the payout bounded | Only cap each level individually — allows a 200% ladder | 17B |
+
+> **D-04, annotated after the fact (Phase 18, a post-17 point release).** D-04 decided **when the
+> award is created**, and it still holds: the ladder is walked once, when the order reaches **`paid`**,
+> so unpaid orders never earn and the Active snapshot and monthly close stay in the payment month.
+> The **wallet credit** no longer happens at that moment: `plan-ecowealth-unilevel-bonus-escrow.md`
+> (ESC-02, ESC-03) makes the award `pending` at payment and has the release job credit it after
+> delivery + the award's snapshotted hold. Read D-04 as "earned at `paid`", not "cash at `paid`".
+> Nothing else in this table changes.
 
 ---
 
@@ -1236,7 +1244,10 @@ and the phase badge, and neither changes member-facing behaviour.
 2. **Say "Team chain", never "sponsor chain", in member-facing copy.** "Sponsor chain" stays in admin
    copy and code comments. Level 1 is the member the reader personally sponsored, level 2 their
    recruits, and so on to level 10 — every level is an income the reader can earn when that member buys.
-3. **Always say the money is credited when the order is paid**, not when it is placed.
+3. **Always say the money is credited when the order is paid**, not when it is placed. *(Phase 18
+   supersedes the wording, not the timing of the earning: say the bonus is **earned when the order is
+   paid** and **released to the e-wallet after the return window** — see
+   `plan-ecowealth-unilevel-bonus-escrow.md` §10.6 and Appendix C.9.)*
 4. **Never call it a rebate or cashback.** The member's own purchase pays the members above them, not
    the member. On the product panel say "your own purchase does not pay you", and stress that it counts
    toward the monthly minimum so the reader stays Active for their Team chain's orders. The
@@ -2982,7 +2993,7 @@ These need a business decision before the phase named in **Blocks**; the plan's 
 | 2 | Should the bonus base be P.V. or the retail price? | **P.V. when set, else price** (D-03) | 17B |
 | 3 | Is the monthly Active threshold ₱500 in personal purchases, or should it count a member's *downline* volume? | **₱500 personal** (the reference's exact rule) | 17C |
 | 4 | Should staff accounts be eligible as recipients? | **Yes, except the company account** (the primary admin): any other staff member who is a genuine upline and meets the checks is paid (§12.6) | 17C |
-| 5 | Should awards wait for `completed` (delivered) instead of `paid`, to protect against returns? | **`paid`** (D-04); `completed` would delay the money by days | 17C |
+| 5 | Should awards wait for `completed` (delivered) instead of `paid`, to protect against returns? | **`paid`** (D-04); `completed` would delay the money by days. **Resolved by Phase 18:** the award is still earned at `paid`, but the **wallet credit** waits for delivery + the hold (`plan-ecowealth-unilevel-bonus-escrow.md` ESC-02/ESC-03) | 17C |
 | 6 | Should package activations also feed the repeat-purchase ladder? | **No** — the referral ladder already pays activations; double-paying them would change Phase 10–11 economics | 17C |
 | 7 | Should a cancelled order's awards be clawed back? | **Yes, best effort** (D-13) | 17C |
 | 8 | Should the close run monthly or twice a month (1st and 16th)? | **Monthly on the 1st** | 17F |

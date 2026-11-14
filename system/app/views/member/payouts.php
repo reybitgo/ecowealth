@@ -20,6 +20,11 @@ declare(strict_types=1);
  * payout-settings fingerprint (`data-live-config`), so an admin changing
  * the minimum, a fee or the ₱/USDT rate refreshes it without a reload.
  *
+ * Phase 18 carries `options['pending_repeat']` through the balance card,
+ * the request card and the history footer: the member's repeat-purchase
+ * money that is not withdrawable yet is never confused with the amount
+ * they may request (plan §11).
+ *
  * @var array<string, mixed> $account
  * @var array<string, mixed> $options
  * @var list<array<string, mixed>> $requests
@@ -93,9 +98,10 @@ $live = $live ?? [
               </div>
 
 <?= View::capture('member/payouts/_history', [
-    'requests'      => $requests,
-    'totals'        => $totals,
-    'statement_url' => $statement_url,
+    'requests'       => $requests,
+    'totals'         => $totals,
+    'statement_url'  => $statement_url,
+    'pending_repeat' => $options['pending_repeat'] ?? [],
 ]) ?>
 
 <?= View::capture('member/payouts/_pagination', ['pager' => $pager]) ?>

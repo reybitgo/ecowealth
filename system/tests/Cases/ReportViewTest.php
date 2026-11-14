@@ -332,4 +332,76 @@ return [
         assert_contains('2 recipients', $tile);
         assert_contains('admin/commissions?ledger=repeat', $tile);
     },
+
+    'P18-T47 the report cards show the pending liability beside the credited money' => function () use ($renderReports): void {
+        $award = static function (int $level, float $amount, string $status): int {
+            $buyer     = test_user('rptv18_buyer_' . bin2hex(random_bytes(3)));
+            $recipient = test_user('rptv18_rec_' . bin2hex(random_bytes(3)));
+            $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+            $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+                'paid_at' => date('Y-m-d H:i:s'),
+                'total'   => '100.00',
+            ]);
+            $itemId = (int) db()->query(
+                'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+            )->fetchColumn();
+
+            return UnilevelAward::create([
+                'order_id'      => $orderId,
+                'order_item_id' => $itemId,
+                'product_id'    => $productId,
+                'buyer_id'      => (int) $buyer['id'],
+                'user_id'       => (int) $recipient['id'],
+                'level'         => $level,
+                'base_amount'   => 500.00,
+                'rate_pct'      => 5.0,
+                'amount'        => $amount,
+                'status'        => $status,
+                'paid_at'       => date('Y-m-d H:i:s'),
+            ]);
+        };
+
+        $award(1, 25.00, 'credited');
+        $award(1, 15.00, 'pending');
+        $award(2, 10.00, 'pending');
+        $award(2, 5.00, 'cancelled');
+
+        test_signed_in_as(test_user('rptv18_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $summary = View::capture('admin/reports/_unilevel', [
+            'unilevel' => Report::unilevelSummary(date('Y-m-d'), date('Y-m-d')),
+            'range'    => ReportService::range(null, null),
+        ]);
+
+        assert_contains(money(25.0), $summary, 'the credited figure stays released money');
+        assert_contains('Pending liability', $summary);
+        assert_contains(money(25.0), $summary, 'the pending liability is shown');
+        assert_contains('Pending release', $summary);
+        assert_contains('2 awards', $summary);
+        assert_contains('Cancelled before release', $summary);
+        assert_contains('never paid; no shortfall', $summary);
+        assert_not_contains('unrecovered.', $summary, 'no shortfall when nothing was voided');
+
+        $levels = View::capture('admin/reports/_unilevel_levels', [
+            'unilevel_levels' => Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d')),
+            'range'           => ReportService::range(null, null),
+        ]);
+        assert_contains('<th scope="col" class="text-end">Pending</th>', $levels);
+        assert_contains(money(25.0), $levels);
+
+        $products = View::capture('admin/reports/_unilevel_products', [
+            'unilevel_products' => Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d')),
+            'range'             => ReportService::range(null, null),
+        ]);
+        assert_contains(money(25.0), $products);
+
+        /* The full page renders the same card. */
+        $html = $renderReports();
+        assert_contains('data-live-region="report-unilevel"', $html);
+        assert_contains('Pending liability', $html);
+    },
 ];

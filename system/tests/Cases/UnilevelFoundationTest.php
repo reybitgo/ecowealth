@@ -16,7 +16,7 @@ declare(strict_types=1);
  *      bundle      install.sql matches its sources and mirrors the
  *                  migration's objects
  *      tools       DatabaseInstaller / DatabaseResetService agree with
- *                  the schema (31 tables, 54 settings, 3 money tables)
+ *                  the schema (31 tables, 56 settings, 3 money tables)
  *      vocabulary  WalletService::REF_TYPES, the labels and the icons
  *      defaults    a migrated and a fresh database agree; everything off
  *      guards      the cascades, the unique keys and the CHECKs
@@ -306,7 +306,7 @@ return [
      * ========================================================== */
     'P17A-T6 the installer and reset expectations match the schema' => function (): void {
         assert_same(31, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(54, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(56, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['packages_rows']);

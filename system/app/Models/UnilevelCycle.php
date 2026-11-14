@@ -404,9 +404,14 @@ final class UnilevelCycle
             $counts->execute([$period]);
             $row = $counts->fetch() ?: [];
 
+            /* Phase 18: the month's award total is the money EARNED in
+             * the month — pending release included, because it was
+             * earned when the order was paid (plan §16.7). The close is
+             * an immutable snapshot; a later cancellation does not
+             * rewrite it. */
             $awardStmt = $pdo->prepare(
                 "SELECT COALESCE(SUM(amount), 0) FROM unilevel_awards
-                  WHERE status = 'credited' AND paid_at >= ? AND paid_at < ?"
+                  WHERE status IN ('pending', 'credited') AND paid_at >= ? AND paid_at < ?"
             );
             $awardStmt->execute([$start, $end]);
             $awardTotal = round((float) $awardStmt->fetchColumn(), 2);

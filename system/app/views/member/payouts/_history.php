@@ -9,10 +9,19 @@ declare(strict_types=1);
  * where the request stands. A rejected row carries the reason the member
  * was given.
  *
+ * Phase 18 adds one footer sentence when repeat-purchase money is
+ * pending release (plan §11.5): no row in this table will ever include
+ * it, and it only reaches the withdrawable balance after release. The
+ * table itself is unchanged — a pending award is not a payout request.
+ *
  * @var list<array<string, mixed>> $requests
  * @var array<string, mixed> $totals
  * @var string $statement_url
+ * @var array{total:float, count:int, next_release_at:?string, undelivered:int, overdue:int, release_enabled:bool} $pending_repeat
  */
+
+$pending      = is_array($pending_repeat ?? null) ? $pending_repeat : [];
+$pendingTotal = round((float) ($pending['total'] ?? 0), 2);
 
 $badges = [
     'pending'   => ['Pending review', 'warning'],
@@ -126,4 +135,14 @@ $badges = [
                     </tbody>
                   </table>
                 </div>
+
+<?php if ($pendingTotal > 0): ?>
+                <div class="card-footer">
+                  <p class="small text-body-secondary mb-0">
+                    <i class="icon-base bx bx-info-circle me-1"></i>
+                    Pending release is never included in a payout request; it is added to your withdrawable
+                    balance only after release.
+                  </p>
+                </div>
+<?php endif; ?>
               </div>

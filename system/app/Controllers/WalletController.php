@@ -15,6 +15,12 @@ declare(strict_types=1);
  *  open it too — the `member` guard admits them (plan §3.4) — and get
  *  their own statement inside the back-office layout.
  *
+ *  Phase 18 adds the escrow read-out (plan §10.1). `pending_repeat` is
+ *  the repeat-purchase money that is earned but sitting outside both
+ *  buckets, so it is shown beside them and never added to
+ *  `ewallet_balance`: the combined "Total funds" line is presentation
+ *  only, not a third wallet bucket (ESC-01).
+ *
  *  The page is one per-member live surface (`member.wallet:{id}`).
  *  The same URL doubles as the JSON feed; the buckets, the send-funds
  *  card and the statement card are regions. The statement owns the
@@ -103,6 +109,10 @@ final class WalletController
             'account'         => $account,
             'limits'          => $this->transfers->usageFor($account),
             'payout'          => $this->payouts->optionsFor($account),
+            /* The escrow figure the bucket cards show (plan §10.1). The
+             * model guards a missing table, so an old schema reads zero
+             * instead of breaking the wallet page (plan §26 #12). */
+            'pending_repeat'  => UnilevelAward::pendingSummaryForUser($userId),
             'ledger'          => $statement['rows'],
             'pager'           => $statement['pager'],
             'totals'          => $statement['totals'],
@@ -166,13 +176,15 @@ final class WalletController
             'etag'      => $etag,
             'fragments' => [
                 'member-wallet-buckets' => View::capture('member/wallet/_buckets', [
-                    'account' => $account,
+                    'account'        => $account,
+                    'pending_repeat' => $data['pending_repeat'] ?? [],
                 ]),
                 'member-wallet-transfer' => View::capture('member/wallet/_transfer_card', [
                     'limits' => $data['limits'],
                 ]),
                 'member-wallet-payout' => View::capture('member/wallet/_payout_card', [
-                    'payout' => $data['payout'],
+                    'payout'         => $data['payout'],
+                    'pending_repeat' => $data['pending_repeat'] ?? [],
                 ]),
                 'member-wallet-statement' => View::capture('member/wallet/_statement', [
                     'filters'         => $data['filters'],

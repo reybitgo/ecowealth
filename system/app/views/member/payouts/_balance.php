@@ -8,6 +8,13 @@ declare(strict_types=1);
  * one: a member looking at their total balance would over-ask, and the
  * refusal would feel arbitrary.
  *
+ * Phase 18 adds the escrow line (plan §11.1, Appendix C.2): repeat-
+ * purchase money pending release sits beside the withdrawable figure it
+ * is missing from, labelled "not withdrawable yet", so the over-limit
+ * refusal reads as a rule rather than a surprise. When nothing is
+ * withdrawable but something is pending, the card says exactly that
+ * instead of a bare ₱0.00.
+ *
  * @var array<string, mixed> $options
  */
 
@@ -18,6 +25,14 @@ $min          = (float) ($options['min'] ?? 0);
 $usdtRate     = (float) ($options['usdt_rate'] ?? 0);
 $open         = $options['open'] ?? null;
 $held         = is_array($open) ? (float) ($open['amount'] ?? 0) : 0.0;
+
+$pending      = is_array($options['pending_repeat'] ?? null) ? $options['pending_repeat'] : [];
+$pendingTotal = round((float) ($pending['total'] ?? 0), 2);
+$pendingShown = $pendingTotal > 0;
+
+/* Everything the member earned is still in escrow: this is the one state
+ * where "₱0.00 can withdraw" needs an explanation, not a figure. */
+$allPending = $pendingShown && $withdrawable <= 0;
 ?>
                 <div class="card h-100 payout-balance" data-live-region="payout-balance">
                   <div class="card-body">
@@ -53,6 +68,15 @@ $held         = is_array($open) ? (float) ($open['amount'] ?? 0) : 0.0;
                         <span>Can withdraw now</span>
                         <span class="fw-medium text-body"><?= e(money($withdrawable)) ?></span>
                       </li>
+<?php if ($pendingShown): ?>
+                      <li class="d-flex justify-content-between gap-2 py-1 border-top">
+                        <span>Pending release</span>
+                        <span class="fw-medium text-info">
+                          <?= e(money($pendingTotal)) ?>
+                          <span class="text-body-secondary fw-normal">· not withdrawable yet</span>
+                        </span>
+                      </li>
+<?php endif; ?>
 <?php if ($held > 0): ?>
                       <li class="d-flex justify-content-between gap-2 py-1 border-top">
                         <span>Held by an open request</span>
@@ -69,9 +93,19 @@ $held         = is_array($open) ? (float) ($open['amount'] ?? 0) : 0.0;
 <?php endif; ?>
                     </ul>
 
+<?php if ($allPending): ?>
+                    <div class="alert alert-info py-2 small mb-0 mt-3" role="status">
+                      You have <?= e(money($pendingTotal)) ?> pending release, but none is withdrawable yet.
+                      It becomes available after the return window.
+                    </div>
+<?php else: ?>
                     <p class="small text-body-secondary mb-0 mt-3">
                       Only commission earnings are withdrawable. Top-ups, transferred funds and refunds can be spent in
                       the shop but stay non-withdrawable.
+<?php if ($pendingShown): ?>
+                      Pending release is repeat-purchase bonus that is not withdrawable yet.
+<?php endif; ?>
                     </p>
+<?php endif; ?>
                   </div>
                 </div>

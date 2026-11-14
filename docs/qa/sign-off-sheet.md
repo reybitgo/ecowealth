@@ -1,6 +1,6 @@
-# EcoWealth — QA sign-off sheet (Phases 1–16)
+# EcoWealth — QA sign-off sheet (Phases 1–18)
 
-Fill this sheet while working through the sixteen phase documents. Hand the completed sheet plus the
+Fill this sheet while working through the phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
@@ -24,8 +24,8 @@ folder.
    lives in `docs/qa/evidence/phase-<n>/`. Phases 1–3 predate the per-phase folders, so their evidence
    lives in the topic folders (`dashboard/`, `errors/`, `shell/`, `shop/`); a check with no screenshot
    cites the automated suite instead.
-4. Log every failure in the *Defect log* (§16) and keep its status up to date.
-5. Complete the *Final decision* (§17) and sign.
+4. Log every failure in the *Defect log* (§20) and keep its status up to date.
+5. Complete the *Final decision* (§21) and sign.
 
 ---
 
@@ -707,7 +707,59 @@ Phases 1–16: the passes were executed by the automated QA agent and the lead c
 
 ---
 
-## 19. Defect log
+## 19. Phase 18 — Repeat-purchase bonus escrow (post-17 point release)
+
+Document: [../qa-unilevel-product.md](../qa-unilevel-product.md) — **v2**
+
+Phase 18 is a **post-17 point release**: `APP_PHASE` stays **17** and the build reports phase 17. It
+moves the repeat-purchase cash event from payment to **release**: a paid order writes `pending` awards
+and moves no money, and the release job credits the wallet after delivery + the award's snapshotted
+hold. The walkthrough is a **v2** of the beginner's manual, not a new numbered pack; the checks below
+are the rows this sheet records. The full expectation for each is in the walkthrough.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check      # exit 0
+php bin/wallet_reconcile.php               # exit 0, five sections (Repeat-purchase now reports pending/cancelled)
+php bin/unilevel_release.php --doctor      # cancelled_due 0, due_now 0 after the last run, free lock, writable log
+```
+
+| # | Result |
+|---|---|
+| Migration `021` applied twice (idempotent); a fresh install reads **31 tables / 56 settings** | ☐ Pass ☐ Fail ☐ Blocked |
+| A paid order writes `pending` awards and **zero** wallet movements | ☐ Pass ☐ Fail ☐ Blocked |
+| The release job credits exactly once, and a second run credits nothing | ☐ Pass ☐ Fail ☐ Blocked |
+| `php bin/unilevel_release.php --doctor` is clean (`cancelled_due` 0) | ☐ Pass ☐ Fail ☐ Blocked |
+| `php bin/wallet_reconcile.php` exits 0 before and after a cancel/release cycle | ☐ Pass ☐ Fail ☐ Blocked |
+
+**The escrow checks** (evidence names are the **expected** files under
+`docs/qa/evidence/unilevel-escrow/`; mark the column once captured):
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| C1a | At payment the upline's wallet does **not** move: **Pending release ₱12.50**, **Total funds** +₱12.50, no statement row | ☐ Pass ☐ Fail ☐ Blocked | `6_c1a_maria_pending.jpeg` |
+| C1b | After delivery + the release run the wallet rises by exactly ₱12.50 once; the award is **Credited** with a release date | ☐ Pass ☐ Fail ☐ Blocked | `6_c1b_maria_released.jpeg`, `6_c1b_admin_order_released.jpeg` |
+| C4 | The buyer's own statement has no award, and their wallet shows no pending bonus for their own purchase | ☐ Pass ☐ Fail ☐ Blocked | `6_c4_buyer_statement.jpeg` |
+| E4 | Cancelling a paid-but-undelivered order: rows **Cancelled before release**, no wallet debit or reversal, **Unrecovered ₱0.00**, and a release run pays it nothing | ☐ Pass ☐ Fail ☐ Blocked | `8_e4_cancel_order.jpeg`, `8_e4_admin_after_cancel.jpeg` |
+| E5 | The payout page shows **Pending release**, the form says it is not included, the over-limit refusal names it, and the success flash names it — no modal, no checkbox | ☐ Pass ☐ Fail ☐ Blocked | `10_e5_payout_reminder.jpeg`, `10_e5_over_limit.jpeg` |
+| E6 | With `unilevel_hold_days = 7`, a delivered order's award stays **Pending release** until the hold elapses (no waiting: the check proves the hold) | ☐ Pass ☐ Fail ☐ Blocked | `10_e6_hold_still_pending.jpeg` |
+
+| Phase 18 summary | |
+|---|---|
+| Executed | ______ / 6 escrow checks (+ the five automated rows above) |
+| Passed / Failed / Blocked | ______ / ______ / ______ |
+| Defects | ______ (log them in §20) |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | ______ |
+
+> The walkthrough's own results sheet also carries A1–A3, B1–B4, C2, C3, C5, D1, D2 and E1–E3; record
+> those in the walkthrough and copy only the summary here. New evidence goes in
+> `docs/qa/evidence/unilevel-escrow/`; the Phase 17 screenshots stay in `evidence/unilevel-product/`.
+
+---
+
+## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
 
@@ -724,7 +776,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 
 ---
 
-## 20. Final decision
+## 21. Final decision
 
 | Phase | Approved? | Notes / accepted exceptions |
 |---|---|---|
@@ -751,6 +803,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 17E | ☑ Yes ☐ No | 9 / 9 checks passed; 938 / 938 PHP cases, 223 / 223 smoke checks; the member panel, preview, order card, repeat tab, tile and paragraph green, including the 390 px pass. |
 | Phase 17F | ☑ Yes ☐ No | 7 / 7 checks passed; 948 / 948 PHP cases, 223 / 223 smoke checks; the doctor, dry run, real close, idempotency, period edges, URL entry and `.cmd` green. |
 | Phase 17G | ☑ Yes ☐ No | 6 / 6 checks passed; 948 / 948 PHP cases, 225 / 225 smoke checks, `build_install_sql --check` exit 0, `wallet_reconcile` exit 0, `APP_PHASE = 17`; the release acceptance table 27 / 27 and the scratch-install deploy replay green; three deviations recorded (no build-phase badge, nine documentation corrections, the automated manual pass). |
+| Phase 18 | ☐ Yes ☐ No | Post-17 point release (`APP_PHASE` stays 17): migration `021`, **31 tables / 56 settings**, five cron jobs; the escrow checks C1a, C1b, C4, E4, E5, E6 in §19, plus the automated pending/release/reconcile rows. Record the counts and the evidence names on the lines above. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

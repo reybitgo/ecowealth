@@ -716,6 +716,9 @@ return [
         setting_set('unilevel_max_levels', '10');
         setting_set('unilevel_requires_active_upline', '1');
         setting_set('unilevel_active_threshold', '500');
+        /* Phase 18: the fixture wants the released state, so the hold is 0. */
+        setting_set('unilevel_hold_days', '0');
+        setting_set('unilevel_release_enabled', '1');
 
         $productId = Product::save([
             'name'             => 'P17D Card Product ' . bin2hex(random_bytes(3)),
@@ -756,6 +759,10 @@ return [
         )->execute(['P17D Card Product', $itemId]);
 
         (new UnilevelService())->onOrderPaid($orderId);
+
+        /* Phase 18: payment records pending awards; deliver + release so
+         * the card has the released rows this case asserts. */
+        test_release_unilevel($orderId);
 
         $order = Order::find($orderId);
         assert_same('90.00', (string) $order['unilevel_total']);
@@ -828,5 +835,109 @@ return [
         assert_contains('No bonus', $card);
         assert_null($order['unilevel_processed_at']);
         assert_same('0.00', (string) $order['unilevel_total']);
+    },
+
+    /* ==========================================================
+     *  Phase 18 — the escrow states on the order card
+     * ========================================================== */
+
+    'P18-T42 a paid order shows its pending release, the due date and no wallet link' => function () use ($placeOrder): void {
+        /* A configured product and a real one-level chain: the reference
+         * preset pays 5% of a ₱500 base = ₱25.00. */
+        $product = Product::save([
+            'name'             => 'P18 Card Pending ' . bin2hex(random_bytes(3)),
+            'sku'              => 'P18-CARD-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'            => '300.00',
+            'pv'               => '250.00',
+            'unilevel_enabled' => '1',
+            'unilevel_base'    => 'auto',
+            'stock'            => '10',
+            'status'           => 'active',
+        ], null, ProductUnilevel::referencePreset());
+
+        setting_set('unilevel_enabled', '1');
+        setting_set('unilevel_max_levels', '10');
+        setting_set('unilevel_requires_active_upline', '0');
+        setting_set('unilevel_hold_days', '7');
+        setting_set('unilevel_release_enabled', '1');
+
+        $member  = test_user('p18_card_buyer_' . bin2hex(random_bytes(3)));
+        $upline  = test_user('p18_card_u1_' . bin2hex(random_bytes(3)));
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([(int) $upline['id'], (int) $member['id']]);
+
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        db()->prepare("UPDATE shop_orders SET status = 'paid', paid_at = NOW() WHERE id = ?")->execute([$orderId]);
+        (new UnilevelService())->onOrderPaid($orderId);
+
+        test_signed_in_as(test_user('p18_card_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $context    = $controller->orderContext(Order::find($orderId));
+        $unilevel   = $context['unilevel'];
+
+        assert_same(12.5, (float) $unilevel['pending_total']);
+        assert_same(0.0, (float) $unilevel['released_total']);
+        assert_same(12.5, (float) $unilevel['total'], 'the stamp is the awarded total');
+        assert_same(true, (bool) $unilevel['release_enabled']);
+
+        $card = $controller->detailFeedPayload(3, '"x"', $context)['fragments']['order-unilevel'];
+
+        assert_contains('pending release', $card);
+        assert_contains('Pending release', $card);
+        assert_contains('Awarded', $card);
+        assert_contains('Released', $card);
+        assert_contains('Pending', $card);
+        /* Pending money has no wallet movement, so no wallet link. */
+        assert_not_contains('admin/wallets/', $card);
+    },
+
+    'P18-T43 a cancelled-before-release order keeps its rows and says No bonus released' => function () use ($placeOrder): void {
+        $product = Product::save([
+            'name'             => 'P18 Card Cancel ' . bin2hex(random_bytes(3)),
+            'sku'              => 'P18-CCAN-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'            => '300.00',
+            'pv'               => '250.00',
+            'unilevel_enabled' => '1',
+            'unilevel_base'    => 'auto',
+            'stock'            => '10',
+            'status'           => 'active',
+        ], null, ProductUnilevel::referencePreset());
+
+        setting_set('unilevel_enabled', '1');
+        setting_set('unilevel_max_levels', '10');
+        setting_set('unilevel_requires_active_upline', '0');
+        setting_set('unilevel_hold_days', '7');
+        setting_set('unilevel_reversal_enabled', '1');
+
+        $member = test_user('p18_ccard_buyer_' . bin2hex(random_bytes(3)));
+        $upline = test_user('p18_ccard_u1_' . bin2hex(random_bytes(3)));
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([(int) $upline['id'], (int) $member['id']]);
+
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        db()->prepare("UPDATE shop_orders SET status = 'paid', paid_at = NOW() WHERE id = ?")->execute([$orderId]);
+        (new UnilevelService())->onOrderPaid($orderId);
+
+        (new PaymentService())->cancelByAdmin((int) Member::primaryAdmin()['id'], $orderId, 'admin_cancel');
+
+        test_signed_in_as(test_user('p18_cancel_card_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $context    = $controller->orderContext(Order::find($orderId));
+        $unilevel   = $context['unilevel'];
+
+        assert_same(12.5, (float) $unilevel['cancelled_total']);
+        assert_same(0.0, (float) $unilevel['pending_total']);
+        assert_same(true, (bool) $unilevel['is_cancelled']);
+
+        $card = $controller->detailFeedPayload(4, '"x"', $context)['fragments']['order-unilevel'];
+
+        assert_contains('No bonus released', $card);
+        assert_contains('Cancelled before release', $card);
+        assert_contains('This order was cancelled before any repeat-purchase bonus was released', $card);
+        assert_not_contains('admin/wallets/', $card);
     },
 ];

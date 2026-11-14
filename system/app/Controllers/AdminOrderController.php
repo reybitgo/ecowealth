@@ -281,6 +281,60 @@ final class AdminOrderController
             (string) ($order['shipping_postal'] ?? ''),
         ]));
 
+        /* Phase 18: the repeat-purchase card. `unilevel_total` remains the
+         * awarded figure (pending + credited, plan ESC-08); the escrow
+         * totals below are derived from the rows already loaded, so the
+         * card never issues a second query (plan §19.1). A cancelled order
+         * still shows its rows — the audit trail is the point. */
+        $awards         = UnilevelAward::forOrder($orderId);
+        $releasedTotal  = 0.0;
+        $pendingTotal   = 0.0;
+        $cancelledTotal = 0.0;
+        $nextReleaseAt  = null;
+
+        foreach ($awards as $award) {
+            $awardStatus = (string) $award['status'];
+            $amount      = round((float) $award['amount'], 2);
+
+            if ($awardStatus === 'credited') {
+                $releasedTotal = round($releasedTotal + $amount, 2);
+                continue;
+            }
+
+            if ($awardStatus === 'cancelled') {
+                $cancelledTotal = round($cancelledTotal + $amount, 2);
+                continue;
+            }
+
+            if ($awardStatus !== 'pending') {
+                continue;
+            }
+
+            $pendingTotal = round($pendingTotal + $amount, 2);
+
+            /* Due date = delivery (or completion) + the award's
+             * snapshotted hold. An undelivered order has no date yet. */
+            $delivered = $award['order_delivered_at'] ?? null;
+            $completed = $award['order_completed_at'] ?? null;
+            $base      = $delivered !== null && $delivered !== ''
+                ? (string) $delivered
+                : ($completed !== null && $completed !== '' ? (string) $completed : '');
+            $baseTs    = $base === '' ? false : strtotime($base);
+
+            if ($baseTs === false) {
+                continue;
+            }
+
+            $due = date(
+                'Y-m-d H:i:s',
+                $baseTs + max(0, (int) ($award['hold_days'] ?? 0)) * 86400
+            );
+
+            if ($nextReleaseAt === null || $due < $nextReleaseAt) {
+                $nextReleaseAt = $due;
+            }
+        }
+
         return [
             'order'            => $order,
             'lines'            => Order::items($orderId),
@@ -314,14 +368,23 @@ final class AdminOrderController
             'full_address'     => $fullAddress,
             /* Phase 17D: the repeat-purchase card. The stamp distinguishes
              * "not paid", "paid before the feature" and "processed", so the
-             * card can explain a zero payout instead of guessing. */
+             * card can explain a zero payout instead of guessing.
+             * Phase 18 adds the escrow split: released (in a wallet now),
+             * pending (earned, not paid yet) and cancelled (never paid). */
             'unilevel'         => [
-                'awards'       => UnilevelAward::forOrder($orderId),
-                'processed_at' => $order['unilevel_processed_at'],
-                'total'        => (float) $order['unilevel_total'],
-                'is_paid'      => Order::isPaid($order),
-                'status'       => $status,
-                'enabled'      => UnilevelService::enabled(),
+                'awards'          => $awards,
+                'processed_at'    => $order['unilevel_processed_at'],
+                'total'           => (float) $order['unilevel_total'],
+                'released_total'  => $releasedTotal,
+                'pending_total'   => $pendingTotal,
+                'cancelled_total' => $cancelledTotal,
+                'next_release_at' => $nextReleaseAt,
+                'is_paid'         => Order::isPaid($order),
+                'is_cancelled'    => $status === 'cancelled'
+                    || ($order['cancelled_at'] ?? null) !== null,
+                'status'          => $status,
+                'enabled'         => UnilevelService::enabled(),
+                'release_enabled' => UnilevelService::releaseEnabled(),
             ],
         ];
     }

@@ -20,6 +20,7 @@ dual-balance e-wallet, commissions, transfers, payouts, super-login and the repo
 | 4 | Payout hold | **Admin → Dashboard → Held for payout** / **Payouts** | every open request has a reason to wait; none older than a day |
 | 5 | Audit desk | **Admin → Audit log** | today's settings changes, exports and S-Login exits are the ones you made |
 | 6 | Cron log | `system\storage\logs\*.log` | one line per run for each job; no `[ERROR]` |
+| 7 | Repeat-purchase release | `php bin\unilevel_release.php --doctor` | free lock, writable log, `cancelled_due` **0**, `due_now` 0 after the last run; pending is the only figure that should be non-zero on a normal day |
 
 If check 1 or 2 fails, stop and read §5 before touching money. Nothing in this app repairs a
 balance automatically; a mismatch means a write happened outside its service.
@@ -28,7 +29,7 @@ balance automatically; a mismatch means a write happened outside its service.
 
 ## 2. Scheduled jobs
 
-Four jobs run unattended; the exact commands, Windows Task Scheduler registration, kill switches
+Five jobs run unattended; the exact commands, Windows Task Scheduler registration, kill switches
 and log formats are in [`cron.md`](cron.md) (see §5 for the Task Scheduler block).
 
 | Job | Schedule | Entry |
@@ -37,16 +38,21 @@ and log formats are in [`cron.md`](cron.md) (see §5 for the Task Scheduler bloc
 | Delivered-order auto-complete | hourly | `bin\order_autocomplete.php` |
 | Transfer-limit reset | daily at 00:00 | `bin\reset_transfer_limits.php` |
 | Unilevel month close (the Active snapshot) | monthly, 00:15 on the 1st | `bin\unilevel_month_close.php` |
+| Unilevel release (credits pending repeat-purchase awards) | hourly at :20 | `bin\unilevel_release.php --limit=200` |
 
-All four are idempotent, take an advisory lock, write one monthly log line and have a `--doctor`
+All five are idempotent, take an advisory lock, write one monthly log line and have a `--doctor`
 mode. A second overlapping run logs `[SKIP ]` and exits 0. The month close pays no money and has no
 kill switch: it must snapshot a month even while the repeat-purchase stream is off. It catches up on
-any month it missed, oldest first.
+any month it missed, oldest first. The release job **does** have a switch
+(`unilevel_release_enabled`): turning it off pauses the credits but keeps every pending award, and
+cancelling an order still cancels its pending awards.
 
 **If a job misses a day:** the expiry and auto-complete jobs catch up on their next run (they act on
-stored deadlines); the month close closes every pending month on its next run; the weekly transfer
-counter keeps yesterday's usage until the next Monday, and a limit can only get *stricter* in the
-meantime, never wider. Run `php bin\reset_transfer_limits.php --week` once to clear it by hand.
+stored deadlines); the month close closes every pending month on its next run; every due release is
+credited on the next release run (the window is day-granular, so a missed hour loses nothing); the
+weekly transfer counter keeps yesterday's usage until the next Monday, and a limit can only get
+*stricter* in the meantime, never wider. Run `php bin\reset_transfer_limits.php --week` once to clear
+it by hand.
 
 ---
 
@@ -119,7 +125,7 @@ also needs `config.local.php`, the uploads folder and the `system/storage` folde
 
 ### Install a fresh database
 
-Every install path ends at the same state: **31 tables, 54 settings, 2 staff accounts, 7
+Every install path ends at the same state: **31 tables, 56 settings, 2 staff accounts, 7
 products, 2 packages, 18 ladder levels, 10 package contents, 0 members, 0 codes**. None of
 them may be run against a schema that already holds data — `install.sql` is fresh-install only,
 and an existing database is upgraded with `database/migrations/NNN_*.sql` ([§5](#5-deploying-an-update)).
@@ -246,8 +252,10 @@ money was involved. Full engine detail: `dmp/plan-ecowealth-install-reset.md` §
 6. Every award points at a real activation and its ledger row; every approved activation is processed.
 7. Every completed payout has one ledger debit; a rejected payout has one refund and no hold.
 8. Every credited or voided repeat-purchase award has its `ref_type='unilevel'` credit; every
-   `ref_type='unilevel_reversal'` debit equals the award's `reversed_amount`.
-9. `shop_orders.unilevel_total` equals the sum of that order's still-`credited` awards.
+   `ref_type='unilevel_reversal'` debit equals the award's `reversed_amount`; a `pending` or
+   `cancelled` award has **no** ledger row.
+9. `shop_orders.unilevel_total` equals the sum of that order's **`pending` + `credited`** awards (the
+   awarded total, not the released total).
 
 Checks 1–3, 7 and 8 are also the five service reconciliations behind
 `bin\wallet_reconcile.php`; the Reports page adds 4–6 in the **Finance health** widget.
@@ -266,13 +274,28 @@ Checks 1–3, 7 and 8 are also the five service reconciliations behind
 6. Re-run the reconciliation and the Reports health card; both must be clean before the incident is
    closed. Record what happened in the phase log.
 
-### Repeat-purchase awards (Phases 17C–17F)
+### Repeat-purchase awards — escrow and release (Phases 17C–17F + 18)
 
-**What it pays.** A paid shop order pays the product's 1–10 ladder to the buyer's sponsor chain:
-level 1 is the direct sponsor, level 10 the tenth upline. The buyer earns nothing. Each credited level
-is a withdrawable wallet credit (`ref_type = 'unilevel'`, `ref_id = unilevel_awards.id`). The stream is
-off until **both** `settings.unilevel_enabled = 1` and the product's `products.unilevel_enabled = 1`;
-an order paid with either off is stamped with a zero total and can never be paid later.
+**What it pays.** A paid shop order awards the product's 1–10 ladder to the buyer's sponsor chain:
+level 1 is the direct sponsor, level 10 the tenth upline. The buyer earns nothing. Since the escrow
+change (Phase 18) the award is written as **`pending`** and **no money moves** at payment; the release
+job later credits the upline's **withdrawable** wallet (`ref_type = 'unilevel'`,
+`ref_id = unilevel_awards.id`) once the order is delivered and the award's snapshotted
+`hold_days` window has passed. The stream is off until **both** `settings.unilevel_enabled = 1` and
+the product's `products.unilevel_enabled = 1`; an order paid with either off is stamped with a zero
+total and can never be paid later.
+
+The award states are the whole operational picture:
+
+| `status` | Money | Meaning |
+|---|---|---|
+| `pending` | none | earned at payment; **not** in a wallet; releases after delivery + its hold |
+| `credited` | one `unilevel` credit | released; `credited_at` and `ledger_id` set |
+| `cancelled` | none | the order was cancelled before release; never paid, **no shortfall** |
+| `voided` | one reversal debit | released then reversed; `reversed_amount` may be less than `amount` |
+| `skipped` | none | the recipient was ineligible; an audit note, never money |
+
+`shop_orders.unilevel_total` is the **awarded** total — `pending + credited`, not the released total.
 
 **Weekly checks.**
 
@@ -284,18 +307,93 @@ SELECT o.id, o.order_no, o.paid_at FROM shop_orders o
    AND o.unilevel_processed_at IS NULL
    AND EXISTS (SELECT 1 FROM shop_order_events e WHERE e.order_id = o.id AND e.to_status = 'paid');
 
--- Award status counts and money by period (a quick finance read).
+-- Award status counts and money by period (a quick finance read: pending is earned, not yet paid).
 SELECT DATE_FORMAT(paid_at, '%Y-%m') AS period, status, COUNT(*) AS n, SUM(amount) AS amount
   FROM unilevel_awards GROUP BY period, status ORDER BY period DESC, status;
 
--- Unrecovered shortfalls from cancelled orders (visible, never forgiven).
+-- Unrecovered shortfalls: released money the wallet could not return. Only voided awards count.
 SELECT order_id, user_id, amount, reversed_amount, amount - reversed_amount AS shortfall
   FROM unilevel_awards WHERE status = 'voided' AND reversed_amount < amount ORDER BY id DESC;
 ```
 
-`php bin\wallet_reconcile.php` reports a **Repeat-purchase** section (credited/voided/skipped counts,
-the `unilevel` and `unilevel_reversal` totals, and the baseline). Exit 0 means the awards, their wallet
-movements and the order totals agree.
+**The escrow checks (weekly, and whenever a member asks about a pending bonus).**
+
+```sql
+-- 1. Pending total and count: the liability that is earned and not yet in a wallet.
+SELECT COUNT(*) AS pending_awards, COALESCE(SUM(amount), 0) AS pending_total
+  FROM unilevel_awards WHERE status = 'pending';
+
+-- 2. The oldest pending award and its age — a large age means an undelivered order.
+SELECT MIN(a.created_at) AS oldest_pending,
+       DATEDIFF(NOW(), MIN(a.created_at)) AS age_days
+  FROM unilevel_awards a WHERE a.status = 'pending';
+
+-- 3. Pending awards on shipped orders (in transit, waiting for delivery — normal but watch the age).
+SELECT o.id, o.order_no, o.shipped_at, COUNT(*) AS awards, SUM(a.amount) AS amount
+  FROM unilevel_awards a JOIN shop_orders o ON o.id = a.order_id
+ WHERE a.status = 'pending' AND o.status = 'shipped'
+ GROUP BY o.id, o.order_no, o.shipped_at ORDER BY o.shipped_at ASC;
+
+-- 4. Due but not released: the release job should have credited these. Must be 0 after a clean run.
+SELECT a.order_id, COUNT(*) AS awards, SUM(a.amount) AS amount,
+       MIN(DATE_ADD(COALESCE(o.delivered_at, o.completed_at), INTERVAL a.hold_days DAY)) AS first_due
+  FROM unilevel_awards a JOIN shop_orders o ON o.id = a.order_id
+ WHERE a.status = 'pending'
+   AND o.cancelled_at IS NULL
+   AND o.status IN ('delivered','completed')
+   AND COALESCE(o.delivered_at, o.completed_at) IS NOT NULL
+   AND DATE_ADD(COALESCE(o.delivered_at, o.completed_at), INTERVAL a.hold_days DAY) <= NOW()
+ GROUP BY a.order_id ORDER BY first_due ASC;
+
+-- 5. A cancelled order must never keep a pending award. Must return 0 rows.
+SELECT o.id, o.order_no, o.cancelled_at, COUNT(*) AS pending_awards
+  FROM unilevel_awards a JOIN shop_orders o ON o.id = a.order_id
+ WHERE a.status = 'pending' AND o.cancelled_at IS NOT NULL
+ GROUP BY o.id, o.order_no, o.cancelled_at;
+```
+
+`php bin\wallet_reconcile.php` reports a **Repeat-purchase** section (pending/cancelled counts and
+amounts, credited/released, the `unilevel` and `unilevel_reversal` totals, and the baseline). Exit 0
+means the awards, their wallet movements and the order totals agree. Stuck pending is printed as a
+warning, not a mismatch.
+
+**The release job and its doctor.** Run the job by hand only to catch up or to diagnose; the hourly
+cron does the real work ([`cron.md` §6](cron.md)).
+
+```powershell
+php bin\unilevel_release.php --doctor     # clocks, switches, hold, pending, oldest, due, undelivered, stuck, cancelled_due, lock, log
+php bin\unilevel_release.php --dry-run    # the orders/awards it would credit; changes nothing
+php bin\unilevel_release.php              # release everything due (one transaction per order)
+php bin\unilevel_release.php --order=93   # one order, still under the normal due rule
+```
+
+In a browser: `http://localhost/ecowealth/system/cron/unilevel_release.php?doctor=1` (loopback is
+trusted; any other caller needs `?key=`). The HTTP form works when there is no terminal.
+
+**If a release is wrong.**
+
+1. **Do not hand-edit `unilevel_awards`, `unilevel_periods` or any wallet row.** The award row *is* the
+   escrow ledger; changing a status or a `ledger_id` by SQL breaks the reconcile and the audit trail.
+2. `--doctor` first: `cancelled_due` must be `0`; `due_now` should be `0` right after a run; a large
+   `undelivered`/`stuck_shipped` figure is a fulfilment problem, not a release bug.
+3. `errors>0` in the log (exit 1) means the order's transaction rolled back: the awards are still
+   `pending` and the next run retries them. Fix the cause (wallets, database) and let it retry.
+4. A credit that looks wrong is a reconcile question: run `php bin\wallet_reconcile.php --json`, then
+   read the award's `ledger_id`/`credited_at` against the wallet statement. A missing or duplicated
+   movement is a developer incident with a one-off script and its own approval — never a manual
+   `UPDATE`.
+
+**Pausing releases.** Set `settings.unilevel_release_enabled = 0`. The job then exits 0, logs a
+`WARN` and credits nothing; pending awards stay pending with their due dates unchanged, so they release
+on the first run after the switch is back on. Cancelling an order still cancels its pending awards
+while releases are paused. Do not “pause” by turning off the master switch — `unilevel_enabled = 0`
+stops *new* awards and still lets the pending ones release.
+
+**Rollback and roll-forward.** The release is safe to pause (`unilevel_release_enabled = 0`) and safe
+to resume; there is no lost money either way. Do **not** revert the cancellation path: pending awards
+must always be cancelled with the order, before the `unilevel_reversal_enabled` check. If a bad release
+must be undone, that is a reversal decision for the developer and finance, not an `UPDATE`; the
+supported lever is to pause releases and fix the cause.
 
 **The month clock (weekly, and on the 1st).** The Active rule reads the month that just ended. Confirm
 the snapshot exists before you trust a "not Active" complaint:
@@ -322,33 +420,48 @@ closed month is final — there is no reopen, so never hand-edit `unilevel_activ
 close runs: the snapshot decides who is Active, and the engine's live fallback is only as good as the
 clock it reads.
 
+> **The month close's `award_total` is the month's EARNED repeat-purchase money: `pending + credited`.**
+> A bonus that was still pending at close is included, and a later cancellation does not rewrite the
+> closed month (the period is an immutable snapshot). Do not “correct” a closed period when an award is
+> cancelled afterwards.
+
 **If it fails.**
 
 1. Read the mismatch kind: `total`, `reversal_total`, `missing_ledger`, `orphan_ledger`, `amount`,
-   `reversal_amount`, `order_total` or `unstamped`.
-2. Do **not** delete an award or a ledger row and do **not** edit `users.ewallet_balance`; the ledger
-   is the audit trail. A missing movement is repaired by fixing the cause, then asking a developer for
-   a one-off correction script with its own approval.
-3. `missing_ledger` / `amount` on a recent order: check `storage/logs` for the payment transaction;
-   the award and its credit are written in one transaction, so a half-written pair is a database
-   incident, not a normal state.
-4. `unstamped`: an order was paid through the app but the hook did not run. Do **not** re-run it
+   `reversal_amount`, `order_total`, `pending_on_cancelled`, `pending_ledger` or `unstamped`.
+2. Do **not** delete an award or a ledger row, do **not** edit `users.ewallet_balance`, and do **not**
+   hand-edit an award's `status`: the ledger is the audit trail. A missing movement is repaired by
+   fixing the cause, then asking a developer for a one-off correction script with its own approval.
+3. `missing_ledger` / `amount` / `pending_ledger`: a `credited`/`voided` row has no wallet movement, or a
+   `pending`/`cancelled` row has one. Re-run the release for that order (`--order=ID`) only when the
+   award is still `pending`; otherwise escalate.
+4. `pending_on_cancelled`: a cancelled order kept a pending award — the exact bug the cancellation path
+   exists to prevent. Pause releases, take a backup, run the reconcile and escalate.
+5. `unstamped`: an order was paid through the app but the hook did not run. Do **not** re-run it
    blindly; open the order, confirm the awards are absent, then have a developer call
    `UnilevelService::onOrderPaid()` once and re-run the reconcile.
-5. `order_total`: `shop_orders.unilevel_total` disagrees with the credited awards. A cancellation
-   recomputes it; a manual correction is a developer script, never an `UPDATE … SET unilevel_total`.
+6. `order_total`: `shop_orders.unilevel_total` disagrees with the `pending + credited` awards. A
+   cancellation recomputes it; a manual correction is a developer script, never an
+   `UPDATE … SET unilevel_total`.
 
-**Reversing a payout.** Admin-cancel the paid order (`/admin/orders/{id}`). The order's awards are
-voided, the buyer is refunded as usual, and each upline's wallet is debited only as far as its
-withdrawable balance allows; the rest is recorded on the award as a shortfall and shown as
-*Unrecovered* in the ledger (17D). A negative balance is impossible and a cancellation is never
-blocked. Setting `unilevel_reversal_enabled = 0` leaves the awards credited instead — a business
-decision, not a repair path.
+**Reversing a payout.** Admin-cancel the paid order (`/admin/orders/{id}`):
+
+- **Before release**, its `pending` awards become `cancelled`: **no wallet debit, no reversal row, no
+  shortfall**. The buyer is refunded as usual and the order's `unilevel_total` drops to `0`. This is
+  the normal path for a new order.
+- **After release** (legacy awards, or a future returns module), the `credited` awards are voided and
+  each upline's wallet is debited only as far as its withdrawable balance allows; the rest is recorded
+  on the award as a shortfall and shown as *Unrecovered*. `unilevel_reversal_enabled = 0` leaves those
+  credited awards alone — a business decision, not a repair path. In the current lifecycle an order
+  cannot be cancelled after it ships, so this path is legacy.
+
+A negative balance is impossible and a cancellation is never blocked.
 
 **Turning it off.** Set `settings.unilevel_enabled = 0` first; new payments are stamped and pay
-nothing immediately. Existing awards stay in the wallets and in `unilevel_awards` — they are real
-money and a code rollback must not delete them. The ledger remains reconcilable because the command
-reads the tables, not the code path.
+nothing immediately. Existing `pending` awards still release unless `unilevel_release_enabled` is also
+off (see **Pausing releases**). Existing `credited` money stays in the wallets and in
+`unilevel_awards` — it is real money and a code rollback must not delete it. The ledger remains
+reconcilable because the command reads the tables, not the code path.
 
 **Who writes the clock.** `unilevel_activity` / `unilevel_periods` are written only by
 `UnilevelCycle::close()` (17C) and, from 17F, by its scheduled job — never from a page. A member with
@@ -375,8 +488,8 @@ Full instructions are in [`deploy.md`](deploy.md). The short version:
 
 1. Back up the database (§3) and the current files.
 2. Copy the files; keep `config.local.php` and `uploads/` from the server.
-3. Apply migrations in order — the Phase 17 build is at
-   **020_unilevel_repeat_purchase.sql** (17C adds no migration).
+3. Apply migrations in order — the current build is at
+   **021_unilevel_bonus_escrow.sql** (the repeat-purchase escrow; the Phase 17 build was `020`).
    `php bin` has no migration runner; import with the MySQL client, then compare with
    `database\schema.sql` (`php tests\run.php Migration` does that automatically on a scratch
    schema). Never import `database/install.sql` into an existing database: it is fresh-install
@@ -445,9 +558,9 @@ database dump before investigating further.
 
 ## 7. Go-live checklist (plan §9.6)
 
-- [ ] Production database created and migrated to `020`; `schema.sql` matches. A fresh install
+- [ ] Production database created and migrated to `021`; `schema.sql` matches. A fresh install
       was verified with the pack in [deploy.md §11.6](deploy.md#116-check-the-database):
-      **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+      **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
 - [ ] Seeds replaced or removed: **only one admin and one superadmin**, no demo members, codes,
       orders or wallets (the `005_demo_tree.sql` data is demo only). The two demo queries in
       [deploy.md §12](deploy.md#12-secure-and-clean-up) both return `0`.
@@ -462,7 +575,7 @@ database dump before investigating further.
 - [ ] HTTPS enabled; HSTS is sent only over TLS.
 - [ ] `public/uploads/` writable, its `.htaccess` present; a PHP probe under `uploads/` returns 403.
 - [ ] Security headers verified on `/login` and `/admin` (see §8).
-- [ ] Cron scheduled and verified (four jobs, §2); one run appears in the log.
+- [ ] Cron scheduled and verified (five jobs, §2); one run appears in the log.
 - [ ] A backup has been taken **and restored** (§3).
 - [ ] Admin and superadmin passwords changed and neither is a documented default
       (`Admin@123`, `Super@123`); payment accounts, transfer fee/limits, payout methods/fees/USDT

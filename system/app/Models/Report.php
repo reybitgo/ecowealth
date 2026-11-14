@@ -361,13 +361,19 @@ final class Report
     /**
      * Repeat-purchase counters for a window: credited money, awards,
      * skipped and voided decisions, distinct recipients and the
-     * unreturned shortfall — plus all-time and this-month totals.
+     * unreturned shortfall — plus the escrow figures (pending release
+     * and cancelled-before-release) and all-time / this-month totals.
      *
-     * A `skipped` row is an audit note, never money (plan §8 Rule 5).
+     * `amount` / `count` remain released money (the wallet was credited
+     * at release); `pending_amount` / `pending_count` are earned but not
+     * in a wallet, and `cancelled_count` was never paid at all. A
+     * `skipped` row is an audit note, never money (plan §8 Rule 5,
+     * §19.6).
      *
      * @return array{
      *   amount:float, count:int, skipped:int, voided:int, unrecovered:float,
-     *   recipients:int, all_time:float, this_month:float
+     *   recipients:int, all_time:float, this_month:float,
+     *   pending_amount:float, pending_count:int, cancelled_count:int
      * }
      */
     public static function unilevelSummary(string $from, string $to, ?PDO $pdo = null): array
@@ -380,7 +386,10 @@ final class Report
                     COUNT(CASE WHEN status = 'voided'   THEN 1 END) AS voided,
                     COALESCE(SUM(CASE WHEN status = 'voided'
                                       THEN amount - reversed_amount ELSE 0 END), 0) AS unrecovered,
-                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients
+                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending_amount,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+                    COUNT(CASE WHEN status = 'cancelled' THEN 1 END) AS cancelled_count
                FROM unilevel_awards
               WHERE created_at >= ? AND created_at < ?"
         );
@@ -396,21 +405,28 @@ final class Report
         )->fetch() ?: [];
 
         return [
-            'amount'       => round((float) ($row['amount'] ?? 0), 2),
-            'count'        => (int) ($row['credited'] ?? 0),
-            'skipped'      => (int) ($row['skipped'] ?? 0),
-            'voided'       => (int) ($row['voided'] ?? 0),
-            'unrecovered'  => round((float) ($row['unrecovered'] ?? 0), 2),
-            'recipients'   => (int) ($row['recipients'] ?? 0),
-            'all_time'     => round((float) ($totals['all_time'] ?? 0), 2),
-            'this_month'   => round((float) ($totals['this_month'] ?? 0), 2),
+            'amount'          => round((float) ($row['amount'] ?? 0), 2),
+            'count'           => (int) ($row['credited'] ?? 0),
+            'skipped'         => (int) ($row['skipped'] ?? 0),
+            'voided'          => (int) ($row['voided'] ?? 0),
+            'unrecovered'     => round((float) ($row['unrecovered'] ?? 0), 2),
+            'recipients'      => (int) ($row['recipients'] ?? 0),
+            'all_time'        => round((float) ($totals['all_time'] ?? 0), 2),
+            'this_month'      => round((float) ($totals['this_month'] ?? 0), 2),
+            'pending_amount'  => round((float) ($row['pending_amount'] ?? 0), 2),
+            'pending_count'   => (int) ($row['pending_count'] ?? 0),
+            'cancelled_count' => (int) ($row['cancelled_count'] ?? 0),
         ];
     }
 
     /**
-     * Credited awards per ladder level (1 … 10), skips included.
+     * Credited awards per ladder level (1 … 10), skips included, with
+     * the pending escrow figures beside the released ones.
      *
-     * @return list<array{level:int, count:int, amount:float, skipped:int}>
+     * @return list<array{
+     *   level:int, count:int, amount:float, skipped:int,
+     *   pending_count:int, pending_amount:float
+     * }>
      */
     public static function unilevelByLevel(string $from, string $to, ?PDO $pdo = null): array
     {
@@ -419,7 +435,9 @@ final class Report
             "SELECT level,
                     COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
                     COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS amount,
-                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped
+                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending_amount
                FROM unilevel_awards
               WHERE created_at >= ? AND created_at < ?
               GROUP BY level
@@ -431,10 +449,12 @@ final class Report
 
         foreach ($stmt->fetchAll() as $row) {
             $rows[] = [
-                'level'   => (int) $row['level'],
-                'count'   => (int) $row['credited'],
-                'amount'  => round((float) $row['amount'], 2),
-                'skipped' => (int) $row['skipped'],
+                'level'          => (int) $row['level'],
+                'count'          => (int) $row['credited'],
+                'amount'         => round((float) $row['amount'], 2),
+                'skipped'        => (int) $row['skipped'],
+                'pending_count'  => (int) $row['pending_count'],
+                'pending_amount' => round((float) $row['pending_amount'], 2),
             ];
         }
 
@@ -442,9 +462,13 @@ final class Report
     }
 
     /**
-     * Repeat-purchase money per product, biggest first.
+     * Repeat-purchase money per product, biggest first, with the pending
+     * escrow figures beside the released ones.
      *
-     * @return list<array{product_id:int, product:string, count:int, amount:float, skipped:int}>
+     * @return list<array{
+     *   product_id:int, product:string, count:int, amount:float, skipped:int,
+     *   pending_count:int, pending_amount:float
+     * }>
      */
     public static function unilevelByProduct(string $from, string $to, int $limit = 8, ?PDO $pdo = null): array
     {
@@ -455,7 +479,9 @@ final class Report
             "SELECT a.product_id, p.name AS product,
                     COUNT(CASE WHEN a.status = 'credited' THEN 1 END) AS credited,
                     COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS amount,
-                    COUNT(CASE WHEN a.status = 'skipped' THEN 1 END) AS skipped
+                    COUNT(CASE WHEN a.status = 'skipped' THEN 1 END) AS skipped,
+                    COUNT(CASE WHEN a.status = 'pending' THEN 1 END) AS pending_count,
+                    COALESCE(SUM(CASE WHEN a.status = 'pending' THEN a.amount ELSE 0 END), 0) AS pending_amount
                FROM unilevel_awards a
                JOIN products p ON p.id = a.product_id
               WHERE a.created_at >= ? AND a.created_at < ?
@@ -469,11 +495,13 @@ final class Report
 
         foreach ($stmt->fetchAll() as $row) {
             $rows[] = [
-                'product_id' => (int) $row['product_id'],
-                'product'    => (string) $row['product'],
-                'count'      => (int) $row['credited'],
-                'amount'     => round((float) $row['amount'], 2),
-                'skipped'    => (int) $row['skipped'],
+                'product_id'     => (int) $row['product_id'],
+                'product'        => (string) $row['product'],
+                'count'          => (int) $row['credited'],
+                'amount'         => round((float) $row['amount'], 2),
+                'skipped'        => (int) $row['skipped'],
+                'pending_count'  => (int) $row['pending_count'],
+                'pending_amount' => round((float) $row['pending_amount'], 2),
             ];
         }
 

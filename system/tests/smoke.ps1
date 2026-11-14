@@ -2967,7 +2967,8 @@ try {
         'commission_direct_enabled', 'commission_indirect_enabled', 'commission_requires_active_sponsor',
         'commission_compression', 'free_registration_enabled', 'commission_indirect_max_levels',
         'unilevel_enabled', 'unilevel_max_levels', 'unilevel_requires_active_upline',
-        'unilevel_active_threshold', 'unilevel_reversal_enabled'
+        'unilevel_active_threshold', 'unilevel_reversal_enabled',
+        'unilevel_hold_days', 'unilevel_release_enabled'
     )
 
     $p17bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
@@ -3152,6 +3153,7 @@ try {
     # master is off. 17C's hook stamps the order as "decided, nothing
     # due" (a date and a zero total) and still writes no award.
     $p17bAwardsBefore = (Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim()
+    $p17bLedgerBefore = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('unilevel', 'unilevel_reversal');" | Out-String).Trim()
 
     Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' `
         -Form @{ '_csrf' = $adminToken; 'amount' = '500.00'; 'note' = 'Smoke repeat order funds' } | Out-Null
@@ -3190,8 +3192,8 @@ try {
 
     Assert-That 'P17B-T20' ($p17bPlace.Status -eq 302 -and $p17bOrderId -gt 0 -and $p17bOrderStatus -eq 'paid' `
             -and $p17bOrderStamp -match '^\d{4}-\d{2}-\d{2}\|0\.00$' -and $p17bAwardsAfter -eq $p17bAwardsBefore `
-            -and $p17bAwardsAfter -eq '0' -and $p17bUnilevelLedger -eq '0') `
-        "a paid order with the global stream off is stamped with a zero total and writes no award (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsAfter, ledger=$p17bUnilevelLedger)"
+            -and $p17bUnilevelLedger -eq $p17bLedgerBefore) `
+        "a paid order with the global stream off is stamped with a zero total and writes no award (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsBefore->$($p17bAwardsAfter), ledger=$p17bLedgerBefore->$($p17bUnilevelLedger))"
 
     # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
     $p17dRan        = $true
@@ -3199,8 +3201,17 @@ try {
 
     # P17D-T2 / QA17D-01 - the repeat tab renders its counters, period card,
     # filters, Lvl column and empty state; the package ledger has not moved.
+    # A disposable copy that already ran the manual QA keeps its awards, so
+    # the empty state is asserted on a clean ledger and the populated rows
+    # region on a copy that has history — both are the same screen.
     $p17dRepeat = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
     $p17dPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $p17dAnyAwards = [int]((Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim())
+    $p17dRowsOrEmpty = if ($p17dAnyAwards -eq 0) {
+        $p17dRepeat.Body -match 'No repeat-purchase bonus has been paid'
+    } else {
+        $p17dRepeat.Body -match 'data-live-region="repeat-rows"'
+    }
     Assert-That 'P17D-T2' ($p17dRepeat.Status -eq 200 `
             -and $p17dRepeat.Body -match 'Repeat-purchase ledger' `
             -and $p17dRepeat.Body -match 'data-live-region="repeat-stats"' `
@@ -3209,10 +3220,10 @@ try {
             -and $p17dRepeat.Body -match '<th scope="col">Lvl</th>' `
             -and $p17dRepeat.Body -match 'name="product_id"' `
             -and $p17dRepeat.Body -match 'name="ledger" value="repeat"' `
-            -and $p17dRepeat.Body -match 'No repeat-purchase bonus has been paid' `
+            -and $p17dRowsOrEmpty `
             -and $p17dRepeat.Body -notmatch 'direct_unilevel' `
             -and $p17dRepeat.Body -notmatch 'indirect_unilevel') `
-        "GET /admin/commissions?ledger=repeat renders the repeat ledger, filters and empty state (status=$($p17dRepeat.Status))"
+        "GET /admin/commissions?ledger=repeat renders the repeat ledger, filters and empty/populated state (status=$($p17dRepeat.Status), awards=$p17dAnyAwards)"
 
     Assert-That 'P17D-T1' ($p17dPackage.Status -eq 200 `
             -and $p17dPackage.Body -match 'Commission ledger' `
@@ -3224,7 +3235,7 @@ try {
     # P17D-T8 - the repeat CSV downloads with the documented columns and
     # writes an `unilevel.export` audit row.
     $p17dCsv = Invoke-App -Path '/admin/commissions/export?ledger=repeat' -Session 'admin'
-    $p17dCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered'
+    $p17dCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered,"Hold days","Released at"'
     $p17dExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'unilevel.export' AND id > $p17dAuditStart;" | Out-String).Trim()
     Assert-That 'P17D-T8' ($p17dCsv.Status -eq 200 `
             -and $p17dCsv.Headers['content-type'] -match 'text/csv' `
@@ -3313,7 +3324,7 @@ try {
     $p17eCheckout = Invoke-App -Path '/checkout' -Session 'member'
     Assert-That 'P17E-T4' ($p17eCheckout.Status -eq 200 `
             -and $p17eCheckout.Body -match 'data-bonus-preview' `
-            -and $p17eCheckout.Body -match 'Up to [^<]{0,4}145\.00 is paid to the members above you' `
+            -and $p17eCheckout.Body -match 'Up to [^<]{0,4}145\.00 is earned by the members above you' `
             -and $p17eCheckout.Body -match 'when this order is paid' `
             -and $p17eCheckout.Body -match 'Team chain' `
             -and $p17eCheckout.Body -match 'monthly minimum' `
@@ -3348,7 +3359,7 @@ try {
     # P17E-T9 / QA17E-05 - the member's repeat CSV uses the documented
     # columns; the export is scoped to the session member.
     $p17eCsv = Invoke-App -Path '/earnings/export?ledger=repeat&level=1&status=credited' -Session 'member'
-    $p17eCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered'
+    $p17eCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered,"Hold days","Released at"'
     Assert-That 'P17E-T9' ($p17eCsv.Status -eq 200 `
             -and $p17eCsv.Headers['content-type'] -match 'text/csv' `
             -and $p17eCsv.Body -match [regex]::Escape($p17eCsvHeader)) `
@@ -3394,6 +3405,46 @@ try {
             -and $null -ne $p17fDry.would_close -and $null -ne $p17fDry.threshold `
             -and $p17fPeriods -eq [int] $p17fDry.would_close) `
         "GET /cron/unilevel_month_close.php?dry-run=1&json=1 returns the CLI's dry-run payload (status=$($p17fDryRaw.Status), would_close=$($p17fDry.would_close), threshold=$($p17fDry.threshold))"
+
+    # ---- Phase 18: the repeat-purchase release job over HTTP ------------
+    # The web entry must be the same job as the CLI: the doctor reports the
+    # kill switch, the snapshotted hold window, the pending picture and the
+    # lock, and the dry run returns the CLI's JSON shape without writing.
+    $p18Doctor = Invoke-App -Path '/cron/unilevel_release.php?doctor=1'
+    Assert-That 'P18-T30' ($p18Doctor.Status -eq 200 `
+            -and $p18Doctor.Body -match 'repeat-purchase release' `
+            -and $p18Doctor.Body -match 'release enabled' `
+            -and $p18Doctor.Body -match 'hold days' `
+            -and $p18Doctor.Body -match 'pending' `
+            -and $p18Doctor.Body -match 'undelivered' `
+            -and $p18Doctor.Body -match 'cancelled due' `
+            -and $p18Doctor.Body -match 'lock\s+free' `
+            -and $p18Doctor.Body -match '\(writable\)') `
+        "GET /cron/unilevel_release.php?doctor=1 reports the switch, hold, pending picture and lock (status=$($p18Doctor.Status))"
+
+    $p18DryRaw = Invoke-App -Path '/cron/unilevel_release.php?dry-run=1&json=1'
+    $p18Dry    = $null
+    try { $p18Dry = ($p18DryRaw.Body | Out-String) | ConvertFrom-Json } catch { }
+    $p18Ids = 0
+    if ($null -ne $p18Dry -and $null -ne $p18Dry.ids) { $p18Ids = @($p18Dry.ids).Count }
+    Assert-That 'P18-T29' ($p18DryRaw.Status -eq 200 -and $null -ne $p18Dry `
+            -and $p18Dry.ok -eq $true -and $p18Dry.trigger -eq 'http' `
+            -and $p18Dry.dry_run -eq $true `
+            -and $null -ne $p18Dry.candidates -and $null -ne $p18Dry.hold_days `
+            -and $p18Ids -eq [int] $p18Dry.candidates) `
+        "GET /cron/unilevel_release.php?dry-run=1&json=1 returns the CLI's dry-run payload (status=$($p18DryRaw.Status), candidates=$($p18Dry.candidates), hold=$($p18Dry.hold_days))"
+
+    # The member wallet and payout pages carry the escrow presentation.
+    $p18Wallet = Invoke-App -Path '/wallet' -Session 'member'
+    Assert-That 'P18-T18' ($p18Wallet.Status -eq 200 `
+            -and $p18Wallet.Body -match 'data-live-region="member-wallet-buckets"') `
+        "GET /wallet renders the wallet buckets region (status=$($p18Wallet.Status))"
+
+    $p18Payouts = Invoke-App -Path '/payouts' -Session 'member'
+    Assert-That 'P18-T19' ($p18Payouts.Status -eq 200 `
+            -and $p18Payouts.Body -match 'data-live-region="payout-balance"' `
+            -and $p18Payouts.Body -match 'data-live-region="payout-request"') `
+        "GET /payouts renders the balance and request regions (status=$($p18Payouts.Status))"
 
     # ---- Phase 15: hardening, reports, settings, audit and launch ------
     $p15Ran = $true
@@ -3508,6 +3559,9 @@ try {
         'unilevel_enabled'                 = '0'
         'unilevel_requires_active_upline'  = '1'
         'unilevel_reversal_enabled'        = '1'
+        # Phase 18: the card also owns the escrow hold and the release switch.
+        'unilevel_hold_days'               = '7'
+        'unilevel_release_enabled'         = '1'
     }
     $p15CommissionsOff = (Get-SettingValue 'commission_direct_enabled') -eq '0'
 

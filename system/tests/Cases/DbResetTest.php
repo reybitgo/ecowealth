@@ -772,9 +772,9 @@ return [
 
         assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM product_unilevel_levels')->fetchColumn(), 'the ladder survives');
         assert_same(
-            6,
+            8,
             (int) $pdo->query("SELECT COUNT(*) FROM settings WHERE key_name LIKE 'unilevel%'")->fetchColumn(),
-            'the six settings survive'
+            'the eight settings survive'
         );
 
         $checks = $byKey($report['verification']['checks']);

@@ -10,6 +10,12 @@ declare(strict_types=1);
  * paid out. Admin top-ups raise the total only (non-withdrawable), so
  * the explanation under the cards matters.
  *
+ * Phase 18 adds the escrow read-out: `pending_repeat` is the
+ * repeat-purchase bonus that is earned but outside both buckets. The
+ * bucket cards show it beside the wallet figures and combine it into a
+ * presentation-only "Total funds" line — it is never spendable or
+ * withdrawable until the release job credits it (plan §10.1).
+ *
  * One live surface per member (`member.wallet:{id}`). The bucket cards,
  * the send-funds card and the statement card are regions; the statement
  * owns the filter form, so it is held while the member has unsaved input.
@@ -21,14 +27,16 @@ declare(strict_types=1);
  * @var array{type:string, ref_type:string, from:string, to:string, q:string} $filters
  * @var array<string, mixed> $limits
  * @var array<string, mixed> $payout
+ * @var array{total:float, count:int, next_release_at:?string, undelivered:int, overdue:int, release_enabled:bool} $pending_repeat
  * @var string $statement_url
  * @var string $statement_title
  * @var bool $show_member
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
-$limits = $limits ?? (new TransferService())->usageFor($account);
-$payout = $payout ?? (new PayoutService())->optionsFor($account);
+$limits         = $limits ?? (new TransferService())->usageFor($account);
+$payout         = $payout ?? (new PayoutService())->optionsFor($account);
+$pending_repeat = $pending_repeat ?? UnilevelAward::pendingSummaryForUser((int) ($account['id'] ?? 0));
 
 $live = $live ?? [
     'surface'  => Live::memberWalletSurface((int) ($account['id'] ?? 0)),
@@ -71,11 +79,17 @@ $live = $live ?? [
                 </span>
               </div>
 
-<?= View::capture('member/wallet/_buckets', ['account' => $account]) ?>
+<?= View::capture('member/wallet/_buckets', [
+    'account'        => $account,
+    'pending_repeat' => $pending_repeat,
+]) ?>
 
 <?= View::capture('member/wallet/_transfer_card', ['limits' => $limits]) ?>
 
-<?= View::capture('member/wallet/_payout_card', ['payout' => $payout]) ?>
+<?= View::capture('member/wallet/_payout_card', [
+    'payout'         => $payout,
+    'pending_repeat' => $pending_repeat,
+]) ?>
 
               <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-info-circle fs-4"></i>

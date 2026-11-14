@@ -484,4 +484,76 @@ return [
         assert_contains('action="' . url('admin/wallets/' . $id . '/credit') . '"', $detailHtml);
         assert_contains('data-confirm-title="Credit this wallet?"', $detailHtml, 'the top-up asks before it posts');
     },
+
+    /* ==========================================================
+     *  Phase 18 — the escrow liability on both admin wallet pages
+     * ========================================================== */
+
+    'P18-T44 the monitor tile and the member wallet page show the repeat-purchase pending release' => function (): void {
+        $admin  = test_user('p18_wallet_admin', 'admin');
+        $member = test_user('p18_wallet_member_' . bin2hex(random_bytes(3)));
+
+        /* A pending award outside the wallet: the fixture writes the row
+         * directly because this case is about presentation, not the
+         * engine (UnilevelEscrowTest proves the engine). */
+        $buyer = test_user('p18_wallet_buyer_' . bin2hex(random_bytes(3)));
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'delivered', [
+            'paid_at'      => date('Y-m-d H:i:s'),
+            'delivered_at' => date('Y-m-d H:i:s'),
+            'total'        => '100.00',
+        ]);
+        $itemId = (int) db()->query('SELECT id FROM shop_order_items WHERE order_id = ' . $orderId)->fetchColumn();
+
+        UnilevelAward::create([
+            'order_id'      => $orderId,
+            'order_item_id' => $itemId,
+            'product_id'    => $productId,
+            'buyer_id'      => (int) $buyer['id'],
+            'user_id'       => (int) $member['id'],
+            'level'         => 1,
+            'base_amount'   => 500.00,
+            'rate_pct'      => 5.0,
+            'amount'        => 25.00,
+            'hold_days'     => 7,
+            'status'        => 'pending',
+            'paid_at'       => date('Y-m-d H:i:s'),
+        ]);
+
+        test_signed_in_as($admin);
+
+        $_GET = ['tab' => 'members'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/wallets?tab=members';
+
+        $controller = new AdminWalletController();
+        $payload    = $controller->monitorFeedPayload(7, '"x"', $controller->monitorContext('members'));
+        $stats      = $payload['fragments']['wallet-stats'];
+
+        assert_contains('Pending repeat bonuses', $stats);
+        assert_contains(money(25), $stats);
+        /* It is a separate liability, never added to the float. */
+        assert_contains('Total float', $stats);
+
+        $detail = $controller->walletContext(Wallet::account((int) $member['id']));
+
+        assert_same(25.0, (float) $detail['pending_repeat']['total']);
+
+        ob_start();
+
+        try {
+            View::page('admin', 'admin/wallets/show', $detail + [
+                'page_title'  => 'Wallet — ' . (string) $member['username'],
+                'current_nav' => 'admin.wallets',
+                'page_css'    => ['assets/css/wallet.css'],
+                'page_js'     => ['assets/js/admin-live.js'],
+                'live'        => Live::meta('admin.wallets:' . (int) $member['id'], 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('Repeat-purchase pending release', $html);
+        assert_contains('not in wallet balance', $html);
+        assert_contains(money(25), $html);
+    },
 ];

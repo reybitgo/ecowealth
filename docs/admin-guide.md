@@ -19,6 +19,7 @@ one exception: **you cannot verify or reject your own order** (the self-review g
 | **Commissions · 30 days** | awards paid in the window plus the all-time total |
 | **Repeat bonus (30 d)** | repeat-purchase awards paid in the window, with the members and recipients they reached |
 | **Wallet float** | total member money and the withdrawable portion |
+| **Pending repeat bonuses** | repeat-purchase money **earned but not yet in a wallet** — a separate liability, not part of the float |
 | **Held for payout** | money promised to open withdrawal requests |
 | **Orders by status / Top products** | the lifecycle and the best sellers in the last 30 days |
 | **Catalogue and stock cards** | the older operational view, kept on the same screen |
@@ -151,18 +152,32 @@ Order actions are recorded in the order timeline with the actor and time.
 | "Paid orders earn the repeat-purchase bonus. This order is `pending`." | no money has been received, so nothing is due |
 | "This order was paid before the repeat-purchase stream was switched on…" | the order was paid before the feature was enabled; it is never paid retroactively |
 | "No bonus was due: no product on this order had an active ladder…" | processed, but this product or chain pays nothing |
-| a table of L1–L10 rows with a total | the award this order paid to the sponsor chain |
+| a table of L1–L10 rows with a total | the award this order **earned** — released, pending, cancelled or a mix |
 
-Each row shows the level, recipient, product, base, rate, amount and status, and the headline equals
-the order's repeat-purchase total. The buyer is never a recipient. A skipped level keeps its number
-(no compression); a voided row shows how much was recovered and, in red, the shortfall.
+Each row shows the level, recipient, product, base, rate, amount and status, and the footer reads
+**Awarded … · Released … · Pending …**. The buyer is never a recipient. A skipped level keeps its number
+(no compression); a voided row shows how much was recovered and, in red, the shortfall. The escrow states
+are explicit:
+
+| Order | Badge | Rows | Wallet link |
+|---|---|---|---|
+| paid, nothing released yet | **₱25.00 pending release** | **Pending release** with the due date, or "after delivery + N days" | none — no money has moved |
+| released | **₱25.00 released** | **Credited** with the release date | wallet icon to the movement |
+| cancelled before release | **No bonus released** | **Cancelled before release** — "no money moved" | none |
+| paid, mixed (legacy) | both totals | pending rows and credited rows together | only on the credited rows |
+
+The rows stay visible after a cancellation even though the order is no longer paid: the audit trail is
+the point. This card is read-only — there is no "release now" button and no way to edit an award.
 
 ---
 
 ## 7. E-wallet, transfers and payouts
 
 **Admin → E-wallet monitor** shows every member's two buckets, the float, the top-up history, the
-transfers tab and the full ledger. **Admin → Wallets → a member** is where an **admin top-up** is
+transfers tab and the full ledger. The KPI row adds **Pending repeat bonuses** — repeat-purchase money
+that is earned and outside both buckets, shown as a separate liability (**not** part of the float). A
+member's wallet page repeats the line as **Repeat-purchase pending release (not in wallet balance)**.
+**Admin → Wallets → a member** is where an **admin top-up** is
 made: it credits the non-withdrawable bucket, writes one ledger row and one audit row.
 
 - Members move money to each other on **Wallet → Send funds**, with password confirmation, a fee and
@@ -193,7 +208,7 @@ log with a before/after per key.
 | **Payout methods** | Minimum withdrawal, USDT rate, each channel's fee and switch, network fees |
 | **Payment windows** | Payment deadline, correction window, proof attempts per order, expiry kill switch |
 | **Fulfilment & invoices** | Auto-complete days and switch, seller name/TIN/phone/address on invoices |
-| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, reversal rule |
+| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, **release delay after delivery**, **release repeat-purchase bonuses**, reversal rule |
 | **Transfers** | Fee, minimum, daily and weekly caps (0 = unlimited) |
 
 Rules that the page enforces: a weekly limit cannot be below the daily limit, a minimum cannot
@@ -210,7 +225,7 @@ A failed save shows the field errors and writes nothing.
 |---|---|
 | **Sales by day** | paid orders and value per day, with the method breakdown and the average order |
 | **Commissions by level** | awards, amounts and skips per level and leg, with all-time totals |
-| **Repeat-purchase bonus** | the product ladder's credited, skipped and voided money, with the unrecovered shortfall |
+| **Repeat-purchase bonus** | the product ladder's released, pending, skipped, cancelled and voided money, with the unrecovered shortfall |
 | **Repeat-purchase by level** | awards, amounts and skips for levels 1–10 (one ladder, no direct/indirect split) |
 | **Repeat-purchase by product** | what each product's ladder cost in the window — the first place to check a margin |
 | **Closed months** | the Active snapshots the month close wrote, with members, qualified count and award total |
@@ -223,12 +238,26 @@ A failed save shows the field errors and writes nothing.
 **Export CSV** offers one file per report for the selected window. Every download is audited.
 
 **The repeat-purchase ledger** is **Finance → Commissions → Repeat-purchase bonus**
-(`/admin/commissions?ledger=repeat`). Its filters are recipient/buyer/product/order (`q`), level 1–10,
-status (credited, skipped, voided), product and date. A **skipped** row is an audit note, never money:
-it shows what was due and why it was not paid. **Unrecovered** is the part of a voided award the
-wallet could not return. Every row links to its order and to the recipient's wallet statement filtered
-to that order. The **Closed months** card is a history only — closing a month is an operations job,
-not a button here. The package commission ledger is the other tab and is unchanged.
+(`/admin/commissions?ledger=repeat`). Its eight tiles are **Total credited** (released money),
+**Pending release** (earned, not in a wallet), **This month**, **Awards**, **Recipients**, **Skipped**,
+**Cancelled before release** and **Unrecovered**. Its filters are recipient/buyer/product/order (`q`),
+level 1–10, status (**pending**, **credited**, **skipped**, **voided**, **cancelled**), product and date.
+The rows carry the same states as the order card: **Pending release** with its due date and no wallet
+movement, **Cancelled before release** with "no money moved", **Credited** with a wallet link, and
+**Skipped** with the reason. A skipped row is an audit note, never money: it shows what was due and why
+it was not paid.
+
+**Unrecovered means `voided` only** — the part of a *released* award the wallet could not return after a
+post-release reversal. A **cancelled** award was never paid, so it is not a shortfall and never appears in
+that tile.
+
+**Export CSV** writes **15 columns**, in this order: `Award, Date, Order, Buyer, Recipient, Product,
+Level, Base, Rate %, Amount, Status, Reason, Recovered, Hold days, Released at`. A pending row has an
+empty `Released at` and its snapshotted `Hold days`; a cancelled row has an empty `Released at`,
+`Recovered` `0.00` and its reason; a credited row carries the release date. Every row links to its order,
+and a credited row links to the recipient's wallet statement filtered to that order. The **Closed months**
+card is a history only — closing a month is an operations job, not a button here. The package commission
+ledger is the other tab and is unchanged.
 
 ---
 
@@ -269,7 +298,7 @@ session is a member session: you cannot reach admin pages from inside it.
 |---|---|
 | Every morning | Finance health, reconciliation command, orders needing action, open payouts (§1 of the runbook) |
 | As they arrive | Verify proofs, approve activations, ship paid orders, answer payout requests |
-| Weekly | Back up and copy the dump off the machine; review the audit log for unexpected settings changes; check the cron logs |
+| Weekly | Back up and copy the dump off the machine; review the audit log for unexpected settings changes; check the cron logs; run `php bin\unilevel_release.php --doctor` (pending, due, undelivered, `cancelled_due` 0) |
 | Monthly | Restore drill into a scratch schema; rotate admin passwords; review stock and best sellers; run `php bin\unilevel_month_close.php --doctor` before the 1st and confirm the previous month closed (the Active rule reads it) |
 | Before any upgrade | Backup, then follow [`deploy.md`](deploy.md); after it, Finance health must be All clear |
 
@@ -285,7 +314,11 @@ session is a member session: you cannot reach admin pages from inside it.
 4. **Never** share a registration code you did not sell or issue; codes are single-use and the used
    member is recorded.
 5. **Never** commit `config.local.php`, a database dump, or the `uploads/` contents.
-6. When in doubt, take a backup first and read the audit trail before changing anything.
+6. **Never hand-edit an award row** (`unilevel_awards`) or a `unilevel_periods` snapshot. A pending
+   award becomes money only through the release job; a status or `ledger_id` changed by SQL breaks the
+   reconciliation and is unauditable. If a bonus looks wrong, pause releases, run
+   `php bin\unilevel_release.php --doctor` and `php bin\wallet_reconcile.php`, and escalate.
+7. When in doubt, take a backup first and read the audit trail before changing anything.
 
 ---
 
@@ -297,13 +330,13 @@ changes or claims a bonus; every number comes from the same engine and ledger th
 
 | Surface | What it shows | Where |
 |---|---|---|
-| **Product page panel** | all ten levels with the per-unit rate and amount on the product's bonus base, the "up to" total, the monthly minimum, and the sentence that the member's own purchase does not pay them | any product whose switch is on |
+| **Product page panel** | all ten levels with the per-unit rate and amount on the product's bonus base, the "up to" total, the monthly minimum, and the sentence that the member's own purchase does not pay them; it says the level income is **earned when the order is paid** and **released after the return window** | any product whose switch is on |
 | **Catalogue badge** | *Up to 29% repeat bonus* on a card whose ladder is on | Shop |
-| **Checkout preview** | "Up to ₱145.00 is paid to the members above you when this order is paid" — the whole cart's ladder, one line — then the Team chain pivot | Checkout |
-| **Order page card** | the order's total that was paid to the members above the buyer; never which member received which amount | `/orders/{id}` |
-| **Earnings → Repeat-purchase bonus** | the member's own awards, the Team chain by level (each member's credited amount and the level total) and a two-clock Active panel | `/earnings?ledger=repeat` |
-| **Dashboard tile** | what the member has earned from their Team chain plus their current Active status | `/dashboard` |
-| **Membership paragraph** | the same status, in one sentence | `/membership` |
+| **Checkout preview** | "Up to ₱145.00 is earned by the members above you when this order is paid. It is released to their e-wallets after the return window." — the whole cart's ladder, one line — then the Team chain pivot | Checkout |
+| **Order page card** | the order's total that is **reserved** (or **was released**) for the members above the buyer, with the estimated release date once the order is delivered; never which member received which amount | `/orders/{id}` |
+| **Earnings → Repeat-purchase bonus** | the member's own awards, a **Pending release** tile and a **Next release** line, pending/cancelled notes, the Team chain by level and a two-clock Active panel | `/earnings?ledger=repeat` |
+| **Dashboard tile** | **Credited**, **Pending release** and **Total earned** from the Team chain, plus the current Active status | `/dashboard` |
+| **Membership paragraph** | the same status, in one sentence, with the credited + pending split | `/membership` |
 
 The tiles, the panel and the preview are **absent** while the global repeat-purchase master is off or
 the product's ladder is off/empty. The earnings tab and its export stay reachable either way, because a
@@ -331,13 +364,102 @@ Team chain produces can be credited. This is the sentence to use in support repl
 1. **Global switch** — `unilevel_enabled` on **Settings → Commissions**.
 2. **Product switch and rates** — the product's ladder card; a zero rate at a level means that level
    pays nothing.
-3. **Was the order paid?** — a `pending` order pays nothing; the money is credited when the order is
-   paid, never when it is placed.
+3. **Was the order paid?** — a `pending` order pays nothing. On a paid order the award is written
+   **Pending release**; the wallet is credited only after the order is **delivered** and the award's
+   hold window has passed (see §15).
 4. **Chain depth** — the buyer's sponsor chain may be shorter than the level in question.
 5. **Active flag** — the monthly rule above; the admin ledger's **Skipped** rows show the reason.
 6. **Membership** — an inactive/suspended recipient is skipped, exactly like a not-Active one.
 
 The admin ledger is **Finance → Commissions → Repeat-purchase bonus** (§9). Copy rules for support:
 say **repeat-purchase bonus**, say **Team chain** (never "sponsor chain" to a member), say **up to**,
-say **paid when the order is paid**, state the **monthly minimum**, and never call it a rebate or
-cashback — the member's own purchase pays the members above them, not the member.
+say **earned when the order is paid and released after the return window** (never "credited at
+checkout"), state the **monthly minimum**, and never call it a rebate or cashback — the member's own
+purchase pays the members above them, not the member. For a "where is my bonus?" question, open
+**Admin → Orders → the order** and read the card: **Pending release** names the due date,
+**Cancelled before release** means the order was cancelled, and **Credited** links to the movement.
+
+---
+
+## 15. Repeat-purchase escrow: award, release and cancellation (Phase 18)
+
+Since the escrow change, the repeat-purchase bonus is **earned at payment but paid at release**. This
+is the section to read before answering any "my bonus is missing" or "why is my payout limited?"
+question.
+
+### The money path
+
+| Step | What happens | Where to see it |
+|---|---|---|
+| Order **paid** | a **`pending`** award row per level; **no wallet movement, no ledger row** | `/admin/orders/{id}` → **Repeat-purchase bonus**: **₱X pending release** |
+| Order **delivered** + the award's **hold** | the release job (hourly) credits the upline's **withdrawable** wallet once, sets `credited_at` and links `ledger_id` | the row becomes **Credited**; the upline's statement shows **Repeat-purchase bonus** |
+| Order **cancelled before release** | the pending awards become **`cancelled`**: no debit, no reversal row, **no shortfall** | the card badge reads **No bonus released**; the rows read **Cancelled before release** |
+| Order cancelled **after release** | legacy path: `credited` rows are voided and debited only as far as the withdrawable balance allows; the rest is a shortfall | **Unrecovered** on the ledger |
+
+`shop_orders.unilevel_total` is the **awarded** total — `pending + credited`. It does not fall when a
+pending award is released (no money “arrives” twice) and it does fall to `0` when an order is cancelled
+before release.
+
+### The two settings
+
+Both live on **Admin → Settings → Commissions → Repeat-purchase bonus**:
+
+| Setting | Default | Label and hint |
+|---|---:|---|
+| `unilevel_hold_days` | `7` | **Release delay after delivery** — “Days after delivery before a repeat-purchase bonus becomes withdrawable. 0 releases at delivery. Applies to new awards only; each award keeps the value it was given at payment.” Range 0–365. |
+| `unilevel_release_enabled` | `1` | **Release repeat-purchase bonuses** — “Off pauses the release job; pending bonuses stay pending. Cancelling an order still cancels its pending awards.” |
+
+The two hints that changed with them:
+
+- `unilevel_enabled` (master): “Off hides the offer and stops new awards. Bonuses already pending still
+  release unless **Release repeat-purchase bonuses** is also off.”
+- `unilevel_reversal_enabled`: “On: cancelling an order after its bonus was released claws the bonus
+  back. Off: a released bonus stays. Pending bonuses are always cancelled.”
+
+**The hold is snapshotted per award.** Changing the setting moves no existing award's promised date; it
+applies to awards created after the change. `0` releases at delivery (useful for a no-returns business
+and for QA).
+
+### The release job and its doctor
+
+`bin/unilevel_release.php` runs hourly at `:20` (see [`cron.md` §6](cron.md)) and has its own switch.
+When it is off, runs exit 0 and log a `WARN`; pending awards keep their dates and release on the first
+run after it is switched back on. Cancelling an order still cancels its pending awards while it is off.
+
+The quickest health check, from the admin desk or with a terminal:
+
+```
+http://localhost/ecowealth/system/cron/unilevel_release.php?doctor=1
+php bin\unilevel_release.php --doctor
+php bin\unilevel_release.php --dry-run
+```
+
+The doctor prints the PHP/MySQL clocks, the two settings, the pending count/amount, the oldest pending
+award, what is due now, what is waiting for delivery, pending awards on `shipped` orders older than 30
+days, `cancelled_due` (**must be 0**), the lock and the log folder. `--dry-run` lists the orders and
+awards the next run would credit and changes nothing; `--order=ID` tries one order under the normal due
+rule (it is a diagnostic, not a force). There is **no “release now” button** on any screen.
+
+**An undelivered order never releases.** Its award stays `Pending release` indefinitely; that is the
+delivery-based return policy working. Either deliver the order or cancel it — the cancellation moves no
+money.
+
+### No retroactive lock
+
+Awards that were already `credited` when the escrow shipped stay credited and withdrawable. They are
+not re-opened, not moved back to pending and not held. Only awards created after the change have a hold
+window. Do not “fix” an older award by editing its status.
+
+### The member's side: “Total funds” and the payout reminder
+
+- The **wallet** page adds **Pending release** and **Total funds** (= wallet balance + pending release,
+  presentation only — not a third bucket, not spendable) and hides both lines when nothing is pending.
+- The **dashboard** repeat tile shows **Credited / Pending release / Total earned**.
+- The **payout** page shows `Pending release` in the balance card, an informational (non-blocking)
+  alert on the request form, and names the pending amount in the over-limit refusal and in the success
+  flash. There is no modal and no checkbox: the only limit is still the withdrawable balance.
+- **Never withdrawable.** Pending money is not spendable in the shop and is never part of the payout
+  maximum. If a member asks why their payout is capped, read the pending figure on `/payouts` first.
+
+Support summary: the bonus is **earned when the order is paid**, **released after the return window**,
+and **never paid on a cancelled order**.

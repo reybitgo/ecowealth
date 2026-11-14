@@ -23,7 +23,11 @@ declare(strict_types=1);
  *    5. Repeat-purchase — every credited/voided award against its
  *       `unilevel` credit, every reversal against `unilevel_reversal`,
  *       the order headline totals and the idempotency stamp
- *       (plan §14.11).
+ *       (plan §14.11). Phase 18 adds the escrow states: pending and
+ *       cancelled awards must have NO wallet movement, a cancelled row
+ *       must carry no reversal money, and a pending award on a
+ *       cancelled order is a mismatch. A stuck release is printed as a
+ *       warning — a delay is not a books error.
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -244,10 +248,33 @@ printf(
     $format($unilevel['credited_total']),
     PHP_EOL
 );
+printf(
+    "  pending awards:    %d (%s) — earned, not in a wallet yet%s",
+    $unilevel['pending_rows'] ?? 0,
+    $format($unilevel['pending_total'] ?? 0),
+    PHP_EOL
+);
+printf(
+    "  cancelled awards:  %d (%s) — order cancelled before release, never paid%s",
+    $unilevel['cancelled_rows'] ?? 0,
+    $format($unilevel['cancelled_total'] ?? 0),
+    PHP_EOL
+);
 printf("  skipped awards:    %d%s", $unilevel['skipped_rows'], PHP_EOL);
 printf("  voided awards:     %d%s", $unilevel['voided_rows'], PHP_EOL);
+printf("  awarded total:     %s (pending + credited)%s", $format($unilevel['awarded_total'] ?? 0), PHP_EOL);
 printf("  unilevel ledger:   %s%s", $format($unilevel['ledger_total']), PHP_EOL);
 printf("  reversals:         %s%s", $format($unilevel['reversal_total']), PHP_EOL);
+
+/* A stuck release is an operational warning, not a mismatch: it must
+ * never turn a clean reconciliation into exit 1 (plan §16.6). */
+if (($unilevel['stuck_pending'] ?? 0) > 0) {
+    printf(
+        "  warning:           %d pending award(s) have been due for more than 48 hours — check the release job%s",
+        (int) $unilevel['stuck_pending'],
+        PHP_EOL
+    );
+}
 
 if (($unilevel['legacy_rows'] ?? 0) > 0) {
     printf(

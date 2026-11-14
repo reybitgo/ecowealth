@@ -125,6 +125,7 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
     'team'        => $team,
     'balance'     => $balance,
     'withdrawable' => $withdrawable,
+    'pending_repeat' => $pending_repeat ?? null,
 ]) ?>
 
               <div class="row g-4 mb-4">
@@ -139,7 +140,11 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
 
                 <!-- Wallet -->
                 <div class="col-xl-6">
-<?= View::capture('member/dashboard/_wallet_card', ['balance' => $balance, 'withdrawable' => $withdrawable]) ?>
+<?= View::capture('member/dashboard/_wallet_card', [
+    'balance'        => $balance,
+    'withdrawable'   => $withdrawable,
+    'pending_repeat' => $pending_repeat ?? null,
+]) ?>
                 </div>
               </div>
 

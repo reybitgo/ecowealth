@@ -67,7 +67,7 @@ Now there is:
 
 | Tool | Where it lives | What it does | Use it when |
 |---|---|---|---|
-| **Production bundle** | [`system/database/install.sql`](../system/database/install.sql) | One SQL file containing 27 tables, 48 settings, 2 staff accounts and the starter catalogue. Seeds no members, codes or wallet balances. | You have an **empty** database and a way to import SQL (MySQL client, phpMyAdmin, Adminer). |
+| **Production bundle** | [`system/database/install.sql`](../system/database/install.sql) | One SQL file containing 31 tables, 56 settings, 2 staff accounts and the starter catalogue. Seeds no members, codes or wallet balances. | You have an **empty** database and a way to import SQL (MySQL client, phpMyAdmin, Adminer). |
 | **CLI installer** | [`system/bin/db_install.php`](../system/bin/db_install.php) | Runs preflight checks, imports the bundle, sets staff passwords **you choose**, verifies the result and writes an install lock. | You have a terminal (local machine or a host with SSH). **Recommended.** |
 | **Browser installer** | [`system/public/install.php`](../system/public/install.php) | The same install in a web page. Never creates the database; refuses a non-empty one. | Shared hosting with no SSH. |
 | **Reset engine (CLI)** | [`system/bin/db_reset.php`](../system/bin/db_reset.php) | Previews what will be deleted, resets in one transaction, optionally generates codes and reloads the catalogue/demo data, then verifies the result. | Everyday development/QA reset. **Primary reset path.** |
@@ -85,12 +85,12 @@ Every normal install path — without the optional demo data — ends at exactly
 
 | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **27** | **48** | **2** | **0** | **7** | **2** | **18** | **10** | **0** |
+| **31** | **56** | **2** | **0** | **7** | **2** | **18** | **10** | **0** |
 
 What those numbers mean:
 
-- **27 tables** — the complete database structure: users, shop, carts, orders, wallet, commissions, payouts, audit, live updates, and so on.
-- **48 settings** — 45 seeded configuration values plus 3 rows that record the install (`install_version`, `install_channel`, `install_completed_at`). If you read "45 settings" inside the bundle's own header, that is the seed count; the installed total is 48.
+- **31 tables** — the complete database structure: users, shop, carts, orders, wallet, commissions, payouts, audit, live updates, the repeat-purchase tables, and so on.
+- **56 settings** — 53 seeded configuration values plus 3 rows that record the install (`install_version`, `install_channel`, `install_completed_at`). If you read a lower "seeded settings" count inside an older bundle's own header, that is the seed count at the time; the installed total is 56.
 - **2 staff accounts** — one `admin` and one `superadmin`. Both are rows in the `users` table.
 - **0 members** — real customer/member accounts are never seeded. The first member appears only when someone registers (or when you explicitly add demo data).
 - **7 products** — six catalogue products from `seeds/003_products.sql`, plus one bundled service product (`EW-COLONICS`) that belongs to Package B.
@@ -124,7 +124,7 @@ You can read this guide without knowing databases, but these terms come up const
 | **Row** | One record in a table — one user, one order, one setting. |
 | **Column** | One field on every row — `username`, `price`, `status`. |
 | **Seed** | A SQL file that inserts starting data (settings, staff, products, packages, demo members). |
-| **Migration** | A small SQL file that upgrades an **existing** database. Migrations are numbered (`001_…` to `019_…`). They are **not** used for a fresh install. |
+| **Migration** | A small SQL file that upgrades an **existing** database. Migrations are numbered (`001_…` to `021_…`). They are **not** used for a fresh install. |
 | **Bundle** | `install.sql`: the schema plus the production seeds, assembled into one generated file. |
 | **CLI** | "Command-line interface": you type commands in a terminal instead of clicking. |
 | **phpMyAdmin** | A web page (usually provided by Laragon or your host) for browsing and importing MySQL databases. |
@@ -153,8 +153,8 @@ Installing:
     ├── import database/install.sql ────────────────┐
     │                                               │
     ├── php bin/db_install.php ──┐                  ├──▶  MySQL database
-    │                            ├──▶ DatabaseInstaller ──▶  27 tables
-    └── browser: install.php ────┘                  │       48 settings
+    │                            ├──▶ DatabaseInstaller ──▶  31 tables
+    └── browser: install.php ────┘                  │       56 settings
                                                     │       2 staff
                                                     │       7 products / 2 packages
                                                     │       no members, no codes
@@ -494,7 +494,7 @@ On success, the footer prints three small result tables. The first one is the im
 
 ```text
 tables_created  settings_rows  staff_rows  members_rows  products_rows  packages_rows  levels_rows  contents_rows  codes_rows
-27              48             2           0             7              2              18           10             0
+31              56             2           0             7              2              18           10             0
 ```
 
 Then a settings table:
@@ -543,7 +543,7 @@ This is the same import as Path A, with clicks instead of a command.
 
 5. **Important:** set **Stop on error** (the checkbox or the partial-import option, depending on your phpMyAdmin version). If the bundle hits the empty-database guard, you want the import to stop, not to continue and leave a half-touched schema.
 6. Leave the format as **SQL**, character set as **utf-8**, and click **Go**.
-7. Scroll to the bottom. You should see the same three result tables and the counts `27 / 48 / 2 / 0 / 7 / 2 / 18 / 10 / 0`.
+7. Scroll to the bottom. You should see the same three result tables and the counts `31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0`.
 
 Then sign in with the same defaults as Path A and change both passwords.
 
@@ -589,7 +589,7 @@ Preflight
   OK    Database name        ecowealth_sneat
   OK    Database exists      ecowealth_sneat exists
   OK    Database empty       no tables — ready for the bundle
-  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    install.sql          database/install.sql — 58 statements, 74,047 bytes
   OK    Storage writable     storage is writable
   OK    Lock directory       storage is writable
   OK    Install lock         storage/install.lock is absent
@@ -694,8 +694,8 @@ Installing
   OK    lock_file         Write the install lock
 
 Verification
-  OK    Tables                 27 of 27 tables
-  OK    Settings               48 of 48 settings
+  OK    Tables                 31 of 31 tables
+  OK    Settings               56 of 56 settings
   OK    Staff accounts         admin (admin), superadmin (superadmin)
   OK    Staff sign-in          2 passwords verified
   OK    Members                0 of 0 members
@@ -799,7 +799,7 @@ Click **Install EcoWealth**. The form carries a per-session CSRF token and the s
 On success you see:
 
 - a green **Installation complete / Verified** banner;
-- a stats row: `27` tables, `48` settings, `2` staff, `0` members, `7` products, `2` packages, `18` levels, `10` contents, `0` codes (if you ticked the demo box, expect 5 members and 3 codes instead);
+- a stats row: `31` tables, `56` settings, `2` staff, `0` members, `7` products, `2` packages, `18` levels, `10` contents, `0` codes (if you ticked the demo box, expect 5 members and 3 codes instead);
 - a **Staff accounts** table with the usernames and emails — **never the passwords**;
 - the bundle path and its SHA-256 prefix;
 - the install-lock path and whether it was written.
@@ -872,7 +872,7 @@ Expected:
 
 ```text
 tables_created  settings_rows  staff_rows  members_rows  products_rows  packages_rows  levels_rows  contents_rows  codes_rows
-27              48             2           0             7              2              18           10             0
+31              56             2           0             7              2              18           10             0
 ```
 
 Then browse the application:
@@ -985,7 +985,7 @@ Directories `755`; files `644`. If PHP still cannot write, try `775` on the dire
 7. Read the footer. The counts must be:
 
    ```text
-   27 tables · 48 settings · 2 staff · 0 members · 7 products · 2 packages · 18 levels · 10 contents · 0 codes
+   31 tables · 56 settings · 2 staff · 0 members · 7 products · 2 packages · 18 levels · 10 contents · 0 codes
    ```
 
 8. **Delete `database/install.sql` from the server after the import.** It is not read at runtime, and leaving it online serves no purpose.
@@ -1413,7 +1413,7 @@ A reset is **global**. It does not clean one member or one order; it removes eve
 ### 7.3 What happens step by step
 
 1. **Take a MySQL advisory lock** (a named lock that stops two installs/resets running at once). If another holds it, the command aborts before changing anything.
-2. **Preflight.** Check that the target has the 27 required tables, at least one staff account, a safe database name, and a valid connection to the database named on the command line.
+2. **Preflight.** Check that the target has the 31 required tables, at least one staff account, a safe database name, and a valid connection to the database named on the command line.
 3. **Snapshot the counts.** Used for the before/after report.
 4. **Begin one transaction.** Every delete, the staff reset, the optional catalogue work, the audit row, the settings writes and the live-revision bump live inside it.
 5. **Delete children before parents.** For example, order items go before orders; orders go before members; commissions go before activations. Foreign-key checks stay **on**, so a wrong order would fail loudly rather than create orphan rows.
@@ -1670,7 +1670,7 @@ last_reset_at   the application-timezone timestamp (Asia/Manila by default)
 last_reset_by   the staff username on web, or "cli"
 ```
 
-The settings table therefore grows from **48** rows to **50** on the first reset (the two `last_reset_*` keys are new); later resets update the same two rows. It does **not** change `install_version`, `install_channel` or `install_completed_at`: the application is still the same installation.
+The settings table therefore grows from **56** rows to **58** on the first reset (the two `last_reset_*` keys are new); later resets update the same two rows. It does **not** change `install_version`, `install_channel` or `install_completed_at`: the application is still the same installation.
 
 ### 7.11 Uploaded files
 
@@ -1704,6 +1704,8 @@ The reset is not finished when the deletes end. It must **prove** the result. Th
 | **Payout reconciliation** | Every payout request has its hold, and every rejection its refund. |
 | **Live revisions** | All 18 standard surfaces exist; existing revisions were incremented. |
 | **AUTO_INCREMENT counters** | The emptied tables report next id `1` (or `NULL`, which MySQL treats as empty). |
+
+**The repeat-purchase escrow changes none of this.** Migration `021` adds no table, so the reset's deletion order and the "required tables" preflight are unchanged; the two escrow settings (`unilevel_hold_days`, `unilevel_release_enabled`) are ordinary settings and are **preserved** like the rest (a reset does not touch them, and `settings` still reads **56** rows afterwards plus the two `last_reset_*` keys on the first run). The repeat-purchase reconciliation the reset runs reads the same `ok`/`mismatches` shape as before — it now also reports pending and cancelled awards, but a pending row is **not** a mismatch: the reset deletes the awards with the members and orders, so it is back to zero awards of every status.
 
 Verification is **mandatory**. There is no `--no-verify` flag, because a reset tool that cannot prove its result must not report success.
 
@@ -1863,7 +1865,7 @@ A good dump:
 
 - is not 0 bytes;
 - starts with `-- MySQL dump`;
-- contains `CREATE TABLE` for all 27 tables;
+- contains `CREATE TABLE` for all 31 tables;
 - for a large database, completes with exit code `0`.
 
 Test a dump before you rely on it: restore it into a scratch database (Section 8.3) and check the counts.
@@ -2220,10 +2222,10 @@ The lock and the empty-database guard make an accidental second install hard; th
 
 | Path | What it is | Notes |
 |---|---|---|
-| [`system/database/install.sql`](../system/database/install.sql) | Generated production bundle | 27 tables, 48 settings, 2 staff, 7 products, 2 packages. No demo data. |
+| [`system/database/install.sql`](../system/database/install.sql) | Generated production bundle | 31 tables, 56 settings, 2 staff, 7 products, 2 packages. No demo data. |
 | [`system/database/install/header.sql`](../system/database/install/header.sql) | Bundle header (editable) | Usage, warnings, empty-database guard. |
 | [`system/database/install/footer.sql`](../system/database/install/footer.sql) | Bundle footer (editable) | Install metadata and verification `SELECT`s. |
-| [`system/database/schema.sql`](../system/database/schema.sql) | Authoritative schema | 27 tables and indexes. |
+| [`system/database/schema.sql`](../system/database/schema.sql) | Authoritative schema | 31 tables and indexes. |
 | `system/database/seeds/001_settings.sql` | Seed | 45 settings. |
 | `system/database/seeds/002_accounts.sql` | Seed | 2 staff accounts. |
 | `system/database/seeds/003_products.sql` | Seed | 6 catalogue products. |

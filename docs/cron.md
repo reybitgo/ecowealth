@@ -1,6 +1,6 @@
 # Scheduled jobs
 
-Four scheduled jobs keep the platform moving without an administrator watching it:
+Five scheduled jobs keep the platform moving without an administrator watching it:
 
 | Job | What it does | Command | Guide |
 |---|---|---|---|
@@ -8,11 +8,12 @@ Four scheduled jobs keep the platform moving without an administrator watching i
 | **Order auto-complete** | completes delivered orders after *n* days when the member never confirms receipt | `bin/order_autocomplete.php` | this page, §2 |
 | **Transfer-limit reset** | zeroes the daily transfer counters every midnight (and the weekly ones on Monday) | `bin/reset_transfer_limits.php` | this page, §3 |
 | **Unilevel month close** | writes the monthly Active snapshot for the repeat-purchase bonus | `bin/unilevel_month_close.php` | this page, §4 |
+| **Unilevel release** | credits due `pending` repeat-purchase awards to the uplines' withdrawable wallets after delivery + the hold window | `bin/unilevel_release.php` | this page, §6 |
 
 All are idempotent, safe to run twice, log one line per run and share the same access rules, lock and
-log conventions. The first two have a kill switch on **Admin → Settings**; the reset job has nothing
-to switch off — it only zeroes counters a transfer would have incremented. The month close has none
-either, on purpose: it pays no money, so there is nothing to kill.
+log conventions. The first two and the release job have a kill switch on **Admin → Settings**; the
+reset job has nothing to switch off — it only zeroes counters a transfer would have incremented. The
+month close has none either, on purpose: it pays no money, so there is nothing to kill.
 
 ---
 
@@ -197,6 +198,8 @@ the lock state, whether the log folder is writable and whether `CRON_KEY` is set
 | Orders are not expiring | kill switch off, no overdue orders, or deadlines in the future | `--doctor`, then `--dry-run` |
 | Delivered orders are not completing | auto-complete switch off, days not reached, or no delivered orders | `--doctor`, then `--dry-run` |
 | No period was closed on the 1st | nothing was pending, the ledger baseline is later than last month, or the month was already closed | `--doctor`, then `--dry-run` |
+| Repeat-purchase bonuses are not being released | the release switch is off, the order is not delivered, or its hold has not elapsed | `bin/unilevel_release.php --doctor`, then `--dry-run` |
+| An order's pending awards never release | the order was never delivered, so it has no `delivered_at`/`completed_at` | deliver it, or cancel it — cancellation cancels the pending awards and moves no money. There is no auto-release |
 | `db now` differs from `timezone` | MySQL session time zone drifted | check `DB_TIMEZONE` in `app/config.php` (default `+08:00`) |
 | 500 on the URL entry | a PHP fatal — the response hides details by design | run the CLI version, or check the Apache error log |
 
@@ -566,7 +569,7 @@ launcher on Windows.
 
 # 5. Registering the Windows tasks (Phase 15)
 
-The four jobs run from Laragon on Windows. Register them once in Task Scheduler with these
+The five jobs run from Laragon on Windows. Register them once in Task Scheduler with these
 commands (run an **elevated** PowerShell; adapt the app path if it is not `C:\laragon\www\ecowealth`):
 
 ```powershell
@@ -588,11 +591,18 @@ schtasks /Create /F /SC DAILY /ST 00:00 /TN "EcoWealth - transfer limit reset" ^
 # Unilevel month close - 00:15 on the first of every month.
 schtasks /Create /F /SC MONTHLY /D 1 /ST 00:15 /TN "EcoWealth - unilevel month close" ^
   /TR "\"$php\" \"$app\bin\unilevel_month_close.php\""
+
+# Repeat-purchase release - hourly at :20.
+schtasks /Create /F /SC HOURLY /MO 1 /ST 00:20 /TN "EcoWealth - unilevel release" ^
+  /TR "\"$php\" \"$app\bin\unilevel_release.php\" --limit=200"
 ```
 
-The four launchers (`bin\shop_expire.cmd`, `bin\order_autocomplete.cmd`,
-`bin\reset_transfer_limits.cmd`, `bin\unilevel_month_close.cmd`) exist for a machine where PHP is not
-on `PATH`; point the task at the `.cmd` file instead if you prefer:
+`/SC HOURLY /MO 1 /ST 00:20` starts the hourly chain at 00:20, so it runs at :20 past every hour —
+the schedule §6 documents. (`/SC HOURLY` alone would start at the current minute.)
+
+The five launchers (`bin\shop_expire.cmd`, `bin\order_autocomplete.cmd`,
+`bin\reset_transfer_limits.cmd`, `bin\unilevel_month_close.cmd`, `bin\unilevel_release.cmd`) exist for
+a machine where PHP is not on `PATH`; point the task at the `.cmd` file instead if you prefer:
 
 ```powershell
 schtasks /Create /F /SC MINUTE /MO 15 /TN "EcoWealth - shop expiry (cmd)" ^
@@ -600,6 +610,9 @@ schtasks /Create /F /SC MINUTE /MO 15 /TN "EcoWealth - shop expiry (cmd)" ^
 
 schtasks /Create /F /SC MONTHLY /D 1 /ST 00:15 /TN "EcoWealth - unilevel month close (cmd)" ^
   /TR "C:\laragon\www\ecowealth\system\bin\unilevel_month_close.cmd"
+
+schtasks /Create /F /SC HOURLY /MO 1 /ST 00:20 /TN "EcoWealth - unilevel release (cmd)" ^
+  /TR "C:\laragon\www\ecowealth\system\bin\unilevel_release.cmd --limit=200"
 ```
 
 `/SC MONTHLY /D 1 /ST 00:15` fires at 00:15 on the first of each month, which is the schedule the
@@ -625,3 +638,188 @@ schedule is harmless.
 - [ ] The expiry job answered `--doctor` correctly before the first real run.
 - [ ] The first scheduled run appears in the monthly log within the expected window.
 - [ ] `php bin\wallet_reconcile.php` stays clean after a day of scheduled runs.
+
+---
+
+# 6. Unilevel release
+
+The job that **credits the repeat-purchase bonus to the upline's withdrawable e-wallet**. Since the
+escrow change (Phase 18, a post-17 point release; plan §6–§7 and §17) a paid order writes **`pending`**
+awards and moves **no money**. This job is the only place that money enters a wallet, and it does so
+once per award, after the order is delivered and the award's snapshotted hold window has passed.
+
+| Entry | Path | Use |
+|---|---|---|
+| **CLI** | `system/bin/unilevel_release.php` | Hostinger cron, SSH, CI |
+| **Web** | `/system/cron/unilevel_release.php` → `system/public/cron/unilevel_release.php` | Local testing in a browser, or a host whose cron only calls a URL |
+| **Windows** | `system/bin/unilevel_release.cmd` | Task Scheduler, double-click, Laragon terminal |
+
+The logic lives in `UnilevelService::releaseDue()` and `UnilevelService::releaseForOrder()`; every entry
+calls them, so they cannot disagree.
+
+## What it does
+
+An award is released only when **all** of these are true:
+
+1. `unilevel_awards.status = 'pending'`.
+2. The order is `delivered` or `completed`, and not cancelled (`cancelled_at IS NULL`).
+3. `COALESCE(shop_orders.delivered_at, shop_orders.completed_at)` is set.
+4. `COALESCE(delivered_at, completed_at) + unilevel_awards.hold_days <= NOW()` — the award's **own**
+   snapshotted hold, not the current setting.
+
+For each due award the job:
+
+- locks the order row first (`SELECT … FOR UPDATE`), re-checks the status and the due date, then locks
+  the order's `pending` awards;
+- writes **one** `unilevel` wallet credit (`withdrawable: true`) with the usual note
+  *“Repeat-purchase bonus — <product> (level N) — order <no>”*, and marks the award `credited` with
+  `ledger_id` and `credited_at`;
+- one transaction per order, so a failure rolls that order back and leaves its awards `pending`;
+- writes one `unilevel.release` audit row per released order.
+
+It does **not** create an award row, re-check eligibility, re-read the ladder, or change
+`shop_orders.unilevel_total` (that stays the **awarded** total: `pending + credited`). It never moves
+money for a `skipped`, `cancelled` or `voided` award. It is idempotent: a second run finds nothing due,
+and the wallet's `(user, ref_type, ref_id, type)` key is the final guard against a double credit.
+
+| Setting | Default | Role |
+|---|---|---|
+| `unilevel_hold_days` | `7` | days after delivery before release (0–365; 0 releases at delivery) |
+| `unilevel_release_enabled` | `1` | **kill switch** — when `0`, every run is skipped and pending stays pending |
+| `unilevel_enabled` | `0` | master switch — off stops **new** awards, but pending ones still release |
+| `unilevel_reversal_enabled` | `1` | governs awards **already credited** only; pending awards are always cancelled with the order |
+
+> **The hold is a snapshot.** Every award stores the `unilevel_hold_days` value that was in force when
+> the order was **paid**, so changing the setting moves no existing award's promised date. The setting
+> applies to new awards only.
+>
+> **The window is day-granular.** Release happens on the first run after `delivery + hold_days`, so
+> hourly is plenty; every 15 minutes buys nothing but log lines.
+
+## When releases are paused
+
+`unilevel_release_enabled = 0` pauses **this job only**:
+
+- each run exits `0` and logs a `WARN`; nothing is credited;
+- pending awards stay `pending` — they are an obligation, not a loss, and they release on the first run
+  after the switch is back on (the due date is unchanged);
+- **cancelling an order still cancels its pending awards.** The switch never makes a cancelled order
+  payable (ESC-06/ESC-07);
+- the member-facing reminder says **“Release is currently paused by the administrator.”**
+
+Turning the global master `unilevel_enabled` off is different: it stops new awards (a paid order is
+stamped with a zero total) but does **not** pause this job.
+
+## Running it locally
+
+**In a browser (no setup):**
+
+```
+http://localhost/ecowealth/system/cron/unilevel_release.php
+```
+
+A loopback request is trusted, so no key is needed on the development machine.
+
+| URL | What it shows |
+|---|---|
+| `?doctor=1` | PHP/MySQL clocks, the two settings, pending count/amount, the oldest pending award, due now, undelivered, stuck `shipped`, `cancelled_due` (must be 0), the lock and the log folder |
+| `?dry-run=1` | the orders, awards, recipients and amounts it would release; changes nothing |
+| `?order=ID` | the one-order diagnostic; still respects the normal due rule |
+| `?json=1` | the machine-readable payload |
+| `?limit=50` | smaller batch |
+
+**In a terminal:**
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+php bin\unilevel_release.php --doctor
+php bin\unilevel_release.php --dry-run
+php bin\unilevel_release.php
+php bin\unilevel_release.php --order=93 --json
+
+# or through the Windows launcher (no PATH setup needed if PHP_EXE is set)
+bin\unilevel_release.cmd --dry-run
+```
+
+| Flag | Effect |
+|---|---|
+| `--limit=200` | due orders one run may release (clamped 1–1000) |
+| `--order=ID` | try exactly one order, under the normal due rule — a diagnostic, never a force |
+| `--dry-run` | list the candidates and their awards; write nothing, credit nothing |
+| `--doctor` | environment / settings / health report (see below) |
+| `--json` | machine-readable payload |
+| `--log-dir=<dir>` | where the monthly log is written (CLI only) |
+| `--quiet` | no stdout (the log still records the run; CLI only) |
+| `--help` | usage |
+
+## Running it on a live server
+
+Hourly at `:20` is enough; the release window is day-granular:
+
+```cron
+20 * * * * /usr/bin/php /path/system/bin/unilevel_release.php --limit=200 >> /path/system/storage/logs/cron.out 2>&1
+```
+
+URL form (same access rules and `CRON_KEY` as the other jobs):
+
+```cron
+20 * * * * curl -s "https://example.com/ecowealth/system/cron/unilevel_release.php?key=a-long-random-string" > /dev/null
+```
+
+> **Run `--dry-run` first on a database with pending awards.** It lists exactly what the real run would
+> credit and touches no wallet. If the list contains an order you expected to stay pending, read
+> `--doctor`: the hold or the delivery stamp is the answer.
+
+## Logs, locks and failure modes
+
+| What | Where |
+|---|---|
+| Monthly log | `system/storage/logs/unilevel_release-YYYY-MM.log` |
+| Lock | `system/storage/locks/unilevel_release.lock` (advisory; released automatically) |
+
+One line per run:
+
+```
+[2026-11-21 09:20:01 +08:00] [OK   ] trigger=cli limit=200 hold=7 candidates=3 released_orders=3 released_awards=4 amount=50.00 skipped=0 errors=0 duration=120ms ids=93,94,95
+```
+
+`candidates` is how many orders were due; `released_orders`/`released_awards` are what the run actually
+credited (an order can be a candidate and still release nothing if its awards stopped being due under
+the lock); `ids` are the order ids. A dry run writes its own `[INFO ]` line
+(`dry-run … limit=… hold=… pending=… candidates=… ids=…`) and credits nothing.
+
+`--doctor` / `?doctor=1` is the first thing to run on a new server and the first thing to run when a
+member says a bonus never arrived. It prints:
+
+| Line | What it proves |
+|---|---|
+| `php`, `timezone`, `db_now` | PHP and MySQL agree on the time; the session zone must read `+08:00` |
+| `master`, `release_enabled`, `hold_days` | which switches are on and the **current** hold setting |
+| `pending`, `oldest_pending` | the pending count/amount and the age of the oldest award |
+| `due_now`, `undelivered` | what the next run should credit, and what is waiting for a delivery that never happened |
+| `stuck_shipped` | pending awards on `shipped` orders older than 30 days — the operational red flag |
+| `cancelled_due` | pending awards on cancelled orders; **must be 0** |
+| `lock`, `log`, `cron_key` | a free lock, a writable log folder, whether the URL form is keyed |
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| `skipped: another run is already in progress` (`[SKIP ]`) | a second run overlapped | normal; the line is the record. Investigate only if it repeats |
+| `skipped: releases are paused in the admin settings` (`[WARN ]`) | `unilevel_release_enabled = 0` | expected while paused; switch it on to resume |
+| `released_awards=0` and `candidates=0` | nothing is due: no delivery, or the hold has not elapsed | `--doctor`: read `undelivered`, `due_now` and `hold_days` |
+| `released_awards=0` and `candidates>0` | an award stopped being due between the candidate query and the lock (or a wallet refusal rolled the order back) | read the log's `errors`; the order is retried on the next run |
+| `errors>0` (exit 1) | a wallet or database failure for at least one order | the log names the order; the award stays `pending` and is retried. Do not edit award rows |
+| pending never falls on a delivered order | the order has no `delivered_at`/`completed_at`, or the hold is longer than expected | `--doctor`; a delivered order always carries the stamp |
+| pending on an undelivered order | the order is still `shipped` (or older) | **no auto-release by design.** Deliver it, or cancel it — cancellation cancels the award with no money moved |
+| `cancelled_due` is not 0 | a cancelled order kept a pending award — a real money bug | stop releases (`unilevel_release_enabled=0`), take a backup, run `php bin/wallet_reconcile.php` and escalate; never hand-edit the row |
+
+> **Undelivered orders never release.** Their pending awards stay pending forever, and that is correct
+> under a delivery-based return window. `--doctor` and the admin repeat ledger are how they stay
+> visible; there is no auto-release and no manual “release now” button.
+
+## QA
+
+The escrow walkthrough (v2) in [`qa-unilevel-product.md`](qa-unilevel-product.md) covers this job from
+the browser and the terminal: C1a (payment moves no money), the fulfilment step, C1b (delivery +
+release credits exactly once), E4 (cancellation before release pays nothing) and E6 (the hold actually
+holds).

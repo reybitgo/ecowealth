@@ -22,6 +22,14 @@ declare(strict_types=1);
  *  half-typed amount; `app-payout.js` re-binds the fee/rate preview after
  *  the card was replaced. Admins get the same page inside the back-office
  *  layout (the `member` guard admits them, plan §3.4).
+ *
+ *  Phase 18 adds the escrow reminder (A++): `options['pending_repeat']`
+ *  is the repeat-purchase money that is earned but not withdrawable yet.
+ *  It is shown beside the withdrawable figure, explained above the amount
+ *  field and named again in the success flash — informational only, never
+ *  a modal, never a checkbox, and it never blocks a request (plan §11,
+ *  ESC-10). The refusal path already names it through
+ *  `PayoutException::aboveWithdrawable()`.
  * ============================================================== */
 
 final class PayoutController
@@ -195,6 +203,11 @@ final class PayoutController
     /**
      * The flash line after a request is queued.
      *
+     * Phase 18 appends the escrow note from the `pending_repeat`
+     * snapshot `PayoutService::request()` already returns, so the member
+     * never reads the new withdrawable figure as "the rest of my money
+     * vanished" (plan §11.4).
+     *
      * @param array<string, mixed> $result
      */
     public function successMessage(array $result): string
@@ -216,7 +229,20 @@ final class PayoutController
             $message .= sprintf(' That is %s USDT.', $this->usdt((float) $result['usdt_amount']));
         }
 
-        return $message . ' An administrator will process it shortly.';
+        $message .= ' An administrator will process it shortly.';
+
+        $pending = is_array($result['pending_repeat'] ?? null)
+            ? round((float) ($result['pending_repeat']['total'] ?? 0), 2)
+            : 0.0;
+
+        if ($pending > 0) {
+            $message .= sprintf(
+                ' Your %s pending release was not part of this request; it will be released after the return window.',
+                money($pending)
+            );
+        }
+
+        return $message;
     }
 
     /* ----------------------------------------------------------
@@ -314,9 +340,12 @@ final class PayoutController
                     'profile_url' => $data['profile_url'],
                 ]),
                 'payout-history' => View::capture('member/payouts/_history', [
-                    'requests'      => $data['requests'],
-                    'totals'        => $data['totals'],
-                    'statement_url' => $data['statement_url'],
+                    'requests'       => $data['requests'],
+                    'totals'         => $data['totals'],
+                    'statement_url'  => $data['statement_url'],
+                    /* Phase 18: the history footer explains that pending
+                     * release is never part of a payout (plan §11.5). */
+                    'pending_repeat' => $data['options']['pending_repeat'] ?? [],
                 ]),
                 'payout-pagination' => View::capture('member/payouts/_pagination', [
                     'pager' => $pager,

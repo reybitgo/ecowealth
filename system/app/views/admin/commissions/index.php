@@ -37,7 +37,7 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $commissions
  *
  * Repeat tab:
- * @var array{credited_total:float, this_month:float, credited:int, skipped:int, recipients:int, average:float, top_level:int, voided:int, unrecovered:float} $stats
+ * @var array{credited_total:float, this_month:float, credited:int, skipped:int, recipients:int, average:float, top_level:int, voided:int, unrecovered:float, pending_total:float, pending:int, cancelled:int, cancelled_total:float, total_awarded:float, next_release_at:?string, pending_recipients:int} $stats
  * @var array{level:string, status:string, product_id:string, from:string, to:string, q:string} $filters
  * @var list<array<string, mixed>> $awards
  * @var list<array<string, mixed>> $periods
@@ -82,7 +82,10 @@ if ($isRepeat) {
 
     $statusOptions = ['' => 'All statuses'];
     foreach (UnilevelAward::STATUSES as $status) {
-        $statusOptions[$status] = UnilevelAward::STATUS_LABELS[$status] ?? ucfirst($status);
+        /* The two escrow states read exactly like their row badge. */
+        $statusOptions[$status] = UnilevelAward::STATUS_BADGES[$status][0]
+            ?? UnilevelAward::STATUS_LABELS[$status]
+            ?? ucfirst($status);
     }
 } else {
     $filters = $filters ?? Commission::normaliseFilters([]);
@@ -130,7 +133,7 @@ if ($isRepeat) {
 <?php if ($isRepeat): ?>
                   <h4 class="mb-1">Repeat-purchase bonus</h4>
                   <p class="text-body-secondary mb-0">
-                    Every award a product ladder paid on a paid order. One row per line, recipient and level 1–10.
+                    Every award a paid order earned, with its release state. One row per line, recipient and level 1–10.
                   </p>
 <?php else: ?>
                   <h4 class="mb-1">Commissions</h4>

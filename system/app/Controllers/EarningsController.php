@@ -18,9 +18,16 @@ declare(strict_types=1);
  *  The package tab is the Phase 10–11 statement, unchanged: three
  *  summary groups, the level breakdown, the skipped-award notice and
  *  one row per activation. The repeat tab is the member's upline
- *  statement: the six counters are replaced by four that never include
+ *  statement: the six counters are replaced by five that never include
  *  an "as buyer" figure (Rule 9), and a two-clock panel explains why a
  *  bonus did or did not reach them.
+ *
+ *  Phase 18 adds the escrow states to that tab: the counters gain a
+ *  **Pending release** tile, the level cards show pending beside
+ *  credited, and the rows explain when an award becomes money — the
+ *  release date once the order was delivered, or the snapshotted hold
+ *  before that (plan §10.3). The reads are the model's own escrow
+ *  fields, so the page and the live feed never disagree.
  *
  *  Members only ever see their own rows (`WHERE user_id = ?`), the same
  *  ownership rule as orders and the wallet statement. The tab is a
@@ -192,28 +199,30 @@ final class EarningsController
 
     /**
      * The 1–10 repeat-purchase breakdown, enriched with the member's
-     * team at each level (17E follow-up).
+     * team at each level (17E follow-up; 18 adds pending release).
      *
      * The ledger total for a level is unchanged: credited awards at that
-     * depth, from `UnilevelAward::levelBreakdown()`. What is new is the
-     * roster beside it — level 1 is the members the session member
-     * sponsored, level 2 their recruits, and so on, exactly the
+     * depth, from `UnilevelAward::levelBreakdown()`, plus the Phase 18
+     * `pending_amount` / `pending_count` the same read now returns. What
+     * is new is the roster beside it — level 1 is the members the session
+     * member sponsored, level 2 their recruits, and so on, exactly the
      * genealogy "Team by level" shape. Each member row carries the
-     * money that member's purchases credited at that level, so the two
-     * halves of the card answer "who is at this level?" and "what did
-     * they earn me?" from one screen.
+     * money that member's purchases earned at that level — credited and
+     * pending release — so the two halves of the card answer "who is at
+     * this level?" and "what did they earn me?" from one screen.
      *
      * The team is read once, then paginated per level with namespaced
      * keys (`level1_page`, `level1_per_page`, …) so one crowded level
-     * never moves the award table below. A member with no credited
-     * purchase stays in the list at ₱0.00: the roster is the team, not
-     * only the payers.
+     * never moves the award table below. A member with no purchase stays
+     * in the list at ₱0.00: the roster is the team, not only the payers.
      *
      * @return array<int, array{
-     *   amount:float, count:int, team_count:int, pager:Paginator,
+     *   amount:float, count:int, pending_amount:float, pending_count:int,
+     *   team_count:int, pager:Paginator,
      *   members:list<array{
      *     id:int, username:string, full_name:string, package_name:?string,
-     *     member_status:string, amount:float, count:int
+     *     member_status:string, amount:float, count:int,
+     *     pending_amount:float, pending_count:int
      *   }>
      * }>
      */
@@ -240,16 +249,23 @@ final class EarningsController
 
             foreach (array_slice($rows, $pager->offset, $pager->perPage) as $row) {
                 $id   = (int) $row['id'];
-                $stat = $earned[$level][$id] ?? ['amount' => 0.0, 'count' => 0];
+                $stat = $earned[$level][$id] ?? [
+                    'amount'         => 0.0,
+                    'count'          => 0,
+                    'pending_amount' => 0.0,
+                    'pending_count'  => 0,
+                ];
 
                 $members[] = [
-                    'id'            => $id,
-                    'username'      => (string) $row['username'],
-                    'full_name'     => (string) ($row['full_name'] ?? ''),
-                    'package_name'  => $row['package_name'] === null ? null : (string) $row['package_name'],
-                    'member_status' => (string) $row['member_status'],
-                    'amount'        => round((float) $stat['amount'], 2),
-                    'count'         => (int) $stat['count'],
+                    'id'             => $id,
+                    'username'       => (string) $row['username'],
+                    'full_name'      => (string) ($row['full_name'] ?? ''),
+                    'package_name'   => $row['package_name'] === null ? null : (string) $row['package_name'],
+                    'member_status'  => (string) $row['member_status'],
+                    'amount'         => round((float) $stat['amount'], 2),
+                    'count'          => (int) $stat['count'],
+                    'pending_amount' => round((float) ($stat['pending_amount'] ?? 0), 2),
+                    'pending_count'  => (int) ($stat['pending_count'] ?? 0),
                 ];
             }
 

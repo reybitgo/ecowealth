@@ -36,6 +36,9 @@
 --                shop_orders.unilevel_processed_at/unilevel_total,
 --                shop_order_items.unit_base/base_total and the two
 --                unilevel ledger ref types.
+--  Phase 18 owns: unilevel_awards.hold_days/credited_at, the
+--                'pending' + 'cancelled' award states, two lookup
+--                indexes and the release settings.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -585,9 +588,17 @@ CREATE TABLE IF NOT EXISTS shop_order_items (
 --  One row per (order line, recipient, level) decision. There is no
 --  `type` column: the level (1–10) is the whole story (D-17).
 --
---  status   credited = paid (ledger_id set)
---           skipped  = due but not paid (reason set); never moves money
---           voided   = paid then reversed (reversal_ledger_id set)
+--  status   pending   = earned at payment, not in the wallet yet
+--                      (Phase 18 escrow; no ledger_id)
+--           credited  = released: the wallet was credited (ledger_id,
+--                      credited_at set)
+--           skipped   = due but not paid (reason set); never moves money
+--           cancelled = the order was cancelled before release; never
+--                      paid, no ledger, no shortfall (Phase 18)
+--           voided    = paid then reversed (reversal_ledger_id set)
+--  hold_days   days after delivery before a pending award releases; the
+--              value is snapshotted at payment so a later setting change
+--              cannot move an award's promised date (Phase 18).
 --  uq_unilevel_award (order_item_id, user_id, level) is the money
 --  anchor: a replayed payment cannot create a second award.
 --  ledger_id / reversal_ledger_id are deliberately NOT foreign keys
@@ -605,9 +616,11 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
   base_source        ENUM('line','product') NOT NULL DEFAULT 'line',
   rate_pct           DECIMAL(6,3)     NOT NULL,
   amount             DECIMAL(12,2)    NOT NULL,
-  status             ENUM('credited','skipped','voided') NOT NULL DEFAULT 'credited',
+  hold_days          SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  status             ENUM('pending','credited','skipped','voided','cancelled') NOT NULL DEFAULT 'pending',
   reason             VARCHAR(120)     NULL,
   ledger_id          INT UNSIGNED     NULL,
+  credited_at        DATETIME         NULL,
   reversal_ledger_id INT UNSIGNED     NULL,
   reversed_amount    DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
   paid_at            DATETIME         NOT NULL,
@@ -618,6 +631,8 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
   UNIQUE KEY uq_unilevel_award (order_item_id, user_id, level),
   KEY idx_unilevel_user (user_id, created_at),
   KEY idx_unilevel_order (order_id),
+  KEY idx_unilevel_user_status (user_id, status),
+  KEY idx_unilevel_order_status (order_id, status),
   KEY idx_unilevel_buyer (buyer_id, created_at),
   KEY idx_unilevel_product (product_id, created_at),
   KEY idx_unilevel_status (status, created_at),

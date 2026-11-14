@@ -479,6 +479,19 @@ function format_datetime(?string $value): string
     return $ts === false ? '—' : date('M j, Y g:i A', $ts);
 }
 
+/**
+ * Format a date-only figure the way the escrow copy reads it, e.g.
+ * "21 Nov 2026". Null/blank returns an em dash, matching format_datetime().
+ */
+function format_date(?string $value): string
+{
+    if ($value === null || $value === '' || str_starts_with($value, '0000')) {
+        return '—';
+    }
+    $ts = strtotime($value);
+    return $ts === false ? '—' : date('j M Y', $ts);
+}
+
 /** Uppercase initials (max 2 letters) derived from a username or full name. */
 function initials(string $name): string
 {

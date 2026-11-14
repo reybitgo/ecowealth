@@ -8,6 +8,12 @@ declare(strict_types=1);
  * pays it), a new downline line and a new activation all re-render the
  * card in place. The card has no form, so it is replaced freely.
  *
+ * Phase 18 splits the repeat-purchase figure into what is **credited**
+ * (already in the wallet), what is **pending release** (earned, not in
+ * the wallet yet) and the **total** the member has earned as an upline
+ * (plan §10.2, ESC-08). The pending line is hidden at zero so an
+ * ordinary dashboard is unchanged.
+ *
  * @var array{count:int, credited:float, this_month:float, last_at:?string} $commissions
  * @var array{direct:int, team:int, levels:int} $team
  * @var list<array<string, mixed>> $recent_history
@@ -26,8 +32,10 @@ $unilevel      = $unilevel ?? null;
 $repeatOn      = is_array($unilevel);
 $repeatTotals  = $repeatOn ? ($unilevel['totals'] ?? []) : [];
 $repeatStatus  = $repeatOn ? ($unilevel['status'] ?? []) : [];
-$repeatAwards  = (int) ($repeatTotals['count'] ?? 0);
 $repeatCredited = (float) ($repeatTotals['credited'] ?? 0);
+$repeatPending = (float) ($repeatTotals['pending'] ?? 0);
+$repeatAwards  = (int) ($repeatTotals['count'] ?? 0) + (int) ($repeatTotals['pending_count'] ?? 0);
+$repeatTotal   = round($repeatCredited + $repeatPending, 2);
 $repeatEnabled = (bool) ($unilevel['enabled'] ?? false);
 $repeatShow    = $repeatOn && ($repeatEnabled || $repeatAwards > 0);
 
@@ -36,6 +44,17 @@ $repeatMonth  = strtotime($repeatPeriod . '-01') === false
     ? $repeatPeriod
     : date('F Y', (int) strtotime($repeatPeriod . '-01'));
 $repeatActive = (bool) ($repeatStatus['active'] ?? true);
+
+/* The escrow totals carry the next promised release; without one the
+ * copy stays at "after the return window" (plan §10.6). */
+$repeatNext        = $repeatTotals['next_release_at'] ?? null;
+$repeatPendingNote = 'Pending amounts become withdrawable after the return window';
+
+if ($repeatNext !== null && trim((string) $repeatNext) !== '') {
+    $repeatPendingNote .= ' — next release ' . format_date((string) $repeatNext);
+}
+
+$repeatPendingNote .= '.';
 ?>
                   <div class="card h-100" data-live-region="dashboard-earnings">
                     <div class="card-header d-flex align-items-center justify-content-between">
@@ -108,14 +127,32 @@ $repeatActive = (bool) ($repeatStatus['active'] ?? true);
                           <?= $repeatActive ? 'Active' : 'Not Active' ?> for <?= e($repeatMonth) ?>
                         </span>
                       </div>
-                      <div class="d-flex align-items-center justify-content-between gap-2">
-                        <span class="text-body-secondary small">Earned from your Team chain</span>
-                        <strong class="h6 mb-0"><?= e(money($repeatCredited)) ?></strong>
-                      </div>
+                      <ul class="list-unstyled mb-0 small">
+                        <li class="d-flex align-items-center justify-content-between py-1">
+                          <span class="text-body-secondary">Credited</span>
+                          <strong><?= e(money($repeatCredited)) ?></strong>
+                        </li>
+<?php if ($repeatPending > 0): ?>
+                        <li class="d-flex align-items-center justify-content-between py-1">
+                          <span class="text-body-secondary">Pending release</span>
+                          <strong class="text-info"><?= e(money($repeatPending)) ?></strong>
+                        </li>
+<?php endif; ?>
+                        <li class="d-flex align-items-center justify-content-between py-1 border-top">
+                          <span class="text-body-secondary">Total earned</span>
+                          <strong><?= e(money($repeatTotal)) ?></strong>
+                        </li>
+                      </ul>
                       <p class="small text-body-secondary mt-2 mb-0">
-                        <?= $repeatAwards === 0
-                            ? 'No awards yet — a Team chain order credits your level when it is paid.'
-                            : $repeatAwards . ' award' . ($repeatAwards === 1 ? '' : 's') . ' at levels 1–10.' ?>
+<?php if ($repeatAwards === 0): ?>
+                        No awards yet — a <strong>Team chain</strong> order earns your level when it is paid.
+<?php else: ?>
+                        <?= $repeatAwards ?> award<?= $repeatAwards === 1 ? '' : 's' ?> at levels 1–10 from your
+                        <strong>Team chain</strong>'s paid orders.
+<?php endif; ?>
+<?php if ($repeatPending > 0): ?>
+                        <?= e($repeatPendingNote) ?>
+<?php endif; ?>
                         Your own purchases keep you Active; your Team chain pays you.
                         <a href="<?= e(url('earnings?ledger=repeat')) ?>">See the repeat-purchase statement</a>.
                       </p>

@@ -106,7 +106,7 @@ SET time_zone = '+08:00';
 
 -- ===========================================================================
 --  SECTION 1/7 — SCHEMA
---  source: database/schema.sql sha256=0b0f42851836a0415f975a25e9be0ea6aaf6beeb0c3219cdd0163876bbdad48d
+--  source: database/schema.sql sha256=efd71aebd5c5a1a0a3b3d552630a8045d9e7d69581dcf3c0bf33c8155e56605c
 -- ===========================================================================
 
 -- =============================================================
@@ -147,6 +147,9 @@ SET time_zone = '+08:00';
 --                shop_orders.unilevel_processed_at/unilevel_total,
 --                shop_order_items.unit_base/base_total and the two
 --                unilevel ledger ref types.
+--  Phase 18 owns: unilevel_awards.hold_days/credited_at, the
+--                'pending' + 'cancelled' award states, two lookup
+--                indexes and the release settings.
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -696,9 +699,17 @@ CREATE TABLE IF NOT EXISTS shop_order_items (
 --  One row per (order line, recipient, level) decision. There is no
 --  `type` column: the level (1–10) is the whole story (D-17).
 --
---  status   credited = paid (ledger_id set)
---           skipped  = due but not paid (reason set); never moves money
---           voided   = paid then reversed (reversal_ledger_id set)
+--  status   pending   = earned at payment, not in the wallet yet
+--                      (Phase 18 escrow; no ledger_id)
+--           credited  = released: the wallet was credited (ledger_id,
+--                      credited_at set)
+--           skipped   = due but not paid (reason set); never moves money
+--           cancelled = the order was cancelled before release; never
+--                      paid, no ledger, no shortfall (Phase 18)
+--           voided    = paid then reversed (reversal_ledger_id set)
+--  hold_days   days after delivery before a pending award releases; the
+--              value is snapshotted at payment so a later setting change
+--              cannot move an award's promised date (Phase 18).
 --  uq_unilevel_award (order_item_id, user_id, level) is the money
 --  anchor: a replayed payment cannot create a second award.
 --  ledger_id / reversal_ledger_id are deliberately NOT foreign keys
@@ -716,9 +727,11 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
   base_source        ENUM('line','product') NOT NULL DEFAULT 'line',
   rate_pct           DECIMAL(6,3)     NOT NULL,
   amount             DECIMAL(12,2)    NOT NULL,
-  status             ENUM('credited','skipped','voided') NOT NULL DEFAULT 'credited',
+  hold_days          SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  status             ENUM('pending','credited','skipped','voided','cancelled') NOT NULL DEFAULT 'pending',
   reason             VARCHAR(120)     NULL,
   ledger_id          INT UNSIGNED     NULL,
+  credited_at        DATETIME         NULL,
   reversal_ledger_id INT UNSIGNED     NULL,
   reversed_amount    DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
   paid_at            DATETIME         NOT NULL,
@@ -729,6 +742,8 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
   UNIQUE KEY uq_unilevel_award (order_item_id, user_id, level),
   KEY idx_unilevel_user (user_id, created_at),
   KEY idx_unilevel_order (order_id),
+  KEY idx_unilevel_user_status (user_id, status),
+  KEY idx_unilevel_order_status (order_id, status),
   KEY idx_unilevel_buyer (buyer_id, created_at),
   KEY idx_unilevel_product (product_id, created_at),
   KEY idx_unilevel_status (status, created_at),
@@ -1081,7 +1096,7 @@ CREATE TABLE IF NOT EXISTS live_revisions (
 
 -- ===========================================================================
 --  SECTION 2/7 — SETTINGS
---  source: database/seeds/001_settings.sql sha256=c44f1d68c8c435c946607fe92ed63bca145fe5511c118092143460e4e5859071
+--  source: database/seeds/001_settings.sql sha256=2ffcfc6de3d6a0d4f3902d63bad60f0b6c063931997d8f8e63bff0774ff1734d
 -- ===========================================================================
 
 -- =============================================================
@@ -1152,6 +1167,14 @@ INSERT INTO settings (key_name, value) VALUES
   ('unilevel_active_threshold',        '500'),
   ('unilevel_reversal_enabled',        '1'),
   ('unilevel_ledger_since',            DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
+  -- Repeat-purchase bonus escrow (Phase 18). A paid order writes `pending`
+  -- awards and moves no money; the release job credits the wallet after
+  -- delivery + `unilevel_hold_days`. `unilevel_release_enabled` pauses the
+  -- job without stranding earned awards (cancelling an order still cancels
+  -- its pending awards, whatever these two say).
+  ('unilevel_hold_days',               '7'),
+  ('unilevel_release_enabled',         '1'),
 
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
@@ -1418,7 +1441,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=0400c3e8a1bb8ad44bc422e8d86b1d79bdc9404a7b1e1131bf836064eb5c37b6
+--  source: database/install/footer.sql sha256=2b2f1413a37b40681a4a36416a944c3a96b58e53ab03158b74c62a7222ed5dc4
 -- ===========================================================================
 
 -- ===========================================================================
@@ -1446,14 +1469,14 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=0400c3e8a1bb8ad44bc422e8d86b1d79bdc9404a7b1e1131bf836064eb5c37b6
+--  source: database/install/footer.sql sha256=2b2f1413a37b40681a4a36416a944c3a96b58e53ab03158b74c62a7222ed5dc4
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 31    settings_rows = 54    staff_rows    = 2
+--      tables_created = 31    settings_rows = 56    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --

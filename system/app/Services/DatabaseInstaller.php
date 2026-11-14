@@ -119,7 +119,7 @@ final class DatabaseInstaller
     /** The expected production counts — the numbers the footer prints (plan §6.5). */
     public const EXPECTED = [
         'tables_created' => 31,
-        'settings_rows'  => 54,
+        'settings_rows'  => 56,
         'staff_rows'     => 2,
         'members_rows'   => 0,
         'products_rows'  => 7,

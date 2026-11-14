@@ -79,10 +79,11 @@ $checked = static function (string $key) use ($settings): bool {
                         <span class="badge bg-label-primary">Levels 1–10, per product</span>
                       </div>
                       <p class="text-body-secondary small mb-4">
-                        Paid on every <strong>paid shop order</strong> to the buyer's sponsor chain, at the ladder
-                        each product carries. Independent of the referral bonuses above: it has its own master
-                        switch, its own Active rule and its own reversal rule. The per-product ladder is edited on
-                        the product form; this block holds the five values that apply to every product.
+                        Earned on every <strong>paid shop order</strong> by the buyer's sponsor chain, at the ladder
+                        each product carries. The award is held until delivery plus the release delay, then credited
+                        to the upline's withdrawable wallet. Independent of the referral bonuses above: it has its
+                        own master switch, release switch, Active rule and reversal rule. The per-product ladder is
+                        edited on the product form; this block holds the values that apply to every award.
                       </p>
 
                       <div class="row g-6">

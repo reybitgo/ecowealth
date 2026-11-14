@@ -56,6 +56,9 @@ $repeatFixture = static function (bool $deactivateLevel2 = false): array {
     setting_set('unilevel_requires_active_upline', '1');
     setting_set('unilevel_active_threshold', '500');
     setting_set('unilevel_reversal_enabled', '1');
+    /* Phase 18: the fixture wants the released state, so the hold is 0. */
+    setting_set('unilevel_hold_days', '0');
+    setting_set('unilevel_release_enabled', '1');
 
     $buyer  = test_user('p17d_buyer_' . bin2hex(random_bytes(3)));
     $levels = [];
@@ -93,6 +96,10 @@ $repeatFixture = static function (bool $deactivateLevel2 = false): array {
     )->execute(['P17D Coffee', 'P17D-1', $itemId]);
 
     (new UnilevelService())->onOrderPaid($orderId);
+
+    /* Phase 18: payment records pending awards; deliver + release so the
+     * admin ledger has the released rows these cases assert. */
+    test_release_unilevel($orderId);
 
     return [
         'product_id' => $productId,
@@ -633,6 +640,7 @@ return [
             [
                 'Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Product', 'Level',
                 'Base', 'Rate %', 'Amount', 'Status', 'Reason', 'Recovered',
+                'Hold days', 'Released at',
             ],
             UnilevelAward::csvHeader()
         );
@@ -656,7 +664,9 @@ return [
 
         $fixture = $repeatFixture();
 
-        assert_same($before + 1, Live::revision('admin.commissions'), 'a paid order bumps the ledger surface');
+        /* Phase 18: two events bump the surface — the award being recorded
+         * as pending at payment, then the release that credits it. */
+        assert_same($before + 2, Live::revision('admin.commissions'), 'a paid order and its release bump the ledger surface');
 
         /* The two tabs never share an ETag: their query strings differ. */
         $revision = Live::revision('admin.commissions');
@@ -677,5 +687,135 @@ return [
         $package = $controller->feedPayload($revision, $packageEtag, $controller->listContext());
         assert_not_contains((string) $fixture['levels'][1]['username'], $package['fragments']['commission-rows']);
         assert_not_contains('repeat-rows', (string) json_encode(array_keys($package['fragments'])));
+    },
+
+    /* ==========================================================
+     *  Phase 18 — the escrow states in the ledger
+     * ========================================================== */
+
+    'P18-T40 the ledger shows a pending award with no wallet link and a Pending release tile' => function (): void {
+        test_signed_in_as(test_user('p18_ledger_admin', 'admin'));
+
+        foreach ([
+            'unilevel_enabled' => '1', 'unilevel_max_levels' => '10',
+            'unilevel_requires_active_upline' => '0', 'unilevel_reversal_enabled' => '1',
+            'unilevel_hold_days' => '7', 'unilevel_release_enabled' => '1',
+        ] as $key => $value) {
+            setting_set($key, $value);
+        }
+
+        $product = Product::save([
+            'name'             => 'P18 Pending ' . bin2hex(random_bytes(3)),
+            'sku'              => 'P18-PEND-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'            => '300.00',
+            'pv'               => '250.00',
+            'unilevel_enabled' => '1',
+            'unilevel_base'    => 'auto',
+            'stock'            => '10',
+            'status'           => 'active',
+        ], null, ProductUnilevel::referencePreset());
+
+        $buyer  = test_user('p18_pending_buyer_' . bin2hex(random_bytes(3)));
+        $upline = test_user('p18_pending_u1_' . bin2hex(random_bytes(3)));
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([(int) $upline['id'], (int) $buyer['id']]);
+
+        $orderId = test_order((int) $buyer['id'], [['product_id' => $product, 'quantity' => 2]], 'paid', [
+            'paid_at' => date('Y-m-d H:i:s'), 'subtotal' => '600.00', 'total' => '600.00',
+        ]);
+        $itemId = (int) db()->query('SELECT id FROM shop_order_items WHERE order_id = ' . $orderId)->fetchColumn();
+        db()->prepare(
+            'UPDATE shop_order_items SET product_name = ?, unit_price = 300.00, line_total = 600.00,
+                    unit_base = 250.00, base_total = 500.00 WHERE id = ?'
+        )->execute(['P18 Pending Coffee', $itemId]);
+
+        (new UnilevelService())->onOrderPaid($orderId);
+
+        $stats = UnilevelAward::stats();
+        assert_same(25.0, $stats['pending_total']);
+        assert_same(1, $stats['pending']);
+        assert_same(0.0, $stats['credited_total']);
+        assert_same(25.0, $stats['total_awarded']);
+
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/commissions?ledger=repeat';
+
+        $controller = new AdminCommissionController();
+        $data       = $controller->repeatContext();
+        $payload    = $controller->feedPayload(3, '"admin.commissions:3:pending"', $data);
+
+        $rows  = $payload['fragments']['repeat-rows'];
+        $tiles = $payload['fragments']['repeat-stats'];
+
+        assert_contains('Pending release', $rows);
+        assert_contains('Pending release', $tiles);
+        assert_contains('Earned but not yet in a wallet', $tiles);
+        assert_contains('@' . (string) $upline['username'], $rows);
+
+        /* No wallet movement exists, so the row has no wallet link. */
+        assert_not_contains('admin/wallets/' . (int) $upline['id'], $rows);
+    },
+
+    'P18-T41 a cancelled award is not a shortfall and reads Cancelled before release' => function (): void {
+        test_signed_in_as(test_user('p18_cancel_admin', 'admin'));
+
+        foreach ([
+            'unilevel_enabled' => '1', 'unilevel_max_levels' => '10',
+            'unilevel_requires_active_upline' => '0', 'unilevel_reversal_enabled' => '1',
+            'unilevel_hold_days' => '7', 'unilevel_release_enabled' => '1',
+        ] as $key => $value) {
+            setting_set($key, $value);
+        }
+
+        $product = Product::save([
+            'name'             => 'P18 Cancel ' . bin2hex(random_bytes(3)),
+            'sku'              => 'P18-CANC-' . strtoupper(bin2hex(random_bytes(3))),
+            'price'            => '300.00',
+            'pv'               => '250.00',
+            'unilevel_enabled' => '1',
+            'unilevel_base'    => 'auto',
+            'stock'            => '10',
+            'status'           => 'active',
+        ], null, ProductUnilevel::referencePreset());
+
+        $buyer  = test_user('p18_cancel_buyer_' . bin2hex(random_bytes(3)));
+        $upline = test_user('p18_cancel_u1_' . bin2hex(random_bytes(3)));
+
+        db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+            ->execute([(int) $upline['id'], (int) $buyer['id']]);
+
+        $orderId = test_order((int) $buyer['id'], [['product_id' => $product, 'quantity' => 2]], 'paid', [
+            'paid_at' => date('Y-m-d H:i:s'), 'subtotal' => '600.00', 'total' => '600.00',
+        ]);
+        $itemId = (int) db()->query('SELECT id FROM shop_order_items WHERE order_id = ' . $orderId)->fetchColumn();
+        db()->prepare(
+            'UPDATE shop_order_items SET product_name = ?, unit_price = 300.00, line_total = 600.00,
+                    unit_base = 250.00, base_total = 500.00 WHERE id = ?'
+        )->execute(['P18 Cancel Coffee', $itemId]);
+
+        (new UnilevelService())->onOrderPaid($orderId);
+        (new PaymentService())->cancelByAdmin((int) Member::primaryAdmin()['id'], $orderId, 'admin_cancel');
+
+        $stats = UnilevelAward::stats();
+
+        assert_same(1, $stats['cancelled']);
+        assert_same(25.0, $stats['cancelled_total']);
+        assert_same(0.0, $stats['unrecovered'], 'a cancelled award was never paid');
+        assert_same(0.0, $stats['pending_total']);
+
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/commissions?ledger=repeat';
+
+        $controller = new AdminCommissionController();
+        $payload    = $controller->feedPayload(4, '"admin.commissions:4:cancelled"', $controller->repeatContext());
+
+        $rows  = $payload['fragments']['repeat-rows'];
+        $tiles = $payload['fragments']['repeat-stats'];
+
+        assert_contains('Cancelled before release', $rows);
+        assert_contains('Cancelled before release', $tiles);
+        assert_contains('Never paid; no shortfall', $tiles);
+        assert_contains('Voided awards only', $tiles, 'the Unrecovered hint is scoped to voided rows');
     },
 ];

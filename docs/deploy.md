@@ -69,7 +69,7 @@ You will use only these Hostinger hPanel areas:
 | SSH | **No** | File Manager + phpMyAdmin cover everything. |
 | WebSocket / SSE / Redis / queue | **No** | Live updates use browser `BroadcastChannel` plus a 30-second HTTP poll. |
 | A permanent background process | **No** | Each request is ordinary PHP. |
-| A cron job for live updates | **No** | Cron is only for shop expiry, order auto-complete and the transfer-limit reset. |
+| A cron job for live updates | **No** | Cron is only for shop expiry, order auto-complete, the transfer-limit reset, the month close and the repeat-purchase release. |
 
 In deployment terms, the live-update feature adds two new artifacts you must not forget:
 
@@ -167,9 +167,9 @@ Import **one file**, `database/install.sql`, through phpMyAdmin:
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 31 | 54 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 31 | 56 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
-The bundle creates the schema, the 54 settings, both staff accounts, the seven starter
+The bundle creates the schema, the 56 settings, both staff accounts, the seven starter
 products and the two packages in one pass. It contains no `CREATE DATABASE` or `USE`, so
 it installs into whichever schema you selected.
 
@@ -256,7 +256,8 @@ itself off and the feed returns an error. Do not skip this table.
 If the dump is older than Phase 14, apply **every missing migration** in
 `<app>/database/migrations/` in numeric order (for example `012_commissions.sql`,
 `013_live_revisions.sql`, `014_indirect_commissions.sql`, `015_package_b_premium_ladder.sql`,
-`016_transfers.sql`, `017_payouts.sql`, then `018_impersonation.sql`), not just the newest one.
+`016_transfers.sql`, `017_payouts.sql`, `018_impersonation.sql`, `019_audit_and_reporting.sql`,
+`020_unilevel_repeat_purchase.sql`, then `021_unilevel_bonus_escrow.sql`), not just the newest one.
 
 > **Import size limit:** if phpMyAdmin says the file is too large, export as `.sql.gz`
 > (gzip) and import the `.sql.gz`, or split the dump. Hostinger's phpMyAdmin accepts
@@ -711,7 +712,7 @@ Open phpMyAdmin → select the database → **SQL** and run the verification pac
 `dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
 
 ```sql
--- 1. 31 tables and 54 settings on a fresh production install
+-- 1. 31 tables and 56 settings on a fresh production install
 SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
        (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
        (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
@@ -736,7 +737,7 @@ SELECT COUNT(*) AS surfaces FROM live_revisions;
 SHOW TABLES LIKE 'live_revisions';
 ```
 
-A fresh production install prints **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
+A fresh production install prints **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
 is empty after a static `install.sql` import; it may hold a row for `admin.products` after the
 first product change, and a reset leaves 18 standard surfaces. Record the output with the
 go-live evidence (§12).
@@ -772,7 +773,7 @@ Before calling the site live:
 - [ ] Confirm no demo data leaked into production:
       `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
       and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
-- [ ] Run the verification pack (§11.6) and file its output: 31 tables, 54 settings, 2 staff,
+- [ ] Run the verification pack (§11.6) and file its output: 31 tables, 56 settings, 2 staff,
       0 members, 7 products, 2 packages, 18 levels, 10 contents, 0 codes.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
@@ -809,6 +810,8 @@ The scheduled jobs are for:
 - transfer-limit reset (`bin/reset_transfer_limits.php`) — once a day, just after midnight;
 - unilevel month close (`bin/unilevel_month_close.php`) — **00:15 on the first of the month**; it
   snapshots the previous month for the repeat-purchase Active rule and pays no money;
+- repeat-purchase release (`bin/unilevel_release.php`) — **hourly at :20**; it credits due `pending`
+  repeat-purchase awards to the uplines' withdrawable wallets after delivery + the hold window;
 - optionally `bin/wallet_reconcile.php` for a manual reconciliation audit.
 
 The full guide, access rules, logs and troubleshooting are in [cron.md](cron.md).
@@ -930,7 +933,7 @@ The repository's [phase log](phase-log.md) records migrations and behavior chang
 - [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a
       guided installer was used (absent for a static import).
 - [ ] `DB_RESET_ENABLED` absent or `false`.
-- [ ] Verification pack (§11.6) run and filed: 31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
+- [ ] Verification pack (§11.6) run and filed: 31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
 - [ ] Database and uploads backed up **after** the checklist.
 - [ ] Error log reviewed.
 - [ ] Optional cron jobs created and tested with `--doctor`; `wallet_reconcile.php` exits 0.
@@ -984,6 +987,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-12 | Install/reset workstream (IR-1 … IR-8): §5B becomes the one-file `install.sql` bundle plus the key-gated web installer and the optional CLI installer; §6 lists the temporary tool files; §7 documents `INSTALL_KEY` and `DB_RESET_ENABLED`; §11.6 is the verification pack; §12/§16 add tool deletion, lock, key, demo, default-password and verification checks. |
 | 2026-11-12 | Phase 17 (17A → 17G): migration 020 and the six repeat-purchase settings (§Phase 17 addendum), the money engine and the admin surfaces (§Phase 17C/17D addendum), the member surfaces and the fourth cron job (§Phase 17E/17F/17G addendum); §5B and §16 now read 31 tables / 54 settings, §13 names the four jobs, and `APP_PHASE` is 17. |
 | 2026-11-14 | Live update: the checkout page follows the shared `config` revision, so saving **Repeat-purchase bonus enabled** on `/admin/settings` removes or restores the preview line on an open checkout without a reload; §11.4 adds check 28. |
+| 2026-11-14 | Phase 18 (post-17 point release): migration `021` (the escrow columns, the `pending`/`cancelled` states, two indexes and the two settings), the fifth cron job (`bin/unilevel_release.php`), and the §Phase 18 addendum; §5B and §12 now read **31 tables / 56 settings**, §13 names **five** jobs, and `APP_PHASE` stays **17**. |
 
 ---
 
@@ -1028,14 +1032,14 @@ scripts, so a nonce-based policy is a later frontend task (documented in the cla
 
 ### Cron
 
-The four jobs and their Windows Task Scheduler registration are documented in
-[`cron.md` §4](cron.md). Register them once on the host; a missed run only ever makes a limit
-stricter, never wider.
+The five jobs and their Windows Task Scheduler registration are documented in
+[`cron.md`](cron.md) (§1–§4 and §6; the Task Scheduler block is §5). Register them once on the host;
+a missed run only ever makes a limit stricter, never wider.
 
 ### Backups
 
 A real backup → restore drill was executed for the launch gate; the commands and the recorded result
-are in [`runbook.md` §3](runbook.md). Take a dump before applying `019` and before any later
+are in [`runbook.md` §3](runbook.md). Take a dump before applying `021` and before any later
 migration.
 
 ### Go-live
@@ -1066,6 +1070,10 @@ editable on `/admin/settings` → **Commissions** → *Repeat-purchase bonus*:
 
 The sixth key, `unilevel_ledger_since`, is a reconciliation baseline written by the migration and is
 never rendered or editable.
+
+> **Phase 18 adds two more repeat-purchase keys** (`unilevel_hold_days`, `unilevel_release_enabled`), so
+> the current build has **eight** `unilevel%` settings and seven editable controls. See the
+> [Phase 18 addendum](#phase-18-addendum--repeat-purchase-bonus-escrow-post-17-point-release).
 
 The **per-product** half is configured on the product form: **Point value (P.V.)** in *Pricing &
 stock*, then the *Unilevel repeat-purchase bonus* card (bonus base, ten rates, the per-product switch).
@@ -1195,6 +1203,127 @@ php bin/wallet_reconcile.php               # exit 0, five sections
 powershell -NoProfile -File tests/smoke.ps1  # 225 checks, 0 failed
 ```
 
-After the upgrade the install verification pack (§11.6) still reads **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 /
-0**, and the QA pack is finalised at 57 checks in
+After the upgrade the install verification pack (§11.6) read **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0**
+at that release (it reads **31 / 56** from migration `021` on; see the Phase 18 addendum below), and the
+QA pack is finalised at 57 checks in
 [`qa/phase-17-unilevel-repeat-purchase.md`](qa/phase-17-unilevel-repeat-purchase.md).
+
+---
+
+## Phase 18 addendum — repeat-purchase bonus escrow (post-17 point release)
+
+This ships as **Phase 18 — repeat-purchase escrow**, a **post-17 point release**: `APP_PHASE` stays
+**17** (do not change it, and do not expect a phase chip in the footer). The feature is delivered on the
+Phase 17 build; it adds no route, no page and no table.
+
+### Migration 021
+
+Apply `database/migrations/021_unilevel_bonus_escrow.sql` after `020`. It is **additive and
+re-runnable** (every step is guarded by an `information_schema` check):
+
+| Change | Detail |
+|---|---|
+| `unilevel_awards.hold_days` | `SMALLINT UNSIGNED NOT NULL DEFAULT 0` — the per-award release delay, snapshotted at payment |
+| `unilevel_awards.credited_at` | `DATETIME NULL` — when the wallet was actually credited |
+| `unilevel_awards.status` | enum becomes `pending, credited, skipped, voided, cancelled`; the default becomes **`pending`** |
+| Indexes | `idx_unilevel_user_status (user_id, status)`, `idx_unilevel_order_status (order_id, status)` |
+| Backfill | `credited_at = created_at` for rows already `credited`/`voided`; `hold_days = 0` for every existing row |
+| Settings | `unilevel_hold_days` = `7`, `unilevel_release_enabled` = `1` |
+
+**No new table, no change to `ewallet_ledger`, `users`, `shop_orders` or `payout_requests`.**
+
+**No retroactive lock.** Existing `credited` awards stay credited and withdrawable; existing `voided`
+and `skipped` rows keep their status; no `pending` row is created for an order paid before the
+migration. The new hold applies to awards created after it.
+
+### Counts after 021
+
+| Tables | Settings | Cron jobs | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **31** | **56** | **five** | **17** |
+
+The two new keys are `unilevel_hold_days` (`7`, range 0–365) and `unilevel_release_enabled` (`1`).
+Together with the six Phase 17 keys that makes **eight** `unilevel%` settings; `unilevel_ledger_since`
+remains the never-rendered baseline, so the **Commissions → Repeat-purchase bonus** card shows seven
+editable controls.
+
+### Verification commands and expected counts
+
+Run these after applying `021` (adapt the paths to your install):
+
+```bash
+php bin/build_install_sql.php --check        # exit 0: the bundle matches schema.sql + seeds
+php bin/wallet_reconcile.php                 # exit 0, five sections; the Repeat-purchase section now reports pending/cancelled
+php bin/unilevel_release.php --doctor        # clocks, both settings, pending, oldest, due, undelivered, stuck, cancelled_due, lock, log
+php bin/unilevel_release.php --dry-run       # the candidates; writes nothing, credits nothing
+```
+
+```sql
+-- 1. Fresh install or migrated database: 31 tables and 56 settings.
+SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
+       (SELECT COUNT(*) FROM settings)                                                 AS settings_rows;
+
+-- 2. The two new keys exist with the documented defaults.
+SELECT key_name, value FROM settings
+ WHERE key_name IN ('unilevel_hold_days','unilevel_release_enabled')
+ ORDER BY key_name;                                   -- 7 · 1
+
+-- 3. The escrow column and states exist.
+SHOW COLUMNS FROM unilevel_awards
+ WHERE Field IN ('hold_days','credited_at','status');
+-- status: enum('pending','credited','skipped','voided','cancelled'), default 'pending'
+
+-- 4. No retroactive lock: after 021 every pre-existing award is still credited (or voided/skipped).
+SELECT status, COUNT(*) FROM unilevel_awards GROUP BY status;
+-- expected on a Phase 17 database: pending 0, credited/voided/skipped unchanged
+```
+
+A fresh `install.sql` import prints **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+
+### Two-stage rollout (plan §25.1)
+
+The change ships safely in two stages:
+
+**Stage 1 — infrastructure, no behaviour change.** Apply migration `021`; the settings keys, the model
+columns/statuses, the release job itself, the reconcile/CSV/report fields, and the tests/docs that do
+not depend on pending rows. On this stage every award is still `credited` from the old code, so
+`unilevel_release.php --dry-run` must report **0 candidates**. Deploy to staging/dev and confirm that.
+
+**Stage 2 — behaviour and the A++ presentation.** `onOrderPaid()` writes `pending`; cancellation
+cancels pending awards; the member wallet/dashboard/earnings/order and payout reminder surfaces and the
+admin pending states go live; the release cron is enabled; the QA v2 E4/E5 checks run. After Stage 2
+the first live paid order is pending and the first release credits it.
+
+Why: the migration and job are additive and backward-compatible; a bug in the release job is found
+before any award is pending; and a Stage 2 rollback can leave the release job and the pending
+cancellation path running.
+
+### Rollback
+
+- **Schema is additive; there is no down migration.** Do not drop `hold_days`/`credited_at` or narrow
+  the enum: the release history is in those columns.
+- **Pause releases:** set `unilevel_release_enabled = 0`. Pending awards stay pending, no money moves,
+  and they release on the first run after the switch is back on.
+- **Never revert the cancellation path.** `reverseForOrder()` must keep cancelling pending awards
+  *before* the `unilevel_reversal_enabled` check; reverting it would leave a cancelled order's awards
+  releasable and release them later.
+- **A Stage 2 code rollback** may revert `onOrderPaid()` to immediate credit if genuinely necessary;
+  awards already pending still release correctly. Do not delete award, ledger or order rows.
+- **Do not hand-edit award rows** to repair a release. Fix the cause, re-run the job, and read
+  `--doctor` / `bin/wallet_reconcile.php`.
+
+### Upgrade checklist
+
+- [ ] Back up the database.
+- [ ] Apply `021` (or import the regenerated bundle on an empty schema).
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `SELECT key_name, value FROM settings WHERE key_name LIKE 'unilevel%';` — **eight** rows.
+- [ ] `php bin/unilevel_release.php --dry-run` — 0 candidates on a Stage 1 database.
+- [ ] `php bin/wallet_reconcile.php` exits 0, and the **Repeat-purchase** section names pending and
+      cancelled rows.
+- [ ] Register the fifth cron entry (`20 * * * *`, `--limit=200`) from [`cron.md` §6](cron.md), or the
+      `.cmd` Task Scheduler line.
+- [ ] Set `unilevel_hold_days` to the business value (default `7`) and confirm
+      `unilevel_release_enabled = 1`.
+- [ ] Run the QA v2 E4/E5/E6 checks on a disposable copy.
+- [ ] Verify the first live pending award and its release.

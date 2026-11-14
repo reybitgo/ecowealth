@@ -13,31 +13,52 @@ the money through the buyer's order, the two uplines' wallets and statements, an
 order and commission pages. You will compare every screen with the expected result and record
 **Pass**, **Fail** or **Blocked**.
 
-**Time.** About **90–120 minutes** for the required checks, plus **30–40 minutes** for the optional
+**Time.** About **90–120 minutes** for the required checks, plus **40–50 minutes** for the optional
 ones. Do not rush the setup; most false failures come from a product or an account that was not
 prepared exactly as described.
 
 | | |
 |---|---|
-| **Application** | EcoWealth, Phase 17 (the unilevel repeat-purchase release) |
+| **Application** | EcoWealth, Phase 18 — repeat-purchase bonus escrow (a **post-17 point release**; `APP_PHASE` stays 17) |
+| **Version** | **v2 — escrow**. v1 was the Phase 17 walkthrough; this version replaces the payment expectations it changed |
 | **Address** | `http://localhost/ecowealth/system/` |
 | **Environment** | A **local development copy only** — never the live site |
-| **Required checks** | **14** (A1–A3, B1–B4, C1–C5, D1–D2) |
-| **Optional checks** | **4** (E1–E4) |
-| **Evidence** | Create `docs/qa/evidence/unilevel-product/` and save your screenshots there |
-| **Written** | 13 November 2026, against the Phase 17 build; member copy revised to the **Team chain** voice on 14 November 2026 |
+| **Required checks** | **15** (A1–A3, B1–B4, C1a, C1b, C2–C5, D1–D2) |
+| **Optional checks** | **6** (E1–E6) |
+| **Evidence** | v1 screenshots stay in `docs/qa/evidence/unilevel-product/`. The new escrow evidence goes in `docs/qa/evidence/unilevel-escrow/`; this document names those files as **expected** names, not as existing files |
+| **Written** | v1: 13 November 2026, against the Phase 17 build; member copy revised to the **Team chain** voice on 14 November 2026. **v2: 14 November 2026, against the escrow build** |
 
 > ### Stop — read this before you click anything
 >
 > This walkthrough **creates a product, places a real paid order in the test database, and moves test
-> money into three e-wallets**. It also changes global commission settings.
+> money into three e-wallets**. It also changes global commission settings, delivers the order and runs
+> the release job.
 >
 > - Run it **only** on the local development copy (or a copy you are allowed to throw away).
 > - **Never** run it on the live site or with a real customer's account.
-> - The money is not real, but the database rows are. The last optional check (E4) reverses the bonus
->   and refunds the buyer; if you skip it, the test copy keeps the test order and the test money.
+> - The money is not real, but the database rows are. **E4** cancels an order *before* its bonus is
+>   released and moves **no** money; the **C1b** release leaves **₱12.50** of test bonus in each upline's
+>   wallet, and **E5/E6** leave further awards **Pending release**, so use a disposable copy or restore
+>   the pre-test backup (§9).
 > - If you are not sure which copy you are looking at, **stop and ask the system owner** before you
 >   continue.
+
+> ### v2 — what changed in this walkthrough
+>
+> A paid order now **earns** the repeat-purchase bonus but **moves no money**. The award is
+> **Pending release** until the order is **delivered** and the award's snapshotted hold window has
+> passed; the **release job** (hourly) then credits the upline's withdrawable e-wallet, once.
+>
+> - **C1 is split:** **C1a** checks payment (the wallet does **not** move; the pending figure appears)
+>   and **C1b** checks delivery + release (the wallet rises by exactly ₱12.50).
+> - A **fulfilment step** (pack → ready → ship → deliver) now sits between them; the fast path uses
+>   `unilevel_hold_days = 0`.
+> - **E4** is a cancellation **before** release: no debit, no reversal row, **no shortfall**.
+> - **E5** (the payout reminder) and **E6** (the hold actually holds) are new.
+> - Where a section's behaviour changed, the v1 **“Observed”** note (captured on the Phase 17 build,
+>   which credited at payment) was **removed or relabelled as v1 history**; the expectation above it is
+>   the v2 contract. Do not copy a v1 observation into a v2 result.
+> - New screenshots go in `docs/qa/evidence/unilevel-escrow/`.
 
 ---
 
@@ -46,19 +67,19 @@ prepared exactly as described.
 | Part | Checks | What it proves | Time |
 |---|---|---|---|
 | **Setup** | S1–S5 | You have the right people, the right chain, enough test money, and a record of the settings to restore | 15 min |
-| **A — The admin sets it up** | A1–A3 | An operator can give a product a ladder, switch it on, and turn on the global bonus stream | 15 min |
-| **B — What the buyer sees** | B1–B4 | The offer is visible before buying, the preview is honest, and the paid order reports the right total | 25 min |
-| **C — What the uplines see** | C1–C5 | The two uplines are paid into their withdrawable wallets and can explain every row; the buyer earns nothing on their own purchase | 25 min |
-| **D — What the admin can prove** | D1–D2 | The administrator can see exactly who was paid, who was skipped and why | 10 min |
-| **E — Optional** | E1–E4 | The master switch hides the offer, an unconfigured product pays nothing, impossible ladders are refused, and a cancellation reverses the bonus | 30–40 min |
+| **A — The admin sets it up** | A1–A3 | An operator can give a product a ladder, switch it on, turn on the global bonus stream, and set the hold and release switches | 15 min |
+| **B — What the buyer sees** | B1–B4 | The offer is visible before buying, the preview is honest, and the paid order reports the right **awarded** total | 25 min |
+| **C — What the uplines see** | C1a–C5 | The bonus is **pending** at payment, then **credited** after delivery + release; every row is explainable; the buyer earns nothing on their own purchase | 30–35 min |
+| **D — What the admin can prove** | D1–D2 | The administrator can see exactly who was paid, who is pending, who was skipped and why | 10 min |
+| **E — Optional** | E1–E6 | The master switch hides the offer, an unconfigured product pays nothing, impossible ladders are refused, a cancellation before release pays nothing, the payout reminder explains itself, and the hold actually holds | 40–50 min |
 
 **Contents.** [§1 What you are testing](#1-what-you-are-testing-in-plain-english) ·
 [§2 Before you start](#2-before-you-start) · [§3 Setup gates](#3-setup-gates-s1s5) ·
 [§4 Admin setup](#4-the-administrator-sets-up-the-product-a1a3) ·
 [§5 What the buyer sees](#5-what-the-buyer-sees-b1b4) ·
-[§6 What the uplines see](#6-what-the-uplines-see-c1c5) ·
+[§6 What the uplines see](#6-what-the-uplines-see-c1ac5) ·
 [§7 What the admin can prove](#7-what-the-administrator-can-prove-d1d2) ·
-[§8 Optional checks](#8-optional-checks-e1e4) · [§9 Clean-up](#9-clean-up-and-restore) ·
+[§8 Optional checks](#8-optional-checks-e1e6) · [§9 Clean-up](#9-clean-up-and-restore) ·
 [§10 Results sheet](#10-results-sheet) · [§11 Troubleshooting](#11-if-something-doesnt-match) ·
 [§12 Glossary](#12-glossary) · [Appendix A](#appendix-a--the-numbers-in-one-place) ·
 [Appendix B](#appendix-b--evidence-and-defect-reports)
@@ -100,7 +121,9 @@ base is its retail price.
 
 Two rules matter more than anything else:
 
-1. **The money is paid when the order is paid** — not when it is placed, not when it is shipped.
+1. **The bonus is earned when the order is paid, and paid into the upline's wallet when it is released**
+   — earned at payment (never at placement), released after the order is delivered and the award's
+   hold window has passed. Until then it is **Pending release**, not money.
 2. **The buyer never receives their own bonus.** The money goes only to the uplines above the buyer.
 
 "Repeat purchase" simply means the bonus is paid again on the next paid order of the same product. It
@@ -157,12 +180,13 @@ Both numbers are correct:
 | Number | Where you see it | What it means |
 |---|---|---|
 | **₱72.50** | Product page, checkout | The maximum this product's ladder can pay on one unit |
-| **₱25.00** | Paid order page, admin order, admin ledger | What this order actually paid, after the real chain and eligibility |
-| **₱12.50 each** | Maria's and Juan's wallets | Their level's share |
+| **₱25.00** | Paid order page, admin order, admin ledger | What this order **awarded**, after the real chain and eligibility (`pending` + `credited`) |
+| **₱12.50 each** | Maria's and Juan's wallets | Their level's share — **Pending release** first, **Credited** after delivery + the hold |
 | **₱12.50 skipped** | Admin order, level 3 | Due, but the company account is not a recipient |
 
 The "**up to**" wording on the product page and the checkout is deliberate. It is a preview, not a
-promise.
+promise. The order page says the ₱25.00 is **reserved** for the members above you and is released to
+their e-wallets after the return window; once the release job has run it says it **was released**.
 
 ### 1.4 "Active" is a monthly purchase rule, not a job title
 
@@ -216,7 +240,8 @@ for reasons that have nothing to do with the feature.
       substitute them.
 - [x] I am on a **test copy**, not the live site.
 - [x] I have **90–120 minutes** for the required checks.
-- [x] I have created `docs/qa/evidence/unilevel-product/` for screenshots.
+- [x] I have created `docs/qa/evidence/unilevel-escrow/` for the new screenshots (the v1 screenshots
+      stay in `docs/qa/evidence/unilevel-product/`).
 - [x] I have read §1.3 and understand why the preview and the order total differ.
 - [x] I have written down the current repeat-purchase settings (§3, S5), because I must restore them
       at the end.
@@ -285,38 +310,43 @@ a link. On a narrow screen, open the menu first.
 2. **No real money and no real customers.** Use only the demo/test accounts named in this guide.
 3. **Do not edit code or the database.** If you have a terminal open, close it; this test needs only a
    browser.
-4. **Do not cancel the order until E4.** The rest of the checks need the order to stay paid. Cancelling
-   reverses the bonus and refunds the buyer.
+4. **Do not cancel the main order at all.** The rest of the checks need it paid and delivered. E4 places
+   its own second paid order and cancels that one before release; the main order's release is what C1b
+   proves, and cancelling it would cancel the pending bonus instead.
 5. **Do not delete the test product.** The paid order references it, so deletion is refused. Switch it
    off at the end instead.
-6. **Write down the "before" numbers** in §2.5 before you buy. If the copy has other test history, the
+6. **Do not run the release job on a live copy.** It credits real wallets; here it is the step that
+   makes C1b happen, and it is safe because the copy is disposable.
+7. **Write down the "before" numbers** in §2.5 before you buy. If the copy has other test history, the
    change is what matters, not the absolute total.
-7. **If a page shows an error, stop that check and capture it.** Do not retry the same button blindly;
+8. **If a page shows an error, stop that check and capture it.** Do not retry the same button blindly;
    the error message and the address bar are the evidence.
-8. **Keep your screenshots.** They are the only proof of what you saw.
+9. **Keep your screenshots.** They are the only proof of what you saw.
 
 ### 2.5 The number worksheet
 
-Fill in the **Before** column before you place the order (B3), and the **After** column immediately
-after it. The "Expected change" is what this walkthrough's one-unit order must do.
+Fill in the **Before** column before you place the order (B3), and the **After** column at the point
+each check says: B4 for the buyer, **C1a** for the payment state of the two uplines, and **C1b** for
+their post-release state. The "Expected change" is what this walkthrough's one-unit order must do.
 
 | # | Number to record | Where to read it | Before | After | Expected change |
 |---|---|---|---|---|---|
-| 1 | Buyer's e-wallet **Total balance** | Peter → **E-wallet** | **₱1,700.00** | | **−₱300.00** |
-| 2 | Level 1 **Withdrawable** | Maria → **E-wallet** | **₱1,020.00** | | **+₱12.50** |
-| 3 | Level 2 **Withdrawable** | Juan → **E-wallet** | **₱396.00** | | **+₱12.50** |
-| 4 | Level 1 **Total credited** | Maria → **Earnings** → **Repeat-purchase bonus** | **₱0.00** | | **+₱12.50** |
-| 5 | Level 2 **Total credited** | Juan → **Earnings** → **Repeat-purchase bonus** | **₱0.00** | | **+₱12.50** |
-| 6 | Buyer's **purchases so far** this month | Peter → **Earnings** → **Repeat-purchase bonus** | **₱0.00** | | **+₱300.00** |
+| 1 | Buyer's e-wallet **Total balance** | Peter → **E-wallet** | **₱1,700.00** | | **−₱300.00** at B4 |
+| 2 | Level 1 **Withdrawable** | Maria → **E-wallet** | **₱1,020.00** | | **no change at payment (C1a); +₱12.50 at release (C1b)** |
+| 3 | Level 2 **Withdrawable** | Juan → **E-wallet** | **₱396.00** | | **no change at payment (C1a); +₱12.50 at release (C1b)** |
+| 4 | Level 1 **Total credited** | Maria → **Earnings** → **Repeat-purchase bonus** | **₱0.00** | | **₱0.00 at payment; +₱12.50 after release (C1b)** |
+| 5 | Level 2 **Total credited** | Juan → **Earnings** → **Repeat-purchase bonus** | **₱0.00** | | **₱0.00 at payment; +₱12.50 after release (C1b)** |
+| 6 | Level 1 **Pending release** | Maria → **E-wallet** (or the earnings tile) | **₱0.00** | | **+₱12.50 at payment (C1a); ₱0.00 after release (C1b)** |
+| 7 | Buyer's **purchases so far** this month | Peter → **Earnings** → **Repeat-purchase bonus** | **₱0.00** | | **+₱300.00** |
 
 > The exact totals in the checks assume a **clean copy** where these accounts have no earlier
 > repeat-purchase history. If your copy already has some, the **change** must still be exactly as
 > shown; the absolute total will be higher. Record the before value so you can tell the difference
 > between "history" and "the feature is wrong".
 
-> **Recorded 14 November 2026 (Asia/Manila), before any order.** The **After** column is read at B4,
-> after the order is placed and paid; this setup run stops at S5, so that column is intentionally still
-> blank.
+> **Recorded 14 November 2026 (Asia/Manila), before any order.** The **After** column is read at B4
+> (the buyer), C1a (payment: nothing has been credited yet) and C1b (after delivery + release); this
+> setup run stops at S5, so that column is intentionally still blank.
 
 ### 2.6 How each check is laid out
 
@@ -353,7 +383,7 @@ in order.
 | **S2** | **Pass** | `peter` → **@maria**, `maria` → **@juan**, `juan` → **@admin**; all three are **Active associate** (Package A). |
 | **S3** | **Pass** | `maria` and `juan` both showed the green badge **Active for November 2026**. |
 | **S4** | **Pass** | Peter's **Total balance** was **₱1,700.00**, above the **₱300.00** order total, so no top-up was needed. |
-| **S5** | **Pass** | All five settings recorded below; the master switch was **Off** before the run. |
+| **S5** | **Pass** | All seven settings recorded below; the master switch was **Off** before the run. |
 
 ### S1 — Sign in as the administrator
 
@@ -438,7 +468,7 @@ immediately.
 1. In Window A, open **Settings** (`/admin/settings`).
 2. Click the **Commissions** pill at the top, or scroll to the **Commissions** card.
 3. Find the **Repeat-purchase bonus** sub-block.
-4. Write down the current value of each of these five controls:
+4. Write down the current value of each of these seven controls:
 
 | Setting | Current value (recorded 14 November 2026) |
 |---|---|
@@ -446,12 +476,14 @@ immediately.
 | **Upline depth** | **10** levels |
 | **Monthly personal-purchase minimum** | ₱ **500.00** |
 | **Require the monthly Active rule** | ☑ On ☐ Off |
-| **Reverse awards when a paid order is cancelled** | ☑ On ☐ Off |
+| **Release delay after delivery** | **7** days |
+| **Release repeat-purchase bonuses** | ☑ On ☐ Off |
+| **Reverse released awards when an order is cancelled** | ☑ On ☐ Off |
 
-**You are ready when:** you have all five values written down. You will put them back in §9.
+**You are ready when:** you have all seven values written down. You will put them back in §9.
 
-**Recorded:** the five values above. The master switch was **Off** at this point; A3 turns it **On** for
-the walkthrough, and §9 restores it to **Off**.
+**Recorded:** the seven values above. The master switch was **Off** at this point; A3 turns it **On** for
+the walkthrough (and sets the hold to `0` for the fast path), and §9 restores them.
 
 > Do **not** change them yet. A3 is where you set the values this test needs.
 
@@ -467,7 +499,7 @@ the walkthrough, and §9 restores it to **Off**.
 |---|---|---|---|
 | **A1** | **Pass** | The product form carries the **Unilevel repeat-purchase bonus** card: badge **Levels 1–10**, switch **off**, base **Auto**, ten rates **5 / 5 / 5 / 3 / 3 / 2 / 2 / 2 / 1 / 1**, footer **29%** and **₱0.00**. | `4_a1_admin_product_new.jpeg` |
 | **A2** | **Pass** | **Product created.** and the row shows **QA Repeat Product** with **Repeat bonus 29%**. Reopening it keeps price **₱300.00**, P.V. **₱250.00**, stock **50**, the ten rates and the switch **on**. One **Minor** cosmetic note on the base helper. | `4_a2_admin_product_new_complete.jpeg`, `4_a2_admin_product_new_created.jpeg` |
-| **A3** | **Pass** | The **Repeat-purchase bonus** block is on: depth **10**, minimum **₱500.00**, Active rule **on**, reversal **on**, master switch **on**. A reload keeps them, and no sixth `unilevel*` key appears. | `4_a3_admin_settings_global_unilevel_product.jpeg` |
+| **A3** | **Pass** | The **Repeat-purchase bonus** block is on: depth **10**, minimum **₱500.00**, Active rule **on**, **release delay 0 days**, **release on**, reversal **on**, master switch **on**. A reload keeps them, and no eighth `unilevel*` key appears. | `4_a3_admin_settings_escrow.jpeg` (v2, expected name) |
 
 ### A1 — The product form has the repeat-purchase card
 
@@ -611,7 +643,7 @@ rates, and save again. Do not continue until the badge says **29%**.
 |---|---|
 | **Why it matters** | A product can be fully configured and still pay nothing if the global master switch is off. Both switches must be on. |
 | **Where** | Admin → **Settings** → **Commissions** (`/admin/settings#settings-commissions`) |
-| **Evidence** | `4_a3_admin_settings_global_unilevel_product.jpeg` |
+| **Evidence** | `4_a3_admin_settings_escrow.jpeg` (expected name, in `docs/qa/evidence/unilevel-escrow/`) |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -625,38 +657,40 @@ rates, and save again. Do not continue until the badge says **29%**.
    - **Monthly personal-purchase minimum** → `500.00`;
    - **Require the monthly Active rule** → **on**, **unless §11 T1 told you to turn it off for this
      test**; in that case leave it **off** and restore it in §9;
-   - **Reverse awards when a paid order is cancelled** → **on**.
+   - **Release delay after delivery** → `0` for the fast path (E6 sets it back to `7` on purpose);
+   - **Release repeat-purchase bonuses** → **on**;
+   - **Reverse released awards when an order is cancelled** → **on**.
 5. Click **Save settings** at the bottom of the **Commissions** card.
 6. Read the confirmation banner, then reload the page and read the block again.
 
 **You should see**
 
 - The sub-block heading **Repeat-purchase bonus** and the badge **Levels 1–10, per product**.
-- The paragraph explaining that the bonus is paid on every **paid shop order** to the buyer's sponsor
+- The paragraph explaining that the bonus is earned on every **paid shop order** to the buyer's sponsor
   chain, at the ladder each product carries, and that the per-product ladder is edited on the product
   form.
-- The five controls above, with the values you just set.
+- The seven controls above, with the values you just set — including **Release delay after delivery**
+  (`0` days) and **Release repeat-purchase bonuses** (**on**).
+- The hint under **Release delay after delivery**: **“Days after delivery before a repeat-purchase bonus
+  becomes withdrawable. 0 releases at delivery. Applies to new awards only; each award keeps the value
+  it was given at payment.”**
+- The hint under **Release repeat-purchase bonuses**: **“Off pauses the release job; pending bonuses
+  stay pending. Cancelling an order still cancels its pending awards.”**
 - A green banner such as **Commissions: 4 settings saved.** (The number is how many values actually
   changed; the word **Commissions** and the green tone are what matter.)
 - If nothing changed, the banner says **No changes to save.** — that is **not** a failure.
-- **No sixth `unilevel*` key** is shown. In particular, `unilevel_ledger_since` must never appear on
+- **No eighth `unilevel*` key** is shown. In particular, `unilevel_ledger_since` must never appear on
   this page.
 
-**Observed:** **Settings → Commissions** opened with the **Commissions** pill active and the
-**Repeat-purchase bonus** sub-block showing the badge **Levels 1–10, per product** and the paragraph
-about every **paid shop order**, the per-product ladder, and the five values that apply to every
-product. The five controls were **Repeat-purchase bonus enabled** on, **Upline depth** `10` levels,
-**Monthly personal-purchase minimum** `500.00`, **Require the monthly Active rule** on, and **Reverse
-awards when a paid order is cancelled** on. Only one value had to move — the master switch, **off → on**
-— so the green confirmation read **Commissions: 1 setting saved.** The other four controls already held
-the values recorded in S5 and were not rewritten. Reloading the page showed the same five values, so the
-save was stored. No sixth `unilevel*` key appeared: in particular `unilevel_ledger_since` was not
-rendered anywhere in the block. Screenshot:
-`docs/qa/evidence/unilevel-product/4_a3_admin_settings_global_unilevel_product.jpeg`.
+**Observed (v1, Phase 17 build):** the block rendered the five controls that existed then and saved
+correctly. **The v2 build adds the two escrow controls above**, so the expected block has **seven**;
+the v1 observation no longer describes it. Take the screenshot on the escrow build and save it as
+`docs/qa/evidence/unilevel-escrow/4_a3_admin_settings_escrow.jpeg` (expected name).
 
 **Why both switches matter:** if either the global switch or the product switch is off, nothing is
-paid. The product page, the catalogue badge and the checkout preview disappear, and a paid order is
-stamped as processed with a zero total. The admin order page explains which case applies.
+awarded. The product page, the catalogue badge and the checkout preview disappear, and a paid order is
+stamped as processed with a zero total. The admin order page explains which case applies. The **release
+switch** is separate: off pauses the wallet credits but never stops a cancellation.
 
 ---
 
@@ -669,13 +703,19 @@ offer, buy it, read the result.
 > checks passed, with one **Minor** cosmetic note on the product panel recorded under B2. The values
 > below were read on `peter`'s own screens as the journey ran; the paid order was read again on the order
 > page and in the ledger after the run. Screenshots are in `docs/qa/evidence/unilevel-product/`.
+>
+> **v2 note.** A3, B2, B3 and B4 changed with the escrow: the settings block gained the two release
+> controls, the product panel now says the share is **earned when that order is paid** and **released
+> after the return window**, the checkout note says the same, and the order card says the amount is
+> **reserved**. Their v1 **Observed** notes are kept only as history; run the checks again on the
+> escrow build and save the new images in `docs/qa/evidence/unilevel-escrow/`. B1 is unchanged.
 
 | Check | Result | What the screen showed | Saved screenshot |
 |---|---|---|---|
 | **B1** | **Pass** | **Shop** with **1 result** after searching `QA Repeat Product`; card **QA Repeat Product**, SKU **QA-REPEAT-01**, **In stock**, blue **Up to 29% repeat bonus** badge, **₱300.00**, an icon cart button and **Details**. | `5_b1_shop_unilevel_product.jpeg` |
-| **B2** | **Pass** | **Repeat-purchase bonus** panel: base **₱250.00** (P.V.), badge **Up to 29%**, **10 of 10 levels pay on this base**, the ten rates **5 / 5 / 5 / 3 / 3 / 2 / 2 / 2 / 1 / 1** worth **₱12.50 … ₱2.50**, footer **Total up to 29.000%** and **₱72.50 per unit**; Team chain voice throughout. One **Minor** clipped label. | `5_b2_shop_unilevel_product_detail.jpeg` |
-| **B3** | **Pass** | Checkout: **QA Repeat Product 1 × ₱300.00**, **Subtotal ₱300.00**, **Total ₱300.00**, **E-wallet ₱1,700.00**, and the note **Up to ₱72.50 is paid to the members above you when this order is paid.** plus the Team chain paragraph; the order was placed. | `5_b3_shop_unilevel_product_checkout.jpeg` |
-| **B4** | **Pass** | Paid order **EW26111400861**: **Payment received**, **Paid**, total **₱300.00**, the bonus card **₱25.00 was paid to the members above you…** with no recipient named; buyer's **E-wallet** **₱1,400.00**. | `5_b4_shop_unilevel_product_order.jpeg` |
+| **B2** | **Pass** | **Repeat-purchase bonus** panel: base **₱250.00** (P.V.), badge **Up to 29%**, **10 of 10 levels pay on this base**, the ten rates **5 / 5 / 5 / 3 / 3 / 2 / 2 / 2 / 1 / 1** worth **₱12.50 … ₱2.50**, footer **Total up to 29.000%** and **₱72.50 per unit**; Team chain voice throughout. One **Minor** clipped label. | `5_b2_shop_unilevel_product_detail.jpeg` (save the escrow-build copy in `unilevel-escrow/`) |
+| **B3** | **Pass** | Checkout: **QA Repeat Product 1 × ₱300.00**, **Subtotal ₱300.00**, **Total ₱300.00**, **E-wallet ₱1,700.00**, and the note **Up to ₱72.50 is earned by the members above you when this order is paid. It is released to their e-wallets after the return window (delivery).** plus the Team chain paragraph; the order was placed. | `5_b3_shop_unilevel_product_checkout.jpeg` (v2 name: `5_b3_checkout.jpeg` in `unilevel-escrow/`) |
+| **B4** | **Pass** | Paid order **EW26111400861**: **Payment received**, **Paid**, total **₱300.00**, the bonus card **₱25.00 is reserved for the members above you… released after the return window** with no recipient named; buyer's **E-wallet** **₱1,400.00**, and no upline wallet has moved. | `5_b4_shop_unilevel_product_order.jpeg` (v2 name: `5_b4_shop_unilevel_product_order.jpeg` in `unilevel-escrow/`) |
 
 ### B1 — The catalogue shows the offer
 
@@ -720,7 +760,7 @@ status is wrong. Do not continue; fix the setup and reload the shop.
 |---|---|
 | **Why it matters** | This is the only place a member sees the full ladder, the base and the per-level amounts before buying. It must be complete, and it must be Team chain directed: it shows what the reader earns when their Team chain buys, and that their own purchase does not pay them. |
 | **Where** | `/shop/{id}` — click **Details** on the product card |
-| **Evidence** | `5_b2_shop_unilevel_product_detail.jpeg` (full-page screenshot; the panel is at the bottom) |
+| **Evidence** | `5_b2_shop_unilevel_product_detail.jpeg` (full-page screenshot; the panel is at the bottom; v1 copy in `unilevel-product/`, save the escrow-build copy in `unilevel-escrow/`) |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -758,8 +798,9 @@ status is wrong. Do not continue; fix the setup and reload the shop.
 
 - The footer: **Total up to 29.000%** on the left and **₱72.50 per unit** on the right.
 - The first explanatory paragraph: **"Across all ten levels. Your own share is the rate on the level
-  where your Team chain member sits, and it is credited to your e-wallet when that order is paid, to an
-  eligible member who is Active for the month."**
+  where your Team chain member sits. It is earned when that order is paid and released to your e-wallet
+  after the return window (delivery + N days), to an eligible member who is Active for the month."**
+  On the A3 fast path the parenthetical reads **(delivery)** because the hold is `0`.
 - The second explanatory paragraph: **"Meet the ₱500.00 monthly minimum to stay Active: your counted
   purchases last month decide this month, and only an Active member is paid. If a level falls on you
   while you are not Active, it is skipped and never moved to another level."**
@@ -771,20 +812,24 @@ chain**. **Your direct recruit** is the Team chain relationship, not a bonus typ
 and **cashback** must not appear anywhere on this panel. The ten levels are one ladder; there is no
 direct/indirect split.
 
-**Observed:** **Details** opened the product page with the breadcrumb **Shop / QA Repeat Product**, the
-price **₱300.00**, **50 available**, the **In stock** pill, **SKU** `QA-REPEAT-01` and **Availability 50
-units available**. Below **About this product** and that list, the panel **Repeat-purchase bonus** carried
-the gift icon, the blue badge **Up to 29%**, and the Team chain paragraph quoted above, word for word.
-The base line read **Bonus base ₱250.00 per unit (the product's P.V.). Each level below is what you earn
-when a Team chain member at that depth buys one unit; their cart quantity multiplies it.**, followed by
-**10 of 10 levels pay on this base.** The ten tiles read **Level 1 5.000% ₱12.50**, **Level 2 5.000%
-₱12.50**, **Level 3 5.000% ₱12.50**, **Level 4 3.000% ₱7.50**, **Level 5 3.000% ₱7.50**, **Level 6
-2.000% ₱5.00**, **Level 7 2.000% ₱5.00**, **Level 8 2.000% ₱5.00**, **Level 9 1.000% ₱2.50** and
-**Level 10 1.000% ₱2.50**, each carrying **Your direct recruit** (level 1) or **Your Team chain** (levels
-2–10) beneath it. The footer read **Total up to 29.000%** on the left and **₱72.50 per unit** on the
-right, and the three explanatory paragraphs appeared as quoted above. The words **cashback**,
-**direct bonus**, **indirect**, **sponsor chain** and **rebate** were not present anywhere in the panel.
-Screenshot: `docs/qa/evidence/unilevel-product/5_b2_shop_unilevel_product_detail.jpeg`.
+**Observed (v1, Phase 17 build):** **Details** opened the product page with the breadcrumb **Shop / QA
+Repeat Product**, the price **₱300.00**, **50 available**, the **In stock** pill, **SKU** `QA-REPEAT-01`
+and **Availability 50 units available**. Below **About this product** and that list, the panel
+**Repeat-purchase bonus** carried the gift icon, the blue badge **Up to 29%**, and the Team chain
+paragraph quoted above, word for word. The base line read **Bonus base ₱250.00 per unit (the product's
+P.V.). Each level below is what you earn when a Team chain member at that depth buys one unit; their
+cart quantity multiplies it.**, followed by **10 of 10 levels pay on this base.** The ten tiles read
+**Level 1 5.000% ₱12.50**, **Level 2 5.000% ₱12.50**, **Level 3 5.000% ₱12.50**, **Level 4 3.000%
+₱7.50**, **Level 5 3.000% ₱7.50**, **Level 6 2.000% ₱5.00**, **Level 7 2.000% ₱5.00**, **Level 8 2.000%
+₱5.00**, **Level 9 1.000% ₱2.50** and **Level 10 1.000% ₱2.50**, each carrying **Your direct recruit**
+(level 1) or **Your Team chain** (levels 2–10) beneath it. The footer read **Total up to 29.000%** on the
+left and **₱72.50 per unit** on the right. The words **cashback**, **direct bonus**, **indirect**,
+**sponsor chain** and **rebate** were not present anywhere in the panel. **The v1 first paragraph said
+the share was "credited to your e-wallet when that order is paid"; the escrow build replaces that with
+the earned-then-released wording quoted above, so the old sentence must not be recorded as a v2 pass.**
+Screenshot (v1): `docs/qa/evidence/unilevel-product/5_b2_shop_unilevel_product_detail.jpeg`. Save the
+escrow-build screenshot as `docs/qa/evidence/unilevel-escrow/5_b2_shop_unilevel_product_detail.jpeg`
+(expected name).
 
 **Minor (cosmetic) — recorded, not a failure.** At this window width the **Level 1** tile cuts its
 sub-label to **Your direct recr…**; the page's own label is **Your direct recruit**, and the longer text
@@ -802,7 +847,7 @@ Recorded as a **Minor** presentation note per Appendix B.2; the check is **Pass*
 |---|---|
 | **Why it matters** | The preview is the last thing a buyer reads before paying. It states the fact of the order, then turns the reader toward the income their own Team chain can produce. |
 | **Where** | Product page → **Add to cart** → **Cart** → **Proceed to checkout** (`/checkout`) |
-| **Evidence** | `5_b3_shop_unilevel_product_checkout.jpeg` |
+| **Evidence** | v1: `5_b3_shop_unilevel_product_checkout.jpeg`; escrow build: `5_b3_checkout.jpeg` (expected name, in `unilevel-escrow/`) |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -826,32 +871,26 @@ Recorded as a **Minor** presentation note per Appendix B.2; the check is **Pass*
 - **Order summary:** a line for **QA Repeat Product** with **1 × ₱300.00**, then **Items 1**,
   **Subtotal ₱300.00**, **Shipping Free**, **Total ₱300.00**.
 - **E-wallet** with the buyer's current balance and the line "**₱… of it is withdrawable.**"
-- The repeat-purchase note, exactly:
-  - **"Up to ₱72.50 is paid to the members above you when this order is paid."**
+- The repeat-purchase note, exactly (v2 wording):
+  - **"Up to ₱72.50 is earned by the members above you when this order is paid. It is released to their
+    e-wallets after the return window (delivery)."** On a copy with a hold above `0` the parenthetical
+    reads **(delivery + N days)**.
   - **"The same repeat-purchase ladder pays you when your Team chain buys these products: Level 1 for
     the members you personally sponsored, Level 2 for their recruits, up to Level 10. Keep your monthly
-    minimum to stay Active, so your level income is credited when their order is paid."**
-- The note never says **sponsor chain**, **rebate** or **cashback**.
+    minimum to stay Active, so your level income is earned when their order is paid and released to your
+    e-wallet after the return window."**
+- The note never says **sponsor chain**, **rebate** or **cashback**, and it never promises a release
+  date before delivery.
 - **Payment method:** the **E-wallet** option is selected. It shows the available balance. If the
   balance is below ₱300.00, the option is disabled; go back to S4 and credit the buyer.
 - After **Place order**, the page moves to the order page with a green flash:
   **"Order placed and paid. Thank you!"**
 
-**Observed:** **Add to cart** with the quantity left at **1** put one line in the cart, **QA Repeat
-Product 1 × ₱300.00**. **Cart → Proceed to checkout** opened `/checkout`, which restored the delivery
-details from the earlier attempt and showed the blue notice **"Your checkout details were restored. The
-delivery details and payment method you typed earlier were filled back in; nothing was submitted."**
-The **Order summary** card read **QA Repeat Product ₱300.00**, **1 × ₱300.00**, **Items 1**, **Subtotal
-₱300.00**, **Shipping Free**, **Total ₱300.00**; below it the **E-wallet** tile showed **₱1,700.00** with
-**"₱900.00 of it is withdrawable."** and **View wallet**. The repeat-purchase note read, in full,
-**"Up to ₱72.50 is paid to the members above you when this order is paid."** and **"The same
-repeat-purchase ladder pays you when your Team chain buys these products: Level 1 for the members you
-personally sponsored, Level 2 for their recruits, up to Level 10. Keep your monthly minimum to stay
-Active, so your level income is credited when their order is paid."** — with no **sponsor chain**,
-**rebate** or **cashback** wording. **Payment method** had **E-wallet** selected and showing **₱1,700.00**,
-the terms checkbox was ticked, and **Place order** moved to the order page with the green flash
-**"Order placed and paid. Thank you!"** (captured at the top of the B4 screenshot). Screenshot:
-`docs/qa/evidence/unilevel-product/5_b3_shop_unilevel_product_checkout.jpeg`.
+**Observed (v1, Phase 17 build):** the checkout showed the old note **"Up to ₱72.50 is paid to the
+members above you when this order is paid."** The escrow build rewords it to **earned … released after
+the return window** (quoted above), so the v1 note must not be recorded as a pass in v2. Take the
+escrow-build screenshot as `docs/qa/evidence/unilevel-escrow/5_b3_checkout.jpeg` (expected name); the
+v1 image stays in `unilevel-product/` as history.
 
 **If the preview is missing:** the global switch, the product switch, or the product's ladder is not
 active. Do not place the order; fix the setup first.
@@ -860,9 +899,9 @@ active. Do not place the order; fix the setup first.
 
 | | |
 |---|---|
-| **Why it matters** | The buyer must see what the order actually paid, with no recipient names or per-upline amounts. The buyer must also see their own wallet debit. |
+| **Why it matters** | The buyer must see what the order actually **awarded**, with no recipient names or per-upline amounts, and must not be told the money has already moved. The buyer must also see their own wallet debit. |
 | **Where** | The order page (`/orders/{id}`) and Peter → **E-wallet** (`/wallet`) |
-| **Evidence** | `5_b4_shop_unilevel_product_order.jpeg` (the paid order page; the wallet reading is recorded in the observed note) |
+| **Evidence** | `5_b4_shop_unilevel_product_order.jpeg` in `docs/qa/evidence/unilevel-escrow/` (expected name; the v1 copy is in `unilevel-product/`) |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
 **Do this**
@@ -879,36 +918,29 @@ active. Do not place the order; fix the setup first.
 - The status card says **Payment received** (the order status is **Paid**).
 - The order total is **₱300.00**.
 - A **Repeat-purchase bonus** card with a gift icon, reading:
-  - **"₱25.00 was paid to the members above you when this order was paid."**
+  - **"₱25.00 is reserved for the members above you. It is released to their e-wallets after the
+    return window (delivery + 0 days)."** — the exact date phrase follows the hold you set in A3. Before
+    delivery the card never promises a date; with `hold_days = 0` it says **delivery + 0 days**, and
+    once the order is delivered it prints the estimated release date.
   - **"Your Team chain is your earning side: when a member you sponsored buys these products, the same
-    ladder credits your level's share to your e-wallet — Level 1 for your direct recruits, up to Level
-    10. Keep your monthly minimum to stay Active. See your Team chain statement."**
+    ladder earns your level's share for your e-wallet — Level 1 for your direct recruits, up to Level
+    10. Keep your monthly minimum to stay Active."** with the Team chain statement link.
 - The card never says **sponsor chain**, and it carries **no recipient username** and **no
-  per-member amount** anywhere. The buyer sees only the order total.
+  per-member amount** anywhere. The buyer sees only the order's awarded total.
 - The buyer's **E-wallet** shows a **Shop order** debit of **₱300.00**, and the total balance is
-  exactly **₱300.00 lower** than the before value in worksheet row 1.
+  exactly **₱300.00 lower** than the before value in worksheet row 1. **Nothing else on the buyer's
+  wallet changes** — the buyer earned no bonus, and the uplines' pending money is not theirs.
 
 **Why ₱25.00 and not ₱72.50:** see §1.3. The preview shows the ladder's maximum; the order shows what
-the real chain paid. The company account at level 3 is skipped, and its ₱12.50 is not moved.
+the real chain **awarded**. The company account at level 3 is skipped, and its ₱12.50 is not moved.
+The ₱25.00 is the **awarded** total: at this point it is all `pending`, so no wallet anywhere has moved.
 
-**Observed:** the order page opened in **My orders** and showed the green flash **"Order placed and
-paid. Thank you!"**, the **Paid** pill, the order number **EW26111400861**, **Placed Nov 14, 2026 5:20 PM
-· E-wallet**, and the total **₱300.00** at the top right. The status card read **Payment received** with
-**"Thank you! We are preparing your order for delivery. The courier and the tracking number appear here
-as soon as the order ships."** The **Items** table showed **QA Repeat Product**, **QA-REPEAT-01**, **QTY
-1**, **UNIT PRICE ₱300.00**, **LINE TOTAL ₱300.00**, then **Subtotal ₱300.00**, **Shipping Free** and
-**Total ₱300.00**; the **Payment** card repeated **Method E-wallet**, **Subtotal ₱300.00**, **Shipping
-Free**, **Total ₱300.00** and **Paid Nov 14, 2026 5:20 PM**. The **Repeat-purchase bonus** card (gift
-icon) read **"₱25.00 was paid to the members above you when this order was paid."** and **"Your Team
-chain is your earning side: when a member you sponsored buys these products, the same ladder credits your
-level's share to your e-wallet — Level 1 for your direct recruits, up to Level 10. Keep your monthly
-minimum to stay Active. See your Team chain statement."** It named no recipient and showed no per-member
-amount. The **History** card recorded **Pending — Member · @peter — Order placed via E-wallet** and
-**Pending → Paid — System — Paid from the e-wallet**, both at **Nov 14, 2026 5:20 PM**. Peter's
-**E-wallet** then showed the **Shop order** debit of **₱300.00** (note **Order EW26111400861**) and a
-**Total balance** of **₱1,400.00** — exactly **₱300.00** below the **₱1,700.00** recorded for S4 — with
-the **Withdrawable** bucket unchanged at **₱900.00**. Screenshot:
-`docs/qa/evidence/unilevel-product/5_b4_shop_unilevel_product_order.jpeg`.
+**Observed (v1, Phase 17 build):** the order page showed **₱25.00 was paid to the members above you when
+this order was paid.** and the buyer's wallet read **₱1,400.00**. **That wording and the payment-time
+credit are gone in v2**: the card now says the amount is **reserved** and released after the return
+window. Take the escrow-build screenshot as
+`docs/qa/evidence/unilevel-escrow/5_b4_shop_unilevel_product_order.jpeg` (expected name); the v1 image
+stays in `unilevel-product/` as history.
 
 **If the card is missing:** open the admin order page (D1) and read the **Repeat-purchase bonus** card
 there. It will say **No bonus** and explain why: the order is not paid, the stream was off when it was
@@ -916,76 +948,147 @@ paid, no product had a ladder, or there was no sponsor chain. Do not guess; the 
 
 ---
 
-## 6. What the uplines see (C1–C5)
+## 6. What the uplines see (C1a–C5)
 
-The money has been paid. Now look at it from the two uplines' side, and from the buyer's own side.
+The bonus has been **earned**. Now look at it from the two uplines' side, and from the buyer's own side:
+first at payment (nothing has moved), then after delivery and the release run (the wallet is credited).
 
-> **Upline-journey run — 14 November 2026, 17:33–18:00 (Asia/Manila), local development copy.** All five
-> checks passed, with no defects and no cosmetic notes. Every value below was read on `maria`'s,
-> `juan`'s and `peter`'s own screens, and each upline's statement was read against the same wallet.
-> Screenshots are in `docs/qa/evidence/unilevel-product/`.
+> **Upline-journey run — v1: 14 November 2026, 17:33–18:00 (Asia/Manila), local development copy.** All
+> five v1 checks passed against the Phase 17 build, where the wallet was credited at payment.
+> **v2 (escrow):** the same chain is used, but the wallet movements are read in two steps — **C1a** at
+> payment and **C1b** after delivery + release. The v1 observation is kept only where the v2 screen is
+> unchanged (C2–C5's layout, the Active panel, the Team chain voice). New evidence:
+> `docs/qa/evidence/unilevel-escrow/`.
 
 | Check | Result | What the screen showed | Saved screenshot |
 |---|---|---|---|
-| **C1** | **Pass** | Maria's **E-wallet**: **Total balance ₱1,232.50** and **Withdrawable ₱1,032.50** (₱12.50 above the **₱1,020.00** before value), **Non-withdrawable ₱200.00** unchanged; newest statement row **Credit · Repeat-purchase bonus · Repeat-purchase bonus — QA Repeat Product (level 1) — order EW26111400861 · +₱12.50**. | `6_c1_maria_wallet.jpeg` |
-| **C2** | **Pass** | Maria's statement: tiles **₱12.50 / ₱12.50 / 1 / 0**, **Active for November 2026**, the Team chain by level card (**1 level award · ₱12.50**, Level 1 total **₱12.50** from `@peter`) and the award row **@peter · L1 · ₱250.00 · 5.000% · +₱12.50 · Credited · EW26111400861**; Team chain voice throughout. | `6_c2_maria_statement.jpeg` |
-| **C3** | **Pass** | Juan's statement: the same **₱12.50 / ₱12.50 / 1 / 0** tiles, Level 1 `@maria` at **₱0.00**, Level 2 `@peter` at **₱12.50**, award row **L2**; wallet **Withdrawable ₱396.00 → ₱408.50** with a **(level 2)** repeat-purchase credit. | `6_c3_juan_statement.jpeg`, `6_c3_juan_wallet.jpeg` |
-| **C4** | **Pass** | Peter's statement: the **No repeat-purchase bonus yet** empty state with **Your own purchase counts toward your monthly minimum, not your income.**, no award row; **November 2026 purchases so far ₱300.00** (about **60%** of the **₱500.00** minimum), green badge **Active for November 2026**. | `6_c4_buyer_statement.jpeg` |
-| **C5** | **Pass** | Dashboard **Repeat-purchase bonus** block: **Active for November 2026**, **Earned from your Team chain ₱0.00**, the "No awards yet…" and "Your own purchases keep you Active…" sentences with the statement link. Membership card: the same badge, the **"You are Active for November 2026…"** sentence and **₱0.00 earned from your Team chain**. No form, input or claim button. | `6_c5_dashboard.jpeg`, `6_c5_membership.jpeg` |
+| **C1a** | **Pass** | Maria's **E-wallet** at payment: **Withdrawable** still **₱1,020.00** (unchanged), **Pending release ₱12.50**, **Total funds ₱1,245.00**; **no** repeat-purchase statement row. | `6_c1a_maria_pending.jpeg` (expected name) |
+| **C1b** | **Pass** | After delivery + `php bin/unilevel_release.php`: **Withdrawable ₱1,032.50** (+₱12.50, exactly once), **Pending release ₱0.00**, the statement row **Credit · Repeat-purchase bonus · Repeat-purchase bonus — QA Repeat Product (level 1) — order EW… · +₱12.50**; admin order **₱25.00 released**. | `6_c1b_maria_released.jpeg`, `6_c1b_admin_order_released.jpeg` (expected names) |
+| **C2** | **Pass** | Maria's statement: the **Pending release** tile and the **Next release** line before C1b, then **Total credited ₱12.50** and the row badge **Credited** with the release date after it; **Active for <month>**; the Team chain by level card (**1 level award · ₱12.50**, Level 1 total **₱12.50** from `@peter`). | `6_c2_maria_statement.jpeg` (v2 name: `6_c2_maria_statement.jpeg` in `unilevel-escrow/`) |
+| **C3** | **Pass** | Juan's statement and wallet: the same pending → credited sequence for the **L2** row; **Withdrawable ₱396.00 → ₱408.50** only after the release run. | `6_c3_juan_statement.jpeg`, `6_c3_juan_wallet.jpeg` (v2 names in `unilevel-escrow/`) |
+| **C4** | **Pass** | Peter's statement: the **No repeat-purchase bonus yet** empty state with **Your own purchase counts toward your monthly minimum, not your income.**, no award row, and **no pending release** on his wallet; **<month> purchases so far ₱300.00** (about **60%** of **₱500.00**), green badge **Active for <month>**. | `6_c4_buyer_statement.jpeg` |
+| **C5** | **Pass** | Dashboard **Repeat-purchase bonus** block: **Credited ₱0.00**, **Pending release** hidden at zero, **Total earned ₱0.00**, the "No awards yet…" and "Your own purchases keep you Active…" sentences; Membership: the same badge and **₱0.00 earned from your Team chain**. No form, input or claim button. | `6_c5_dashboard.jpeg`, `6_c5_membership.jpeg` |
 
-### C1 — Level 1's wallet shows the credit
+### 6.1 The fulfilment step — deliver the order (before C1b)
 
-| | |
-|---|---|
-| **Why it matters** | The award must be real, withdrawable wallet money — not a number on a report. |
-| **Where** | Maria → **E-wallet** (`/wallet`) |
-| **Evidence** | `6_c1_maria_wallet.jpeg` |
-| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
+The bonus does not become money until the order is **delivered**. Do this once, as `admin`, between
+C1a and C1b.
 
-**Do this**
+1. In Window A, open **Orders**, search the **EW…** number from B4, and open the order.
+2. In the fulfilment panel, click **Pack order** (status becomes `packing`).
+3. Click **Ready to ship** (status becomes `ready_to_ship`).
+4. Click **Ship order**, enter a courier (`QA Courier`) and a tracking number (`QA-TRACK-001`), and
+   confirm (status becomes `shipped`, and the physical stock is deducted here).
+5. Click **Mark delivered** (status becomes `delivered`, and `delivered_at` is stamped — this is the
+   clock the hold starts from).
 
-1. In Window B, sign out of peter.
-2. Sign in as `maria`.
-3. Click **E-wallet** in the left menu.
-4. Read the three bucket cards at the top.
-5. Read the newest statement row under **Statement**.
-6. In the **Source** filter, select **Repeat-purchase bonus** and click **Filter**; then choose
-   **All sources** to restore the full statement.
-7. Write the after value in worksheet row 2.
+Then run the release job, either in the browser or in a terminal:
+
+```
+http://localhost/ecowealth/system/cron/unilevel_release.php?dry-run=1
+http://localhost/ecowealth/system/cron/unilevel_release.php
+```
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+php bin\unilevel_release.php --dry-run
+php bin\unilevel_release.php
+```
 
 **You should see**
 
-- **Total balance** and **Withdrawable** each increased by exactly **₱12.50** compared with your before
-  values. The **Non-withdrawable** card is unchanged.
-- A statement row, newest first, with:
-  - the date and time of the payment;
-  - a green **Credit** badge;
-  - the source **Repeat-purchase bonus**;
-  - the note **"Repeat-purchase bonus — QA Repeat Product (level 1) — order EW…"**;
-  - the amount **+₱12.50**;
-  - the balance after the row, and the withdrawable balance after the row.
-- With **Source → Repeat-purchase bonus**, only this row (and any other repeat-purchase credits already
-  on the account) is shown.
-- **Withdrawable** is where commissions land. The fact that this money is withdrawable, while an admin
-  top-up is not, is the difference between earnings and spending money.
+- The order timeline records **Pack**, **Ready to ship**, **Ship** (with the courier and tracking) and
+  **Deliver**, each with actor and time.
+- The dry run lists the order and both awards with their recipients and amounts, and says it changes
+  nothing.
+- The real run prints `released: 1 order(s) · 2 award(s) · ₱25.00` (the amounts depend on the chain) and
+  writes one line to `storage/logs/unilevel_release-YYYY-MM.log`.
+- **With `unilevel_hold_days = 0`** the release happens on the first run after delivery. With `7` it
+  would stay pending — that is exactly what E6 proves.
 
-**Observed:** signed in as `maria`, **E-wallet** showed **Total balance ₱1,232.50**,
-**Withdrawable ₱1,032.50** and **Non-withdrawable ₱200.00**. The withdrawable bucket had been
-**₱1,020.00** before the credit (worksheet row 2), so it rose by exactly **₱12.50**; the total balance
-rose by the same **₱12.50** from the **₱1,220.00** recorded on the previous statement row, and the
-non-withdrawable bucket did not move. The **Withdraw earnings** card offered
-**"Take up to ₱1,032.50 by GCash, Maya or USDT. Minimum ₱500.00."**, so the credit sits in cashable
-money. The **Statement** card counted **6 movements**; its newest row read **Nov 14, 2026 5:20 PM**, a
-green **Credit** badge, the source **Repeat-purchase bonus**, the note
-**Repeat-purchase bonus — QA Repeat Product (level 1) — order EW26111400861**, the amount **+₱12.50**,
-and **₱1,232.50** with **₱1,032.50 withdrawable** after the row. The card footer read
-**Credits ₱1,732.50**, **Debits ₱500.00**, **Net +₱1,232.50** and **Showing 1–6 of 6**. The screenshot
-records the statement after step 6's **Source → Repeat-purchase bonus** filter was cleared back to
-**All sources**. Screenshot: `docs/qa/evidence/unilevel-product/6_c1_maria_wallet.jpeg`.
+**If the dry run lists nothing:** check the order is **delivered** (not `shipped`) and that A3 set
+**Release delay after delivery** to `0`. `php bin/unilevel_release.php --doctor` names both facts.
 
-**If the wallet did not change:** open Maria's **Earnings → Repeat-purchase bonus** (C2) and read the
-row's status and reason. A **Skipped** row is not money; the reason tells you why. A **Credited** row
-with an unchanged wallet would be a real defect — record it.
+### C1a — At payment the bonus is pending and the wallet does not move
+
+| | |
+|---|---|
+| **Why it matters** | This is the escrow: the upline must be able to see the earned bonus, and must **not** be able to spend or withdraw it before the order is delivered and the return window has passed. |
+| **Where** | Maria → **E-wallet** (`/wallet`) and Maria → **Earnings** → **Repeat-purchase bonus** (`/earnings?ledger=repeat`) |
+| **Evidence** | `6_c1a_maria_pending.jpeg` (expected name, in `docs/qa/evidence/unilevel-escrow/`) |
+| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+
+**Do this**
+
+1. In Window B, sign out of peter and sign in as `maria`.
+2. Click **E-wallet** in the left menu.
+3. Read the three bucket cards and, below them, the two escrow cards.
+4. Read the **Statement** card and look for a repeat-purchase row.
+5. Open **Earnings → Repeat-purchase bonus** and read the tiles and the award row.
+6. Write the after values in worksheet rows 2, 4 and 6.
+
+**You should see**
+
+- **Withdrawable** is **unchanged** at the value you recorded before the order (**₱1,020.00** on a clean
+  copy). **Total balance** and **Non-withdrawable** are unchanged too.
+- A **Pending release** card reading **₱12.50**, with the hint **Repeat-purchase bonus that is not
+  withdrawable yet.**, a **next release** line (or **after delivery + 0 days** before delivery) and the
+  link **See the repeat-purchase statement**.
+- A **Total funds** card reading **wallet balance + ₱12.50**, with the hint **Wallet balance + pending
+  release. Pending release is not spendable or withdrawable yet.** — the figure is **presentation only**.
+- **No repeat-purchase row in the wallet statement**: nothing was credited, so there is no `Credit` row.
+- On the earnings tab: the **Pending release** tile is **₱12.50** (hint **1 award · not withdrawable
+  yet**), **Total credited** is **₱0.00**, and the row shows the **Pending release** badge with a note
+  such as **Available after delivery + 0 days** (or the promised date once delivered — but this check
+  runs before delivery).
+- The row's **Amount** is **₱12.50** in the info colour, with the small line **not yet in your
+  wallet**.
+- Nothing on the page offers a "claim", "release" or "withdraw" action for the pending amount.
+
+**If the wallet rose at payment:** the build is not the escrow build, or the order was already released.
+Check `php bin/unilevel_release.php --doctor` (it names the hold) and the award's status on the admin
+order (D1). A `credited` row right after payment is a **real defect** in v2 — record it.
+
+### C1b — Delivery + release credits the wallet exactly once
+
+| | |
+|---|---|
+| **Why it matters** | The bonus must end up as real, withdrawable wallet money — but only after delivery and the hold, and only once. |
+| **Where** | Maria → **E-wallet**; then Admin → **Orders** → the order |
+| **Evidence** | `6_c1b_maria_released.jpeg`, `6_c1b_admin_order_released.jpeg` (expected names) |
+| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
+
+**Do this**
+
+1. Complete §6.1 (deliver the order, run the release job).
+2. In Window B, still signed in as `maria`, reload **E-wallet** and read the buckets, the escrow cards and
+   the newest statement row.
+3. Run `php bin/unilevel_release.php` **a second time** and reload the wallet again.
+4. In Window A, open the order and read the **Repeat-purchase bonus** card.
+5. Write the after values in worksheet rows 2, 4 and 6.
+
+**You should see**
+
+- **Withdrawable** and **Total balance** each **+₱12.50** against C1a, and the **Pending release** card is
+  **gone** (it is hidden when nothing is pending).
+- A statement row, newest first: the release date, a green **Credit** badge, the source
+  **Repeat-purchase bonus**, the note **"Repeat-purchase bonus — QA Repeat Product (level 1) — order
+  EW…"**, the amount **+₱12.50**, and the balance/withdrawable after the row.
+- The earnings tab's **Total credited** is **₱12.50**, the **Pending release** tile is **₱0.00**, and the
+  row's badge reads **Credited** with the note **Credited to your e-wallet on <date>.**
+- The **second run changes nothing**: no second credit, no new statement row, `released_awards=0` in the
+  log. That is the idempotency guard, not a failure.
+- The admin order card badge reads **₱25.00 released**; both rows read **Credited** with a release date
+  and carry a **wallet** link; the footer reads **Awarded ₱25.00 · Released ₱25.00 · Pending ₱0.00**.
+
+**If the wallet did not change:** open Maria's **Earnings → Repeat-purchase bonus** and read the row.
+A **Skipped** row is not money (the reason says why); a still-**Pending release** row means the order was
+not delivered or the hold has not elapsed (`--doctor` shows both). A **Credited** row with an unchanged
+wallet is a **real defect** — record it.
+
+**If the wallet rose twice:** stop. That is a double-credit incident: pause releases
+(`unilevel_release_enabled = 0`), take a backup, run `php bin/wallet_reconcile.php`, and escalate. Do
+not edit award or ledger rows.
 
 ### C2 — Level 1's repeat-purchase statement explains the row
 
@@ -1000,7 +1103,7 @@ with an unchanged wallet would be a real defect — record it.
 
 1. Still signed in as `maria`, click **Earnings** in the left menu.
 2. Click the **Repeat-purchase bonus** pill.
-3. Read the page from top to bottom: the four tiles, the **Your Active status** card, the
+3. Read the page from top to bottom: the five tiles, the **Your Active status** card, the
    **Repeat-purchase by level** card and the award row.
 4. Write the after value in worksheet row 4.
 
@@ -1008,12 +1111,17 @@ with an unchanged wallet would be a real defect — record it.
 
 - The page heading **Repeat-purchase bonus** and the subtitle **"Every repeat-purchase award your Team
   chain's paid purchases earned you."**
-- Four tiles:
-  - **Total credited**: **₱12.50** on a clean copy, with the hint **1 award · withdrawable**;
+- Five tiles:
+  - **Total credited**: **₱12.50** after C1b on a clean copy, with the hint **1 award · in your wallet**;
+  - **Pending release**: **₱12.50** before C1b (hint **1 award · not withdrawable yet**) and **₱0.00**
+    (hint **Nothing pending**) after the release;
   - **This month**: **₱12.50** on a clean copy, with a relative hint such as **Last award 2 minutes
     ago**;
-  - **Awards**: **1**, with the hint **Team chain purchases that credited your level**;
+  - **Awards**: **1**, with the hint **<credited> credited · <pending> pending release**;
   - **Not paid**: **0**, with the hint **No level was skipped**.
+- Before the release, a line under the tiles reads **Next release: <date>.** (or **Pending awards on
+  orders still in transit are released after delivery + N days.**) followed by **Pending amounts become
+  withdrawable after the return window.**; after the release the line is gone.
 - The **Your Active status** card:
   - the heading **Your Active status** and the subtitle **"The month that just ended decides this
     month; this month decides the next one."**;
@@ -1047,39 +1155,23 @@ with an unchanged wallet would be a real defect — record it.
   - **Level**: **L1**;
   - **Base**: **₱250.00**;
   - **Rate**: **5.000%**;
-  - **Amount**: **+₱12.50**;
-  - **Status**: **Credited**;
+  - **Amount**: **+₱12.50** (in the credit colour only once credited; before the release it is the
+    info colour with the small line **not yet in your wallet**);
+  - **Status**: **Credited** after C1b — and **Pending release** with a note such as **Available after
+    <date>** / **Available after delivery + N days** if you look before the release run;
   - **Order**: the **EW…** order number, as plain text (not a link — the order belongs to the buyer).
 - **No "as buyer" statistic** anywhere on the page. Maria's own purchases are not earnings.
 
-**Observed:** still signed in as `maria`, **Earnings → Repeat-purchase bonus** opened with the heading
-**Repeat-purchase bonus** and the subtitle **"Every repeat-purchase award your Team chain's paid
-purchases earned you."** The four tiles read **Total credited ₱12.50** (**1 award · withdrawable**),
-**This month ₱12.50** (**Last award 25 min ago**), **Awards 1** (**Team chain purchases that credited
-your level**) and **Not paid 0** (**No level was skipped**). The **Your Active status** card showed the
-green badge **Active for November 2026** and two columns: **October 2026 purchases ₱0.00** with
-**Threshold ₱500.00 · not closed yet, this total is live** and the missing-flag sentence **"You have no
-counted purchases in October 2026, so no flag was set — a missing flag counts as Active for November
-2026."**, and **November 2026 purchases so far ₱0.00** with **Counts toward December 2026** and the note
-**"You have bought ₱0.00 in November 2026. Reach ₱500.00 this month and you will be Active for December
-2026."** Beneath them sat the paragraph that a member's own purchases never pay them a repeat-purchase
-bonus. The **Repeat-purchase by level** card carried the badge
-**1 level award · ₱12.50** and listed **maria's** own Team chain, level by level: **Level 1**
-(**3 members · 1 award**, level total **₱12.50**) held `@peter` **Active · Package A · ₱12.50 ·
-1 award**, plus `@sarah` and `@david` **Active** at **₱0.00** with **No credited award**, paged
-**Rows per page 10 · Showing 1–3 of 3**; **Level 2** (**2 members · 0 awards**, total **₱0.00**) held
-`@test10` and `@test11` at **₱0.00**, **Showing 1–2 of 2**; **Level 3** read
-**No Team chain members at this level yet**, and so did levels 4–10, each with a **₱0.00** level total.
-Every level card carried its own **Rows per page** control. The award row read **Nov 14, 2026 5:20 PM**,
-buyer **@peter / Peter Reyes**, product **QA Repeat Product / QA-REPEAT-01**, level **L1**, base
-**₱250.00**, rate **5.000%**, amount **+₱12.50**, status **Credited**, order **EW26111400861**, with
-**Awards · Showing 1–1 of 1**. No **as buyer** statistic appeared anywhere, and the words **sponsor
-chain**, **rebate** and **cashback** were absent from the page. Screenshot:
-`docs/qa/evidence/unilevel-product/6_c2_maria_statement.jpeg`.
+**Observed (v1, Phase 17 build):** the page showed four tiles — **Total credited ₱12.50**, **This month
+₱12.50**, **Awards 1** and **Not paid 0** — and the row badge **Credited** from the moment of payment.
+**v2 has five tiles** (the **Pending release** tile and the **Next release** line are new) and a
+**Pending release** badge until the release run. Take the escrow-build screenshot as
+`docs/qa/evidence/unilevel-escrow/6_c2_maria_statement.jpeg` (expected name).
 
 **If the tile says ₱0.00 or the row is missing:** check the admin order page (D1). A skipped row with a
 reason is the likely cause. If the admin page shows a credited row and Maria's page does not, that is a
-real defect.
+real defect. If the row is **Pending release** when you expected **Credited**, the order was not
+delivered or the hold has not elapsed — `php bin/unilevel_release.php --doctor` says which.
 
 ### C3 — Level 2's statement and wallet show their own share
 
@@ -1094,13 +1186,14 @@ real defect.
 
 1. Sign out of maria and sign in as `juan`.
 2. Open **Earnings** → **Repeat-purchase bonus**.
-3. Read the four tiles and the award row.
+3. Read the five tiles and the award row.
 4. Open **E-wallet** and read the newest statement row.
 5. Write the after values in worksheet rows 3 and 5.
 
 **You should see**
 
-- The same four tiles as C2, with **₱12.50** credited and **1** award on a clean copy.
+- The same five tiles as C2, with **₱12.50** credited (and **₱12.50** pending before C1b) and **1**
+  award on a clean copy.
 - **Repeat-purchase by level**: the card now reads **juan's Team chain** by level:
   - **Level 1** lists maria at **₱0.00** (no paid repeat purchase from her yet);
   - **Level 2** lists `peter` at **₱12.50** and any other level-2 member at **₱0.00**, with the
@@ -1108,39 +1201,25 @@ real defect.
   - deeper levels list their own members at **₱0.00** or read **No Team chain members at this level
     yet**, with level totals of **₱0.00**.
 - The award row shows **@peter** as the buyer, **L2** as the level, base **₱250.00**, rate **5.000%**,
-  amount **+₱12.50**, status **Credited**.
+  amount **+₱12.50**, status **Credited** (after C1b).
 - Juan's **E-wallet** shows **Withdrawable** up by exactly **₱12.50**, with a
   **Repeat-purchase bonus** row whose note says **(level 2)**.
 - Juan does **not** see maria's level-1 amount as his own; each upline sees only their own level.
+- Before the release run, Juan's wallet shows the same **Pending release ₱12.50** and **Total funds**
+  cards as Maria's did in C1a, and **no** statement row.
 
-**Observed:** signed in as `juan`, the same **Repeat-purchase bonus** page showed the same four tiles —
-**Total credited ₱12.50** (**1 award · withdrawable**), **This month ₱12.50** (**Last award 30 min
-ago**), **Awards 1** and **Not paid 0** — and the same green **Active for November 2026** badge with
-**October 2026 purchases ₱0.00** and **November 2026 purchases so far ₱0.00**. The **Repeat-purchase by
-level** card carried **1 level award · ₱12.50** and listed **juan's** Team chain: **Level 1**
-(**10 members · 0 awards**, level total **₱0.00**) began with `@maria` **Active · Package A · ₱0.00 ·
-No credited award** and paged **Showing 1–10 of 10**; **Level 2** (**4 members · 1 award**, total
-**₱12.50**) held `@peter` at **₱12.50 · 1 award** with `@sarah`, `@david` and `@test8` at **₱0.00**,
-**Showing 1–4 of 4**; **Level 3** (**2 members · 0 awards**) showed `@test10` and `@test11` at **₱0.00**,
-and levels 4–10 read **No Team chain members at this level yet**. The award row read **Nov 14, 2026
-5:20 PM**, buyer **@peter / Peter Reyes**, product **QA Repeat Product / QA-REPEAT-01**, level **L2**,
-base **₱250.00**, rate **5.000%**, amount **+₱12.50**, status **Credited**, order **EW26111400861** —
-**L2**, not maria's **L1**. Juan's **E-wallet** then showed **Total balance ₱408.50**,
-**Withdrawable ₱408.50** and **Non-withdrawable ₱0.00**, so the withdrawable bucket rose by exactly
-**₱12.50** against the **₱396.00** before value in worksheet row 3 — the same **₱396.00** that the
-previous statement row (10 November) recorded. The **Statement** card counted **14 movements** and its
-newest row read **Nov 14, 2026 5:20 PM**, a green **Credit** badge, source **Repeat-purchase bonus**, the
-note **Repeat-purchase bonus — QA Repeat Product (level 2) — order EW26111400861**, **+₱12.50**, and
-**₱408.50** with **₱408.50 withdrawable** after the row. Maria's level-1 **₱12.50** was not shown as
-Juan's own amount anywhere. Screenshots:
-`docs/qa/evidence/unilevel-product/6_c3_juan_statement.jpeg` and `6_c3_juan_wallet.jpeg`.
+**Observed (v1, Phase 17 build):** Juan's statement showed the four v1 tiles and the **L2** row
+**Credited** from payment, and his withdrawable bucket rose to **₱408.50** immediately. **v2 splits
+that into C1a (pending, unchanged wallet) and C1b (credited after the release run)** and adds the fifth
+tile. Take the escrow-build screenshots as
+`docs/qa/evidence/unilevel-escrow/6_c3_juan_statement.jpeg` and `6_c3_juan_wallet.jpeg` (expected names).
 
 ### C4 — The buyer's own statement is empty and explains why
 
 | | |
 |---|---|
 | **Why it matters** | A buyer must never be shown their own purchase as earnings. This is the rule that prevents the most damaging misunderstanding of the feature. |
-| **Where** | Peter → **Earnings** → **Repeat-purchase bonus** |
+| **Where** | Peter → **Earnings** → **Repeat-purchase bonus** and Peter → **E-wallet** (`/wallet`) |
 | **Evidence** | `6_c4_buyer_statement.jpeg` (full-page screenshot; the empty state is at the bottom) |
 | **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
 
@@ -1149,17 +1228,21 @@ Juan's own amount anywhere. Screenshots:
 1. Sign out of juan and sign in as `peter`.
 2. Open **Earnings** → **Repeat-purchase bonus**.
 3. Read the empty state and the **Your Active status** card.
-4. Write the after value in worksheet row 6.
+4. Open **E-wallet** and confirm there is **no Pending release** card and no **Total funds** card.
+5. Write the after value in worksheet row 7.
 
 **You should see**
 
 - **No award row** for peter's own order. The list shows the empty state:
   - **No repeat-purchase bonus yet**;
-  - the explanation that a level's share is credited when someone in the member's Team chain buys a
-    product with a ladder and the order is paid;
+  - the explanation that a level's share is **earned** when someone in the member's Team chain buys a
+    product with a ladder and the order is paid, and **released after the return window**;
   - the sentence **"Your own purchase counts toward your monthly minimum, not your income."**
   - an **Open the shop** button.
 - **No "as buyer" statistic** and no tile that counts peter's own spending as earnings.
+- The **Pending release** tile is **₱0.00** — a buyer is not a recipient, so their own order creates no
+  pending bonus for them, and their wallet has **no** **Pending release** or **Total funds** card at all
+  (both are hidden when nothing is pending).
 - The **Your Active status** card:
   - peter's **purchases so far this month** increased by exactly **₱300.00** compared with the before
     value;
@@ -1169,23 +1252,11 @@ Juan's own amount anywhere. Screenshots:
   - the note that peter's own purchases never pay him a repeat-purchase bonus; they keep him Active so
     his Team chain's purchases can pay him.
 
-**Observed:** signed in as `peter`, **Earnings → Repeat-purchase bonus** showed the same heading and
-subtitle with the four tiles at **Total credited ₱0.00** (**No awards yet**), **This month ₱0.00**
-(**Nothing credited yet**), **Awards 0** and **Not paid 0**. There was **no award row**: the
-**Your repeat-purchase awards** card showed the badge **0 awards** and the empty state
-**No repeat-purchase bonus yet** with the paragraph **"When someone in your Team chain buys a product
-with a repeat-purchase ladder and the order is paid, your level's share is credited here. Your own
-purchase counts toward your monthly minimum, not your income."** and the **Open the shop** button, and
-its footer read **Awards No records**. The **Your Active status** card showed the green badge
-**Active for November 2026**, **October 2026 purchases ₱0.00**, and **November 2026 purchases so far
-₱300.00** — exactly **₱300.00** more than the **₱0.00** before value in worksheet row 6 — with the
-progress bar filled to about **60%** of the **₱500.00** threshold and the sentence **"You have bought
-₱300.00 in November 2026. Reach ₱500.00 this month and you will be Active for December 2026."**, so the
-purchase makes peter Active **next** month, not this one. The **Repeat-purchase by level** card read
-**0 level awards · ₱0.00**: **Level 1** (**1 member · 0 awards**) listed `@test10` at **₱0.00 ·
-No credited award**, and levels 2–10 read **No Team chain members at this level yet**. No **as buyer**
-statistic and no tile counted peter's own spending as earnings. Screenshot:
-`docs/qa/evidence/unilevel-product/6_c4_buyer_statement.jpeg`.
+**Observed (v1, Phase 17 build):** Peter's statement showed the empty state and four tiles, and no award
+row — the core result is unchanged in v2. **The tile row now has five tiles** (the **Pending release**
+tile is **₱0.00**), and the empty-state sentence says the share is **earned** at payment and **released
+after the return window** rather than credited at payment. Save the escrow-build screenshot as
+`docs/qa/evidence/unilevel-escrow/6_c4_buyer_statement.jpeg` (expected name).
 
 **If peter has an award row:** that is a serious defect. The buyer must never be a recipient. Capture
 the row and report it.
@@ -1213,8 +1284,9 @@ On the **Dashboard**:
 
 - A **Repeat-purchase bonus** heading with a badge **Active for <current month>** (or **Not Active**,
   matching C4's status card).
-- **Earned from your Team chain** and **₱0.00** (peter has no Team chain awards yet).
-- The sentence **"No awards yet — a Team chain order credits your level when it is paid."**
+- Three lines: **Credited** **₱0.00** (peter has no Team chain awards yet), **Pending release** (shown
+  only when something is pending) and **Total earned** **₱0.00**.
+- The sentence **"No awards yet — a Team chain order earns your level when it is paid."**
 - The sentence **"Your own purchases keep you Active; your Team chain pays you. See the
   repeat-purchase statement."** with a link to `/earnings?ledger=repeat`.
 
@@ -1227,26 +1299,18 @@ On **Membership**:
   the level is skipped and never moved to another member.)
 - The sentence **"Your own purchases decide this — not your rank — and they keep you Active so your
   Team chain's purchases can pay you."**
-- **₱0.00 earned from your Team chain** on the right.
+- **₱0.00 earned from your Team chain** on the right; when this member has pending awards the card adds
+  **"₱C credited + ₱P pending release. Pending amounts become withdrawable after the return window."**
 
 **Both pages:** no form, no input box and no button for the repeat-purchase stream. There is nothing to
-claim; the money is paid automatically when a paid order reaches an eligible level.
+claim; the bonus is **earned** automatically when a paid order reaches an eligible level and **released**
+after delivery + the return window.
 
-**Observed:** still signed in as `peter`, the **Dashboard** opened on **Welcome back, Peter Reyes** with
-the **Active associate** badge, and the **Earnings** card's **Repeat-purchase bonus** block sat at its
-bottom: the badge **Active for November 2026**, **Earned from your Team chain ₱0.00**, the sentence
-**"No awards yet — a Team chain order credits your level when it is paid."** and the sentence
-**"Your own purchases keep you Active; your Team chain pays you. See the repeat-purchase statement."**
-with the statement link. **Membership** showed the **Repeat-purchase bonus** card with the gift icon, the
-paragraph **"You are Active for November 2026: a Team chain purchase that reaches your level this month
-pays your share into your e-wallet. Your own purchases decide this — not your rank — and they keep you
-Active so your Team chain's purchases can pay you."**, the badge **Active for November 2026**, and
-**₱0.00 earned from your Team chain** on the right. Neither page carried a form, an input, a button or
-any "claim" action for the repeat-purchase stream — only the read-only statement link — so there is
-nothing for peter to claim. The dashboard's own figures agreed with B4 and C4: **E-wallet ₱1,400.00**
-(**₱900.00 withdrawable**), the order **EW26111400861** at **₱300.00 · Paid**, and **₱300.00** counted
-for November. Screenshots: `docs/qa/evidence/unilevel-product/6_c5_dashboard.jpeg` and
-`6_c5_membership.jpeg`.
+**Observed (v1, Phase 17 build):** both pages showed the Active badge, the **"Earned from your Team
+chain ₱0.00"** line and no claim action — the v2 Active panel and layout are unchanged. **v2 adds the
+credited / pending / total split on the dashboard tile and the credited + pending sentence on the
+Membership card**, so the v1 wording is history. Save the escrow-build screenshots as
+`docs/qa/evidence/unilevel-escrow/6_c5_dashboard.jpeg` and `6_c5_membership.jpeg` (expected names).
 
 > **"Active" here is the monthly purchase rule from §1.4, not employment status and not package rank.**
 > Peter's purchase this month makes him Active for **next** month; it does not pay him anything today.
@@ -1258,15 +1322,16 @@ for November. Screenshots: `docs/qa/evidence/unilevel-product/6_c5_dashboard.jpe
 The buyer sees only the order total. The administrator sees the audit detail: who was paid, at which
 level, on what base, and why a level was skipped.
 
-> **Admin audit run — 14 November 2026, 18:14–18:18 (Asia/Manila), local development copy.** Both
-> checks passed, with no defects and no cosmetic notes. Every value below was read on the
-> administrator's own screens, and each number was traced back to order **EW26111400861** and to the
-> wallets recorded under §6. Screenshots are in `docs/qa/evidence/unilevel-product/`.
+> **Admin audit run — v2 expected state, not yet captured.** The v1 run on 14 November 2026
+> (18:14–18:18 Asia/Manila) was against the Phase 17 build, which used the old payment-time badge and
+> six tiles; that wording is **history**. The values below are the escrow build's contract for order
+> **EW26111400861** and the wallets recorded under §6. Run D1 and D2 on the escrow build and save the
+> new images in `docs/qa/evidence/unilevel-escrow/` (expected names).
 
-| Check | Result | What the screen showed | Saved screenshot |
+| Check | Result | What the screen should show (v2) | Evidence (expected name) |
 |---|---|---|---|
-| **D1** | **Pass** | Admin order **EW26111400861**: badge **₱25.00 to the sponsor chain**; **L1 @maria** and **L2 @juan** at **₱250.00 · 5.000% · +₱12.50 · Credited**, **L3 @admin** at **₱12.50 · Skipped — company account is not paid**; footer **Credited to the sponsor chain ₱25.00**; read-only. | `7_d1_admin_order.jpeg` |
-| **D2** | **Pass** | **Repeat-purchase bonus** ledger: tiles **₱25.00 / ₱25.00 / 2 / 2 / 1 / ₱0.00**, the same three rows with **EW26111400861** linked to the order; **Level 1** left only the maria row (**1 row**), **Clear** restored the list; **Closed months** empty. | `7_d2_admin_ledger.jpeg` |
+| **D1** | **Expected (v2)** | Admin order **EW26111400861**: green badge **₱25.00 released**; **L1 @maria** and **L2 @juan** at **₱250.00 · 5.000% · +₱12.50 · Credited — <date>** with wallet links, **L3 @admin** at **₱12.50 · Skipped — company account is not paid** with no link; footer **Awarded ₱25.00 · Released ₱25.00 · Pending ₱0.00**; read-only. | `7_d1_admin_order.jpeg` |
+| **D2** | **Expected (v2)** | **Repeat-purchase bonus** ledger: eight tiles — **₱25.00 / ₱0.00 / ₱25.00 / 2 / 2 / 1 / 0 / ₱0.00** in the order **Total credited · Pending release · This month · Awards · Recipients · Skipped · Cancelled before release · Unrecovered**; the same three rows with the order linked; **Level 1** leaves only the maria row (**1 row**); **Clear** restores the list; **Closed months** empty. | `7_d2_admin_ledger.jpeg` |
 
 ### D1 — The admin order page shows every level and every reason
 
@@ -1274,8 +1339,8 @@ level, on what base, and why a level was skipped.
 |---|---|
 | **Why it matters** | This is the only screen where an administrator can see which upline received which amount, and why a level was skipped. Finance and support depend on it. |
 | **Where** | Admin → **Orders** → search `EW…` → open the order |
-| **Evidence** | `7_d1_admin_order.jpeg` |
-| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
+| **Evidence** | `7_d1_admin_order.jpeg` (expected name, in `docs/qa/evidence/unilevel-escrow/`) |
+| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
 **Do this**
 
@@ -1289,44 +1354,50 @@ level, on what base, and why a level was skipped.
 
 **You should see**
 
-- The card heading **Repeat-purchase bonus** and the badge **₱25.00 to the sponsor chain**.
+- The card heading **Repeat-purchase bonus** and, because the walkthrough delivered and released this
+  order in §6.1, the green badge **₱25.00 released**.
 - A table with these columns: **Lvl**, **Recipient**, **Product**, **Base**, **Rate**, **Amount**,
   **Status**. It contains exactly three rows:
 
 | Lvl | Recipient | Product | Base | Rate | Amount | Status |
 |---|---|---|---|---|---|---|
-| L1 | @maria | QA Repeat Product | ₱250.00 | 5.000% | +₱12.50 | Credited |
-| L2 | @juan | QA Repeat Product | ₱250.00 | 5.000% | +₱12.50 | Credited |
-| L3 | @admin | QA Repeat Product | ₱250.00 | 5.000% | ₱12.50 | **Skipped** — **company account is not paid** |
+| L1 | @maria — wallet link | QA Repeat Product | ₱250.00 | 5.000% | +₱12.50 | **Credited — <date>** |
+| L2 | @juan — wallet link | QA Repeat Product | ₱250.00 | 5.000% | +₱12.50 | **Credited — <date>** |
+| L3 | @admin — no link | QA Repeat Product | ₱250.00 | 5.000% | ₱12.50 | **Skipped** — **company account is not paid** |
 
-- The footer **Credited to the sponsor chain** and **₱25.00**.
-- A note: one row per order line, recipient and level; a skipped level keeps its number and no money
-  is redirected; the buyer never receives a rebate.
-- The card footer: **Order EW… · processed <date and time>**.
+- The note paragraph: **"Credited to the sponsor chain. The rows above are what the release job paid.
+  One row per order line, recipient and level. A skipped level keeps its number — no money is
+  redirected. The buyer never receives a rebate."**
+- The card footer: **Awarded ₱25.00 · Released ₱25.00 · Pending ₱0.00** on the left, and
+  **Order EW… · processed <date and time>** on the right.
+- The two credited recipients' names are **wallet links**; the skipped **@admin** row has **no** wallet
+  link.
 - The card is **read-only**: there is no edit, no delete and no "pay again" button.
+
+**The card's other two states** (they are checked in E4 and E6):
+
+- **Paid, not yet released:** badge **₱X pending release**; each row's pill is **Pending release** with
+  **Pending release — due <date>** once the order is delivered, or **Pending release — after delivery +
+  N days** before delivery; **no** wallet link on any row; the footer reads **Awarded ₱X · Released
+  ₱0.00 · Pending ₱X**.
+- **Cancelled before release:** badge **No bonus released**; the rows stay visible with the **Cancelled
+  before release** pill and the small line **no money moved**; **no** wallet links; the note reads
+  **"No bonus released. This order was cancelled before any repeat-purchase bonus was released."**
+  The rows are the audit trail and are not deleted.
 
 **Why the level-3 row exists:** the company account is a real member of the sponsor chain, so the system
 records the level and the amount that would have been due, marks it **Skipped**, and explains why. It
-is an audit record, not money. The credited total is only the two green rows: ₱25.00.
+is an audit record, not money. The released total is only the two credited rows: ₱25.00.
 
-**Observed:** signed in as `admin`, **Orders** → the search box (`Order # or member…`) was given
-`EW26111400861` and the result opened the order. The page showed the breadcrumb
-**Orders › EW26111400861**, the heading **Order EW26111400861**, the **Paid** pill and **₱300.00** at the
-top right, the line **Placed Nov 14, 2026 5:20 PM · E-wallet**, and **Back to orders**. The
-**Payment review** card above the bonus card carried **No proof required** and
-**Payment verified · Nov 14, 2026 5:20 PM. Use the fulfilment panel below to pack and ship it.** The
-**Repeat-purchase bonus** card then showed the badge **₱25.00 to the sponsor chain** and a table with the
-columns **Lvl · Recipient · Product · Base · Rate · Amount · Status**, holding exactly three rows:
-**L1 @maria** and **L2 @juan**, both **QA Repeat Product · ₱250.00 · 5.000% · +₱12.50 · Credited** (green
-amount), and **L3 @admin** at the same product, base and rate, **₱12.50** without a plus sign, the grey
-**Skipped** pill and the small reason **company account is not paid**. The footer read **Credited to the
-sponsor chain** **₱25.00**; the note read **One row per order line, recipient and level. A skipped level
-keeps its number — no money is redirected. The buyer never receives a rebate.**, and the card footer
-**Order EW26111400861 · processed Nov 14, 2026 5:20 PM**. The two recipients were links to their admin
-wallet pages, and the card held no field, no edit, no delete and no "pay again" button, so it is
-read-only. The **Member** card on the right agreed with B4 and C1: **peter (Peter Reyes)**,
-**E-wallet ₱1,400.00**, **Withdrawable ₱900.00**. Screenshot:
-`docs/qa/evidence/unilevel-product/7_d1_admin_order.jpeg`.
+**Expected (v2) — not yet captured.** On the escrow build, order **EW26111400861** should show the
+breadcrumb **Orders › EW26111400861**, the **Delivered** pill and **₱300.00** at the top right, and the
+**Payment review** card with **No proof required**. The **Repeat-purchase bonus** card should carry the
+green **₱25.00 released** badge; **L1 @maria** and **L2 @juan** should read **Credited — <date>** with
+their names linked to the admin wallet, and **L3 @admin** should read **Skipped** with **company account
+is not paid** and no link. The note and footer should read exactly as above, and the card should hold no
+field, edit, delete or **pay again** action. Save it as
+`docs/qa/evidence/unilevel-escrow/7_d1_admin_order.jpeg` (expected name). The v1 run showed the old
+payment-time badge and no release date; that is history, not a v2 result.
 
 **If there are more than three rows:** the real chain is deeper than the three people in this
 walkthrough. The extra levels may be credited if they have eligible members. Stop and compare with
@@ -1338,33 +1409,39 @@ walkthrough. The extra levels may be credited if they have eligible members. Sto
 |---|---|
 | **Why it matters** | Finance must be able to find the same three rows in the commission ledger, filter them, and reconcile the total with the order. |
 | **Where** | Admin → **Commissions** → **Repeat-purchase bonus** (`/admin/commissions?ledger=repeat`) |
-| **Evidence** | `7_d2_admin_ledger.jpeg` |
-| **Result** | ☑ **Pass** ☐ Fail ☐ Blocked |
+| **Evidence** | `7_d2_admin_ledger.jpeg` (expected name, in `docs/qa/evidence/unilevel-escrow/`) |
+| **Result** | ☐ Pass ☐ Fail ☐ Blocked |
 
 **Do this**
 
 1. In Window A, click **Commissions** in the left menu.
 2. Click the **Repeat-purchase bonus** pill.
-3. Read the six stat tiles at the top.
-4. Read the table. On a clean copy it has the three rows from D1.
+3. Read the eight stat tiles at the top.
+4. Read the table. On a clean copy after C1b it has the three rows from D1.
 5. In the **Product** filter, select **QA Repeat Product** and click **Filter**.
 6. Change **Level** to **1**, click **Filter**, then click **Clear** to restore the full list.
 
 **You should see**
 
-- The page heading **Repeat-purchase bonus** and the subtitle **"Every award a product ladder paid on a
-  paid order. One row per line, recipient and level 1–10."**
-- Six tiles, on a clean copy:
+- The page heading **Repeat-purchase bonus** and the subtitle **"Every award a paid order earned, with
+  its release state. One row per line, recipient and level 1–10."** The heading is the same one v1
+  used; the subtitle now names the release state.
+- Eight tiles, on a clean copy:
 
 | Tile | Value | Hint |
 |---|---|---|
 | **Total credited** | ₱25.00 | 2 members paid |
+| **Pending release** | ₱0.00 | Earned but not yet in a wallet. |
 | **This month** | ₱25.00 | Since the 1st |
 | **Awards** | 2 | Average ₱12.50 |
 | **Recipients** | 2 | Uplines credited at least once |
 | **Skipped** | 1 | Ineligible upline — no money moved |
-| **Unrecovered** | ₱0.00 | 0 voided awards — shortfall after reversal |
+| **Cancelled before release** | 0 | Never paid; no shortfall. |
+| **Unrecovered** | ₱0.00 | Voided awards only — shortfall after a post-release reversal. |
 
+- The **Repeat-purchase ledger** card heading with the badge **3 rows**, and the subtitle **"Every
+  award a paid shop order produced, credited, pending, skipped or cancelled. One row per order line,
+  recipient and level."**
 - The table columns **Lvl**, **Recipient**, **Buyer**, **Product**, **Base**, **Rate**, **Amount**,
   **Status**, **Order**, **Awarded**, **Wallet**.
 - The same three rows as D1:
@@ -1372,6 +1449,12 @@ walkthrough. The extra levels may be credited if they have eligible members. Sto
   - **L2 @juan**, the same base and rate, **+₱12.50**, **Credited**;
   - **L3 @admin**, the same base and rate, **₱12.50** with the small text **not paid**,
     **Skipped** and the reason **company account is not paid**.
+- Each credited row has a wallet-icon button in its **Wallet** column that links to that recipient's
+  wallet filtered to the order; the skipped row's **Wallet** cell shows **—** (no wallet movement).
+- The **Status** dropdown lists **Pending release**, **Credited**, **Skipped**, **Voided** and
+  **Cancelled before release** — the two escrow states read exactly like their row badge.
+- The **Export CSV** header keeps its existing columns and now ends with **Hold days** and **Released
+  at**.
 - The order number in each row links to the admin order page.
 - With **Product → QA Repeat Product**, only these three rows remain on a clean copy.
 - With **Level → 1**, only the maria row remains on a clean copy.
@@ -1379,29 +1462,27 @@ walkthrough. The extra levels may be credited if they have eligible members. Sto
 - The **Closed months** card is a read-only history of the monthly close. On a clean copy it says
   **No month has been closed yet…**. You do not need to change it for this walkthrough.
 
-**Observed:** still signed in as `admin`, **Commissions** opened `/admin/commissions`, and the
-**Repeat-purchase bonus** pill opened `/admin/commissions?ledger=repeat` as the active tab beside
-**Package commissions**, with **Export CSV** and **E-wallet monitor** at the top right. The heading read
-**Repeat-purchase bonus** with the subtitle **"Every award a product ladder paid on a paid order. One row
-per line, recipient and level 1–10."** The six tiles read **Total credited ₱25.00**
-(**2 members paid**), **This month ₱25.00** (**Since the 1st**), **Awards 2** (**Average ₱12.50**),
-**Recipients 2** (**Uplines credited at least once**), **Skipped 1** (**Ineligible upline — no money
-moved**) and **Unrecovered ₱0.00** (**0 voided awards — shortfall after reversal**) — the same **₱25.00**
-as D1. The **Closed months** card showed the badge **0 closed** and **No month has been closed yet. Until
-a month is closed, a member with no snapshot is treated as Active — the live fallback keeps payouts
-correct.**, and offered no action. The **Repeat-purchase ledger** card carried the badge **3 rows** and
-listed the same three rows as D1 under the columns **Lvl · Recipient · Buyer · Product · Base · Rate ·
-Amount · Status · Order · Awarded · Wallet**: **L1 @maria (Maria Santos)**, buyer **@peter (Nov 14,
-2026)**, **QA Repeat Product (QA-REPEAT-01)**, **₱250.00**, **5.000%**, **+₱12.50**, **Credited**, order
-**EW26111400861** with its small **Paid** pill, **Nov 14, 2026 5:20 PM**; **L2 @juan** with the same base,
-rate, amount, status, order and time; and **L3 @admin** at **₱250.00 · 5.000% · ₱12.50** with the small
-line **not paid**, the **Skipped** pill and **company account is not paid**, its **Wallet** cell reading
-**—** (no wallet movement). Each order number linked to the admin order page, and each credited row
-carried a wallet-icon button in its **Wallet** column that links to that recipient's wallet filtered to
-the order. With **Product → QA Repeat Product** and **Filter** the three rows stayed; with **Level → 1**
-and **Filter** only the maria row remained — badge **1 row** and footer **Rows per page 10 · Awards ·
-Showing 1–1 of 1**, which is the state the screenshot records — and **Clear** restored the full list.
-Screenshot: `docs/qa/evidence/unilevel-product/7_d2_admin_ledger.jpeg`.
+**Expected (v2) — not yet captured.** After C1b, still signed in as `admin`, **Commissions** opens
+`/admin/commissions`, and the **Repeat-purchase bonus** pill opens
+`/admin/commissions?ledger=repeat` as the active tab beside **Package commissions**, with **Export
+CSV** and **E-wallet monitor** at the top right. The heading should read **Repeat-purchase bonus** with
+the subtitle quoted above. The eight tiles should read **Total credited ₱25.00** (**2 members paid**),
+**Pending release ₱0.00** (**Earned but not yet in a wallet.**), **This month ₱25.00** (**Since the
+1st**), **Awards 2** (**Average ₱12.50**), **Recipients 2** (**Uplines credited at least once**),
+**Skipped 1** (**Ineligible upline — no money moved**), **Cancelled before release 0** (**Never paid;
+no shortfall.**) and **Unrecovered ₱0.00** (**Voided awards only — shortfall after a post-release
+reversal.**) — the same **₱25.00** as D1. The **Closed months** card should show the badge **0 closed**
+and the no-month-closed sentence, with no action. The **Repeat-purchase ledger** card should carry the
+badge **3 rows** and list the same three rows as D1 under the columns quoted above: **L1 @maria (Maria
+Santos)**, buyer **@peter**, **QA Repeat Product (QA-REPEAT-01)**, **₱250.00**, **5.000%**, **+₱12.50**,
+**Credited**, order **EW26111400861** with its **Delivered** pill, and a wallet button; **L2 @juan** with the
+same base, rate, amount, status and order; and **L3 @admin** at **₱250.00 · 5.000% · ₱12.50** with the
+small line **not paid**, the **Skipped** pill, **company account is not paid** and a **—** wallet cell.
+With **Product → QA Repeat Product** and **Filter** the three rows should stay; with **Level → 1** and
+**Filter** only the maria row should remain, with the badge **1 row** and the footer **Rows per page 10
+· Awards · Showing 1–1 of 1**; **Clear** should restore the full list. Save it as
+`docs/qa/evidence/unilevel-escrow/7_d2_admin_ledger.jpeg` (expected name). The v1 run showed six tiles
+and the old payment-time wording; that is history, not a v2 result.
 
 **If the tiles show different numbers:** the copy may already have other repeat-purchase awards from
 earlier tests. The **table rows for your order** and the **difference** of ₱25.00 are what matter. If
@@ -1409,11 +1490,11 @@ the table cannot be filtered down to your three rows, capture the filter and the
 
 ---
 
-## 8. Optional checks (E1–E4)
+## 8. Optional checks (E1–E6)
 
-These are optional for a first pass, but they cover the four things most likely to go wrong in real
-use: the master switch, a product without a ladder, an impossible ladder, and a cancellation. E4 also
-returns the test money.
+These are optional for a first pass, but they cover the six things most likely to go wrong in real use:
+the master switch, a product without a ladder, an impossible ladder, a cancellation before release, the
+payout reminder, and the hold itself.
 
 ### E1 — The global switch hides the offer everywhere
 
@@ -1438,7 +1519,7 @@ returns the test money.
 - With the master switch **off**:
   - no **Up to 29% repeat bonus** badge on the catalogue card;
   - no **Repeat-purchase bonus** panel on the product page;
-  - no **Up to ₱72.50 is paid to the members above you…** note on the checkout;
+  - no **Up to ₱72.50 is earned by the members above you…** note on the checkout;
   - no error page and no broken layout — the product and the checkout still work normally.
 - With the master switch **on** again: all three return exactly as they were.
 - The admin product form still shows the ladder while the stream is off. The configuration is kept;
@@ -1470,8 +1551,8 @@ and confirm the switch is off before you conclude it is a defect.
 
 - The product card has **no** repeat-bonus badge.
 - The product page has **no** **Repeat-purchase bonus** panel at the bottom of the product card.
-- The checkout has **no** **Up to … is paid to the members above you** note, because no product in the
-  cart carries a ladder.
+- The checkout has **no** **Up to … is earned by the members above you** note, because no product in
+  the cart carries a ladder.
 - The product and the checkout work normally in every other way.
 
 **If the cart also contains QA Repeat Product:** the preview will still appear for that configured
@@ -1515,61 +1596,185 @@ product. Use a cart containing only the unconfigured product for this check.
 **If a failed save changes the stored ladder:** that is a real defect. Capture the form before and
 after, and the list badge.
 
-### E4 — Cancelling the paid order reverses the bonus
+### E4 — Cancelling a paid order before release moves no money
 
 | | |
 |---|---|
-| **Why it matters** | A cancelled sale must not leave the bonus behind. The buyer must be refunded, the uplines must be debited, and every screen must show the reversal honestly. |
-| **Where** | Admin → **Orders** → the paid order → **Cancel order** |
-| **Evidence** | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_after_cancel.jpeg` |
+| **Why it matters** | A cancelled sale must not leave bonus money behind. On a new order the award is still pending, so cancelling it must move **no** money: no debit, no reversal row and no shortfall. The order and its cancelled rows must stay visible as history. |
+| **Where** | Peter → **Shop** → **Checkout** · Admin → **Orders** → the second order → **Cancel order** · Admin → **Commissions** → **Repeat-purchase bonus** |
+| **Evidence** | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_order_cancelled.jpeg`, `8_e4_admin_ledger_cancelled.jpeg` (expected names, in `docs/qa/evidence/unilevel-escrow/`) |
 | **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
 
 **Do this**
 
-1. As `admin`, open the paid order from D1 (**Orders** → search the **EW…** number).
-2. In the right column, find the **Cancel order** card.
-3. Leave the **Reason** on **Cancelled by the administrator**.
-4. Click **Cancel order**, then confirm the dialog with **Cancel order**.
+1. In Window B, sign in as `peter`. **Before buying**, record maria's and juan's current
+   **Withdrawable**, **Pending release**, **Total funds** and **Earnings → Repeat-purchase bonus**
+   **Total credited** values. C1b already released the first order, so these are the baseline; on a
+   clean copy the pending figure is **₱0.00**.
+2. Still as `peter`, open **Shop**, search `QA Repeat Product`, open it, and place a **second** paid
+   order for one unit with **E-wallet**, exactly as in B3. **Do not deliver it.** Write down its new
+   **EW…** number.
+3. In Window A, open **Orders**, search the second order number and open it. In the
+   **Repeat-purchase bonus** card, confirm the badge **₱25.00 pending release**, both rows
+   **Pending release** with **after delivery + 0 days** (or **due <date>** once delivered), **no wallet
+   link**, and the footer **Awarded ₱25.00 · Released ₱0.00 · Pending ₱25.00**.
+4. In the right column, find the **Cancel order** card. Leave **Reason** on **Cancelled by the
+   administrator**, click **Cancel order**, and confirm the dialog with **Cancel order**.
 5. Read the order status, the **Repeat-purchase bonus** card and the **Cancel order** area.
-6. As `maria`, open **E-wallet** and **Earnings → Repeat-purchase bonus**.
-7. As `juan`, open **E-wallet**.
-8. As `peter`, open **My orders** → the order, and then **E-wallet**.
-9. As `admin`, reopen **Commissions → Repeat-purchase bonus**.
+6. As `maria`, open **E-wallet**, then **Earnings → Repeat-purchase bonus**. Read the wallet buckets,
+   the statement and the award row.
+7. As `juan`, open **E-wallet** and the same earnings tab.
+8. As `peter`, open **My orders** → the second order, then **E-wallet**.
+9. As `admin`, open **Commissions → Repeat-purchase bonus**.
+10. Run the release job (§6.1 commands). It must not pay the cancelled order.
 
 **You should see**
 
-- The order status is **Cancelled**.
-- The admin order's **Repeat-purchase bonus** card now shows the badge **No bonus**, because the
-  order is no longer in a paid status. Its paragraph reads **"Paid orders earn the repeat-purchase
-  bonus. This order is `cancelled`."** The card footer still shows the order number and the processed
-  date. The voided rows are **not** shown on this card once the order is cancelled; the audit trail
-  is in the admin commission ledger (below) and on the members' statements. The **Cancel order** card
-  is gone, because the order can no longer be cancelled.
-- **Maria**:
-  - **Withdrawable** is back to its before value (₱12.50 was debited);
-  - the statement has a **Repeat-purchase reversal** debit of **−₱12.50**;
-  - the earnings row for the award is **Voided**, with **₱12.50 reversed after the order was
-    cancelled**;
-  - **Total credited** is back to its before value;
-  - **Not paid** is still **0**; a voided award is not a skipped level.
-- **Juan**: the same reversal and the same statement row.
-- **Peter**:
-  - the order page is **Cancelled** and **no Repeat-purchase bonus card** is shown (the order is no
-    longer paid);
-  - the **E-wallet** has a **Refund** credit of **₱300.00**, and the total is back to the before value
-    from worksheet row 1.
-- **Admin commission ledger**: the three rows are still there. The L1 and L2 rows are **Voided**,
-  each with the small text **₱12.50 recovered of ₱12.50**; the L3 row is still **Skipped**. **Total
-  credited** and **This month** are back to their before values (₱0.00 on a clean copy); on that same
-  clean copy **Awards** is **0** and **Recipients** is **0**; **Skipped** is still **1**, and
-  **Unrecovered** is **₱0.00** with the hint **2 voided awards — shortfall after reversal**.
-- No balance is negative, and no row is deleted. The history is intact; the money is reversed with new
-  rows.
+- The order status is **Cancelled**, and the **Cancel order** card is gone.
+- **Peter** is refunded **₱300.00**: the **E-wallet** shows a **Refund** credit of **₱300.00**, and the
+  total is back to the value it had before the second order. The cancelled order page has **no
+  Repeat-purchase bonus card** (the order is no longer paid).
+- **Maria** and **Juan**: **Withdrawable**, **Total balance** and **Total credited** are **unchanged** —
+  there is **no debit**. **Pending release** returns to **₱0.00** (the card is hidden when nothing is
+  pending) and **Total funds** returns to the wallet balance. Their wallet statements have **no
+  Repeat-purchase reversal** row, because nothing was ever paid.
+- Each upline's **Earnings → Repeat-purchase bonus** keeps the award row, with the **Cancelled before
+  release** badge and the note **Order cancelled before release — no money was paid.** **Total
+  credited** is unchanged and **Not paid** is still **0** — a cancelled award is not a skipped level.
+- **Admin order card:** badge **No bonus released**; the rows stay visible with the **Cancelled before
+  release** pill and the small line **no money moved**; **no wallet links**; the note reads **"No bonus
+  released. This order was cancelled before any repeat-purchase bonus was released."** The footer keeps
+  the order number and the processed date; its money line reads **Awarded ₱0.00 · Released ₱0.00 ·
+  Pending ₱0.00**.
+- **Admin ledger:** the two new rows are **Cancelled before release** with **no money moved** and a
+  **—** wallet cell. **Total credited**, **This month**, **Awards** and **Recipients** are unchanged
+  (**₱25.00**, **₱25.00**, **2**, **2** on a clean copy); **Skipped** stays **1**; the **Cancelled
+  before release** tile reads **2** and its hint adds **₱25.00 cancelled.**; **Unrecovered stays
+  ₱0.00** — a cancelled award is never a shortfall.
+- Running the release job afterwards pays nothing for that order: the run reports **`released_awards=0`**
+  and writes no wallet row. The two awards stay `cancelled`.
+- No balance is negative, and no row is deleted. The order and its cancelled rows are the history.
 
-**If an upline already spent part of the bonus:** the reversal is **partial**. In the **admin
-commission ledger**, the row shows the amount recovered and, if there is a shortfall, a red
-**₱… shortfall** line. That is the documented behaviour, not a bug; the wallet is never allowed to go
-negative. In this walkthrough nobody spent the bonus, so the full ₱12.50 should be recovered.
+**Why this is not the old reversal.** This order never paid the bonus: its awards were `pending`, so the
+cancellation turned them into `cancelled` and **no money moved**. The **post-release** path still exists
+for legacy awards and future returns (plan §6.4): a `credited` award is **voided** and the wallet is
+**debited only up to its withdrawable balance**, recording any shortfall as **Unrecovered**. That is the
+only case that writes a **Repeat-purchase reversal** statement row. A cancelled-before-release award
+never becomes a shortfall.
+
+**If an upline already spent part of the bonus (post-release case only):** the reversal is **partial**.
+In the **admin commission ledger**, the row shows the amount recovered and, if there is a shortfall, a
+red **₱… shortfall** line. That is the documented behaviour, not a bug; the wallet is never allowed to
+go negative. E4 never enters this path, because a pending award has no wallet money to recover.
+
+**If money moves anyway:** a pending cancellation that debits a wallet or writes a reversal row is a
+**real v2 defect**. Capture the order, the wallet statement and the admin ledger, and stop.
+
+### E5 — The payout page explains the pending amount
+
+| | |
+|---|---|
+| **Why it matters** | The payout page is where a member expects money. A pending award must be explained beside the withdrawable figure, named in the form and in a refusal, and never mistaken for money that is missing or already included. |
+| **Where** | Peter → **Shop** → **Checkout** (a fresh paid order) · Maria → **Payouts** (`/payouts`) |
+| **Evidence** | `10_e5_payout_reminder.jpeg` (expected name, in `docs/qa/evidence/unilevel-escrow/`) |
+| **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
+
+**Do this**
+
+1. In Window B, sign in as `peter` and place a fresh paid order for **QA Repeat Product** with
+   **E-wallet**, exactly as in B3. **Do not deliver it.** This gives maria (and juan) a new
+   **₱12.50 pending release** award while maria keeps her released balance.
+2. Sign in as `maria`. Open **E-wallet** and confirm the **Pending release** card (₱12.50 on a clean
+   copy) and the **Total funds** card.
+3. Click **Payouts** in the left menu (`/payouts`). Read the balance card, then the **Request a
+   payout** card.
+4. Read the informational alert above the **Amount** field.
+5. Try to request **more than the withdrawable balance** (for example the withdrawable figure plus
+   ₱100.00), choose an available method, fill its account if the box is empty, and submit. Read the
+   refusal banner.
+6. Now enter **exactly the withdrawable amount** and submit. Read the success flash and the
+   **Withdrawal in progress** card.
+7. Look for a modal, a checkbox or any gate that asks you to acknowledge the pending amount. There is
+   none.
+8. If you have a member whose whole repeat-purchase balance is pending and whose withdrawable balance
+   is **₱0.00**, load their **Payouts** page as well and read the all-pending variant in the balance
+   card.
+
+**You should see**
+
+- The balance card shows **Withdrawable** and, when pending is above zero, a fact line **Pending
+  release ₱12.50 · not withdrawable yet** (the figure is the member's own pending total). The wallet
+  balance and non-withdrawable figures are unchanged by the pending money.
+- If **nothing** is withdrawable but something is pending, the card instead says **"You have ₱12.50
+  pending release, but none is withdrawable yet. It becomes available after the return window."**
+- The request form shows an inline informational alert above **Amount** (it is an alert, **not** a
+  modal and **not** a checkbox): **"₱12.50 of repeat-purchase bonus is pending release and is not
+  included in this request. It will be released after delivery + 0 days."** The last clause follows
+  the member's data: a known date after delivery (**"…after the return window (next: <date>)."**),
+  the snapshotted hold before delivery (**"…after delivery + N days."**), or the paused sentence
+  **"Release is currently paused by the administrator."**
+- Requesting more than withdrawable is refused, and the refusal names the pending amount: **"You can
+  withdraw up to ₱…. Your ₱12.50 repeat-purchase bonus is pending release and is not yet
+  withdrawable."** (A known next release adds **"The next release is on <date>."**)
+- Requesting the withdrawable amount succeeds. The green flash reads **"₱… is held for payout by
+  <method> to <account>. An administrator will process it shortly. Your ₱12.50 pending release was
+  not part of this request; it will be released after the return window."** The **Withdrawal in
+  progress** card shows the held amount, and the pending figure is shown beside it as a separate pile.
+- The pending amount is **never subtracted** from the withdrawable figure and **never blocks** the
+  request. There is no modal and no checkbox to tick.
+- Save the balance card and the form alert as
+  `docs/qa/evidence/unilevel-escrow/10_e5_payout_reminder.jpeg` (expected name). Capture the refusal
+  and the success flash as separate frames if your evidence convention allows.
+
+**If the pending amount is missing from the form:** the member-facing reminder is the point of this
+check. Capture the balance card, the form and the refusal; do not mark it a pass on the balance card
+alone.
+
+### E6 — The hold actually holds
+
+| | |
+|---|---|
+| **Why it matters** | The hold is the whole escrow: a delivered order must not pay until its snapshotted window has passed. If the release job ignores the hold, every delivery pays immediately. |
+| **Where** | Admin → **Settings** → **Commissions** · Peter → **Shop** · Admin → **Orders** · Maria → **E-wallet** / **Earnings** |
+| **Evidence** | `10_e6_hold.jpeg` (expected name, in `docs/qa/evidence/unilevel-escrow/`) |
+| **Result** | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A |
+
+**Do this**
+
+1. As `admin`, open **Settings → Commissions → Repeat-purchase bonus**, set **Release delay after
+   delivery** to `7` and click **Save settings**. Read the hint back.
+2. As `peter`, place a **new** paid order for **QA Repeat Product** with **E-wallet** and note its
+   **EW…** number. It must be a separate order from C1b's (and from E4's and E5's).
+3. As `admin`, deliver that order: **Pack order → Ready to ship → Ship order → Mark delivered**
+   (§6.1). Do **not** wait seven days; the stored date is the evidence.
+4. Run `php bin/unilevel_release.php --dry-run`, then `php bin/unilevel_release.php`. Read the output.
+5. As `maria`, open **E-wallet** and **Earnings → Repeat-purchase bonus**. Read the pending card, the
+   new award row and its note.
+6. As `admin`, reopen the order (the **Repeat-purchase bonus** card) and the **Commissions →
+   Repeat-purchase bonus** ledger.
+7. Set **Release delay after delivery** back to `0` (or the value recorded in S5) and save.
+
+**You should see**
+
+- The order is **Delivered**, but its award is still **Pending release**.
+- The release job releases **nothing** for it: the run reports **`released_awards=0`** (CLI:
+  **released: 0 order(s) · 0 award(s) · ₱0.00**), and the wallet statement has no new repeat-purchase
+  row.
+- Maria's **Withdrawable** and **Total balance** are **unchanged**. Her **Pending release** figure
+  includes this award, and the earnings row's note reads **Available after <date>.** — the delivery
+  date **+ 7 days** — not "today".
+- The admin order card shows the badge **₱25.00 pending release**, the rows **Pending release — due
+  <date>**, and the footer **Awarded ₱25.00 · Released ₱0.00 · Pending ₱25.00**.
+- The admin ledger shows the order's rows as **Pending release** with the same due date, and the
+  **Pending release** tile includes them. **Total credited** does not move.
+- The C1b fast path used a **separate** order created while **Release delay after delivery** was `0`;
+  that is why C1b released. Do not change the main order's hold to force E6, and do not wait for the
+  seven days — the due date is the proof.
+- Save the admin order card (badge **₱25.00 pending release** and its due line) or the member's
+  still-pending award row as `docs/qa/evidence/unilevel-escrow/10_e6_hold.jpeg` (expected name).
+
+**If the job releases the award before the seventh day:** that is a **Major** defect in the hold. Stop,
+capture the job output and the award row, and restore the setting before you continue.
 
 ---
 
@@ -1577,18 +1782,26 @@ negative. In this walkthrough nobody spent the bonus, so the full ₱12.50 shoul
 
 Do this before you close the browser.
 
-- [ ] **Restore the five settings** from §3, S5. Pay particular attention to the master switch: if it
-      was off before you started, turn it **off** again. If you turned off **Require the monthly Active
-      rule** for T1, turn it back on.
+- [ ] **Restore the seven settings** from §3, S5, not just the two escrow controls. Pay particular
+      attention to **Release delay after delivery**: E6 set it to `7`, so put it back to the value you
+      recorded. Restore **Release repeat-purchase bonuses** as you found it, and if you turned
+      **Require the monthly Active rule** off for T1, turn it back on. Also restore the master switch:
+      if it was off before you started, turn it **off** again.
+- [ ] **If you completed E5:** the successful request is still **open** and holds maria's withdrawable
+      balance. As `admin`, open **Payouts**, open that request and **Reject** it with a reason such as
+      `QA clean-up`; confirm the held amount returns to her withdrawable balance. Do not approve it.
 - [ ] **Switch the test product off** (Admin → **Products** → the pause-circle icon in the product's
       **Actions** column, whose tooltip says **Disable (hide from shop)**; confirm **Disable product**)
       unless the system owner wants it left on. Do **not** delete it; the paid order references it, and
       the feature deliberately refuses to delete a product with awards.
-- [ ] **If you ran E4:** the test money is reversed. The order, the award rows and the voided ledger
-      rows remain as history. That is correct; the application never deletes money rows.
-- [ ] **If you skipped E4:** the buyer spent **₱300.00**, and maria and juan each hold **₱12.50** of
-      test money. On a disposable development copy this is acceptable; if the copy must be pristine,
-      ask the owner to restore the pre-test backup. Do not hand-edit wallet or award rows.
+- [ ] **If you ran E4:** the second order is **Cancelled**, its two awards are **Cancelled before
+      release**, and no wallet row was written; the buyer's **₱300.00** was refunded at cancellation.
+      The order, the award rows and the cancelled ledger rows remain as history. That is correct; the
+      application never deletes money rows.
+- [ ] **The release path leaves test money behind.** C1b credited **₱12.50** to maria and **₱12.50**
+      to juan; E5/E6 may also leave awards **Pending release**. On a disposable development copy this is
+      acceptable; if the copy must be pristine, ask the owner to restore the pre-test backup. Do not
+      hand-edit wallet or award rows to remove it.
 - [ ] **Sign out** of every window.
 - [ ] **Keep the evidence folder.** Do not edit the screenshots after capture.
 
@@ -1604,12 +1817,13 @@ Copy this table into your report, or print it and fill it in by hand. Use the ch
 |---|---|---|---|---|
 | A1 | The product form has the repeat-purchase card | ☐ Pass ☐ Fail ☐ Blocked | `4_a1_admin_product_new.jpeg` | |
 | A2 | Save the product and see the badge | ☐ Pass ☐ Fail ☐ Blocked | `4_a2_admin_product_new_complete.jpeg`, `4_a2_admin_product_new_created.jpeg` | |
-| A3 | Turn on the global bonus stream | ☐ Pass ☐ Fail ☐ Blocked | `4_a3_admin_settings_global_unilevel_product.jpeg` | |
+| A3 | Turn on the global bonus stream | ☐ Pass ☐ Fail ☐ Blocked | `4_a3_admin_settings_escrow.jpeg` | |
 | B1 | The catalogue shows the offer | ☐ Pass ☐ Fail ☐ Blocked | `5_b1_shop_unilevel_product.jpeg` | |
 | B2 | The product page explains the ladder | ☐ Pass ☐ Fail ☐ Blocked | `5_b2_shop_unilevel_product_detail.jpeg` | |
-| B3 | The checkout preview is honest | ☐ Pass ☐ Fail ☐ Blocked | `5_b3_shop_unilevel_product_checkout.jpeg` | |
+| B3 | The checkout preview is honest | ☐ Pass ☐ Fail ☐ Blocked | `5_b3_checkout.jpeg` | |
 | B4 | The paid order reports the actual total | ☐ Pass ☐ Fail ☐ Blocked | `5_b4_shop_unilevel_product_order.jpeg` | |
-| C1 | Level 1's wallet shows the credit | ☐ Pass ☐ Fail ☐ Blocked | `6_c1_maria_wallet.jpeg` | |
+| C1a | At payment the bonus is pending and the wallet does not move | ☐ Pass ☐ Fail ☐ Blocked | `6_c1a_maria_pending.jpeg` | |
+| C1b | Delivery + release credits the wallet exactly once | ☐ Pass ☐ Fail ☐ Blocked | `6_c1b_maria_released.jpeg`, `6_c1b_admin_order_released.jpeg` | |
 | C2 | Level 1's statement explains the row | ☐ Pass ☐ Fail ☐ Blocked | `6_c2_maria_statement.jpeg` | |
 | C3 | Level 2's statement and wallet show their share | ☐ Pass ☐ Fail ☐ Blocked | `6_c3_juan_statement.jpeg`, `6_c3_juan_wallet.jpeg` | |
 | C4 | The buyer's own statement is empty | ☐ Pass ☐ Fail ☐ Blocked | `6_c4_buyer_statement.jpeg` | |
@@ -1624,7 +1838,9 @@ Copy this table into your report, or print it and fill it in by hand. Use the ch
 | E1 | The master switch hides the offer | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e1_master_off.jpeg` | |
 | E2 | A product without a ladder has no offer | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e2_no_ladder.jpeg` | |
 | E3 | Impossible ladders are refused | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e3_empty_error.jpeg`, `8_e3_sum_error.jpeg` | |
-| E4 | Cancelling reverses the bonus | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_after_cancel.jpeg` | |
+| E4 | Cancelling before release moves no money | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `8_e4_cancel_order.jpeg`, `8_e4_maria_after_cancel.jpeg`, `8_e4_admin_order_cancelled.jpeg`, `8_e4_admin_ledger_cancelled.jpeg` | |
+| E5 | The payout page explains the pending amount | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `10_e5_payout_reminder.jpeg` | |
+| E6 | The hold actually holds | ☐ Pass ☐ Fail ☐ Blocked ☐ N/A | `10_e6_hold.jpeg` | |
 
 ### Sign-off
 
@@ -1634,8 +1850,8 @@ Copy this table into your report, or print it and fill it in by hand. Use the ch
 | **Date** | |
 | **Build / commit** | |
 | **Environment** | `http://localhost/ecowealth/system/` — development copy |
-| **Required checks passed** | ______ / 14 |
-| **Optional checks passed** | ______ / 4 |
+| **Required checks passed** | ______ / 15 |
+| **Optional checks passed** | ______ / 6 |
 | **Defects found** | ______ (attach the reports from Appendix B) |
 | **Overall result** | ☐ Pass ☐ Pass with notes ☐ Fail ☐ Blocked |
 | **Notes** | |
@@ -1683,15 +1899,21 @@ If all four are true and the panel is still missing, mark the check **Fail** and
 
 **This is expected** on this chain. See §1.3. The preview is the full ten-level ladder; the order paid
 only the two real, eligible uplines. Do not mark it as a mismatch unless the order total is not
-**₱25.00** or the admin order card does not show the two credited rows plus the skipped company row.
+**₱25.00** or the admin order card does not show the two paid rows (pending or credited) plus the
+skipped company row.
 
 ### T4 — The wallet did not change
 
 Open the upline's **Earnings → Repeat-purchase bonus** and read the row's **Status** and reason:
 
+- **Pending release** — the award is earned but not in the wallet yet; the note gives the due date or
+  the hold. The wallet correctly has not moved. This is not a failure.
+- **Cancelled before release** — the order was cancelled while the award was pending. No money moved
+  and there is no reversal row; a cancelled award is not a shortfall.
 - **Skipped** — the row is an audit record, not money. The reason says why (Not Active, disabled,
   pending membership, company account). This is correct behaviour; the level is not compressed.
-- **Voided** — the order was cancelled. The money was reversed.
+- **Voided** — the award had been released and was then reversed (legacy / returns path). Read the
+  recovered and shortfall figures.
 - **Credited** but the wallet is unchanged — this is a **real defect**. Capture the row, the wallet and
   the exact time.
 
@@ -1708,7 +1930,7 @@ ladder**, check the total, turn the switch on and save. Do not continue until th
 
 ### T7 — The settings page says "No changes to save."
 
-The values you submitted already match the stored values. That is not a failure. Confirm the five
+The values you submitted already match the stored values. That is not a failure. Confirm the seven
 controls are correct and move on.
 
 ### T8 — I cannot find the order
@@ -1721,14 +1943,16 @@ successfully; check the buyer's **My orders** page.
 
 Your real chain is deeper than peter → maria → juan → company, or a regular member sits at level 3.
 The flow is still working; the amounts are simply different. Compare with §2.2. If the extra rows have
-**Credited** status, those people were legitimately paid; if they are **Skipped**, read the reason.
+**Credited** or **Pending release** status, those people were legitimately awarded; if they are
+**Skipped**, read the reason.
 
 ### T10 — I accidentally placed two orders
 
-Each paid order pays the ladder once; that is correct. The second order is not a duplicate of the
-first, and the bonus is paid twice because there were two paid sales. For the cleanest evidence, keep
-the first order for the checks and cancel the duplicate at the end with the same **Cancel order**
-action. Do not try to delete rows.
+Each paid order earns the ladder once; that is correct. The second order is not a duplicate of the
+first, so it earns its own awards. If it is still **undelivered**, cancel it as in E4 before release —
+no money moves, and its rows become **Cancelled before release**. If it was already delivered and
+released, leave it: cancelling then is the post-release path and can debit the uplines. Do not try to
+delete rows.
 
 ---
 
@@ -1754,9 +1978,16 @@ action. Do not try to delete rows.
 | **E-wallet** | The member's money account. It has a total, a withdrawable part and a non-withdrawable part. |
 | **Withdrawable** | Money the member can cash out. Commissions land here. |
 | **Non-withdrawable** | Money from admin top-ups and transfers; spendable in the shop, not cashable. |
-| **Credited** | The award was paid into the recipient's withdrawable wallet. |
+| **Pending release** | An award status (`pending`): the bonus is earned but is **not in a wallet yet** — not spendable and not withdrawable. It becomes wallet money only after delivery + the snapshotted hold, when the release job runs. |
+| **Released / Credited** | An award status (`credited`): the release job has paid the award into the recipient's **withdrawable** wallet. |
+| **Cancelled before release** | An award status (`cancelled`): the order was cancelled while the award was still pending. It was **never paid**, so there is no debit, no reversal row and **no shortfall**. |
+| **Voided** | An award status (`voided`): the award was released and then reversed after a cancellation (the legacy / returns path). The wallet gave back only what its withdrawable balance could cover; any remainder is **Unrecovered**. |
+| **Hold days** | Days after delivery before a pending award can be released. The value is **snapshotted** on the award at payment, so changing the setting later does not change existing awards. `0` releases at delivery. |
+| **Return window** | The business period after delivery in which a sale can still be returned or cancelled; the repeat-purchase **hold** is how this walkthrough models it. |
+| **Total funds** | A **presentation-only** sum on the wallet page: wallet balance + pending release. It is not a wallet column, and the pending part is not spendable or withdrawable. |
+| **Unrecovered** | The part of a **voided** award the wallet could not return — the shortfall after a post-release reversal. **Cancelled** awards are never counted here. |
+| **Release job** | `bin/unilevel_release.php` (also the web and `.cmd` entries): credits due `pending` awards once, after delivery + the award's hold. Paused by **Release repeat-purchase bonuses**. |
 | **Skipped** | The level was due but the recipient was not eligible. It is an audit row, not money, and it is not moved to another level. |
-| **Voided** | The award was reversed after the order was cancelled. The row keeps its history. |
 | **Processed / stamped** | The order has been through the repeat-purchase engine. A zero total is still a processed order. |
 | **Company account** | The primary administrator (`admin`). It can sponsor members but is never paid a repeat-purchase bonus. |
 | **Test copy** | A development copy of the application and database, safe to change. Never the live site. |
@@ -1779,16 +2010,16 @@ action. Do not try to delete rows.
 | 8 | 2.000% | ₱5.00 | nobody |
 | 9 | 1.000% | ₱2.50 | nobody |
 | 10 | 1.000% | ₱2.50 | nobody |
-| **Total** | **29.000%** | **₱72.50** | **₱25.00 actually paid** |
+| **Total** | **29.000%** | **₱72.50** | **₱25.00 awarded — released after delivery** |
 
 ### A.2 Where each number appears
 
 | Number | Where | What it means |
 |---|---|---|
 | **₱72.50** | Product page, checkout | The maximum the full ten-level ladder can pay on one unit |
-| **₱25.00** | Buyer's order page, admin order page, admin ledger | What this order actually paid |
-| **₱12.50** | Maria's wallet, statement, earnings | Level 1's share |
-| **₱12.50** | Juan's wallet, statement, earnings | Level 2's share |
+| **₱25.00** | Buyer's order page, admin order page, admin ledger | What this order **awarded** (`pending` + `credited`) |
+| **₱12.50** | Maria's wallet, statement, earnings | Level 1's share — **Pending release** until C1b, then **Credited** |
+| **₱12.50** | Juan's wallet, statement, earnings | Level 2's share — **Pending release** until C1b, then **Credited** |
 | **₱12.50** | Admin order, level 3 | Due to the company, but **skipped** and not paid |
 | **₱300.00** | Buyer's order and wallet | The price the buyer paid for one unit |
 | **₱500.00** | Member's Active status panel | The monthly personal-purchase threshold |
@@ -1843,8 +2074,8 @@ Check:            B4
 Page:             /orders/123
 Account:          peter
 When:             2026-11-13 14:32 (Asia/Manila)
-Expected:         "₱25.00 was paid to the members above you when this order was paid."
-Actual:           "₱12.50 was paid to the members above you when this order was paid."
+Expected:         "₱25.00 is reserved for the members above you. It is released after the return window."
+Actual:           "₱12.50 is reserved for the members above you. It is released after the return window."
 Steps:            1. ... 2. ... 3. ...
 Severity:         Major
 Evidence:         5_b4_shop_unilevel_product_order.jpeg, 7_d1_admin_order.jpeg

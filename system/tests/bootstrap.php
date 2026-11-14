@@ -575,6 +575,68 @@ function test_delete_order(int $orderId): void
     db()->prepare('DELETE FROM shop_orders WHERE id = ?')->execute([$orderId]);
 }
 
+/**
+ * Mark a fixture order delivered (the Phase 18 release precondition).
+ *
+ * Only a paid/packing/ready/shipped order is moved; an unpaid or already
+ * cancelled fixture keeps its state, so a caller can hand every order to
+ * this helper without changing a "not paid" case's meaning.
+ */
+function test_deliver_order(int $orderId, ?string $at = null): void
+{
+    db()->prepare(
+        "UPDATE shop_orders
+            SET status = 'delivered', delivered_at = ?
+          WHERE id = ? AND status IN ('paid','packing','ready_to_ship','shipped','delivered')"
+    )->execute([$at ?? date('Y-m-d H:i:s'), $orderId]);
+}
+
+/**
+ * Deliver an order and run the Phase 18 release for it.
+ *
+ * A paid order now writes `pending` awards and moves no money; most page
+ * fixtures want the post-release state (the wallet is credited). A case
+ * that needs the pre-release state calls the service directly instead.
+ *
+ * @return array{order_id:int, released:int, awards:list<int>, amount:float, skipped:int, reason?:string}
+ */
+function test_release_unilevel(int $orderId, ?string $at = null): array
+{
+    test_deliver_order($orderId, $at);
+
+    return (new UnilevelService())->releaseForOrder($orderId);
+}
+
+/**
+ * Reproduce the Phase 17 shape on a paid, still-cancellable order: every
+ * pending award of the order is credited immediately.
+ *
+ * Used by cases that prove the post-release reversal path (plan §6.4),
+ * which only legacy rows can reach now that cancellation stops at
+ * `ready_to_ship` and release starts at `delivered`.
+ */
+function test_legacy_credit_unilevel(int $orderId): void
+{
+    $wallet = new WalletService();
+
+    foreach (UnilevelAward::forOrder($orderId) as $row) {
+        if ((string) $row['status'] !== 'pending') {
+            continue;
+        }
+
+        $movement = $wallet->credit(
+            (int) $row['user_id'],
+            (float) $row['amount'],
+            'unilevel',
+            (int) $row['id'],
+            'Legacy repeat-purchase award',
+            true
+        );
+
+        UnilevelAward::markCredited((int) $row['id'], (int) $movement['ledger_id']);
+    }
+}
+
 /** Sign the harness in as the given user row (for layout/guard tests). */
 function test_signed_in_as(?array $user): void{
     /* Never let an S-Login fixture leak between cases: the transport

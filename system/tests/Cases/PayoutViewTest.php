@@ -610,4 +610,102 @@ return [
             assert_contains(money(500), $html, 'the minimum');
         });
     },
+
+    /* ==========================================================
+     *  Phase 18 — the escrow reminder on the payout page
+     * ========================================================== */
+
+    'P18-T48 the payout page names the pending release and never blocks the request' => function () use ($render, $makeMember, $fund, $memberPage, $withSettings, $defaults): void {
+        $withSettings(['min_payout' => '0'] + $defaults, function () use ($render, $makeMember, $fund, $memberPage): void {
+            $member   = $makeMember();
+            $memberId = (int) $member['id'];
+
+            $fund($memberId, '1000.00');
+
+            /* One pending award of ₱12.50: earned, outside the wallet. */
+            $buyer     = test_user('pv18_buyer_' . bin2hex(random_bytes(4)));
+            $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+            $orderId   = test_order((int) $buyer['id'], [['product_id' => $productId]], 'delivered', [
+                'paid_at'      => date('Y-m-d H:i:s'),
+                'delivered_at' => date('Y-m-d H:i:s', time() - 86400),
+                'total'        => '100.00',
+            ]);
+            $itemId = (int) db()->query('SELECT id FROM shop_order_items WHERE order_id = ' . $orderId)->fetchColumn();
+
+            UnilevelAward::create([
+                'order_id'      => $orderId,
+                'order_item_id' => $itemId,
+                'product_id'    => $productId,
+                'buyer_id'      => (int) $buyer['id'],
+                'user_id'       => $memberId,
+                'level'         => 1,
+                'base_amount'   => 250.00,
+                'rate_pct'      => 5.0,
+                'amount'        => 12.50,
+                'hold_days'     => 7,
+                'status'        => 'pending',
+                'paid_at'       => date('Y-m-d H:i:s'),
+            ]);
+
+            test_signed_in_as($member);
+            $_GET = [];
+            $_SERVER['REQUEST_URI'] = '/ecowealth/system/payouts';
+
+            $html = $render('member', 'member/payouts', $memberPage(Wallet::account($memberId)));
+
+            /* The balance card carries the pending line and the reason. */
+            assert_contains('Pending release', $html);
+            assert_contains(money(12.5), $html);
+            assert_contains('not withdrawable yet', $html);
+
+            /* The form explains the gap above the amount and stays usable. */
+            assert_contains('of repeat-purchase bonus is', $html);
+            assert_contains('pending release', $html);
+            assert_contains('not included', $html);
+            assert_contains('name="amount"', $html, 'the request is not blocked');
+            assert_contains(money(1000), $html, 'the withdrawable amount is requestable');
+            assert_not_contains('data-bs-toggle="modal"', $html, 'the reminder is informational, never a modal');
+            assert_not_contains('name="acknowledge"', $html, 'there is no checkbox gate');
+            assert_not_contains('name="escrow_ack"', $html, 'there is no checkbox gate');
+        });
+    },
+
+    'P18-T49 with everything pending the page says none is withdrawable yet' => function () use ($render, $makeMember, $memberPage, $withSettings, $defaults): void {
+        $withSettings(['min_payout' => '0'] + $defaults, function () use ($render, $makeMember, $memberPage): void {
+            $member   = $makeMember();
+            $memberId = (int) $member['id'];
+
+            $buyer     = test_user('pv18_all_buyer_' . bin2hex(random_bytes(4)));
+            $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+            $orderId   = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+                'paid_at' => date('Y-m-d H:i:s'),
+                'total'   => '100.00',
+            ]);
+            $itemId = (int) db()->query('SELECT id FROM shop_order_items WHERE order_id = ' . $orderId)->fetchColumn();
+
+            UnilevelAward::create([
+                'order_id'      => $orderId,
+                'order_item_id' => $itemId,
+                'product_id'    => $productId,
+                'buyer_id'      => (int) $buyer['id'],
+                'user_id'       => $memberId,
+                'level'         => 1,
+                'base_amount'   => 250.00,
+                'rate_pct'      => 5.0,
+                'amount'        => 12.50,
+                'hold_days'     => 7,
+                'status'        => 'pending',
+                'paid_at'       => date('Y-m-d H:i:s'),
+            ]);
+
+            test_signed_in_as($member);
+            $_GET = [];
+            $_SERVER['REQUEST_URI'] = '/ecowealth/system/payouts';
+
+            $html = $render('member', 'member/payouts', $memberPage(Wallet::account($memberId)));
+
+            assert_contains('You have ' . money(12.5) . ' pending release, but none is withdrawable yet.', $html);
+            assert_contains('It becomes available after the return window.', $html);
+        });
+    },
 ];

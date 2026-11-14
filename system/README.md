@@ -4,7 +4,8 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 17 — release. `APP_PHASE` is 17 and the workstream is closed.**
+**Current status: Phase 18 — repeat-purchase bonus escrow (post-17 point release). `APP_PHASE` stays
+17** and the workstream is closed.
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -14,8 +15,13 @@ six settings and two wallet movement kinds; 17B the per-product configuration; 1
 the paid-order hook on both payment paths, the monthly Active gate, best-effort reversal and the
 repeat-purchase reconciliation; 17D and 17E the admin and member surfaces; 17F the unattended
 month-close job (doctor, dry run, log, lock and catch-up); and 17G the release (documentation, QA pack,
-`APP_PHASE` 17 and the acceptance pass). The stream ships **off** and pays nothing until an operator
-configures a product and turns the global master on.
+`APP_PHASE` 17 and the acceptance pass). Phase 18
+(`dmp/plan-ecowealth-unilevel-bonus-escrow.md`, a **post-17 point release**) moves the cash event from
+payment to release: a paid order writes **`pending`** awards and moves no money, an hourly release job
+credits the upline's withdrawable wallet after delivery + the award's snapshotted hold, cancellation
+before release cancels the awards with no shortfall, and the member/admin surfaces show **Pending
+release** and **Total funds**. The stream ships **off** and pays nothing until an operator configures
+a product and turns the global master on.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -75,9 +81,10 @@ report indexes (`019`). Operations are documented in [`docs/runbook.md`](../docs
 [`docs/admin-guide.md`](../docs/admin-guide.md); a backup → restore drill was executed and recorded.
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
-`/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`, and so does the
-Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
-`system/storage/`; the first two have kill switches on the settings page.
+`/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`, and so do the
+Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18 release at
+`/system/cron/unilevel_release.php`. All five log to
+`system/storage/`; the first two and the release have kill switches on the settings page.
 
 | | |
 |---|---|
@@ -86,7 +93,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
 | Deployment | [`docs/deploy.md`](../docs/deploy.md) — beginner guide for Hostinger / shared hosting |
 | Operations | [`docs/runbook.md`](../docs/runbook.md) — daily checks, backups/restore, incidents, go-live |
 | Admin guide | [`docs/admin-guide.md`](../docs/admin-guide.md) — page-by-page quick guide for the back office |
-| Scheduled jobs | `docs/cron.md` (expiry, auto-complete, transfer-limit reset, unilevel month close: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
+| Scheduled jobs | `docs/cron.md` (expiry, auto-complete, transfer-limit reset, unilevel month close, unilevel release: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
 
@@ -121,7 +128,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 31 tables, the 54 settings, both staff accounts,
+   `database/install.sql` creates the 31 tables, the 56 settings, both staff accounts,
    the seven starter products and the two packages. It seeds **no** demo members, demo
    codes or demo wallets, and it refuses to run against a non-empty schema.
 
@@ -132,7 +139,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php`. All four log to
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 31 | 54 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 31 | 56 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
    The bundle is **generated** from `database/schema.sql` and seeds 001–004. Edit those
    sources, then rebuild and verify:
@@ -1164,15 +1171,17 @@ php bin/wallet_reconcile.php --json
 
 ---
 
-## Repeat-purchase bonus (Phase 17)
+## Repeat-purchase bonus (Phases 17–18)
 
 A **per-product unilevel ladder** that pays the buyer's sponsor chain on every **paid shop order**:
 level 1 is the direct sponsor, level 10 the tenth upline. The work is split into phases: 17A ships the
 schema and the wallet vocabulary, 17B the configuration, **17C the money engine**, 17D/17E the admin
-and member surfaces, 17F the month-close job and 17G the release. **Paying an order now moves money**
-only when both masters are on — the global `unilevel_enabled` and the product's
-`products.unilevel_enabled` — so deploying this code changes nothing until an operator configures a
-product **and** turns the global switch on.
+and member surfaces, 17F the month-close job and 17G the release. Phase 18 (a **post-17 point
+release**) makes the bonus an **escrow**: paying an order **earns** the awards but moves no money; the
+release job credits the wallet after delivery + the hold. Paying an order awards the ladder only when
+both masters are on — the global `unilevel_enabled` and the product's `products.unilevel_enabled` — so
+deploying this code changes nothing until an operator configures a product **and** turns the global
+switch on.
 
 ### The engine (17C)
 
@@ -1200,18 +1209,28 @@ product **and** turns the global switch on.
   see [Cron jobs](#cron-jobs). An operator can relax the monthly rule with
   `unilevel_requires_active_upline = 0`; the account and membership checks always apply, and the
   company account is never paid.
-- **Wallet and reconciliation.** Each credited award is a withdrawable wallet credit with
-  `ref_type = 'unilevel'` and `ref_id = unilevel_awards.id`, exactly one ledger row per award.
+- **Wallet and reconciliation.** A `pending` award has **no** wallet movement and no ledger row. At
+  release the job writes exactly one withdrawable credit per award (`ref_type = 'unilevel'`,
+  `ref_id = unilevel_awards.id`) and marks the award `credited` with `ledger_id` and `credited_at`.
   `bin/wallet_reconcile.php` gained a **Repeat-purchase** section: award credits and their ledger
-  rows, reversal debits against `reversed_amount`, the order headline totals and the idempotency
-  stamp. An award that was paid and then reversed keeps its amount and ledger id; only the reversal
-  columns change.
-- **Cancellation.** `PaymentService::cancelByAdmin()` voids every credited award after the buyer's
-  refund and before the status update, then debits what the wallet still holds as
-  `ref_type = 'unilevel_reversal'`. It is **best effort** (D-13): a partly spent wallet is debited
-  only up to its withdrawable balance, the shortfall is recorded on the award, balances never go
-  negative, and a cancellation is never blocked. `unilevel_reversal_enabled = 0` leaves the awards
-  credited.
+  rows, reversal debits against `reversed_amount`, pending/cancelled rows (no ledger), the order
+  headline totals (`pending + credited`) and the idempotency stamp. An award that was paid and then
+  reversed keeps its amount and ledger id; only the reversal columns change.
+- **The release (18).** `UnilevelService::releaseDue()` finds orders whose `pending` awards are due
+  (`delivered`/`completed`, not cancelled, `COALESCE(delivered_at, completed_at) + hold_days <= NOW()`)
+  and `releaseForOrder()` credits them in one transaction per order, with the order row locked first
+  and the award status re-checked. `bin/unilevel_release.php` runs it hourly (`:20`; CLI, guarded URL
+  or `.cmd`) with `--limit`, `--order`, `--dry-run`, `--json`, `--doctor`, `--log-dir`, `--quiet` and
+  `--help`. **No force path**: an undelivered order never releases, and there is no “release now”
+  button. `unilevel_hold_days` (0–365, default 7) is snapshotted on every award at payment;
+  `unilevel_release_enabled = 0` pauses the job and leaves pending awards pending.
+- **Cancellation.** `PaymentService::cancelByAdmin()` calls `UnilevelService::reverseForOrder()`
+  after the buyer's refund. It **always** cancels the order's `pending` awards first (no debit, no
+  reversal row, no shortfall), then — only when `unilevel_reversal_enabled` — voids the `credited`
+  awards and debits what the wallet still holds as `ref_type = 'unilevel_reversal'`. The credited
+  reversal is **best effort** (D-13): a partly spent wallet is debited only up to its withdrawable
+  balance, the shortfall is recorded on the award, balances never go negative, and a cancellation is
+  never blocked.
 - **Idempotency.** Four layers: the order stamp, a per-(line, recipient, level) pre-check, the
   `uq_unilevel_award` unique key and the wallet's own `(user, ref_type, ref_id, type)` replay. A
   second `onOrderPaid()` returns `replayed` and moves nothing.
@@ -1247,9 +1266,10 @@ product **and** turns the global switch on.
   0%` when it is on with an empty ladder (a configuration error the operator can see), and no badge when
   it is off. `?unilevel=on|off` filters the catalogue table and survives pagination.
 - **The settings block** lives in the **Commissions** card, under *Repeat-purchase bonus*: `Upline depth`
-  (1–10), `Monthly personal-purchase minimum` (₱), and the three switches `unilevel_enabled`,
-  `unilevel_requires_active_upline`, `unilevel_reversal_enabled`. The sixth key,
-  `unilevel_ledger_since`, is a reconciliation baseline and is never rendered. Saving the card validates
+  (1–10), `Monthly personal-purchase minimum` (₱), `Release delay after delivery` (0–365 days), and the
+  four switches `unilevel_enabled`, `unilevel_requires_active_upline`, `unilevel_release_enabled`,
+  `unilevel_reversal_enabled`. The eighth key, `unilevel_ledger_since`, is a reconciliation baseline and
+  is never rendered. Saving the card validates
   and audits exactly like the Phase 15 cards (`settings.update`). The save also bumps the shared `config`
   live revision, and the checkout page follows it (`data-live-config="config"`), so toggling
   **Repeat-purchase bonus enabled** removes or restores an open checkout's preview line without a reload.
@@ -1259,15 +1279,20 @@ product **and** turns the global switch on.
 Read-only: no admin page writes an award, a wallet row or a period.
 
 - **The repeat ledger** is the second tab of the commission ledger,
-  `/admin/commissions?ledger=repeat`: six counters (total credited and the members paid, this month,
-  awards, recipients, skipped, unrecovered), filters (recipient/buyer/product/order `q`, level, status,
-  product, date), the closed-month card and the filtered CSV
-  (`/admin/commissions/export?ledger=repeat`, audited as `unilevel.export`). The **Lvl** column is the
-  whole story — there is no direct/indirect column. A skipped row shows the amount that was due and its
-  reason; a voided row shows what was recovered and the shortfall.
+  `/admin/commissions?ledger=repeat`: eight counters (total credited, **pending release**, this month,
+  awards, recipients, skipped, **cancelled before release**, unrecovered), filters
+  (recipient/buyer/product/order `q`, level, status, product, date), the closed-month card and the
+  filtered CSV (`/admin/commissions/export?ledger=repeat`, audited as `unilevel.export`). The **Lvl**
+  column is the whole story — there is no direct/indirect column. A `pending` row shows its due date and
+  has no wallet movement; a `cancelled` row shows “no money moved” and is **not** a shortfall; a skipped
+  row shows the amount that was due and its reason; a voided row shows what was recovered and the
+  shortfall. The CSV is 15 columns, ending with **`Hold days`** and **`Released at`**.
 - **The order card** on `/admin/orders/{id}` lists level, recipient, product, base, rate, amount and
-  status, with the headline equal to `shop_orders.unilevel_total`, and explains the three "no bonus"
-  states (unpaid, stream off, paid before the feature). The buyer is never listed as a recipient.
+  status, with the footer **Awarded … · Released … · Pending …** and explains the three "no bonus"
+  states (unpaid, stream off, paid before the feature). A paid order shows **₱X pending release** (no
+  wallet link) until its awards are released, then **₱X released** (wallet link); a cancelled order
+  shows **No bonus released** with the **Cancelled before release** rows kept for audit. The buyer is
+  never listed as a recipient.
 - **The reports** are four cards on `/admin/reports` (window summary, by level, by product, closed
   months) plus a `type=unilevel` CSV, and a **Repeat bonus (30 d)** KPI on `/dashboard`'s commerce row.
 - **The package commission ledger is unchanged** — the same page, its own tab (P17D-T1).
@@ -1283,21 +1308,28 @@ Read-only and scoped to the session member; no page offers a repeat-purchase act
   global master is off.
 - **The catalogue badge** (`Up to 29% repeat bonus`) reads the batched `totalsMap()` — one query for the
   page, not one per card.
-- **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X is paid to the
-  members above you when this order is paid" — then pivots to the reader's Team chain income, and is
+- **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X is earned by the
+  members above you when this order is paid. It is released to their e-wallets after the return
+  window." — then pivots to the reader's Team chain income, and is
   absent when no cart product has a payable ladder. It is a live region that follows the shared `config`
   revision, so toggling the master switch on the settings page adds or removes it without a reload.
-- **The order card** (`/orders/{id}`) shows the total that was paid to the members above, never which
-  member received what, then points the buyer at their own Team chain statement; it is a live region,
-  so a verification appears without a reload.
-- **The repeat tab** (`/earnings?ledger=repeat`) carries four counters, the **two-clock Active panel**
+- **The order card** (`/orders/{id}`) shows the total that is **reserved** for the members above (or
+  **was released** once every award is credited), never which member received what, then points the
+  buyer at their own Team chain statement; it is a live region, so a verification or a release appears
+  without a reload.
+- **The repeat tab** (`/earnings?ledger=repeat`) carries five counters (including **Pending release**),
+  a **Next release** line,
+  the **two-clock Active panel**
   (this month's status, the previous month it is computed from, the threshold and the missing-flag
   sentence), the 1–10 **Team chain** breakdown — each level card lists its members and paginates on its
   own, ten rows by default with the usual 5/10/15… control under its own `?levelN_page` /
-  `?levelN_per_page` keys, so one crowded level never moves the others — the rows, filters and a
-  13-column CSV.
+  `?levelN_per_page` keys, so one crowded level never moves the others — the rows (pending rows say
+  when they release, cancelled rows say no money was paid, credited rows carry the release date),
+  filters and a **15-column** CSV.
 - **The dashboard tile** and the **membership paragraph** read the same `UnilevelCycle::memberStatus()`
-  and say **Team chain**, never "sponsor chain".
+  and say **Team chain**, never "sponsor chain"; the tile splits **Credited / Pending release / Total
+  earned**, and the wallet page adds **Pending release** and **Total funds** (wallet + pending, a
+  presentation figure only) when something is pending.
 - The package earnings tab is unchanged (P17E-T10); `?user_id=` is ignored (P17E-T11).
 
 ```bash
@@ -1306,6 +1338,7 @@ php tests/run.php UnilevelConfiguration   # 24 configuration cases (17B)
 php tests/run.php UnilevelEngine          # 38 engine cases (17C)
 php tests/run.php UnilevelCycle           # 11 monthly-clock cases (17C)
 php tests/run.php UnilevelMemberView      # 17 member-surface cases (17E)
+php tests/run.php UnilevelEscrow          # the Phase 18 escrow suite: pending, release, cancellation
 php tests/run.php Cron                    # 18 job cases, 10 of them the month close (17F)
 php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 ```
@@ -1314,7 +1347,7 @@ php bin/wallet_reconcile.php              # five sections, exit 0 when clean
 
 ## Cron jobs
 
-Four scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
+Five scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
 
 | Job | CLI | Web | Windows |
 |---|---|---|---|
@@ -1322,10 +1355,11 @@ Four scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows l
 | Order auto-complete (close old deliveries) | `bin/order_autocomplete.php` | `/system/cron/order_autocomplete.php` | `bin/order_autocomplete.cmd` |
 | Transfer-limit reset (daily/weekly counters) | `bin/reset_transfer_limits.php` | `/system/cron/reset_transfer_limits.php` | `bin/reset_transfer_limits.cmd` |
 | Unilevel month close (monthly Active snapshot) | `bin/unilevel_month_close.php` | `/system/cron/unilevel_month_close.php` | `bin/unilevel_month_close.cmd` |
+| Unilevel release (credits due pending bonus) | `bin/unilevel_release.php` | `/system/cron/unilevel_release.php` | `bin/unilevel_release.cmd` |
 
 - Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `json`, `doctor`, `log-dir` (CLI only),
   `quiet` (CLI only), `help`; the expiry job also has `from-settings`, the reset job `week` and
-  `daily-only`, and the month close `period`.
+  `daily-only`, the month close `period`, and the release job `order`.
 - `--from-settings` recomputes expiry deadlines from the **current** settings instead of the stored
   stamps (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction
   window). The cron itself uses the stamps, so changing a window never retroactively cancels old
@@ -1334,20 +1368,28 @@ Four scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows l
   `--daily-only` never touches the weekly counter.
 - `--period=YYYY-MM` closes exactly one completed month. Without it the month close catches up: every
   open month from `unilevel_ledger_since` through last month, oldest first.
+- `--order=ID` runs the release for one order under the **normal** due rule (a diagnostic, never a
+  force). `--limit` caps the due orders one release run may credit (1–1000, default 200).
 - The web entries are trusted on loopback (local testing needs no setup); any other caller needs
   `?key=` matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
 - One run at a time (`CronLock`); monthly logs at `storage/logs/shop_expire-YYYY-MM.log`,
-  `storage/logs/order_autocomplete-YYYY-MM.log`, `storage/logs/reset_transfer_limits-YYYY-MM.log`
-  and `storage/logs/unilevel_month_close-YYYY-MM.log`; `--doctor` reports PHP/DB time, settings,
-  candidates, lock and log state.
-- Kill switches: `shop_expiry_enabled` and `shop_autocomplete_enabled` (settings page). Each makes
-  every run of its job exit 0 without changing anything. The reset job has nothing to switch off — a
-  run only zeroes counters a transfer would have incremented. The **month close has no switch on
-  purpose**: it pays no money, so there is nothing to pause, and it must snapshot a period even while
-  `unilevel_enabled = 0`.
+  `storage/logs/order_autocomplete-YYYY-MM.log`, `storage/logs/reset_transfer_limits-YYYY-MM.log`,
+  `storage/logs/unilevel_month_close-YYYY-MM.log` and `storage/logs/unilevel_release-YYYY-MM.log`;
+  `--doctor` reports PHP/DB time, settings, candidates, lock and log state. The release doctor also
+  reports pending count/amount, the oldest pending award, what is due now, undelivered and stuck
+  `shipped` awards, and `cancelled_due` (must be `0`).
+- Kill switches: `shop_expiry_enabled`, `shop_autocomplete_enabled` and `unilevel_release_enabled`
+  (settings page). Each makes every run of its job exit 0 without changing anything. The release
+  switch pauses the credits but **still cancels pending awards when an order is cancelled**. The reset
+  job has nothing to switch off — a run only zeroes counters a transfer would have incremented. The
+  **month close has no switch on purpose**: it pays no money, so there is nothing to pause, and it must
+  snapshot a period even while `unilevel_enabled = 0`.
 - What drives the month close: `unilevel_active_threshold` (the monthly personal-purchase minimum,
   ₱500 by default, snapshotted onto every closed period) and `unilevel_ledger_since` (the baseline
-  the catch-up starts from; the install month, never rendered on a page).
+  the catch-up starts from; the install month, never rendered on a page). Its `award_total` is the
+  month's **earned** repeat-purchase money, `pending + credited`.
+- What drives the release: `unilevel_hold_days` (0–365, default 7; snapshotted on each award) and the
+  order's delivery stamp. An undelivered order never releases.
 
 ```bash
 php bin/shop_expire.php --doctor
@@ -1366,6 +1408,11 @@ php bin/unilevel_month_close.php --doctor
 php bin/unilevel_month_close.php --dry-run
 php bin/unilevel_month_close.php
 php bin/unilevel_month_close.php --period=2026-10 --json
+
+php bin/unilevel_release.php --doctor
+php bin/unilevel_release.php --dry-run
+php bin/unilevel_release.php
+php bin/unilevel_release.php --order=93 --json
 ```
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
@@ -1462,6 +1509,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `018_impersonation.sql` | `impersonation_log` (the S-Login sessions: superadmin/member snapshots, `nonce_hash` unique, IP/user-agent, active/expired/logged_out, TTL) |
 | `019_audit_and_reporting.sql` | the Phase 15 report indexes (`audit_log.action`, `audit_log.created_at`, `shop_orders.created_at/paid_at`, `ewallet_ledger.created_at`, `commissions.level`, `reg_codes.created_at`); re-creates `audit_log` when an old install skipped it; every step is idempotent |
 | `020_unilevel_repeat_purchase.sql` | `product_unilevel_levels`, `unilevel_awards`, `unilevel_periods`, `unilevel_activity`; `products.pv` + `unilevel_base` + `unilevel_enabled`; `shop_order_items.unit_base` + `base_total`; `shop_orders.unilevel_processed_at` + `unilevel_total`; two order indexes; `ewallet_ledger.ref_type` gains `unilevel` and `unilevel_reversal`; the six `unilevel%` settings (all off by default); additive and re-runnable |
+| `021_unilevel_bonus_escrow.sql` | `unilevel_awards.hold_days` (`SMALLINT UNSIGNED`, default 0) + `credited_at`; the status enum gains `pending` (the new default) and `cancelled`; `idx_unilevel_user_status` + `idx_unilevel_order_status`; `credited_at` backfilled from `created_at` for existing `credited`/`voided` rows; the two settings `unilevel_hold_days` (7) and `unilevel_release_enabled` (1); additive and re-runnable, **no new table and no retroactive lock** |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.
