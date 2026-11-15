@@ -1,0 +1,51 @@
+QA19B-01 — The Royalty sub-block renders on the Commissions card
+=============================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP — http://localhost/ecowealth/system/admin/settings#settings-commissions
+Session: signed in as admin
+Evidence type: transcript of the rendered page (the automated pass asserts the markup; a
+screenshot is not produced by the harness)
+
+Steps
+
+1. Sign in as an administrator and open /admin/settings#settings-commissions.
+2. Scroll below the Repeat-purchase bonus block.
+3. Confirm the Royalty bonus sub-block: the two switches, the four Rank requirements, the three
+   Monthly group quota inputs, the six Payout rates inputs and the five-row Saved ladder table.
+4. mysql -u root ecowealth_sneat -e "SELECT key_name, value FROM settings WHERE key_name LIKE
+   'royalty\_%' ORDER BY key_name"
+
+Result
+
+  QA19B-01 PASS  settings page 200; 13 inputs, 5 ladder rows, default preset, no baseline input
+  QA19B-01 PASS  sixteen royalty settings stored; earning off, payment on (rows=16)
+
+What the page rendered
+
+  Royalty bonus                                        Monthly · 5 ranks
+  [ ] Enable the Royalty bonus    (off)
+  [x] Pay Royalty awards          (on)
+  Rank requirements: Leader: direct members 10 · Supervisor: downline Leaders 10 ·
+                     Manager: downline Supervisors 10 · Director: downline Managers 10
+  Monthly group quota: 500000 · 1000000 · 5000000
+  Payout rates: 3.000/5.000 · 5.000/10.000 · 10.000/15.000
+  Saved ladder rows: Member, Leader, Supervisor, Manager, Director
+    Supervisor  Leader + 10 downline Leaders   ₱500,000.00    3.000%   5.000%   8.000%
+    Manager     Supervisor + 10 downline Supervisors  ₱1,000,000.00  5.000%  10.000%  15.000%
+    Director    Manager + 10 downline Managers  ₱5,000,000.00  10.000%  15.000%  25.000%
+  No input named royalty_ledger_since appears anywhere on the page.
+
+Stored settings (16 rows, reference defaults)
+
+  royalty_director_group_pct=10.000        royalty_director_managers=10
+  royalty_director_personal_pct=15.000     royalty_director_quota=5000000
+  royalty_enabled=0                        royalty_leader_directs=10
+  royalty_ledger_since=2026-11-15 08:18:55
+  royalty_manager_group_pct=5.000          royalty_manager_personal_pct=10.000
+  royalty_manager_quota=1000000            royalty_manager_supervisors=10
+  royalty_pay_enabled=1                    royalty_supervisor_group_pct=3.000
+  royalty_supervisor_leaders=10            royalty_supervisor_personal_pct=5.000
+  royalty_supervisor_quota=500000
+
+RESULT: PASS

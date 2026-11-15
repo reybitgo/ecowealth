@@ -10,6 +10,7 @@ declare(strict_types=1);
  * typed search; the page shows a "changed in another tab" banner instead.
  *
  * @var array{total:int, active:int, pending:int, suspended:int, with_package:int, new_week:int} $stats
+ * @var array{member:int, leader:int, supervisor:int, manager:int, director:int, ranked:int, total:int} $rank_counts
  * @var array{q:string, status:string, package:string} $filters
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $members
@@ -24,6 +25,8 @@ $live = $live ?? [
     'etag'     => '',
     'interval' => 30000,
 ];
+
+$rankCounts = $rank_counts ?? [];
 ?>
             <div
               class="container-xxl flex-grow-1 container-p-y member-directory"
@@ -54,7 +57,7 @@ $live = $live ?? [
 
 <?= View::capture('admin/members/_header', ['stats' => $stats]) ?>
 
-<?= View::capture('admin/members/_stats', ['stats' => $stats]) ?>
+<?= View::capture('admin/members/_stats', ['stats' => $stats, 'rank_counts' => $rankCounts]) ?>
 
               <div class="card">
                 <div class="card-header">
@@ -74,6 +77,7 @@ $live = $live ?? [
                         <th>Package</th>
                         <th>Sponsor</th>
                         <th>Status</th>
+                        <th>Rank</th>
                         <th class="text-end">Wallet</th>
                         <th>Joined</th>
                         <th class="text-end">Actions</th>

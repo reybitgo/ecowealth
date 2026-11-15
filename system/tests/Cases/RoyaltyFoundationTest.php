@@ -740,10 +740,12 @@ return [
     },
 
     /* ==========================================================
-     *  Inert (P19A-T13)
+     *  No money reader (P19A-T13)
      * ========================================================== */
-    'P19A-T13 no application code reads the royalty tables in 19A' => function () use ($appRoot): void {
-        /* No class, model, service or controller exists yet. */
+    'P19A-T13 no application code reads the royalty money tables before 19C' => function () use ($appRoot): void {
+        /* 19B adds the rank engine, the settings card and the directory
+         * badges. Those read `users` and the settings only; the two money
+         * tables stay unread until 19C. */
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($appRoot . '/app', FilesystemIterator::SKIP_DOTS)
         );
@@ -761,21 +763,9 @@ return [
         $relative = static fn (string $path): string
             => str_replace('\\', '/', substr($path, strlen($appRoot)));
 
-        foreach ($files as $path) {
-            assert_same(
-                0,
-                preg_match('/Royalty/', basename($path)),
-                $relative($path) . ' is a Royalty class, which belongs to 19C'
-            );
-        }
-
-        /* Rule 7: outside the label map and the wallet vocabulary, no app
-         * file may name the feature. The reset tooling names the tables
-         * (the phase's deliverable), so it is the one identifier allow-list
-         * — and it carries no reader. */
+        /* The reset tooling names the tables (19A's deliverable); nothing
+         * else may read or write them before 19C. */
         $allowList = [
-            '/app/helpers.php',
-            '/app/Services/WalletService.php',
             '/app/Services/DatabaseResetService.php',
         ];
 
@@ -786,49 +776,46 @@ return [
                 continue;
             }
 
+            $source = (string) file_get_contents($path);
+
             assert_same(
                 0,
-                preg_match('/royalt/i', (string) file_get_contents($path)),
-                $file . ' must not reference the Royalty feature in 19A'
+                preg_match('/\b(FROM|INTO|UPDATE|JOIN)\s+`?royalty_(awards|periods)/i', $source),
+                $file . ' must not read the royalty money tables in 19B'
+            );
+
+            assert_same(
+                0,
+                preg_match("/->credit\\([^;]*'royalty'/s", $source),
+                $file . ' must not write a royalty wallet movement in 19B'
             );
         }
 
-        /* The ledger writer and the rank engine belong to 19C and 19B. */
+        /* The rank engine is the only Royalty class 19B ships; the money
+         * engine (19C) does not exist yet. */
+        assert_true(is_file($appRoot . '/app/Models/RoyaltyRank.php'), 'the rank engine exists');
+        assert_same(
+            1,
+            count(array_filter($files, static fn (string $path): bool => preg_match('/Royalty/', basename($path)) === 1)),
+            'RoyaltyRank is the only Royalty application class'
+        );
+
         foreach ([
             '/app/Models/RoyaltyAward.php',
             '/app/Models/RoyaltyPeriod.php',
             '/app/Services/RoyaltyService.php',
-            '/app/Models/RoyaltyRank.php',
             '/app/Controllers/RoyaltyController.php',
         ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist in 19A');
+            assert_false(is_file($appRoot . $file), $file . ' must not exist before 19C');
         }
 
-        /* No route, controller, view or layout references the stream (D-16). */
+        /* No route, by design (D-16). */
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
             assert_same(
                 0,
                 preg_match('/royalt/i', (string) file_get_contents($appRoot . $file)),
                 $file . ' has no royalty route'
             );
-        }
-
-        foreach (['/app/Controllers', '/app/views', '/app/layout'] as $folder) {
-            $inner = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($appRoot . $folder, FilesystemIterator::SKIP_DOTS)
-            );
-
-            foreach ($inner as $file) {
-                if (!$file->isFile() || strtolower($file->getExtension()) !== 'php') {
-                    continue;
-                }
-
-                assert_same(
-                    0,
-                    preg_match('/royalt/i', (string) file_get_contents($file->getPathname())),
-                    $relative($file->getPathname()) . ' names no Royalty surface in 19A'
-                );
-            }
         }
 
         /* The tables are empty on a fresh database, and the stream is off. */

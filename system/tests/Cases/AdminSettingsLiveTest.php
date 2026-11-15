@@ -132,6 +132,17 @@ return [
         assert_contains('name="commission_direct_enabled"', $commissions);
         assert_contains('name="free_registration_enabled"', $commissions);
 
+        /* Phase 19B: the Royalty sub-block lives in the same held card. */
+        assert_contains('Royalty bonus', $commissions);
+        assert_contains('name="royalty_enabled"', $commissions);
+        assert_contains('name="royalty_pay_enabled"', $commissions);
+        assert_contains('name="royalty_leader_directs"', $commissions);
+        assert_contains('name="royalty_director_personal_pct"', $commissions);
+        assert_contains('data-royalty-ladder', $commissions);
+        assert_contains('data-royalty-rank="member"', $commissions);
+        assert_contains('3.000%', $commissions);
+        assert_not_contains('name="royalty_ledger_since"', $commissions);
+
         assert_contains('data-live-region="settings-transfers"', $transfers);
         assert_contains('data-live-hold="dirty"', $transfers);
         assert_contains('name="ewallet_transfer_fee"', $transfers);

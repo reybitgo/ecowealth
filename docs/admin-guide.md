@@ -208,7 +208,7 @@ log with a before/after per key.
 | **Payout methods** | Minimum withdrawal, USDT rate, each channel's fee and switch, network fees |
 | **Payment windows** | Payment deadline, correction window, proof attempts per order, expiry kill switch |
 | **Fulfilment & invoices** | Auto-complete days and switch, seller name/TIN/phone/address on invoices |
-| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, **release delay after delivery**, **release repeat-purchase bonuses**, reversal rule |
+| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, **release delay after delivery**, **release repeat-purchase bonuses**, reversal rule; the *Royalty bonus* block: earning and payment switches, the five-rank ladder, quotas and rates (§16) |
 | **Transfers** | Fee, minimum, daily and weekly caps (0 = unlimited) |
 
 Rules that the page enforces: a weekly limit cannot be below the daily limit, a minimum cannot
@@ -480,3 +480,97 @@ window. Do not “fix” an older award by editing its status.
 
 Support summary: the bonus is **earned when the order is paid**, **released after the return window**,
 and **never paid on a cancelled order**.
+
+---
+
+## 16. Royalty bonus: the rank ladder (Phase 19B)
+
+The Royalty bonus is a **monthly override on group sales**, paid once per closed calendar month to
+**Supervisor, Manager and Director** only. Phase 19B ships its configuration and the derived rank
+ladder; the monthly evaluation and payment arrive in 19C. **The stream ships off and this build moves
+no money.**
+
+### The five ranks
+
+Ranks are **derived from the sponsor tree on every evaluation and never stored** — there is no rank
+field on a member and no rank history table. A change to the ladder therefore applies from the
+**next** close, and a month that is already closed keeps the snapshot it was evaluated with.
+
+| Rank | How it is earned (default) | Pays Royalty? | Monthly group quota | Group % | Personal % | Own purchase |
+|---|---|---|---:|---:|---:|---:|
+| **Member** | automatic on registration | no | — | — | — | — |
+| **Leader** | 10 direct member accounts | **no** | — | — | — | — |
+| **Supervisor** | Leader **and** 10 downline Leaders | yes | ₱500,000 | 3% | 5% | 8% |
+| **Manager** | Supervisor **and** 10 downline Supervisors | yes | ₱1,000,000 | 5% | 10% | 15% |
+| **Director** | Manager **and** 10 downline Managers | yes | ₱5,000,000 | 10% | 15% | 25% |
+
+Rules that surprise people:
+
+- **Leader is not a paying rank.** It unlocks the Supervisor path and earns nothing by itself, however
+  much volume sits under it.
+- **The ranks are cumulative and self-prerequisite.** A Supervisor satisfies Leader, and a Director
+  satisfies every lower predicate, so “10 downline Leaders” counts Supervisors, Managers and Directors
+  too.
+- **“Downline” means any depth.** There is no ten-level cap here; the ten-level limit belongs to the
+  *sponsor-chain* bonuses, not to ranks.
+- **People, not production, make a rank.** A suspended or pending member still counts as a person for
+  their upline's rank; only that member's own payout is skipped (in 19C).
+- **Staff are invisible.** An `admin`/`superadmin` account is never ranked and never counted, even with
+  ten directs; a member sponsored by a staff account starts a fresh member tree.
+- **Own purchases are inside group sales and are paid twice** — group % on the group sales plus
+  personal % on the member's own purchases. That is why the ladder shows an *Own purchase* column
+  (8 / 15 / 25%) beside the two rates.
+- **The quota is all-or-nothing.** A member below their quota earns ₱0 for the month, including the
+  personal percentage. The quota, once met, is paid on the whole month's group sales.
+
+### Where to see ranks
+
+**Admin → Members** now has a **Rank** column with the derived badge (Member, Leader, Supervisor,
+Manager, Director) and a **Rank distribution** strip under the counters: the exclusive count per rank
+plus **N ranked (Supervisor+)**. Both are read-only, one pass over the sponsor tree, and change only
+when the tree or the thresholds change.
+
+### How to edit the ladder
+
+**Admin → Settings → Commissions → Royalty bonus.** The sub-block holds the two switches, four rank
+requirements, three quotas and six rates, and a read-only **Saved ladder** table that shows what is
+stored now.
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| **Enable the Royalty bonus** | **off** | The earning switch. While it is off the next close is a `skipped` period: no awards, no money. Ranks stay visible. |
+| **Pay Royalty awards** | **on** | The payment pause. Off leaves evaluated awards `pending`; a later run can pay them. Evaluation keeps running. |
+| Leader: direct members | 10 | Integer, 1–1,000 |
+| Supervisor / Manager / Director: downline rank holders | 10 each | Integers, 1–100,000 each |
+| Monthly group quotas | 500,000 / 1,000,000 / 5,000,000 | Pesos, 0.00–999,999,999.99 |
+| Group and personal rates | 3/5, 5/10, 10/15 | Percent with three decimals, 0.000–100.000 |
+
+The card validates the ladder before it saves anything, and every refusal is a field error, not a
+flash-only message:
+
+- thresholds are whole numbers in their range; quotas are centavo amounts; rates carry at most three
+  decimals;
+- quotas and both rate columns **never fall as the rank rises** (a Manager quota below the Supervisor
+  quota is refused, and so is a Director group rate below the Manager's);
+- **group + personal cannot exceed 100%** for any rank;
+- **enabling** the ladder with every rate at zero is refused — *“this ladder would pay nothing”*.
+
+Every successful save writes one `settings.update` audit row with the before/after of each changed key
+and the section `commissions`. A save writes no period, award, wallet or other money row.
+
+### What 19B does not do
+
+There is no **Run close** button and no royalty money yet: the monthly evaluation, the award rows,
+the wallet credits and the admin/member royalty statements are 19C–19F. Until then `/admin/commissions`,
+`/earnings` and the wallet statements show no Royalty movement, and no member has received one. Do not
+create an award or a period by hand.
+
+### Reading a "why is nobody ranked" report
+
+1. Check the tree: a rank needs the **direct** member accounts and the downline rank holders; a wide
+   team under one member is not ten directs.
+2. Check **Admin → Members → Rank distribution**: if every badge is Member, the directs or the
+   downline rank holders are genuinely short.
+3. Check the four thresholds on the settings card — they may have been raised.
+4. Ranks count members regardless of status, but only `role = 'member'` accounts count. A staff account
+   in the middle of a chain is not a bridge: the member below it starts a new root.

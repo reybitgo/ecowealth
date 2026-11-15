@@ -301,6 +301,175 @@ final class AdminSettingsController
     ];
 
     /**
+     * The Royalty bonus ladder (Phase 19B, plan §12.2, §13.4).
+     *
+     * Thirteen operator-facing keys: four rank requirements, three
+     * monthly group quotas and six payout rates. `royalty_ledger_since`
+     * is a reconciliation baseline written by migration 023 and is
+     * deliberately never rendered (plan §13.4).
+     *
+     * `group` lets the card render one sub-heading per block without
+     * hard-coding key lists in the view.
+     */
+    private const ROYALTY_FIELDS = [
+        [
+            'key'    => 'royalty_leader_directs',
+            'group'  => 'requirements',
+            'label'  => 'Leader: direct members',
+            'rule'   => 'required|integer|gte:1|lte:1000',
+            'suffix' => 'members',
+            'hint'   => 'Direct member accounts needed for Leader. Ranks are derived from the sponsor tree, so a change applies from the next evaluation; a closed month keeps its snapshot.',
+            'min'    => 1,
+            'max'    => 1000,
+            'step'   => '1',
+        ],
+        [
+            'key'    => 'royalty_supervisor_leaders',
+            'group'  => 'requirements',
+            'label'  => 'Supervisor: downline Leaders',
+            'rule'   => 'required|integer|gte:1|lte:100000',
+            'suffix' => 'members',
+            'hint'   => 'Members at Leader or above below this member, at any depth, on top of the Leader requirement.',
+            'min'    => 1,
+            'max'    => 100000,
+            'step'   => '1',
+        ],
+        [
+            'key'    => 'royalty_manager_supervisors',
+            'group'  => 'requirements',
+            'label'  => 'Manager: downline Supervisors',
+            'rule'   => 'required|integer|gte:1|lte:100000',
+            'suffix' => 'members',
+            'hint'   => 'Members at Supervisor or above below this member, at any depth, on top of the Supervisor requirement.',
+            'min'    => 1,
+            'max'    => 100000,
+            'step'   => '1',
+        ],
+        [
+            'key'    => 'royalty_director_managers',
+            'group'  => 'requirements',
+            'label'  => 'Director: downline Managers',
+            'rule'   => 'required|integer|gte:1|lte:100000',
+            'suffix' => 'members',
+            'hint'   => 'Members at Manager or above below this member, at any depth, on top of the Manager requirement.',
+            'min'    => 1,
+            'max'    => 100000,
+            'step'   => '1',
+        ],
+        [
+            'key'    => 'royalty_supervisor_quota',
+            'group'  => 'quotas',
+            'label'  => 'Supervisor: monthly group quota',
+            'rule'   => 'required|numeric|gte:0|lte:999999999.99|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'The minimum group sales (own purchases plus every downline member\'s purchases) for Supervisor to pay in a month. Below it the whole award is ₱0, including the personal percentage.',
+            'min'    => 0,
+            'max'    => 999999999.99,
+            'step'   => '0.01',
+        ],
+        [
+            'key'    => 'royalty_manager_quota',
+            'group'  => 'quotas',
+            'label'  => 'Manager: monthly group quota',
+            'rule'   => 'required|numeric|gte:0|lte:999999999.99|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'The minimum group sales for Manager to pay in a month; cannot be below the Supervisor quota.',
+            'min'    => 0,
+            'max'    => 999999999.99,
+            'step'   => '0.01',
+        ],
+        [
+            'key'    => 'royalty_director_quota',
+            'group'  => 'quotas',
+            'label'  => 'Director: monthly group quota',
+            'rule'   => 'required|numeric|gte:0|lte:999999999.99|decimal:2',
+            'suffix' => CURRENCY_SYMBOL,
+            'hint'   => 'The minimum group sales for Director to pay in a month; cannot be below the Manager quota.',
+            'min'    => 0,
+            'max'    => 999999999.99,
+            'step'   => '0.01',
+        ],
+        [
+            'key'    => 'royalty_supervisor_group_pct',
+            'group'  => 'rates',
+            'label'  => 'Supervisor: group %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'hint'   => 'Paid on the member\'s group sales at Supervisor; cannot be below a lower rank or above 100% with its personal rate.',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+        ],
+        [
+            'key'    => 'royalty_supervisor_personal_pct',
+            'group'  => 'rates',
+            'label'  => 'Supervisor: personal %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'hint'   => 'Paid again on the member\'s own purchases at Supervisor. Own purchases therefore earn group % + personal %.',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+        ],
+        [
+            'key'    => 'royalty_manager_group_pct',
+            'group'  => 'rates',
+            'label'  => 'Manager: group %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'hint'   => 'Paid on the member\'s group sales at Manager; cannot be below the Supervisor group rate.',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+        ],
+        [
+            'key'    => 'royalty_manager_personal_pct',
+            'group'  => 'rates',
+            'label'  => 'Manager: personal %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'hint'   => 'Paid again on the member\'s own purchases at Manager; cannot be below the Supervisor personal rate.',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+        ],
+        [
+            'key'    => 'royalty_director_group_pct',
+            'group'  => 'rates',
+            'label'  => 'Director: group %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'hint'   => 'Paid on the member\'s group sales at Director; cannot be below the Manager group rate.',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+        ],
+        [
+            'key'    => 'royalty_director_personal_pct',
+            'group'  => 'rates',
+            'label'  => 'Director: personal %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'hint'   => 'Paid again on the member\'s own purchases at Director; cannot be below the Manager personal rate.',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+        ],
+    ];
+
+    /** The Royalty switches, in display order (plan §13.4). */
+    private const ROYALTY_TOGGLES = [
+        'royalty_enabled' => [
+            'label' => 'Enable the Royalty bonus',
+            'hint'  => 'Off makes the next month close a skipped period: no awards are written and no money moves. Ranks stay visible on the member pages.',
+        ],
+        'royalty_pay_enabled' => [
+            'label' => 'Pay Royalty awards',
+            'hint'  => 'Off pauses payment: evaluated awards stay pending and a later run can pay them. Evaluation itself keeps running.',
+        ],
+    ];
+
+    /**
      * Transfer fees and limits (Phase 12 keys, exposed in Phase 15).
      *
      * A limit of 0 means *unlimited* in TransferService: an operator who
@@ -394,6 +563,9 @@ final class AdminSettingsController
             'commission_toggles' => self::COMMISSION_TOGGLES,
             'repeat_fields'     => self::REPEAT_FIELDS,
             'repeat_toggles'    => self::REPEAT_TOGGLES,
+            'royalty_fields'    => self::ROYALTY_FIELDS,
+            'royalty_toggles'   => self::ROYALTY_TOGGLES,
+            'royalty_ladder'    => RoyaltyRank::ladder(),
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'cancel_enabled'    => Order::cancelEnabled(),
@@ -485,6 +657,9 @@ final class AdminSettingsController
                     'commission_toggles' => $data['commission_toggles'],
                     'repeat_fields'      => $data['repeat_fields'],
                     'repeat_toggles'     => $data['repeat_toggles'],
+                    'royalty_fields'     => $data['royalty_fields'],
+                    'royalty_toggles'    => $data['royalty_toggles'],
+                    'royalty_ladder'     => $data['royalty_ladder'],
                 ]),
                 'settings-transfers' => View::capture('admin/settings/_transfers', [
                     'settings'        => $data['settings'],
@@ -515,34 +690,86 @@ final class AdminSettingsController
             redirect('admin/settings');
         }
 
-        $back  = 'admin/settings#settings-' . $section;
+        $back   = 'admin/settings#settings-' . $section;
+        $posted = [];
+
+        foreach (self::sectionKeys($section) as $key) {
+            $posted[$key] = Request::input($key);
+        }
+
+        /* An unticked checkbox posts nothing at all. Read the switches
+         * from POST only, exactly as before the Royalty block landed. */
+        foreach (self::sectionToggles($section) as $key) {
+            $posted[$key] = Request::post($key);
+        }
+
+        $result = $this->applySection($section, $posted);
+
+        if ($result['errors'] !== []) {
+            errors_set($result['errors']);
+            old_set($result['input']);
+            flash_set('danger', 'Please fix the highlighted settings.');
+            redirect($back);
+        }
+
+        if ($result['changes'] !== []) {
+            flash_set('success', sprintf(
+                '%s: %d setting%s saved.',
+                self::SECTIONS[$section],
+                count($result['changes']),
+                count($result['changes']) === 1 ? '' : 's'
+            ));
+        } else {
+            flash_set('info', 'No changes to save.');
+        }
+
+        /* The submitted card was valid (or unchanged), so drop any input
+         * kept from an earlier failed save. Without this the next render —
+         * including the live feed's card replacements — would keep showing
+         * the stale attempt instead of the values just stored. */
+        old_clear();
+
+        redirect($back);
+    }
+
+    /**
+     * Validate, write and audit one settings card.
+     *
+     * Public so the tests can exercise the real save path in-process
+     * (`save()` itself ends in redirect()). The caller owns the flash
+     * message, the old-input bookkeeping and the redirect; everything
+     * that decides whether the card is valid and what it writes lives
+     * here.
+     *
+     * @param array<string, mixed> $posted the card's raw request fields
+     * @return array{errors: array<string, string>, input: array<string, string>, changes: array<string, array{from: string, to: string}>}
+     */
+    public function applySection(string $section, array $posted): array
+    {
         $input = [];
 
         foreach (self::sectionKeys($section) as $key) {
-            $input[$key] = Request::string($key);
+            $value       = $posted[$key] ?? '';
+            $input[$key] = is_scalar($value) ? trim((string) $value) : '';
         }
 
         /* An unticked checkbox posts nothing at all. Normalise only this
          * card's switches; other cards' switches are never in $input. */
         foreach (self::sectionToggles($section) as $key) {
-            $input[$key] = Request::post($key) === '1' ? '1' : '0';
+            $input[$key] = (string) ($posted[$key] ?? '') === '1' ? '1' : '0';
         }
 
         $errors = Validator::check($input, self::sectionRules($section), self::sectionLabels($section));
         $errors = array_merge($errors, self::sectionCrossFieldErrors($section, $input));
 
         if ($errors !== []) {
-            errors_set($errors);
-            old_set($input);
-            flash_set('danger', 'Please fix the highlighted settings.');
-            redirect($back);
+            return ['errors' => $errors, 'input' => $input, 'changes' => []];
         }
 
         $changes = [];
 
         foreach ($input as $key => $value) {
             $before = (string) setting($key, '');
-            $value  = trim((string) $value);
 
             if ($before === $value) {
                 continue;
@@ -583,24 +810,9 @@ final class AdminSettingsController
                     'changes' => $changes,
                 ],
             ]);
-
-            flash_set('success', sprintf(
-                '%s: %d setting%s saved.',
-                self::SECTIONS[$section],
-                count($changes),
-                count($changes) === 1 ? '' : 's'
-            ));
-        } else {
-            flash_set('info', 'No changes to save.');
         }
 
-        /* The submitted card was valid (or unchanged), so drop any input
-         * kept from an earlier failed save. Without this the next render —
-         * including the live feed's card replacements — would keep showing
-         * the stale attempt instead of the values just stored. */
-        old_clear();
-
-        redirect($back);
+        return ['errors' => [], 'input' => $input, 'changes' => $changes];
     }
 
     /* ----------------------------------------------------------
@@ -671,6 +883,13 @@ final class AdminSettingsController
             foreach (self::REPEAT_FIELDS as $field) {
                 $keys[] = (string) $field['key'];
             }
+
+            /* The Royalty ladder (plan §6, 19B): four requirements,
+             * three quotas and six rates. `royalty_ledger_since` is not
+             * here either. */
+            foreach (self::ROYALTY_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
         }
 
         if ($section === 'transfers') {
@@ -696,7 +915,8 @@ final class AdminSettingsController
             'fulfilment' => ['shop_autocomplete_enabled'],
             'commissions' => array_merge(
                 array_keys(self::COMMISSION_TOGGLES),
-                array_keys(self::REPEAT_TOGGLES)
+                array_keys(self::REPEAT_TOGGLES),
+                array_keys(self::ROYALTY_TOGGLES)
             ),
             default      => [],
         };
@@ -723,13 +943,18 @@ final class AdminSettingsController
      *
      * Validator checks one value at a time; these are the cases where a
      * pair must agree or a saved combination would make the transfer
-     * service refuse an otherwise valid request.
+     * service refuse an otherwise valid request, or would let an
+     * incoherent Royalty ladder reach the month close (plan §12.9).
      *
      * @param array<string, string> $input
      * @return array<string, string>
      */
     private static function sectionCrossFieldErrors(string $section, array $input): array
     {
+        if ($section === 'commissions') {
+            return self::royaltyCrossFieldErrors($input);
+        }
+
         if ($section !== 'transfers') {
             return [];
         }
@@ -746,6 +971,135 @@ final class AdminSettingsController
 
         if ($daily > 0 && $min > $daily) {
             $errors['ewallet_min_transfer'] = 'The minimum transfer cannot exceed the daily limit.';
+        }
+
+        return $errors;
+    }
+
+    /* ----------------------------------------------------------
+     *  Royalty ladder validation (plan §12.9)
+     * ---------------------------------------------------------- */
+
+    /**
+     * The six rates, three quotas and four thresholds, parsed from the
+     * submitted card, or null when any of them is not syntactically
+     * valid (the per-field rules report those).
+     *
+     * @param array<string, string> $input
+     * @return array{thresholds: array<string, int>, quotas: array<string, float>, rates: array<string, array{group: float, personal: float}>}|null
+     */
+    private static function royaltyMetrics(array $input): ?array
+    {
+        $thresholds = [];
+
+        foreach (RoyaltyRank::THRESHOLD_KEYS as $rank => $key) {
+            $value = trim((string) ($input[$key] ?? ''));
+
+            if (preg_match('/^\d+$/', $value) !== 1) {
+                return null;
+            }
+
+            $thresholds[$rank] = (int) $value;
+        }
+
+        $quotas = [];
+
+        foreach (RoyaltyRank::PAYING_SLUGS as $slug) {
+            $value = trim((string) ($input['royalty_' . $slug . '_quota'] ?? ''));
+
+            if (preg_match('/^\d+(\.\d{1,2})?$/', $value) !== 1) {
+                return null;
+            }
+
+            $quotas[$slug] = (float) $value;
+        }
+
+        $rates = [];
+
+        foreach (RoyaltyRank::PAYING_SLUGS as $slug) {
+            $group    = trim((string) ($input['royalty_' . $slug . '_group_pct'] ?? ''));
+            $personal = trim((string) ($input['royalty_' . $slug . '_personal_pct'] ?? ''));
+
+            if (preg_match('/^\d+(\.\d{1,3})?$/', $group) !== 1
+                || preg_match('/^\d+(\.\d{1,3})?$/', $personal) !== 1) {
+                return null;
+            }
+
+            $rates[$slug] = ['group' => (float) $group, 'personal' => (float) $personal];
+        }
+
+        return ['thresholds' => $thresholds, 'quotas' => $quotas, 'rates' => $rates];
+    }
+
+    /**
+     * Cross-field Royalty rules: quotas and rates never fall as the
+     * rank rises, group + personal never exceeds 100%, and an enabled
+     * ladder must pay something (plan §12.9).
+     *
+     * @param array<string, string> $input
+     * @return array<string, string>
+     */
+    private static function royaltyCrossFieldErrors(array $input): array
+    {
+        $metrics = self::royaltyMetrics($input);
+
+        if ($metrics === null) {
+            return [];   // a per-field error already explains the value
+        }
+
+        $quotas = $metrics['quotas'];
+        $rates  = $metrics['rates'];
+        $errors = [];
+
+        if ($quotas['manager'] < $quotas['supervisor']) {
+            $errors['royalty_manager_quota'] = 'The Manager quota cannot be below the Supervisor quota.';
+        }
+
+        if ($quotas['director'] < $quotas['manager']) {
+            $errors['royalty_director_quota'] = 'The Director quota cannot be below the Manager quota.';
+        }
+
+        if ($rates['manager']['group'] < $rates['supervisor']['group']) {
+            $errors['royalty_manager_group_pct'] = 'The Manager group rate cannot be below the Supervisor group rate.';
+        }
+
+        if ($rates['director']['group'] < $rates['manager']['group']) {
+            $errors['royalty_director_group_pct'] = 'The Director group rate cannot be below the Manager group rate.';
+        }
+
+        if ($rates['manager']['personal'] < $rates['supervisor']['personal']) {
+            $errors['royalty_manager_personal_pct'] = 'The Manager personal rate cannot be below the Supervisor personal rate.';
+        }
+
+        if ($rates['director']['personal'] < $rates['manager']['personal']) {
+            $errors['royalty_director_personal_pct'] = 'The Director personal rate cannot be below the Manager personal rate.';
+        }
+
+        /* Integer per-mille maths keeps the 3-decimal contract exact:
+         * 33.333 + 66.667 is 100.000, not 100.00000000000001. */
+        foreach ($rates as $slug => $rate) {
+            $total = (int) round($rate['group'] * 1000) + (int) round($rate['personal'] * 1000);
+
+            if ($total > 100000) {
+                $errors['royalty_' . $slug . '_personal_pct'] = sprintf(
+                    '%s group + personal cannot exceed 100%% (currently %s%%).',
+                    ucfirst($slug),
+                    rtrim(rtrim(number_format($total / 1000, 3, '.', ''), '0'), '.')
+                );
+            }
+        }
+
+        $anyRate = false;
+
+        foreach ($rates as $rate) {
+            if ($rate['group'] > 0 || $rate['personal'] > 0) {
+                $anyRate = true;
+                break;
+            }
+        }
+
+        if ((string) ($input['royalty_enabled'] ?? '0') === '1' && !$anyRate) {
+            $errors['royalty_enabled'] = 'This ladder would pay nothing. Give at least one rate a value above 0, or turn Enable the Royalty bonus off.';
         }
 
         return $errors;
@@ -783,6 +1137,16 @@ final class AdminSettingsController
         }
 
         foreach (array_keys(self::REPEAT_TOGGLES) as $key) {
+            $rules[(string) $key] = 'required|in:0,1';
+        }
+
+        /* The Royalty ladder: the ranges and precision of §12.9 — an
+         * integer threshold, a centavo quota and a three-decimal rate. */
+        foreach (self::ROYALTY_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (array_keys(self::ROYALTY_TOGGLES) as $key) {
             $rules[(string) $key] = 'required|in:0,1';
         }
 
@@ -857,6 +1221,14 @@ final class AdminSettingsController
         }
 
         foreach (self::REPEAT_TOGGLES as $key => $toggle) {
+            $labels[(string) $key] = (string) $toggle['label'];
+        }
+
+        foreach (self::ROYALTY_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::ROYALTY_TOGGLES as $key => $toggle) {
             $labels[(string) $key] = (string) $toggle['label'];
         }
 

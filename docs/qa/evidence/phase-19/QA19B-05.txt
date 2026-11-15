@@ -1,0 +1,37 @@
+QA19B-05 — Restore the reference defaults
+==========================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP + mysql — /admin/settings#settings-commissions
+
+Steps
+
+1. Set 10/10/10/10, 500,000 / 1,000,000 / 5,000,000, 3/5, 5/10, 10/15 and save.
+2. mysql -u root ecowealth_sneat -e "SELECT key_name, value FROM settings WHERE key_name LIKE
+   'royalty\_%' ORDER BY key_name"
+3. Confirm Enable the Royalty bonus is still off.
+
+Result
+
+  QA19B-05 PASS  the reference preset is stored and the saved ladder renders it; earning switch off
+
+Stored (16 rows; the baseline timestamp is from migration 023)
+
+  royalty_director_group_pct=10.000        royalty_director_managers=10
+  royalty_director_personal_pct=15.000     royalty_director_quota=5000000
+  royalty_enabled=0                        royalty_leader_directs=10
+  royalty_ledger_since=2026-11-15 08:18:55
+  royalty_manager_group_pct=5.000          royalty_manager_personal_pct=10.000
+  royalty_manager_quota=1000000            royalty_manager_supervisors=10
+  royalty_pay_enabled=1                    royalty_supervisor_group_pct=3.000
+  royalty_supervisor_leaders=10            royalty_supervisor_personal_pct=5.000
+  royalty_supervisor_quota=500000
+
+Saved ladder after the restore
+
+  Leader     10 direct members
+  Supervisor Leader + 10 downline Leaders    ₱500,000.00    3.000%   5.000%   8.000%
+  Manager    Supervisor + 10 downline Supervisors  ₱1,000,000.00  5.000%  10.000%  15.000%
+  Director   Manager + 10 downline Managers  ₱5,000,000.00  10.000%  15.000%  25.000%
+
+RESULT: PASS

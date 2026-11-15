@@ -72,12 +72,26 @@ final class AdminMemberController
 
         $pager = Paginator::fromTableRequest(Member::countAdmin($filters));
 
+        /* Phase 19B: one rank pass for the whole directory. The map is
+         * derived from the sponsor tree and writes nothing; the page only
+         * needs the badge per row and the distribution for the counters. */
+        $rankMap = RoyaltyRank::map();
+        $members = Member::adminList($filters, $pager);
+
+        foreach ($members as $index => $row) {
+            $rank = $rankMap[(int) $row['id']] ?? null;
+
+            $members[$index]['rank_level'] = $rank === null ? null : (int) $rank['rank'];
+            $members[$index]['rank_name']  = $rank === null ? null : (string) $rank['rank_name'];
+        }
+
         return [
-            'stats'    => Member::stats(),
-            'filters'  => $filters,
-            'pager'    => $pager,
-            'members'  => Member::adminList($filters, $pager),
-            'packages' => Member::packageBreakdown(),
+            'stats'       => Member::stats(),
+            'rank_counts' => RoyaltyRank::counts($rankMap),
+            'filters'     => $filters,
+            'pager'       => $pager,
+            'members'     => $members,
+            'packages'    => Member::packageBreakdown(),
         ];
     }
 
@@ -151,7 +165,8 @@ final class AdminMemberController
                     'stats' => $data['stats'],
                 ]),
                 'member-stats' => View::capture('admin/members/_stats', [
-                    'stats' => $data['stats'],
+                    'stats'       => $data['stats'],
+                    'rank_counts' => $data['rank_counts'] ?? [],
                 ]),
                 'member-filters' => View::capture('admin/members/_filters', [
                     'filters'  => $data['filters'],

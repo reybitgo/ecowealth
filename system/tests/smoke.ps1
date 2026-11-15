@@ -7,7 +7,7 @@
     P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13,
     P15-T1 ... P15-T12; Phase 17: P17B-T1 ... P17B-T20,
     P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
-    P17F-T10 / P17F-T11).
+    P17F-T10 / P17F-T11; Phase 19B: P19B-T1 / T6 / T23).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -247,7 +247,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-15 and 17)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-15, 17 and 19B)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -2978,13 +2978,21 @@ try {
     $p17bName       = 'Smoke Repeat Product ' + $p17bSku
 
     # Every key the Commissions card owns: a card save writes all of them,
-    # so each one is snapshotted and posted back unchanged.
+    # so each one is snapshotted and posted back unchanged. Phase 19B adds
+    # the thirteen Royalty ladder values and its two switches.
     $p17bCommissionKeys = @(
         'commission_direct_enabled', 'commission_indirect_enabled', 'commission_requires_active_sponsor',
         'commission_compression', 'free_registration_enabled', 'commission_indirect_max_levels',
         'unilevel_enabled', 'unilevel_max_levels', 'unilevel_requires_active_upline',
         'unilevel_active_threshold', 'unilevel_reversal_enabled',
-        'unilevel_hold_days', 'unilevel_release_enabled'
+        'unilevel_hold_days', 'unilevel_release_enabled',
+        'royalty_enabled', 'royalty_pay_enabled',
+        'royalty_leader_directs', 'royalty_supervisor_leaders',
+        'royalty_manager_supervisors', 'royalty_director_managers',
+        'royalty_supervisor_quota', 'royalty_manager_quota', 'royalty_director_quota',
+        'royalty_supervisor_group_pct', 'royalty_supervisor_personal_pct',
+        'royalty_manager_group_pct', 'royalty_manager_personal_pct',
+        'royalty_director_group_pct', 'royalty_director_personal_pct'
     )
 
     $p17bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
@@ -3210,6 +3218,57 @@ try {
             -and $p17bOrderStamp -match '^\d{4}-\d{2}-\d{2}\|0\.00$' -and $p17bAwardsAfter -eq $p17bAwardsBefore `
             -and $p17bUnilevelLedger -eq $p17bLedgerBefore) `
         "a paid order with the global stream off is stamped with a zero total and writes no award (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsBefore->$($p17bAwardsAfter), ledger=$p17bLedgerBefore->$($p17bUnilevelLedger))"
+
+    # ---- Phase 19B: the Royalty ladder configuration -------------------
+    # The ladder card, its cross-field validation and the derived rank
+    # column. 19B moves no money: every check here reads a page or sends a
+    # refused save, so there is nothing to restore beyond the snapshot.
+    $p19bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p19bFieldCount = [regex]::Matches($p19bSettings.Body,
+        'name="royalty_(leader_directs|supervisor_leaders|manager_supervisors|director_managers|supervisor_quota|manager_quota|director_quota|supervisor_group_pct|supervisor_personal_pct|manager_group_pct|manager_personal_pct|director_group_pct|director_personal_pct)"').Count
+
+    Assert-That 'P19B-T1' ($p19bSettings.Status -eq 200 `
+            -and $p19bSettings.Body -match 'Royalty bonus' `
+            -and $p19bSettings.Body -match 'name="royalty_enabled"' `
+            -and $p19bSettings.Body -match 'name="royalty_pay_enabled"' `
+            -and $p19bFieldCount -eq 13 `
+            -and $p19bSettings.Body -match 'data-royalty-ladder' `
+            -and $p19bSettings.Body -match 'data-royalty-rank="supervisor"' `
+            -and $p19bSettings.Body -match '3\.000%' `
+            -and $p19bSettings.Body -match '8\.000%' `
+            -and $p19bSettings.Body -match '25\.000%' `
+            -and $p19bSettings.Body -notmatch 'name="royalty_ledger_since"') `
+        "the Commissions card renders the Royalty sub-block, thirteen inputs and the saved ladder (status=$($p19bSettings.Status), numeric inputs=$p19bFieldCount)"
+
+    # A Manager quota below the Supervisor quota is a field error and
+    # writes nothing.
+    $p19bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p19bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    $p19bBadSave['royalty_supervisor_quota'] = '500000.00'
+    $p19bBadSave['royalty_manager_quota']    = '400000.00'
+
+    $p19bQuotaBefore = Get-SettingValue 'royalty_manager_quota'
+    $p19bBadResult = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p19bBadSave
+    $p19bBadPage   = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p19bQuotaAfter = Get-SettingValue 'royalty_manager_quota'
+
+    Assert-That 'P19B-T6' ($p19bBadResult.Status -eq 302 `
+            -and $p19bBadPage.Body -match 'The Manager quota cannot be below the Supervisor quota' `
+            -and $p19bQuotaAfter -eq $p19bQuotaBefore) `
+        "a Manager quota below the Supervisor quota is refused and nothing is written (stored=$p19bQuotaAfter)"
+
+    # Every member row carries a derived rank badge and the directory
+    # shows the distribution. The demo tree is all Members and Leaders, so
+    # only the structure is asserted, never a live count.
+    $p19bMembers = Invoke-App -Path '/admin/members' -Session 'admin'
+    Assert-That 'P19B-T23' ($p19bMembers.Status -eq 200 `
+            -and $p19bMembers.Body -match '<th>Rank</th>' `
+            -and $p19bMembers.Body -match 'data-rank-distribution' `
+            -and $p19bMembers.Body -match 'data-rank-count="member"' `
+            -and $p19bMembers.Body -match 'data-rank-count="director"' `
+            -and $p19bMembers.Body -match 'ranked \(Supervisor\+\)' `
+            -and $p19bMembers.Body -match 'badge bg-label-(secondary|info|primary|warning|success)">(Member|Leader|Supervisor|Manager|Director)<') `
+        "the member directory renders the Rank column and the derived distribution (status=$($p19bMembers.Status))"
 
     # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
     $p17dRan        = $true
@@ -3560,7 +3619,22 @@ try {
     $p15BadRefused = (Get-SettingValue 'ewallet_transfer_daily_limit') -eq '4100.00' `
         -and $p15LimitError.Body -match 'cannot be below the daily limit'
 
-    $p15CommissionSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+    # Phase 19B: the Commissions card also owns the thirteen Royalty ladder
+    # values and its two switches, so the card save has to carry them too.
+    # They are posted back unchanged here.
+    $p15RoyaltyKeys = @(
+        'royalty_enabled', 'royalty_pay_enabled',
+        'royalty_leader_directs', 'royalty_supervisor_leaders',
+        'royalty_manager_supervisors', 'royalty_director_managers',
+        'royalty_supervisor_quota', 'royalty_manager_quota', 'royalty_director_quota',
+        'royalty_supervisor_group_pct', 'royalty_supervisor_personal_pct',
+        'royalty_manager_group_pct', 'royalty_manager_personal_pct',
+        'royalty_director_group_pct', 'royalty_director_personal_pct'
+    )
+    $p15RoyaltyValues = @{}
+    foreach ($key in $p15RoyaltyKeys) { $p15RoyaltyValues[$key] = Get-SettingValue $key }
+
+    $p15CommissionForm = @{
         '_csrf'                            = $p15SettingsToken
         'section'                          = 'commissions'
         'commission_indirect_max_levels'   = '10'
@@ -3579,6 +3653,9 @@ try {
         'unilevel_hold_days'               = '7'
         'unilevel_release_enabled'         = '1'
     }
+    foreach ($key in $p15RoyaltyKeys) { $p15CommissionForm[$key] = [string] $p15RoyaltyValues[$key] }
+
+    $p15CommissionSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p15CommissionForm
     $p15CommissionsOff = (Get-SettingValue 'commission_direct_enabled') -eq '0'
 
     $p15SettingsAudit = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'settings.update' AND id > $p15AuditStart AND meta_json LIKE '%site_name%' ORDER BY id DESC LIMIT 1;" | Out-String)

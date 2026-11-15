@@ -21,7 +21,7 @@ result, capture evidence and sign the phase off.
 > `evidence/unilevel-product/`.
 
 > **Phase 19 is the Royalty bonus workstream** (`dmp/plan-ecowealth-royalty.md`), delivered in seven
-> gated phases **19A → 19G**. Section A is created by 19A; 19B–19G append their sections before their
+> gated phases **19A → 19G**. Sections A and B are created by 19A and 19B; 19C–19G append their sections before their
 > gates. Its evidence lives in `evidence/phase-19/`, indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
@@ -52,7 +52,7 @@ result, capture evidence and sign the phase off.
 | [phase-16-install-reset.md](phase-16-install-reset.md) | 16 — install bundle, CLI/web installers, CLI/web reset, demo + parity, production gates, go-live | 16 | 90–120 min |
 | [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G, **signed** | 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) | 4–5.5 h in all (A 35–45 · B 30–40 · C 45–60 · D 30–40 · E 30–40 · F 15–20 · G 60–75 min) |
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
-| [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G (A written so far) | 8 so far (A 8) | 20–30 min so far (section A) |
+| [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G (A–B written so far) | 17 so far (A 8 · B 9) | 40–60 min so far (A 20–30 · B 20–30) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -550,7 +550,7 @@ docs/qa/
 ├── phase-15-launch.md                 ← manual checks for Phase 15
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
-├── phase-19-royalty.md                ← manual checks for Phase 19 (section A so far, 8 checks)
+├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–B so far, 17 checks)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + unilevel-escrow/)

@@ -12,7 +12,8 @@ From section C on the checks may move test money, and every one of those runs on
 never on a production database.
 
 **Document status.** Section A (19A — Foundation) written 2026-11-15 with the automated gate green.
-**Section A: 8 checks.**
+Section B (19B — Configuration and the rank ladder) written 2026-11-15 with the automated gate green.
+**Section A: 8 checks · Section B: 9 checks.**
 
 ---
 
@@ -27,36 +28,38 @@ powershell -NoProfile -File tests\smoke.ps1
 php bin\wallet_reconcile.php              # exit 0: this phase moves no money
 ```
 
-Expected final lines at `p19a-foundation`:
+Expected final lines at `p19b-configuration`:
 
 ```text
-Cases: 1026   Passed: 1026   Failed: 0
+Cases: 1054   Passed: 1054   Failed: 0
 All good.
 ```
 
 ```text
-Passed: 229   Failed: 0
+Passed: 232   Failed: 0
 ```
 
-The counts grow with each phase: **1,026 / 229** at `p19a-foundation`; the suite floor rises to
-**1,050** at 19B and **1,140** at 19G, and the smoke walk reaches **248** at 19G. 19A adds **18** PHP
-cases (`RoyaltyFoundationTest`, P19A-T1 … T18) and **no** smoke check — the phase adds no route, so the
-HTTP walk is unchanged at 229.
+The counts grow with each phase: **1,026 / 229** at `p19a-foundation`, **1,054 / 232** at
+`p19b-configuration`; the suite floor rises to **1,090** at 19C and **1,140** at 19G, and the smoke
+walk reaches **248** at 19G. 19B adds **28** PHP cases (`RoyaltyRankTest` P19B-T12 … T22 plus T27
+and T28, `RoyaltyConfigurationTest` P19B-T1 … T11 and T26, and `RoyaltyAdminMemberViewTest`
+P19B-T23 … T25) and **3** smoke checks (the settings card, the refused cross-field save and the
+member rank column/distribution).
 
-Phase 19A's share of the suite:
+Phase 19B's share of the suite:
 
-| Group | Cases | What it proves for 19A |
+| Group | Cases | What it proves for 19B |
 |---|---:|---|
-| `RoyaltyFoundation` (new) | 18 | The migration's two tables, their anchor, foreign keys and CHECKs; a second run is a no-op and recreates a lost table; the migrated schema equals a fresh install (columns, indexes, foreign keys, enum, CHECKs); the enum ↔ `REF_TYPES` match and the label/icon; the sixteen settings and their defaults on both sides; a re-run never overwrites an operator value; the earning switch is off and the payment switch on; the bundle's 33 tables / 73 settings; a real fresh install reporting `33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0`; a reset that empties both tables and resets only the award counter; the reset preview/dry-run; **no** reader, class, route or view; the guard CHECKs and cascades; the `royalty_ledger_since` baseline; seed parity; and the 33-table count everywhere |
-| `MigrationTest` | 0 | `023_royalty_bonus.sql` joins the ordered migration list; the migrated-vs-fresh case now compares `royalty_periods`, `royalty_awards` and the extended enum (P19A-T3's migration half) |
-| `InstallTest` / `InstallSqlTest` | 0 | The fresh install and the bundle now report **33 tables / 73 settings** and **60 statements** |
-| `DbResetTest` | 0 | The 33-table helper, the zero list and **21** auto-increment counters |
-| `DbTargetTest` | 0 | The harness schema has 33 tables |
-| `WalletTest` | 0 | P5-T8 carries eleven `ref_type` values, `royalty` last |
+| `RoyaltyConfiguration` (new) | 12 | The Royalty sub-block, its two switches, thirteen inputs and the read-only ladder; the reference defaults (10/10/10/10, 500k/1M/5M, 3/5 · 5/10 · 10/15, own purchase 8/15/25); the threshold, quota and rate ranges; non-decreasing quotas/rates; group + personal ≤ 100%; no enabled ladder that pays nothing; a real `applySection()` round-trip; one `settings.update` audit row naming the new keys with no money movement; and the saved-ladder preview tracking a stored edit |
+| `RoyaltyRank` (new) | 13 | Member/Leader/Supervisor/Manager/Director at the threshold and one below it on the 111-member reference tree and small-threshold trees; counts exclude the candidate; a Leader 12 levels down counts; staff are invisible and never bridged; suspended members count; `created_at < asOf` cutoff; a cycle and a self-sponsor terminate and are unranked; the documented row shape with `withVolumes()` PS→GS and `counts()` (T27); `requirements()` (T28) |
+| `RoyaltyAdminMemberView` (new) | 3 | The Rank badge per member row (and the 8-column empty state), the exact five-rank distribution plus `ranked`, and P19B-T25: saving the card and rendering the list moves no wallet, ledger, period or award row |
+| `RoyaltyFoundation` | 0 | P19A-T13 is rewritten for 19B: the rank engine may read `users` and the settings, but no application file reads `royalty_periods`/`royalty_awards` or writes a `royalty` wallet movement before 19C |
+| `SettingsPageTest` | 0 | The commissions catalogue now carries the thirteen Royalty values and two switches; the labels and rules are partitioned exactly like the other cards |
+| `AdminSettingsLiveTest` | 0 | The `settings-commissions` fragment carries the Royalty sub-block, the ladder and no `royalty_ledger_since` |
+| `AdminMemberLiveTest` | 0 | The directory feed renders the rank distribution, each row carries a rank badge, and the page has the Rank column |
 
-The migration and install/reset cases build scratch schemas (`ecowealth_sneat_migration_test`,
-`ecowealth_sneat_tool_a_test`, `ecowealth_sneat_tool_b_test`). No automated case targets
-`ecowealth_sneat` or touches a production database.
+No automated case in this phase moves money or writes a royalty period/award row. The HTTP walk uses
+the development database and restores every setting it touches.
 
 ---
 
@@ -275,12 +278,226 @@ Expected
 
 ---
 
-## 4. Sign-off
+## 4. Section B — Phase 19B: Configuration and the rank ladder (`QA19B-01` … `QA19B-09`)
+
+**Prerequisites.** Tag `p19a-foundation` on `feature/royalty`; the development copy at migration
+**023** with the sixteen `royalty_*` settings; the app running (Laragon → Start All) for the browser
+steps and the smoke walk in `QA19B-09`. Expected suite count for this section: **1,054**; smoke
+**232**. No scratch schema is needed: 19B changes no schema and moves no money.
+
+> **Notation.** `mysql` below means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe` with the
+> app account; `php` means Laragon's PHP 8.3 CLI. Every command runs from `system/`.
+
+### QA19B-01 — The Royalty sub-block renders on the Commissions card
+
+| Why | Plan §6 deliverable: an operator must see the whole ladder, its two switches and the saved ladder. |
+|---|---|
+| Where | Browser: `/admin/settings#settings-commissions` |
+| Evidence | `QA19B-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as an administrator and open `/admin/settings#settings-commissions`.
+2. Scroll below the *Repeat-purchase bonus* block.
+3. Confirm the **Royalty bonus** sub-block: **Enable the Royalty bonus** (unchecked), **Pay Royalty
+   awards** (checked), four *Rank requirements*, three *Monthly group quota* and six *Payout rates*
+   inputs, and the five-row **Saved ladder** table.
+4. `mysql -u ecowealth -p ecowealth_sneat -e "SELECT key_name, value FROM settings WHERE key_name LIKE 'royalty\_%' ORDER BY key_name"`
+
+Expected
+
+- Two switches and **thirteen** number inputs, each named `royalty_…`; no `royalty_ledger_since` input
+  anywhere on the page.
+- The saved ladder reads Member / Leader / Supervisor / Manager / Director with **10/10/10/10**,
+  **₱500,000.00 / ₱1,000,000.00 / ₱5,000,000.00**, **3.000 / 5.000**, **5.000 / 10.000**,
+  **10.000 / 15.000**, and **8.000 / 15.000 / 25.000%** in the own-purchase column.
+- The sixteen settings still carry their defaults; `royalty_enabled` is `0` and `royalty_pay_enabled`
+  is `1`.
+
+### QA19B-02 — A threshold change saves and is audited once
+
+| Why | Plan §6 rules 9–10: the card saves inside `section=commissions` and writes one `settings.update`. |
+|---|---|
+| Where | Browser + `mysql` |
+| Evidence | `QA19B-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Note the current audit id: `mysql … -e "SELECT COALESCE(MAX(id), 0) FROM audit_log"`.
+2. Change **Supervisor: downline Leaders** from `10` to `3`, keep every other value, press
+   **Save settings**.
+3. Reload the card and confirm the input and the saved ladder's Supervisor requirement now say `3`.
+4. `mysql … -e "SELECT action, meta_json FROM audit_log WHERE id > <id> ORDER BY id"`
+
+Expected
+
+- The flash says **Commissions: 1 setting saved.** and the value persists.
+- Exactly **one** audit row, action `settings.update`, section `commissions`, with
+  `"royalty_supervisor_leaders":{"from":"10","to":"3"}` in `changes`.
+- No `royalty` wallet movement and no `royalty_periods`/`royalty_awards` row is created
+  (`SELECT COUNT(*)` on both stays `0`, and `SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type =
+  'royalty'` stays `0`).
+- **Restore `10` and save again before the next check** — the manual run must leave the reference
+  ladder in place.
+
+### QA19B-03 — A Manager quota below the Supervisor quota is refused
+
+| Why | Plan §12.9: quotas are non-decreasing by rank. |
+|---|---|
+| Where | Browser |
+| Evidence | `QA19B-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set **Supervisor: monthly group quota** to `500000` and **Manager: monthly group quota** to
+   `400000`, press **Save settings**.
+2. Confirm the field error and reload the card.
+3. Confirm the stored Manager quota is unchanged (`500000` or whatever it was before the attempt).
+
+Expected
+
+- A red field error on the Manager quota: *“The Manager quota cannot be below the Supervisor quota.”*
+- Nothing is written: the stored value is the pre-attempt value and no `settings.update` row appears.
+
+### QA19B-04 — Group + personal above 100% is refused
+
+| Why | Plan §12.9: each rank's group + personal ≤ 100, so an award can never exceed its group sales. |
+|---|---|
+| Where | Browser |
+| Evidence | `QA19B-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set **Supervisor: group %** to `60` and **Supervisor: personal %** to `50`, press **Save settings**.
+2. Confirm the error names Supervisor and the 100% rule.
+
+Expected
+
+- A field error: *“Supervisor group + personal cannot exceed 100% (currently 110%).”*
+- Nothing is written.
+
+### QA19B-05 — Restore the reference defaults
+
+| Why | The manual run must leave the documented preset in place. |
+|---|---|
+| Where | Browser + `mysql` |
+| Evidence | `QA19B-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set 10/10/10/10, 500,000 / 1,000,000 / 5,000,000, 3/5, 5/10, 10/15 and save.
+2. `mysql … -e "SELECT key_name, value FROM settings WHERE key_name LIKE 'royalty\_%' ORDER BY key_name"`
+3. Confirm **Enable the Royalty bonus** is still off.
+
+Expected
+
+- The ladder reads the reference defaults exactly, `royalty_enabled = 0`, `royalty_pay_enabled = 1`,
+  and the saved ladder shows 8.000 / 15.000 / 25.000% own purchase.
+
+### QA19B-06 — The member directory shows the Rank column and the distribution
+
+| Why | Plan §6 deliverable: the derived rank is visible on `/admin/members`. |
+|---|---|
+| Where | Browser: `/admin/members` |
+| Evidence | `QA19B-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/members`.
+2. Confirm the table header has **Rank** between **Status** and **Wallet**, and every row carries a
+   badge (Member, Leader, Supervisor, Manager or Director).
+3. Confirm the **Rank distribution** strip under the five counters lists the five exclusive counts
+   and **N ranked (Supervisor+)**.
+
+Expected
+
+- One badge per row; a row without a rank renders **—** (never “Member” as a guess).
+- The distribution totals equal the member count; Member + Leader + Supervisor + Manager + Director =
+  the number of ranked member accounts; `ranked` = Supervisor + Manager + Director.
+- The page loads with no PHP error and no Royalty money anywhere.
+
+### QA19B-07 — The seeded demo tree matches the 10-direct rule
+
+| Why | Plan §12.2: ranks count people, so the demo tree must rank exactly as the rule says. |
+|---|---|
+| Where | Browser: `/admin/members` |
+| Evidence | `QA19B-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On `/admin/members`, inspect `juan`, `maria`, `peter`, `sarah` and `david`.
+2. With the default 10-direct threshold, confirm **every** demo member reads **Member**.
+3. Optionally lower **Leader: direct members** to `1` and save: `juan` (sponsor of `maria`) and
+   `maria` (sponsor of `peter`, `sarah`, `david`) become **Leader**, everyone else stays **Member**;
+   the distribution updates to Leader 2, Member 3.
+4. Restore the threshold to `10` and save.
+
+Expected
+
+- The badges follow the direct-count rule exactly; nobody reaches Supervisor, Manager or Director in
+  the five-member demo tree.
+- No wallet, ledger, period or award row changes during either render.
+
+### QA19B-08 — Wallet pages and the commission ledger show no Royalty money
+
+| Why | Plan §6 Rule 8: 19B moves no money; 19C is the only producer. |
+|---|---|
+| Where | Browser + `mysql` |
+| Evidence | `QA19B-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions` and `/admin/commissions?ledger=repeat`; confirm no Royalty tab, card or
+   row appears (the package and repeat ledgers are unchanged).
+2. Open `/admin/wallets` and a member statement (`/admin/wallets/{id}`); confirm the Source filter has
+   **Royalty bonus** as an option but no Royalty row exists.
+3. Open the member's `/earnings` and `/dashboard`; confirm no Royalty tile or statement row.
+4. `mysql … -e "SELECT COUNT(*) FROM royalty_periods; SELECT COUNT(*) FROM royalty_awards; SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'royalty';"`
+
+Expected
+
+- All three counts are **0**; no page renders a Royalty amount, pending award or period.
+- `php bin\wallet_reconcile.php` still exits **0**.
+
+### QA19B-09 — The Royalty group and the full gate are green
+
+| Why | The universal gate (§2.4): suite, smoke, bundle and wallet reconcile. |
+|---|---|
+| Where | PowerShell |
+| Evidence | `QA19B-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php tests\run.php Royalty` (the whole stream, expect **46 / 46**)
+2. `php tests\run.php` (expect `Cases: 1054   Passed: 1054   Failed: 0`)
+3. `powershell -NoProfile -File tests\smoke.ps1` (expect `Passed: 232   Failed: 0`)
+4. `php bin\wallet_reconcile.php; echo "exit=$LASTEXITCODE"`
+5. `php bin\build_install_sql.php --check; echo "exit=$LASTEXITCODE"`
+
+Expected
+
+- The Royalty group is **46 / 46**, the full suite **1,054 / 1,054**, the smoke walk **232 / 232**,
+  wallet reconcile exit **0** and the bundle check exit **0**.
+- No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+
+---
+
+## 5. Sign-off
 
 | Section | Checks | Passed | Failed | Blocked | Tester | Date | Evidence |
 |---|---:|---:|---:|---:|---|---|---|
 | A — Foundation | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
+| B — Configuration and the rank ladder | 9 | 9 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 
 **Decision:** ☑ Pass  ☐ Pass with notes  ☐ Fail
 
-Sections B–G are appended by 19B–19G before their gates; this section is final.
+Sections C–G are appended by 19C–19G before their gates; sections A and B are final.

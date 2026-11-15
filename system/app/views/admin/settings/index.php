@@ -28,6 +28,9 @@ declare(strict_types=1);
  * @var array<string, array{label:string,hint:string}> $commission_toggles
  * @var list<array<string, mixed>> $repeat_fields
  * @var array<string, array{label:string,hint:string}> $repeat_toggles
+ * @var list<array<string, mixed>> $royalty_fields
+ * @var array<string, array{label:string,hint:string}> $royalty_toggles
+ * @var array<string, mixed> $royalty_ladder
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
@@ -49,6 +52,9 @@ $commissionFields = $commission_fields ?? [];
 $commissionToggles = $commission_toggles ?? [];
 $repeatFields     = $repeat_fields ?? [];
 $repeatToggles    = $repeat_toggles ?? [];
+$royaltyFields    = $royalty_fields ?? [];
+$royaltyToggles   = $royalty_toggles ?? [];
+$royaltyLadder    = $royalty_ladder ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -87,8 +93,8 @@ $action = url('admin/settings');
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
                     Identity, where buyers send manual payments, how withdrawals are paid out, how long a buyer has to
-                    pay, whether an order may be cancelled, what appears on the printed invoice, how commissions are
-                    earned and what transfers may move.
+                    pay, whether an order may be cancelled, what appears on the printed invoice, how commissions and
+                    the Royalty bonus are earned and what transfers may move.
                     Each card saves on its own and every change is recorded in the audit log.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
@@ -246,9 +252,9 @@ $action = url('admin/settings');
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <div>
                         <h5 class="mb-1">Commissions</h5>
-                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase and registration rules</p>
+                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase, Royalty and registration rules</p>
                       </div>
-                      <span class="badge bg-label-secondary">Phase 15</span>
+                      <span class="badge bg-label-secondary">Phase 15 · 19B</span>
                     </div>
 <?= View::capture('admin/settings/_commissions', [
     'settings'           => $settings,
@@ -256,6 +262,9 @@ $action = url('admin/settings');
     'commission_toggles' => $commissionToggles,
     'repeat_fields'      => $repeatFields,
     'repeat_toggles'     => $repeatToggles,
+    'royalty_fields'     => $royaltyFields,
+    'royalty_toggles'    => $royaltyToggles,
+    'royalty_ladder'     => $royaltyLadder,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

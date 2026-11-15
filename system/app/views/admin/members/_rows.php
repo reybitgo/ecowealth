@@ -19,7 +19,7 @@ $hasFilters = (string) $filters['q'] !== ''
                     <tbody data-live-region="member-rows">
 <?php if ($members === []): ?>
                       <tr>
-                        <td colspan="7" class="py-0">
+                        <td colspan="8" class="py-0">
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-group',
@@ -39,6 +39,9 @@ $hasFilters = (string) $filters['q'] !== ''
     $id          = (int) $row['id'];
     $rowStatus   = (string) $row['member_status'];
     $isSuspended = $rowStatus === 'suspended';
+    $rankLevel   = $row['rank_level'] ?? null;
+    $rankName    = (string) ($row['rank_name'] ?? '');
+    $rankTone    = $rankLevel === null ? '' : (RoyaltyRank::LABELS[(int) $rankLevel]['tone'] ?? 'secondary');
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td>
@@ -69,6 +72,13 @@ $hasFilters = (string) $filters['q'] !== ''
                               : e('@' . (string) $row['sponsor_username']) ?>
                         </td>
                         <td><?= status_badge($rowStatus) ?></td>
+                        <td>
+                          <?php if ($rankLevel === null): ?>
+                          <span class="text-body-secondary">—</span>
+                          <?php else: ?>
+                          <span class="badge bg-label-<?= e($rankTone) ?>"><?= e($rankName) ?></span>
+                          <?php endif; ?>
+                        </td>
                         <td class="text-end member-wallet-cell">
                           <?= e(money((float) $row['ewallet_balance'])) ?>
                           <small><?= e(money((float) $row['withdrawable_balance'])) ?> withdrawable</small>

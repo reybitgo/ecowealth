@@ -5205,3 +5205,134 @@ migration key).
 
 ---
 
+## Phase 19B — Configuration and the rank ladder (2026-11-15)
+
+**Status:** complete · **Tag:** `p19b-configuration` · **Branch:** `feature/royalty` ·
+**Schema:** unchanged (33 tables, `APP_PHASE` stays 17 until 19G) ·
+**Suite:** 1,026 → 1,054 cases, **1,054 / 1,054** green · **Smoke:** 229 → 232 checks, **232 / 232**.
+
+Plan: `dmp/plan-ecowealth-royalty.md` §6 (Phase 19B), §12.2–§12.3, §12.9, §13.4 and §14.3. This
+phase ships the Royalty ladder configuration on `/admin/settings`, the derived rank engine and the
+admin rank visibility. **It creates no money:** no `royalty_periods` or `royalty_awards` row, no
+`royalty` wallet movement, no month close. The stream is still off.
+
+### Code
+
+- **`app/Models/RoyaltyRank.php`** (new) — the five ranks as constants (`MEMBER` 0 … `DIRECTOR` 4),
+  `NAMES`, `SLUGS`, `PAYING` (2–4), `LABELS` (badge tone + icon) and `THRESHOLD_KEYS`;
+  `thresholds()` reads the four settings with the 10/10/10/10 defaults; `ladder()` returns the
+  switches, thresholds, quotas, rates, own-purchase percentages and one display row per rank (also
+  the shape 19C snapshots onto `royalty_periods`); `map($asOf)` runs **one**
+  `users WHERE role = 'member'` query (optional `created_at < asOf`) and one iterative bottom-up pass
+  over the sponsor forest (no recursion, no depth cap), returning one row per ranked member keyed by
+  id in id order: `id, username, member_status, is_active, parent_id, rank, rank_name, directs,
+  downline_leaders, downline_supervisors, downline_managers, team_size, volume_cents,
+  group_volume_cents`; `forMember()`, `counts()` (exclusive per rank plus `ranked`/`total`),
+  `requirements()` (the next rank and its gap, for 19E), `withVolumes()` (PS → GS roll-up from the
+  rows' `parent_id` links, no second query) and `assertReadable()` (orphan/parent/cycle/negative
+  defensive checks).
+- **`app/Controllers/AdminSettingsController.php`** — `ROYALTY_FIELDS` (13 numeric keys grouped as
+  requirements/quotas/rates with min/max/step and hints) and `ROYALTY_TOGGLES` (earning and payment
+  switches); `sectionKeys`/`sectionToggles`/`sectionRules`/`sectionLabels` learn them (the card stays
+  `section=commissions`); `sectionCrossFieldErrors('commissions')` enforces non-decreasing quotas,
+  non-decreasing group and personal rates, `group + personal ≤ 100` (integer per-mille maths) and
+  “an enabled ladder must pay something”; `settingsContext()` passes `royalty_fields`,
+  `royalty_toggles` and `royalty_ladder`; `feedPayload()` forwards them.
+- **The save path is now testable in-process:** `save()` reads the posted card, calls a new public
+  `applySection($section, $posted)` that validates, writes, touches the live surfaces and audits, and
+  keeps the flash/old-input/redirect work. Behaviour is unchanged (the smoke walk proves the HTTP
+  round trip), but `P19B-T2/T11` can now exercise the real write and the real `settings.update` row.
+- **`app/views/admin/settings/_commissions.php`** — a **Royalty bonus** sub-block below the
+  repeat-purchase block: the two switches, the four requirements, the three quotas, the six rates and
+  a read-only **Saved ladder** table (Member … Director; requirement, quota, group %, personal % and
+  own purchase = group + personal), with the derived-not-stored caveat and the “ships off” copy.
+  `app/views/admin/settings/index.php` forwards the three new arrays.
+- **`app/Controllers/AdminMemberController.php`** — `listContext()` computes `RoyaltyRank::map()`
+  once, attaches `rank_level`/`rank_name` to the page's rows and passes `rank_counts`; the directory
+  feed forwards it to the stats region.
+- **`app/views/admin/members/_rows.php`** — the **Rank** column (badge; **—** when a row has no rank,
+  never a guessed “Member”) and an eight-column empty state. **`_stats.php`** — the compact **Rank
+  distribution** strip (five exclusive counts plus *N ranked (Supervisor+)*) inside the existing
+  `member-stats` region. **`index.php`** — the Rank header and the forwarded counts.
+- **No schema, route, service or job change.** `royalty_ledger_since` stays stored but is never
+  rendered; no new settings page or section.
+
+### Database
+
+None. Phase 19B changes no table, column, index, seed or install count; `build_install_sql.php
+--check` still exits 0 and a fresh install still reports 33 tables / 73 settings.
+
+### Tests
+
+**28 new cases: 1,026 → 1,054, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `RoyaltyConfigurationTest` (new) | 12 | P19B-T1 (the sub-block, 2 switches, 13 number inputs, 5-row ladder, no baseline input), T2 (a real `applySection` round-trip), T3 (directs 1–1000; `0`/`-1`/`abc`/`1001` refused), T4 (quotas centavo, `0.00`–`999,999,999.99`), T5 (rates 3 decimals, `0`–`100`), T6–T8 (non-decreasing quotas/group/personal), T9 (`group + personal ≤ 100`, exactly 100 allowed), T10 (an enabled all-zero ladder refused, off or one positive rate accepted), T11 (one `settings.update` naming the keys with no money movement), T26 (defaults and an edited ladder preview) |
+| `RoyaltyRankTest` (new) | 13 | P19B-T12 (Member), T13 (Leader at 10, not at 9), T14 (Supervisor on the 111-member tree, not at nine Leaders), T15 (Manager, small thresholds), T16 (Director, small thresholds), T17 (counts exclude self), T18 (a Leader 12 levels down counts; `SponsorService::MAX_LEVELS` stays 10), T19 (staff never ranked/bridged), T20 (suspended counts), T21 (`created_at` cutoff), T22 (cycle and self-sponsor terminate, unranked, no warning), T27 (the documented row shape with `withVolumes()` PS → GS and `counts()`) and T28 (`requirements()`) |
+| `RoyaltyAdminMemberView` (new) | 3 | P19B-T23 (the Rank badge per row and the 8-column empty state), T24 (the exact exclusive distribution plus `ranked`, filter-independent), T25 (saving the card and rendering the list moves no wallet, ledger, period or award row) |
+
+Updated: `SettingsPageTest` (the commissions catalogue now owns 13 Royalty keys and 2 switches; rules
+and labels partitioned), `AdminSettingsLiveTest` (the `settings-commissions` fragment carries the
+Royalty sub-block, ladder and no baseline), `AdminMemberLiveTest` (the rank distribution, the per-row
+badge and the Rank header), `RoyaltyFoundationTest` (P19A-T13 is rewritten for 19B: the rank engine
+may read `users`/settings, but nothing reads the money tables or writes a `royalty` movement), and
+`tests/smoke.ps1` (the commissions card now posts all 28 keys; 3 new P19B checks).
+
+### Gate
+
+- [x] Schema state matches the plan — no schema change in 19B; `MigrationTest` and
+      `RoyaltyFoundationTest` stay green.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,054   Passed: 1,054   Failed: 0**, exit 0 (floor 1,050).
+- [x] `php bin/wallet_reconcile.php` exits 0 on the development copy; no `royalty` ledger row.
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 232   Failed: 0**, exit 0.
+- [x] Every P19B-Tn case exists, is named for the phase and passes; `php tests/run.php Royalty` is
+      **46 / 46**.
+- [x] The manual script (plan §6, `QA19B-01` … `QA19B-09`) executed **9 / 9** by the automated pass,
+      with transcripts in `docs/qa/evidence/phase-19/`. The independent-tester review remains the
+      project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section B filled; `docs/qa/README.md` and `docs/qa/sign-off-sheet.md` carry the 19B row.
+- [x] This entry and Appendix H of the plan are filled; tag `p19b-configuration`.
+
+### Deviations
+
+1. **`applySection()` is a new public controller method.** The plan only names the field catalogue,
+   and the project's older note was that card saves end in `redirect()` and are proved by the smoke
+   walk. P19B-T2/T11 ask for an in-process round-trip and audit assertion, so the validate/write/
+   audit half of `save()` is now callable; the HTTP behaviour is unchanged and the smoke walk still
+   proves it.
+2. **`downline_leaders`/`downline_supervisors`/`downline_managers` are exact descendant counts.**
+   Plan §14.3 writes them as `SL − 1`, `SS − 1`, `SM − 1`, which is identical whenever the member
+   itself holds the predicate (the only case the requirement cards read) but yields `-1` on a plain
+   Member. The model reports `Σ child SL/SS/SM`; `P19B-T17` pins the equal case and the row shape.
+3. **P19A-T13 is rewritten in 19B, not 19C.** The old case asserted that no file under `app/` names
+   Royalty and that `RoyaltyRank.php` does not exist; 19B's deliverables make both false. It now
+   asserts the sharper invariant 19B must hold: no application file reads `royalty_periods`/
+   `royalty_awards` or writes a `royalty` wallet movement, the four 19C classes do not exist, there
+   is no route, and the tables stay empty. 19C will tighten it to “the engine is the only producer”.
+4. **The quota labels drop the “(₱)” suffix** from §13.4's *Exposed as* column; the input group's
+   currency suffix already carries it, matching every other money field on the page. The stored keys
+   and defaults are unchanged.
+5. **`RoyaltyRank` reports the ladder's quotas as floats plus `quota_cents`.** 19C needs integer
+   centavos for the all-or-nothing quota comparison; the settings stay stored as the decimal strings
+   §13.4 defines, and the ladder is read-only.
+6. **The smoke walk adds 3 checks, not 0.** 19B adds no route, so 19A added none; 19B does add two
+   observable surfaces on existing URLs (the settings sub-block and the member Rank column) and one
+   validation refusal, which the walk now checks. 19G's target of 248 still has 16 checks of headroom
+   for 19C–19F.
+
+### Hand-off to 19C
+
+- `RoyaltyRank::map($asOf)` and `withVolumes($map, $volumesCents)` return the documented rows in id
+  order; `counts()`, `requirements()` and `assertReadable()` are available.
+- `RoyaltyRank::ladder()` is the validated, snapshottable ladder: `thresholds` (leader/supervisor/
+  manager/director), `quotas`, `rates` (group/personal per paying rank) and `enabled`/`pay_enabled`.
+- The Commissions card saves and audits the sixteen `royalty_*` keys; `royalty_enabled` is off and
+  `royalty_pay_enabled` on.
+- The admin directory shows the derived rank and distribution. 19C may assume **no** period/award/
+  service, no close command and no member/admin royalty statement — it creates the first ones.
+
+---
+

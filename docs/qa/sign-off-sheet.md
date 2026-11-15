@@ -801,6 +801,50 @@ php bin/wallet_reconcile.php              # exit 0 (19A moves no money)
 
 ---
 
+## 19B. Phase 19B — Configuration and the rank ladder (section B of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **sections A and B** (19C–19G append theirs)
+
+19B ships the Royalty ladder on **Admin → Settings → Commissions** and the **derived rank** on the
+member directory: five ranks (Member, Leader, Supervisor, Manager, Director) derived live from the
+sponsor tree, the four thresholds, three quotas, six rates, the two switches and the read-only saved
+ladder. **No money moves:** the stream is still off and no period or award row exists.
+
+**Prerequisites:** tag `p19a-foundation`; the development copy at migration `023`.
+**Expected suite count:** **1,054**; smoke **232**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1054   Passed: 1054   Failed: 0
+php tests/run.php Royalty                     # 46 / 46
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 232   Failed: 0
+php bin/wallet_reconcile.php                  # exit 0 (19B moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19B-01 | The Commissions card renders the Royalty bonus sub-block: two switches, thirteen number inputs and the five-row saved ladder reading 10/10/10/10, ₱500,000/₱1,000,000/₱5,000,000, 3/5 · 5/10 · 10/15 and own purchase 8/15/25%; no `royalty_ledger_since` input | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-01.txt` |
+| QA19B-02 | Changing Supervisor downline Leaders 10 → 3 saves, re-renders and writes exactly one `settings.update` with the before/after; no royalty money or period/award row; defaults restored | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-02.txt` |
+| QA19B-03 | A Manager quota below the Supervisor quota is refused with a field error and nothing is written | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-03.txt` |
+| QA19B-04 | Supervisor group 60 + personal 50 is refused with the “cannot exceed 100%” field error | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-04.txt` |
+| QA19B-05 | The reference preset is restored: 10/10/10/10, 500k/1M/5M, 3/5 · 5/10 · 10/15, own purchase 8/15/25%, earning switch off | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-05.txt` |
+| QA19B-06 | `/admin/members` shows the **Rank** column between Status and Wallet, one badge per row (— when unranked) and the **Rank distribution** strip with the five exclusive counts plus *N ranked (Supervisor+)* | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-06.txt` |
+| QA19B-07 | The five-member demo tree ranks exactly by the 10-direct rule (all Member at the default; juan and maria become Leader at threshold 1) with no money moved | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-07.txt` |
+| QA19B-08 | `/admin/commissions`, the wallet pages, `/earnings` and `/dashboard` show no Royalty money; both tables and the `royalty` ledger count are **0** | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-08.txt` |
+| QA19B-09 | `php tests/run.php Royalty` 46 / 46, the full suite **1,054 / 1,054**, the smoke walk **232 / 232**, `wallet_reconcile` exit 0 and the bundle check exit 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA19B-09.txt` |
+
+| Phase 19B summary | |
+|---|---|
+| Executed | **9 / 9** checks |
+| Passed / Failed / Blocked | **9 / 0 / 0** |
+| Defects | 0 (see the phase log for the six recorded deviations) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -848,6 +892,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 18 | ☐ Yes ☐ No | Post-17 point release (`APP_PHASE` stays 17): migrations `021`–`022`, **31 tables / 57 settings**, five cron jobs; the escrow checks C1a, C1b, C4, E4, E5, E6 in §19 (E4 needs **Enable Cancel of Order** on), plus the automated pending/release/reconcile rows. Record the counts and the evidence names on the lines above. |
 | Phase 18 follow-up | ☐ Yes ☐ No | Order-cancellation kill switch (`shop_cancel_enabled`, **off** by default): both cancellation services refuse with `cancel_disabled` and no refund/escrow reversal runs while it is off; enabling it restores the plan §8 escrow contract. `CancelSettingTest` plus the full PHP/smoke gates. |
 | Phase 19A | ☑ Yes ☐ No | Royalty foundation: migration `023` adds `royalty_periods`, `royalty_awards`, the `royalty` wallet movement and sixteen settings, **stream off**, no reader; migrated ≡ fresh, a reset empties both tables, fresh install **33 tables / 73 settings**; 8 / 8 section-A checks, **1,026 / 1,026** PHP cases and **229 / 229** smoke checks. |
+| Phase 19B | ☑ Yes ☐ No | Royalty configuration and rank ladder: the Commissions card owns the thirteen values and two switches with full cross-field validation and an audited save; `RoyaltyRank` derives the five ranks from the sponsor tree (any depth, staff excluded, cycles excluded, cutoff-aware); `/admin/members` shows the Rank badge and distribution; **no money moves**. 9 / 9 section-B checks, **1,054 / 1,054** PHP cases and **232 / 232** smoke checks. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

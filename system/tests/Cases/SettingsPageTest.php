@@ -32,6 +32,11 @@ $render = static function (array $overrides = []): string {
         'fulfilment_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('FULFILMENT_FIELDS'),
         'commission_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('COMMISSION_FIELDS'),
         'commission_toggles' => (new ReflectionClass(AdminSettingsController::class))->getConstant('COMMISSION_TOGGLES'),
+        'repeat_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('REPEAT_FIELDS'),
+        'repeat_toggles'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('REPEAT_TOGGLES'),
+        'royalty_fields'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('ROYALTY_FIELDS'),
+        'royalty_toggles'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('ROYALTY_TOGGLES'),
+        'royalty_ladder'    => RoyaltyRank::ladder(),
         'transfer_fields'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('TRANSFER_FIELDS'),
         'shop_enabled'      => true,
         'expiry_enabled'    => true,
@@ -136,6 +141,11 @@ return [
         assert_contains('name="commission_indirect_enabled"', $commissions);
         assert_contains('name="commission_requires_active_sponsor"', $commissions);
         assert_contains('name="free_registration_enabled"', $commissions);
+        assert_contains('name="royalty_enabled"', $commissions);
+        assert_contains('name="royalty_pay_enabled"', $commissions);
+        assert_contains('name="royalty_supervisor_quota"', $commissions);
+        assert_contains('Royalty bonus', $commissions);
+        assert_not_contains('name="royalty_ledger_since"', $commissions);
         assert_not_contains('name="ewallet_transfer_fee"', $commissions);
         assert_not_contains('name="site_name"', $commissions);
 
@@ -336,9 +346,23 @@ return [
                 'unilevel_max_levels',
                 'unilevel_active_threshold',
                 'unilevel_hold_days',
+                'royalty_leader_directs',
+                'royalty_supervisor_leaders',
+                'royalty_manager_supervisors',
+                'royalty_director_managers',
+                'royalty_supervisor_quota',
+                'royalty_manager_quota',
+                'royalty_director_quota',
+                'royalty_supervisor_group_pct',
+                'royalty_supervisor_personal_pct',
+                'royalty_manager_group_pct',
+                'royalty_manager_personal_pct',
+                'royalty_director_group_pct',
+                'royalty_director_personal_pct',
             ],
             $commissions,
-            'the commissions card owns the referral depth, both repeat-purchase numbers and the escrow hold'
+            'the commissions card owns the referral depth, both repeat-purchase numbers, the escrow hold '
+                . 'and the thirteen Royalty ladder values'
         );
         assert_same(
             [
@@ -419,9 +443,11 @@ return [
                 'unilevel_requires_active_upline',
                 'unilevel_reversal_enabled',
                 'unilevel_release_enabled',
+                'royalty_enabled',
+                'royalty_pay_enabled',
             ],
             $sectionMethod('sectionToggles', 'commissions'),
-            'one switch per compensation rule, including the four repeat-purchase switches'
+            'one switch per compensation rule, including the four repeat-purchase and two Royalty switches'
         );
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 
@@ -500,6 +526,13 @@ return [
         assert_contains('gte:2', $commissionRules['commission_indirect_max_levels'] ?? '');
         assert_contains('lte:10', $commissionRules['commission_indirect_max_levels'] ?? '');
         assert_same('required|in:0,1', $commissionRules['commission_direct_enabled'] ?? '');
+        assert_contains('gte:1', $commissionRules['royalty_leader_directs'] ?? '');
+        assert_contains('lte:1000', $commissionRules['royalty_leader_directs'] ?? '');
+        assert_contains('decimal:2', $commissionRules['royalty_supervisor_quota'] ?? '');
+        assert_contains('decimal:3', $commissionRules['royalty_director_personal_pct'] ?? '');
+        assert_same('required|in:0,1', $commissionRules['royalty_enabled'] ?? '');
+        assert_same('required|in:0,1', $commissionRules['royalty_pay_enabled'] ?? '');
+        assert_false(array_key_exists('royalty_ledger_since', $commissionRules), 'the baseline is never validated');
         assert_false(array_key_exists('ewallet_transfer_fee', $commissionRules));
 
         $transferRules = $sectionMethod('sectionRules', 'transfers');

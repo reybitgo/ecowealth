@@ -126,6 +126,13 @@ return [
         assert_contains('data-live-region="member-stats"', $stats);
         assert_contains('With a package', $stats);
 
+        /* Phase 19B: the stats strip carries the derived rank distribution. */
+        assert_contains('data-rank-distribution', $stats);
+        assert_contains('Rank distribution', $stats);
+        assert_contains('data-rank-count="member"', $stats);
+        assert_contains('data-rank-count="director"', $stats);
+        assert_contains('ranked (Supervisor+)', $stats);
+
         assert_contains('data-live-region="member-filters"', $filters);
         assert_contains('data-live-hold="dirty"', $filters);
         assert_contains('name="q"', $filters);
@@ -140,6 +147,10 @@ return [
         assert_not_contains('<b>x</b>', $rows);
         assert_contains(money(88.5), $rows);
         assert_not_contains('name="q"', $rows, 'the filter form never travels in a row fragment');
+
+        /* Phase 19B: each member row carries its derived rank badge. */
+        assert_contains('data-live-key="' . (int) $hostile['id'] . '"', $rows);
+        assert_contains('bg-label-secondary">Member<', $rows);
 
         assert_contains('data-live-region="member-pagination"', $pages);
         assert_contains('admin/members?per_page=5&amp;page=2', $pages);
@@ -310,6 +321,8 @@ return [
         assert_contains('data-live-region="member-pagination"', $html);
         assert_contains('data-live-key="' . (int) $maria['id'] . '"', $html, 'the active filter emits a keyed row');
         assert_contains('data-live-focus="member"', $html);
+        assert_contains('<th>Rank</th>', $html, 'the directory has the Rank column');
+        assert_contains('data-rank-distribution', $html);
         assert_contains('data-live-hold="dirty"', $html);
         assert_contains('data-live-status', $html);
         assert_contains('data-live-stale', $html);

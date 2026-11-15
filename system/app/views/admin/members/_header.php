@@ -17,7 +17,7 @@ declare(strict_types=1);
                 <div>
                   <h4 class="mb-1">Members</h4>
                   <p class="text-body-secondary mb-0">
-                    Sponsor chain, package, status and wallet for every member account.
+                    Sponsor chain, package, status, Royalty rank and wallet for every member account.
                   </p>
                 </div>
                 <span class="badge rounded-pill bg-label-primary"><?= (int) $stats['new_week'] ?> joined this week</span>
