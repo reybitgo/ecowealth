@@ -1568,3 +1568,74 @@ a fresh install adds make 77.
 Turn **Enable the Team Harvest bonus** off and revert the code. The ladder rows and the four settings
 may stay: they are inert, nothing reads them until 20C/20D, and a later attempt can reuse them. No
 money exists to reverse.
+---
+
+## Phase 20C/20D/20E addendum — the queue, the money engine and the admin visibility
+
+**No new hosting requirement and no schema change.** 20C writes positions, 20D pays the ladder and 20E is
+read-only: 20E is PHP and templates on pages that already existed. `APP_PHASE` stays **19** until 20G,
+the smoke suite stays **251** checks (the stream adds no route) and `routes.php` /
+`routes_inventory.php` are untouched.
+
+### The two jobs (20C/20D) — neither is a cron entry
+
+| Job | When | Writes |
+|---|---|---|
+| `php bin/harvest_queue_seed.php` (+ `--dry-run`, `--by-id`, `--force`, `--rebuild --apply`, `--json`) | **once**, at go-live, before the switch is turned on | the queue rows, their counters and their `baseline_n`, plus `team_harvest_ledger_since` |
+| `php bin/team_harvest_catchup.php` (+ `--dry-run`, `--member=ID`, `--doctor`, `--json`) | on demand, after the switch is turned on or a counter is repaired | awards and their wallet credits (a dry run writes nothing) |
+
+There is **no schedule** for either: this stream has no month and no close. A browser cannot trigger
+them; the money run is CLI-only.
+
+### What 20E adds to the server
+
+Nothing but templates and reads. Five admin surfaces, all on existing routes:
+
+| Surface | What it shows |
+|---|---|
+| `/admin/commissions?ledger=team_harvest` | the fourth ledger tab: six counters, the ten-level distribution, filters (member, level, status, dates) and a CSV with the Appendix C.5 columns |
+| `/admin/members` | the **Harvest** column (the stored position, `#N`), the **Team Harvest queue** card and the `?harvest=yes\|no` filter |
+| `/admin/members/{id}` | the member's Team Harvest panel: position, qualified at, teammates, levels paid, the next level, the baseline state and the award rows |
+| `/admin/reports` | the Team Harvest block (window counters, the queue, the ten levels, the months) and a `type=team_harvest` CSV |
+| `/dashboard` | a **Team Harvest (30 d)** KPI with the open liability it implies |
+
+The ledger is an **audit surface**: no admin page writes an award, a wallet row or a queue row. A
+`baseline` row (complete before go-live) is counted in its own tile and never inside a paid total; every
+*Credited* figure counts `status = 'credited'` only.
+
+### New audit actions to recognise on `/admin/audit`
+
+| Action | Written by |
+|---|---|
+| `harvest.seed` | the go-live seed job: the gate, the order, the rows inserted, the baseline instant and the money the baseline excludes |
+| `harvest.queue.repair` | `harvest_queue_seed.php --rebuild --apply`: the positions it appended and the counters it repaired, before/after |
+| `team_harvest.catchup` | the on-demand catch-up job: the members evaluated and the levels it wrote |
+| `team_harvest.export` | **20E's** ledger CSV download, with the tab, the filters and the row count in its meta |
+| `report.export` (with `type = team_harvest`) | the reports-desk range export, with the window and the row count |
+
+### After deploying 20E
+
+1. Nothing to migrate and nothing to configure: the pages read the tables 20A created.
+2. Follow the go-live order in `docs/runbook.md` — deploy → seed dry run → seed → enable — and use
+   `/admin/members` (the queue card) to confirm the positions exist before the switch is turned on.
+3. The ledger tab is the operator's first screen: it names the two Go-live lines (*Seeded* / *Not seeded*,
+   *Paying* / *Switched off*) and the open liability, labelled *not yet paid*.
+
+### Verification after the upgrade
+
+- [ ] `/admin/commissions?ledger=team_harvest` renders with the empty state *No level has completed yet*
+      and the header warns **The queue is not seeded** on a fresh database.
+- [ ] `/admin/members` shows the **Harvest** column and the queue card; `?harvest=yes` filters to the
+      queued members.
+- [ ] `/admin/members/{id}` renders the panel for a member who has not qualified as
+      *Not qualified: n of 3 direct members*.
+- [ ] `/admin/reports` renders the Team Harvest block and the export menu offers **Team Harvest bonus**.
+- [ ] `/dashboard` shows the **Team Harvest (30 d)** KPI.
+- [ ] `php bin/wallet_reconcile.php` exits 0; `php bin/build_install_sql.php --check` exits 0.
+
+### Rollback (20E)
+
+Revert the seven new views, the six modified ones and the five PHP files (the two controllers, `Member`,
+`Report`, `ReportService`). The fourth tab disappears and every other page returns to its 20D shape. **No
+data is touched**: nothing in 20D or in the jobs reads anything 20E writes, and 20E writes nothing but its
+own export audit rows.

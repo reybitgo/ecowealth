@@ -170,15 +170,20 @@ final class Member
      *  Admin directory
      * ---------------------------------------------------------- */
 
-    /** @return array{q:string, status:string, package:string} */
+    /** @return array{q:string, status:string, package:string, harvest:string} */
     public static function filterDefaults(): array
     {
-        return ['q' => '', 'status' => '', 'package' => ''];
+        return ['q' => '', 'status' => '', 'package' => '', 'harvest' => ''];
     }
 
     /**
+     * Validate the directory filters. `harvest` is `yes` (only members with
+     * a queue position) or `no` (only members without one); anything else
+     * means "no filter", exactly like an unknown status or package
+     * (Phase 20E Rule 9).
+     *
      * @param array<string, mixed> $raw
-     * @return array{q:string, status:string, package:string}
+     * @return array{q:string, status:string, package:string, harvest:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -198,13 +203,20 @@ final class Member
             $filters['package'] = (string) (int) $package;
         }
 
+        /* Phase 20E: the Team Harvest queue filter. The position is a fact
+         * in `harvest_queue`; the filter never recomputes one (Rule 5). */
+        $harvest = strtolower(trim((string) ($raw['harvest'] ?? '')));
+        if (in_array($harvest, ['yes', 'no'], true)) {
+            $filters['harvest'] = $harvest;
+        }
+
         return $filters;
     }
 
     /**
      * WHERE clause shared by the count and the page.
      *
-     * @param array{q:string, status:string, package:string} $filters
+     * @param array{q:string, status:string, package:string, harvest:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(array $filters): array
@@ -235,10 +247,19 @@ final class Member
             $params[] = (int) $filters['package'];
         }
 
+        /* Phase 20E: the queue is a fact, not a derived count, so the
+         * filter is an EXISTS on the stored position — one predicate the
+         * count and the page share. */
+        if ($filters['harvest'] === 'yes') {
+            $where[] = 'EXISTS (SELECT 1 FROM harvest_queue hq WHERE hq.user_id = u.id)';
+        } elseif ($filters['harvest'] === 'no') {
+            $where[] = 'NOT EXISTS (SELECT 1 FROM harvest_queue hq WHERE hq.user_id = u.id)';
+        }
+
         return [implode(' AND ', $where), $params];
     }
 
-    /** @param array{q:string, status:string, package:string} $filters */
+    /** @param array{q:string, status:string, package:string, harvest:string} $filters */
     public static function countAdmin(array $filters, ?PDO $pdo = null): int
     {
         $pdo ??= db();
@@ -255,7 +276,11 @@ final class Member
     /**
      * One page of the member directory.
      *
-     * @param array{q:string, status:string, package:string} $filters
+     * The rows carry the member's Team Harvest **position** (`hq.id`) in the
+     * same query, left-joined, so the list never asks once per row for a
+     * fact the page already renders (Phase 20E Rule 5, P20E-T18).
+     *
+     * @param array{q:string, status:string, package:string, harvest:string} $filters
      * @return list<array<string, mixed>>
      */
     public static function adminList(array $filters, Paginator $pager, ?PDO $pdo = null): array
@@ -267,10 +292,14 @@ final class Member
                        u.is_active, u.referral_code, u.reg_payment_method, u.activated_at,
                        u.ewallet_balance, u.withdrawable_balance, u.last_login_at, u.created_at,
                        p.name AS package_name,
-                       sp.username AS sponsor_username
+                       sp.username AS sponsor_username,
+                       hq.id AS harvest_position,
+                       hq.teammates AS harvest_teammates,
+                       hq.qualified_at AS harvest_qualified_at
                   FROM users u
                   LEFT JOIN packages p ON p.id = u.package_id
                   LEFT JOIN users sp ON sp.id = u.sponsor_id
+                  LEFT JOIN harvest_queue hq ON hq.user_id = u.id
                  WHERE ' . $where . '
                  ORDER BY u.created_at DESC, u.id DESC
                  LIMIT ' . (int) $pager->perPage . ' OFFSET ' . (int) $pager->offset;

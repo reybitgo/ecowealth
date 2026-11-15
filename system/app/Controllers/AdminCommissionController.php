@@ -4,18 +4,21 @@ declare(strict_types=1);
 /* ==============================================================
  *  AdminCommissionController — the company-wide commission ledger
  *  (plan §7 Phase 10, Appendix A extension; Phase 17D adds the
- *  repeat-purchase tab of plan §8; Phase 19D adds the Royalty tab)
+ *  repeat-purchase tab of plan §8; Phase 19D adds the Royalty tab;
+ *  Phase 20E adds the Team Harvest tab)
  *
  *  Route: GET /admin/commissions   guard `admin`
  *
- *  Three ledgers, one page, one URL:
+ *  Four ledgers, one page, one URL:
  *
- *      /admin/commissions                 package referral awards
- *                                         (`commissions`)
- *      /admin/commissions?ledger=repeat   repeat-purchase awards
- *                                         (`unilevel_awards`)
- *      /admin/commissions?ledger=royalty  the monthly Royalty ledger
- *                                         (`royalty_awards`)
+ *      /admin/commissions                      package referral awards
+ *                                              (`commissions`)
+ *      /admin/commissions?ledger=repeat        repeat-purchase awards
+ *                                              (`unilevel_awards`)
+ *      /admin/commissions?ledger=royalty       the monthly Royalty ledger
+ *                                              (`royalty_awards`)
+ *      /admin/commissions?ledger=team_harvest  the Team Harvest ledger
+ *                                              (`team_harvest_awards`)
  *
  *  The package tab is the Phase 10–11 ledger, unchanged: filters by
  *  recipient/source/package (q), type, level, status and date, and the
@@ -31,6 +34,15 @@ declare(strict_types=1);
  *  a CSV with the plan Appendix C.5 columns. No admin page writes a
  *  period or an award; the close is the CLI job (plan §8 Rule 1).
  *
+ *  The Team Harvest tab (20E) is read-only over the rows 20D writes: one
+ *  row per (member, level) decision, the ten-row level distribution, six
+ *  counters, filters from `TeamHarvestAward::normaliseFilters()` and a CSV
+ *  with the plan Appendix C.5 columns. A `baseline` row is recorded money
+ *  that was already complete when the plan started and is never paid
+ *  (D-07), so it is counted in its own tile and never inside *Credited*
+ *  (Rule 4 of §9). The open liability is `openLiability()`'s number and
+ *  is labelled *not yet paid* (Rule 8).
+ *
  *  The ledger is read-only by design: an award is never edited. A
  *  correction would be a new `adjustment` wallet movement plus a
  *  `voided` row (Phase 15), never an UPDATE on money history.
@@ -39,7 +51,8 @@ declare(strict_types=1);
  *  counters, rows and pagination are regions; the filter form stays
  *  outside them. The tab and the period are part of the URL and of the
  *  ETag scope, so an open Royalty tab refreshes on the surface a close
- *  bumps and never shares a 304 with another tab (P17D-T14, P19D-T16).
+ *  bumps and never shares a 304 with another tab (P17D-T14, P19D-T16,
+ *  P20E-T15).
  * ============================================================== */
 
 final class AdminCommissionController
@@ -52,6 +65,9 @@ final class AdminCommissionController
 
     /** Monthly Royalty ledger (Phase 19D). */
     public const TAB_ROYALTY = 'royalty';
+
+    /** The Team Harvest ledger (Phase 20E). */
+    public const TAB_TEAM_HARVEST = 'team_harvest';
 
     /** @param array<string, string> $params */
     public function index(array $params = []): void
@@ -72,13 +88,14 @@ final class AdminCommissionController
         ]);
     }
 
-    /** The tab named by `?ledger=`; anything but `repeat`/`royalty` is the package tab. */
+    /** The tab named by `?ledger=`; anything but the three known tabs is the package tab. */
     public static function tab(): string
     {
         return match (strtolower(trim(Request::string('ledger')))) {
-            self::TAB_REPEAT  => self::TAB_REPEAT,
-            self::TAB_ROYALTY => self::TAB_ROYALTY,
-            default           => self::TAB_PACKAGE,
+            self::TAB_REPEAT       => self::TAB_REPEAT,
+            self::TAB_ROYALTY      => self::TAB_ROYALTY,
+            self::TAB_TEAM_HARVEST => self::TAB_TEAM_HARVEST,
+            default                => self::TAB_PACKAGE,
         };
     }
 
@@ -90,9 +107,10 @@ final class AdminCommissionController
     public function context(): array
     {
         return match (self::tab()) {
-            self::TAB_REPEAT  => $this->repeatContext(),
-            self::TAB_ROYALTY => $this->royaltyContext(),
-            default           => $this->listContext(),
+            self::TAB_REPEAT       => $this->repeatContext(),
+            self::TAB_ROYALTY      => $this->royaltyContext(),
+            self::TAB_TEAM_HARVEST => $this->teamHarvestContext(),
+            default                => $this->listContext(),
         };
     }
 
@@ -290,6 +308,75 @@ final class AdminCommissionController
     }
 
     /**
+     * Everything the Team Harvest tab renders, built once for the page and
+     * its feed (plan §9 Phase 20E, Appendix C.2).
+     *
+     * Read-only over the rows 20D writes. The filters go through
+     * `TeamHarvestAward::normaliseFilters()`, so an unknown level, status,
+     * date or search falls back to "no filter" exactly like the other
+     * three tabs (Rule 9). The six tiles describe the **whole ledger**
+     * (the same convention the package and repeat tabs use) and are read
+     * in one query by `Report::teamHarvestTotals()`; the rows below them
+     * are the filtered page.
+     *
+     * Two numbers are deliberately kept apart (Rule 4): *Credited* counts
+     * `status = 'credited'` only, and a `baseline` row — money that was
+     * already complete when the plan started — appears in its own tile and
+     * its own row badge, never inside a paid total.
+     *
+     * @return array<string, mixed>
+     */
+    public function teamHarvestContext(): array
+    {
+        $filters = TeamHarvestAward::normaliseFilters([
+            'user_id' => Request::string('user_id'),
+            'level'   => Request::string('level'),
+            'status'  => Request::string('status'),
+            'from'    => Request::string('from'),
+            'to'      => Request::string('to'),
+            'q'       => Request::string('q'),
+        ]);
+
+        $pager  = Paginator::fromTableRequest(TeamHarvestAward::count($filters));
+        $totals = Report::teamHarvestTotals();
+        $open   = (new TeamHarvestService())->openLiability();
+        $queue  = new HarvestQueue();
+
+        $stats = [
+            'credited_total' => $totals['credited_total'],
+            'this_month'     => $totals['this_month'],
+            'credited_rows'  => $totals['credited_rows'],
+            'recipients'     => $totals['recipients'],
+            'baseline_total' => $totals['baseline_total'],
+            'baseline_rows'  => $totals['baseline_rows'],
+            'awards'         => $totals['awards'],
+            'open_levels'    => $open['levels'],
+            'open_members'   => $open['members'],
+            'open_amount'    => $open['amount'],
+        ];
+
+        return [
+            'tab'         => self::TAB_TEAM_HARVEST,
+            'ledger'      => self::TAB_TEAM_HARVEST,
+            'stats'       => $stats,
+            'filters'     => $filters,
+            'pager'       => $pager,
+            'awards'      => TeamHarvestAward::select($filters, $pager),
+            'levels'      => TeamHarvestAward::byLevel(),
+            'max_levels'  => TeamHarvestLevel::maxLevels(),
+            'seeded'      => $queue->seeded(),
+            'baseline'    => $queue->baseline(),
+            'enabled'     => TeamHarvestLevel::enabled(),
+            'ledger_url'  => url('admin/commissions?ledger=team_harvest'),
+            'export_url'  => url('admin/commissions/export' . self::teamHarvestQueryString($filters)),
+            'wallet_url'  => url('admin/wallets'),
+            'package_url' => url('admin/commissions'),
+            'repeat_url'  => url('admin/commissions?ledger=repeat'),
+            'royalty_url' => url('admin/commissions?ledger=royalty'),
+        ];
+    }
+
+    /**
      * The period the Royalty tab shows (plan §8 Rule 3): an explicit
      * `current` or `YYYY-MM` wins; otherwise the latest final period,
      * then the latest header of any status, then the open month.
@@ -353,6 +440,10 @@ final class AdminCommissionController
      * Phase 19D: `?ledger=royalty` exports the filtered Royalty awards
      * with the plan Appendix C.5 columns, under `royalty.export`.
      *
+     * Phase 20E: `?ledger=team_harvest` exports the filtered Team Harvest
+     * ledger under `team_harvest.export`, with the same columns as the
+     * screen plus the wallet reference (plan Appendix C.5).
+     *
      * @param array<string, string> $params
      */
     public function export(array $params = []): void
@@ -364,6 +455,11 @@ final class AdminCommissionController
 
         if (self::tab() === self::TAB_ROYALTY) {
             $this->exportRoyalty();
+            return;
+        }
+
+        if (self::tab() === self::TAB_TEAM_HARVEST) {
+            $this->exportTeamHarvest();
             return;
         }
 
@@ -611,6 +707,81 @@ final class AdminCommissionController
     }
 
     /**
+     * GET /admin/commissions/export?ledger=team_harvest — the filtered Team
+     * Harvest ledger as CSV.
+     *
+     * Same columns as the screen plus the wallet reference (plan Appendix
+     * C.5, P20E-T12). The download reuses the tab's filters and writes one
+     * `team_harvest.export` audit row with them.
+     */
+    private function exportTeamHarvest(): void
+    {
+        $export = $this->teamHarvestExportPayload();
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="team-harvest-ledger_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, ReportService::teamHarvestCsvHeader());
+
+        foreach ($export['rows'] as $row) {
+            fputcsv($out, ReportService::teamHarvestColumns($row));
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The filtered Team Harvest export rows and the one audit row they
+     * write.
+     *
+     * Public so the gate can assert the `team_harvest.export` row and the
+     * exact CSV payload without streaming a file out of the harness; the
+     * routed `export()` still exits after the CSV (P20E-T12/T23).
+     *
+     * @return array{filters:array<string, string|int>, rows:list<array<string, mixed>>}
+     */
+    public function teamHarvestExportPayload(): array
+    {
+        $filters = TeamHarvestAward::normaliseFilters([
+            'user_id' => Request::string('user_id'),
+            'level'   => Request::string('level'),
+            'status'  => Request::string('status'),
+            'from'    => Request::string('from'),
+            'to'      => Request::string('to'),
+            'q'       => Request::string('q'),
+        ]);
+
+        $rows  = TeamHarvestAward::exportRows($filters);
+        $admin = auth_user();
+
+        AuditLog::record([
+            'action'       => 'team_harvest.export',
+            'actor_id'     => $admin === null ? null : (int) $admin['id'],
+            'actor_role'   => $admin === null ? null : (string) $admin['role'],
+            'subject_type' => 'team_harvest_award',
+            'subject_id'   => null,
+            'meta'         => [
+                'tab'     => self::TAB_TEAM_HARVEST,
+                'filters' => $filters,
+                'rows'    => count($rows),
+            ],
+        ]);
+
+        return ['filters' => $filters, 'rows' => $rows];
+    }
+
+    /**
      * The current filters as an export query string ('' when none).
      *
      * @param array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
@@ -655,6 +826,23 @@ final class AdminCommissionController
         );
 
         return '?' . http_build_query($query);
+    }
+
+    /**
+     * The Team Harvest export query string: the tab first, then the present
+     * filters. A numeric `user_id` filter is kept too, but only when it is
+     * a real id, so the CSV mirrors exactly what the screen shows.
+     *
+     * @param array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function teamHarvestQueryString(array $filters): string
+    {
+        $present = array_filter(
+            $filters,
+            static fn (string|int $value): bool => $value !== '' && $value !== 0
+        );
+
+        return '?' . http_build_query(['ledger' => self::TAB_TEAM_HARVEST] + $present);
     }
 
     /**
@@ -727,6 +915,10 @@ final class AdminCommissionController
 
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_ROYALTY) {
             return $this->royaltyFeedPayload($revision, $etag, $data);
+        }
+
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_TEAM_HARVEST) {
+            return $this->teamHarvestFeedPayload($revision, $etag, $data);
         }
 
         $pager = $data['pager'];
@@ -866,8 +1058,61 @@ final class AdminCommissionController
         ];
     }
 
+    /**
+     * The Team Harvest tab's fragments: the heading, counters, the ten-row
+     * level distribution, rows and pagination, under their own
+     * `team-harvest-*` names so an open Team Harvest tab never patches a
+     * package, repeat or Royalty region. The filter form never travels in a
+     * fragment.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function teamHarvestFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.commissions',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'team-harvest-header' => View::capture('admin/commissions/_team_harvest_header', [
+                    'stats'    => $data['stats'],
+                    'pager'    => $pager,
+                    'seeded'   => $data['seeded'],
+                    'baseline' => $data['baseline'],
+                    'enabled'  => $data['enabled'],
+                ]),
+                'team-harvest-stats' => View::capture('admin/commissions/_team_harvest_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'team-harvest-levels' => View::capture('admin/commissions/_team_harvest_levels', [
+                    'levels'     => $data['levels'],
+                    'max_levels' => $data['max_levels'],
+                ]),
+                'team-harvest-rows' => View::capture('admin/commissions/_team_harvest_rows', [
+                    'awards'  => $data['awards'],
+                    'filters' => $data['filters'],
+                ]),
+                'team-harvest-pagination' => View::capture('admin/commissions/_team_harvest_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalListUrl($pager),
+            ],
+        ];
+    }
+
     /** The ledger URL with an out-of-range page clamped to a real page. */
-    private function canonicalListUrl(Paginator $pager): string    {
+    private function canonicalListUrl(Paginator $pager): string
+    {
         $query = [];
 
         foreach ($_GET as $key => $value) {

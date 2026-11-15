@@ -1,4 +1,4 @@
-﻿# Evidence — Phase 20 (Team Harvest bonus)
+# Evidence — Phase 20 (Team Harvest bonus)
 
 One file per check, named exactly as the check's **Evidence** line. A check that produces only counts,
 SQL output or a CLI exit code is captured as a **text transcript** (`.txt`); a check that shows a
@@ -47,6 +47,14 @@ Index:
 | `QA20D-08.txt` | QA20D-08 | `teammates 12 / baseline_n 12`; after growth levels 1–2 `baseline` (ledger NULL) and level 3 `credited` ₱4,000.00; the wallet at ₱4,000.00 | captured (automated pass) |
 | `QA20D-09.txt` | QA20D-09 | `--doctor` exit 0 with nine green checks; after a hand-edited counter exit 1 with `1 counter(s) disagree with a recount`; nothing repaired | captured (automated pass) |
 | `QA20D-10.txt` | QA20D-10 | A deleted movement reported as `missing_ledger` with its award id, `wallet_reconcile` exit 1; restored from the dump, exit 0 | captured (automated pass) |
+| `QA20E-01.txt` | QA20E-01 | Fixture A on the fourth tab: **₱25,000.00** credited, **18** awards, **13** recipients, baseline ₱0.00, open liability ₱0.00, the header badges **Seeded · Paying**, and the SQL that agrees to the centavo | captured (automated pass) |
+| `QA20E-02.txt` | QA20E-02 | Level `3` → one row (the root's ₱4,000.00); status `Before go-live` on the seeded baseline network → two rows with no wallet link; a bad level falls back to no filter (18 rows) | captured (automated pass) |
+| `QA20E-03.png` | QA20E-03 | A row → its member panel (position, teammates, levels, next level) → its wallet movement, in one click each | pending (needs the app in a browser) |
+| `QA20E-04.txt` | QA20E-04 | The filtered CSV has the Appendix C.5 header and one row matching the screen, and writes one `team_harvest.export` audit row with `level = 3` and `rows = 1` | captured (automated pass) |
+| `QA20E-05.txt` | QA20E-05 | `/admin/members`: the Harvest column reads the stored positions (`#N` / `—`), the queue card shows the queued count, the next position and the open liability, and `?harvest=yes` / `no` page and combine with status | captured (automated pass) |
+| `QA20E-06.txt` | QA20E-06 | `/admin/members/{id}` for a member with two directs: **Not qualified: 2 of 3 direct members.** and no award table | captured (automated pass) |
+| `QA20E-07.txt` | QA20E-07 | `/admin/reports`: the Team Harvest block carries the ledger's own figures (₱6,000.00 on the smaller live tree), the dashboard KPI reads the last 30 days, and the range CSV has `Award` rows plus one `Queue` row | captured (automated pass) |
+| `QA20E-08.txt` | QA20E-08 | The Package, Repeat and Royalty tabs keep their fragments, byte-identical partials and counts after the fourth pill | captured (automated pass, fragment-level) |
 
 Notes for the reader:
 

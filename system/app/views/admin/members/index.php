@@ -5,16 +5,22 @@ declare(strict_types=1);
  * Admin member directory (plan §7 Phase 9; reference views/admin/users.php).
  *
  * One live surface: the heading badge, the five counters, the filter form,
- * the rows and the pagination are regions. The form is held back while the
- * administrator has unsaved input, so a background refresh never discards a
- * typed search; the page shows a "changed in another tab" banner instead.
+ * the Team Harvest queue card, the rows and the pagination are regions. The
+ * form is held back while the administrator has unsaved input, so a
+ * background refresh never discards a typed search; the page shows a
+ * "changed in another tab" banner instead.
+ *
+ * Phase 20E adds the queue card and the `Harvest` column: the card explains
+ * the queue's state (not seeded / nobody qualified / the positions), and the
+ * column reads the stored position — never a derived one (Rule 5).
  *
  * @var array{total:int, active:int, pending:int, suspended:int, with_package:int, new_week:int} $stats
  * @var array{member:int, leader:int, supervisor:int, manager:int, director:int, ranked:int, total:int} $rank_counts
- * @var array{q:string, status:string, package:string} $filters
+ * @var array{q:string, status:string, package:string, harvest:string} $filters
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $members
  * @var list<array{id:int, name:string, members:int}> $packages
+ * @var array<string, mixed>|null $harvest  the Team Harvest queue card's data (20E)
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
@@ -27,6 +33,7 @@ $live = $live ?? [
 ];
 
 $rankCounts = $rank_counts ?? [];
+$harvest    = $harvest ?? null;
 ?>
             <div
               class="container-xxl flex-grow-1 container-p-y member-directory"
@@ -59,6 +66,8 @@ $rankCounts = $rank_counts ?? [];
 
 <?= View::capture('admin/members/_stats', ['stats' => $stats, 'rank_counts' => $rankCounts]) ?>
 
+<?= View::capture('admin/members/_harvest', ['harvest' => $harvest]) ?>
+
               <div class="card">
                 <div class="card-header">
                   <h5 class="card-title mb-0">Member directory</h5>
@@ -78,6 +87,7 @@ $rankCounts = $rank_counts ?? [];
                         <th>Sponsor</th>
                         <th>Status</th>
                         <th>Rank</th>
+                        <th>Harvest</th>
                         <th class="text-end">Wallet</th>
                         <th>Joined</th>
                         <th class="text-end">Actions</th>

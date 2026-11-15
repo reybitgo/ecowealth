@@ -728,6 +728,282 @@ final class Report
     }
 
     /* ----------------------------------------------------------
+     *  Team Harvest bonus (Phase 20E)
+     *
+     *  Team Harvest has no month and no order (D-08), so a window is
+     *  read on `team_harvest_awards.credited_at` — the instant a level
+     *  was decided. The ledger tab filters on the same key, so
+     *  `/admin/reports?from=…&to=…` and
+     *  `/admin/commissions?ledger=team_harvest&from=…` always agree.
+     *
+     *  `credited` is money in a wallet and `baseline` is money recorded
+     *  at go-live and never paid (D-07); the two are reported apart in
+     *  every method here (Rule 4 of §12.7).
+     * ---------------------------------------------------------- */
+
+    /**
+     * Team Harvest counters for a window of award decisions.
+     *
+     * `all_time` and `this_month` are independent of the window: the
+     * dashboard tile and the ledger header read them.
+     *
+     * @return array{
+     *   credited:float, count:int, recipients:int, baseline:float,
+     *   baseline_rows:int, awards:int, average:float,
+     *   all_time:float, this_month:float
+     * }
+     */
+    public static function teamHarvestSummary(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_rows,
+                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline_rows,
+                    COUNT(*) AS awards
+               FROM team_harvest_awards
+              WHERE credited_at >= ? AND credited_at < ?"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $row = $stmt->fetch() ?: [];
+
+        $totals = $pdo->query(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS all_time,
+                    COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND credited_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month
+               FROM team_harvest_awards"
+        )->fetch() ?: [];
+
+        $creditedRows = (int) ($row['credited_rows'] ?? 0);
+        $credited     = round((float) ($row['credited'] ?? 0), 2);
+
+        return [
+            'credited'      => $credited,
+            'count'         => $creditedRows,
+            'recipients'    => (int) ($row['recipients'] ?? 0),
+            'baseline'      => round((float) ($row['baseline'] ?? 0), 2),
+            'baseline_rows' => (int) ($row['baseline_rows'] ?? 0),
+            'awards'        => (int) ($row['awards'] ?? 0),
+            'average'       => $creditedRows === 0 ? 0.0 : round($credited / $creditedRows, 2),
+            'all_time'      => round((float) ($totals['all_time'] ?? 0), 2),
+            'this_month'    => round((float) ($totals['this_month'] ?? 0), 2),
+        ];
+    }
+
+    /**
+     * The ledger's headline counters in **one** query: everything the
+     * `/admin/commissions?ledger=team_harvest` tiles need — credited money
+     * and rows, recipients, the go-live baseline (recorded, never paid) and
+     * the money credited in the current calendar month.
+     *
+     * The page asks once so a twenty-five-row page stays inside its
+     * statement budget (P20E-T18); the windowed `teamHarvestSummary()`
+     * above is the reports desk's read.
+     *
+     * @return array{credited_total:float, credited_rows:int, recipients:int,
+     *               baseline_total:float, baseline_rows:int, awards:int, this_month:float}
+     */
+    public static function teamHarvestTotals(?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $row = $pdo->query(
+            "SELECT COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_rows,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline_rows,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total,
+                    COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND credited_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month,
+                    COUNT(*) AS awards
+               FROM team_harvest_awards"
+        )->fetch() ?: [];
+
+        return [
+            'credited_total' => round((float) ($row['credited_total'] ?? 0), 2),
+            'credited_rows'  => (int) ($row['credited_rows'] ?? 0),
+            'recipients'     => (int) ($row['recipients'] ?? 0),
+            'baseline_total' => round((float) ($row['baseline_total'] ?? 0), 2),
+            'baseline_rows'  => (int) ($row['baseline_rows'] ?? 0),
+            'awards'         => (int) ($row['awards'] ?? 0),
+            'this_month'     => round((float) ($row['this_month'] ?? 0), 2),
+        ];
+    }
+
+    /**
+     * The ladder's ten levels with their windowed decisions.
+     *
+     * Every level is listed, zero-filled, with the configured amount and
+     * structural threshold beside the counts: a level nobody completed is
+     * the shape of the plan, not missing data (Rule 11 of §9).
+     *
+     * @return list<array{
+     *   level:int, amount:float, threshold:int, slots:int,
+     *   credited:int, credited_total:float, baseline:int, baseline_total:float
+     * }>
+     */
+    public static function teamHarvestByLevel(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT level,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total
+               FROM team_harvest_awards
+              WHERE credited_at >= ? AND credited_at < ?
+              GROUP BY level"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $found = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $found[(int) $row['level']] = $row;
+        }
+
+        $amounts = TeamHarvestLevel::amounts($pdo);
+        $rows    = [];
+
+        for ($level = TeamHarvestLevel::LEVEL_MIN; $level <= TeamHarvestLevel::LEVEL_MAX; $level++) {
+            $row = $found[$level] ?? [];
+
+            $rows[] = [
+                'level'          => $level,
+                'amount'         => round((float) ($amounts[$level] ?? 0), 2),
+                'threshold'      => TeamHarvestLevel::threshold($level),
+                'slots'          => TeamHarvestLevel::slots($level),
+                'credited'       => (int) ($row['credited'] ?? 0),
+                'credited_total' => round((float) ($row['credited_total'] ?? 0), 2),
+                'baseline'       => (int) ($row['baseline'] ?? 0),
+                'baseline_total' => round((float) ($row['baseline_total'] ?? 0), 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Team Harvest decisions by calendar month of the decision, newest
+     * first — the report card's history strip.
+     *
+     * @return list<array{month:string, awards:int, credited:int, credited_total:float,
+     *                    baseline:int, baseline_total:float}>
+     */
+    public static function teamHarvestByMonth(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT DATE_FORMAT(credited_at, '%Y-%m') AS month,
+                    COUNT(*) AS awards,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total
+               FROM team_harvest_awards
+              WHERE credited_at >= ? AND credited_at < ?
+              GROUP BY month
+              ORDER BY month DESC"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $rows = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $rows[] = [
+                'month'          => (string) $row['month'],
+                'awards'         => (int) $row['awards'],
+                'credited'       => (int) $row['credited'],
+                'credited_total' => round((float) $row['credited_total'], 2),
+                'baseline'       => (int) $row['baseline'],
+                'baseline_total' => round((float) $row['baseline_total'], 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The queue's shape and its first positions — the queue card on
+     * `/admin/members` and the queue block of the reports desk.
+     *
+     * The counters are `HarvestQueue::stats()`'s (one definition of the
+     * position sequence); the award figures are read here so the card can
+     * say how much of the queue has been paid without a second page.
+     *
+     * @return array{
+     *   queued:int, positions:int, next:int, deepest:int, seeded:bool,
+     *   baseline:?string, awards:int, credited_awards:int, baseline_awards:int,
+     *   credited_total:float, baseline_total:float,
+     *   rows:list<array{position:int, user_id:int, username:string, qualified_at:string,
+     *                   teammates:int, baseline_n:int, source:string,
+     *                   credited_levels:int, credited_total:float, baseline_levels:int}>
+     * }
+     */
+    public static function teamHarvestQueue(int $limit = 10, ?PDO $pdo = null): array
+    {
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(50, $limit));
+        $stats = (new HarvestQueue($pdo))->stats();
+
+        $awards = $pdo->query(
+            "SELECT COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_awards,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline_awards,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total
+               FROM team_harvest_awards"
+        )->fetch() ?: [];
+
+        $rows = $pdo->query(
+            "SELECT q.id AS position, q.user_id, q.qualified_at, q.teammates, q.baseline_n, q.source,
+                    u.username,
+                    COUNT(CASE WHEN a.status = 'credited' THEN 1 END) AS credited_levels,
+                    COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(CASE WHEN a.status = 'baseline' THEN 1 END) AS baseline_levels
+               FROM harvest_queue q
+               JOIN users u ON u.id = q.user_id
+               LEFT JOIN team_harvest_awards a ON a.user_id = q.user_id
+              GROUP BY q.id, q.user_id, q.qualified_at, q.teammates, q.baseline_n, q.source, u.username
+              ORDER BY q.id
+              LIMIT " . $limit
+        )->fetchAll();
+
+        return [
+            'queued'           => (int) $stats['queued'],
+            'positions'        => (int) $stats['positions'],
+            'next'             => (int) $stats['next'],
+            'deepest'          => (int) $stats['deepest'],
+            'seeded'           => (bool) $stats['seeded'],
+            'baseline'         => $stats['baseline'],
+            'awards'           => (int) $stats['awards'],
+            'credited_awards'  => (int) ($awards['credited_awards'] ?? 0),
+            'baseline_awards'  => (int) ($awards['baseline_awards'] ?? 0),
+            'credited_total'   => round((float) ($awards['credited_total'] ?? 0), 2),
+            'baseline_total'   => round((float) ($awards['baseline_total'] ?? 0), 2),
+            'rows'             => array_map(static fn (array $row): array => [
+                'position'         => (int) $row['position'],
+                'user_id'          => (int) $row['user_id'],
+                'username'         => (string) $row['username'],
+                'qualified_at'     => (string) $row['qualified_at'],
+                'teammates'        => (int) $row['teammates'],
+                'baseline_n'       => (int) $row['baseline_n'],
+                'source'           => (string) $row['source'],
+                'credited_levels'  => (int) $row['credited_levels'],
+                'credited_total'   => round((float) $row['credited_total'], 2),
+                'baseline_levels'  => (int) $row['baseline_levels'],
+            ], $rows),
+        ];
+    }
+
+    /* ----------------------------------------------------------
      *  Wallets
      * ---------------------------------------------------------- */
 

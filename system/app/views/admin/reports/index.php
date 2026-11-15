@@ -29,6 +29,12 @@ declare(strict_types=1);
  * @var list<array{rank:int, name:string, recipients:int, paid_recipients:int, paid:float, pending:float, skipped:int, average:float}> $royalty_ranks
  * @var list<array{period:string, status:string, award_count:int, paid_count:int, skipped_count:int, award_total:float, paid_total:float}> $royalty_periods
  * @var array{royalty:float, sales:float, ratio:float} $royalty_ratio
+ * @var array{credited:float, count:int, recipients:int, baseline:float, baseline_rows:int, awards:int, average:float, all_time:float, this_month:float} $team_harvest
+ * @var list<array{level:int, amount:float, threshold:int, slots:int, credited:int, credited_total:float, baseline:int, baseline_total:float}> $team_harvest_levels
+ * @var list<array{month:string, awards:int, credited:int, credited_total:float, baseline:int, baseline_total:float}> $team_harvest_months
+ * @var array<string, mixed> $team_harvest_queue
+ * @var array{levels:int, members:int, amount:float, by_level:array<int, array<string, mixed>>} $team_harvest_open
+ * @var int $team_harvest_max
  * @var array{accounts:int, float:float, withdrawable:float, credited_today:float, debited_today:float, movements_today:int} $wallet
  * @var array{by_status:list<array{status:string,count:int,amount:float,fees:float}>, by_method:list<array{method:string,count:int,amount:float}>, held:float, held_requests:int, completed_amount:float, completed_fees:float} $payouts
  * @var list<array<string, mixed>> $codes
@@ -219,6 +225,20 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 <div class="col-12 col-xl-7">
 <?= View::capture('admin/reports/_royalty_periods', [
     'royalty_periods' => $royalty_periods,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12">
+<?= View::capture('admin/reports/_team_harvest', [
+    'team_harvest'        => $team_harvest,
+    'team_harvest_levels' => $team_harvest_levels,
+    'team_harvest_months' => $team_harvest_months,
+    'team_harvest_queue'  => $team_harvest_queue,
+    'team_harvest_open'   => $team_harvest_open,
+    'team_harvest_max'    => $team_harvest_max,
+    'range'               => $range,
 ]) ?>
                 </div>
               </div>

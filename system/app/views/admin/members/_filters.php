@@ -9,14 +9,20 @@ declare(strict_types=1);
  * search) when the administrator is mid-edit and the page shows its stale
  * banner instead.
  *
- * @var array{q:string, status:string, package:string} $filters
+ * Phase 20E adds the Team Harvest filter: `harvest=yes` keeps only members
+ * with a stored queue position and `harvest=no` only those without one. The
+ * two values are the whole vocabulary — an unknown value is "no filter"
+ * (Rule 9), so the select can never invent a third state.
+ *
+ * @var array{q:string, status:string, package:string, harvest:string} $filters
  * @var list<array{id:int, name:string, members:int}> $packages
  */
 
 $query      = (string) $filters['q'];
 $status     = (string) $filters['status'];
 $package    = (string) $filters['package'];
-$hasFilters = $query !== '' || $status !== '' || $package !== '';
+$harvest    = (string) ($filters['harvest'] ?? '');
+$hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !== '';
 ?>
                 <div
                   class="card-body py-3 border-top"
@@ -47,6 +53,11 @@ $hasFilters = $query !== '' || $status !== '' || $package !== '';
                         <?= e($row['name']) ?> (<?= (int) $row['members'] ?>)
                       </option>
 <?php endforeach; ?>
+                    </select>
+                    <select class="form-select" name="harvest" aria-label="Filter by Team Harvest queue">
+                      <option value="">Team Harvest: all</option>
+                      <option value="yes" <?= $harvest === 'yes' ? 'selected' : '' ?>>In the Harvest queue</option>
+                      <option value="no" <?= $harvest === 'no' ? 'selected' : '' ?>>Not qualified</option>
                     </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($hasFilters): ?>

@@ -281,6 +281,12 @@ final class AdminDashboardController
             'royalty' => [
                 'paid' => 0.0, 'pending' => 0.0, 'this_month' => 0.0, 'periods' => 0,
             ],
+            /* Phase 20E: the Team Harvest tile's shape (a failing reporting
+             * query keeps the card, never a 500). */
+            'team_harvest' => [
+                'credited' => 0.0, 'count' => 0, 'recipients' => 0, 'this_month' => 0.0,
+                'open' => 0.0, 'open_levels' => 0, 'queued' => 0, 'seeded' => false,
+            ],
             'wallet' => [
                 'accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0,
                 'credited_today' => 0.0, 'debited_today' => 0.0, 'movements_today' => 0,

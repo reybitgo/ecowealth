@@ -177,13 +177,14 @@ return [
         assert_contains('bg-label-success">Director<', $rows);
         assert_contains('bg-label-secondary">Member<', $rows);
 
-        /* The empty state spans the eight columns, not seven. */
+        /* The empty state spans every column: eight in 19B, nine since 20E
+         * added the Harvest column. */
         $_GET = ['q' => 'no-such-member-in-any-tree'];
         $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members?q=no-such-member-in-any-tree';
 
         $empty = $controller->feedPayload(3, '"etag"', $controller->listContext())['fragments']['member-rows'];
 
-        assert_contains('colspan="8"', $empty);
+        assert_contains('colspan="9"', $empty);
         assert_contains('No members match these filters', $empty);
     },
 

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/**
+/*
  * Admin dashboard — commerce & finance roll-up (plan §7 Phase 15).
  *
  * Sales today and over 30 days, the orders that need action, the
@@ -9,6 +9,10 @@ declare(strict_types=1);
  * over the same window, the wallet float and the money currently held
  * for withdrawals. The figures come from the same ReportService the
  * reports desk uses.
+ *
+ * Phase 20E adds the **Team Harvest (30 d)** KPI: the level money decided
+ * in the last 30 days, with the open liability it implies. The liability is
+ * labelled *not yet paid* because it is derived, not stored (Rule 8).
  *
  * @var array<string, mixed> $commerce
  */
@@ -24,6 +28,13 @@ $repeat   = array_merge(
 $royalty  = array_merge(
     ['paid' => 0.0, 'pending' => 0.0, 'this_month' => 0.0, 'periods' => 0],
     (array) ($commerce['royalty'] ?? [])
+);
+$harvest  = array_merge(
+    [
+        'credited' => 0.0, 'count' => 0, 'recipients' => 0, 'this_month' => 0.0,
+        'open' => 0.0, 'open_levels' => 0, 'queued' => 0, 'seeded' => false,
+    ],
+    (array) ($commerce['team_harvest'] ?? [])
 );
 $wallet   = array_merge(['accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0], (array) ($commerce['wallet'] ?? []));
 $payouts  = array_merge(['held' => 0.0, 'held_requests' => 0], (array) ($commerce['payouts'] ?? []));
@@ -77,6 +88,15 @@ $cards = [
         'icon'  => 'bx-crown',
         'tone'  => 'success',
         'href'  => 'admin/commissions?ledger=royalty',
+    ],
+    [
+        'label' => 'Team Harvest (30 d)',
+        'value' => money($harvest['credited']),
+        'hint'  => (int) $harvest['count'] . ' level' . ((int) $harvest['count'] === 1 ? '' : 's') . ' paid · '
+            . money($harvest['open']) . ' open liability — not yet paid',
+        'icon'  => 'bx-medal',
+        'tone'  => 'info',
+        'href'  => 'admin/commissions?ledger=team_harvest',
     ],
     [
         'label' => 'Wallet float',

@@ -1035,8 +1035,10 @@ return [
          * which reads the ladder and writes nothing but its ten amounts;
          * **20C** adds the queue model, which owns qualification, the
          * positions and the counters; **20D** adds the money engine (the
-         * ledger model, the service and its exception). A later phase adds
-         * its own files here with its own case. */
+         * ledger model, the service and its exception); **20E** adds the
+         * admin visibility: the fourth ledger tab, the member directory's
+         * queue card and column, the member panel, the reports block and the
+         * dashboard KPI — all reads, no route and no page of its own. */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
@@ -1051,6 +1053,24 @@ return [
             '/app/views/admin/settings/index.php',
             '/app/views/admin/settings/_commissions.php',
             '/app/views/admin/settings/_team_harvest.php',
+            /* 20E — the admin surfaces that read the queue and the ledger. */
+            '/app/Models/Member.php',
+            '/app/Models/Report.php',
+            '/app/Services/ReportService.php',
+            '/app/Controllers/AdminCommissionController.php',
+            '/app/Controllers/AdminMemberController.php',
+            '/app/Controllers/AdminDashboardController.php',
+            '/app/views/admin/commissions/index.php',
+            '/app/views/admin/commissions/_team_harvest_header.php',
+            '/app/views/admin/commissions/_team_harvest_levels.php',
+            '/app/views/admin/commissions/_team_harvest_rows.php',
+            '/app/views/admin/members/_harvest.php',
+            '/app/views/admin/members/_rows.php',
+            '/app/views/admin/members/_team_harvest.php',
+            '/app/views/admin/members/show.php',
+            '/app/views/admin/reports/index.php',
+            '/app/views/admin/reports/_team_harvest.php',
+            '/app/views/admin/dashboard/_commerce.php',
         ];
 
         $found = [];
@@ -1077,7 +1097,8 @@ return [
         assert_same(
             $allowList,
             $found,
-            'only the 20A manifest, the 20B card, the 20C queue and the 20D engine name the Team Harvest objects'
+            'only the 20A manifest, the 20B card, the 20C queue, the 20D engine and the 20E admin surfaces'
+                . ' name the Team Harvest objects'
         );
 
         /* 20B adds the configuration model, 20C the queue and 20D the
@@ -1155,20 +1176,26 @@ return [
         /* The readers are the business-reset engine, which must know every
          * table it empties; **20B's** settings card, which reads the queue
          * and the awards to tell the operator the four-state truth (plan §6
-         * Rules 6–7); **20C's** queue model, which owns them; and **20D's**
-         * ledger model and service, which write and prove them. No page
-         * reads either table yet (20E/20F). */
+         * Rules 6–7); **20C's** queue model, which owns them; **20D's**
+         * ledger model and service, which write and prove them; and
+         * **20E's** member-directory join (`Member::adminList()` reads the
+         * stored position in the same query) and its report read model
+         * (`Report::teamHarvest*()`). The views call those models — no page
+         * queries either table directly (Rule 5). */
 
         assert_same(
             [
                 '/app/Controllers/AdminSettingsController.php',
                 '/app/Models/HarvestQueue.php',
+                '/app/Models/Member.php',
+                '/app/Models/Report.php',
                 '/app/Models/TeamHarvestAward.php',
                 '/app/Services/DatabaseResetService.php',
                 '/app/Services/TeamHarvestService.php',
             ],
             $readers,
-            'the readers are the settings card, the queue, the ledger, the engine and the reset engine'
+            'the readers are the settings card, the queue, the directory join, the report model,'
+                . ' the ledger, the engine and the reset engine'
         );
 
         /* The wallet statement filter is the only visible change of 20A

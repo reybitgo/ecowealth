@@ -811,3 +811,110 @@ the ladder rows are inert and may stay.
 
 **Every save is audited:** `team_harvest.ladder.update` carries the ten amounts and the three knobs,
 before and after, and the tenant-wide `settings.update` row records each changed key.
+
+---
+
+## 18. Team Harvest visibility: the ledger, the queue card and the member panel (Phase 20E)
+
+Phase 20E is **read-only**: it puts the rows 20D writes on the admin pages an operator already uses, so
+finance can see, filter and export every award, open the member who earned it, and read the queue itself —
+who is qualified, in what order, how far each member is, and what the network still owes. No page in this
+section writes an award, a wallet row or a queue row; the only thing it writes is the audit row of an
+export.
+
+There is **no new route**: every surface below lives on a page that existed before the stream.
+
+| Where | What it shows |
+|---|---|
+| **Commissions → Team Harvest** (`/admin/commissions?ledger=team_harvest`) | the fourth ledger tab: six counters, the ten-level distribution, filters and a CSV |
+| **Members** (`/admin/members`) | the **Harvest** column, the **Team Harvest queue** card and the `?harvest=yes\|no` filter |
+| **One member** (`/admin/members/{id}`) | the member's Team Harvest panel |
+| **Reports** (`/admin/reports`) | the Team Harvest block and the `Team Harvest bonus` CSV |
+| **Dashboard** (`/dashboard`) | the **Team Harvest (30 d)** KPI |
+
+### Reading the ledger tab
+
+The tab answers "what has this stream paid, and what is it about to?" — and it keeps the two questions
+apart. One row is **one level a member completed**: the instant it was decided, the member, their stored
+**position**, the level, the teammates the decision was taken at, the threshold it crossed, the amount,
+the status and the wallet movement.
+
+The six tiles describe the **whole ledger** (filtering the rows below never changes them):
+
+| Tile | Meaning |
+|---|---|
+| **Credited** | money actually in members' wallets — `status = 'credited'` only |
+| **This month** | the part credited since the first of the current month |
+| **Awards** | how many levels have been paid |
+| **Recipients** | how many members hold at least one paid level |
+| **Before go-live** | money recorded but **never paid**: levels already complete when the plan started. It has its own tile and its own row badge and never enters a paid total. |
+| **Open liability** | what the engine would pay if every outstanding level were evaluated now — *not yet paid*. It is derived on read and moves with every qualification. |
+
+Below the tiles the **level distribution** always lists the ladder's ten levels, including the levels
+nobody completed, with the configured amount, the teammates each needs, the paid awards and the money.
+A level above **Settings → Levels that pay** is marked **Not paid** (its block may be complete, but the
+depth does not pay it); a level whose amount is zero is marked **No amount** — a zero amount is a switch,
+not a promise.
+
+The **row badges** are the two stored states and nothing else: **Paid** (the wallet was credited and the
+row links to the movement) and **Before go-live** (recorded, no movement, no link). A row with no wallet
+link is not an error: it is the baseline.
+
+### The queue card and the Harvest column
+
+`/admin/members` gains a **Harvest** column that prints `#N` for a queued member and `—` for everyone
+else. The number is the member's **stored position** (`harvest_queue.id`): the page never recomputes one
+from a count, because a position is a fact that never changes.
+
+The **Team Harvest queue** card above the directory states the queue's real condition and, in each empty
+state, the next thing to do:
+
+| Card state | What it means | What to do |
+|---|---|---|
+| **Not seeded** | no position exists yet, so no level can complete | run `bin/harvest_queue_seed.php` before enabling the bonus |
+| **Nobody holds the gate yet** | the queue is seeded and empty | wait for the first member to reach the gate (3 direct members by default) |
+| **Positions** | the queue is live | the card lists the first ten positions with each member's teammates and paid levels, plus the counters: *queued*, *next position*, *deepest team* and *Open liability* |
+
+The `?harvest=` filter fits the same form as the other filters: **In the Harvest queue** (`harvest=yes`)
+keeps exactly the members with a position, **Not qualified** (`harvest=no`) keeps everyone else, and it
+survives pagination and combines with the status, package and search filters. An unknown value means "no
+filter", never an error.
+
+### The member panel
+
+`/admin/members/{id}` gains a **Team Harvest** panel. For a queued member it shows the position, the
+instant they qualified, their teammate count, the levels paid and the money, the levels recorded before
+go-live (badged **Before go-live** and with no wallet link), the next level with its slots and the amount
+it will pay, the ten-level list with each level's state, and every award row the ledger holds for them.
+
+For a member who has not qualified it says **Not qualified: n of 3 direct members** and shows no matrix
+and no award table — the gate is the answer, not an empty board.
+
+The panel reads `TeamHarvestService::statusFor()`, the same read the member's own earnings tab will use
+(20F), so the back office and the member can never be promised different numbers.
+
+### The reports block and the CSV
+
+`/admin/reports` gains a **Team Harvest bonus** block for the selected window: the credited money and its
+awards and recipients, the money recorded before go-live (never mixed in), the queue's state and its first
+positions, the ten-level ladder for the window and the decisions by month. It calls the same read model as
+the ledger tab, so the two screens cannot disagree.
+
+The export menu gains **Team Harvest bonus** (`?type=team_harvest&from=…&to=…`). Its CSV starts with a
+`Scope` column: `Award` rows carry the plan's Appendix C.5 columns, and one `Queue` row closes the file
+with the go-live instant, the next position, the deepest counter, the open liability and the seeded state.
+
+### The ledger CSV
+
+`Export CSV` on the Team Harvest tab downloads the **filtered** rows with the plan's Appendix C.5 columns:
+
+`Award id, Credited at, Member, Position, Level, Teammates (n), Threshold, Amount, Status, Wallet reference`
+
+Every download writes one `team_harvest.export` audit row carrying the tab, the filters and the row count —
+including a download with no rows (a header-only file and its audit row).
+
+### What this section does not do
+
+It writes no position, no award and no wallet movement; it adds no route, no button that pays and no
+setting. It **cannot** pay a backlog: only `bin/team_harvest_catchup.php` writes money, and only
+`bin/harvest_queue_seed.php` assigns a position. The member-facing matrix and statement are 20F.

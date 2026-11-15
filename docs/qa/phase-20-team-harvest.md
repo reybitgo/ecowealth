@@ -1226,3 +1226,273 @@ queue and the awards, clears the baseline, keeps the ten ladder rows and leaves
 
 If `QA20D-10` deleted a row and the dump was lost, the award keeps its `ledger_id` pointing at nothing —
 the reconciler will report it for ever. Restore the pre-check backup instead of hand-inserting a row.
+
+---
+
+# Section E — Phase 20E: Admin visibility (`QA20E-01` … `QA20E-08`)
+
+**Prerequisites.** Tag `p20d-money` (or later) on `feature/team-harvest`; the app running (Laragon →
+Start All) for the three browser checks; a **scratch schema** for every check that writes (the provisioned
+slots `ecowealth_sneat_tool_a_test` / `_tool_b_test`). Expected suite count for this section: **1,298**.
+
+> **Notation.** As in sections A–D: `mysql` is the Laragon client with the app account, `php` is Laragon's
+> PHP 8.3 CLI, and every command runs from `system/`. A command that must hit a different schema sets
+> `ECO_DB_NAME` first (`$env:ECO_DB_NAME='ecowealth_sneat_tool_b_test'`).
+>
+> **Read-only.** This section moves **no money**. Every surface it opens is a read: no check writes an
+> award, a wallet row or a queue row. The only write the phase has is the export's audit row
+> (`team_harvest.export`).
+>
+> **The fixtures.** `QA20E-01`, `02`, `04`, `05` and `07` use the two fixtures the automated pass already
+> builds through the production path: **fixture A** (the plan's perfect 3-ary tree: 40 qualified accounts,
+> 121 in all, 18 awards, **₱25,000.00** across **13** recipients) and the **seeded baseline network** of
+> section D (`teammates 12 / baseline_n 12` grown to 39, so levels 1–2 are `baseline` and level 3 is
+> `credited`). The fastest way to reproduce either is to run the matching suite case on a scratch schema —
+> `php tests\run.php TeamHarvestAdminView P20E-T3` — and then open the application against the same
+> schema; `QA20E-03`, `06` and `08` need only the demo tree.
+
+**What section E changed in the app.** `app/Controllers/AdminCommissionController.php` (the fourth tab and
+its CSV), `app/Controllers/AdminMemberController.php` (the queue card, the filter and the member panel),
+`app/Models/Member.php` (the `harvest` filter and the joined position), `app/Models/Report.php` (four
+Team Harvest reads plus the ledger's one-query totals), `app/Services/ReportService.php` (the four report
+cards, the `team_harvest` export and the dashboard KPI), seven new views (`admin/commissions/_team_harvest_*`
+× 5, `admin/members/_harvest.php`, `admin/members/_team_harvest.php`, `admin/reports/_team_harvest.php`)
+and six modified ones (`admin/commissions/index.php`, `admin/members/{index,show,_rows,_filters}.php`,
+`admin/reports/index.php`, `admin/dashboard/_commerce.php`). **No route, no schema, no permission:**
+`routes.php`, `routes_inventory.php` and `ParityTest` are untouched, `APP_PHASE` is still 19 and the smoke
+count stays 251.
+
+The automated pass, run before these checks, is:
+
+```text
+php tests\run.php                          → Cases: 1298   Passed: 1298   Failed: 0
+php tests\run.php TeamHarvestAdminView     → Cases: 23   Passed: 23   Failed: 0
+php bin\wallet_reconcile.php               → exit 0, Team Harvest section clean
+php bin\build_install_sql.php --check      → exit 0
+powershell -File tests/smoke.ps1           → Passed: 251   Failed: 0
+```
+
+`QA20E-01`, `02`, `04`, `05`, `06` and `07` were executed by the automated pass and captured as
+transcripts under `docs/qa/evidence/phase-20/`; `QA20E-03` and `08` are browser checks (the first also
+needs a click path a script cannot assert) and their **Where** line says which screen.
+
+## The checks in one table
+
+| Check | What it proves | Where |
+|---|---|---|
+| `QA20E-01` | The fourth tab's six tiles count the ledger: ₱25,000.00 credited, 18 awards, 13 recipients | browser + `mysql` |
+| `QA20E-02` | The level and status filters select the right rows, and a baseline row is never a paid one | browser + `mysql` |
+| `QA20E-03` | A row walks to its member and to its wallet movement in one click each | browser |
+| `QA20E-04` | The CSV mirrors the screen and the download is audited once | browser + `mysql` |
+| `QA20E-05` | The directory's Harvest column and queue card read the stored position, never a count | browser + `mysql` |
+| `QA20E-06` | A member who has not qualified sees the gate, not an empty matrix | browser |
+| `QA20E-07` | The reports block and the dashboard KPI agree with the ledger | browser + CSV |
+| `QA20E-08` | The Package, Repeat and Royalty tabs are exactly as they were | browser |
+
+---
+
+### QA20E-01 — The fourth tab's tiles
+
+| Why | Rules 1–4, 11 of §9, Appendix C.2: the page reads the ledger 20D writes and counts credited money only |
+|---|---|
+| Where | browser as `admin`, and `mysql` |
+| Evidence | `QA20E-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Build fixture A on a scratch schema (the automated pass of `P20E-T3` does this through the
+   registration hook), then open `/admin/commissions?ledger=team_harvest` against it.
+2. Read the six tiles above the level card.
+3. `SELECT COUNT(*) AS rows_, COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+          COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
+          COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total
+     FROM team_harvest_awards;`
+
+Expected
+
+- **Credited ₱25,000.00**, **Awards 18**, **Recipients 13**, **Before go-live ₱0.00**, **Open liability
+  ₱0.00** — and *This month* equals the credited figure because the fixture paid today.
+- The header badges read **Seeded** (the fixture wrote `team_harvest_ledger_since`) and **Paying**.
+- Two pills before it (Package, Repeat), one between (Royalty) and the fourth, **Team Harvest**, is active.
+- If it fails: a *Credited* that includes a baseline row is Rule 4 broken; a *Credited* that disagrees
+  with the SQL above is the page computing its own total instead of calling `Report::teamHarvestTotals()`.
+
+### QA20E-02 — The level and status filters
+
+| Why | Rule 9 of §9: an unknown value means "no filter"; Rule 4: a baseline row is never paid |
+|---|---|
+| Where | browser, and `mysql` |
+| Evidence | `QA20E-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On `/admin/commissions?ledger=team_harvest` (fixture A), set **Level** to `3` and apply.
+2. Clear it, then set **Status** to `Before go-live` on the seeded baseline network of section D.
+3. Type `nothing-like-this` in the search and apply; then set the level URL to `?ledger=team_harvest&level=99`.
+
+Expected
+
+- Step 1: **one** row — the root's level 3, **₱4,000.00**, *Paid*, with a wallet link.
+- Step 2: **two** rows — levels 1 and 2, **₱1,000.00** and **₱2,000.00**, both badged **Before go-live**
+  and **without** a wallet link (nothing was credited).
+- Step 3: the search returns no rows and says so; `level=99` is ignored and shows the whole ledger
+  (18 rows on fixture A) — never an error page.
+- If it fails: a filter that 500s, or a baseline row with a wallet link, is a defect in the surface or in
+  the data (report it — do not edit the row).
+
+### QA20E-03 — From a row to the member and to the movement
+
+| Why | Rule 6 of §9: every row links to its member and its wallet movement |
+|---|---|
+| Where | browser as `admin` |
+| Evidence | `QA20E-03.png` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On the ledger, click a row's **member** link.
+2. Read the Team Harvest panel: position, qualified at, teammates, levels paid, the next level and the
+   awards table.
+3. Go back to the ledger and click the same row's **wallet** link.
+4. On the wallet monitor, find the movement the award names (`ref_type = team_harvest`, `ref_id` = the
+   award id).
+
+Expected
+
+- The panel's position and teammate count equal the row's **Position** and **Teammates** columns.
+- The wallet movement's amount and instant equal the row's **Amount** and **Date**.
+- If it fails: a link that lands on another member, or a movement whose amount disagrees, is a books
+  error — stop and report; do not "correct" a row by hand.
+
+### QA20E-04 — The CSV and its audit row
+
+| Why | Rule 2 of §15.4 and Appendix C.5: the screen and the file carry the same columns |
+|---|---|
+| Where | browser as `admin`, and `mysql` |
+| Evidence | `QA20E-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Filter the ledger to level `3` and click **Export CSV**.
+2. Open the file and compare its columns with the screen.
+3. Open `/admin/audit` and search `team_harvest.export`.
+
+Expected
+
+- Header: `Award id, Credited at, Member, Position, Level, Teammates (n), Threshold, Amount, Status, Wallet reference`.
+- One row, matching the screen's row: `4000.00`, `Paid`, the award id and the wallet reference.
+- One audit row with `tab = team_harvest`, the filters (`level = 3`) and `rows = 1`.
+- If it fails: a missing audit row means the download bypassed `teamHarvestExportPayload()`; a column
+  mismatch means the header and the screen drifted apart.
+
+### QA20E-05 — The directory's Harvest column and queue card
+
+| Why | Rules 5, 7 and 8 of §9: positions are displayed, never derived; the card explains its states |
+|---|---|
+| Where | browser as `admin`, and `mysql` |
+| Evidence | `QA20E-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/members`. Read the **Harvest** column and the **Team Harvest queue** card.
+2. Apply `?harvest=yes`, then `?harvest=no`.
+3. `SELECT q.id, u.username, q.teammates FROM harvest_queue q JOIN users u ON u.id = q.user_id ORDER BY q.id;`
+
+Expected
+
+- Queued members read `#1`, `#2`, … and everyone else reads `—`; the numbers match the SQL above exactly.
+- The card shows the **queued** count, the **next position** (`MAX(id) + 1`) and the **Open liability**,
+  and the three states are distinguishable: *Not seeded* (run the seed), *Nobody holds the gate yet*, and
+  the positions table.
+- `?harvest=yes` keeps exactly the queued members; `?harvest=no` keeps everyone else; the filter survives
+  pagination and combines with the status filter.
+- If it fails: a column value computed from a count (rather than read from `harvest_queue.id`) is Rule 5
+  broken; a card with no explanation is Rule 7 broken.
+
+### QA20E-06 — A member who has not qualified
+
+| Why | Appendix C.8: the panel states the gate instead of showing an empty matrix |
+|---|---|
+| Where | browser as `admin` |
+| Evidence | `QA20E-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Pick a member with two direct member accounts (the demo tree has one; or register two directs under a
+   new member on a scratch schema).
+2. Open `/admin/members/{id}` and read the Team Harvest panel.
+
+Expected
+
+- The panel reads **Not qualified: 2 of 3 direct members.** and shows no award table and no matrix.
+- A member with the gate met reads **Position #N**, the teammate count and the next level.
+- If it fails: a member with two directs shown as queued means the hook, not the page, is wrong — take it
+  to section C.
+
+### QA20E-07 — The reports block and the dashboard KPI
+
+| Why | Rules 4 and 8 of §9 and plan §14.2: both surfaces call the same model methods |
+|---|---|
+| Where | browser as `admin`, and the CSV |
+| Evidence | `QA20E-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/reports` with the window covering today and read the **Team Harvest bonus** card.
+2. Switch to `/admin/dashboard` and read the **Team Harvest (30 d)** KPI.
+3. Export `Export CSV → Team Harvest bonus` and open the file.
+
+Expected
+
+- The card shows the same credited figure, award count and recipients as the ledger tab, plus the queue
+  and the ten-level ladder for the window.
+- The dashboard KPI shows the window's credited money, the paid levels and the open liability, labelled
+  *not yet paid*.
+- The CSV has a `Scope` column: `Award` rows for the ledger and one `Queue` row carrying the position
+  sequence's next number, the deepest counter, the open liability and `Seeded` / `Not seeded`.
+- If it fails: a figure that disagrees with the ledger is a second definition — the reports desk must call
+  `Report::teamHarvest*()`, which is the ledger's own read.
+
+### QA20E-08 — The other three tabs are unchanged
+
+| Why | Rule 2 of §9: adding a fourth pill must not touch the first three (`P20E-T1` is the regression) |
+|---|---|
+| Where | browser as `admin` |
+| Evidence | `QA20E-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions` (Package), then `?ledger=repeat`, then `?ledger=royalty`.
+2. Compare each with a screenshot from `p20d-money` (or the same screen before this phase).
+3. Apply a filter on each, page each, and export each.
+
+Expected
+
+- The counters, columns, filters, pagination and CSV are identical to `p20d-money`.
+- The only difference on the page is the fourth pill and the Team Harvest copy behind it.
+- If it fails: any change to the first three tabs is a Rule 2 regression — revert the fourth-tab branch,
+  not the data.
+
+---
+
+## Evidence — section E
+
+Save each check's transcript (or the browser screenshot, `QA20E-03.png`) under
+`docs/qa/evidence/phase-20/`, named exactly as its **Evidence** line. The index in that folder's
+`README.md` gains the eight rows.
+
+## Cleanup — section E
+
+This section writes no money: the only row it can leave behind is the `team_harvest.export` audit entry,
+which is history and is kept. If a scratch schema was used for fixture A, drop it
+(`DROP DATABASE ecowealth_sneat_tool_b_test;` and rebuild with `php bin\db_install.php`) or run the business
+reset (`php bin\db_reset.php --force --confirm=ecowealth_sneat_tool_b_test`), which empties the queue and
+the awards and keeps the ladder. **Do not** build fixture A on `ecowealth_sneat`: every award is real money
+in a real wallet.

@@ -1,4 +1,4 @@
-﻿# EcoWealth — Phase Log
+# EcoWealth — Phase Log
 
 Running record of decisions, migrations, backups and test results. One section per phase; append, never rewrite history.
 
@@ -6810,3 +6810,183 @@ smoke checks to 20G.
 ---
 
 10. **An award above the configured depth is a reconcile warning, not a mismatch.** §14.13 lists "no award for a level above `max_levels`" as a failure, but a row paid while a deeper ladder was configured stays a paid fact when an operator later lowers the depth — otherwise lowering the depth would turn the books red. The reconciler now reports `above_depth` as a warning and keeps `ok`; only a level above the ten-level ladder (which the schema forbids) is a mismatch. P20D-T23 pins both halves: the level-3 row survives a lowered depth and the reconcile stays clean with the warning named.
+
+---
+
+## Phase 20E — Admin visibility (2026-11-16)
+
+**Status:** complete · **Tags:** `p20d-money` (start), `p20e-admin` ·
+**Branch:** `feature/team-harvest` · **Schema:** 36 tables, 77 settings (unchanged — this phase adds no
+schema) · **Suite:** 1,275 → **1,298** cases, **1,298 / 1,298** green · **Smoke:** 251 (unchanged — the
+phase adds no route and no page of its own).
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §9 (Phase 20E), §12.7 Rule 4, §13.8, §14.2 and Appendix
+C.2/C.5/C.7/C.8. This is a **read-only presentation phase**: it puts the rows 20D already writes on the
+admin pages an operator already uses — the fourth ledger tab, the directory's queue card and Harvest
+column, the member's panel, the reports block and the dashboard KPI. No controller, model or view writes
+an award, a wallet row or a queue row; the phase's only write is its export's audit row.
+
+### Database
+
+None. 20A shipped every column this phase reads. The development copy (`ecowealth_sneat`) was **not**
+enabled and no page writes with the switch on or off.
+
+### Code
+
+- **`app/Controllers/AdminCommissionController.php`** — the **fourth tab**. `TAB_TEAM_HARVEST` joins the
+  `?ledger=` vocabulary (`tab()` and `context()` gain one arm each), `teamHarvestContext()` builds the
+  page (filters through `TeamHarvestAward::normaliseFilters()`, one page through `select()`, the six tiles
+  through `Report::teamHarvestTotals()`, the ten-row distribution through `TeamHarvestAward::byLevel()`,
+  the queue's state through `HarvestQueue::seeded()`/`baseline()` and the open liability through
+  `openLiability()`), `teamHarvestExportPayload()` + `exportTeamHarvest()` write the CSV and its one
+  `team_harvest.export` audit row, and `teamHarvestFeedPayload()` publishes the five regions
+  (`team-harvest-header`, `-stats`, `-levels`, `-rows`, `-pagination`) under their own names so an open
+  Team Harvest tab never patches another tab. The Royalty tab's `period` stays in the ETag scope; the
+  query string already carries the tab.
+- **`app/Controllers/AdminMemberController.php`** — `listContext()` gains the `harvest` filter, the queue
+  card's data (`Report::teamHarvestQueue(10)` + `openLiability()`, guarded so a broken read hides the
+  card and never the directory) and the joined position the row view renders; `memberContext()` gains the
+  member's panel (`TeamHarvestService::statusFor()` + `TeamHarvestAward::forMember()`); the feed gains the
+  `member-harvest` and `member-team-harvest` regions.
+- **`app/Models/Member.php`** — `filterDefaults()`/`normaliseFilters()` gain `harvest` (`yes|no`, anything
+  else means "no filter"), `whereFor()` gains the matching `EXISTS`/`NOT EXISTS` on `harvest_queue`, and
+  `adminList()` left-joins `harvest_queue` and selects `harvest_position`, `harvest_teammates` and
+  `harvest_qualified_at` **in the same query**, so the column costs no second read (P20E-T18 proves it:
+  one select for the page, position included).
+- **`app/Models/Report.php`** — five read methods: `teamHarvestSummary($from,$to)` (the window's money,
+  awards, recipients and baseline, plus all-time and this-month), `teamHarvestByLevel($from,$to)` (always
+  ten rows, the ladder's amounts and the window's counts), `teamHarvestByMonth($from,$to)`,
+  `teamHarvestQueue($limit)` (the queue's shape from `HarvestQueue::stats()` — one definition of the
+  position sequence — plus the first positions with their paid levels) and `teamHarvestTotals()` (the
+  ledger's six counters in **one** query, which is what keeps the page inside its statement budget).
+- **`app/Services/ReportService.php`** — `page()` gains the four Team Harvest reads and the open liability,
+  `EXPORTS` gains `team_harvest => 'Team Harvest bonus'`, `export()` dispatches to
+  `teamHarvestExport()`, `dashboard()` gains the **Team Harvest (30 d)** KPI (`teamHarvestDashboard()`),
+  and `teamHarvestCsvHeader()` / `teamHarvestColumns()` are the one CSV definition the ledger export and
+  the range export share.
+- **`app/Controllers/AdminDashboardController.php`** — `emptyCommerce()` gains the Team Harvest block, so a
+  failing reporting query keeps the card's shape.
+- **Views (new, 8):** `admin/commissions/_team_harvest_header.php`, `_team_harvest_stats.php`,
+  `_team_harvest_levels.php`, `_team_harvest_rows.php`, `_team_harvest_pagination.php`;
+  `admin/members/_harvest.php` (the queue card with its three empty states),
+  `admin/members/_team_harvest.php` (the member panel); `admin/reports/_team_harvest.php` (the reports
+  block).
+- **Views (modified, 7):** `admin/commissions/index.php` (the fourth pill and the tab's body),
+  `admin/members/index.php` (the column header and the queue card), `admin/members/_rows.php` (the
+  Harvest column), `admin/members/_filters.php` (the filter), `admin/members/show.php` (the panel),
+  `admin/reports/index.php` (the block), `admin/dashboard/_commerce.php` (the KPI).
+
+No route, no permission and no schema change (D-14). `APP_PHASE` stays **19**.
+
+### What the operator can now see
+
+| Surface | The rule it proves |
+|---|---|
+| `/admin/commissions?ledger=team_harvest` | **Rule 4:** *Credited* counts `credited` only; a baseline row has its own tile and its own badge; **Rule 8:** the open liability is a labelled number, never a warning; **Rule 11:** the distribution is always ten rows |
+| `/admin/members` | **Rule 5:** the Harvest column reads `harvest_queue.id`, never a count; **Rule 7:** the queue card names the next action in each of its three states |
+| `/admin/members/{id}` | **Rule 6:** every award row links to its member and its wallet movement — and a baseline row has neither a link nor a movement |
+| `/admin/reports` | the same model methods as the ledger, so the two screens cannot disagree |
+| `/dashboard` | the last 30 days of decisions plus the liability they imply |
+
+### Tests
+
+**23 new cases: 1,275 → 1,298, all green. Floor ≥ 1,292.**
+
+`TeamHarvestAdminViewTest` (new, 23): T1 (the three existing tabs keep their fragment sets, their
+byte-identical partials and their counts; four pills, four regions each), T2 (the fourth tab: active pill,
+Appendix C.2 copy, six tiles, ten level rows, the nine columns, the filter fields and the five feed
+fragments), T3 (fixture A: ₱25,000.00 credited, 18 awards, 13 recipients, ₱0.00 baseline, ₱0.00 open, and
+the wallet total agrees), T4 (the baseline network: *Before go-live* **₱3,000.00** in its own tile,
+*Credited* **₱0.00**, two rows with no wallet link), T5 (level 3 → one row; search → the root's three; two
+filters intersect; today vs tomorrow; a bad level/status/date falls back to no filter; status `baseline`
+→ the two rows and `credited` → none), T6 (ten rows always; amounts from the ladder; level 1 paid thirteen
+times, level 2 four, level 3 once; a level above the depth marked **Not paid**; a zero amount marked
+**No amount**), T7 (the Harvest column reads the stored position; a leaf prints `—`; the card's queued,
+next position, deepest team and liability), T8 (`?harvest=yes|no`, its pages, its intersection with
+status, and `maybe` meaning no filter), T9 (the queued member's panel: position, teammates, levels paid,
+the next level's 0/27 and 27 remaining, the baseline sentence, two award rows each with its wallet), T10
+(*Not qualified: 2 of 3 direct members*, no matrix, no award table), T11 (a baseline member: levels 1–2
+**Before go-live**, amounts kept, no wallet link, zero withdrawable), T12 (the ledger CSV: the C.5 header,
+the row's values and wallet reference, one `team_harvest.export` audit row with its filters), T13 (the
+reports block, the dashboard KPI and the ledger tab agree tile for tile), T14 (the range CSV: five award
+rows and one `Queue` row, every row the full width), T15 (an award bumps `admin.commissions`,
+`admin.dashboard` and `admin.reports`, a new ETag, and the package/repeat fragments stay byte-identical
+while Royalty keeps its regions and counts), T16/T17 (a member session and every non-admin are refused by
+the existing guards; the four routes keep `admin`), T18 (the ledger context in **≤ 8 selects**; the
+directory's rows in **1** select with the position joined; the queue card constant at ≤ 4), T19 (the queue
+card's table is the scroll container, its tiles stack two-up, no fixed width), T20 (unseeded: the card and
+the header name `bin/harvest_queue_seed.php` and the ledger says *No level has completed yet*), T21 (a
+seeded queue with no awards: four positions, the open liability ₱1,000.00 and an empty ledger), T22 (a
+member with a position and no awards is in the queue card and the directory and absent from the ledger),
+T23 (an empty export: header only and one audit row), T24 (no route, no inventory entry, every admin GET
+read-only, and rendering every 20E surface writes nothing).
+
+Updated for the phase: `AdminMemberLiveTest`'s two fragment lists admit `member-harvest` and
+`member-team-harvest`; `RoyaltyAdminMemberViewTest`'s empty-state span is nine columns (the Harvest column
+is the ninth); `TeamHarvestFoundationTest`'s two phase-scoped guards admit 20E's files (P20A-T15's
+allow-list gains the two controllers, `Member`, `Report`, `ReportService` and the nine views; P20A-T16's
+reader list gains `Member` — the joined position — and `Report` — the report reads).
+
+`smoke.ps1` is unchanged: 20E adds no route and no page, and the plan's §16.4 assigns the Phase 20 smoke
+checks to 20G.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration; `MigrationTest` green, still 36 tables / 77 settings.
+- [x] `php bin/build_install_sql.php` run and `--check` exits 0 (no bundle change).
+- [x] `php tests/run.php` → **Cases: 1,298   Passed: 1,298   Failed: 0**, exit 0 (floor 1,292).
+- [x] `php bin/wallet_reconcile.php` exits 0 (the phase moves no money).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 251   Failed: 0**, exit 0.
+- [x] Every P20E-Tn case exists, is named for the phase and passes; `TeamHarvestAdminView` 23/23.
+- [x] The three existing tabs are byte-identical (T1 compares each fragment with the partial it has
+      always rendered).
+- [x] No new route; `ParityTest` and `RouterTest` green (T24 asserts the route table and the inventory).
+- [x] Every number on the page is traceable: a row → its member and its wallet movement (T9/T12), a tile
+      → `Report::teamHarvestTotals()` (T3/T4), the level card → `TeamHarvestAward::byLevel()` (T6).
+- [x] The manual script (`QA20E-01` … `QA20E-08`) is written; the automated pass captured six of the
+      eight checks as transcripts. The two browser checks (`QA20E-03`, `08`) and the independent-tester
+      run remain the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section E filled; the evidence index carries the eight new rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p20e-admin`.
+
+### Deviations
+
+1. **`admin/members/_filters.php` is modified,** although the plan's view list names only
+   `admin/members/index.php` for "the queue card and the filter". The directory's filter form lives in its
+   own partial (a live region), so the `?harvest=` select has to be added there; `index.php` changes only
+   its column header and the queue card's position. No contract changed.
+2. **The dashboard KPI also touches `AdminDashboardController::emptyCommerce()` and
+   `admin/dashboard/_commerce.php`,** which the plan's view list does not name. A KPI that renders nowhere
+   is not a KPI: the plan names "the dashboard **Team Harvest (30 d)** KPI" as a deliverable, and those
+   are the two files it needs. The zero shape keeps a failing reporting query from blanking the card.
+3. **`Report::teamHarvestTotals()` is a fifth Report read.** §9 lists four (`teamHarvestSummary`,
+   `…ByLevel`, `…ByMonth`, `…Queue`). The ledger's six tiles need a global and a this-month figure, and
+   two `TeamHarvestAward::totals()` calls would have pushed the page to nine selects — the plan's own
+   budget is **≤ 8**. One query returns all six; T18 measures the whole context at **8**.
+4. **P20E-T18's members-page budget is read as the rows path plus a constant card.** The plan says "the
+   members page ≤ 6 (no N+1 for positions)". The directory already ran five selects before this phase
+   (count, page, stats, packages, the Royalty rank map), so the honest reading is the one the test proves:
+   the position adds **zero** (one select for the page, joined), and the queue card is a constant (≤ 4)
+   that does not grow with the queue. The ledger tab's whole context is the plan's literal ≤ 8.
+5. **The reports block is page-rendered, not a live feed fragment.** 19D's Royalty cards are page-only, and
+   `ReportViewTest`'s P15 case pins the feed at twelve fragments; adding a thirteenth would have rewritten
+   a phase-15 case for no operator benefit (the reports page's ETag already mixes the `admin.commissions`
+   revision, so a refresh picks the block up).
+6. **The `harvest_queue` read in `Member.php` is the only new reader outside the two 20E models.** It is
+   the joined position, which is what makes Rule 5 ("positions are displayed, never derived") and the
+   no-N+1 rule the same implementation. The 20A guard records it (P20A-T16).
+
+### Hand-off to 20F
+
+- The admin ledger now proves the numbers 20F will show members: the position, the ten levels with their
+  states, the next level and the money already paid are all on `/admin/members/{id}` through
+  `TeamHarvestService::statusFor()` — the same call 20F's matrix card uses.
+- `TeamHarvestAward::normaliseFilters()`, `select()`, `totals()`, `byLevel()`, `exportRows()` and
+  `Report::teamHarvestQueue()` are proven by a page, so 20F (and the General Harvest plan) reuse them
+  without inventing a second implementation.
+- The CSV columns are frozen: Appendix C.5 for the admin ledger (with `Scope` in the range export) and
+  Appendix C.6 for the member statement, whose `Date, Level, Teammates at award, Threshold, Amount,
+  Status` are a subset of the ledger's row payload.
+- **Nothing pays from a page.** 20F must keep adding no route and no write; a member surface that could
+  evaluate would be a money switch in a browser.

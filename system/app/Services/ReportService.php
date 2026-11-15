@@ -28,13 +28,14 @@ final class ReportService
      * label is the button and the file prefix.
      */
     public const EXPORTS = [
-        'sales'       => 'Sales by day',
-        'commissions' => 'Commissions by level',
-        'unilevel'    => 'Repeat-purchase bonus',
-        'royalty'     => 'Royalty',
-        'wallet'      => 'Wallet statement',
-        'payouts'     => 'Payout register',
-        'codes'       => 'Registration codes',
+        'sales'        => 'Sales by day',
+        'commissions'  => 'Commissions by level',
+        'unilevel'     => 'Repeat-purchase bonus',
+        'royalty'      => 'Royalty',
+        'team_harvest' => 'Team Harvest bonus',
+        'wallet'       => 'Wallet statement',
+        'payouts'      => 'Payout register',
+        'codes'        => 'Registration codes',
     ];
 
     /**
@@ -105,9 +106,44 @@ final class ReportService
             'commissions'      => Report::commissionSummary($last30['from'], $last30['to']),
             'unilevel'         => Report::unilevelSummary($last30['from'], $last30['to']),
             'royalty'          => $this->royaltyDashboard(),
+            'team_harvest'     => $this->teamHarvestDashboard(),
             'wallet'           => Report::walletFloat(),
             'payouts'          => Report::payoutSummary($last30['from'], $last30['to']),
             'members'          => Report::memberCounts(),
+        ];
+    }
+
+    /**
+     * The Team Harvest dashboard tile figures (Phase 20E).
+     *
+     * The KPI is the **last 30 days** of award decisions, the same window
+     * every other dashboard tile uses; `open` is what the engine would
+     * still pay, so the tile can never look like the stream has stopped
+     * when it is merely between awards. It is derived on read and never
+     * stored (Rule 8 of §9).
+     *
+     * @return array{credited:float, count:int, recipients:int, this_month:float,
+     *               open:float, open_levels:int, queued:int, seeded:bool}
+     */
+    private function teamHarvestDashboard(): array
+    {
+        $last30 = Report::teamHarvestSummary(
+            date('Y-m-d', strtotime('-29 days')),
+            date('Y-m-d')
+        );
+
+        $open = (new TeamHarvestService())->openLiability();
+        $queue = Report::teamHarvestQueue(1);
+
+        return [
+            'credited'    => $last30['credited'],
+            'count'       => $last30['count'],
+            'recipients'  => $last30['recipients'],
+            'this_month'  => $last30['this_month'],
+            'open'        => $open['amount'],
+            'open_levels' => $open['levels'],
+            'queued'      => $queue['queued'],
+            'seeded'      => $queue['seeded'],
         ];
     }
 
@@ -164,6 +200,16 @@ final class ReportService
             'royalty_ranks'     => Report::royaltyByRank($range['from'], $range['to']),
             'royalty_periods'   => Report::royaltyByPeriod(6),
             'royalty_ratio'     => Report::royaltyPayoutRatio($range['from'], $range['to']),
+            /* Phase 20E: the four Team Harvest cards' data — the window's
+             * counters, the ten ladder levels, the months and the queue —
+             * plus the open liability, which is derived by the engine and
+             * never stored (Rule 8). */
+            'team_harvest'          => Report::teamHarvestSummary($range['from'], $range['to']),
+            'team_harvest_levels'   => Report::teamHarvestByLevel($range['from'], $range['to']),
+            'team_harvest_months'   => Report::teamHarvestByMonth($range['from'], $range['to']),
+            'team_harvest_queue'    => Report::teamHarvestQueue(5),
+            'team_harvest_open'     => (new TeamHarvestService())->openLiability(),
+            'team_harvest_max'      => TeamHarvestLevel::maxLevels(),
             'wallet'        => Report::walletFloat(),
             'payouts'       => Report::payoutSummary($range['from'], $range['to']),
             'codes'         => Report::codeRevenue(),
@@ -185,14 +231,15 @@ final class ReportService
         $to   = $range['to'];
 
         return match ($type) {
-            'sales'       => $this->salesExport($from, $to),
-            'commissions' => $this->commissionsExport($from, $to),
-            'unilevel'    => $this->unilevelExport($from, $to),
-            'royalty'     => $this->royaltyExport($from, $to),
-            'wallet'      => $this->walletExport($from, $to),
-            'payouts'     => $this->payoutExport($from, $to),
-            'codes'       => $this->codesExport($from, $to),
-            default       => throw new InvalidArgumentException('Unknown report export: ' . $type),
+            'sales'        => $this->salesExport($from, $to),
+            'commissions'  => $this->commissionsExport($from, $to),
+            'unilevel'     => $this->unilevelExport($from, $to),
+            'royalty'      => $this->royaltyExport($from, $to),
+            'team_harvest' => $this->teamHarvestExport($from, $to),
+            'wallet'       => $this->walletExport($from, $to),
+            'payouts'      => $this->payoutExport($from, $to),
+            'codes'        => $this->codesExport($from, $to),
+            default        => throw new InvalidArgumentException('Unknown report export: ' . $type),
         };
     }
 
@@ -340,6 +387,97 @@ final class ReportService
                 'Pending', 'Skipped', 'Award total', 'Average award',
             ],
             'rows'     => $rows,
+        ];
+    }
+
+    /**
+     * The Team Harvest report CSV: the window's award rows and the queue's
+     * state in one file, told apart by a `Scope` column — `Award` for a row
+     * of the ledger, `Queue` for the summary block — so finance can read
+     * both dimensions at once (P20E-T14).
+     *
+     * The award columns are the plan's Appendix C.5 columns verbatim, so
+     * this file and the ledger export carry the same names; the queue row
+     * fills the columns that mean something for a queue (the go-live
+     * instant, the next position, the deepest counter, the open liability
+     * and whether the stream is seeded).
+     *
+     * @return array{filename:string, header:list<string>, rows:list<list<string>>}
+     */
+    private function teamHarvestExport(string $from, string $to): array
+    {
+        $filters = TeamHarvestAward::normaliseFilters(['from' => $from, 'to' => $to]);
+        $rows    = TeamHarvestAward::exportRows($filters);
+        $queue   = Report::teamHarvestQueue(1);
+        $open    = (new TeamHarvestService())->openLiability();
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            $out[] = array_merge(['Award'], self::teamHarvestColumns($row));
+        }
+
+        /* The queue block: one row that carries the position sequence's
+         * next number, the deepest counter and what the engine would pay
+         * if every outstanding level were evaluated now. */
+        $out[] = [
+            'Queue',
+            '',
+            $queue['baseline'] === null ? '' : (string) $queue['baseline'],
+            (string) $queue['queued'] . ' queued',
+            (string) $queue['next'],
+            (string) $open['levels'],
+            (string) $queue['deepest'],
+            '',
+            self::decimal($open['amount']),
+            $queue['seeded'] ? 'Seeded' : 'Not seeded',
+            '',
+        ];
+
+        return [
+            'filename' => self::filename('team_harvest', ['from' => $from, 'to' => $to]),
+            'header'   => array_merge(['Scope'], self::teamHarvestCsvHeader()),
+            'rows'     => $out,
+        ];
+    }
+
+    /**
+     * The Team Harvest ledger CSV header — the screen's columns plus the
+     * wallet reference (plan Appendix C.5, P20E-T12).
+     *
+     * @return list<string>
+     */
+    public static function teamHarvestCsvHeader(): array
+    {
+        return [
+            'Award id', 'Credited at', 'Member', 'Position', 'Level',
+            'Teammates (n)', 'Threshold', 'Amount', 'Status', 'Wallet reference',
+        ];
+    }
+
+    /**
+     * One award as the CSV columns above. `$scope` is not prepended here:
+     * the caller owns the discriminator (the ledger export emits the ten
+     * columns alone; the report export prepends `Scope`).
+     *
+     * @param array<string, mixed> $row
+     * @return list<string>
+     */
+    public static function teamHarvestColumns(array $row): array
+    {
+        $status = (string) ($row['status'] ?? '');
+
+        return [
+            (string) (int) ($row['id'] ?? 0),
+            (string) ($row['credited_at'] ?? ''),
+            (string) ($row['username'] ?? ''),
+            ($row['position'] ?? null) === null ? '' : (string) (int) $row['position'],
+            (string) (int) ($row['level'] ?? 0),
+            (string) (int) ($row['n_at_award'] ?? 0),
+            (string) (int) ($row['threshold_n'] ?? 0),
+            self::decimal($row['amount'] ?? 0),
+            TeamHarvestAward::STATUS_LABELS[$status] ?? ucfirst($status),
+            ($row['ledger_id'] ?? null) === null ? '' : (string) (int) $row['ledger_id'],
         ];
     }
 

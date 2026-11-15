@@ -108,6 +108,8 @@ return [
                 'member-header',
                 'member-stats',
                 'member-filters',
+                /* Phase 20E: the Team Harvest queue card is its own region. */
+                'member-harvest',
                 'member-rows',
                 'member-pagination',
             ],
@@ -119,6 +121,7 @@ return [
         $filters = $payload['fragments']['member-filters'];
         $rows    = $payload['fragments']['member-rows'];
         $pages   = $payload['fragments']['member-pagination'];
+        $harvest = $payload['fragments']['member-harvest'];
 
         assert_contains('data-live-region="member-header"', $header);
         assert_contains('joined this week', $header);
@@ -138,6 +141,13 @@ return [
         assert_contains('name="q"', $filters);
         assert_contains('name="package"', $filters);
         assert_contains('No package', $filters);
+        /* Phase 20E: the Team Harvest filter shares the form. */
+        assert_contains('name="harvest"', $filters);
+        assert_contains('Team Harvest: all', $filters);
+
+        /* Phase 20E: the queue card explains its empty state. */
+        assert_contains('data-live-region="member-harvest"', $harvest);
+        assert_contains('Team Harvest queue', $harvest);
 
         assert_contains('data-live-region="member-rows"', $rows);
         assert_contains('data-live-key="' . (int) $hostile['id'] . '"', $rows);
@@ -229,6 +239,8 @@ return [
                 'member-membership',
                 'member-wallet',
                 'member-royalty',
+                /* Phase 20E: the Team Harvest panel is its own region. */
+                'member-team-harvest',
                 'member-activations',
                 'member-upline',
                 'member-audit',
@@ -269,6 +281,10 @@ return [
         assert_contains('Activation requests', $walletCard);
 
         assert_contains('data-live-region="member-royalty"', $fragments['member-royalty']);
+
+        /* Phase 20E: the member panel renders, qualified or not. */
+        assert_contains('data-live-region="member-team-harvest"', $fragments['member-team-harvest']);
+        assert_contains('Team Harvest', $fragments['member-team-harvest']);
 
         assert_contains('data-live-region="member-activations"', $activations);
         assert_contains('Activation history', $activations);

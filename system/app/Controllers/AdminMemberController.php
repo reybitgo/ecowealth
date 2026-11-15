@@ -60,6 +60,11 @@ final class AdminMemberController
     /**
      * Everything the directory renders, built once for the page and feed.
      *
+     * Phase 20E adds two things: the `?harvest=yes|no` filter (through
+     * `Member::normaliseFilters()`, so an unknown value means "no filter")
+     * and the Team Harvest queue card. The member's position arrives inside
+     * `Member::adminList()`'s own query, so no row costs a second query.
+     *
      * @return array<string, mixed>
      */
     public function listContext(): array
@@ -68,6 +73,7 @@ final class AdminMemberController
             'q'       => Request::string('q'),
             'status'  => Request::string('status'),
             'package' => Request::string('package'),
+            'harvest' => Request::string('harvest'),
         ]);
 
         $pager = Paginator::fromTableRequest(Member::countAdmin($filters));
@@ -86,13 +92,41 @@ final class AdminMemberController
         }
 
         return [
-            'stats'       => Member::stats(),
-            'rank_counts' => RoyaltyRank::counts($rankMap),
-            'filters'     => $filters,
-            'pager'       => $pager,
-            'members'     => $members,
-            'packages'    => Member::packageBreakdown(),
+            'stats'        => Member::stats(),
+            'rank_counts'  => RoyaltyRank::counts($rankMap),
+            'filters'      => $filters,
+            'pager'        => $pager,
+            'members'      => $members,
+            'packages'     => Member::packageBreakdown(),
+            'harvest'      => $this->harvestQueueCard(),
         ];
+    }
+
+    /**
+     * The Team Harvest queue card's data (Phase 20E, plan §9 Rules 7–8).
+     *
+     * Read-only: the queue's shape from `Report::teamHarvestQueue()` (one
+     * definition of the position sequence, `HarvestQueue::stats()`) plus the
+     * engine's `openLiability()` — the number the card shows, never a
+     * warning and never a stored figure.
+     *
+     * A failure hides the card, never the directory (the same stance the
+     * Royalty panel takes).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function harvestQueueCard(): ?array
+    {
+        try {
+            $queue = Report::teamHarvestQueue(10);
+            $queue['open'] = (new TeamHarvestService())->openLiability();
+
+            return $queue;
+        } catch (Throwable $e) {
+            error_log('[ecowealth] team harvest queue card unavailable: ' . $e->getMessage());
+
+            return null;
+        }
     }
 
     /**
@@ -171,6 +205,12 @@ final class AdminMemberController
                 'member-filters' => View::capture('admin/members/_filters', [
                     'filters'  => $data['filters'],
                     'packages' => $data['packages'],
+                ]),
+                /* Phase 20E: the queue card is its own region, so an open
+                 * directory tab keeps it current when a qualification or an
+                 * award bumps `admin.members` (P20E-T15). */
+                'member-harvest' => View::capture('admin/members/_harvest', [
+                    'harvest' => $data['harvest'] ?? null,
                 ]),
                 'member-rows' => View::capture('admin/members/_rows', [
                     'members' => $data['members'],
@@ -295,6 +335,10 @@ final class AdminMemberController
             /* Phase 19D: the read-only Royalty panel (rank, progress,
              * this month's PS/GS/quota, recent awards, all-time paid). */
             'royalty'           => $this->royaltyPanel($userId),
+            /* Phase 20E: the read-only Team Harvest panel — position,
+             * qualified at, teammates, the ten levels, the next level and
+             * every stored award row. */
+            'team_harvest'      => $this->teamHarvestPanel($userId),
             'team'              => (new SponsorService())->teamStats($userId),
             'upline'            => (new SponsorService())->chain($userId, SponsorService::MAX_LEVELS),
             'audits'            => AuditLog::forSubject('user', $userId, 8),
@@ -320,6 +364,33 @@ final class AdminMemberController
             return (new RoyaltyService())->statusFor($userId);
         } catch (Throwable $e) {
             error_log('[ecowealth] member royalty panel unavailable: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * The member's Team Harvest panel data (plan §9 Phase 20E).
+     *
+     * `TeamHarvestService::statusFor()` is the same read 20F's member card
+     * uses — the position, the ten levels with their state, the next level
+     * and the money already paid — so the admin panel and the member's own
+     * page can never promise different numbers. The stored award rows come
+     * from `TeamHarvestAward::forMember()`, the ledger the panel lists.
+     *
+     * Read-only: the service's only write is an evaluation, and this call
+     * never reaches it. A failure hides the panel, never the member page.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function teamHarvestPanel(int $userId): ?array
+    {
+        try {
+            $status = (new TeamHarvestService())->statusFor($userId);
+
+            return $status + ['awards' => TeamHarvestAward::forMember($userId)];
+        } catch (Throwable $e) {
+            error_log('[ecowealth] member team harvest panel unavailable: ' . $e->getMessage());
 
             return null;
         }
@@ -411,6 +482,10 @@ final class AdminMemberController
                 'member-royalty' => View::capture('admin/members/_royalty', [
                     'member'  => $member,
                     'royalty' => $data['royalty'] ?? null,
+                ]),
+                'member-team-harvest' => View::capture('admin/members/_team_harvest', [
+                    'member'       => $member,
+                    'team_harvest' => $data['team_harvest'] ?? null,
                 ]),
                 'member-activations' => View::capture('admin/members/_activations', [
                     'activations'       => $data['activations'],

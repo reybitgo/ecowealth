@@ -8,24 +8,29 @@ declare(strict_types=1);
  * changed; links and the status button carry data-live-focus so focus
  * survives a replacement.
  *
+ * Phase 20E: the `Harvest` column reads `harvest_position` — `harvest_queue.id`
+ * joined into the list query — and prints `#N` for a queued member and `—`
+ * for everyone else. It never recomputes a position from a count (Rule 5).
+ *
  * @var list<array<string, mixed>> $members
- * @var array{q:string, status:string, package:string} $filters
+ * @var array{q:string, status:string, package:string, harvest:string} $filters
  */
 
 $hasFilters = (string) $filters['q'] !== ''
     || (string) $filters['status'] !== ''
-    || (string) $filters['package'] !== '';
+    || (string) $filters['package'] !== ''
+    || (string) $filters['harvest'] !== '';
 ?>
                     <tbody data-live-region="member-rows">
 <?php if ($members === []): ?>
                       <tr>
-                        <td colspan="8" class="py-0">
+                        <td colspan="9" class="py-0">
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-group',
         'title'        => $hasFilters ? 'No members match these filters' : 'No members yet',
         'text'         => $hasFilters
-            ? 'Try a different search, status or package.'
+            ? 'Try a different search, status, package or Team Harvest state.'
             : 'Members appear here as soon as they register.',
         'action_href'  => $hasFilters ? 'admin/members' : '',
         'action_label' => $hasFilters ? 'Clear filters' : '',
@@ -42,6 +47,8 @@ $hasFilters = (string) $filters['q'] !== ''
     $rankLevel   = $row['rank_level'] ?? null;
     $rankName    = (string) ($row['rank_name'] ?? '');
     $rankTone    = $rankLevel === null ? '' : (RoyaltyRank::LABELS[(int) $rankLevel]['tone'] ?? 'secondary');
+    $position    = $row['harvest_position'] ?? null;
+    $teammates   = (int) ($row['harvest_teammates'] ?? 0);
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td>
@@ -77,6 +84,17 @@ $hasFilters = (string) $filters['q'] !== ''
                           <span class="text-body-secondary">—</span>
                           <?php else: ?>
                           <span class="badge bg-label-<?= e($rankTone) ?>"><?= e($rankName) ?></span>
+                          <?php endif; ?>
+                        </td>
+                        <td class="text-nowrap">
+                          <?php if ($position === null): ?>
+                          <span class="text-body-secondary" title="Not in the Team Harvest queue">—</span>
+                          <?php else: ?>
+                          <a
+                            href="<?= e(url('admin/members/' . $id)) ?>"
+                            class="badge bg-label-primary text-decoration-none"
+                            title="<?= $teammates ?> qualified teammate<?= $teammates === 1 ? '' : 's' ?>"
+                          >#<?= (int) $position ?></a>
                           <?php endif; ?>
                         </td>
                         <td class="text-end member-wallet-cell">
