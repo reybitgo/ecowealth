@@ -6746,9 +6746,10 @@ smoke checks to 20G.
 - [x] `wallet_reconcile.php` exits 0 with a Team Harvest section and non-zero when a ledger row is
       removed (T28/T30), and `team_harvest_catchup.php --doctor` exits 0 on a clean build and 1 on drift
       (T39).
-- [x] The manual script (plan §8, `QA20D-01` … `QA20D-10`) is written; the automated pass captured all
-      ten as transcripts on `ecowealth_sneat_tool_b_test`. The two wallet screenshots (02/03) and the
-      independent-tester run remain the project lead's item, as at every earlier gate.
+- [x] The manual script (plan §8, `QA20D-01` … `QA20D-10`) is written; the automated pass captured
+      **eight** of the ten as transcripts on `ecowealth_sneat_tool_b_test` (`QA20D-01`, `04`–`10`). The
+      two wallet screenshots (`QA20D-02`, `03`) and the independent-tester run remain the project lead's
+      item, as at every earlier gate.
 - [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
 - [x] QA pack section D filled; the evidence index carries the ten new rows.
 - [x] This entry and Appendix H of the plan are filled; tag `p20d-money`.

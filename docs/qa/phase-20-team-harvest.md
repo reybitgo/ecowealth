@@ -1,4 +1,4 @@
-# EcoWealth — Phase 20 manual QA: Team Harvest bonus
+﻿# EcoWealth — Phase 20 manual QA: Team Harvest bonus
 
 **Scope.** Phase 20 of the member system (`dmp/plan-ecowealth-team-harvest.md`): a private 3×10
 qualification matrix that pays a flat amount each time a member completes a level. The work is
@@ -912,9 +912,10 @@ php bin\build_install_sql.php --check      → exit 0
 powershell -File tests/smoke.ps1           → Passed: 251   Failed: 0
 ```
 
-`QA20D-01` to `QA20D-10` were executed by the automated pass on `ecowealth_sneat_tool_b_test` and
-captured as transcripts; the two wallet-screen steps a human adds are named in each check's **Where**
-line. 20D adds **no smoke check**, because it adds no route and no page (20G accumulates the Phase 20
+`QA20D-01`, `04`, `05`, `06`, `07`, `08`, `09` and `10` were executed by the automated pass on
+`ecowealth_sneat_tool_b_test` and captured as transcripts under `docs/qa/evidence/phase-20/`;
+`QA20D-02` and `QA20D-03` are wallet screenshots and need the application in a browser (their
+**Where** line says which screen). 20D adds **no smoke check**, because it adds no route and no page (20G accumulates the Phase 20
 ones).
 
 ## The checks in one table
@@ -1121,7 +1122,8 @@ Steps
 
 Expected
 
-- Step 2: the queue holds **13** positions and `team_harvest_awards` is **0** — the structure recorded,
+- Step 2: the queue holds **4** positions (the top and its three directs; the nine grandchildren are
+  member accounts who have not qualified) and `team_harvest_awards` is **0** — the structure recorded,
   the money did not move.
 - Step 4: **1 level, 1 member, ₱1,000.00**, nothing written.
 - Step 5: `paid: 1`, ₱1,000.00, and one `team_harvest.catchup` audit row.

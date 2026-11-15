@@ -1,0 +1,37 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-06 — A replay moves no money (a fourth direct, and a catch-up)
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:51:58 +08:00
+
+Expected: award count and wallet total unchanged; the catch-up reports paid: 0
+==============================================================================
+After QA20D-01 the top holds one credited level (n = 3). A fourth direct was
+registered under it (n = 4) and three members under that direct; the block is
+still only 4 of 9 full, so no level completes.
+
+Before the replay: awards = 1, team_harvest wallet total = 1000.00
+After the replay:  awards = 1, team_harvest wallet total = 1000.00
+
+The real catch-up run against the same network:
+{
+    "ok": true,
+    "trigger": "cli",
+    "member": 0,
+    "members": 5,
+    "result": {
+        "off": false,
+        "paid": 0,
+        "baseline": 0,
+        "written": 0,
+        "amount": 0,
+        "members": 5,
+        "skipped": 0,
+        "levels": [],
+        "batches": 1
+    },
+    "limit": 500
+}
+exit = 0
+
+A second evaluation therefore wrote nothing: the pre-check (has()), the unique
+anchor (user_id, level) and the wallet anchor all held.

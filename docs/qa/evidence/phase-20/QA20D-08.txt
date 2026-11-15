@@ -1,0 +1,43 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-08 — A level complete at go-live is recorded, never paid
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:52:17 +08:00
+
+Expected: teammates 12 / baseline 12 at the seed; after growing to 39, levels 1–2 are baseline with ledger_id NULL, level 3 is credited 4,000.00, and the wallet holds 4,000.00
+==============================================================================
+The tree at go-live: the top, three directs, nine grandchildren and three leaf
+directs under each grandchild — every grandchild holds the gate, so the top
+holds 12 qualified teammates when the seed runs.
+
+harvest_queue for QA20D_B_Top at the seed:
+teammates | baseline_n
+12        | 12        
+
+------------------------------------------------------------------------------
+After go-live: under each of the nine grandchildren, three members each holding
+three directs (27 new qualifiers, 108 registrations through the real service),
+so the same root grows from 12 to 39.
+
+harvest_queue for QA20D_B_Top after the growth:
+teammates | baseline_n
+39        | 12        
+
+team_harvest_awards for QA20D_B_Top:
+level | threshold_n | n_at_award | amount  | status   | ledger_id | credited_at        
+1     | 3           | 13         | 1000.00 | baseline |           | 2026-11-16 01:52:07
+2     | 12          | 13         | 2000.00 | baseline |           | 2026-11-16 01:52:07
+3     | 39          | 39         | 4000.00 | credited | 11        | 2026-11-16 01:52:16
+
+users.ewallet_balance / withdrawable_balance:
+ewallet_balance | withdrawable_balance
+4000.00         | 4000.00             
+
+The wallet holds the post-baseline level only: 4,000.00, never 7,000.00.
+
+A baseline row is written lazily by the first evaluation of the member, so
+its n_at_award is the counter at that moment (13 here), not the baseline_n
+(12); its credited_at is the baseline instant, and its ledger_id is NULL.
+
+A baseline row is written lazily by the first evaluation of the member, so
+its n_at_award is the counter at that moment (13 here), not the baseline_n
+(12); its credited_at is the baseline instant, and its ledger_id is NULL.

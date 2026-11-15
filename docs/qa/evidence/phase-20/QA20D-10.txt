@@ -1,0 +1,189 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-10 — A deleted movement is caught with its award and fails the build
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:51:59 +08:00
+
+Expected: exit 1 with a missing_ledger mismatch naming award #1; exit 0 after restoring the row
+==============================================================================
+The award and its movement before the edit:
+award #1 · ledger row #1 · amount 1000.00 · ref_type team_harvest · ref_id 1
+
+Command: DELETE FROM ewallet_ledger WHERE id = 1;
+Command: php bin/wallet_reconcile.php --json
+
+exit = 1
+team_harvest.ok = false
+mismatches:
+  [missing_ledger] award #1 user #1 @QA20D_Top level 1 expected 1000.00
+
+The full reconcile payload of the broken run (the wallet section reports the
+same deletion, because a wallet balance without its movement is a mismatch):
+{
+    "database": "ecowealth_sneat_tool_b_test",
+    "ok": false,
+    "checked": 17,
+    "ledger_users": 0,
+    "mismatches": [
+        {
+            "user_id": 1,
+            "username": "QA20D_Top",
+            "kind": "missing_ledger",
+            "expected": 0,
+            "actual": 1000,
+            "expected_withdrawable": 0,
+            "actual_withdrawable": 1000
+        }
+    ],
+    "violations": [],
+    "commissions": {
+        "ok": true,
+        "credited_rows": 0,
+        "skipped_rows": 0,
+        "credited_total": 0,
+        "ledger_total": 0,
+        "legacy_total": 0,
+        "legacy_rows": 0,
+        "mismatches": []
+    },
+    "transfers": {
+        "ok": true,
+        "checked": 0,
+        "orphans": 0,
+        "mismatches": []
+    },
+    "payouts": {
+        "ok": true,
+        "checked": 0,
+        "orphans": 0,
+        "held": 0,
+        "mismatches": []
+    },
+    "unilevel": {
+        "ok": true,
+        "credited_rows": 0,
+        "skipped_rows": 0,
+        "voided_rows": 0,
+        "pending_rows": 0,
+        "cancelled_rows": 0,
+        "credited_total": 0,
+        "pending_total": 0,
+        "cancelled_total": 0,
+        "awarded_total": 0,
+        "ever_credited_total": 0,
+        "ledger_total": 0,
+        "reversal_total": 0,
+        "legacy_total": 0,
+        "legacy_rows": 0,
+        "stuck_pending": 0,
+        "mismatches": []
+    },
+    "royalty": {
+        "ok": true,
+        "periods": 0,
+        "paid_periods": 0,
+        "evaluated_periods": 0,
+        "skipped_periods": 0,
+        "award_rows": 0,
+        "paid_rows": 0,
+        "pending_rows": 0,
+        "skipped_rows": 0,
+        "paid_total": 0,
+        "pending_total": 0,
+        "award_total": 0,
+        "ledger_total": 0,
+        "legacy_rows": 0,
+        "legacy_total": 0,
+        "cycle_members": 0,
+        "mismatches": [],
+        "warnings": []
+    },
+    "team_harvest": {
+        "ok": false,
+        "awards": 1,
+        "credited_rows": 1,
+        "credited_total": 1000,
+        "baseline_rows": 0,
+        "baseline_total": 0,
+        "ledger_rows": 0,
+        "ledger_total": 0,
+        "queued": 5,
+        "drift": 0,
+        "violations": 0,
+        "mismatches": [
+            {
+                "kind": "total",
+                "expected": 1000,
+                "actual": 0,
+                "message": "credited Team Harvest awards differ from the team_harvest wallet credits"
+            },
+            {
+                "kind": "missing_ledger",
+                "award": 1,
+                "user_id": 1,
+                "username": "QA20D_Top",
+                "level": 1,
+                "expected": 1000,
+                "actual": null,
+                "message": "a credited Team Harvest award has no wallet movement"
+            }
+        ],
+        "warnings": []
+    }
+}
+
+------------------------------------------------------------------------------
+Restored from the captured row (the check says "restore from the backup"; on
+this scratch copy the dump is the row itself):
+
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat_tool_b_test (127.0.0.1)
+  accounts checked:  17
+  accounts with ledger: 1
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  ledger total:      0.00
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 0
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  0
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+Repeat-purchase
+  credited awards:   0 (0.00)
+  pending awards:    0 (0.00) — earned, not in a wallet yet
+  cancelled awards:  0 (0.00) — order cancelled before release, never paid
+  skipped awards:    0
+  voided awards:     0
+  awarded total:     0.00 (pending + credited)
+  unilevel ledger:   0.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+Royalty
+  periods:           0 (paid 0 · evaluated 0 · skipped 0)
+  paid awards:       0 (0.00)
+  pending awards:    0 (0.00) — evaluated, not in a wallet yet
+  skipped awards:    0
+  royalty ledger:    0.00
+  OK — every paid award has its wallet movement and every period header agrees with its rows.
+
+Team Harvest
+  queued positions:  5
+  credited awards:   1 (1,000.00)
+  baseline awards:   0 (0.00) — complete before go-live, never paid
+  team_harvest ledger: 1,000.00
+  counter drift:     0 row(s) · 0 below the baseline
+  OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+
+All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty and team-harvest awards reconcile.
+exit = 0
