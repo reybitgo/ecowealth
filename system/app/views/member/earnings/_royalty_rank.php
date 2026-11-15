@@ -73,7 +73,7 @@ $requirement = match ($nextRank) {
 };
 
 $nextPercent = $need > 0 ? (int) max(0, min(100, intdiv($have * 100, $need))) : 100;
-$quotaMet    = $quota > 0 && $group >= $quota;
+$quotaMet    = $group >= $quota;   // the engine's rule: quota 0 is met (₱0 quota is legal)
 $gap         = round(max(0.0, $quota - $group), 2);
 ?>
               <div class="card mb-4" data-live-region="earnings-royalty-rank">

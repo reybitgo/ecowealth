@@ -1546,6 +1546,9 @@ A successful run ends like this:
 Reset
    OK   lock              Advisory lock acquired
    OK   preflight         Preflight check
+   OK   impersonation     S-Login sessions                                      0 deleted
+   OK   unilevel          Repeat-purchase bonus awards and month snapshots     0 deleted
+   OK   royalty           Royalty bonus awards and month headers               0 deleted
    OK   orders            Shop orders, payments, invoices and fulfilment     16 deleted
    OK   carts             Carts and cart lines                                 4 deleted
    OK   addresses         Address book                                         9 deleted
@@ -1561,15 +1564,15 @@ Reset
    OK   live              Bump live revisions                                  18 rows
    OK   settings          Write the reset metadata                              2 rows
    OK   audit             Append the reset audit row                            1 rows
-   OK   auto_increment    Reset AUTO_INCREMENT counters                        19 rows
+   OK   auto_increment    Reset AUTO_INCREMENT counters                        21 rows
    OK   uploads           Delete orphaned upload files                          3 rows
    SKIP demo              Install the demo tree                                 0 rows
    OK   codes_generate    Generate registration codes                            0 rows
-   OK   verify            Verify the reset                                     12 rows
+   OK   verify            Verify the reset                                     14 rows
 
 Verification
    OK   Member accounts            0 member row(s) (expected 0)
-   OK   Business rows              0 rows across 19 tables (all zero)
+   OK   Business rows              0 rows across 24 tables (all zero)
    OK   Staff accounts             2 staff, balances zero, package/sponsor null, active
    OK   Catalogue                  7 products, 2 packages, 18 levels, 10 contents (kept: unchanged)
    OK   Registration codes         0 code row(s) (expected 0)
@@ -1578,11 +1581,13 @@ Verification
    OK   Commission reconciliation  CommissionService::reconcile clean
    OK   Transfer reconciliation    TransferService::reconcile clean
    OK   Payout reconciliation      PayoutService::reconcile clean
+   OK   Repeat-purchase reconciliation  UnilevelService::reconcile clean
+   OK   Royalty reconciliation     RoyaltyService::reconcile clean
    OK   Live revisions             18 of 18 standard surfaces
-   OK   AUTO_INCREMENT counters    19 counter(s) at 1
+   OK   AUTO_INCREMENT counters    21 counter(s) at 1
 
   deleted: 140 rows · members 24 → 0 · orders 16 → 0 · ledger 48 → 0 · codes 19 → 0
-  catalogue: 7 products / 2 packages · audit 1815 rows · live 18 surfaces · counters reset 19
+  catalogue: 7 products / 2 packages · audit 1815 rows · live 18 surfaces · counters reset 21
 
 Reset complete and verified.
 ```
@@ -1688,12 +1693,12 @@ The reset deletes **files**, not directories. A file that cannot be removed (per
 
 ### 7.12 Read the report and the verification
 
-The reset is not finished when the deletes end. It must **prove** the result. The browser console and the CLI both show the same 12 checks:
+The reset is not finished when the deletes end. It must **prove** the result. The browser console and the CLI both show the same 14 checks:
 
 | Check | What it proves |
 |---|---|
 | **Member accounts** | `users` has 0 members (5 when `--demo` was used). |
-| **Business rows** | Every transactional table is empty (19 tables in the default path). |
+| **Business rows** | Every transactional table is empty (24 tables in the default path). |
 | **Staff accounts** | Both staff rows survive with `package_id` and `sponsor_id` NULL, both balances `0.00`, `member_status='active'`, `is_active=1`. |
 | **Catalogue** | Kept: counts match the pre-reset snapshot. Reset: the starter counts are back (7 products, 2 packages, 18 levels, 10 contents). |
 | **Registration codes** | Exactly the number generated (plus the 3 demo codes with `--demo`), all `unused` and package-bound. |
@@ -1702,8 +1707,10 @@ The reset is not finished when the deletes end. It must **prove** the result. Th
 | **Commission reconciliation** | Every commission award has its ledger movement. |
 | **Transfer reconciliation** | Every transfer has its three ledger legs. |
 | **Payout reconciliation** | Every payout request has its hold, and every rejection its refund. |
+| **Repeat-purchase reconciliation** | Every credited/voided award has its wallet movement and every reversal its debit; a cancelled award has none. |
+| **Royalty reconciliation** | Every paid award has its `royalty` credit and every period header agrees with its rows. |
 | **Live revisions** | All 18 standard surfaces exist; existing revisions were incremented. |
-| **AUTO_INCREMENT counters** | The emptied tables report next id `1` (or `NULL`, which MySQL treats as empty). |
+| **AUTO_INCREMENT counters** | The 21 emptied tables report next id `1` (or `NULL`, which MySQL treats as empty). |
 
 **The repeat-purchase escrow changes none of this.** Migration `021` adds no table, so the reset's deletion order and the "required tables" preflight are unchanged; the two escrow settings (`unilevel_hold_days`, `unilevel_release_enabled`) are ordinary settings and are **preserved** like the rest (a reset does not touch them, and `settings` still reads **73** rows afterwards plus the two `last_reset_*` keys on the first run). The repeat-purchase reconciliation the reset runs reads the same `ok`/`mismatches` shape as before — it now also reports pending and cancelled awards, but a pending row is **not** a mismatch: the reset deletes the awards with the members and orders, so it is back to zero awards of every status.
 
@@ -1714,7 +1721,9 @@ The reset is not finished when the deletes end. It must **prove** the result. Th
 bonus awards and month headers** step that empties the awards before their period headers (they have a
 foreign key), resets `royalty_awards`' counter only (the header has a natural primary key) and
 **preserves** the settings like every other setting. The "required tables" preflight moves from 31 to
-**33**; nothing else in the reset changes.
+**33**, the business-row check covers **24** tables (the 23 zeroed tables plus `users`) and the
+verification gains the **Royalty reconciliation** row (14 checks in all); nothing else in the reset
+changes.
 
 Verification is **mandatory**. There is no `--no-verify` flag, because a reset tool that cannot prove its result must not report success.
 
@@ -2235,7 +2244,7 @@ The lock and the empty-database guard make an accidental second install hard; th
 | [`system/database/install/header.sql`](../system/database/install/header.sql) | Bundle header (editable) | Usage, warnings, empty-database guard. |
 | [`system/database/install/footer.sql`](../system/database/install/footer.sql) | Bundle footer (editable) | Install metadata and verification `SELECT`s. |
 | [`system/database/schema.sql`](../system/database/schema.sql) | Authoritative schema | 33 tables and indexes. |
-| `system/database/seeds/001_settings.sql` | Seed | 45 settings. |
+| `system/database/seeds/001_settings.sql` | Seed | 70 settings (the install metadata rows add 3 for 73). |
 | `system/database/seeds/002_accounts.sql` | Seed | 2 staff accounts. |
 | `system/database/seeds/003_products.sql` | Seed | 6 catalogue products. |
 | `system/database/seeds/004_packages.sql` | Seed | 2 packages, 18 levels, 10 contents, 1 service product. |

@@ -71,7 +71,7 @@ $ledgerUrl = url('admin/commissions?ledger=royalty&q=' . rawurlencode($username)
     $group      = (float) ($royalty['group'] ?? 0);
     $quota      = (float) ($royalty['quota'] ?? 0);
     $progress   = max(0, min(100, (int) ($royalty['progress'] ?? 0)));
-    $met        = $quota > 0 && $group >= $quota;
+    $met        = $group >= $quota;   // the engine's rule: quota 0 is met (₱0 quota is legal)
     $enabled    = (bool) ($royalty['enabled'] ?? false);
     $paidAll    = (float) ($royalty['paid_all_time'] ?? 0);
     $lastPaid   = $royalty['last_paid'] ?? null;

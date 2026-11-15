@@ -1,8 +1,9 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: preliminary.** This guide covers the Phase 12 build plus the live-update
-> layer. It will be updated as later phases add migrations, cron jobs or hosting
-> requirements. Hostinger's hPanel labels can change; the steps stay the same.
+> **Status: current.** This guide covers the **Phase 19 release build**: 33 tables, 73 settings,
+> migrations `001`–`023`, six scheduled jobs and the live-update layer. The Phase 19 addendum at the
+> end is the migration/upgrade note for the Royalty bonus. Hostinger's hPanel labels can change; the
+> steps stay the same.
 >
 > Verified against the local build (PHP 8.3.16, MySQL 8.4.3). Hostinger's current
 > LiteSpeed/Apache + PHP 8.3 plans meet the same requirements.
@@ -69,7 +70,7 @@ You will use only these Hostinger hPanel areas:
 | SSH | **No** | File Manager + phpMyAdmin cover everything. |
 | WebSocket / SSE / Redis / queue | **No** | Live updates use browser `BroadcastChannel` plus a 30-second HTTP poll. |
 | A permanent background process | **No** | Each request is ordinary PHP. |
-| A cron job for live updates | **No** | Cron is only for shop expiry, order auto-complete, the transfer-limit reset, the month close and the repeat-purchase release. |
+| A cron job for live updates | **No** | Cron is only for shop expiry, order auto-complete, the transfer-limit reset, the unilevel month close, the repeat-purchase release and the Royalty month close. |
 
 In deployment terms, the live-update feature adds two new artifacts you must not forget:
 
@@ -871,8 +872,10 @@ it.
 
 ### Cron folder permissions
 
-The cron writes to `<app>/storage/logs/` and `<app>/storage/locks/`. If those are not
-writable, the job exits with an error. See [Step 9](#9-set-folder-permissions).
+The cron writes to `<app>/storage/logs/` and `<app>/storage/locks/`. If the **lock** folder is not
+writable the job cannot run and exits with an error; if only the **log** folder is not writable the run
+continues and warns through PHP's error log (stderr on the CLI), so the money is never blocked by a log
+problem. See [Step 9](#9-set-folder-permissions).
 
 ---
 
@@ -1008,8 +1011,9 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-14 | Live update: the checkout page follows the shared `config` revision, so saving **Repeat-purchase bonus enabled** on `/admin/settings` removes or restores the preview line on an open checkout without a reload; §11.4 adds check 28. |
 | 2026-11-14 | Phase 18 (post-17 point release): migration `021` (the escrow columns, the `pending`/`cancelled` states, two indexes and the two settings), the fifth cron job (`bin/unilevel_release.php`), and the §Phase 18 addendum; §5B and §12 now read **31 tables / 56 settings**, §13 names **five** jobs, and `APP_PHASE` stays **17**. |
 | 2026-11-14 | Order-cancellation kill switch: migration `022` adds `shop_cancel_enabled`, **off by default**, exposed as **Settings → Shop → Enable Cancel of Order**. While it is off, no member or administrator can cancel an order, so no wallet refund and no repeat-purchase escrow reversal runs; automatic expiry keeps its own switch. §5B and §12 now read **31 tables / 57 settings**. |
-| 2026-11-15 | Phase 19A (Royalty foundation): migration `023` adds the two Royalty money tables (`royalty_periods`, `royalty_awards`), the `royalty` wallet movement and the sixteen settings, with the stream **off** by default. §5B and §12 now read **33 tables / 73 settings**; the Phase 19 addendum is written at 19G. |
+| 2026-11-15 | Phase 19A (Royalty foundation): migration `023` adds the two Royalty money tables (`royalty_periods`, `royalty_awards`), the `royalty` wallet movement and the sixteen settings, with the stream **off** by default. §5B and §12 now read **33 tables / 73 settings**. |
 | 2026-11-15 | Phase 19F (Royalty operations): the sixth cron job (`bin/royalty_month_close.php` at 00:30 on the 1st, `--max-batches=20`), its URL entry, its Windows launcher, the `--doctor` report and the operations panel on the Royalty tab. §13 names the two monthly entries and the enable-at-a-month-boundary rule; no schema change. |
+| 2026-11-15 | Phase 19G (Royalty release): `APP_PHASE` **19**; the Phase 19 addendum at the end of this guide is complete (migration `023`, the counts **33 / 73 / six / 19**, the cron entries, the enablement steps and the verification pack); the document-status header is current. No schema change. |
 
 ---
 
@@ -1389,25 +1393,70 @@ The bundle is **58 statements, 74,387 bytes**, sha256
 
 ---
 
-## Phase 19A — Royalty foundation
+## Phase 19 addendum — the Royalty bonus (19A → 19G)
 
-Migration `023_royalty_bonus.sql` is additive and re-runnable. It adds the two money tables
-(`royalty_periods` with the natural `period` key, `royalty_awards` with `UNIQUE (period, user_id)`),
-appends `royalty` to `ewallet_ledger.ref_type` (guarded by an `information_schema` probe) and inserts
-the sixteen `royalty_*` settings. The stream ships **off** (`royalty_enabled = 0`) and **no
-application code reads any of it** until 19B/19C; the full Phase 19 addendum is written at 19G.
+The Phase 19 workstream adds a **rank-gated monthly bonus**: Supervisor/Manager/Director earn one award
+per **closed calendar month** on their group sales, paid into the withdrawable e-wallet by a monthly
+job. It ships **off** (`royalty_enabled = 0`), so a fresh install or an upgraded database pays nothing
+until an operator turns it on. The release adds **no new hosting requirement**: two tables, sixteen
+settings, one wallet movement kind, one cron job and read-only pages on routes that already existed.
 
-### Counts after 023
+### Migration 023 (19A)
+
+`023_royalty_bonus.sql` is additive and re-runnable. It adds the two money tables
+(`royalty_periods` with the natural `period` key, `royalty_awards` with `UNIQUE (period, user_id)` and
+its CHECKs), appends `royalty` to `ewallet_ledger.ref_type` (guarded by an `information_schema` probe)
+and inserts the sixteen `royalty_*` settings with the reference defaults. From 19B/19C the
+configuration card, the rank engine, the close job, the admin ledger and the member statement read and
+write those objects; from 19F the scheduled job runs them unattended.
+
+### Counts after the Phase 19 build
 
 | Tables | Settings | Cron jobs | `APP_PHASE` |
 |---:|---:|---:|---:|
-| **33** | **73** | **five** | **17** |
+| **33** | **73** | **six** | **19** |
 
 The bundle is **60 statements, 82,518 bytes**, sha256
 `026c6755032fb7ab98fc6accb9e26550de3eea9cda2d066235e2967fb6e5eb50`; a fresh import prints
-**33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+**33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `php bin/build_install_sql.php --check` exits 0.
 
-### Upgrade checklist (023)
+### What the release adds to the server
+
+- **Storage**: one more monthly log (`storage/logs/royalty_month_close-YYYY-MM.log`) and one more
+  advisory lock (`storage/locks/royalty_month_close.lock`). Both live outside `public/`.
+- **Cron**: the sixth job (§13) — `bin/royalty_month_close.php` at **00:30 on the 1st** with
+  `--max-batches=20`, plus its guarded URL entry and its Windows launcher.
+- **Growth**: one `royalty_periods` row per month and one `royalty_awards` row per paying member per
+  month. Nothing is written for the open month.
+- **Nothing else**: no new route, no new PHP extension, no queue, no daemon, no external service.
+
+### Enabling Royalty
+
+1. **Settings → Commissions → Royalty bonus**: check the ladder and the two switches. The four
+   thresholds, three quotas and six rates ship at the reference preset (10/10/10/10, 500k/1M/5M,
+   3/5 · 5/10 · 10/15); a save is validated as a whole and audited.
+2. Run `php bin/royalty_month_close.php --doctor` — exit 0 on a healthy install.
+3. Turn **Enable the Royalty bonus** on **before the 00:30 close on the 1st** of the month that should
+   be the first paid one. A month closed while the stream is off is recorded `skipped` and can never be
+   paid later; a month left `evaluated` (payments paused, or a batch ceiling reached) stays payable.
+4. Optionally review a month before its money moves: `--period=YYYY-MM --evaluate-only`, read the
+   ledger, then `--period=YYYY-MM --pay-only` (the runbook's review window).
+
+### Verification after the upgrade
+
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `php bin/royalty_month_close.php --doctor` exits **0** and prints the clocks, both tables, the
+      16/16 settings, the baseline, both switches and the wallet reconcile.
+- [ ] `php bin/wallet_reconcile.php` exits 0 and prints its **sixth** section, Royalty.
+- [ ] `php tests/run.php` is green (**1,162 / 1,162**) and `powershell -File tests/smoke.ps1` reports
+      **248 / 248**.
+- [ ] **Admin**: `/admin/settings` (the Royalty sub-block and the saved ladder), `/admin/members` (the
+      Rank column and distribution), `/admin/commissions?ledger=royalty` (the operations panel and the
+      ledger), `/admin/reports` (the Royalty cards and CSV), `/admin/audit` — all render.
+- [ ] **Member**: `/earnings?ledger=royalty` and `/dashboard` render as the member; no console error.
+- [ ] `php bin/royalty_month_close.php --dry-run` lists the months it would close and writes nothing.
+
+### Upgrade checklist (023 + Phase 19)
 
 - [ ] Back up the database.
 - [ ] Apply `023_royalty_bonus.sql` after `022` (a second run is a no-op).
@@ -1416,4 +1465,6 @@ The bundle is **60 statements, 82,518 bytes**, sha256
 - [ ] `SELECT COUNT(*) FROM settings WHERE key_name LIKE 'royalty\_%'` — sixteen rows, and
       `royalty_enabled = 0`.
 - [ ] `php bin/build_install_sql.php --check` exits 0.
-- [ ] `php bin/wallet_reconcile.php` exits 0.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (its Royalty section reads zero on a fresh upgrade).
+- [ ] The Royalty cron entry is registered (or the URL entry is called by it) and the first run
+      appears in `storage/logs/royalty_month_close-YYYY-MM.log`.

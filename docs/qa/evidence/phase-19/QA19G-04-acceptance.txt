@@ -1,0 +1,234 @@
+Phase 19G — Release
+Check QA19G-04 — the Appendix B acceptance run on a scratch database
+Schema: ecowealth_sneat_tool_b_test (recreated per scenario from database/schema.sql + seeds/001_settings.sql)
+Settings: the reference ladder 10/10/10/10 · 500k/1M/5M · 3/5, 5/10, 10/15 (2/2/2/2 only for B.12)
+Periods: 2026-09 and 2026-10 (the two completed months before 2026-11)
+Executed: 2026-11-15 16:17:43 +08:00 by the Phase 19G automated acceptance pass (DSH)
+==============================================================================
+
+Every scenario runs the REAL job (`php bin/royalty_month_close.php`) and the REAL rank engine
+(`RoyaltyRank::map()`) against the scratch schema; every observed figure below is read back from
+the scratch database or printed by the job. The development copy is never touched.
+
+| # | Scenario | Plan expects | Observed | Result |
+|---|---|---|---|---|
+| B.1 | Reference example — Supervisor at GS 510,000 / PS 60,000 | Award ₱18,300.00 (15,300 group + 3,000 personal); ten Leaders ₱0; period paid | Award ₱18,300.00 · rank Supervisor · GS 510000.00 · PS 60000.00 · status paid · rows 1 · period paid | PASS |
+| B.2 | The same tree at GS 410,000 — the quota is all-or-nothing | Award ₱0.00, skipped, reason "group sales below quota"; the personal share is not paid alone | Award ₱0.00 · status skipped · reason group sales below quota · GS 410000.00 · PS 60000.00 · period paid | PASS |
+| B.3 | Director with a personal purchase — the double count | PS ₱100,000 · GS ₱5,000,000 · award ₱515,000.00 (500,000 + 15,000) | PS ₱100,000.00 · GS ₱5,000,000.00 · award ₱515,000.00 · rank Director · status paid · period rows 111 · paid 3 | PASS |
+| B.4 | Leader with ₱10,000,000 group sales | Rank Leader; no award row; ₱0.00 — Leader is not a paying rank | Leader · awards 0 · period paid · award rows 0 · paid ₱0.00 | PASS |
+| B.5 | Supervisor self-funds the quota (PS = GS = ₱500,000) | Group ₱15,000 + personal ₱25,000 = ₱40,000.00 | Award ₱40,000.00 · PS ₱500,000.00 · GS ₱500,000.00 · status paid | PASS |
+| B.6 | One rounding — GS ₱500,000.55 / PS ₱60,000.55 | 18,000.0440 → ₱18,000.04 (NOT 15,000.02 + 3,000.03 = 18,000.05) | Award ₱18,000.04 · GS ₱500,000.55 · PS ₱60,000.55 | PASS |
+| B.7 | Stream off — a ₱1,000,000 month | One skipped header (enabled 0, note "royalty stream off", every count 0); no award rows, no wallet credits | skipped · enabled 0 · note "royalty stream off" · members 0 · awards 0 · wallet credits 0 | PASS |
+| B.8 | Payment paused — evaluate, no money, then pay once | pending award, header evaluated, award_total ₱40,000.00, paid_total ₱0.00, no wallet; after re-enabling and --pay-only: paid, one ₱40,000.00 credit, and a second --pay-only pays nothing | pending · ₱40,000.00 · header evaluated · award_total 40000.00 · paid_total 0.00 · wallet 0 → paid · paid_total 40000.00 · wallet 1 / ₱40,000.00 · second --pay-only exit 1, wallet 1 | PASS |
+| B.9 | Catch-up over two months — oldest first, each with its own cutoff | pendingPeriods = [2026-09, 2026-10]; 2026-09 closes first at its own as_of with no award (the tenth Leader did not exist yet); 2026-10 pays the Supervisor ₱40,000.00 | pending [2026-09, 2026-10] → periods closed in order: 2026-09(paid), 2026-10(paid) · 2026-09 rows 0, as_of 2026-10-01 00:00:00 · 2026-10 rows 1, award ₱40,000.00, as_of 2026-11-01 00:00:00 | PASS |
+| B.10 | A cancellation before and after the close | Before: GS ₱400,000 → ₱0.00 (below quota). After: the ₱500,000 month pays ₱15,000.00 and the award is unchanged by a later cancellation | before: GS ₱400,000.00 → award ₱0.00 (skipped) · after: award ₱15,000.00 → ₱15,000.00 with paid_total ₱15,000.00 → ₱15,000.00, header paid | PASS |
+| B.11 | Minimum trees with the reference thresholds — Leader 11 · Supervisor 111 · Manager 1,111 · Director 11,111 | Directors roll up: the compact 10-ary tree has 11,111 members; the root is a Director, its child a Manager, the next a Supervisor, the next a Leader and the leaf a Member | members 11111 · root: Director (directs 10, team 11110, Leader+ 1110, Supervisor+ 110, Manager+ 10) · level 1: Manager (directs 10, team 1110, Leader+ 110, Supervisor+ 10, Manager+ 0) · level 2: Supervisor (directs 10, team 110, Leader+ 10, Supervisor+ 0, Manager+ 0) · level 3: Leader (directs 10, team 10, Leader+ 0, Supervisor+ 0, Manager+ 0) · level 4: Member (directs 0, team 0, Leader+ 0, Supervisor+ 0, Manager+ 0) | PASS |
+| B.12 | Rank derivation on the small tree (thresholds 2/2/2/2, 31 members) | director Director (2,14,6,2) · mgrA Manager (2,6,2,0) · supA Supervisor (2,2,0,0) · leadA Leader (2,0,0,0) · a1 Member (0,0,0,0) | director Director (directs 2, Leader+ 14, Supervisor+ 6, Manager+ 2) · mgrA Manager (directs 2, Leader+ 6, Supervisor+ 2, Manager+ 0) · supA Supervisor (directs 2, Leader+ 2, Supervisor+ 0, Manager+ 0) · leadA Leader (directs 2, Leader+ 0, Supervisor+ 0, Manager+ 0) · a1 Member (directs 0, Leader+ 0, Supervisor+ 0, Manager+ 0) | PASS |
+------------------------------------------------------------------------------
+
+Detailed transcripts
+------------------------------------------------------------------------------
+
+### B.1 — Reference example — Supervisor at GS 510,000 / PS 60,000
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    1 written · 0 skipped
+  paid:      1 award(s) · ₱18,300.00
+  duration:  668ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+royalty_periods: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:15:02","evaluated_by":null,"paid_at":"2026-11-15 16:15:02","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":111,"leaders_count":10,"supervisors_count":1,"managers_count":0,"directors_count":0,"award_count":1,"paid_count":1,"skipped_count":0,"award_total":"18300.00","paid_total":"18300.00","note":null,"created_at":"2026-11-15 16:15:02"}
+awards: [{"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"510000.00","personal_volume":"60000.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"18300.00","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:15:02","created_at":"2026-11-15 16:15:02","username":"p19g_sup"}]
+
+### B.2 — The same tree at GS 410,000 — the quota is all-or-nothing
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    1 written · 1 skipped
+  paid:      0 award(s) · ₱0.00
+  duration:  190ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+royalty_periods: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:15:13","evaluated_by":null,"paid_at":"2026-11-15 16:15:13","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":111,"leaders_count":10,"supervisors_count":1,"managers_count":0,"directors_count":0,"award_count":1,"paid_count":0,"skipped_count":1,"award_total":"0.00","paid_total":"0.00","note":null,"created_at":"2026-11-15 16:15:13"}
+awards: [{"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"410000.00","personal_volume":"60000.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"0.00","status":"skipped","reason":"group sales below quota","ledger_id":null,"credited_at":null,"created_at":"2026-11-15 16:15:13","username":"p19g_sup"}]
+
+### B.3 — Director with a personal purchase — the double count
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    111 written · 108 skipped
+  paid:      3 award(s) · ₱907,000.00
+  duration:  3631ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+royalty_periods: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:15:49","evaluated_by":null,"paid_at":"2026-11-15 16:15:52","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":11111,"leaders_count":1000,"supervisors_count":100,"managers_count":10,"directors_count":1,"award_count":111,"paid_count":3,"skipped_count":108,"award_total":"907000.00","paid_total":"907000.00","note":null,"created_at":"2026-11-15 16:15:49"}
+director row: {"id":1,"period":"2026-10","user_id":1,"rank_level":4,"directs":10,"downline_rank_count":10,"team_size":11110,"group_volume":"5000000.00","personal_volume":"100000.00","quota":"5000000.00","group_pct":"10.000","personal_pct":"15.000","amount":"515000.00","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:15:52","created_at":"2026-11-15 16:15:49","username":"p19g_root"}
+
+### B.4 — Leader with ₱10,000,000 group sales
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    0 written · 0 skipped
+  paid:      0 award(s) · ₱0.00
+  duration:  432ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+rank row: {"id":1,"username":"p19g_b4_leader","member_status":"active","is_active":1,"parent_id":null,"rank":1,"rank_name":"Leader","directs":10,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":10,"volume_cents":0,"group_volume_cents":0}
+royalty_periods: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:15:59","evaluated_by":null,"paid_at":"2026-11-15 16:15:59","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":11,"leaders_count":1,"supervisors_count":0,"managers_count":0,"directors_count":0,"award_count":0,"paid_count":0,"skipped_count":0,"award_total":"0.00","paid_total":"0.00","note":null,"created_at":"2026-11-15 16:15:59"}
+
+### B.5 — Supervisor self-funds the quota (PS = GS = ₱500,000)
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    1 written · 0 skipped
+  paid:      1 award(s) · ₱40,000.00
+  duration:  227ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+award: {"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"500000.00","personal_volume":"500000.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"40000.00","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:16:07","created_at":"2026-11-15 16:16:07","username":"p19g_sup"}
+
+### B.6 — One rounding — GS ₱500,000.55 / PS ₱60,000.55
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    1 written · 0 skipped
+  paid:      1 award(s) · ₱18,000.04
+  duration:  452ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+award: {"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"500000.55","personal_volume":"60000.55","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"18000.04","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:16:14","created_at":"2026-11-15 16:16:14","username":"p19g_sup"}
+
+### B.7 — Stream off — a ₱1,000,000 month
+
+close 2026-10, exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   no
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    0 written · 0 skipped
+  paid:      0 award(s) · ₱0.00
+  duration:  135ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+royalty_periods: {"period":"2026-10","status":"skipped","enabled":0,"evaluated_at":"2026-11-15 16:16:22","evaluated_by":null,"paid_at":null,"paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":0,"leaders_count":0,"supervisors_count":0,"managers_count":0,"directors_count":0,"award_count":0,"paid_count":0,"skipped_count":0,"award_total":"0.00","paid_total":"0.00","note":"royalty stream off","created_at":"2026-11-15 16:16:22"}
+wallet credits (royalty): 0
+
+### B.8 — Payment paused — evaluate, no money, then pay once
+
+evaluate-only: exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  paused
+  closed:    0 — evaluated only; payment was not run (--evaluate-only)
+  periods:   2026-10
+  awards:    1 written · 0 skipped
+  paid:      0 award(s) · ₱0.00
+  duration:  242ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+after evaluate: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:16:35","evaluated_by":null,"paid_at":"2026-11-15 16:16:36","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":111,"leaders_count":10,"supervisors_count":1,"managers_count":0,"directors_count":0,"award_count":1,"paid_count":1,"skipped_count":0,"award_total":"40000.00","paid_total":"40000.00","note":null,"created_at":"2026-11-15 16:16:35"}
+pay-only: exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    0 written · 0 skipped
+  paid:      1 award(s) · ₱40,000.00
+  duration:  202ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+after pay: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:16:35","evaluated_by":null,"paid_at":"2026-11-15 16:16:36","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":111,"leaders_count":10,"supervisors_count":1,"managers_count":0,"directors_count":0,"award_count":1,"paid_count":1,"skipped_count":0,"award_total":"40000.00","paid_total":"40000.00","note":null,"created_at":"2026-11-15 16:16:35"}
+second pay-only: exit 1
+EcoWealth Royalty month close
+  refused: --pay-only needs an evaluated month; 2026-10 is paid.
+  nothing was written.
+
+### B.9 — Catch-up over two months — oldest first, each with its own cutoff
+
+pending before: ["2026-09","2026-10"]
+close (no --period): exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    2
+  periods:   2026-09, 2026-10
+  awards:    1 written · 0 skipped
+  paid:      1 award(s) · ₱40,000.00
+  duration:  276ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+2026-09: {"period":"2026-09","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:16:47","evaluated_by":null,"paid_at":"2026-11-15 16:16:47","paid_by":null,"as_of":"2026-10-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":100,"leaders_count":9,"supervisors_count":0,"managers_count":0,"directors_count":0,"award_count":0,"paid_count":0,"skipped_count":0,"award_total":"0.00","paid_total":"0.00","note":null,"created_at":"2026-11-15 16:16:47"}
+2026-10: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:16:47","evaluated_by":null,"paid_at":"2026-11-15 16:16:47","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":111,"leaders_count":10,"supervisors_count":1,"managers_count":0,"directors_count":0,"award_count":1,"paid_count":1,"skipped_count":0,"award_total":"40000.00","paid_total":"40000.00","note":null,"created_at":"2026-11-15 16:16:47"}
+2026-10 awards: [{"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"500000.00","personal_volume":"500000.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"40000.00","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:16:47","created_at":"2026-11-15 16:16:47","username":"p19g_b9_sup"}]
+
+### B.10 — A cancellation before and after the close
+
+BEFORE CLOSE: exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    1 written · 1 skipped
+  paid:      0 award(s) · ₱0.00
+  duration:  271ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+row: {"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"400000.00","personal_volume":"0.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"0.00","status":"skipped","reason":"group sales below quota","ledger_id":null,"credited_at":null,"created_at":"2026-11-15 16:16:53","username":"p19g_sup"}
+AFTER CLOSE: exit 0
+EcoWealth Royalty month close
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  enabled:   yes
+  payments:  on
+  closed:    1
+  periods:   2026-10
+  awards:    1 written · 0 skipped
+  paid:      1 award(s) · ₱15,000.00
+  duration:  438ms
+  log:       C:\Users\reybi\AppData\Local\Temp\p19g-acceptance-cf8d49cf\royalty_month_close-2026-11.log
+paid row: {"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"500000.00","personal_volume":"0.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"15000.00","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:17:03","created_at":"2026-11-15 16:17:03","username":"p19g_sup"}
+same row after the later cancellation: {"id":1,"period":"2026-10","user_id":1,"rank_level":2,"directs":10,"downline_rank_count":10,"team_size":110,"group_volume":"500000.00","personal_volume":"0.00","quota":"500000.00","group_pct":"3.000","personal_pct":"5.000","amount":"15000.00","status":"paid","reason":null,"ledger_id":1,"credited_at":"2026-11-15 16:17:03","created_at":"2026-11-15 16:17:03","username":"p19g_sup"}
+header after: {"period":"2026-10","status":"paid","enabled":1,"evaluated_at":"2026-11-15 16:17:03","evaluated_by":null,"paid_at":"2026-11-15 16:17:03","paid_by":null,"as_of":"2026-11-01 00:00:00","leader_directs":10,"supervisor_leaders":10,"manager_supervisors":10,"director_managers":10,"quota_supervisor":"500000.00","quota_manager":"1000000.00","quota_director":"5000000.00","group_pct_supervisor":"3.000","personal_pct_supervisor":"5.000","group_pct_manager":"5.000","personal_pct_manager":"10.000","group_pct_director":"10.000","personal_pct_director":"15.000","members_count":111,"leaders_count":10,"supervisors_count":1,"managers_count":0,"directors_count":0,"award_count":1,"paid_count":1,"skipped_count":0,"award_total":"15000.00","paid_total":"15000.00","note":null,"created_at":"2026-11-15 16:17:03"}
+
+### B.11 — Minimum trees with the reference thresholds — Leader 11 · Supervisor 111 · Manager 1,111 · Director 11,111
+
+root: {"id":1,"username":"p19g_root","member_status":"active","is_active":1,"parent_id":null,"rank":4,"rank_name":"Director","directs":10,"downline_leaders":1110,"downline_supervisors":110,"downline_managers":10,"team_size":11110,"volume_cents":0,"group_volume_cents":0}
+level1: {"id":2,"username":"p19g_n1_1_1","member_status":"active","is_active":1,"parent_id":1,"rank":3,"rank_name":"Manager","directs":10,"downline_leaders":110,"downline_supervisors":10,"downline_managers":0,"team_size":1110,"volume_cents":0,"group_volume_cents":0}
+level2: {"id":12,"username":"p19g_n2_2_1","member_status":"active","is_active":1,"parent_id":2,"rank":2,"rank_name":"Supervisor","directs":10,"downline_leaders":10,"downline_supervisors":0,"downline_managers":0,"team_size":110,"volume_cents":0,"group_volume_cents":0}
+level3: {"id":112,"username":"p19g_n3_12_1","member_status":"active","is_active":1,"parent_id":12,"rank":1,"rank_name":"Leader","directs":10,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":10,"volume_cents":0,"group_volume_cents":0}
+level4: {"id":1112,"username":"p19g_n4_112_1","member_status":"active","is_active":1,"parent_id":112,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0}
+
+### B.12 — Rank derivation on the small tree (thresholds 2/2/2/2, 31 members)
+
+map rows: {"1":{"id":1,"username":"p19g_director","member_status":"active","is_active":1,"parent_id":null,"rank":4,"rank_name":"Director","directs":2,"downline_leaders":14,"downline_supervisors":6,"downline_managers":2,"team_size":30,"volume_cents":0,"group_volume_cents":0},"2":{"id":2,"username":"p19g_mgra","member_status":"active","is_active":1,"parent_id":1,"rank":3,"rank_name":"Manager","directs":2,"downline_leaders":6,"downline_supervisors":2,"downline_managers":0,"team_size":14,"volume_cents":0,"group_volume_cents":0},"3":{"id":3,"username":"p19g_supa","member_status":"active","is_active":1,"parent_id":2,"rank":2,"rank_name":"Supervisor","directs":2,"downline_leaders":2,"downline_supervisors":0,"downline_managers":0,"team_size":6,"volume_cents":0,"group_volume_cents":0},"4":{"id":4,"username":"p19g_leada","member_status":"active","is_active":1,"parent_id":3,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"5":{"id":5,"username":"p19g_a1","member_status":"active","is_active":1,"parent_id":4,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"6":{"id":6,"username":"p19g_a2","member_status":"active","is_active":1,"parent_id":4,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"7":{"id":7,"username":"p19g_leadb","member_status":"active","is_active":1,"parent_id":3,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"8":{"id":8,"username":"p19g_b1","member_status":"active","is_active":1,"parent_id":7,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"9":{"id":9,"username":"p19g_b2","member_status":"active","is_active":1,"parent_id":7,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"10":{"id":10,"username":"p19g_supb","member_status":"active","is_active":1,"parent_id":2,"rank":2,"rank_name":"Supervisor","directs":2,"downline_leaders":2,"downline_supervisors":0,"downline_managers":0,"team_size":6,"volume_cents":0,"group_volume_cents":0},"11":{"id":11,"username":"p19g_leadc","member_status":"active","is_active":1,"parent_id":10,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"12":{"id":12,"username":"p19g_c1","member_status":"active","is_active":1,"parent_id":11,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"13":{"id":13,"username":"p19g_c2","member_status":"active","is_active":1,"parent_id":11,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"14":{"id":14,"username":"p19g_leadd","member_status":"active","is_active":1,"parent_id":10,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"15":{"id":15,"username":"p19g_d1","member_status":"active","is_active":1,"parent_id":14,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"16":{"id":16,"username":"p19g_d2","member_status":"active","is_active":1,"parent_id":14,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"17":{"id":17,"username":"p19g_mgrb","member_status":"active","is_active":1,"parent_id":1,"rank":3,"rank_name":"Manager","directs":2,"downline_leaders":6,"downline_supervisors":2,"downline_managers":0,"team_size":14,"volume_cents":0,"group_volume_cents":0},"18":{"id":18,"username":"p19g_supc","member_status":"active","is_active":1,"parent_id":17,"rank":2,"rank_name":"Supervisor","directs":2,"downline_leaders":2,"downline_supervisors":0,"downline_managers":0,"team_size":6,"volume_cents":0,"group_volume_cents":0},"19":{"id":19,"username":"p19g_leade","member_status":"active","is_active":1,"parent_id":18,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"20":{"id":20,"username":"p19g_e1","member_status":"active","is_active":1,"parent_id":19,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"21":{"id":21,"username":"p19g_e2","member_status":"active","is_active":1,"parent_id":19,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"22":{"id":22,"username":"p19g_leadf","member_status":"active","is_active":1,"parent_id":18,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"23":{"id":23,"username":"p19g_f1","member_status":"active","is_active":1,"parent_id":22,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"24":{"id":24,"username":"p19g_f2","member_status":"active","is_active":1,"parent_id":22,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"25":{"id":25,"username":"p19g_supd","member_status":"active","is_active":1,"parent_id":17,"rank":2,"rank_name":"Supervisor","directs":2,"downline_leaders":2,"downline_supervisors":0,"downline_managers":0,"team_size":6,"volume_cents":0,"group_volume_cents":0},"26":{"id":26,"username":"p19g_leadg","member_status":"active","is_active":1,"parent_id":25,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"27":{"id":27,"username":"p19g_g1","member_status":"active","is_active":1,"parent_id":26,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"28":{"id":28,"username":"p19g_g2","member_status":"active","is_active":1,"parent_id":26,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"29":{"id":29,"username":"p19g_leadh","member_status":"active","is_active":1,"parent_id":25,"rank":1,"rank_name":"Leader","directs":2,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":2,"volume_cents":0,"group_volume_cents":0},"30":{"id":30,"username":"p19g_h1","member_status":"active","is_active":1,"parent_id":29,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0},"31":{"id":31,"username":"p19g_h2","member_status":"active","is_active":1,"parent_id":29,"rank":0,"rank_name":"Member","directs":0,"downline_leaders":0,"downline_supervisors":0,"downline_managers":0,"team_size":0,"volume_cents":0,"group_volume_cents":0}}
+
+==============================================================================
+Asserted: the twelve Appendix B scenarios reproduce their reference amounts on a scratch database: 12 / 12 PASS.
+RESULT: PASS

@@ -7,7 +7,8 @@
     P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13,
     P15-T1 ... P15-T12; Phase 17: P17B-T1 ... P17B-T20,
     P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
-    P17F-T10 / P17F-T11; Phase 19B: P19B-T1 / T6 / T23;
+    P17F-T10 / P17F-T11; Phase 18: the escrow's pending/release rows;
+    Phase 19B: P19B-T1 / T6 / T23;
     Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18;
     Phase 19E: P19E-T1, T2, T3, T12, T13, T14;
     Phase 19F: P19F-T1, T2, T13).
@@ -250,7 +251,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-15, 17 and 19B)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-19)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''

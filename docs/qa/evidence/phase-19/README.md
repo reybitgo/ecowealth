@@ -2,8 +2,9 @@
 
 One file per check, named exactly as the check's **Evidence** line. A check that produces only counts,
 SQL output or a CLI exit code is captured as a **text transcript** (`.txt`); a check that shows a
-browser screen would be a screenshot (`.png`). Phase 19 has no new route yet, so every file here is a
-transcript; sections A and B assert the rendered markup through the application itself.
+browser screen is captured as a screenshot (`.png`). Phase 19 ships no new route, so sections A–F are
+transcripts that assert the rendered markup through the application itself; **section G** (the release)
+adds the suite/smoke/acceptance transcripts and the release walk's seven screenshots.
 
 Index:
 
@@ -63,6 +64,19 @@ Index:
 | `QA19F-06.txt` | QA19F-06 | The second run: exit 0, `closed=0`, “nothing to close — … is already final”, exactly one new log line, no new rows |
 | `QA19F-07.txt` | QA19F-07 | A holder process takes `CronLock('royalty_month_close')`: the run prints `[SKIP ] busy`, exits **0**, writes a `[SKIP ]` log line and changes nothing |
 | `QA19F-08.txt` | QA19F-08 | The two monthly entries in `docs/runbook.md` and `docs/cron.md` §7 (00:15 unilevel, 00:30 Royalty with `--max-batches=20`), the `royalty_month_close.cmd --doctor` run and the Task Scheduler create/query/delete transcript |
+| `QA19G-01.txt` | QA19G-01 | `APP_PHASE` **19**, the config comment naming Phase 19 and the plan's §11, the suite header `phase 19`, and the P15 Hardening case asserting `assert_same(19, APP_PHASE)` |
+| `QA19G-02-suite.txt` | QA19G-02 | `php tests/run.php` at the release: **Cases: 1162   Passed: 1162   Failed: 0**, exit 0 (ANSI colour codes stripped; the summary lines preserved verbatim) |
+| `QA19G-03-smoke.txt` | QA19G-03 | `powershell -NoProfile -File tests/smoke.ps1`: **Passed: 248   Failed: 0**, exit 0, including the 19 Phase 19 URL checks |
+| `QA19G-04-acceptance.txt` | QA19G-04 | The twelve Appendix B scenarios on `ecowealth_sneat_tool_b_test`, through the real close job and the real rank engine: **12 / 12 PASS** — the reference ₱18,300.00, the Director's ₱515,000.00, the one-rounding ₱18,000.04, the paused month paid once, the two-month catch-up with its own cutoffs, the 11,111-member minimum-tree ladder and the 2/2/2/2 rank table |
+| `QA19G-05.txt` | QA19G-05 | The release walk as an admin and as a member: seven URLs all **HTTP 200**, the markers present, no PHP warning/notice, **0** console errors, **0** failed requests; the member dashboard's hidden tile while the stream is off |
+| `QA19G-05-admin-settings.png` | QA19G-05 | `/admin/settings` — the Royalty sub-block and the saved ladder |
+| `QA19G-05-admin-members.png` | QA19G-05 | `/admin/members` — the Rank column and the distribution strip |
+| `QA19G-05-admin-royalty.png` | QA19G-05 | `/admin/commissions?ledger=royalty` — the operations panel, the open-month preview, the empty closed-months card and the ledger |
+| `QA19G-05-admin-reports.png` | QA19G-05 | `/admin/reports` — the Royalty cards |
+| `QA19G-05-admin-audit.png` | QA19G-05 | `/admin/audit` — the audit desk |
+| `QA19G-05-member-earnings-royalty.png` | QA19G-05 | `/earnings?ledger=royalty` — the member's own Royalty tab |
+| `QA19G-05-member-dashboard.png` | QA19G-05 | `/dashboard` — no Royalty tile while the stream is off and the member has no history (the documented rule) |
+| `QA19G-06-cold-read.txt` | QA19G-06 | The independent cold read of §12 and the admin guide against the build: the findings, the fixes in the owning phases and the corrected shared documents |
 
 Notes for the reader:
 
@@ -109,3 +123,13 @@ Notes for the reader:
   file and the same `CronAccess::allowed()` decision the web server uses. Every file ends with
   `RESULT: PASS`; the generator lives in the git-ignored `system/tests/tmp/`, so the transcripts — not
   the script — are the committed evidence.
+- **Section G is the release proof.** `QA19G-02-suite.txt` and `QA19G-03-smoke.txt` are the two gate
+  runs' own output (colour codes stripped; the case lines and the final summary untouched).
+  `QA19G-04-acceptance.txt` is produced by `system/tests/tmp/p19g_acceptance.php`, which rebuilds
+  `ecowealth_sneat_tool_b_test` per scenario and runs the **real** `bin/royalty_month_close.php` and
+  `RoyaltyRank::map()` against it; every "observed" figure is read back from that schema, and the
+  development copy is never touched. `QA19G-05.txt` and its seven screenshots come from a headless
+  Chrome walk (CDP) that signs in through the real `/login` form as `admin` and as the demo member
+  `juan`, captures each screen and records the console, failed requests and the visible PHP error
+  strings. `QA19G-06-cold-read.txt` is the independent review's findings and their disposition; the
+  reviewers' scratch scripts also live in `system/tests/tmp/`.

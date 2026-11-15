@@ -31,10 +31,11 @@ defined('APP_ENV') || define('APP_ENV', (string) (getenv('APP_ENV') ?: 'producti
 defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
 
 /* Phase currently under construction — controls which menu items render.
- * Phase 17 (the unilevel repeat-purchase workstream) is the last one: see
- * docs/phase-log.md for the release entry and dmp/plan-ecowealth-unilevel-
- * repeat-purchase.md §11 (D-15). */
-defined('APP_PHASE') || define('APP_PHASE', 17);
+ * Phase 19 (the Royalty bonus workstream) is the last one: see
+ * docs/phase-log.md for the release entry and dmp/plan-ecowealth-royalty.md
+ * §11 (Phase 19G — Release). The constant only labels the build; no route,
+ * menu item or permission reads it for Phase 19. */
+defined('APP_PHASE') || define('APP_PHASE', 19);
 
 /* ---------- Database (MySQL) ---------- */
 defined('DB_HOST') || define('DB_HOST', '127.0.0.1');

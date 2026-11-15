@@ -5,8 +5,9 @@ admin and the developer on call. It is the day-to-day companion to
 [`deploy.md`](deploy.md) (first install and upgrades), [`cron.md`](cron.md) (job detail) and
 [`live-updates.md`](live-updates.md) (the no-refresh protocol).
 
-**Scope:** the Phase 15 build — shop, orders, payments, fulfilment, registration and codes, the
-dual-balance e-wallet, commissions, transfers, payouts, super-login and the reports/audit desk.
+**Scope:** the Phase 19 build — shop, orders, payments, fulfilment, registration and codes, the
+dual-balance e-wallet, commissions, transfers, payouts, super-login, the reports/audit desk, the
+repeat-purchase bonus (earn, escrow and release) and the monthly Royalty bonus.
 
 ---
 
@@ -14,8 +15,8 @@ dual-balance e-wallet, commissions, transfers, payouts, super-login and the repo
 
 | # | Check | Where | Healthy looks like |
 |---|---|---|---|
-| 1 | Finance health | **Admin → Reports → Finance health** | Green **All clear**, 7 checks, one line per invariant |
-| 2 | Reconciliation | `php bin\wallet_reconcile.php` | exit **0**, "All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile" |
+| 1 | Finance health | **Admin → Reports → Finance health** | Green **All clear**, 8 checks, one line per invariant |
+| 2 | Reconciliation | `php bin\wallet_reconcile.php` | exit **0**, "All good — wallets, commissions, transfers, payouts, repeat-purchase and royalty awards reconcile" |
 | 3 | Orders that need action | **Admin → Dashboard → Orders needing action** | the number you expect for the day; nothing stuck in `payment_review` |
 | 4 | Payout hold | **Admin → Dashboard → Held for payout** / **Payouts** | every open request has a reason to wait; none older than a day |
 | 5 | Audit desk | **Admin → Audit log** | today's settings changes, exports and S-Login exits are the ones you made |
@@ -99,6 +100,16 @@ numbers (`closed= periods= award= paid= amount= skipped= status= paused=`). A se
 `closed=0`. On the panel, `Awaiting payment` must be **None** and `Pending periods` must be **None**;
 anything else means the close did not finish, and the panel names the month and the command to finish
 it.
+
+**The review window (optional).** `--evaluate-only` writes the month's awards and pays nothing — the
+window `cron.md` §7 mentions. Use it when a month should be checked before money moves: run
+`php bin\royalty_month_close.php --period=<P> --evaluate-only`, read the ledger
+(**Admin → Commissions → Royalty**, or `php bin\royalty_month_close.php --period=<P> --dry-run --json`
+for a preview that writes nothing at all), then pay with
+`php bin\royalty_month_close.php --period=<P> --pay-only`. Keep the window to **a day or two**, and
+never past the next close: until it is paid the month reads **Awaiting payment** on the operations
+panel, its money is not in any wallet, and the doctor warns once an evaluated month is older than
+48 hours.
 
 **If a month is left `evaluated`** (a crash, or `--max-batches` reached its ceiling): the batches
 already paid are committed and the remaining rows are still `pending`. There is nothing to repair —
@@ -563,8 +574,9 @@ Full instructions are in [`deploy.md`](deploy.md). The short version:
 1. Back up the database (§3) and the current files.
 2. Copy the files; keep `config.local.php` and `uploads/` from the server.
 3. Apply migrations in order — the current build is at
-   **022_shop_cancel_toggle.sql** (the order-cancellation kill switch, off by default; the
-   repeat-purchase escrow was `021` and the Phase 17 build was `020`).
+   **023_royalty_bonus.sql** (the Royalty bonus tables and its sixteen settings, stream off; the
+   order-cancellation kill switch was `022`, the repeat-purchase escrow `021` and the Phase 17 build
+   `020`).
    `php bin` has no migration runner; import with the MySQL client, then compare with
    `database\schema.sql` (`php tests\run.php Migration` does that automatically on a scratch
    schema). Never import `database/install.sql` into an existing database: it is fresh-install
@@ -610,6 +622,33 @@ or a stack trace; the detail is in PHP's `error_log`.
 4. If it is a payout, open **Payouts**; the hold happened when the member asked.
 5. Only after the trail is understood, correct forward with an adjustment (see §4).
 
+### A Royalty month is missing, stuck or looks wrong
+
+1. **Is the month due?** Only a **completed** month can close; the current month is a labelled preview.
+   The operations panel's **Pending periods** names every completed month with no header.
+2. **Did the job run?** Read `system/storage/logs/royalty_month_close-YYYY-MM.log`: one line per run
+   (`closed= periods= award= paid= amount= skipped= status= paused=`). `[SKIP ] busy` is an
+   overlapping run (harmless); `[ERROR]` names the refusal.
+3. **Doctor first:** `php bin\royalty_month_close.php --doctor`. Exit **1** is a hard failure (a
+   missing table, a clock skew over 2 s, an invalid stored ladder, a paid month with a pending row, a
+   malformed baseline) and the failing line names it. A `WARN` line with exit **0** is a paused
+   payment switch, a pending month or an evaluated month older than 48 hours.
+4. **Evaluated but unpaid:** `php bin\royalty_month_close.php --pay-only --period=YYYY-MM` pays it
+   exactly once; the operations panel prints the exact command for the month it names.
+5. **Skipped:** the stream was off when that month closed. A skipped month is final and is never paid
+   later; turn `royalty_enabled` on **before** a close (see §2's enable-at-a-month-boundary note).
+6. **"The amount is wrong":** open the ledger row and compare the stored GS/PS/quota/rates with the
+   month's paid orders (`paid_at` inside the month, cancelled orders excluded). Ranks are derived at
+   the period-end cutoff and never stored, so a tree change after the close cannot move an award. A
+   closed month is never recalculated: if it was closed with the wrong ladder, that is a finance
+   correction outside the app — record it, then change the setting for the next month.
+7. **A member who was skipped:** read the stored reason on their statement or on
+   **Admin → Members → member → Royalty** — `group sales below quota`, `account is not active`,
+   `membership is not active` or `zero amount`.
+8. **Never edit `royalty_awards`, `royalty_periods` or a `royalty` ledger row by hand.** The wallet
+   ledger is the source of truth, the engine is the only writer, and `php bin\wallet_reconcile.php`
+   must stay clean.
+
 ### A registration code will not redeem
 
 `unused` codes can expire; an expired code is refused with a message and flipped to `expired`.
@@ -650,7 +689,7 @@ database dump before investigating further.
 - [ ] HTTPS enabled; HSTS is sent only over TLS.
 - [ ] `public/uploads/` writable, its `.htaccess` present; a PHP probe under `uploads/` returns 403.
 - [ ] Security headers verified on `/login` and `/admin` (see §8).
-- [ ] Cron scheduled and verified (five jobs, §2); one run appears in the log.
+- [ ] Cron scheduled and verified (six jobs, §2); one run appears in the log.
 - [ ] A backup has been taken **and restored** (§3).
 - [ ] Admin and superadmin passwords changed and neither is a documented default
       (`Admin@123`, `Super@123`); payment accounts, transfer fee/limits, payout methods/fees/USDT
@@ -714,8 +753,8 @@ Cron access, lock and log conventions are shared; see [`cron.md`](cron.md).
 
 1. Bundle: `php bin\build_install_sql.php --check` — exit 0 (the committed `install.sql` matches
    `schema.sql` + seeds 001–004; rebuild with `php bin\build_install_sql.php` after editing a source).
-2. Full suite: `php tests\run.php` — must be green (948 cases after the Phase 17 workstream).
-3. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green (195 checks).
+2. Full suite: `php tests\run.php` — must be green (1,162 cases at the Phase 19 release).
+3. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green (248 checks).
 4. Reconciliation: `php bin\wallet_reconcile.php` — exit 0.
 5. Phase gate checklist in `docs\phase-log.md` signed; QA doc updated.
 6. Commit with the phase summary; tag `phase-15` for the build and `v1.0-complete` at launch.

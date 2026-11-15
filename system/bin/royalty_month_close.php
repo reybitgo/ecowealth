@@ -467,7 +467,7 @@ function royalty_close_refused(string $trigger, string $reason, string $message,
  */
 function royalty_close_write_log(CronLog $log, string $trigger, string $level, array $summary): void
 {
-    $log->write($level, sprintf(
+    $written = $log->write($level, sprintf(
         'trigger=%s closed=%d periods=%s award=%d paid=%d amount=%.2f skipped=%d status=%s paused=%d',
         $trigger,
         $summary['closed'],
@@ -479,6 +479,17 @@ function royalty_close_write_log(CronLog $log, string $trigger, string $level, a
         $summary['status'],
         $summary['paused'] ? 1 : 0
     ));
+
+    if ($written) {
+        return;
+    }
+
+    /* A read-only host must not fail the run, but it must not be silent
+     * either (plan §10: "the run continues; stderr warns"). error_log
+     * reaches stderr on the CLI and PHP's error log under Apache, so the
+     * same line serves both entries and stays testable. */
+    error_log('[ecowealth] [WARN ] the Royalty log could not be written to '
+        . $log->fileFor() . '; the run continued.');
 }
 
 /* --------------------------------------------------------------
@@ -1043,7 +1054,10 @@ function royalty_close_run(array $options, array $resolved, string $trigger, Cro
             $skipped   += (int) $evaluation['skipped'];
             $status     = (string) $evaluation['status'];
 
-            if ((string) $evaluation['status'] === 'skipped') {
+            /* A month can reach a final status at evaluation time: a
+             * skipped period (the stream was off) and an enabled month
+             * whose every award row was skipped both finalise here. */
+            if (in_array($status, RoyaltyPeriod::FINAL, true)) {
                 $closed++;
             }
 

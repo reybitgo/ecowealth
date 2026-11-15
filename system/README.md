@@ -4,8 +4,8 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 18 — repeat-purchase bonus escrow (post-17 point release). `APP_PHASE` stays
-17** and the workstream is closed.
+**Current status: Phase 19 — the Royalty bonus, released in seven gates 19A → 19G
+(`dmp/plan-ecowealth-royalty.md`). `APP_PHASE` is 19** and the workstream is closed.
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -27,16 +27,17 @@ neither a member nor an administrator can cancel an order — and therefore no w
 repeat-purchase escrow reversal runs — until an operator opens it for a special case. Automatic
 expiry keeps its own switch and still closes unpaid orders.
 
-A third workstream is in progress: **Phase 19 — the Royalty bonus**
-(`dmp/plan-ecowealth-royalty.md`), a rank-gated monthly bonus that pays
+The third workstream — **Phase 19, the Royalty bonus**
+(`dmp/plan-ecowealth-royalty.md`) — is **released**: a rank-gated monthly bonus that pays
 Supervisor/Manager/Director one award per closed calendar month. 19A added the two money tables, the
 `royalty` wallet movement and sixteen settings (**33 tables / 73 settings**, unchanged since); 19B the
 configuration card and the derived five-rank ladder; 19C the money engine (`RoyaltyService`) and its
 close job; 19D the admin ledger, report cards, member panel and dashboard tile; 19E the member
-statement and tile. **19F** makes the stream operable: the scheduled close (CLI, guarded URL entry and
-Windows launcher), its `--doctor` report, the read-only **Operations** panel on the Royalty tab, the
-health check and the runbook drill. The stream still ships **off**, `APP_PHASE` is still 17, and 19G
-owns the release label.
+statement and tile; **19F** the scheduled close (CLI, guarded URL entry and Windows launcher), its
+`--doctor` report, the read-only **Operations** panel on the Royalty tab, the health check and the
+runbook drill; and **19G** the release: `APP_PHASE` **19**, the QA pack signed (`docs/qa/phase-19-royalty.md`,
+sections A–G, 60 checks), the Appendix B acceptance run and the documentation sweep. The stream still
+ships **off**, so a fresh install pays nothing until an operator turns it on.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -87,7 +88,7 @@ Phase 15 makes the build operable and launchable: the admin dashboard gains the 
 roll-up (sales today and 30 days, orders by status, top products, commissions, wallet float, payout
 hold); a **Reports** desk adds sales-by-day, commissions-by-level, the wallet statement export, the
 payout register, registration-code revenue and a **Finance health** widget over the seven plan
-invariants, with five CSV exports; the settings page becomes eight independently saved cards
+invariants, with five CSV exports (two more joined later: the repeat-purchase and Royalty exports); the settings page becomes eight independently saved cards
 (General, Shop, Receiving accounts, Payout methods, Payment windows, Fulfilment & invoices,
 Commissions, Transfers); the append-only **audit log** gets its own filterable desk; and the
 security baseline is finished — shared response headers, session-scoped throttles on checkout,
@@ -421,7 +422,7 @@ The full checklist, with the verification queries and the backup step, is in
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `17` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `19` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
@@ -446,21 +447,29 @@ system/
 │   ├── auth.php               login/register/session, guards, roles
 │   ├── helpers.php            url(), e(), csrf, flash, money(), settings, nav
 │   ├── autoload.php           Core/Models/Services/Controllers by class name
-│   ├── routes.php             the live route table (Phase 1 … 10 routes)
+│   ├── routes.php             the live route table (every phase's routes, 1–19)
 │   ├── routes_inventory.php   all 98 reference pages → route / page / CLI / drop / defer
 │   ├── Core/                  Router, Request, View, Validator, Paginator, Upload, MaintenanceGate,
-│   │                          CronAccess, CronLock, CronLog, InvoicePage, DbTarget, SqlScript,
-│   │                          DbToolAccess (install/reset gates)
-│   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, AdminDashboard,
-│   │                          AdminProduct, AdminPackage, AdminWallet, AdminOrder, AdminSettings,
-│   │                          Profile
-│   ├── Models/                Product, Package, Cart, Wallet, AuditLog, Address, Order, OrderEvent,
-│   │                          PaymentProof, Shipment, Invoice
+│   │                          SecurityHeaders, Throttle, CronAccess, CronLock, CronLog, InvoicePage,
+│   │                          DbTarget, SqlScript, DbToolAccess (install/reset gates)
+│   ├── Controllers/           Home, Shop, Package, Cart, Wallet, Checkout, Order, Profile, Earnings,
+│   │                          Membership, Registration, Genealogy, Payout, Transfer, Dashboard,
+│   │                          SLogin and the admin desks (Dashboard, Product, Package, Wallet, Order,
+│   │                          Settings, Member, Activation, Code, Commission, Payout, Report, Audit)
+│   ├── Models/                Product, ProductUnilevel, Package, Cart, Wallet, AuditLog, Address, Order,
+│   │                          OrderEvent, PaymentProof, Shipment, Invoice, Commission, Member,
+│   │                          RegCode, Transfer, Payout, Activation, Impersonation, Report,
+│   │                          UnilevelAward, UnilevelCycle, RoyaltyAward, RoyaltyPeriod,
+│   │                          RoyaltyRank, RoyaltyOps
 │   ├── Services/              StockService, UploadService, PackageService, CartService, WalletService,
 │   │                          OrderService, OrderNumber, AddressService, PaymentDetailsService,
 │   │                          PaymentService, FulfilmentService, FulfilmentException, InvoiceService,
-│   │                          InvoiceNumber, DatabaseInstaller, DatabaseResetService,
-│   │                          DemoDataService, DatabaseToolException
+│   │                          InvoiceNumber, CommissionService, RegistrationService, CodeService,
+│   │                          SponsorService, TransferService, PayoutService,
+│   │                          ImpersonationService, HealthService, ReportService, Live,
+│   │                          UnilevelService, RoyaltyService and their exception types,
+│   │                          DatabaseInstaller, DatabaseResetService, DemoDataService,
+│   │                          DatabaseToolException
 │   ├── views/                 errors/, partials/, shop/, member/, admin/, profile/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
@@ -488,19 +497,24 @@ system/
 │   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
 │   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 022_shop_cancel_toggle
+│   ├── migrations/            001_settings_roles … 023_royalty_bonus
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures, the
     │                          scratch-schema and information_schema helpers
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5, P17B-T1 … P17F-T11)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5, P17B-T1 … P17F-T11, P19B … P19F)
     ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, CancelSetting, View,
     │                          Upload, Migration, Product, ProductView, Package, PackageView, Cart,
     │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
     │                          PaymentView, PaymentDetails, Fulfilment, FulfilmentView, Invoice,
-    │                          Cron, Membership, MembershipView, Live, Commission, Transfer,
-    │                          Payout, Impersonation, Report, AuditLog, Hardening, Launch and the
+    │                          Cron, Membership, MembershipView, Live, Commission, CommissionIndirect,
+    │                          Transfer, TransferView, Payout, PayoutView, Impersonation,
+    │                          ImpersonationView, Report, ReportView, AuditLog, Hardening, Launch,
+    │                          the member/admin live suites, the Unilevel* group (Foundation,
+    │                          Configuration, Engine, Cycle, Escrow, ReleaseJob, MemberView) and the
+    │                          Royalty* group (Foundation, Configuration, Rank, Engine, Reconcile,
+    │                          Report, AdminView, AdminMemberView, MemberView, CloseJob, Cron), and the
     │                          install/reset groups SqlScript, DbTarget, SeedParity, InstallSql,
     │                          Install, DbReset, DbToolAccess
     └── fixtures/              legacy schema fixture for the migration test
@@ -946,7 +960,7 @@ and the referral-link signup; it is editable on the **Commissions** card.
   from revenue), sales by method and the average order, the best sellers in the window, commissions
   by level (credited vs skipped), the payout register summary (held now, completed, fees, by method),
   registration-code revenue per package, orders by status and the **Finance health** widget.
-- **Five CSV exports** — `sales`, `commissions`, `wallet`, `payouts`, `codes` — each for the selected
+- **Seven CSV exports** — `sales`, `commissions`, `unilevel`, `royalty`, `wallet`, `payouts`, `codes` — each for the selected
   window, each written through one CSV builder and each audited as `report.export` with its type,
   window and row count.
 - **Finance health** is `HealthService`: the four service reconciliations (wallets, commissions,
@@ -1359,14 +1373,14 @@ php tests/run.php UnilevelCycle           # 11 monthly-clock cases (17C)
 php tests/run.php UnilevelMemberView      # 17 member-surface cases (17E)
 php tests/run.php UnilevelEscrow          # the Phase 18 escrow suite: pending, release, cancellation
 php tests/run.php Cron                    # 18 job cases, 10 of them the month close (17F)
-php bin/wallet_reconcile.php              # five sections, exit 0 when clean
+php bin/wallet_reconcile.php              # six sections, exit 0 when clean
 ```
 
 ---
 
 ## Cron jobs
 
-Five scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
+Six scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
 
 | Job | CLI | Web | Windows |
 |---|---|---|---|
@@ -1375,10 +1389,12 @@ Five scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows l
 | Transfer-limit reset (daily/weekly counters) | `bin/reset_transfer_limits.php` | `/system/cron/reset_transfer_limits.php` | `bin/reset_transfer_limits.cmd` |
 | Unilevel month close (monthly Active snapshot) | `bin/unilevel_month_close.php` | `/system/cron/unilevel_month_close.php` | `bin/unilevel_month_close.cmd` |
 | Unilevel release (credits due pending bonus) | `bin/unilevel_release.php` | `/system/cron/unilevel_release.php` | `bin/unilevel_release.cmd` |
+| Royalty month close (monthly rank-gated bonus) | `bin/royalty_month_close.php` | `/system/cron/royalty_month_close.php` | `bin/royalty_month_close.cmd` |
 
 - Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `json`, `doctor`, `log-dir` (CLI only),
   `quiet` (CLI only), `help`; the expiry job also has `from-settings`, the reset job `week` and
-  `daily-only`, the month close `period`, and the release job `order`.
+  `daily-only`, both month closes `period`, the release job `order`, and the Royalty close also
+  `evaluate-only`, `pay-only` and `max-batches`.
 - `--from-settings` recomputes expiry deadlines from the **current** settings instead of the stored
   stamps (`pending`: `created_at` + payment window; `payment_failed`: last rejection + correction
   window). The cron itself uses the stamps, so changing a window never retroactively cancels old
@@ -1393,22 +1409,35 @@ Five scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows l
   `?key=` matching `CRON_KEY` in `app/config.local.php`. The CLI is always allowed.
 - One run at a time (`CronLock`); monthly logs at `storage/logs/shop_expire-YYYY-MM.log`,
   `storage/logs/order_autocomplete-YYYY-MM.log`, `storage/logs/reset_transfer_limits-YYYY-MM.log`,
-  `storage/logs/unilevel_month_close-YYYY-MM.log` and `storage/logs/unilevel_release-YYYY-MM.log`;
+  `storage/logs/unilevel_month_close-YYYY-MM.log`, `storage/logs/unilevel_release-YYYY-MM.log` and
+  `storage/logs/royalty_month_close-YYYY-MM.log`;
   `--doctor` reports PHP/DB time, settings, candidates, lock and log state. The release doctor also
   reports pending count/amount, the oldest pending award, what is due now, undelivered and stuck
-  `shipped` awards, and `cancelled_due` (must be `0`).
-- Kill switches: `shop_expiry_enabled`, `shop_autocomplete_enabled` and `unilevel_release_enabled`
+  `shipped` awards, and `cancelled_due` (must be `0`). The Royalty doctor reports the PHP/MySQL clocks
+  (±2 s), the time zone, both tables, the sixteen settings and the stored ladder, the ledger baseline,
+  both switches, the last paid and last final month, pending and evaluated months, the paid-with-pending
+  check, the lock, the wallet reconciliation and storage state; exit 1 on a hard failure, a `WARN` line
+  (exit 0) on a paused payment switch or a month left `evaluated` for more than 48 hours.
+- Kill switches: `shop_expiry_enabled`, `shop_autocomplete_enabled`, `unilevel_release_enabled`,
+  `royalty_enabled` and `royalty_pay_enabled`
   (settings page). Each makes every run of its job exit 0 without changing anything. The release
   switch pauses the credits but **still cancels pending awards when an order is cancelled**. The reset
   job has nothing to switch off — a run only zeroes counters a transfer would have incremented. The
-  **month close has no switch on purpose**: it pays no money, so there is nothing to pause, and it must
-  snapshot a period even while `unilevel_enabled = 0`.
+  **unilevel month close has no switch on purpose**: it pays no money, so there is nothing to pause, and
+  it must snapshot a period even while `unilevel_enabled = 0`. The Royalty close's **earning** switch
+  closes the month as `skipped` (final, never paid later); its **payment** switch evaluates the month and
+  leaves every award `pending`, so a later `--pay-only` pays it.
 - What drives the month close: `unilevel_active_threshold` (the monthly personal-purchase minimum,
   ₱500 by default, snapshotted onto every closed period) and `unilevel_ledger_since` (the baseline
   the catch-up starts from; the install month, never rendered on a page). Its `award_total` is the
   month's **earned** repeat-purchase money, `pending + credited`.
 - What drives the release: `unilevel_hold_days` (0–365, default 7; snapshotted on each award) and the
   order's delivery stamp. An undelivered order never releases.
+- What drives the Royalty close: the four rank thresholds, the three monthly group quotas and the six
+  group/personal rates (settings page; snapshotted onto every closed month), and
+  `royalty_ledger_since` — the first payable month. A month is evaluated at its own period-end cutoff
+  and paid once; a **final month is never recalculated**, so an order cancelled after the close does
+  not claw the award back (plan D-13).
 
 ```bash
 php bin/shop_expire.php --doctor
@@ -1432,6 +1461,12 @@ php bin/unilevel_release.php --doctor
 php bin/unilevel_release.php --dry-run
 php bin/unilevel_release.php
 php bin/unilevel_release.php --order=93 --json
+
+php bin/royalty_month_close.php --doctor
+php bin/royalty_month_close.php --dry-run
+php bin/royalty_month_close.php --max-batches=20
+php bin/royalty_month_close.php --period=2026-10 --evaluate-only
+php bin/royalty_month_close.php --period=2026-10 --pay-only --json
 ```
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
@@ -1441,11 +1476,11 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (948 cases; Phase 17 is the last workstream)
+php tests/run.php                 # full suite (1,162 cases; Phase 19 is the last workstream)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
-powershell -NoProfile -File tests/smoke.ps1    # 225 HTTP checks against the running app
+powershell -NoProfile -File tests/smoke.ps1    # 248 HTTP checks against the running app
 ```
 
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
@@ -1456,7 +1491,7 @@ powershell -NoProfile -File tests/smoke.ps1    # 225 HTTP checks against the run
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–020 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–023 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -1470,7 +1505,7 @@ window, the reports performance budget, the CSV exports and their audit rows, th
 transfer throttle. The install/reset workstream adds ten more — `IR4-T1…T5` for the web installer's
 refusal states, hardening headers, GET/POST side effects and shared stylesheet, and `IR6-T1…T5` for the
 reset console's guest redirect, member 403, admin form with no secret, three refusals that change
-nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON) — **225** HTTP checks in all.
+nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), and Phase 19 adds **19**: three on the commissions settings sub-block and the member Rank column (19B), seven on the Royalty ledger and its filters/CSV (19D), six on the member statement and tile (19E) and three on the Royalty close's URL entry and doctor (19F) — **248** HTTP checks in all.
 
 The install/reset groups run without a browser and without the application connection:
 
@@ -1530,6 +1565,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `020_unilevel_repeat_purchase.sql` | `product_unilevel_levels`, `unilevel_awards`, `unilevel_periods`, `unilevel_activity`; `products.pv` + `unilevel_base` + `unilevel_enabled`; `shop_order_items.unit_base` + `base_total`; `shop_orders.unilevel_processed_at` + `unilevel_total`; two order indexes; `ewallet_ledger.ref_type` gains `unilevel` and `unilevel_reversal`; the six `unilevel%` settings (all off by default); additive and re-runnable |
 | `021_unilevel_bonus_escrow.sql` | `unilevel_awards.hold_days` (`SMALLINT UNSIGNED`, default 0) + `credited_at`; the status enum gains `pending` (the new default) and `cancelled`; `idx_unilevel_user_status` + `idx_unilevel_order_status`; `credited_at` backfilled from `created_at` for existing `credited`/`voided` rows; the two settings `unilevel_hold_days` (7) and `unilevel_release_enabled` (1); additive and re-runnable, **no new table and no retroactive lock** |
 | `022_shop_cancel_toggle.sql` | The setting `shop_cancel_enabled` (**Enable Cancel of Order**, **0** = closed) only; additive and re-runnable, **no table, no column**, so an upgraded database gets the safe default |
+| `023_royalty_bonus.sql` | `royalty_periods` (one header per month, natural `period` key) and `royalty_awards` (one row per member per month, `UNIQUE (period, user_id)`, the money CHECKs); `ewallet_ledger.ref_type` gains `royalty`; the sixteen `royalty_*` settings (the stream off by default); additive and re-runnable |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

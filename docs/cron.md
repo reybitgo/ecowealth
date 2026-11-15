@@ -574,7 +574,7 @@ launcher on Windows.
 
 # 5. Registering the Windows tasks (Phase 15)
 
-The five jobs run from Laragon on Windows. Register them once in Task Scheduler with these
+The six jobs run from Laragon on Windows. Register them once in Task Scheduler with these
 commands (run an **elevated** PowerShell; adapt the app path if it is not `C:\laragon\www\ecowealth`):
 
 ```powershell
@@ -600,13 +600,18 @@ schtasks /Create /F /SC MONTHLY /D 1 /ST 00:15 /TN "EcoWealth - unilevel month c
 # Repeat-purchase release - hourly at :20.
 schtasks /Create /F /SC HOURLY /MO 1 /ST 00:20 /TN "EcoWealth - unilevel release" ^
   /TR "\"$php\" \"$app\bin\unilevel_release.php\" --limit=200"
+
+# Royalty month close - 00:30 on the first of every month (15 minutes after the unilevel close).
+schtasks /Create /F /SC MONTHLY /D 1 /ST 00:30 /TN "EcoWealth - royalty month close" ^
+  /TR "\"$php\" \"$app\bin\royalty_month_close.php\" --max-batches=20"
 ```
 
 `/SC HOURLY /MO 1 /ST 00:20` starts the hourly chain at 00:20, so it runs at :20 past every hour —
 the schedule §6 documents. (`/SC HOURLY` alone would start at the current minute.)
 
-The five launchers (`bin\shop_expire.cmd`, `bin\order_autocomplete.cmd`,
-`bin\reset_transfer_limits.cmd`, `bin\unilevel_month_close.cmd`, `bin\unilevel_release.cmd`) exist for
+The six launchers (`bin\shop_expire.cmd`, `bin\order_autocomplete.cmd`,
+`bin\reset_transfer_limits.cmd`, `bin\unilevel_month_close.cmd`, `bin\unilevel_release.cmd` and
+`bin\royalty_month_close.cmd`) exist for
 a machine where PHP is not on `PATH`; point the task at the `.cmd` file instead if you prefer:
 
 ```powershell
@@ -618,6 +623,9 @@ schtasks /Create /F /SC MONTHLY /D 1 /ST 00:15 /TN "EcoWealth - unilevel month c
 
 schtasks /Create /F /SC HOURLY /MO 1 /ST 00:20 /TN "EcoWealth - unilevel release (cmd)" ^
   /TR "C:\laragon\www\ecowealth\system\bin\unilevel_release.cmd --limit=200"
+
+schtasks /Create /F /SC MONTHLY /D 1 /ST 00:30 /TN "EcoWealth - royalty month close (cmd)" ^
+  /TR "C:\laragon\www\ecowealth\system\bin\royalty_month_close.cmd --max-batches=20"
 ```
 
 `/SC MONTHLY /D 1 /ST 00:15` fires at 00:15 on the first of each month, which is the schedule the
@@ -888,8 +896,9 @@ by the next run with no operator action.
 | `royalty_ledger_since` | install time | the baseline: months before the first payable month are never paid |
 | the four thresholds / three quotas / six rates | 10 / 10 / 10 / 10, 500k / 1M / 5M, 3/5, 5/10, 10/15 | the ladder the close snapshots onto the header and every row |
 
-> **The ladder is snapshotted.** Every period header and every award row stores the thresholds, quotas
-> and rates that were in force, so a later settings change never rewrites a closed month.
+> **The ladder is snapshotted.** Every period header stores the four thresholds, the three quotas and
+> the six rates that were in force, and every award row stores the quota and the two rates it was
+> priced with. A later settings change therefore never rewrites a closed month.
 
 ## Running it locally
 
@@ -980,11 +989,14 @@ The log lives outside `public/`, so it is never web-readable. One line per run:
 [2026-12-01 00:30:02 +08:00] [OK   ] trigger=cli closed=1 periods=2026-11 award=12 paid=10 amount=183000.00 skipped=2 status=paid paused=0
 ```
 
-`closed` counts the months that reached a final status; `periods` lists every month the run touched, in
+`closed` counts the months that reached a final status (`paid` or `skipped`) in this run — including a
+month that finalised at evaluation time because every award row was skipped; `periods` lists every
+month the run touched, in
 order; `award` is the rows written; `paid`/`amount` are the wallet credits; `skipped` is the rows paid
 nothing; `status` is the last month's status; `paused=1` means the payment switch was off. A catch-up
 names every month it closed. A dry run writes its own `[INFO ]` line (`dry-run trigger=... periods=...
-award=...`); a busy run writes `[SKIP ]`. A log write failure warns on stderr and never fails the run.
+award=...`); a busy run writes `[SKIP ]`. A log write failure warns through PHP's error log (stderr on
+the CLI) and never fails the run.
 
 **Exit codes (all runs):**
 

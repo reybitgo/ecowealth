@@ -925,6 +925,54 @@ return [
     },
 
     /* ==========================================================
+     *  P19G-T12 — `closed` counts every final month, even with no money
+     *
+     *  An enabled month whose every award row is skipped finalises
+     *  `paid` at evaluation time. `--evaluate-only` must count it as
+     *  closed, because the log's own contract says "closed counts
+     *  the months that reached a final status".
+     * ========================================================== */
+
+    'P19G-T12 --evaluate-only counts an all-skipped enabled month as closed' => function () use (
+        $fixture,
+        $last,
+        $runCli,
+        $logDir,
+        $cleanup,
+        $logLines,
+        $logFields
+    ): void {
+        /* ₱100,000 of group sales is below the ₱500,000 quota: the one
+         * award row is skipped and the month finalises at evaluation. */
+        $data = $fixture($last, 100000.0);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runCli($data['database'], ['--period=' . $last, '--evaluate-only', '--json'], $dir);
+            $log = $logLines($dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_count(1, $log);
+
+        $fields = $logFields($log[0]);
+
+        assert_same('1', $fields['closed'] ?? null, 'a month that finalised without money is closed');
+        assert_same('1', $fields['award'] ?? null);
+        assert_same('0', $fields['paid'] ?? null);
+        assert_same('1', $fields['skipped'] ?? null);
+        assert_same('paid', $fields['status'] ?? null);
+
+        $header = RoyaltyPeriod::find($last, $data['pdo']);
+
+        assert_same('paid', (string) ($header['status'] ?? ''), 'all-skipped rows still finalise the month');
+        assert_same('0.00', (string) ($header['paid_total'] ?? ''), 'nothing was paid');
+    },
+
+    /* ==========================================================
      *  T13 — the operations panel
      * ========================================================== */
 
@@ -1158,5 +1206,45 @@ return [
         assert_contains('--pay-only', $doc);
         assert_contains('public/cron/royalty_month_close.php', $doc);
         assert_contains('royalty_month_close.cmd', $doc);
+    },
+
+    /* ==========================================================
+     *  P19G-T11 — a log write failure warns, and the run continues
+     *
+     *  The plan's risk table asks for exactly this: "A log write
+     *  fails on a read-only host | the run continues; stderr warns."
+     * ========================================================== */
+
+    'P19G-T11 a failed log write warns through error_log and never throws' => function (): void {
+        /* A regular file used as the log *directory* cannot be created
+         * or written into, on any host. */
+        $blocked = (string) tempnam(sys_get_temp_dir(), 'p19g-log-');
+        $capture = (string) tempnam(sys_get_temp_dir(), 'p19g-warn-');
+        $log     = new CronLog($blocked, 'royalty_month_close');
+
+        $previous = ini_set('error_log', $capture);
+
+        try {
+            royalty_close_write_log($log, 'cli', 'OK', [
+                'closed'  => 1,
+                'periods' => ['2026-10'],
+                'award'   => 1,
+                'paid'    => 1,
+                'amount'  => 40000.0,
+                'skipped' => 0,
+                'status'  => 'paid',
+                'paused'  => false,
+            ]);
+        } finally {
+            ini_set('error_log', $previous === false ? '' : $previous);
+        }
+
+        $warning = (string) file_get_contents($capture);
+
+        assert_contains('could not be written to', $warning, 'the warning names the failure');
+        assert_contains('the run continued', $warning, 'the warning says the run continued');
+
+        @unlink($blocked);
+        @unlink($capture);
     },
 ];

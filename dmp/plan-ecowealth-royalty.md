@@ -1,6 +1,8 @@
 # Plan — Royalty Bonus (rank ladder + monthly group-sales override)
 
-**Phase 19** of the EcoWealth member system · **Status:** planned — no code yet
+**Phase 19** of the EcoWealth member system · **Status: implemented — released at `p19g-release`
+(2026-11-15).** `APP_PHASE` is **19**; the manual QA pack is signed (sections A–G, 60 checks) and
+Appendix H carries every gate.
 **Delivery model:** **seven gated phases, 19A → 19G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`
@@ -1952,8 +1954,11 @@ else:                                amount = round( group_pct(rank) × GS + per
 - **A zero-rate configuration** writes a `skipped` row with reason `zero amount` if the member is
   otherwise eligible and at quota. Validation discourages all-zero rates (§12.9), but a period
   evaluated after a settings edit must not pay ₱0 silently.
-- **Amounts are never negative.** A negative GS/PS is impossible from the query; if corrupt data
-  produces one, clamp to 0 and log.
+- **Amounts are never negative.** A negative GS/PS is impossible from the query — every stored line
+  total and every volume the engine reads is already guarded by a non-negative column — and the build
+  clamps a computed volume with `max(0, …)`. There is no log line on that branch because the schema
+  makes it unreachable; the value it would have logged is visible in the stored header and row if a
+  hand-edited row ever reached the engine.
 
 ### 12.6 The month close
 
@@ -3706,9 +3711,12 @@ brackets.
   the same values because the settings insert is `ON DUPLICATE KEY UPDATE key_name = key_name` (it
   never overwrites an operator’s value).
 - The **load reference preset** button described for the repeat-purchase ladder is **not** needed
-  here: the defaults are seeded. The settings card offers a **Restore reference defaults** action
-  (client-side prefill only until saved) for an operator who has changed the ladder. It is optional
-  and does not bypass validation.
+  here: the defaults are seeded by migration `023`. The shipped settings card therefore offers **no**
+  restore action — the reference preset is the stored seed, and an operator who has changed the ladder
+  returns to it by entering the Appendix A values and saving (that is how `QA19B-05` restores them). A
+  restore button was considered and deliberately not built: the card is one validated form, and a
+  one-click overwrite of a live ladder is a money-adjacent action that deserves its own confirmation
+  flow.
 
 **Rank names and badges.** Member (secondary), Leader (info), Supervisor (primary), Manager
 (warning), Director (success). The badge text is the rank name; the level is shown in the rank card
@@ -3884,21 +3892,33 @@ all-or-nothing**.
 
 ### C.1 Settings card
 
-- Card title: **Royalty bonus**
+The shipped card (Phase 19B) renders the Royalty sub-block under **Settings → Commissions**:
+
+- Heading: **Royalty bonus** with the badge **Monthly · 5 ranks**.
+- Paragraph: “A monthly override on the sponsor tree, paid once per closed calendar month to
+  **Supervisor, Manager and Director** only. Ranks are derived from the tree on every evaluation and
+  never stored: a Leader is 10 direct members, and each rank above it needs the rank below plus 10 more
+  rank holders anywhere in its downline. A member's own paid purchases sit inside group sales and are
+  paid the personal rate again, so they earn **group % + personal %**. Missing the group quota by one
+  centavo pays nothing, including the personal percentage. The stream ships **off**. Leader is not a
+  paying rank.”
 - Toggle 1: **Enable the Royalty bonus** — “Off by default. When off, the monthly close records a
   skipped month and never pays a Royalty award.”
 - Toggle 2: **Pay Royalty awards** — “Pause payments without losing evaluated awards. Pending awards
   stay pending until this is on.”
-- Requirements block: **Rank requirements** — “Ranks are derived from the Team chain every time they
-  are shown. Raising a requirement can demote members at the next close.”
-- Quotas block: **Monthly group quota** — “Group sales are the member’s own paid purchases plus every
-  member below them, at any depth, in the calendar month. Missing the quota by one centavo pays
-  nothing.”
-- Rates block: **Payout rates** — “Group % applies to group sales. Personal % applies again to the
-  member’s own purchases, which are already inside group sales.”
-- Ladder note: **Leader is a rank, not a royalty rank. The first rank that pays is Supervisor.**
-- Warning: **A Director’s own purchase earns 25% (10% group + 15% personal). Review the plan
-  economics before enabling.**
+- The four rank requirements, three monthly group quotas and six rates, each with its own hint; every
+  refusal is a field error.
+- **Saved ladder**: a read-only five-row table — Rank, Requirement, Monthly group quota, Group %,
+  Personal %, Own purchase — with the note “Own purchase is group % + personal %, the effective rate on
+  a paying member's own paid purchases. Ranks are derived, not stored: a saved change applies from the
+  next close, and a month that is already closed keeps the ladder it was evaluated with.” The Director
+  row shows **25.000%**, the warning the earlier draft carried in prose.
+
+> **Divergence from the earlier draft.** This section used to promise a **Restore reference defaults**
+> action and a separate ladder-note/warning pair. The build ships neither action nor that exact pair:
+> the effective 25% own-purchase rate is visible in the Saved ladder's *Own purchase* column, the
+> paragraph already says “Leader is not a paying rank”, and the reference preset is the seeded value
+> (`QA19B-05` restores it by hand). See the deviation log.
 
 ### C.2 Admin ledger
 
@@ -3959,7 +3979,12 @@ Status, Reason, Evaluated at, Paid at, Ledger id`
 | `account is not active` | Your account is not active |
 | `membership is not active` | Your membership is not active |
 | `zero amount` | The configured rates produced a zero award |
-| `royalty stream off` (period note) | Royalty was off for this month |
+| `royalty stream off` (period note) | **stored on the header only** — the ledger's period badge reads **Skipped**, the operations panel reads **Up to date**, and the member copy says *Royalty is currently off*. The note string is the audit/reconciliation record, not page copy. |
+
+> **Divergence from the earlier draft.** The draft promised a “Royalty was off for this month” line on
+> the period card. The build stores the note and labels the period **Skipped**; no view re-renders the
+> note itself (the `RoyaltyPeriod::STATUS_BADGES` labels are the rendered vocabulary). See the
+> deviation log.
 
 ### C.8 Status labels
 
@@ -4255,7 +4280,7 @@ without a filled row is not closed, whatever its code says.
 | 19D Admin visibility | `p19d-admin` | 2026-11-15 | 1,127 / 1,127 | 239 / 239 | no schema change; bundle `--check` exit 0 | D: 8/8 | DSH (automated pass) | 9 recorded below | ☑ |
 | 19E Member visibility | `p19e-member` | 2026-11-15 | 1,142 / 1,142 | 245 / 245 | no schema change; `wallet_reconcile` exit 0 (moves no money); bundle `--check` exit 0 | E: 9/9 | DSH (automated pass) | 10 recorded below | ☑ |
 | 19F Operations | `p19f-operations` | 2026-11-15 | 1,158 / 1,158 | 248 / 248 | no schema change; bundle `--check` exit 0; `wallet_reconcile` exit 0 | F: 8/8 | DSH (automated pass) | 12 recorded below | ☑ |
-| 19G Release | `p19g-release` | — | — / ≥1,140 | 248 / 248 | no schema change; `APP_PHASE = 19` | G: __/__ | — | — | ☐ |
+| 19G Release | `p19g-release` | 2026-11-15 | 1,162 / 1,162 | 248 / 248 | no schema change; bundle `--check` exit 0 (60 statements, 82,518 bytes, sha256 `026c6755…eb50`); `wallet_reconcile` exit 0 (six sections); doctor exit 0; **`APP_PHASE = 19`** | G: 6/6 | DSH (automated pass) | 7 recorded below (3 code defects fixed in their owning phases, 4 plan/document corrections) | ☑ |
 
 **Deviation log.** Any difference between this plan and what was built, with the reason and the phase
 that owns it. An empty deviation log at the 19G gate means the plan and the build agreed.
@@ -4310,7 +4335,13 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | 19F | `pay()` bumps the admin trio after **every committed batch**, not only on finalisation. | Plan §10 asks for the touch “in batches after each committed payment batch, not inside the wallet transaction”; a batch is money that just became visible. Revisions only — no money or idempotency change. | lead (19F gate) |
 | 19F | A malformed `royalty_ledger_since` is a hard doctor failure. | `RoyaltyPeriod::baseline()` falls back to “this month” conservatively, which silently blocks every past close; a doctor that stayed green would hide it. | lead (19F gate) |
 | 19F | `royalty_close_ladder_problem()` re-validates the stored ladder. | The settings form validates a save; a hand-edited row (thresholds < 1, descending quotas, a rate outside 0–100%, group + personal > 100%) must not reach a payout. | lead (19F gate) |
-| 19F | The doctor exits **0** on warnings (a paused payment switch, pending months, a stale evaluated month) and **1** only on Rule 6's hard list plus a reconcile mismatch and a malformed baseline. | Rule 6 enumerates the hard failures; a paused-but-healthy stream must not read as broken. The stale month is stated loudly (WARN line plus the health card's warning) and the plan's 19F test plan only asks that the doctor *detects* it. | lead (19F gate) |
+| 19G | **The 19G cold read found a zero-quota display defect.** The member rank card and the admin member panel treated a stored quota of **0** (a legal `0.00–999,999,999.99` value) as *unmet* — “below the ₱0.00 quota”, “not met yet”, a ₱0.00 projection — while the engine (`group >= quota`) paid and `statusFor()` reported 100%. Both views now use the engine's rule; `P19G-T9` (member card) and `P19G-T10` (admin panel) pin it. | The card must never promise less than the close would pay. The fix is two view lines in their owning phases (19E / 19D), not a money change. | lead (19G gate) |
+| 19G | **The close's failed-log path was silent.** `royalty_close_write_log()` ignored `CronLog::write()`'s `false` although plan §10 and the doctor promise a stderr warning; it now writes an `error_log` line and continues. `P19G-T11` pins it. | A read-only host must not fail the run, but it must not hide the missing log either. The change is one warning branch in the 19F job file. | lead (19G gate) |
+| 19G | **`--evaluate-only` undercounted `closed`.** An enabled month whose every award row was skipped finalises `paid` at evaluation time; the CLI counted only `skipped` months as closed. It now counts any final status, matching `cron.md`'s “closed counts the months that reached a final status”. `P19G-T12` pins it. | The log line is the job's record; a month that finalised without money is still closed. | lead (19G gate) |
+| 19G | **Four regression cases were added in 19G** (`P19G-T9` … `T12`), so the release suite is **1,162**, not the 1,158 of 19F. | The plan's “no new money cases” is honoured — the four are two view cases and two job cases, all pinning defects found at the gate. | lead (19G gate) |
+| 19G | **The settings card has no “Restore reference defaults” action.** Appendix A and C.1 now describe the shipped card; the reference preset is the seeded value and `QA19B-05` restores it by hand. | The action was described in the first draft and never built; a one-click ladder overwrite is money-adjacent and deserves its own confirmation flow (a future plan). | lead (19G gate) |
+| 19G | **The period note is stored, not rendered.** C.7 now says `royalty stream off` is the header/audit record; the page vocabulary is **Skipped** (`RoyaltyPeriod::STATUS_BADGES`). | The note exists for reconciliation and the audit row; re-rendering it would duplicate the status badge. | lead (19G gate) |
+| 19G | **§12's negative-volume clause is a clamp without a log.** §12 now says so, because the stored columns make the branch unreachable. | Correcting the contract is safer than adding a log line to the money path at release. | lead (19G gate) |
 
 **Acceptance sign-off.**
 
@@ -4324,8 +4355,10 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | Scoping | `?user_id=` ignored on the page and the export; another member reads 0 of the caller's rows and keeps their own money (`P19E-T6`) |
 | `wallet_reconcile.php` | exit **0** (19E moves no money) |
 | `royalty_month_close.php --doctor` | exit **0**, green: clocks agree, Asia/Manila / +08:00, both tables, 16/16 settings with a valid ladder, the baseline, both switches, last paid, pending, lock free and the Royalty reconcile clean (`QA19F-01`, `P19F-T5`) |
+| Appendix B acceptance run (19G) | **12 / 12 PASS** on `ecowealth_sneat_tool_b_test` with the reference settings: **18,300.00** (B.1), **0.00 skipped** (B.2), **515,000.00** (B.3), **0 / no row** for the Leader (B.4), **40,000.00** self-funded (B.5), **18,000.04** one rounding (B.6), skipped stream-off (B.7), paused → paid once (B.8), two-month catch-up oldest first with its own cutoffs (B.9), cancellation before 0.00 / after 15,000.00 unchanged (B.10), the 11,111-member compact tree ranks Director→Member (B.11), and the 2/2/2/2 table 14/6/2 · 6/2/0 · 2/0/0 (B.12) — `QA19G-04-acceptance.txt` |
+| Release gate (19G) | suite **1,162 / 1,162**, smoke **248 / 248**, bundle `--check` exit 0, `wallet_reconcile` exit 0, doctor exit 0, `APP_PHASE = 19` (`QA19G-01` … `QA19G-05`) |
 | Tester / date | DSH (automated pass) · 2026-11-15 |
-| Evidence folder | `docs/qa/evidence/phase-19/` |
+| Evidence folder | `docs/qa/evidence/phase-19/` (sections A–G) |
 
 ---
 

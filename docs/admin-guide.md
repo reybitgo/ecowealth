@@ -231,7 +231,7 @@ A failed save shows the field errors and writes nothing.
 | **Closed months** | the Active snapshots the month close wrote, with members, qualified count and award total |
 | **Payout register** | requests by status and method, the amount held now, completed value and fees |
 | **Registration-code revenue** | codes issued/redeemed/expired per package and their face/realised value |
-| **Finance health** | the seven invariants; a red row lists examples and links to the fixing screen |
+| **Finance health** | the eight invariants (including the Royalty stream); a red row lists examples and links to the fixing screen |
 | **Orders by status** | the lifecycle at a glance |
 | **Top products** | best sellers in the window |
 
@@ -483,13 +483,14 @@ and **never paid on a cancelled order**.
 
 ---
 
-## 16. Royalty bonus: the rank ladder, the monthly ledger and operations (Phase 19B–19F)
+## 16. Royalty bonus: the rank ladder, the monthly ledger and operations (Phase 19)
 
 The Royalty bonus is a **monthly override on group sales**, paid once per closed calendar month to
 **Supervisor, Manager and Director** only. Phase 19B ships its configuration and the derived rank
 ladder; 19C ships the monthly evaluation and payment; 19D ships the read-only admin views — the
 ledger, the report cards, the member panel and the dashboard tile; 19E ships the member's own
-Royalty statement and dashboard tile. **The stream still ships off**, so a fresh install pays
+Royalty statement and dashboard tile; 19F ships the scheduled close, the doctor and the operations
+panel; 19G releases the workstream. **The stream ships off**, so a fresh install pays
 nothing until an operator turns it on.
 
 ### The five ranks
@@ -570,7 +571,9 @@ screen can evaluate, pay, edit or reverse an award. The scheduled close, the doc
 the Windows launcher and the operations panel ship with **19F** (see *The operations panel* below).
 
 The money is real and already visible in the member's wallet statement as a **Royalty bonus** credit
-(with its ledger id), and from 19E the member can read the month it came from on their own statement.
+whose note carries the month and the rank it was judged at (for example
+*Royalty bonus — 2026-10 — Supervisor*); from 19E the member can read the month it came from on their
+own statement.
 
 ### Reading a "why is nobody ranked" report
 
@@ -587,10 +590,11 @@ The money is real and already visible in the member's wallet statement as a **Ro
 **Admin → Commissions → Royalty** (`/admin/commissions?ledger=royalty`) is the finance view of the
 monthly money engine. The page reads `royalty_periods` and `royalty_awards`; it never writes them.
 
-- **Period** is the primary filter. It defaults to the **latest final month**, and you can pick any
-  closed month from the dropdown. `— current month (preview)` opens the open month as a projection
+- **Period** is the primary filter. It defaults to the **latest final month**, and the dropdown lists
+  the newest 24 monthly headers (a period is never deleted, so an older month is read through its
+  export or the reports desk). `— current month (preview)` opens the open month as a projection
   (see below).
-- **The closed-month cards** list every month with its status, award/paid/skipped counts, the award
+- **The closed-month cards** list the newest 24 months with their status, award/paid/skipped counts, the award
   total, the paid total, the evaluation time and the time it became final. Clicking a month filters
   the ledger to it. A closed month is never rewritten.
 - **The counters** describe the selected month: paid in this period, awaiting payment, the period
@@ -663,7 +667,8 @@ Status, Reason, Evaluated at, Paid at, Ledger id`
 - **Group sales / Personal sales / Quota / Group % / Personal %** are the stored snapshot values.
 - **Status** is `pending`, `paid` or `skipped`; **Reason** is the stored reason (empty when paid).
 - **Evaluated at** is when the row was written; **Paid at** is when the wallet credit happened.
-- **Ledger id** is the `ewallet_ledger` row that paid it (`—` for a skipped row).
+- **Ledger id** is the `ewallet_ledger` row that paid it (the on-screen row shows `—` for a skipped
+  row; the CSV leaves the cell empty so a spreadsheet reads it as blank, not as text).
 
 ### The member panel and the dashboard
 

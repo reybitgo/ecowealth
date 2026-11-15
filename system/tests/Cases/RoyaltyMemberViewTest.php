@@ -1109,4 +1109,41 @@ return [
         assert_same($snapshot['ewallet_ledger'], $count('ewallet_ledger'));
         assert_same($snapshot['audit_log'], $count('audit_log'));
     },
+
+    /* ==========================================================
+     *  P19G-T9 — a ₱0 quota is met (the engine's rule)
+     *
+     *  A quota of 0 is a legal stored value (0.00 … 999,999,999.99)
+     *  and the engine pays every group volume against it, but the
+     *  rank card used to treat `quota > 0` as a precondition. With
+     *  a 0 quota it said "below the ₱0.00 quota" and projected ₱0
+     *  while the close would have paid. The card now follows the
+     *  engine: group sales >= quota, and 0 >= 0 is met.
+     * ========================================================== */
+
+    'P19G-T9 a zero quota is met: the card projects what the close would pay' => function () use (
+        $configure,
+        $referenceTree,
+        $buy,
+        $signIn,
+        $renderPage
+    ): void {
+        $configure(['royalty_supervisor_quota' => '0']);
+
+        $tree = $referenceTree();
+        $buy([$tree['sup'] => 10000.0]);
+
+        $sup = test_user('rty_m_ref_sup');
+        $signIn($sup);
+
+        $data = (new EarningsController())->royaltyContext((int) $sup['id']);
+        $html = $renderPage($data);
+
+        /* 0.03 × 10,000 group + 0.05 × 10,000 personal = ₱800.00. */
+        assert_same(800.0, (float) $data['royalty']['projected']);
+        assert_contains('Quota met', $html, 'a zero quota reads as met');
+        assert_contains('If this month closed now: ' . money(800.0), $html, 'the projection is the engine amount');
+        assert_not_contains('below the ' . money(0.0) . ' quota', $html, 'no false "below quota" copy');
+        assert_not_contains('not met yet', $html);
+    },
 ];

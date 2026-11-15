@@ -16,7 +16,10 @@ Section B (19B — Configuration and the rank ladder) written 2026-11-15 with th
 Section C (19C — Money engine) written 2026-11-15 with the automated gate green.
 Section D (19D — Admin visibility) written 2026-11-15 with the automated gate green.
 Section E (19E — Member visibility) written 2026-11-15 with the automated gate green.
-**Section A: 8 checks · Section B: 9 · Section C: 12 · Section D: 8 · Section E: 9.**
+Section F (19F — Operations) written 2026-11-15 with the automated gate green.
+Section G (19G — Release) written 2026-11-15 with the release gate green; **sections A–G are final**.
+**Section A: 8 checks · Section B: 9 · Section C: 12 · Section D: 8 · Section E: 9 · Section F: 8 ·
+Section G: 6 — 60 in all.**
 
 ---
 
@@ -43,8 +46,10 @@ Passed: 232   Failed: 0
 ```
 
 The counts grow with each phase: **1,026 / 229** at `p19a-foundation`, **1,054 / 232** at
-`p19b-configuration`; the suite floor rises to **1,090** at 19C and **1,140** at 19G, and the smoke
-walk reaches **248** at 19G. 19B adds **28** PHP cases (`RoyaltyRankTest` P19B-T12 … T22 plus T27
+`p19b-configuration`, **1,106 / 232** at 19C, **1,127 / 239** at 19D, **1,142 / 245** at 19E, and
+**1,158 / 248** at `p19f-operations`; the release build at `p19g-release` is **1,162 / 248** (19G adds
+four regression cases: the zero-quota member card and admin panel, the log-write warning and the
+`--evaluate-only` `closed` count). 19B added **28** PHP cases (`RoyaltyRankTest` P19B-T12 … T22 plus T27
 and T28, `RoyaltyConfigurationTest` P19B-T1 … T11 and T26, and `RoyaltyAdminMemberViewTest`
 P19B-T23 … T25) and **3** smoke checks (the settings card, the refused cross-field save and the
 member rank column/distribution).
@@ -1385,7 +1390,154 @@ Evidence: `docs/qa/evidence/phase-19/QA19F-01.txt` … `QA19F-08.txt`.
 
 ---
 
-## 9. Sign-off
+## 9. Section G — Phase 19G: Release (`QA19G-01` … `QA19G-06`)
+
+**Prerequisites.** Tag `p19f-operations`; branch `feature/royalty`; the development copy at migration
+**023** with the reference ladder stored and the stream **off**; the app running (Laragon → Start All)
+for `QA19G-05`; the scratch schema `ecowealth_sneat_tool_b_test` provisioned (it is recreated by the
+acceptance script). Expected counts for this section: suite at or above **1,140** (the release build is
+**1,162**), smoke **248**, the Appendix B acceptance **12 / 12**.
+
+> **Notation.** `php` is Laragon's PHP 8.3 CLI and every command runs from `system/`. The acceptance
+> run never touches `ecowealth_sneat`: every scenario builds its own fixture on the scratch schema.
+
+### QA19G-01 — The build reports Phase 19
+
+| Why | Plan §11 (19G) Rule 5 and `P19G-T1`: the label is the release's only code change. |
+|---|---|
+| Where | `system/app/config.php`, `system/tests/Cases/HardeningTest.php` |
+| Evidence | `QA19G-01.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. `Select-String -Path app\config.php -Pattern 'APP_PHASE', 'Phase 19'`.
+2. `php tests\run.php Hardening`.
+
+Expected
+
+- `define('APP_PHASE', 19)`, and the comment above it names Phase 19, `docs/phase-log.md` and
+  `dmp/plan-ecowealth-royalty.md` §11 (Phase 19G — Release).
+- The suite header prints `phase 19`; `HardeningTest` is **8 / 8** and its P15 case asserts
+  `assert_same(19, APP_PHASE)`.
+
+### QA19G-02 — The full suite at the release count
+
+| Why | Plan §11 Rule 5 and `P19G-T6`: the whole suite is green, not just the release case. |
+|---|---|
+| Where | `system/` |
+| Evidence | `QA19G-02-suite.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. `php tests\run.php`.
+2. `php tests\run.php Royalty`.
+
+Expected
+
+- **Cases: 1162   Passed: 1162   Failed: 0** and `All good.`, exit **0**.
+- The Royalty group is **154 / 154** (150 at 19F, plus the four 19G regression cases).
+
+### QA19G-03 — The smoke walk
+
+| Why | Plan §11 Rule 5 and `P19G-T7`: 248 checks — the 229 baseline (225 at the Phase 17 release plus Phase 18's four escrow checks) plus the 19 Phase 19 checks. |
+|---|---|
+| Where | `system/` with the app running |
+| Evidence | `QA19G-03-smoke.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. `powershell -NoProfile -File tests\smoke.ps1`.
+
+Expected
+
+- **Passed: 248   Failed: 0**, exit **0**.
+
+### QA19G-04 — The Appendix B acceptance run
+
+| Why | Plan §11 Rule 3 and `P19G-T8`: every reference example reproduces on a scratch database. |
+|---|---|
+| Where | `ecowealth_sneat_tool_b_test`, the real `bin/royalty_month_close.php` and `RoyaltyRank::map()` |
+| Evidence | `QA19G-04-acceptance.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. `php tests/tmp/p19g_acceptance.php` (the transient generator; the transcript is the committed
+   evidence, as in sections C–F).
+
+Expected — the twelve scenarios, to the centavo:
+
+| Scenario | Expected |
+|---|---|
+| B.1 | ₱18,300.00 on GS ₱510,000 / PS ₱60,000; the ten Leaders ₱0; period paid |
+| B.2 | ₱0.00 `skipped`, `group sales below quota` on GS ₱410,000 |
+| B.3 | ₱515,000.00 on the Director (GS ₱5,000,000, PS ₱100,000) |
+| B.4 | Leader at ₱10,000,000 group: no award row, ₱0.00 |
+| B.5 | ₱40,000.00 when the Supervisor self-funds GS = PS = ₱500,000 |
+| B.6 | ₱18,000.04 for GS ₱500,000.55 / PS ₱60,000.55 (one rounding) |
+| B.7 | stream off: one `skipped` header, no award, no credit |
+| B.8 | payment paused: pending ₱40,000.00, then paid once after re-enabling |
+| B.9 | two-month catch-up: oldest first, each own `as_of`; September pays nothing, October ₱40,000.00 |
+| B.10 | cancellation before: GS ₱400,000 → ₱0.00; after: ₱15,000.00 unchanged |
+| B.11 | the 11,111-member compact tree ranks Director / Manager / Supervisor / Leader / Member |
+| B.12 | the 2/2/2/2 tree ranks exactly as the plan's table (14/6/2, 6/2/0, 2/0/0, 0, 0) |
+
+### QA19G-05 — The release walk as an admin and as a member
+
+| Why | Plan §11 Rule 5 and the manual gate: no broken link, no placeholder “0”, no console error. |
+|---|---|
+| Where | the running app, `http://localhost/ecowealth/system` |
+| Evidence | `QA19G-05.txt` + `QA19G-05-admin-settings.png`, `-admin-members.png`, `-admin-royalty.png`, `-admin-reports.png`, `-admin-audit.png`, `-member-earnings-royalty.png`, `-member-dashboard.png` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Sign in as `admin` and open `/admin/settings`, `/admin/members`,
+   `/admin/commissions?ledger=royalty`, `/admin/reports`, `/admin/audit`.
+2. Sign in as a member and open `/earnings?ledger=royalty` and `/dashboard`.
+3. Watch the browser console and the network panel on every screen.
+
+Expected
+
+- Every URL answers **200** and renders its Royalty surface: the settings sub-block and saved ladder,
+  the Rank column and distribution, the operations panel and the ledger, the report cards, the audit
+  desk, the member statement (“Your Royalty awards”) and the dashboard.
+- No PHP warning/notice, no console error, no failed request and no placeholder figure where a value
+  belongs. The member dashboard shows **no Royalty tile** while the stream is off and the member has no
+  history — the documented rule, not a defect.
+
+### QA19G-06 — The cold read
+
+| Why | Plan §11 Rule 2: a reviewer who did not write the feature reads §12 and the pages and lists every claim that does not match. |
+|---|---|
+| Where | `dmp/plan-ecowealth-royalty.md` §12, `docs/admin-guide.md` §16, the shipped views and the shared docs |
+| Evidence | `QA19G-06-cold-read.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Read §12 (the normative contract) against `RoyaltyService`, `RoyaltyRank`, `RoyaltyPeriod`,
+   `RoyaltyAward`, the controllers and the views named by the guide.
+2. Read §16 of the admin guide and the seven release URLs against what the build renders.
+3. Read every shared document's counts against the build (tables, settings, migrations, jobs, cases,
+   smoke checks, `APP_PHASE`).
+4. Fix every finding in the shared document (not only in this section) and record it in the phase log.
+
+Expected
+
+- The findings table is empty or every remaining item is recorded as a deviation with its owning phase.
+- The code defects found by the read are fixed in their owning phase's file and pinned by a case.
+
+**Sign-off (section G).** Tester: automated Phase 19G pass — DeepSeek Harness (DSH) · 2026-11-15 ·
+Evidence: `docs/qa/evidence/phase-19/QA19G-01.txt`, `QA19G-02-suite.txt`, `QA19G-03-smoke.txt`,
+`QA19G-04-acceptance.txt`, `QA19G-05.txt` (+ 7 screenshots) and `QA19G-06-cold-read.txt`.
+
+---
+
+## 10. Sign-off
 
 | Section | Checks | Passed | Failed | Blocked | Tester | Date | Evidence |
 |---|---:|---:|---:|---:|---|---|---|
@@ -1395,8 +1547,11 @@ Evidence: `docs/qa/evidence/phase-19/QA19F-01.txt` … `QA19F-08.txt`.
 | D — Admin visibility | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | E — Member visibility | 9 | 9 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | F — Operations | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
+| G — Release | 6 | 6 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 
 **Decision:** ☑ Pass  ☐ Pass with notes  ☐ Fail
 
-Section G is appended by 19G before its gate; sections A–F are final.
+Sections A–G are final: **60 checks, 60 passed, 0 failed, 0 blocked**. The release evidence is
+`docs/qa/evidence/phase-19/QA19G-01.txt` … `QA19G-06-cold-read.txt`, and the acceptance run's twelve
+observed amounts are in `QA19G-04-acceptance.txt`.
 

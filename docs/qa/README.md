@@ -21,9 +21,9 @@ result, capture evidence and sign the phase off.
 > `evidence/unilevel-product/`.
 
 > **Phase 19 is the Royalty bonus workstream** (`dmp/plan-ecowealth-royalty.md`), delivered in seven
-> gated phases **19A → 19G**. Sections A, B, C, D, E and F are created by 19A–19F; 19G appends its
-> section before its gate. Its evidence lives in `evidence/phase-19/`, indexed by that folder's
-> `README.md`.
+> gated phases **19A → 19G** and **signed at 19G**. Sections A–G are complete: 19A–19F wrote A–F and
+> 19G appended its section before its gate. Its evidence lives in `evidence/phase-19/`, indexed by that
+> folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -53,7 +53,7 @@ result, capture evidence and sign the phase off.
 | [phase-16-install-reset.md](phase-16-install-reset.md) | 16 — install bundle, CLI/web installers, CLI/web reset, demo + parity, production gates, go-live | 16 | 90–120 min |
 | [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G, **signed** | 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) | 4–5.5 h in all (A 35–45 · B 30–40 · C 45–60 · D 30–40 · E 30–40 · F 15–20 · G 60–75 min) |
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
-| [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G (A–F written so far) | 54 so far (A 8 · B 9 · C 12 · D 8 · E 9 · F 8) | 135–185 min so far (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30) |
+| [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -85,7 +85,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 1026   Passed: 1026   Failed: 0
+Cases: 1162   Passed: 1162   Failed: 0
 All good.
 ```
 
@@ -98,7 +98,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 229   Failed: 0
+Passed: 248   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -213,8 +213,8 @@ Passed: 229   Failed: 0
   expiry, the guards, an admin target, six rate-limited attempts, a tampered token and the audit page.
 - Phase 15: the report read model (paid-orders-only revenue, zero-filled day series, status order, paid-line
   top products, level/leg commission grouping, both wallet buckets' float, payout status/method splits, code
-  revenue, and the five CSV shapes) and its window maths (default, inclusive, swapped, capped); the reports page
-  and its live fragments; the health widget's seven invariants (clean on the fixture, and a broken order total is
+  revenue, and the CSV shapes) and its window maths (default, inclusive, swapped, capped); the reports page
+  and its live fragments; the health widget's invariants (clean on the fixture, and a broken order total is
   caught); the audit desk's filters/vocabulary/stats and the absence of any update/delete path; the shared
   security headers, the throttles, uploads/ hardening, production error display and the phase-15 config; the
   launch scenarios (a condensed UAT money path, IDOR/role/CSRF probes, 1,000-order report timing, fresh install,
@@ -551,7 +551,7 @@ docs/qa/
 ├── phase-15-launch.md                 ← manual checks for Phase 15
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
-├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–F, 54 checks)
+├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–G, 60 checks)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + unilevel-escrow/)

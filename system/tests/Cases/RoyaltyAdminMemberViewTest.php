@@ -460,4 +460,57 @@ return [
             "SELECT CONCAT(COALESCE(SUM(ewallet_balance), 0), '|', COALESCE(SUM(withdrawable_balance), 0)) FROM users"
         )->fetchColumn());
     },
+
+    /* ==========================================================
+     *  P19G-T10 — the admin panel agrees with the engine on a ₱0 quota
+     *
+     *  Companion to P19G-T9: the member panel is rendered from the
+     *  same engine read, and its progress bar must not say "not met
+     *  yet" at 100% when the stored quota is 0 (which the engine
+     *  treats as met).
+     * ========================================================== */
+
+    'P19G-T10 a zero quota reads as met on the admin member panel' => function () use (
+        $setThresholds,
+        $directorTree
+    ): void {
+        $setThresholds(['leader' => 1, 'supervisor' => 2, 'manager' => 2, 'director' => 2]);
+
+        foreach ([
+            'royalty_enabled'          => '1',
+            'royalty_pay_enabled'      => '1',
+            'royalty_director_quota'   => '0',
+        ] as $key => $value) {
+            setting_set($key, (string) $value);
+        }
+
+        setting_cache_clear();
+
+        $director  = $directorTree()['director'];
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $orderId   = test_order($director, [['product_id' => $productId]], 'paid', [
+            'paid_at'  => date('Y-m-d H:i:s'),
+            'subtotal' => '10000.00',
+            'total'    => '10000.00',
+        ]);
+
+        db()->prepare('UPDATE shop_order_items SET line_total = ?, unit_price = ? WHERE order_id = ?')
+            ->execute(['10000.00', '10000.00', $orderId]);
+
+        test_signed_in_as(test_user('view_royalty_panel_zero_admin', 'admin'));
+
+        $context  = (new AdminMemberController())->memberContext(Member::find($director));
+        $payload  = (new AdminMemberController())->detailFeedPayload(2, '"zero"', $context);
+        $fragment = $payload['fragments']['member-royalty'];
+
+        assert_same(0.0, (float) $context['royalty']['quota']);
+
+        /* The source wraps the "met" word onto its own line; normalise
+         * the whitespace before matching the sentence. */
+        $text = (string) preg_replace('/\s+/u', ' ', $fragment);
+
+        assert_contains('Group sales ' . money(10000.0) . ' of the ' . money(0.0) . ' quota — met.', $text);
+        assert_not_contains('not met yet', $text);
+        assert_not_contains('not met yet', $fragment);
+    },
 ];

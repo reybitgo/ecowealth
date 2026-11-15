@@ -5966,3 +5966,142 @@ suite are unchanged and green.
 
 ---
 
+## Phase 19G — Release (2026-11-15)
+
+**Status:** complete · **Tag:** `p19g-release` · **Branch:** `feature/royalty` ·
+**Schema:** unchanged (33 tables, 73 settings on a fresh install, migrations `001`–`023`) ·
+**Suite:** 1,158 → **1,162** cases, **1,162 / 1,162** green · **Smoke:** **248 / 248** (no new URL
+checks) · **`APP_PHASE`:** 17 → **19**.
+
+Plan: `dmp/plan-ecowealth-royalty.md` §11 (Phase 19G), §16.6 (the QA pack) and Appendix H. 19G is the
+**release**: the label, the proof and the documentation. It changes only `APP_PHASE`, four view/job
+lines fixed as defects (below), four regression cases and the documents — **no route, no schema, no
+setting, no money rule**. If it were reverted, the feature would still be correct and scheduled; the
+phase constant is the only behavioural change.
+
+### Code
+
+| File | What it is |
+|---|---|
+| `app/config.php` | `APP_PHASE` **19**; the comment names Phase 19, the Royalty workstream and `dmp/plan-ecowealth-royalty.md` §11 (Phase 19G — Release). No route, menu item or permission reads the constant for Phase 19 (the inventory's highest phase is 15), so the bump reveals nothing unbuilt. |
+| `tests/Cases/HardeningTest.php` | The P15 case becomes **`P15 the build reports phase 19`** and asserts `assert_same(19, APP_PHASE)`; the config comment, `APP_TIMEZONE` and the single `APP_URL` assertion are unchanged. |
+| `app/views/member/earnings/_royalty_rank.php` | **Defect fix (D-19G-02):** `$quotaMet = $group >= $quota` — the engine's rule. A stored quota of **0** is legal and always met; the card used to say "below the ₱0.00 quota" and project ₱0.00 while the close would pay. |
+| `app/views/admin/members/_royalty.php` | The same fix on the admin member panel (`$met = $group >= $quota`), so the panel's "Quota progress" can never read "not met yet" at 100 %. |
+| `bin/royalty_month_close.php` | **Defect fix (D-19G-03):** `royalty_close_write_log()` now warns through `error_log` when the log write fails (stderr on the CLI, the server log under Apache) and still never fails the run; and `--evaluate-only` counts **every final month** as `closed`, including an enabled month whose every award row was skipped. |
+| `tests/Cases/RoyaltyMemberViewTest.php` | **`P19G-T9`** — a zero quota is met: the card renders "Quota met" and "If this month closed now: ₱800.00" for a Supervisor at ₱10,000 group / personal volume. |
+| `tests/Cases/RoyaltyAdminMemberViewTest.php` | **`P19G-T10`** — the admin panel renders "… of the ₱0.00 quota — met." and never "not met yet". |
+| `tests/Cases/RoyaltyCronTest.php` | **`P19G-T11`** — a failed log write warns (`could not be written to` / `the run continued`) and does not throw; **`P19G-T12`** — `--evaluate-only` on an all-skipped enabled month logs `closed=1 … status=paid` and finalises the header. |
+
+**Unchanged by design:** every route, `routes.php`, the schema, the sixteen settings, the engine's
+evaluate/pay protocol, the four 19F entry points and the smoke walk. `ParityTest` stays green (the
+route table is untouched).
+
+### The cold read (plan §11 Rule 2)
+
+An independent review pass read plan §12, Appendix C and the admin guide §16 against the build, and a
+second pass checked every count in the shared documents. **15 findings** were verified and fixed: **3
+in code**, in their owning phases, each with a regression case (the ₱0 quota above), and **12 in the
+shared documents**. The count sweep corrected **46** stale or imprecise claims — the five-job counts in
+`cron.md` / `runbook.md` / `system/README.md`, the `APP_PHASE`/948-case/225-smoke figures wherever they
+still described the current build, the reset's representative transcript (23 delete groups, **14**
+verification checks, **24** business tables, **21** counters) and its 45-setting seed line, the reports
+desk's "five CSV exports" and "seven invariants", and the Phase 19 pack's "sections A–F only". The
+residual list is empty; the plan's own four corrections (no restore-defaults action, the period note is
+not rendered, the C.1 copy, §12's clamp-without-log) are in its deviation log.
+
+### The acceptance run (plan §11 Rule 3)
+
+The twelve Appendix B scenarios were executed on `ecowealth_sneat_tool_b_test` with the reference
+settings, through the **real** `bin/royalty_month_close.php` and `RoyaltyRank::map()`; every observed
+figure is read back from that schema. **12 / 12 PASS**, to the centavo:
+
+| Scenario | Observed |
+|---|---|
+| B.1 reference Supervisor | ₱**18,300.00** (GS 510,000.00 / PS 60,000.00); the ten Leaders have no row |
+| B.2 same tree at ₱410,000 | ₱**0.00**, `skipped`, `group sales below quota` |
+| B.3 Director with a personal purchase | ₱**515,000.00** (GS 5,000,000.00 / PS 100,000.00), 111 award rows |
+| B.4 Leader at ₱10,000,000 | **no award row**, ₱0.00, period paid |
+| B.5 Supervisor self-funds | ₱**40,000.00** (PS = GS = 500,000.00) |
+| B.6 one rounding | ₱**18,000.04** (GS 500,000.55 / PS 60,000.55) |
+| B.7 stream off | one `skipped` header, every count 0, no wallet credit |
+| B.8 payment paused | pending ₱40,000.00 → paid once after re-enabling; a second `--pay-only` exits 1 |
+| B.9 two-month catch-up | 2026-09 then 2026-10, each at its own `as_of`; September has no award, October pays ₱40,000.00 |
+| B.10 cancellation | before: GS 400,000.00 → ₱0.00; after: ₱15,000.00 unchanged |
+| B.11 minimum trees | the compact tree is **11,111** members: Director / Manager / Supervisor / Leader / Member |
+| B.12 2/2/2/2 rank table | 14/6/2 · 6/2/0 · 2/0/0 · 0 · 0, exactly the plan's rows |
+
+### Docs
+
+- `docs/qa/phase-19-royalty.md` — **section G** (`QA19G-01` … `QA19G-06`), the document status
+  (A–G, 60 checks) and the sign-off row; the file is appended, never rewritten.
+- `docs/qa/evidence/phase-19/` — `QA19G-01.txt`, `QA19G-02-suite.txt`, `QA19G-03-smoke.txt`,
+  `QA19G-04-acceptance.txt`, `QA19G-05.txt` plus **seven screenshots**, and `QA19G-06-cold-read.txt`;
+  the folder's `README.md` indexes them.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` — the Phase 19 row is finalised (**A–G, 60
+  checks**), the 19G section and gate row are added, the totals and the final decision carry Phase 19,
+  and the defect log gains D-19G-01 … D-19G-03.
+- `docs/deploy.md` — the full **Phase 19 addendum** (migration 023, the counts **33 / 73 / six / 19**,
+  the cron entries, the enablement steps and the verification pack), the current document status and
+  the 19G row; the log/lock permission paragraph distinguishes a fatal lock failure from a warning
+  log failure.
+- `docs/cron.md` — **six** jobs in §5 with the Royalty `schtasks` block and launcher, the exact
+  snapshot rule, the `closed` meaning (including the evaluation-time final case) and the log-failure
+  wording.
+- `docs/runbook.md` — the scope is the Phase 19 build; the daily check's health count is **8** and the
+  reconcile message names Royalty; §2 gains **The review window (optional)**; §5 names migration
+  **023**; §6 gains the Royalty incident playbook; §7/§9 read six jobs and **1,162 / 248**.
+- `docs/admin-guide.md` — §16 is current (Phase 19), the health card has **eight** invariants, the
+  ledger-id claim and the period-dropdown wording are corrected, and the member wallet statement's
+  Royalty note is described.
+- `docs/install-reset.md` — the counts read **33 / 73**, migration **001–023**, the representative
+  reset transcript has the current 23 groups and **14** checks, and the seed line reads **70** settings.
+- `system/README.md` — the status is Phase 19 released, `APP_PHASE` is **19**, the job table and log
+  list have **six** jobs, the CSV exports are **seven**, the reconcile has **six** sections, and the
+  test counts are **1,162 / 248** over migrations `001`–`023`.
+- `dmp/plan-ecowealth-royalty.md` — status **implemented** (`p19g-release`), Appendix H filled, the
+  seven 19G deviation rows, the acceptance sign-off with the B.1–B.12 results, and the Appendix A /
+  C.1 / C.7 / §12 corrections.
+
+### Gate
+
+- [x] The universal gate (§2.4): the full suite is green at **1,162 / 1,162** (floor 1,140).
+- [x] `php bin/build_install_sql.php --check` exits 0 (no schema change; 60 statements, 82,518 bytes,
+      sha256 `026c6755…eb50`).
+- [x] `php bin/wallet_reconcile.php` exits 0 (six sections, Royalty clean).
+- [x] `php bin/royalty_month_close.php --doctor` exits 0 on the development copy.
+- [x] `powershell -File tests/smoke.ps1` → **248 / 248**, exit 0.
+- [x] `APP_PHASE = 19`; `HardeningTest` asserts it; the config comment names Phase 19 and the plan.
+- [x] The QA pack is signed: sections A–G, **60 / 60**, with evidence under
+      `docs/qa/evidence/phase-19/` (the seven G screenshots included).
+- [x] Appendix H is filled; the deviation log is current (seven 19G rows).
+- [x] Every stale count found by the cold read is fixed; the residual list is empty.
+- [x] The Appendix B acceptance run is **12 / 12** on the scratch database.
+- [x] `routes.php` is untouched; `ParityTest` and the 19D/19E regression cases are green.
+
+### Deviations
+
+1. **The ₱0-quota display defect was fixed in its owning views.** The engine always treated a zero
+   quota as met; the 19E rank card and the 19D admin panel did not. Two view lines changed, with
+   `P19G-T9` and `P19G-T10` as the regression cases. No money rule changed.
+2. **The close warns when it cannot log.** The 19F job ignored `CronLog::write()`'s `false`; it now
+   writes one `error_log` line and continues. `P19G-T11` pins it.
+3. **`--evaluate-only` counts every final month.** The all-skipped enabled month finalises `paid` at
+   evaluation; the CLI counted only `skipped` months. `P19G-T12` pins it.
+4. **Four regression cases were added in 19G**, so the release suite is **1,162** rather than the 1,158
+   the plan's floor anticipated. All four are view/job cases for the defects above — no money case was
+   added.
+5. **The settings card has no "Restore reference defaults" action.** Appendix A and C.1 now describe
+   the shipped card; the reference preset is the seeded value and `QA19B-05` restores it by hand.
+6. **The period note is stored, not rendered.** C.7 now says `royalty stream off` is the header/audit
+   record; the page vocabulary is **Skipped**.
+7. **§12's negative-volume clause is a clamp without a log.** The stored columns make the branch
+   unreachable; §12 now says so rather than adding logging to the money path at release.
+
+### Hand-off
+
+The feature is **released**. The next compensation stream (Harvest or Indirect, if the business
+chooses) starts from `p19g-release` and must not reuse `royalty_periods`/`royalty_awards` for a
+different grain. A rank-history or QA-gate proposal is a new plan, not a patch to Phase 19.
+
+---
+

@@ -4,10 +4,10 @@ Fill this sheet while working through the phase documents. Hand the completed sh
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
 still open in each phase of `docs/phase-log.md`.
 
-**Status of this pass (2026-11-12):** Phases 1–14 are recorded as **passed** — **200 / 200**
+**Status of this pass (2026-11-15):** Phases 1–14 are recorded as **passed** — **200 / 200**
 manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 669** PHP cases and
-**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **816 / 816** PHP
-cases and **195 / 195** smoke checks after Phase 16). The Phase 13 queue was rechecked after the
+**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **1,162 / 1,162** PHP
+cases and **248 / 248** smoke checks after the Phase 19 release). The Phase 13 queue was rechecked after the
 approval / rejection confirmation-modal change: both decisions ask first, and a rejection reason is
 typed in the modal. Phase 14 adds the super-login contract: a URL-token member session, its banner,
 Exit/TTL and the impersonation audit. Phase 15 adds the reports desk, the eight settings cards, the
@@ -34,9 +34,9 @@ folder.
 | Item | Value |
 |---|---|
 | Tester name | Automated QA pass — DeepSeek Harness (DSH) |
-| Date(s) of testing | 2026-11-07 … 2026-11-12 |
+| Date(s) of testing | 2026-11-07 … 2026-11-15 |
 | Repository / branch | `feature/shop` |
-| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14`, `phase-15`, `ir-0` … `ir-8` |
+| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14`, `phase-15`, `ir-0` … `ir-8`, `p17a` … `p17g`, `p19-start`, `p19a-foundation` … `p19f-operations`, `p19g-release` |
 | App URL | `http://localhost/ecowealth/system/` |
 | Database | `ecowealth_sneat` (Phases 1–15 and 17) · scratch `*_test` / `*_manual` schemas (Phase 16) · scratch `ecowealth_sneat_qa17a` / `_qa17g` schemas (Phase 17) |
 | Operating system | Windows 11 Home Single Language 10.0.26200 (build 26200) |
@@ -51,8 +51,8 @@ folder.
 | Command | Expected | Actual | Result |
 |---|---|---|---|
 | `php bin\build_install_sql.php --check` | exit 0, no output | exit 0, no output | ☑ Pass ☐ Fail |
-| `php tests\run.php` | `Cases: 948   Passed: 948   Failed: 0` / `All good.` | `Cases: 948   Passed: 948   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
-| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 225   Failed: 0` | `Passed: 225   Failed: 0` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 1162   Passed: 1162   Failed: 0` / `All good.` | `Cases: 1162   Passed: 1162   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 248   Failed: 0` | `Passed: 248   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
 
@@ -62,14 +62,14 @@ php bin\build_install_sql.php --check
 
 php tests\run.php
 ----------------------------------------------------------------
-Cases: 948   Passed: 948   Failed: 0
+Cases: 1162   Passed: 1162   Failed: 0
 All good.
 
 powershell -NoProfile -File tests\smoke.ps1
   P1-T11 PASS   guest sees the 503 page with Retry-After: 3600 (got 503, retry=3600)
   P1-T11 PASS   admin bypasses maintenance mode (got 200)
 
-Passed: 225   Failed: 0
+Passed: 248   Failed: 0
 ```
 
 All three commands were run from `system\` and exited **0** on 2026-11-12. `bin/wallet_reconcile.php` also
@@ -77,8 +77,9 @@ exits **0** afterwards (both wallet buckets match the ledger, every credited com
 movement, every transfer has its sender debit, recipient credit and fee credit, and every payout request
 has its hold with every rejection refunded).
 
-Total manual checks in §2–§18 (all eighteen phases): **273** — **273 recorded as passed**, 0 failed,
-0 blocked.
+Total manual checks: §2–§18 (Phases 1–17) **273** — **273 recorded as passed**, 0 failed,
+0 blocked. Phase 18 (§19) carries **6** escrow checks, Phase 19 sections A–F **54** and Phase 19G
+**6** — every one executed and recorded; see each section's summary for the tester, date and evidence.
 
 ---
 
@@ -1031,6 +1032,46 @@ php bin/wallet_reconcile.php                  # exit 0 (19F moves no money)
 
 ---
 
+## 19G. Phase 19G — Release (section G of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **sections A–G, complete and signed**
+
+**Prerequisites:** tag `p19f-operations`; branch `feature/royalty`; the development copy at migration
+`023`; the app running for the walk; the reference ladder stored and the stream off (a fresh release
+state). **Expected suite count:** ≥**1,140** (the release build is **1,162**); smoke **248**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check          # exit 0 (no schema change)
+php tests/run.php                              # Cases: 1162   Passed: 1162   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1    # Passed: 248   Failed: 0
+php bin/wallet_reconcile.php                   # exit 0 (six sections, Royalty among them)
+php bin/royalty_month_close.php --doctor       # exit 0
+grep APP_PHASE app/config.php                  # 19
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19G-01 | `APP_PHASE` is **19**, the config comment names Phase 19 and `dmp/plan-ecowealth-royalty.md` §11 (19G), the suite header reads `phase 19`, and `HardeningTest` asserts `assert_same(19, APP_PHASE)` | ☑ Pass ☐ Fail ☐ Blocked | `QA19G-01.txt` |
+| QA19G-02 | The full PHP suite is green at the release count: **1,162 / 1,162**, exit 0, the Royalty group **154 / 154** | ☑ Pass ☐ Fail ☐ Blocked | `QA19G-02-suite.txt` |
+| QA19G-03 | The smoke walk is green: **248 / 248**, exit 0, including the 19 Phase 19 URL checks | ☑ Pass ☐ Fail ☐ Blocked | `QA19G-03-smoke.txt` |
+| QA19G-04 | The Appendix B acceptance run on a scratch database: **B.1–B.12, 12 / 12 PASS**, including ₱18,300.00, ₱515,000.00, ₱18,000.04 and the two-month catch-up | ☑ Pass ☐ Fail ☐ Blocked | `QA19G-04-acceptance.txt` |
+| QA19G-05 | The release walk as an admin and as a member: seven URLs, all **HTTP 200**, no broken link, no PHP warning/notice, no console error, no failed request, no placeholder figure; the member tile correctly hidden while the stream is off | ☑ Pass ☐ Fail ☐ Blocked | `QA19G-05.txt` + 7 `QA19G-05-*.png` |
+| QA19G-06 | The cold read of §12 and the admin guide against the build: every finding fixed in the shared docs; the residual list is empty | ☑ Pass ☐ Fail ☐ Blocked | `QA19G-06-cold-read.txt` |
+
+| Phase 19G summary | |
+|---|---|
+| Executed | **6 / 6** checks |
+| Passed / Failed / Blocked | **6 / 0 / 0** |
+| Defects | 2 (see §20: D-19G-01 stale documents, D-19G-02 the zero-quota display defect) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+Sections A–G are final: 60 checks, 60 passed, 0 failed, 0 blocked.
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1039,6 +1080,9 @@ Add one row per problem found. Keep the status current until the defect is retes
 |---|---|---|---|---|---|---|
 | — | Phases 1–16 | — | No defects were raised in this pass. | — | — | Closed |
 | D-17G-01 | Phase 17 / QA17G-02 (cold read) | minor | Nine documents were stale against the released build: the pack's tag-scoping and fixture recipe were unstated, the pack said 948 / 223, `system/README.md` said `APP_PHASE` 15 and 27 / 48 with no migration 020 row, `docs/deploy.md` said 27 / 48 and "three jobs", `docs/runbook.md` said "three jobs" / 27 / 48 / 816 cases, `docs/qa/README.md` was frozen at "in progress (17C)", `docs/admin-guide.md` had no ladder-card section, and this sheet was frozen at 17B | every document matches the build | `QA17G-02-cold-read.txt` | Closed 2026-11-12 |
+| D-19G-01 | Phase 19G / QA19G-06 (cold read) | minor | Fifteen documents/claims were stale against the release build: the five-job counts in `docs/cron.md` (§5), `docs/runbook.md` (§7 go-live) and `system/README.md`; the `APP_PHASE` 17, 948-case and 225-smoke figures in `system/README.md`, `docs/runbook.md` (§9), this sheet and `docs/qa/README.md`; `docs/deploy.md`'s 19A-only addendum and five-job/17 counts; the reset's representative transcript (12 checks, 19 tables/counters) and its 45-setting seed line in `docs/install-reset.md`; `docs/admin-guide.md`'s "seven invariants" and its wallet-ledger-id claim; the Phase 19 pack's "sections A–F only" status; and `system/README.md`'s migration table, case tree and CSV-export count | every document matches the build | `QA19G-06-cold-read.txt` | Closed 2026-11-15 |
+| D-19G-02 | Phase 19G / QA19G-06 (cold read) | major | A **₱0 quota** (a legal stored value, `0.00–999,999,999.99`) was treated as *unmet* by the member rank card and the admin member panel, which showed "below the ₱0.00 quota"/"not met yet" and projected **₱0.00** while the engine (`group >= quota`) would have paid the computed award and reported 100 % progress. Fixed in the two owning views; regression cases `P19G-T9` (member card) and `P19G-T10` (admin panel) pin the engine's rule | the card and the panel agree with the engine for every legal quota | `QA19G-06-cold-read.txt`, `P19G-T9`, `P19G-T10` | Closed 2026-11-15 |
+| D-19G-03 | Phase 19G / QA19G-06 (cold read) | minor | The Royalty close ignored a failed log write (silent) even though plan §10 and the doctor promise a stderr warning; and `--evaluate-only` did not count an enabled month whose every award row was skipped as `closed` (the log's stated contract). Both fixed in the owning job file; `P19G-T11` and `P19G-T12` pin them | the job warns when it cannot log, and `closed` counts every final month | `QA19G-06-cold-read.txt`, `P19G-T11`, `P19G-T12` | Closed 2026-11-15 |
 
 Severity reminder: **blocker** = cannot continue · **major** = wrong result · **minor** = visible
 problem, flow still works · **cosmetic** = polish only.
@@ -1083,19 +1127,21 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19D | ☑ Yes ☐ No | Royalty admin visibility: the third tab on `/admin/commissions` (period-first ledger, closed-month cards, labelled open-month preview, Appendix C.5 CSV, `royalty.export` audit), the Royalty report cards and `type=royalty` export, the read-only member panel, the all-time + this-month dashboard tile. **Read-only**: no admin page writes a period, award or wallet row; the package and repeat tabs are byte-identical. 8 / 8 section-D checks, **1,127 / 1,127** PHP cases, **239 / 239** smoke checks, bundle check exit 0. |
 | Phase 19E | ☑ Yes ☐ No | Royalty member visibility: the third pill on `/earnings` (rank card with the next-rank progress and the engine's own "if this month closed now", five counters, one row per closed month with its stored reason, Appendix C.6 CSV) and the Royalty tile on `/dashboard`. Leader is explained; the stream-off and payment-paused copies are explicit; every read is scoped to the session member and a `?user_id=` is ignored. **Read-only**: rendering, filtering and exporting write no period, award, wallet or audit row; the package and repeat tabs keep their bytes. 9 / 9 section-E checks, **1,142 / 1,142** PHP cases, **245 / 245** smoke checks, bundle check exit 0. |
 | Phase 19F | ☑ Yes ☐ No | Royalty operations: the scheduled close (`bin/royalty_month_close.php`), its guarded URL entry and Windows launcher — one implementation, three entries — with `--doctor`, the bounded `--max-batches` run, one log line, an advisory lock and the 0/1/2 exit codes; the read-only **Operations** panel on the Royalty tab (open month, last final, pending, awaiting payment, switches, last close, next run); the health check (tables, settings, a 48-hour stale-evaluation warning); and the cron/runbook documentation. `admin.reports` joins the surfaces a close bumps. **Moves no money by itself beyond the 19C engine**: 19F adds no new money rule. 8 / 8 section-F checks, **1,158 / 1,158** PHP cases (Royalty 150 / 150), **248 / 248** smoke checks, bundle check exit 0. |
+| Phase 19G | ☑ Yes ☐ No | Royalty release: `APP_PHASE` **19**; the Phase 19 QA pack complete and signed (sections A–G, **60 / 60**); the Appendix B acceptance run on a scratch database **12 / 12** (₱18,300.00; ₱515,000.00; ₱18,000.04; the two-month catch-up; the 11,111-member minimum-tree ladder); the release walk as admin and member on seven URLs with no console error or broken link; every stale count in the shared docs corrected. Three defects found by the cold read were fixed in their owning phases with regression cases (`P19G-T9`…`T12`) — the zero-quota display, the silent log-write failure and the `closed` count in `--evaluate-only`. **1,162 / 1,162** PHP cases (Royalty 154 / 154), **248 / 248** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0 and a green doctor. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
-acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release
-build. One defect is recorded (D-17G-01, the nine stale documents) and it is **Closed**; the only open
+acceptance table is 27 / 27, the full suite is **1,162 / 1,162** and the smoke run **248 / 248** on the
+Phase 19 release build. Two defect passes are recorded (D-17G-01, the nine stale documents, and the
+Phase 19 trio D-19G-01 … D-19G-03) and all are **Closed**; the only open
 item at every gate is the independent-tester review, which the project lead signs below — the automated
-pass executed every section and left its transcripts in `evidence/phase-17/`.
+pass executed every section and left its transcripts in `evidence/phase-17/` and `evidence/phase-19/`.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.
 
 | Role | Name | Signature | Date |
 |---|---|---|---|
-| QA tester | Automated QA pass — DeepSeek Harness (DSH) | n/a (automated run) | 2026-11-12 |
+| QA tester | Automated QA pass — DeepSeek Harness (DSH) | n/a (automated run) | 2026-11-15 |
 | Project lead |  |  |  |
 
 The QA tester line records the automated pass; the project-lead line is left for the human
