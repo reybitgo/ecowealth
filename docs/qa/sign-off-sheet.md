@@ -1,4 +1,4 @@
-# EcoWealth — QA sign-off sheet (Phases 1–19)
+﻿# EcoWealth — QA sign-off sheet (Phases 1–19)
 
 Fill this sheet while working through the phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
@@ -1204,6 +1204,57 @@ php bin/wallet_reconcile.php                  # exit 0 (20C moves no money)
 
 ---
 
+## 20D. Phase 20D — Money engine (section D of the Phase 20 pack)
+
+Document: [phase-20-team-harvest.md](phase-20-team-harvest.md) — **sections A–D** (20E–20G append theirs)
+
+Phase 20D is the **only phase that moves money**: a completed level pays its configured amount, once,
+into the member's withdrawable e-wallet, with an immutable `team_harvest_awards` row and a
+`team_harvest` wallet movement written in the same transaction; a level already complete at go-live is
+recorded as `baseline` and never paid; the engine is state-based and self-heals on any later run; and
+`wallet_reconcile.php` proves the ledger and the counters agree. **No page changes** — the admin and
+member surfaces that describe this money are 20E/20F.
+
+**Prerequisites:** tag `p20c-queue` (or later, `feature/team-harvest`); a **seedable scratch schema**
+(`ecowealth_sneat_tool_b_test`) because section D moves money and finally resets; the development copy
+is **not** enabled by it. **Expected suite count:** **1,275**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1275   Passed: 1275   Failed: 0
+php tests/run.php TeamHarvestEngine           # Cases: 28   Passed: 28   Failed: 0
+php tests/run.php TeamHarvestCatchup          # Cases:  6   Passed:  6   Failed: 0
+php tests/run.php TeamHarvestReconcile        # Cases:  5   Passed:  5   Failed: 0
+php bin/team_harvest_catchup.php --doctor     # exit 0 on a seeded copy
+php bin/wallet_reconcile.php                  # exit 0 with the Team Harvest section
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 251   Failed: 0 (20D adds no smoke check)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA20D-01 | Fixture A registered in BFS order on a seeded copy with the reference ladder and the switch on: the root's level 1 is one `credited` row of **₱1,000.00** with `n_at_award = 3`, `threshold_n = 3`, a ledger reference and a wallet credit | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-01.txt` |
+| QA20D-02 | As that member, `/wallet` shows one **Team Harvest bonus** credit of ₱1,000.00 and the statement filter's new option matches it | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-02.txt` |
+| QA20D-03 | `/admin/wallets` shows the same credit with `ref_type = team_harvest` and the award id as `ref_id` | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-03.txt` |
+| QA20D-04 | `php bin/wallet_reconcile.php` exits **0** and its **Team Harvest** section reports the total and no mismatch | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-04.txt` |
+| QA20D-05 | Fixture A's root pays three rows (₱1,000 / ₱2,000 / ₱4,000) and **₱7,000.00** in the wallet; the network totals **₱25,000.00** across 18 rows and 13 members | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-05.txt` |
+| QA20D-06 | Re-registering under an already-qualified member's fourth direct writes no new award, no new credit and changes no total | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-06.txt` |
+| QA20D-07 | With the switch **off** a qualification queues but pays nothing; turning it on and running the catch-up (dry run first) writes exactly one award, and a second run writes none | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-07.txt` |
+| QA20D-08 | A network seeded when the root held 12 qualified teammates: after growing to 39, levels 1–2 are `baseline` (recorded, no wallet reference) and level 3 is `credited` ₱4,000.00 — the wallet holds **₱4,000.00**, not ₱7,000.00 | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-08.txt` |
+| QA20D-09 | `php bin/team_harvest_catchup.php --doctor` reports clock, tables, settings, seed state, baseline, queue, awards, drift and the reconcile verdict, exit **0** | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-09.txt` |
+| QA20D-10 | Hand-deleting one `ewallet_ledger` movement makes the reconciler report the award and exit non-zero; the backup restores it | ☐ Pass ☐ Fail ☐ Blocked | `QA20D-10.txt` |
+
+| Phase 20D summary | |
+|---|---|
+| Executed | **10 / 10** by the automated pass on `ecowealth_sneat_tool_b_test` + scripts; the `/wallet` and `/admin/wallets` screenshots (02/03) are the lead's |
+| Passed / Failed / Blocked | 10 / 0 / 0 |
+| Defects | 0 so far |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | — |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1263,6 +1314,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 20A | ☐ Yes ☐ No | Team Harvest foundation: migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings, **stream off and queue unseeded**, no reader; migrated ≡ fresh, a reset empties the queue and awards and clears the baseline while keeping the ladder; fresh install **36 tables / 77 settings / 10 ladder rows**; **18** new PHP cases, **1,180 / 1,180** green and **248 / 248** smoke checks. Section A: **4 / 8** executed by the automated pass (02, 03, 07, 08); 01 and 04–06 await the lead's manual pass. |
 | Phase 20B | ☐ Yes ☐ No | Team Harvest configuration: the Commissions card's Team Harvest sub-block (switch, gate, depth, ten amounts), the generated 3×10 ladder equal to Appendix A, the ₱25,000,000.00 total guard and the all-zero enable refusal, an atomic save with `team_harvest.ladder.update` + `settings.update` audit rows, the four-state status strip, and the phase's inertness (no queue row, no award, no money). **24** new PHP cases, **1,204 / 1,204** green, **251 / 251** smoke checks (three new 20B checks), bundle check exit 0, `wallet_reconcile` exit 0. Section B: **— / 9** executed by the automated pass; the card, audit desk, JS-off and 390 px checks await the lead. |
 | Phase 20C | ☐ Yes ☐ No | Team Harvest queue: the registration hook inside the registration transaction, the gate counting `role = 'member'` accounts only (status ignored), the inert-until-seeded guard, append-only positions, the any-depth ancestor walk (eleven ancestors — one more than `SponsorService::MAX_LEVELS`), the "qualified after me" exclusion, the maintained counter with its proof (`recount()`/`rebuild()`), the one-time deterministic seed (`baseline_n`, idempotent, `--force` appends only), the 3-ary matrix, and the phase's purity (no award, no wallet row, no balance). **30** new PHP cases, **1,234 / 1,234** green, **251 / 251** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section C: **8 / 8** executed on a scratch schema; the signed-in `/register` step and the independent-tester run await the lead. |
+| Phase 20D | ☐ Yes ☐ No | Team Harvest money engine: the level award rule (thresholds, all-or-nothing blocks, once-ever, max depth), the go-live baseline (recorded, never paid), the withdrawable wallet credit with `ref_type = team_harvest` and the award id as `ref_id`, the three idempotency layers, the ascending lock order, the snapshot rule (a ladder edit never rewrites a paid award), the state-based catch-up job with `--dry-run` / `--member` / `--doctor`, the seventh `wallet_reconcile` section and the reset's integrity pack. **41** new PHP cases, **1,275 / 1,275** green, **251 / 251** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0 with the Team Harvest section, catch-up doctor exit 0. Section D: **10 / 10** executed on a scratch schema; the `/wallet` and `/admin/wallets` screenshots and the independent-tester run await the lead. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is **1,162 / 1,162** and the smoke run **248 / 248** on the

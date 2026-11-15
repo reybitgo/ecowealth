@@ -1702,14 +1702,15 @@ final class DatabaseResetService
                 . 'starts with it.'
         );
 
-        /* ---- The six finance reconciliations ---------------------- */
+        /* ---- The seven finance reconciliations -------------------- */
         $services = [
-            'wallets'     => ['label' => 'Wallet reconciliation', 'service' => 'WalletService'],
-            'commissions' => ['label' => 'Commission reconciliation', 'service' => 'CommissionService'],
-            'transfers'   => ['label' => 'Transfer reconciliation', 'service' => 'TransferService'],
-            'payouts'     => ['label' => 'Payout reconciliation', 'service' => 'PayoutService'],
-            'unilevel'    => ['label' => 'Repeat-purchase reconciliation', 'service' => 'UnilevelService'],
-            'royalty'     => ['label' => 'Royalty reconciliation', 'service' => 'RoyaltyService'],
+            'wallets'      => ['label' => 'Wallet reconciliation', 'service' => 'WalletService'],
+            'commissions'  => ['label' => 'Commission reconciliation', 'service' => 'CommissionService'],
+            'transfers'    => ['label' => 'Transfer reconciliation', 'service' => 'TransferService'],
+            'payouts'      => ['label' => 'Payout reconciliation', 'service' => 'PayoutService'],
+            'unilevel'     => ['label' => 'Repeat-purchase reconciliation', 'service' => 'UnilevelService'],
+            'royalty'      => ['label' => 'Royalty reconciliation', 'service' => 'RoyaltyService'],
+            'team_harvest' => ['label' => 'Team Harvest reconciliation', 'service' => 'TeamHarvestService'],
         ];
 
         foreach ($services as $key => $meta) {
@@ -1718,12 +1719,13 @@ final class DatabaseResetService
 
             try {
                 $result = match ($key) {
-                    'wallets'     => (new WalletService($this->pdo))->reconcile(),
-                    'commissions' => (new CommissionService($this->pdo))->reconcile(),
-                    'transfers'   => (new TransferService($this->pdo))->reconcile(),
-                    'payouts'     => (new PayoutService($this->pdo))->reconcile(),
-                    'unilevel'    => (new UnilevelService($this->pdo))->reconcile(),
-                    'royalty'     => (new RoyaltyService($this->pdo))->reconcile(),
+                    'wallets'      => (new WalletService($this->pdo))->reconcile(),
+                    'commissions'  => (new CommissionService($this->pdo))->reconcile(),
+                    'transfers'    => (new TransferService($this->pdo))->reconcile(),
+                    'payouts'      => (new PayoutService($this->pdo))->reconcile(),
+                    'unilevel'     => (new UnilevelService($this->pdo))->reconcile(),
+                    'royalty'      => (new RoyaltyService($this->pdo))->reconcile(),
+                    'team_harvest' => (new TeamHarvestService($this->pdo))->reconcile(),
                 };
 
                 $ok = (bool) ($result['ok'] ?? false);

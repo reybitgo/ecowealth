@@ -192,6 +192,51 @@ return [
         assert_same(true, $meta['final']);
     },
 
+    'P20D the three Team Harvest actions are audited' => function (): void {
+        /* Phase 20 writes one of these per operator action (plan §15.4):
+         * `harvest.seed` (the one-time reconstruction), `harvest.queue.repair`
+         * (a rebuild's --apply) and `team_harvest.catchup` (the on-demand
+         * evaluation). Each individual award is deliberately **not**
+         * audited: the award row is the record. */
+        AuditLog::record([
+            'action'       => 'harvest.seed',
+            'actor_role'   => 'system',
+            'subject_type' => 'harvest_queue',
+            'meta'         => ['gate' => 3, 'inserted' => 40, 'instant' => '2026-11-01 09:00:00'],
+        ]);
+        AuditLog::record([
+            'action'       => 'harvest.queue.repair',
+            'actor_role'   => 'system',
+            'subject_type' => 'harvest_queue',
+            'meta'         => ['repaired' => [['user_id' => 2, 'before' => 7, 'after' => 2]]],
+        ]);
+        AuditLog::record([
+            'action'       => 'team_harvest.catchup',
+            'actor_role'   => 'system',
+            'subject_type' => 'team_harvest_awards',
+            'meta'         => ['trigger' => 'cli', 'dry_run' => false, 'members' => 40, 'paid' => 18, 'amount' => '25000.00'],
+        ]);
+
+        $vocabulary = AuditLog::vocabulary();
+
+        foreach (['harvest.seed', 'harvest.queue.repair', 'team_harvest.catchup'] as $action) {
+            assert_true(in_array($action, $vocabulary['actions'], true), 'the desk lists ' . $action);
+        }
+
+        $page = AuditLog::adminList(
+            ['q' => 'team_harvest.catchup'] + AuditLog::filterDefaults(),
+            Paginator::make(20, 1, 20)
+        );
+
+        assert_count(1, $page);
+        assert_same('team_harvest_awards', $page[0]['subject_type']);
+
+        $meta = json_decode((string) $page[0]['meta_json'], true);
+        assert_same(18, $meta['paid']);
+        assert_same('25000.00', $meta['amount']);
+        assert_same(false, $meta['dry_run'], 'a dry run writes no audit row');
+    },
+
     'P15 the audit trail has no update or delete path' => function (): void {
         $reflection = new ReflectionClass(AuditLog::class);
 

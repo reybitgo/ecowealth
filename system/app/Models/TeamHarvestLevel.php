@@ -260,6 +260,88 @@ final class TeamHarvestLevel
         return $result;
     }
 
+    /**
+     * What a member with `n` teammates has earned from the ladder — the
+     * **pure function** over the amounts, with no tree, no ledger and no
+     * database round trip of its own (plan §12.8 E, §16.5).
+     *
+     *      earnedFor(88,572) = 5,095,000.00     (level 10 complete)
+     *      earnedFor(88,571) = 1,595,000.00     (the last teammate is missing)
+     *      earnedFor(39)     = 7,000.00
+     *      earnedFor(2)      = 0.00
+     *
+     * `$maxLevels` caps the payable depth exactly like the setting; null
+     * means all ten levels, which is what the pure-function cases assert
+     * (a case that sets the depth calls the engine, not this function).
+     *
+     * @param array<int, float|int|string>|null $amounts
+     */
+    public static function earnedFor(int $n, ?array $amounts = null, ?int $maxLevels = null, ?PDO $pdo = null): float
+    {
+        $ladder = $amounts ?? self::amounts($pdo);
+        $depth  = $maxLevels === null
+            ? self::LEVEL_MAX
+            : self::clamp($maxLevels, self::LEVEL_MIN, self::LEVEL_MAX);
+        $cents  = 0;
+
+        for ($level = self::LEVEL_MIN; $level <= $depth; $level++) {
+            if ($n < self::threshold($level)) {
+                break;
+            }
+
+            $cents += self::toCents($ladder[$level] ?? 0);
+        }
+
+        return $cents / 100;
+    }
+
+    /**
+     * The next level a member with `n` teammates can complete, and how
+     * far into its block they are — the progress card's whole payload
+     * (plan §12.5, §14.2, P20F-T2):
+     *
+     *      n = 1  → level 1, needed 3,   filled 1/3,   remaining 2,  33.3 %
+     *      n = 5  → level 2, needed 12,  filled 2/9,   remaining 7,  22.2 %
+     *      n = 39 → level 4, needed 120, filled 0/81,  remaining 81,  0.0 %
+     *
+     * Returns an empty array when every payable level is already
+     * complete (a member at the top of the configured depth).
+     *
+     * @param array<int, float|int|string>|null $amounts
+     * @return array{level:int, threshold:int, needed:int, filled:int, slots:int,
+     *               remaining:int, percent:float, amount:float}|array{}
+     */
+    public static function statusForNext(int $n, ?int $maxLevels = null, ?array $amounts = null, ?PDO $pdo = null): array
+    {
+        $depth  = $maxLevels === null
+            ? self::maxLevels()
+            : self::clamp($maxLevels, self::LEVEL_MIN, self::LEVEL_MAX);
+        $ladder = $amounts ?? self::amounts($pdo);
+
+        for ($level = self::LEVEL_MIN; $level <= $depth; $level++) {
+            $threshold = self::threshold($level);
+
+            if ($n < $threshold) {
+                $slots  = self::slots($level);
+                $start  = $threshold - $slots;
+                $filled = max(0, min($slots, $n - $start));
+
+                return [
+                    'level'     => $level,
+                    'threshold' => $threshold,
+                    'needed'    => $threshold,
+                    'filled'    => $filled,
+                    'slots'     => $slots,
+                    'remaining' => $threshold - $n,
+                    'percent'   => round(100 * $filled / $slots, 1),
+                    'amount'    => self::centsToMoney($ladder[$level] ?? 0),
+                ];
+            }
+        }
+
+        return [];
+    }
+
     /* ----------------------------------------------------------
      *  The three knobs (plan §12.2, §12.6 Rule 3, D-09)
      * ---------------------------------------------------------- */

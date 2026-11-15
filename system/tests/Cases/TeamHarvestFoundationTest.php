@@ -1034,8 +1034,9 @@ return [
          * (plan 20A Rule 10, P20A-T15); **20B** adds the configuration card,
          * which reads the ladder and writes nothing but its ten amounts;
          * **20C** adds the queue model, which owns qualification, the
-         * positions and the counters. A later phase adds its own files here
-         * with its own case. */
+         * positions and the counters; **20D** adds the money engine (the
+         * ledger model, the service and its exception). A later phase adds
+         * its own files here with its own case. */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
@@ -1043,6 +1044,9 @@ return [
             '/app/Services/DatabaseResetService.php',
             '/app/Models/TeamHarvestLevel.php',
             '/app/Models/HarvestQueue.php',
+            '/app/Models/TeamHarvestAward.php',
+            '/app/Services/TeamHarvestService.php',
+            '/app/Services/TeamHarvestException.php',
             '/app/Controllers/AdminSettingsController.php',
             '/app/views/admin/settings/index.php',
             '/app/views/admin/settings/_commissions.php',
@@ -1070,17 +1074,23 @@ return [
         sort($found, SORT_STRING);
         sort($allowList, SORT_STRING);
 
-        assert_same($allowList, $found, 'only the 20A manifest, the 20B card and the 20C queue name the Team Harvest objects');
+        assert_same(
+            $allowList,
+            $found,
+            'only the 20A manifest, the 20B card, the 20C queue and the 20D engine name the Team Harvest objects'
+        );
 
-        /* 20B adds the configuration model and 20C the queue; the money
-         * engine and the page of a later phase still must not exist. */
+        /* 20B adds the configuration model, 20C the queue and 20D the
+         * money engine; the page of a later phase still must not exist,
+         * because this stream adds no route (D-14). */
         assert_true(is_file($appRoot . '/app/Models/TeamHarvestLevel.php'), '20B ships the ladder model');
         assert_true(is_file($appRoot . '/app/Models/HarvestQueue.php'), '20C ships the queue model');
-
-        foreach (['/app/Models/TeamHarvestAward.php',
-                  '/app/Services/TeamHarvestService.php', '/app/Controllers/TeamHarvestController.php'] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist in 20C');
-        }
+        assert_true(is_file($appRoot . '/app/Models/TeamHarvestAward.php'), '20D ships the money ledger');
+        assert_true(is_file($appRoot . '/app/Services/TeamHarvestService.php'), '20D ships the money engine');
+        assert_false(
+            is_file($appRoot . '/app/Controllers/TeamHarvestController.php'),
+            'the stream still has no controller: it adds no route'
+        );
 
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
             assert_same(
@@ -1119,7 +1129,10 @@ return [
             $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($appRoot)));
             $source   = (string) file_get_contents($file->getPathname());
 
-            if (preg_match("/->credit\\([^;]*'team_harvest'/s", $source) === 1) {
+            /* The engine names the movement through its one constant
+             * (`TeamHarvestAward::REF_TYPE`), so the guard accepts either
+             * the literal or the constant — both mean one writer. */
+            if (preg_match("/->credit\\([^;]*(?:'team_harvest'|TeamHarvestAward::REF_TYPE)/s", $source) === 1) {
                 $writers[] = $relative;
             }
 
@@ -1131,27 +1144,35 @@ return [
         sort($writers, SORT_STRING);
         sort($readers, SORT_STRING);
 
-        assert_same([], $writers, '20C ships no Team Harvest wallet writer');
+        /* **20D** is the one phase that moves money, and its service is the
+         * only file that names the `team_harvest` wallet reference. */
+        assert_same(
+            ['/app/Services/TeamHarvestService.php'],
+            $writers,
+            'the money engine is the only Team Harvest wallet writer'
+        );
 
         /* The readers are the business-reset engine, which must know every
          * table it empties; **20B's** settings card, which reads the queue
          * and the awards to tell the operator the four-state truth (plan §6
-         * Rules 6–7); and **20C's** queue model, which owns them. No page,
-         * job or service pays anything yet. */
+         * Rules 6–7); **20C's** queue model, which owns them; and **20D's**
+         * ledger model and service, which write and prove them. No page
+         * reads either table yet (20E/20F). */
 
         assert_same(
             [
                 '/app/Controllers/AdminSettingsController.php',
                 '/app/Models/HarvestQueue.php',
+                '/app/Models/TeamHarvestAward.php',
                 '/app/Services/DatabaseResetService.php',
+                '/app/Services/TeamHarvestService.php',
             ],
             $readers,
-            '20C ships no Team Harvest reader outside the settings card, the reset engine and the queue'
+            'the readers are the settings card, the queue, the ledger, the engine and the reset engine'
         );
 
-        /* The wallet statement filter is the only visible change (Rule 6):
-         * the label resolves and the enum accepts the value, but no row can
-         * match it yet. */
+        /* The wallet statement filter is the only visible change of 20A
+         * (Rule 6): the label resolves and the enum accepts the value. */
         assert_same('Team Harvest bonus', wallet_ref_label('team_harvest'));
         assert_false(setting_bool('team_harvest_enabled', true));
     },

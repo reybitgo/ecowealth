@@ -873,3 +873,354 @@ reset removes them with every other member. If the reset is skipped, drop the sc
 leave a seeded queue on a database whose members you keep. Do not delete anything whose name does not
 start with `QA`.
 
+
+---
+
+# Section D — Phase 20D: Money engine (`QA20D-01` … `QA20D-10`)
+
+**Prerequisites.** Tag `p20c-queue` (or later) on `feature/team-harvest`; a **scratch schema** for every
+check that writes (`ecowealth_sneat_tool_a_test` / `_tool_b_test` are the provisioned slots); the
+development copy migrated through `024` and **never** to be used for this section; the app running
+(Laragon → Start All) for the two wallet-screen checks. Expected suite count for this section:
+**1,275**.
+
+> **Notation.** As in sections A–C: `mysql` is the Laragon client with the app account, `php` is
+> Laragon's PHP 8.3 CLI, and every command runs from `system/`. A command that must hit a different
+> schema sets `ECO_DB_NAME` first (`$env:ECO_DB_NAME='ecowealth_sneat_tool_b_test'`).
+>
+> **Money.** This is the **only** section that moves money. Every check runs on a scratch schema; the
+> last check restores a deleted ledger row from a dump. `team_harvest_enabled` ships **off** and this
+> section never enables it on the development copy.
+>
+> **What section D changed in the app.** `app/Models/TeamHarvestAward.php`,
+> `app/Services/TeamHarvestService.php`, `app/Services/TeamHarvestException.php`, two methods in
+> `app/Services/Live.php`, the one-line registration hook in `RegistrationService`, the integrity map in
+> `DatabaseResetService`, `bin/team_harvest_catchup.php` (+ `.cmd`) and the seventh section of
+> `bin/wallet_reconcile.php`. No route, no page and no schema: `routes.php`, `routes_inventory.php`
+> and `ParityTest` are untouched, `APP_PHASE` is still 19, and the smoke count stays 251.
+
+The automated pass, run before these checks, is:
+
+```text
+php tests\run.php                          → Cases: 1275   Passed: 1275   Failed: 0
+php tests\run.php TeamHarvestEngine        → Cases: 28   Passed: 28   Failed: 0
+php tests\run.php TeamHarvestCatchup       → Cases:  6   Passed:  6   Failed: 0
+php tests\run.php TeamHarvestReconcile     → Cases:  5   Passed:  5   Failed: 0
+php bin\team_harvest_catchup.php --help    → exit 0
+php bin\wallet_reconcile.php               → exit 0, Team Harvest section clean
+php bin\build_install_sql.php --check      → exit 0
+powershell -File tests/smoke.ps1           → Passed: 251   Failed: 0
+```
+
+`QA20D-01` to `QA20D-10` were executed by the automated pass on `ecowealth_sneat_tool_b_test` and
+captured as transcripts; the two wallet-screen steps a human adds are named in each check's **Where**
+line. 20D adds **no smoke check**, because it adds no route and no page (20G accumulates the Phase 20
+ones).
+
+## The checks in one table
+
+| Check | What it proves | Where |
+|---|---|---|
+| `QA20D-01` | A completed level pays its amount once, into the wallet, with an immutable row | scratch schema + `mysql` |
+| `QA20D-02` | The member sees the credit in `/wallet` and the statement filter matches it | browser + `mysql` |
+| `QA20D-03` | The admin wallet monitor shows the same movement and its award id | browser + `mysql` |
+| `QA20D-04` | The reconciler reports the Team Harvest section and exits 0 | `php bin\wallet_reconcile.php` |
+| `QA20D-05` | The plan's ladder is paid exactly: ₱7,000 root, ₱3,000 children, ₱1,000 grandchildren, ₱25,000 network, ₱13,000 fixture-B root | suite transcript + `mysql` |
+| `QA20D-06` | A replay moves no money: a fourth direct writes no award and no credit | scratch schema + `mysql` |
+| `QA20D-07` | The switch off means no money, a growing queue, and one catch-up that pays the backlog once | scratch schema + the job |
+| `QA20D-08` | A level complete at go-live is recorded as `baseline` and never paid; only the later level credits | scratch schema + `mysql` |
+| `QA20D-09` | The doctor is green on a clean build and names every check | `php bin\team_harvest_catchup.php --doctor` |
+| `QA20D-10` | A hand-deleted movement is caught with its award and fails the build | scratch schema + the reconciler |
+
+## The 13-account live fixture (used by 01, 02, 06, 07)
+
+A tree that pays exactly one level, small enough to build by hand, and the shape the rest of this
+section reuses. `QA20D_Top` is queued by the **seed** while it holds three directs (`n = 0`); its three
+directs then each receive three members **through the real registration hook**, so they qualify after
+go-live and `QA20D_Top` reaches `n = 3` — level 1 completes after the baseline and pays ₱1,000.00.
+
+```sql
+-- On the scratch schema, before the seed: the top and its three directs.
+INSERT INTO users (username, email, password_hash, role, member_status, sponsor_id, referral_code,
+                   is_active, created_at)
+VALUES ('QA20D_Top', 'qa20d_top@qa.test', 'x', 'member', 'active', NULL,
+        'QA20D0001', 1, '2026-11-01 08:00:00');
+
+INSERT INTO users (username, email, password_hash, role, member_status, sponsor_id, referral_code,
+                   is_active, created_at)
+SELECT CONCAT('QA20D_D', n), CONCAT('qa20d_d', n, '@qa.test'), 'x', 'member', 'active', id,
+       CONCAT('QA20D001', n), 1, TIMESTAMPADD(MINUTE, n, '2026-11-01 09:00:00')
+  FROM users JOIN (SELECT 1 n UNION ALL SELECT 2 UNION ALL SELECT 3) AS d
+ WHERE username = 'QA20D_Top';
+
+-- The seed queues QA20D_Top with n = 0 and baseline 0; the directs are not qualified yet.
+```
+
+Then each direct receives three accounts through `/register` (or a scripted
+`RegistrationService::register()`), which is what makes them qualify. The 13 accounts are: the top, its
+three directs and nine grandchildren.
+
+### QA20D-01 — A completed level pays its amount once
+
+| Why | Rules 1–5, D-06/D-11: `n ≥ threshold(L)` is the whole test, and the credit is withdrawable immediately |
+|---|---|
+| Where | scratch schema, `mysql`, and `php bin\team_harvest_catchup.php` |
+| Evidence | `QA20D-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Build the 13-account fixture above; seed (`php bin\harvest_queue_seed.php`), then turn the stream on:
+   `UPDATE settings SET value = '1' WHERE key_name = 'team_harvest_enabled';`
+2. Register the nine grandchildren through `/register` (three under each direct).
+3. `SELECT level, threshold_n, n_at_award, amount, status, ledger_id FROM team_harvest_awards WHERE user_id = <QA20D_Top>;`
+4. `SELECT ewallet_balance, withdrawable_balance FROM users WHERE username = 'QA20D_Top';`
+5. `SELECT type, amount, ref_type, ref_id, note FROM ewallet_ledger WHERE user_id = <QA20D_Top>;`
+
+Expected
+
+- Step 3: **one** row — `level 1`, `threshold_n 3`, `n_at_award 3`, `amount 1000.00`, `status credited`,
+  `ledger_id` set. No level-2 row: the block is `0 of 9` full.
+- Step 4: `1000.00 / 1000.00` — the award is withdrawable earnings, not a hold.
+- Step 5: one `credit` of `1000.00` with `ref_type = team_harvest`, `ref_id` = the award id, and a note
+  naming level 1.
+- If it fails: a second row for level 1 means the unique anchor or the pre-check is missing (D-06); a
+  `earned` figure with no wallet movement means the pair is not atomic (§14.7).
+
+### QA20D-02 — The member sees the credit in `/wallet`
+
+| Why | §12.7 Rule 6: the money is in the e-wallet the second the transaction commits |
+|---|---|
+| Where | browser as `QA20D_Top`, and `mysql` |
+| Evidence | `QA20D-02.png` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as `QA20D_Top` (set a password on the scratch copy first, or use the S-Login console).
+2. Open `/wallet`. The statement lists one **Team Harvest bonus** credit of **₱1,000.00** dated today.
+3. Use the statement's movement filter: choose **Team Harvest bonus** and apply.
+4. `SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = <QA20D_Top> AND ref_type = 'team_harvest';`
+
+Expected
+
+- One row, **₱1,000.00**, note *Team Harvest level 1 bonus*; the filter returns exactly it and the
+  running balance agrees with the header.
+- If it fails: a missing option means the filter was not regenerated from `WalletService::REF_TYPES`
+  (20A Rule 6); a row with no note or the wrong `ref_type` means the engine did not use the wallet API.
+
+### QA20D-03 — The admin wallet monitor shows the same movement
+
+| Why | §14.13: every number on a page has a ledger row behind it |
+|---|---|
+| Where | browser as `admin`, and `mysql` |
+| Evidence | `QA20D-03.png` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. As `admin`, open `/admin/wallets` and search `QA20D_Top`.
+2. Open the member's wallet detail. The movement list shows the **Team Harvest bonus** credit.
+3. Hover/read the reference: `ref_type = team_harvest`, `ref_id` = the award id from `QA20D-01`.
+
+Expected
+
+- The same amount and instant as `QA20D-02`; the member's two buckets match `/wallet`.
+- If it fails: an admin page that omits the movement means the statement renders its own ref-type list
+  instead of the wallet model.
+
+### QA20D-04 — The reconciler reports the Team Harvest section
+
+| Why | §14.13 and D-19: the money ships with its proof, not with a promise |
+|---|---|
+| Where | PowerShell on `system/` |
+| Evidence | `QA20D-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\wallet_reconcile.php`
+2. `php bin\wallet_reconcile.php --json` and read the `team_harvest` block.
+
+Expected
+
+- Exit **0** and a **Team Harvest** section: `queued positions`, `credited awards` (₱1,000.00 on the
+  13-account fixture), `baseline awards 0`, `counter drift 0 row(s) · 0 below the baseline`, and the
+  line *every credited award has its wallet movement, every baseline row is unpaid, and the counters
+  agree with a recount*.
+- The `--json` block carries `ok: true`, `credited_total: 1000.00`, `ledger_total: 1000.00`, `drift: 0`.
+- If it fails: a mismatch names the award and the two amounts — that is a books error; restore the
+  backup and report it rather than editing a row.
+
+### QA20D-05 — The plan's ladder is paid exactly
+
+| Why | §16.3: every amount is pinned to the centavo; a "close enough" payout is a defect |
+|---|---|
+| Where | the suite transcript, and `mysql` on the scratch copy |
+| Evidence | `QA20D-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php tests\run.php TeamHarvestEngine` → **28 / 28**.
+2. Read the PASS lines for **P20D-T2** (fixture A's root: 1,000 + 2,000 + 4,000 = 7,000), **P20D-T3**
+   (each child: 3,000), **P20D-T4** (each grandchild: 1,000), **P20D-T6** (fixture B root: 13,000) and
+   **P20D-T7** (the network: 18 rows, ₱25,000.00, 13 members).
+3. On the scratch copy, compare the level distribution with the plan's Appendix A:
+   `SELECT level, COUNT(*) AS awards, SUM(amount) AS total FROM team_harvest_awards WHERE status = 'credited' GROUP BY level ORDER BY level;`
+
+Expected
+
+- The suite's 28 PASS lines include the five cases above, each named with its amount.
+- The distribution on the scratch copy is the 13-account fixture's single level: `1 | 1 | 1000.00`
+  (fixture A's `13 / 4 / 1` shape is asserted by P20D-T7; the 121-account tree is not buildable by
+  hand and is evidence by case name, exactly as 20C treated its 40-position fixture).
+- If it fails: an amount one peso out means a rounding or a snapshot bug — the ladder is flat and there
+  is nothing to round (§12.9), so any difference is a defect.
+
+### QA20D-06 — A replay moves no money
+
+| Why | Rule 5, §14.6: a level pays once, ever, and a replay is not an event |
+|---|---|
+| Where | scratch schema, `mysql`, and/or the suite |
+| Evidence | `QA20D-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On the 13-account fixture (after `QA20D-01`), register a **fourth** direct under `QA20D_Top`, then
+   three members under one of the directs so another of its directs qualifies.
+2. `SELECT COUNT(*) FROM team_harvest_awards;`
+3. `SELECT COALESCE(SUM(amount),0) FROM ewallet_ledger WHERE ref_type = 'team_harvest';`
+4. `php bin\team_harvest_catchup.php --json` (a real run) and read `result.paid`.
+
+Expected
+
+- The award count and the wallet total are exactly what `QA20D-01` left; the catch-up reports
+  `paid: 0` and writes no new row.
+- The fourth direct moved `QA20D_Top`'s `n` to 4 — the block is still `4 of 9`, so nothing is complete.
+- If it fails: a second row for level 1, or a second movement with the same `ref_id`, is a double pay.
+
+### QA20D-07 — The switch off, then one catch-up pays the backlog once
+
+| Why | D-09 and §14.14: the queue grows while the money is off, and the backlog is paid deliberately |
+|---|---|
+| Where | scratch schema, `mysql`, and the job |
+| Evidence | `QA20D-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On a fresh scratch copy, seed the queue with the stream **off** (`team_harvest_enabled = '0'`).
+2. Register the nine grandchildren (as in `QA20D-01`). `SELECT COUNT(*) FROM harvest_queue;` and
+   `SELECT COUNT(*) FROM team_harvest_awards;`
+3. Turn the switch on: `UPDATE settings SET value = '1' WHERE key_name = 'team_harvest_enabled';`
+4. `php bin\team_harvest_catchup.php --dry-run` — read the liability.
+5. `php bin\team_harvest_catchup.php` — pay it.
+6. Run step 5 again.
+
+Expected
+
+- Step 2: the queue holds **13** positions and `team_harvest_awards` is **0** — the structure recorded,
+  the money did not move.
+- Step 4: **1 level, 1 member, ₱1,000.00**, nothing written.
+- Step 5: `paid: 1`, ₱1,000.00, and one `team_harvest.catchup` audit row.
+- Step 6: `paid: 0` — the same levels evaluate to nothing, and the wallet does not move again.
+- If it fails: money while the switch is off breaks D-09; a second payment on step 6 breaks D-19.
+
+### QA20D-08 — A level complete at go-live is recorded, never paid
+
+| Why | D-07: the company never agreed to pay for a period before the stream existed |
+|---|---|
+| Where | scratch schema, `mysql`, and the job |
+| Evidence | `QA20D-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On a fresh scratch copy build a tree where `QA20D_B_Top` already holds **12 qualified teammates**
+   at the seed: the top, three directs, nine grandchildren, and three leaf directs under each
+   grandchild (so the grandchildren qualify). Run the seed.
+2. `SELECT teammates, baseline_n FROM harvest_queue WHERE user_id = <QA20D_B_Top>;` → `12 | 12`.
+3. Turn the switch on, then grow the same tree past the baseline: under each of the nine grandchildren
+   add three members that each hold three directs (27 new qualifying members) — through `/register`.
+4. `SELECT level, threshold_n, n_at_award, amount, status, ledger_id FROM team_harvest_awards WHERE user_id = <QA20D_B_Top> ORDER BY level;`
+5. `SELECT withdrawable_balance FROM users WHERE username = 'QA20D_B_Top';`
+
+Expected
+
+- Step 2: `teammates 12`, `baseline_n 12`.
+- Step 4: three rows — level 1 and level 2 `status baseline` with their amounts (1,000.00 / 2,000.00)
+  and `ledger_id NULL`; level 3 `status credited`, amount **4,000.00**, `n_at_award 39`.
+- Step 5: **4,000.00**, never 7,000.00.
+- If it fails: a `baseline` row with a ledger reference is pre-go-live money (D-07) — stop and report it.
+
+### QA20D-09 — The doctor is green
+
+| Why | §14.11: a state-based engine needs a health report an operator can run before trusting it |
+|---|---|
+| Where | PowerShell on `system/` |
+| Evidence | `QA20D-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On the seeded scratch copy: `php bin\team_harvest_catchup.php --doctor`
+2. `php bin\team_harvest_catchup.php --doctor --json`
+3. Hand-edit one counter (`UPDATE harvest_queue SET teammates = teammates + 5 WHERE user_id = <id>;`)
+   and run the doctor again; then put it back.
+
+Expected
+
+- Exit **0** and nine green lines: `clock`, `tables`, `settings`, `seed`, `baseline`, `queue`, `awards`,
+  `drift`, `reconcile`, with the queue count, the credited total and *The doctor is green*.
+- After the edit: exit **1**, the `drift` line reports *1 counter(s) disagree with a recount*, and the
+  reconcile line reports the mismatch; **nothing is repaired** (the doctor is read-only). Putting the
+  counter back returns exit 0.
+- If it fails: a red doctor on a clean build is a defect in the phase; a doctor that repairs something
+  is a design violation (repair is `harvest_queue_seed.php --rebuild --apply`).
+
+### QA20D-10 — A deleted movement is caught and fails the build
+
+| Why | Rule 14 / §15.2: the reconciler is part of the money, not an add-on |
+|---|---|
+| Where | scratch schema and the reconciler |
+| Evidence | `QA20D-10.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Dump the scratch schema (`mysqldump`).
+2. Delete one movement: `DELETE FROM ewallet_ledger WHERE id = <the credit's id>;`
+3. `php bin\wallet_reconcile.php`
+4. `php bin\wallet_reconcile.php --json` and read the `team_harvest` block.
+5. Restore from the dump and re-run step 3.
+
+Expected
+
+- Step 3: exit **1**, with a line naming the award, the member and the amount
+  (`[missing_ledger] a credited Team Harvest award has no wallet movement`).
+- Step 4: `ok: false`, `mismatches` carries `missing_ledger` for that award and a `total` mismatch.
+- Step 5: exit **0** again. **No repair was attempted** by the tool: a deleted movement is restored from
+  a backup, never invented.
+- If it fails: a reconciler that still exits 0 has lost its Team Harvest section from the exit code.
+
+---
+
+## Evidence — section D
+
+Save each check's transcript (or the two screenshots, `QA20D-02.png` / `QA20D-03.png`) under
+`docs/qa/evidence/phase-20/`, named exactly as its **Evidence** line. The index in that folder's
+`README.md` gains the ten rows.
+
+## Cleanup — section D
+
+This section writes **real money** into a scratch schema. Either drop the schema
+(`DROP DATABASE ecowealth_sneat_tool_b_test;` and rebuild it with `php bin\db_install.php`) or run the
+business reset (`php bin\db_reset.php --force --confirm=ecowealth_sneat_tool_b_test`), which empties the
+queue and the awards, clears the baseline, keeps the ten ladder rows and leaves
+`team_harvest_enabled` as the operator set it. Do **not** run any step of this section against
+`ecowealth_sneat`: an award there is real money in a real wallet.
+
+If `QA20D-10` deleted a row and the dump was lost, the award keeps its `ledger_id` pointing at nothing —
+the reconciler will report it for ever. Restore the pre-check backup instead of hand-inserting a row.

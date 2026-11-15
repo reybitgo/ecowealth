@@ -26,9 +26,9 @@ result, capture evidence and sign the phase off.
 > folder's `README.md`.
 
 > **Phase 20 is the Team Harvest bonus workstream** (`dmp/plan-ecowealth-team-harvest.md`), delivered
-> in seven gated phases **20A → 20G** and **in progress (20C)**. 20A wrote section A, 20B appended
-> section B and 20C appended section C; every later phase appends its own section before its gate. Its
-> evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
+> in seven gated phases **20A → 20G** and **in progress (20D)**. 20A wrote section A, 20B appended
+> section B, 20C section C and 20D section D; every later phase appends its own section before its
+> gate. Its evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -293,6 +293,16 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
   dry run, the reconstruction, the second run, a live qualification, the rebuild drill, the money
   boundary and the business reset — all on a scratch schema, because the section seeds a queue and
   finally resets the database.
+- Phase 20D proves the **money engine**, the only phase that moves money: the award rule (the level
+  thresholds, the all-or-nothing blocks, `max_levels`, a level pays once ever), the go-live baseline
+  (`baseline_n` and `baseline` rows — recorded, never credited), the withdrawable wallet credit with
+  `ref_id = the award id`, the three idempotency layers (pre-check, `UNIQUE (user_id, level)`, the
+  wallet anchor), the snapshot rule (a ladder edit never rewrites a paid award), the state-based
+  evaluation and its on-demand catch-up (`--dry-run`, `--member`, `--doctor`), the sorted recipient
+  order, the seventh section of `wallet_reconcile.php` and the reset's third-party reconcile — on the
+  plan's fixture A (₱25,000.00 across 13 members) and fixture B (₱13,000.00 for the root), with the
+  deep levels proved on the pure `earnedFor()` function. **No page changes**: section D verifies
+  through the wallet statements, the tables and SQL, and sections E/F describe the money.
 
 ---
 
@@ -587,7 +597,7 @@ docs/qa/
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
 ├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–G, 60 checks)
-├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–C now; D–G follow)
+├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–D now; E–G follow)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + unilevel-escrow/)

@@ -200,16 +200,19 @@ final class RegistrationService
                     $summary = array_merge($summary, $this->activateWithWallet($userId, $username, $package, $registrar));
                 }
 
-                /* Phase 20C — Team Harvest qualification (plan §7 Rule 3,
-                 * §12.2, §14.3). A member account now exists, so its
-                 * sponsor may have just reached the qualification gate:
-                 * one queue row, one increment per queued ancestor, and
-                 * nothing at all while the queue is unseeded or the
-                 * stream is off. Inside this transaction on purpose — a
-                 * registration that cannot record its qualification rolls
-                 * back rather than leaving an unrecorded position behind
-                 * (P20C-T23). */
-                (new HarvestQueue($this->pdo))->qualifySponsor((int) $sponsor['id']);
+                /* Phase 20D — Team Harvest qualification **and** award
+                 * (plan §8, §12.2, §12.7, §14.3–§14.5). A member account
+                 * now exists, so its sponsor may have just reached the
+                 * qualification gate: one queue row, one increment per
+                 * queued ancestor, and — when the stream is on and the
+                 * queue is seeded — the level evaluation that pays any
+                 * block this registration completed. Nothing happens
+                 * while the queue is unseeded or the stream is off.
+                 * Inside this transaction on purpose: a registration that
+                 * cannot record its qualification or pay its award rolls
+                 * back rather than leaving half a fact behind
+                 * (P20C-T23, §14.7). */
+                (new TeamHarvestService($this->pdo))->onQualified((int) $sponsor['id']);
 
                 AuditLog::record([
                     'action'       => 'member.register',

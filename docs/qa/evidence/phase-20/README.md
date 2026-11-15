@@ -37,6 +37,16 @@ Index:
 | `QA20C-06.txt` | QA20C-06 | The rebuild drill: 0 drift on a clean queue, a hand-edited counter reported as `stored 7 / recount 2` with nothing written, `--apply` repairing it to 2 without moving a position, and one `harvest.queue.repair` audit row naming before/after | captured (automated pass) |
 | `QA20C-07.txt` | QA20C-07 | After 20C-01…06: `team_harvest_awards` **0**, no `team_harvest` ledger row, both wallet buckets untouched (0.00), the ten ladder rows still ₱5,095,000.00 and the switch still `0` | captured (automated pass) |
 | `QA20C-08.txt` | QA20C-08 | The reset's dry run planning the **harvest** step; the reset emptying the queue and the awards, clearing the baseline and keeping the ladder; the next seed starting at **#1** again | captured (automated pass) |
+| `QA20D-01.txt` | QA20D-01 | The 13-account live fixture: one `credited` level-1 row (threshold 3, n 3, ₱1,000.00, ledger linked), the withdrawable bucket at ₱1,000.00 and one `team_harvest` movement | pending (automated pass on the scratch schema) |
+| `QA20D-02.png` | QA20D-02 | The member's `/wallet`: the **Team Harvest bonus** credit, the filter option matching it and the running balance | pending (needs a signed-in browser) |
+| `QA20D-03.png` | QA20D-03 | `/admin/wallets`: the same movement with `ref_type = team_harvest` and the award id as `ref_id` | pending (needs a signed-in browser) |
+| `QA20D-04.txt` | QA20D-04 | `wallet_reconcile.php` exit 0 with the Team Harvest section: positions, credited awards/amount, baseline 0, drift 0 and the `--json` block | pending (automated pass) |
+| `QA20D-05.txt` | QA20D-05 | `php tests/run.php TeamHarvestEngine` 28/28 with the five amount cases named (T2 7,000 · T3 3,000 · T4 1,000 · T6 13,000 · T7 25,000/18 rows/13 members) and the level distribution SQL | pending (automated pass) |
+| `QA20D-06.txt` | QA20D-06 | A fourth direct and a second qualifying direct: award count and wallet total unchanged, the catch-up reporting `paid: 0` | pending (automated pass on the scratch schema) |
+| `QA20D-07.txt` | QA20D-07 | Switch off: 13 positions, 0 awards; switch on: the dry run's 1 level / 1 member / ₱1,000.00, the real run's one award, the second run's `paid: 0` | pending (automated pass on the scratch schema) |
+| `QA20D-08.txt` | QA20D-08 | `teammates 12 / baseline_n 12`; after growth levels 1–2 `baseline` (ledger NULL) and level 3 `credited` ₱4,000.00; the wallet at ₱4,000.00 | pending (automated pass on the scratch schema) |
+| `QA20D-09.txt` | QA20D-09 | `--doctor` exit 0 with nine green checks; after a hand-edited counter exit 1 with `1 counter(s) disagree with a recount`; nothing repaired | pending (automated pass) |
+| `QA20D-10.txt` | QA20D-10 | A deleted movement reported as `missing_ledger` with its award id, `wallet_reconcile` exit 1; restored from the dump, exit 0 | pending (automated pass on the scratch schema) |
 
 Notes for the reader:
 
@@ -74,3 +84,10 @@ Notes for the reader:
   unchanged. The development copy (`ecowealth_sneat`) was **not** seeded: it stays unseeded, which is
   the shipped default. The browser part of `QA20C-01`/`05` (a signed-in `/register` session) is the
   only human step and is left for the lead, as in sections A and B.
+- Section D's transcripts were captured by the automated pass on a **scratch schema**
+  (`ecowealth_sneat_tool_b_test`) and with the real commands (`bin/harvest_queue_seed.php`,
+  `bin/team_harvest_catchup.php`, `bin/wallet_reconcile.php`); the fixtures were grown through
+  `TeamHarvestService::onQualified()` — the registration hook's exact call — so the money the
+  transcripts show was written by production code. The section deliberately does **not** enable the
+  stream on the development copy: `ecowealth_sneat` stays seeded-or-not as it was and with the switch
+  off. The two browser screenshots (`QA20D-02`, `QA20D-03`) are the only human steps.

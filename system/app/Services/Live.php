@@ -441,6 +441,39 @@ final class Live
     }
 
     /**
+     * Bump the admin surfaces a Team Harvest award moves (Phase 20D).
+     *
+     * The ledger tab, the dashboard's Team Harvest KPI and the reports
+     * desk all read the award rows and the open liability; one evaluation
+     * that pays a level changes all three. Called after the evaluation's
+     * transaction, never inside the wallet credit, so a revision failure
+     * can never roll money back (plan §14.7).
+     */
+    public static function touchTeamHarvestAdmin(): void
+    {
+        self::touch(['admin.commissions', 'admin.dashboard', 'admin.reports']);
+    }
+
+    /**
+     * Bump one member's Team Harvest surfaces (Phase 20D).
+     *
+     * The earnings statement lists the award rows and the matrix card's
+     * paid levels (20F), the dashboard tile shows the paid total, the
+     * wallet statement shows the credit, and the genealogy badge shows
+     * the member's position. Bumped only for a member whose award was
+     * actually written: a replay moves nothing and redraws nothing.
+     */
+    public static function touchTeamHarvestMember(int $userId): void
+    {
+        self::touch([
+            self::earningsSurface($userId),
+            self::memberDashboardSurface($userId),
+            self::memberWalletSurface($userId),
+            self::genealogySurface($userId),
+        ]);
+    }
+
+    /**
      * Bump one member's checkout address picker.
      *
      * The delivery/payment form is never replaced; only the saved-address

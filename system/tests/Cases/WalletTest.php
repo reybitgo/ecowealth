@@ -385,6 +385,52 @@ return [
         assert_same(33300.0, $wallet()->balance($id));
     },
 
+    /* ---------- 20D: the Team Harvest movement -------------------- */
+
+    'P20D a team_harvest credit is accepted, labelled and idempotent' => function () use ($makeMember, $wallet, $ledgerRows): void {
+        $member = $makeMember();
+        $id     = (int) $member['id'];
+
+        $first = $wallet()->credit($id, '1000.00', 'team_harvest', 4242, 'Team Harvest level 1 bonus');
+
+        assert_same(false, $first['replayed']);
+        assert_same(1000.0, $wallet()->balance($id));
+        assert_same(1000.0, $wallet()->withdrawable($id), 'a Team Harvest award is withdrawable earnings (D-11)');
+
+        $rows = $ledgerRows($id);
+
+        assert_count(1, $rows);
+        assert_same('credit', $rows[0]['type']);
+        assert_same('team_harvest', $rows[0]['ref_type']);
+        assert_same(4242, (int) $rows[0]['ref_id'], 'ref_id is the award id');
+        assert_same('1000.00', number_format((float) $rows[0]['amount'], 2, '.', ''));
+        assert_same('Team Harvest bonus', wallet_ref_label('team_harvest'));
+        assert_same('bx bx-layer', wallet_ref_icon('team_harvest'));
+
+        /* The award id is the wallet anchor: a replayed credit for the
+         * same award returns the original movement (plan §14.6 layer 3). */
+        $replay = $wallet()->credit($id, '1000.00', 'team_harvest', 4242, 'Team Harvest level 1 bonus');
+
+        assert_same(true, $replay['replayed']);
+        assert_same($first['ledger_id'], $replay['ledger_id']);
+        assert_same(1000.0, $wallet()->balance($id), 'money moved exactly once');
+
+        /* A different level is a different movement for the same member. */
+        $wallet()->credit($id, '2000.00', 'team_harvest', 4243, 'Team Harvest level 2 bonus');
+        assert_count(2, $ledgerRows($id));
+        assert_same(3000.0, $wallet()->balance($id));
+
+        /* A zero amount is never credited — the engine skips the row
+         * instead of writing a lie about money (plan §12.6 Rule 2). */
+        $error = assert_throws(
+            static fn () => $wallet()->credit($id, '0.00', 'team_harvest', 4244, 'Team Harvest level 3 bonus'),
+            WalletException::class
+        );
+
+        assert_same('amount', $error->reason);
+        assert_count(2, $ledgerRows($id));
+    },
+
     /* ---------- P5-T9: statement filters -------------------------- */
 
     'P5-T9 the statement filters, paginates and totals exactly' => function () use ($makeMember, $wallet, $money): void {

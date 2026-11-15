@@ -44,9 +44,13 @@ The fourth workstream — **Phase 20, the Team Harvest bonus**
 (`harvest_queue`, `team_harvest_levels`, `team_harvest_awards`), the `team_harvest` wallet movement,
 four settings and the ten reference amounts (migration `024`, **36 tables / 77 settings**); **20B** adds
 the configuration card — the switch, the qualification gate, the payable depth, the ten flat amounts,
-the generated 3×10 ladder and a four-state status strip — and writes nothing but that configuration.
-The queue and its seed job are 20C, the award engine is 20D, and the member/admin visibility follows in
-20E/F; `APP_PHASE` stays **19** until 20G.
+the generated 3×10 ladder and a four-state status strip — and writes nothing but that configuration;
+**20C** stores qualification (the registration hook, the append-only positions, the teammate counters,
+the one-time seed and the rebuild drill); and **20D** is the **money engine** — a completed level pays
+its configured amount, once, into the withdrawable e-wallet, with an immutable ledger row and a
+`team_harvest` movement, honouring the go-live baseline and proved by `wallet_reconcile.php` and the
+on-demand catch-up/doctor. The member/admin visibility follows in 20E/F; `APP_PHASE` stays **19** until
+20G.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -1387,7 +1391,7 @@ php bin/wallet_reconcile.php              # six sections, exit 0 when clean
 
 ---
 
-## Team Harvest bonus (Phases 20A–20C)
+## Team Harvest bonus (Phases 20A–20D)
 
 A **flat amount per completed level** of a member's private **3×10 matrix**, paid into the withdrawable
 e-wallet when the level's block fills. It has no month, no purchase input and no rank: a member enters
@@ -1411,7 +1415,8 @@ who joins their team **after** them fills one slot.
 position, `UNIQUE (user_id)`), `team_harvest_levels` (the ten amounts, natural key) and
 `team_harvest_awards` (the money ledger, `UNIQUE (user_id, level)`), plus `team_harvest` on
 `ewallet_ledger.ref_type` and four settings. **The configuration (20B)** edits the ladder; **the queue
-(20C)** stores qualification. `team_harvest_awards` stays empty until 20D.
+(20C)** stores qualification; **the engine (20D)** pays it — `team_harvest_awards` stays empty until a
+level completes after the baseline.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1547,10 +1552,127 @@ amount, because those levels are recorded as `baseline` rows and are never credi
 **Go-live order** (also in `docs/runbook.md`): deploy the code → `--dry-run` → run the seed → turn the
 bonus on in **Settings → Commissions**. The seed moves no money.
 
+### `TeamHarvestService` — the money engine (20D)
+
+**The only writer of Team Harvest money**, and a completed level is the only event that moves it. The
+rule, exactly the plan's §12.7:
+
+```
+for L = 1 .. team_harvest_max_levels:
+    n < threshold(L)                  → break      (nothing deeper is complete)
+    threshold(L) <= baseline_n        → write a `baseline` row, never pay (D-07)
+    an award row exists for (m, L)    → skip       (a level pays once, ever)
+    amount(L) = 0                     → skip       (a zero level is a switch, §12.6)
+    otherwise                         → insert `credited`, credit the withdrawable
+                                        wallet, link the movement — one transaction
+```
+
+```php
+$engine = new TeamHarvestService();
+$engine->onQualified($sponsorId);     // the registration hook: qualify, then evaluate every moved member
+$engine->evaluate([$userId]);         // {off, paid, baseline, written, amount, members, skipped, levels}
+$engine->evaluateAll(500);            // every queued member, 500 per batch/transaction
+$engine->statusFor($userId);          // the card payload: position, ten levels, next, paid/baseline, open
+$engine->openLiability();             // {levels, members, amount, by_level} — derived on read
+$engine->reconcile();                 // the finance check (below)
+```
+
+- **State-based, not event-based** (D-19). The engine compares `teammates` with the ledger, so a missed
+  event, a rolled-back transaction, a repaired counter or a late enablement all converge on the next
+  run. A second evaluation writes nothing.
+- **Idempotent at three layers** (§14.6): the `has()` pre-check, `UNIQUE (user_id, level)` and the
+  wallet's own `(user_id, ref_type, ref_id, type)` anchor.
+- **Atomic with its credit** (§14.7): the award row is written first (its id is the wallet `ref_id`),
+  the credit follows, and the link is set in the same transaction. A failure propagates — the engine
+  never swallows an error to keep a registration going.
+- **The baseline is honoured twice** (`threshold > baseline_n` and the stored `baseline` row). A level
+  complete at go-live is recorded with its amount and `ledger_id NULL`, and is **never** credited.
+- **The amount is snapshotted** (`amount`, `threshold_n`, `n_at_award`); editing the ladder prices only
+  future awards.
+- **The stream off writes nothing** and the queue keeps growing (D-09); an **unseeded** queue is a hard
+  refusal (`TeamHarvestException::unseeded()`).
+- **Recipients are sorted ascending** before any wallet lock, and the counter has already moved, so two
+  registrations sharing ancestors cannot deadlock (§14.8).
+- **No purchase, rank, status or month is read.** A suspended member still earns (withdrawal is the
+  existing payout rule); a staff account is never queued and never paid.
+
+### `TeamHarvestAward` — the ledger (20D)
+
+One row per `(member, level)` decision; the row is never edited except for the `ledger_id` of the
+credit that was written with it.
+
+```php
+TeamHarvestAward::forMember($userId);       // level order, each with position + username
+TeamHarvestAward::paidLevels($userId);      // the credited levels
+TeamHarvestAward::has($userId, $level);     // the engine's pre-check
+TeamHarvestAward::levelMap($userId);        // level => status, one query
+TeamHarvestAward::recent(10);
+TeamHarvestAward::countByStatus();
+TeamHarvestAward::totals($filters);         // rows, credited_rows/total, baseline_rows/total, recipients
+TeamHarvestAward::byLevel();                // always ten rows, with the configured amounts
+TeamHarvestAward::byMonth();
+TeamHarvestAward::normaliseFilters($raw);   // an unknown value means "no filter", never an error
+TeamHarvestAward::select($filters, $pager); // the admin ledger / member statement page
+TeamHarvestAward::exportRows($filters, null, $userId);   // CSV, model-scoped when $userId is given
+```
+
+`status = 'baseline'` is **not** a payment: the admin and member surfaces show those rows in their own
+tile and label (*Before go-live*), never inside a paid total.
+
+### The catch-up and doctor job (20D)
+
+**On-demand, not a cron entry** (D-08): the stream has no month, no close and no schedule. The job
+exists for the four moments a state-based engine needs a human: after enabling the switch (settle the
+backlog), after a repair, after a counter-drift alarm, and after a deploy that fixed a bug.
+
 ```bash
+php bin/team_harvest_catchup.php --dry-run      # the open liability, level by level — writes nothing
+php bin/team_harvest_catchup.php                # evaluate and pay the backlog (batches of 500)
+php bin/team_harvest_catchup.php --member=42    # one member only
+php bin/team_harvest_catchup.php --doctor       # nine health checks, read-only
+php bin/team_harvest_catchup.php --json --limit=1000
+```
+
+Windows: `bin\team_harvest_catchup.cmd` takes the same flags. Exit codes: **0** clean / nothing to do /
+another run holds the lock, **1** refused (unseeded) or a problem found (drift, reconcile mismatch, a red
+doctor), **2** environment (database unreachable, tables missing). Every real run audits
+`team_harvest.catchup` with what it evaluated and what it paid; a dry run and the doctor write nothing.
+
+The doctor reports nine checks: `clock` (PHP vs MySQL), `tables`, `settings` (the four keys, the gate
+1–10, the depth 1–10), `seed`, `baseline`, `queue`, `awards`, `drift` (the counters against a
+from-scratch recount) and `reconcile`. It **never repairs**: a counter is repaired by
+`harvest_queue_seed.php --rebuild --apply`, and money is never repaired at all (D-12).
+
+### Reconciliation (20D)
+
+`wallet_reconcile.php` gains a **seventh** section, folded into its exit code:
+
+| Check | A failure means |
+|---|---|
+| Σ credited awards = Σ `team_harvest` credits | a credit was lost, duplicated or mis-typed |
+| Every `credited` award has a live `ledger_id` | a dangling wallet reference |
+| Every `baseline` award has `ledger_id IS NULL` | a pre-go-live level was paid |
+| Every `team_harvest` movement belongs to an award | an orphan credit |
+| The award and its movement agree to the centavo | a hand-edited amount |
+| `UNIQUE (user_id, level)` (checked anyway) | a double award |
+| No award above the ten-level ladder | a damaged table |
+| `teammates` equals a from-scratch recount | counter drift |
+| `baseline_n <= teammates` | a deleted descendant or a corrupt repair |
+| The ladder holds ten non-negative rows | a truncated configuration |
+
+An award above the *configured depth* (`team_harvest_max_levels`) is a **warning**, not a failure: the
+depth caps what the engine may write, never what was already written, so lowering it must not turn the
+books red. The stream being off or the queue being unseeded are warnings too. The reconciler never
+repairs: a mismatch means a human looks at it, and a wrong award is a forward-only business decision
+(§18 Q3).
+
+```bash
+php tests/run.php TeamHarvestEngine           # 28 engine cases (20D)
+php tests/run.php TeamHarvestCatchup          #  6 job cases (20D)
+php tests/run.php TeamHarvestReconcile        #  5 reconcile/reset cases (20D)
 php tests/run.php HarvestQueue                # 30 queue cases (20C)
 php tests/run.php TeamHarvestConfiguration    # 24 configuration cases (20B)
-php tests/run.php TeamHarvest                 # the whole stream so far (20A + 20B + 20C)
+php tests/run.php TeamHarvest                 # the whole stream so far (20A + 20B + 20C + 20D)
 ```
 
 ---
@@ -1645,6 +1767,12 @@ php bin/royalty_month_close.php --max-batches=20
 php bin/royalty_month_close.php --period=2026-10 --evaluate-only
 php bin/royalty_month_close.php --period=2026-10 --pay-only --json
 ```
+
+**Team Harvest adds no cron entry.** It has no month, no period and no close (D-08), so there is nothing
+to schedule: its award happens at the qualification event and the two Team Harvest jobs are **on
+demand** — `bin/harvest_queue_seed.php` (once, at go-live) and `bin/team_harvest_catchup.php` (after
+enabling, after a repair, after an alarm). Neither job has a guarded URL entry, because a browser cannot
+be trusted with a money run; both are CLI/`.cmd` only and both take their own lock.
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
 

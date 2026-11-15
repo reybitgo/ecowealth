@@ -6596,3 +6596,216 @@ the smoke run's registrations queue nobody.
 ---
 
 
+
+## Phase 20D — Money engine (2026-11-16)
+
+**Status:** complete · **Tags:** `p20c-queue` (start), `p20d-money` ·
+**Branch:** `feature/team-harvest` · **Schema:** 36 tables, 77 settings (unchanged — this phase adds no
+schema) · **Suite:** 1,234 → **1,275** cases, **1,275 / 1,275** green · **Smoke:** 251 (unchanged —
+the phase adds no route and no page).
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §8 (Phase 20D), §12.6–§12.10, §13.8 and §14 in full. This
+is **the only phase that moves money**: a completed level pays its configured amount, once, into the
+member's withdrawable e-wallet, with an immutable `team_harvest_awards` row and a `team_harvest` wallet
+movement in the same transaction. Levels already complete at the go-live seed are recorded `baseline`
+and never credited. The engine is **state-based** (D-19), so a replay, a catch-up and a repaired
+counter all converge on the same answer, and `wallet_reconcile.php` proves it.
+
+### Database
+
+None. 20A shipped every column this phase writes. The development copy (`ecowealth_sneat`) was **not**
+enabled by this phase: it stays with `team_harvest_enabled = '0'` and whatever seed state it had, which
+is the shipped default.
+
+### Code
+
+- **`app/Services/TeamHarvestService.php`** (new) — the money engine, and the only writer of Team
+  Harvest money. `onQualified()` is the registration hook (qualify the sponsor, then evaluate the new
+  member and every queued ancestor whose counter moved); `evaluate()` is the one award decision;
+  `evaluateAll()` runs it over the whole queue in batches; `statusFor()`, `openLiability()` and
+  `reconcile()` are the read APIs 20E/20F and the operator surfaces use. It joins the caller's
+  transaction (a registration) or opens one per batch (the job), sorts recipients ascending before any
+  wallet lock (§14.8), writes the award before its credit so the credit's `ref_id` can be the award id,
+  and links the movement in the same transaction. Nothing is swallowed: a wallet failure, a non-member
+  or a CHECK violation propagates and rolls the batch back (§14.7).
+- **`app/Models/TeamHarvestAward.php`** (new) — the ledger. `create()` and `linkLedger()` are its only
+  writes (the second is the only update, on the row the engine just inserted); `has()`, `levelMap()`
+  and `levelMapFor()` are the idempotency pre-checks; `forMember()`, `paidLevels()`, `recent()`,
+  `countByStatus()`, `totals()`, `byLevel()`, `byMonth()`, `normaliseFilters()`, `select()` and
+  `exportRows()` are the whole read API 20E/20F render, proven here so neither later phase invents a
+  second ledger. Money is normalised to `DECIMAL(12,2)` strings in integer centavos (§12.9).
+- **`app/Services/TeamHarvestException.php`** (new) — `unseeded()` (a hard refusal), `disabled()` (for a
+  caller that must refuse; the engine returns `off`), `notMember()` (the one eligibility assertion) and
+  `state()`. Same shape as `RoyaltyException`.
+- **`app/Models/TeamHarvestLevel.php`** — two additive pure functions the engine and its tests need:
+  `earnedFor($n, $amounts, $maxLevels)` (the §16.5 deep-level table) and `statusForNext($n, …)` (the
+  card's next-level payload, P20F-T2's exact percentages). Both are read-only arithmetic over the
+  ladder; no stored contract moved. See deviation 2.
+- **`app/Services/RegistrationService.php`** — the 20C line becomes
+  `(new TeamHarvestService($this->pdo))->onQualified((int) $sponsor['id'])`, still inside the
+  registration's transaction: a qualification and its award now commit or roll back as one unit.
+- **`app/Services/Live.php`** — `touchTeamHarvestAdmin()` (commissions, dashboard, reports) and
+  `touchTeamHarvestMember($id)` (earnings, dashboard, wallet, genealogy). Bumped **after** the
+  evaluation's writes and only when an award was actually written, never inside the wallet credit, so a
+  revision failure can never roll money back.
+- **`app/Services/DatabaseResetService.php`** — the integrity map gains `team_harvest` (deferred from
+  20A on purpose), so the reset now runs **seven** reconciliations after a business reset.
+- **`bin/team_harvest_catchup.php`** + **`bin/team_harvest_catchup.cmd`** (new) — the on-demand job:
+  `--dry-run` (the open liability and its per-level counts, nothing written), `--member=ID`, `--doctor`
+  (nine read-only checks), `--json`, `--limit`, `--quiet`, `--help`. A `CronLock` keeps one run at a
+  time, a `CronLog` records every run, unseeded exits **1**, an unreachable database exits **2**, and a
+  real run audits `team_harvest.catchup`. **No cron entry and no web entry** — this stream has no
+  schedule and a browser must not be able to trigger a money run.
+- **`bin/wallet_reconcile.php`** — a **seventh** section, folded into the exit code: credited awards
+  against `team_harvest` credits, baseline rows against `ledger_id IS NULL`, orphans, per-row amounts,
+  duplicate anchors, awards above the depth, counter drift against a recount, baseline violations and
+  the ladder's ten rows. Stream-off and unseeded are warnings, never failures.
+
+No route, no view, no page, no permission and no schema change (D-14). `APP_PHASE` stays **19**.
+
+### The award rule, as built
+
+```
+for L = 1 .. team_harvest_max_levels:
+    n < threshold(L)                  → break      (thresholds ascend)
+    threshold(L) <= baseline_n        → write `baseline` (amount recorded, ledger_id NULL), never pay
+    an award row exists for (m, L)    → skip       (a level pays once, ever)
+    amount(L) = 0                     → skip       (a zero level is a switch, not a row)
+    otherwise                         → insert `credited`; credit the withdrawable wallet with
+                                        ref_type 'team_harvest' and ref_id = award.id; link it
+```
+
+### Tests
+
+**41 new cases: 1,234 → 1,275, all green.**
+
+`TeamHarvestEngineTest` (new, 28): T1 (a level-1 block at n = 3: one row, 1,000.00, threshold 3,
+`n_at_award` 3, one wallet movement), T2 (fixture A root: 1,000 + 2,000 + 4,000 = 7,000, at exactly
+n = 3/12/39), T3 (each child 3,000 at n = 3 and 12), T4 (each grandchild 1,000 — a partial level pays
+nothing), T5 (a member with no teammates writes nothing and is not an error), T6 (fixture B root 13,000
+at n = 120), T7 (the network: 18 rows, 25,000.00, 13 members, the level distribution), T8 (`earnedFor`
+on §16.5's twelve rows plus the 2/3/12/39/120 checks, and `statusForNext`'s 33.3/22.2/29.6/13.6 %
+table), T9 (the statement filter, the withdrawable bucket and the award ids), T10 (every credited row
+has a live movement with the same amount), T11 (a second evaluation writes nothing), T12 (a replayed
+qualification reports `replayed`), T13 (the unique anchor raises 23000), T14 (baseline 12 → grow to 39:
+levels 1–2 `baseline`, level 3 credited 4,000), T15 (the wallet is 4,000, never 7,000), T16 (baseline
+39: three `baseline` rows, no credit, `statusFor` says *Before go-live*), T17 (a member queued after the
+seed credits normally), T19 (switch off: 13 positions, 0 awards, `off`), T22 (`max_levels = 2`: 3,000,
+level 3 complete and marked beyond the depth), T23 (raising the depth pays level 3 once), T24 (a ladder
+edit never rewrites a paid award but prices new ones at 1,500), T25 (a suspended member is paid and the
+payout path still refuses them), T26 (a staff account is never queued and `evaluate()` throws
+`not_member`), T32 (`statusFor` for n = 0/3/12/39 with the exact next level, filled, remaining, percent
+and paid total), T33 (the ledger filters, pagination, totals, breakdowns and export), T34 (three
+sequential evaluations, one set of rows), T35 (a zero amount is a switch, then pays when raised), T36
+(the exit-gate invariants: no baseline row is paid, every credit has its award, the totals agree).
+
+`TeamHarvestCatchupTest` (new, 6): T18 (`openLiability` = 18 levels / 13 members / 25,000.00, equal to
+the sum of every member's `statusFor()['open']`, and 0 after the payment), T20 (off → on: the backlog
+pays 25,000.00 once and a second `evaluateAll` writes nothing), T21 (unseeded: the exception and the
+job's exit 1 on a scratch schema, nothing written), T37 (the job as a process: `--help`, exit 2 on an
+unreachable database, the seed/force-seed flow, `--doctor` green with its nine keys, the dry run's
+1,000.00, the real run, the audited row, a second run that pays nothing), T38 (`--member=ID` pays one
+member and leaves the other tree liable), T39 (`--doctor` green, red on a hand-edited counter with
+`1 counter(s) disagree with a recount`, green again when restored, and it never repairs).
+
+`TeamHarvestReconcileTest` (new, 5): T27 (fixture A: `ok`, awards = ledger = 25,000.00, drift 0), T28
+(a deleted movement reported with its award id and, on a scratch schema, `wallet_reconcile` exit 1 with
+the orphan/`missing_ledger` mismatch), T29 (a hand-edited counter is `counter_drift`, restore is clean),
+T30 (`wallet_reconcile` exit 0 and the Team Harvest section — text and `--json`), T31 (a real business
+reset on a scratch schema: the integrity pack's `team_harvest` check is present, ok, and
+`TeamHarvestService::reconcile clean`, with the queue/awards empty, the baseline `''` and the ladder
+kept).
+
+Updated for the phase: `WalletTest` gains a `team_harvest` credit case (accepted, labelled, withdrawable,
+idempotent on the award id, and a zero credit refused); `AuditLogTest` gains the three Team Harvest
+actions (`harvest.seed`, `harvest.queue.repair`, `team_harvest.catchup`) and the desk filter;
+`DbResetTest`'s "six reconciliations" case is now seven and asserts the new detail; and
+`TeamHarvestFoundationTest`'s two phase-scoped guards admit 20D's three files (P20A-T15's allow-list,
+P20A-T16's reader list) and now expect the **one** wallet writer, `TeamHarvestService` (the guard also
+accepts the engine's `TeamHarvestAward::REF_TYPE` constant).
+
+`smoke.ps1` is unchanged: 20D adds no route and no page, and the plan's §16.4 assigns the Phase 20
+smoke checks to 20G.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration; `MigrationTest` green, still 36 tables / 77 settings.
+- [x] `php bin/build_install_sql.php --check` → exit 0, no output (no bundle change).
+- [x] `php tests/run.php` → **Cases: 1,275   Passed: 1,275   Failed: 0**, exit 0 (floor 1,268).
+- [x] `php bin/wallet_reconcile.php` → exit 0 on the development copy and a clean scratch build, with
+      the Team Harvest section; exit 1 when a `team_harvest` movement is orphaned (P20D-T28).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 251   Failed: 0**, exit 0.
+- [x] Every P20D-Tn case exists, is named for the phase and passes; `TeamHarvestEngine` 28/28,
+      `TeamHarvestCatchup` 6/6, `TeamHarvestReconcile` 5/5.
+- [x] Every amount in §16.3 is pinned by a case to the centavo (T2/T3/T4/T6/T7/T8/T14/T23/T24/T35), and
+      the deep levels by the pure function (T8).
+- [x] No award row exists with a `ledger_id` for a baseline row (T36, and the reconciler's
+      `baseline_paid` check).
+- [x] A level never pays twice: the unique anchor (T13), the replay (T11/T12) and the catch-up (T20/T37)
+      are all green.
+- [x] `wallet_reconcile.php` exits 0 with a Team Harvest section and non-zero when a ledger row is
+      removed (T28/T30), and `team_harvest_catchup.php --doctor` exits 0 on a clean build and 1 on drift
+      (T39).
+- [x] The manual script (plan §8, `QA20D-01` … `QA20D-10`) is written; the automated pass captured all
+      ten as transcripts on `ecowealth_sneat_tool_b_test`. The two wallet screenshots (02/03) and the
+      independent-tester run remain the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section D filled; the evidence index carries the ten new rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p20d-money`.
+
+### Deviations
+
+1. **Five extra cases, T35–T39 beyond the plan's T1–T34.** The floor is ≥ 1,268 (1,234 + 34); the plan's
+   thirty-four plus the two updated-file cases would have left 1,270. T35 pins the zero-amount switch
+   (§12.6 Rule 2, B.9), T36 the exit-gate invariants sweep, and T37–T39 the job as a process. No
+   contract changed.
+2. **`earnedFor()` and `statusForNext()` ship in 20D,** although §14.2 lists them under
+   `TeamHarvestLevel` (20B). 20B did not need them; P20D-T8's table and P20F-T2's percentages pin them.
+   Both are pure reads of the existing ladder; no stored contract moved.
+3. **`statusFor()` reports a sixth per-level state, `complete`.** Appendix C.7's five states keep their
+   exact labels; the sixth names the window the plan itself creates in §14.14 steps 5–8 (levels complete
+   while the switch is off or before the catch-up runs) instead of mislabelling it *In progress*. The
+   sixth is `Complete — not paid yet` (admin) / `Complete — payment pending` (member). `statusFor()` also
+   takes two optional roster parameters, defaulting to no roster so its default call stays within the
+   plan's ≤ 5-query budget.
+4. **The evaluate/`onQualified` return shapes gain keys.** §14.2 names `{paid, baseline, skipped, off,
+   amount}`; the engine also returns `written`, `members`, `levels` and — for the hook — `qualified`,
+   `position` and `replayed`, which P20D-T12 requires and the job prints. Additive; nothing was renamed.
+5. **The catch-up refuses an unseeded queue before it looks at the switch — for a dry run too.** §14.11
+   makes unseeded a hard refusal; a dry run without a baseline would report a liability the engine can
+   never pay. A seeded-but-off queue still exits 0 and reports `off` (D-09 is a configuration, not a
+   failure).
+6. **`openLiability()` also returns `by_level`.** §14.11 requires the dry run to print per-level counts
+   and §14.12 names only `{levels, members, amount}`; the extra key is additive and is the same read
+   20E's queue card will show.
+7. **The phase-scoped 20A guards were widened again.** P20A-T15's allow-list and P20A-T16's reader list
+   now name `TeamHarvestAward`, `TeamHarvestService` and `TeamHarvestException`, and the writer guard
+   accepts the engine's `TeamHarvestAward::REF_TYPE` constant as well as the literal `'team_harvest'` —
+   one writer, whichever spelling. As at 20B/20C, these guards are designed to be widened by the phase
+   that owns the new file.
+8. **The tests share one fixture file.** `tests/fixtures/harvest_money.php` builds tree A (121
+   accounts), tree B (364), the seeded-12 baseline tree and the live 13-account tree **through
+   `TeamHarvestService::onQualified()`** — the registration hook's exact call — so the three 20D files
+   cannot disagree about what a fixture is and the money in every case is written by production code.
+   It is not a case file (the runner only reads `tests/Cases/`).
+9. **No page was added, so section D is verified through the wallet statements, the tables and SQL.**
+   That is the plan's own design for this phase (§8 manual gate), and the two browser checks it names
+   are the credit on `/wallet` and on `/admin/wallets`.
+
+### Hand-off to 20E/20F
+
+- `TeamHarvestAward::forMember()`, `select()`, `totals()`, `byLevel()`, `byMonth()`, `exportRows()`,
+  `countByStatus()` and `recent()` are the ledger API — 20E and 20F only render it.
+- `TeamHarvestService::statusFor()` returns everything a member card or an admin panel needs: position,
+  qualified_at, directs_at_qualification, teammates, `baseline_n`, the ten levels (slots, threshold,
+  amount, filled, complete, paid, baseline, beyond-depth, status, label, progress), `next`, paid and
+  baseline totals, the open amount for the member and an optional roster page.
+- `openLiability()` is the number the settings strip and the admin queue card show; it is derived on
+  read and moves with every qualification.
+- `reconcile()` and the catch-up/doctor exist, so every number a page shows has a proof behind it.
+- **Nothing pays without a qualification or a catch-up run.** The engine is state-based: if a page ever
+  disagrees with the ledger, the ledger is right and the page has a bug.
+
+---
+
+10. **An award above the configured depth is a reconcile warning, not a mismatch.** §14.13 lists "no award for a level above `max_levels`" as a failure, but a row paid while a deeper ladder was configured stays a paid fact when an operator later lowers the depth — otherwise lowering the depth would turn the books red. The reconciler now reports `above_depth` as a warning and keeps `ok`; only a level above the ten-level ladder (which the schema forbids) is a mismatch. P20D-T23 pins both halves: the level-3 row survives a lowered depth and the reconcile stays clean with the warning named.

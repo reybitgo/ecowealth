@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  *      php bin/wallet_reconcile.php [--json]
  *
- *  Six read-only reports:
+ *  Seven read-only reports:
  *
  *    1. Wallets — both buckets recomputed from `ewallet_ledger`.
  *    2. Commissions — every credited award against its wallet movement
@@ -33,6 +33,11 @@ declare(strict_types=1);
  *       the money anchor's rank/volume sanity, and the corrupt-tree
  *       warning (plan §14.12). A period waiting for finalisation is a
  *       warning, never a failure.
+ *    7. Team Harvest — every credited level award against its
+ *       `team_harvest` credit, every baseline row against the rule that
+ *       it was never paid, orphan movements, the counter drift against
+ *       a from-scratch recount and the ladder's ten rows (plan §14.13).
+ *       The stream being off or unseeded is a warning, never a failure.
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -66,19 +71,20 @@ if (isset($options['help'])) {
 }
 
 try {
-    $wallets     = (new WalletService())->reconcile();
-    $commissions = (new CommissionService())->reconcile();
-    $transfers   = (new TransferService())->reconcile();
-    $payouts     = (new PayoutService())->reconcile();
-    $unilevel    = (new UnilevelService())->reconcile();
-    $royalty     = (new RoyaltyService())->reconcile();
+    $wallets      = (new WalletService())->reconcile();
+    $commissions  = (new CommissionService())->reconcile();
+    $transfers    = (new TransferService())->reconcile();
+    $payouts      = (new PayoutService())->reconcile();
+    $unilevel     = (new UnilevelService())->reconcile();
+    $royalty      = (new RoyaltyService())->reconcile();
+    $teamHarvest  = (new TeamHarvestService())->reconcile();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
 
 $ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok']
-    && $unilevel['ok'] && $royalty['ok'];
+    && $unilevel['ok'] && $royalty['ok'] && $teamHarvest['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -90,11 +96,12 @@ if (isset($options['json'])) {
             'database'    => DB_NAME,
             'ok'          => $ok,
         ] + $wallets + [
-            'commissions' => $commissions,
-            'transfers'   => $transfers,
-            'payouts'     => $payouts,
-            'unilevel'    => $unilevel,
-            'royalty'     => $royalty,
+            'commissions'  => $commissions,
+            'transfers'    => $transfers,
+            'payouts'      => $payouts,
+            'unilevel'     => $unilevel,
+            'royalty'      => $royalty,
+            'team_harvest' => $teamHarvest,
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
@@ -384,8 +391,67 @@ if ($royalty['ok']) {
 
 echo PHP_EOL;
 
+echo 'Team Harvest', PHP_EOL;
+printf(
+    "  queued positions:  %d%s",
+    $teamHarvest['queued'],
+    PHP_EOL
+);
+printf(
+    "  credited awards:   %d (%s)%s",
+    $teamHarvest['credited_rows'],
+    $format($teamHarvest['credited_total']),
+    PHP_EOL
+);
+printf(
+    "  baseline awards:   %d (%s) — complete before go-live, never paid%s",
+    $teamHarvest['baseline_rows'],
+    $format($teamHarvest['baseline_total']),
+    PHP_EOL
+);
+printf("  team_harvest ledger: %s%s", $format($teamHarvest['ledger_total']), PHP_EOL);
+printf(
+    "  counter drift:     %d row(s) · %d below the baseline%s",
+    $teamHarvest['drift'],
+    $teamHarvest['violations'],
+    PHP_EOL
+);
+
+/* The switch being off and the queue being unseeded are operational
+ * states, not books errors: they must never turn a clean reconciliation
+ * into exit 1 (plan §14.13). */
+foreach ($teamHarvest['warnings'] ?? [] as $warning) {
+    printf(
+        "  warning:           [%s] %s%s",
+        (string) $warning['kind'],
+        (string) $warning['message'],
+        PHP_EOL
+    );
+}
+
+if ($teamHarvest['ok']) {
+    echo '  OK — every credited award has its wallet movement, every baseline row is unpaid,'
+        . ' and the counters agree with a recount.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($teamHarvest['mismatches']), PHP_EOL);
+
+    foreach ($teamHarvest['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
 if ($ok) {
-    echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase and royalty awards reconcile.', PHP_EOL;
+    echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty'
+        . ' and team-harvest awards reconcile.', PHP_EOL;
     exit(0);
 }
 

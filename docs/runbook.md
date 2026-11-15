@@ -192,6 +192,72 @@ are never touched by a repair.
 way the repair cannot express, stop and record it: the alternative (re-seeding a live queue) rewrites
 history.
 
+### Team Harvest award and reconcile drill (Phase 20D)
+
+The stream pays **at the qualification event**: a registration that completes a level writes the award
+row and credits the withdrawable e-wallet in the same transaction. There is no cron entry, no month and
+no close (D-08) — the only on-demand job is the catch-up/doctor, and it exists for four moments:
+
+1. **After enabling the switch.** Registrations that happened while it was off queued positions but
+   paid nothing; the catch-up settles that backlog once.
+2. **After a repair** (`harvest_queue_seed.php --rebuild --apply`): the recount may have completed a
+   level the engine has not seen.
+3. **After a counter-drift alarm**: pay whatever the corrected counter now supports.
+4. **After a deploy that fixed a bug**: the engine is state-based, so re-running it is always safe.
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+# 0. Is the stream healthy? Read-only: clocks, tables, settings, seed state,
+#    baseline, queue, awards, counter drift and the reconcile verdict.
+php bin\team_harvest_catchup.php --doctor
+exit 0
+
+# 1. What would it pay, level by level? Nothing is evaluated or written.
+php bin\team_harvest_catchup.php --dry-run
+
+# 2. Pay the backlog. One transaction per batch (default 500 members). It audits
+#    team_harvest.catchup with what it evaluated and what it paid.
+php bin\team_harvest_catchup.php
+exit 0
+
+# 3. One member only (a disputed award, a support ticket).
+php bin\team_harvest_catchup.php --member=42
+
+# 4. The books.
+php bin\wallet_reconcile.php
+exit 0
+```
+
+**Read the result.** The catch-up prints `evaluated`, `paid` (count and amount) and `baseline` (levels
+recorded as complete before go-live, never paid). A second run prints `paid: 0` — if it does not, a
+level is being paid twice and you stop, dump the database, and report it: `team_harvest_awards` has a
+`UNIQUE (user_id, level)` anchor precisely so that cannot happen.
+
+**Exit codes.** `0` clean / nothing to do / another run holds the lock; `1` refused (the queue is not
+seeded) or a problem found; `2` the database is unreachable or a table is missing. A `1` from
+`--doctor` means one of the nine checks is red — read the failing line, it names the member and both
+numbers where it can.
+
+**Rediscovering a backlog after an incident.** Run `--dry-run` first, read the per-level counts, then
+the real run, then `--doctor` and `wallet_reconcile.php`. Never enable the switch to "see what happens":
+the dry run shows the same number without paying anybody.
+
+**A `baseline` row is not a missing payment.** It is a level that was already complete at the go-live
+seed: the amount is recorded so the member can see it, `ledger_id` is `NULL` and it is never credited
+(D-07). The decision to pay those levels is a business decision with its own budget (§18 Q1), not a
+repair.
+
+**If the reconcile reports `counter_drift`:** the stored `teammates` disagrees with a from-scratch
+recount. Run `php bin\harvest_queue_seed.php --rebuild` to see the member, then `--rebuild --apply` to
+repair the counter (never the position), then the catch-up. If it reports `baseline_violation` (a
+counter below its `baseline_n`), a descendant left the tree — that cannot happen through the
+application, so stop and restore the backup rather than lowering the counter.
+
+**Never edit `team_harvest_awards` or its wallet movement.** There is no void, no reopen and no
+correction tool in v1 (D-12): a wrong award is a forward-only business decision recorded in the phase
+log (§18 Q3). The reconciler *detects* a hand edit — it never repairs one.
+
 ---
 
 ## 3. Backups, install, reset and restore
