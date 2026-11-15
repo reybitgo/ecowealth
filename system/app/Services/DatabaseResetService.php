@@ -78,6 +78,11 @@ final class DatabaseResetService
      * Phase 19 adds the two Royalty tables. Both are money: the monthly
      * awards and the period headers are emptied by every business reset and
      * `royalty_awards` is the only one with a counter (plan §13.7).
+     *
+     * Phase 20 adds the three Team Harvest tables. `team_harvest_levels`
+     * is catalogue (the ten configured amounts are kept by a business
+     * reset, like `package_levels`); the queue and the awards are money
+     * and are emptied (plan §13.3, §13.4).
      */
     public const ALL_TABLES = [
         'addresses',
@@ -89,6 +94,7 @@ final class DatabaseResetService
         'ewallet_admin_topups',
         'ewallet_ledger',
         'ewallet_transfers',
+        'harvest_queue',
         'impersonation_log',
         'live_revisions',
         'package_levels',
@@ -109,6 +115,8 @@ final class DatabaseResetService
         'shop_orders',
         'shop_payment_proofs',
         'shop_shipments',
+        'team_harvest_awards',
+        'team_harvest_levels',
         'unilevel_activity',
         'unilevel_awards',
         'unilevel_periods',
@@ -131,6 +139,7 @@ final class DatabaseResetService
         'ewallet_admin_topups',
         'ewallet_ledger',
         'ewallet_transfers',
+        'harvest_queue',
         'impersonation_log',
         'payout_requests',
         'remember_tokens',
@@ -143,6 +152,7 @@ final class DatabaseResetService
         'shop_orders',
         'shop_payment_proofs',
         'shop_shipments',
+        'team_harvest_awards',
         'unilevel_activity',
         'unilevel_awards',
         'unilevel_periods',
@@ -164,6 +174,10 @@ final class DatabaseResetService
      * `royalty_awards` is the only Phase 19 table with a counter;
      * `royalty_periods` has a natural primary key (`period`), so it must
      * never be altered (plan §13.7).
+     *
+     * Phase 20 adds the two Team Harvest tables with a counter:
+     * `harvest_queue` (the position sequence) and `team_harvest_awards`.
+     * `team_harvest_levels` has a natural primary key and is catalogue.
      */
     public const AUTO_INCREMENT_TABLES = [
         'shop_orders',
@@ -183,6 +197,8 @@ final class DatabaseResetService
         'commissions',
         'unilevel_awards',
         'royalty_awards',
+        'harvest_queue',
+        'team_harvest_awards',
         'activations',
         'reg_codes',
         'impersonation_log',
@@ -273,6 +289,19 @@ final class DatabaseResetService
             'sql'   => [
                 'DELETE FROM royalty_awards',
                 'DELETE FROM royalty_periods',
+            ],
+        ],
+        [
+            /* Team Harvest has no order link either (plan D-08): a level
+             * award is a structural event. The queue and the awards both
+             * reference `users`, so they are emptied here, before the
+             * members group. `team_harvest_levels` is catalogue and keeps
+             * its ten rows (20A Rule 8). */
+            'key'   => 'harvest',
+            'label' => 'Team Harvest queue positions and level awards',
+            'sql'   => [
+                'DELETE FROM team_harvest_awards',
+                'DELETE FROM harvest_queue',
             ],
         ],
         [
@@ -1102,7 +1131,18 @@ final class DatabaseResetService
 
         $this->upsertSetting('last_reset_at', date('Y-m-d H:i:s'));
         $this->upsertSetting('last_reset_by', (string) $options['last_reset_by']);
-        $this->recordStep('settings', 'Write the reset metadata', 'ok', 2, self::ms($t));
+
+        /* Phase 20 (plan 20A Rule 8, §13.8 I-09): the Team Harvest
+         * baseline instant describes a queue that no longer exists. A
+         * fresh network must not pay against a dead baseline, so it is
+         * cleared with the queue. The UPDATE never creates the key on a
+         * database that predates the phase. The ladder rows are
+         * catalogue and are kept, like every other configured amount. */
+        $baselineCleared = $this->exec(
+            "UPDATE settings SET value = '' WHERE key_name = 'team_harvest_ledger_since'"
+        );
+
+        $this->recordStep('settings', 'Write the reset metadata', 'ok', 2 + $baselineCleared, self::ms($t));
 
         /* 19: the audit row, last, so its meta can carry near-final counts. */
         $this->beginStep('audit', 'Append the reset audit row');

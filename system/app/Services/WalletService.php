@@ -57,6 +57,11 @@ final class WalletService
      * (ref_id = royalty_awards.id), LAST in both the list and the column
      * so MySQL's in-place ENUM append applies (plan D-19). There is no
      * reversal type: a closed month is never clawed back (D-13).
+     *
+     * Phase 20 appends `team_harvest`, the Team Harvest level credit
+     * (ref_id = team_harvest_awards.id), LAST for the same reason. It
+     * ships with the column in 20A because P5-T8 compares the list and
+     * the enum in both directions (plan 20A Rule 7).
      */
     public const REF_TYPES = [
         'commission',
@@ -70,6 +75,7 @@ final class WalletService
         'unilevel',
         'unilevel_reversal',
         'royalty',
+        'team_harvest',
     ];
 
     /** DECIMAL(12,2) upper bound. */

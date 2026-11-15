@@ -1,0 +1,164 @@
+Phase 20A / QA20A-07 — rebuild the bundle and re-install on an empty schema
+==========================================================================
+
+All commands run from system/. The development copy is not touched: the install target
+is the pre-provisioned scratch schema ecowealth_sneat_tool_a_test.
+
+The real storage/install.lock is moved aside for the scratch install and restored at
+the end (it belongs to the development copy).
+
+> php bin/build_install_sql.php --check
+[exit 0]
+
+> php bin/build_install_sql.php  (rebuild; the committed file already matches)
+Built database/install.sql (89,851 bytes, sha256 0ffd24f6657d1ddb720b2565a64330492aaa3e3074c617caa1f29a7149f41e0d).
+[exit 0]
+
+> mysql -e "DROP DATABASE IF EXISTS ecowealth_sneat_tool_a_test; CREATE DATABASE ecowealth_sneat_tool_a_test ..."  (empty target)
+[exit 0]
+
+> php bin/db_install.php --check --database=ecowealth_sneat_tool_a_test
+EcoWealth database installer
+  database: ecowealth_sneat_tool_a_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     preflight only (no writes)
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_tool_a_test
+  OK    Database exists      ecowealth_sneat_tool_a_test exists
+  OK    Database empty       no tables — ready for the bundle
+  OK    install.sql          database/install.sql — 64 statements, 89,851 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight passed — ecowealth_sneat_tool_a_test can be installed.
+[exit 0]
+
+> php bin/db_install.php --database=ecowealth_sneat_tool_a_test --force --admin-password=QaAdmin!23456 --superadmin-password=QaSuper!23456
+EcoWealth database installer
+  database: ecowealth_sneat_tool_a_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     install
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_tool_a_test
+  OK    Database exists      ecowealth_sneat_tool_a_test exists
+  OK    Database empty       no tables — ready for the bundle
+  OK    install.sql          database/install.sql — 64 statements, 89,851 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight passed — ecowealth_sneat_tool_a_test can be installed.
+
+Installing
+  OK    lock              Advisory lock acquired (3 ms)
+  SKIP  create_database   Database already exists (7 ms)
+  OK    guard             Target schema is empty (5 ms)
+  OK    bundle            Import database/install.sql (4648 ms)
+  OK    staff             Set both staff accounts (339 ms)
+  OK    settings          Write the install metadata (11 ms)
+  OK    verify            Verify the installation (551 ms)
+  OK    lock_file         Write the install lock (10 ms)
+
+Verification
+  OK    Tables                 36 of 36 tables
+  OK    Settings               77 of 77 settings
+  OK    Staff accounts         admin (admin), superadmin (superadmin)
+  OK    Staff sign-in          2 passwords verified
+  OK    Members                0 of 0 members
+  OK    Catalogue              7 products / 2 packages / 18 levels / 10 contents / 10 harvest levels
+  OK    Registration codes     0 of 0 codes
+  OK    No transactional rows  every shop, wallet, membership and session table is empty
+  OK    Install metadata       version 1.0.0 · channel cli · 2026-11-15 21:02:04
+  OK    Install lock           storage/install.lock records the install into ecowealth_sneat_tool_a_test
+
+  counts: tables 36 · settings 77 · staff 2 · members 0 · products 7 · packages 2 · levels 18 · contents 10 · codes 0
+
+Installed and verified.
+  lock:    storage/install.lock
+  sign in: admin (admin)
+  sign in: superadmin (superadmin)
+  next:    change both staff passwords, then delete bin/db_install.php and database/install.sql before going live.
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SELECT COUNT(*) AS tables_created FROM information_schema.tables WHERE table_schema='ecowealth_sneat_tool_a_test'; SELECT COUNT(*) AS settings_rows FROM settings; SELECT COUNT(*) AS team_harvest_levels_rows FROM team_harvest_levels; SELECT COUNT(*) AS harvest_queue_rows FROM harvest_queue; SELECT COUNT(*) AS team_harvest_awards_rows FROM team_harvest_awards;"
+tables_created
+36
+settings_rows
+77
+team_harvest_levels_rows
+10
+harvest_queue_rows
+0
+team_harvest_awards_rows
+0
+[exit 0]
+
+> php bin/wallet_reconcile.php
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat (127.0.0.1)
+  accounts checked:  26
+  accounts with ledger: 10
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   8 (2,430.00)
+  skipped awards:    4
+  ledger total:      2,430.00
+  legacy credits:    2 (20,500.00) — commission movements before the award history began
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 3
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  2
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+Repeat-purchase
+  credited awards:   2 (25.00)
+  pending awards:    0 (0.00) — earned, not in a wallet yet
+  cancelled awards:  0 (0.00) — order cancelled before release, never paid
+  skipped awards:    1
+  voided awards:     0
+  awarded total:     25.00 (pending + credited)
+  unilevel ledger:   25.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+Royalty
+  periods:           0 (paid 0 · evaluated 0 · skipped 0)
+  paid awards:       0 (0.00)
+  pending awards:    0 (0.00) — evaluated, not in a wallet yet
+  skipped awards:    0
+  royalty ledger:    0.00
+  OK — every paid award has its wallet movement and every period header agrees with its rows.
+
+All good — wallets, commissions, transfers, payouts, repeat-purchase and royalty awards reconcile.
+[exit 0]
+
+RESULT: PASS — --check exits 0; the bundle carries 64 statements; the scratch install
+verifies with 36 tables / 77 settings / 10 ladder rows / 0 queue rows / 0 awards, and
+wallet_reconcile exits 0 (this phase moves no money).

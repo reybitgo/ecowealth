@@ -23,8 +23,9 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      33 tables · 73 settings · 2 staff accounts · 7 products
+--      36 tables · 77 settings · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
+--      10 Team Harvest level amounts
 --
 --  It seeds NO demo members, NO demo registration codes and NO demo wallet
 --  balances. Demo fixtures are a separate, explicit import:
@@ -106,7 +107,7 @@ SET time_zone = '+08:00';
 
 -- ===========================================================================
 --  SECTION 1/7 — SCHEMA
---  source: database/schema.sql sha256=b9b1b70615645fb969af3505b564749dc20eec36c210aca4188d5e822c03a56c
+--  source: database/schema.sql sha256=bebf74fc30cd20629a634dd2d741855c614019810a7e66c375e78f66481af524
 -- ===========================================================================
 
 -- =============================================================
@@ -119,7 +120,7 @@ SET time_zone = '+08:00';
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 023).
+--  database/migrations/ (apply in order: 001, 002, …, 024).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -152,6 +153,9 @@ SET time_zone = '+08:00';
 --                indexes and the release settings.
 --  Phase 19 owns: royalty_periods, royalty_awards and the
 --                'royalty' ledger ref type (the stream is off).
+--  Phase 20 owns: harvest_queue, team_harvest_levels,
+--                team_harvest_awards and the 'team_harvest' ledger
+--                ref type (the stream is off and unseeded).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -171,7 +175,9 @@ SET time_zone = '+08:00';
 --                      (a suspended member cannot sign in)
 --    package_id        the activated associate package; NULL for a
 --                      standard (shopping-only) or pending member
---    sponsor_id        the ONE upline link — there is no binary tree
+--    sponsor_id        the ONE upline link — there is no binary tree.
+--                      Phase 20 derives the Team Harvest queue and its
+--                      teammate counters from this chain (harvest_queue).
 --    referral_code     8-character public code used by ?ref= links
 --    reg_payment_method  how the account joined
 --    reg_code_id       registration code redeemed, if any
@@ -442,6 +448,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      cancellation debit); ref_id = unilevel_awards.id.
 --                      Phase 19 appends 'royalty' last (a monthly
 --                      award credit); ref_id = royalty_awards.id.
+--                      Phase 20 appends 'team_harvest' last (a Team
+--                      Harvest level credit); ref_id = team_harvest_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -457,7 +465,7 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
-                         'unilevel_reversal','royalty') NOT NULL,
+                         'unilevel_reversal','royalty','team_harvest') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1164,6 +1172,106 @@ CREATE TABLE IF NOT EXISTS royalty_awards (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
+-- Harvest queue — one row per qualified member (Phase 20, plan §13.2)
+--
+--  `id` IS the position and it is a fact: auto-increment, 1-based,
+--  never renumbered, never reused, gaps allowed (D-03). Every Team
+--  Harvest award is computed from the difference between positions,
+--  and the later General Harvest stream reads the same order (D-16),
+--  so the queue is shared infrastructure.
+--
+--  `qualified_at`      the Nth direct's created_at (seed) or the new
+--                      member's created_at (live hook, 20C)
+--  `directs_at_qualification`  the direct count that opened the gate;
+--                      an audit fact, never re-read
+--  `teammates`         n — the maintained counter (D-05, 20C)
+--  `baseline_n`        n at the go-live baseline instant; written once
+--                      by the seed job, 0 for anyone queued later
+--  `source`            registration | seed | repair
+--
+--  The queue is populated by bin/harvest_queue_seed.php and the
+--  registration hook, never by this file: 20A ships it empty (D-04).
+--  chk_hq_baseline is a data-integrity assertion, not a business rule:
+--  teammates only grows after the baseline, so a recount below it means
+--  a descendant left the tree.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS harvest_queue (
+  id                      INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  user_id                 INT UNSIGNED     NOT NULL,
+  qualified_at            DATETIME         NOT NULL,
+  directs_at_qualification SMALLINT UNSIGNED NOT NULL,
+  teammates               INT UNSIGNED     NOT NULL DEFAULT 0,
+  baseline_n              INT UNSIGNED     NOT NULL DEFAULT 0,
+  source                  ENUM('registration','seed','repair') NOT NULL DEFAULT 'registration',
+  created_at              TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_queue_user (user_id),
+  KEY idx_queue_qualified (qualified_at),
+  KEY idx_queue_teammates (teammates),
+  CONSTRAINT fk_hq_user     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_hq_directs CHECK (directs_at_qualification >= 1),
+  CONSTRAINT chk_hq_baseline CHECK (teammates >= baseline_n)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Team Harvest levels — the ten amounts (Phase 20, plan §13.3)
+--
+--  Catalogue, not money: kept by a business reset, like package_levels
+--  and product_unilevel_levels. The slot counts and thresholds are
+--  structural and fixed (D-18); only these amounts are configurable.
+--  Ten rows always exist after a fresh install or a migration, seeded
+--  at the reference ladder (₱1,000 … ₱3,500,000).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS team_harvest_levels (
+  level      TINYINT UNSIGNED NOT NULL,
+  amount     DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  updated_at TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP,
+  updated_by INT UNSIGNED     NULL,
+  PRIMARY KEY (level),
+  CONSTRAINT chk_thl_level  CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_thl_amount CHECK (amount >= 0)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Team Harvest awards — the money ledger (Phase 20, plan §13.4)
+--
+--  One row per (member, level); `UNIQUE (user_id, level)` is the money
+--  anchor (D-06), so a replayed evaluation can never pay twice. There
+--  is no type column, no period, no order, no product and no rate:
+--  the level is the whole story.
+--
+--  `status = 'baseline'` records a level complete before go-live: it
+--  is kept for the audit, carries `ledger_id IS NULL`, and is never
+--  credited (D-07). A `credited` row always names its wallet movement.
+--  There is no `voided` status in v1 (D-12): the row is never edited.
+--  `ledger_id` is deliberately NOT a foreign key: the wallet ledger is
+--  append-only and outlives a correction (same as royalty_awards).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS team_harvest_awards (
+  id           INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  user_id      INT UNSIGNED     NOT NULL,
+  level        TINYINT UNSIGNED NOT NULL,
+  threshold_n  INT UNSIGNED     NOT NULL,
+  n_at_award   INT UNSIGNED     NOT NULL,
+  amount       DECIMAL(12,2)    NOT NULL,
+  status       ENUM('credited','baseline') NOT NULL DEFAULT 'credited',
+  ledger_id    INT UNSIGNED     NULL,
+  credited_at  DATETIME         NOT NULL,
+  created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tha_member_level (user_id, level),
+  KEY idx_tha_level (level, credited_at),
+  KEY idx_tha_credited (credited_at),
+  KEY idx_tha_status (status),
+  KEY idx_tha_ledger (ledger_id),
+  CONSTRAINT fk_tha_user   FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_tha_level  CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_tha_amount CHECK (amount >= 0),
+  CONSTRAINT chk_tha_n      CHECK (n_at_award >= threshold_n)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
 -- Impersonation log — super-login sessions (plan §4.2, §4.4,
 -- §7 Phase 14)
 --
@@ -1215,7 +1323,7 @@ CREATE TABLE IF NOT EXISTS live_revisions (
 
 -- ===========================================================================
 --  SECTION 2/7 — SETTINGS
---  source: database/seeds/001_settings.sql sha256=3b8b0c9a7685bdeb14136f5a9adab7c900148afb3c430d5b21ab5c3b64f4480f
+--  source: database/seeds/001_settings.sql sha256=35de8b4c3d80c1765236b5ab01d0bd5c0d133632fe8c334ec6d34d2a94c419fb
 -- ===========================================================================
 
 -- =============================================================
@@ -1326,6 +1434,20 @@ INSERT INTO settings (key_name, value) VALUES
   ('royalty_director_personal_pct',    '15.000'),
   ('royalty_ledger_since',             DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
+  -- Team Harvest bonus (Phase 20). The reference preset: three direct
+  -- member sign-ups qualify a member (1–10 configurable) and the private
+  -- 3×10 matrix pays a flat amount per completed level, up to ten levels.
+  -- The stream ships OFF (`team_harvest_enabled = 0`): qualification
+  -- accounting still runs once the queue is seeded, but no award is
+  -- written while the switch is off (D-09). `team_harvest_ledger_since`
+  -- is deliberately EMPTY: it is not a first-payable date, it is the proof
+  -- that the queue was seeded by bin/harvest_queue_seed.php (D-04). A
+  -- business reset clears it again, because the queue no longer exists.
+  ('team_harvest_enabled',             '0'),
+  ('team_harvest_qualify_directs',     '3'),
+  ('team_harvest_max_levels',          '10'),
+  ('team_harvest_ledger_since',        ''),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),
@@ -1346,6 +1468,22 @@ INSERT INTO settings (key_name, value) VALUES
   ('ewallet_transfer_daily_limit',     '5000'),
   ('ewallet_transfer_weekly_limit',    '20000')
 ON DUPLICATE KEY UPDATE key_name = key_name;
+
+-- Team Harvest reference ladder (Phase 20, plan §13.3, D-10). Ten rows,
+-- the same amounts migration 024 inserts; ON DUPLICATE keeps an
+-- operator's edited amount when this file is re-run.
+INSERT INTO team_harvest_levels (level, amount) VALUES
+  (1,   1000.00),
+  (2,   2000.00),
+  (3,   4000.00),
+  (4,   6000.00),
+  (5,  12000.00),
+  (6,  50000.00),
+  (7, 120000.00),
+  (8, 200000.00),
+  (9, 1200000.00),
+  (10, 3500000.00)
+ON DUPLICATE KEY UPDATE level = level;
 
 -- ===========================================================================
 --  SECTION 3/7 — STAFF ACCOUNTS
@@ -1591,7 +1729,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=2f4178e0f093400c04a3c8ac1b3322837850a8ba35ae466ec2babcf41e479409
+--  source: database/install/footer.sql sha256=af7c850ff9faa164c8684ec22e1f206036b7b68f96375ff1198d2e1169d5fa8d
 -- ===========================================================================
 
 -- ===========================================================================
@@ -1619,16 +1757,17 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=2f4178e0f093400c04a3c8ac1b3322837850a8ba35ae466ec2babcf41e479409
+--  source: database/install/footer.sql sha256=af7c850ff9faa164c8684ec22e1f206036b7b68f96375ff1198d2e1169d5fa8d
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 33    settings_rows = 73    staff_rows    = 2
+--      tables_created = 36    settings_rows = 77    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
+--      team_harvest_levels_rows = 10
 --
 --  A reset is expected to add audit_log rows, live_revisions rows and the
 --  generated registration codes; a fresh install has none of them.
@@ -1644,6 +1783,7 @@ SELECT
   (SELECT COUNT(*) FROM packages)                          AS packages_rows,
   (SELECT COUNT(*) FROM package_levels)                    AS levels_rows,
   (SELECT COUNT(*) FROM package_products)                  AS contents_rows,
+  (SELECT COUNT(*) FROM team_harvest_levels)                AS team_harvest_levels_rows,
   (SELECT COUNT(*) FROM reg_codes)                         AS codes_rows;
 
 SELECT key_name, value FROM settings

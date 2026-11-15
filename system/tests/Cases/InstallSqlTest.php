@@ -66,7 +66,7 @@ return [
         $harness = test_pdo(['db' => DB_NAME]);
 
         $tables = test_table_list($pdo, $database);
-        assert_count(33, $tables);
+        assert_count(36, $tables);
         assert_same(test_table_list($harness, DB_NAME), $tables, 'table list');
 
         assert_same(
@@ -94,8 +94,8 @@ return [
         $harness = $keyPairs(test_pdo(['db' => DB_NAME]), 'SELECT key_name, value FROM settings ORDER BY key_name');
         $import  = $keyPairs($pdo, 'SELECT key_name, value FROM settings ORDER BY key_name');
 
-        assert_true(count($harness) >= 70, 'the harness fresh install carries at least 70 settings');
-        assert_count(73, $import, '70 seed keys + 3 install metadata keys');
+        assert_true(count($harness) >= 74, 'the harness fresh install carries at least 74 settings');
+        assert_count(77, $import, '74 seed keys + 3 install metadata keys');
 
         foreach ($harness as $key => $value) {
             assert_true(array_key_exists($key, $import), 'the import carries settings.' . $key);
@@ -248,10 +248,10 @@ return [
 
         foreach ([
             'addresses', 'activations', 'audit_log', 'cart_items', 'carts', 'commissions',
-            'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers', 'impersonation_log',
-            'live_revisions', 'payout_requests', 'reg_codes', 'remember_tokens',
+            'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers', 'harvest_queue',
+            'impersonation_log', 'live_revisions', 'payout_requests', 'reg_codes', 'remember_tokens',
             'shop_invoice_items', 'shop_invoices', 'shop_order_events', 'shop_order_items',
-            'shop_orders', 'shop_payment_proofs', 'shop_shipments',
+            'shop_orders', 'shop_payment_proofs', 'shop_shipments', 'team_harvest_awards',
         ] as $table) {
             assert_same(
                 0,
@@ -259,6 +259,14 @@ return [
                 $table . ' is empty after a fresh install'
             );
         }
+
+        /* The Team Harvest ladder is catalogue: ten seeded amounts. */
+        assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
+        assert_same(
+            '5095000.00',
+            number_format((float) $pdo->query('SELECT SUM(amount) FROM team_harvest_levels')->fetchColumn(), 2, '.', ''),
+            'the reference ladder totals ₱5,095,000.00'
+        );
     },
 
     'a second import is refused by the guard and changes nothing' => function () use ($installPath): void {
@@ -275,9 +283,9 @@ return [
         assert_same(1146, (int) $error->context['driver_code'], 'the guard names a missing table');
         assert_contains('statement', $error->getMessage());
 
-        /* Nothing after the guard ran: still 33 tables, 73 settings, 2 staff. */
-        assert_count(33, test_table_list($pdo, $database));
-        assert_same(73, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+        /* Nothing after the guard ran: still 36 tables, 77 settings, 2 staff. */
+        assert_count(36, test_table_list($pdo, $database));
+        assert_same(77, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
         $probe = $pdo->prepare(

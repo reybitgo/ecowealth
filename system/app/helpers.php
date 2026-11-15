@@ -656,6 +656,7 @@ function wallet_ref_label(string $refType): string
         'unilevel'          => 'Repeat-purchase bonus',
         'unilevel_reversal' => 'Repeat-purchase reversal',
         'royalty'           => 'Royalty bonus',
+        'team_harvest'      => 'Team Harvest bonus',
     ];
 
     return $map[$refType] ?? ucfirst(str_replace('_', ' ', $refType));
@@ -676,6 +677,7 @@ function wallet_ref_icon(string $refType): string
         'unilevel'          => 'bx-gift',
         'unilevel_reversal' => 'bx-undo',
         'royalty'           => 'bx-crown',
+        'team_harvest'      => 'bx-layer',
     ];
 
     return 'bx ' . ($map[$refType] ?? 'bx-wallet');

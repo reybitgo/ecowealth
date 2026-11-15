@@ -36,6 +36,7 @@ $migrations    = [
     $migrationDir . '021_unilevel_bonus_escrow.sql',
     $migrationDir . '022_shop_cancel_toggle.sql',
     $migrationDir . '023_royalty_bonus.sql',
+    $migrationDir . '024_team_harvest.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -291,11 +292,22 @@ return [
         assert_same($columnList($fresh, 'royalty_periods'), $columnList($migrated, 'royalty_periods'), 'royalty_periods columns differ from schema.sql');
         assert_same($columnList($fresh, 'royalty_awards'), $columnList($migrated, 'royalty_awards'), 'royalty_awards columns differ from schema.sql');
 
+        /* Phase 20 (P20A-T3): the migrated database carries the three Team
+         * Harvest tables, exactly like a fresh install. */
+        foreach (['harvest_queue', 'team_harvest_levels', 'team_harvest_awards'] as $table) {
+            assert_same(
+                $columnList($fresh, $table),
+                $columnList($migrated, $table),
+                $table . ' columns differ from schema.sql'
+            );
+        }
+
         $refType = static fn (PDO $pdo): string
             => (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
 
         assert_same($refType($fresh), $refType($migrated), 'the migrated enum must equal the fresh-install enum');
         assert_contains("'royalty'", $refType($migrated), 'migration 023 appends the royalty movement');
+        assert_contains("'team_harvest'", $refType($migrated), 'migration 024 appends the team_harvest movement');
         assert_contains("'unilevel_reversal'", $refType($migrated), 'the Phase 17 movements survive');
     },
 

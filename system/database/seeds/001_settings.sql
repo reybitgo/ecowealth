@@ -106,6 +106,20 @@ INSERT INTO settings (key_name, value) VALUES
   ('royalty_director_personal_pct',    '15.000'),
   ('royalty_ledger_since',             DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
+  -- Team Harvest bonus (Phase 20). The reference preset: three direct
+  -- member sign-ups qualify a member (1–10 configurable) and the private
+  -- 3×10 matrix pays a flat amount per completed level, up to ten levels.
+  -- The stream ships OFF (`team_harvest_enabled = 0`): qualification
+  -- accounting still runs once the queue is seeded, but no award is
+  -- written while the switch is off (D-09). `team_harvest_ledger_since`
+  -- is deliberately EMPTY: it is not a first-payable date, it is the proof
+  -- that the queue was seeded by bin/harvest_queue_seed.php (D-04). A
+  -- business reset clears it again, because the queue no longer exists.
+  ('team_harvest_enabled',             '0'),
+  ('team_harvest_qualify_directs',     '3'),
+  ('team_harvest_max_levels',          '10'),
+  ('team_harvest_ledger_since',        ''),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),
@@ -126,3 +140,19 @@ INSERT INTO settings (key_name, value) VALUES
   ('ewallet_transfer_daily_limit',     '5000'),
   ('ewallet_transfer_weekly_limit',    '20000')
 ON DUPLICATE KEY UPDATE key_name = key_name;
+
+-- Team Harvest reference ladder (Phase 20, plan §13.3, D-10). Ten rows,
+-- the same amounts migration 024 inserts; ON DUPLICATE keeps an
+-- operator's edited amount when this file is re-run.
+INSERT INTO team_harvest_levels (level, amount) VALUES
+  (1,   1000.00),
+  (2,   2000.00),
+  (3,   4000.00),
+  (4,   6000.00),
+  (5,  12000.00),
+  (6,  50000.00),
+  (7, 120000.00),
+  (8, 200000.00),
+  (9, 1200000.00),
+  (10, 3500000.00)
+ON DUPLICATE KEY UPDATE level = level;

@@ -211,17 +211,20 @@ SQL);
         $script = SqlScript::fromFile($databaseDir . 'schema.sql');
         $result = $script->run($pdo);
 
-        assert_true($result['statements'] >= 33, 'the schema has at least one statement per table');
+        assert_true($result['statements'] >= 36, 'the schema has at least one statement per table');
         assert_true(is_int($result['elapsed_ms']));
 
         $expected = [
             'activations', 'addresses', 'audit_log', 'cart_items', 'carts', 'commissions',
-            'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers', 'impersonation_log',
+            'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers', 'harvest_queue',
+            'impersonation_log',
             'live_revisions', 'package_levels', 'package_products', 'packages', 'payout_requests',
             'product_unilevel_levels', 'products', 'reg_codes', 'remember_tokens',
             'royalty_awards', 'royalty_periods', 'settings',
             'shop_invoice_items', 'shop_invoices', 'shop_order_events', 'shop_order_items',
-            'shop_orders', 'shop_payment_proofs', 'shop_shipments', 'unilevel_activity',
+            'shop_orders', 'shop_payment_proofs', 'shop_shipments',
+            'team_harvest_awards', 'team_harvest_levels',
+            'unilevel_activity',
             'unilevel_awards', 'unilevel_periods', 'users',
         ];
         sort($expected);

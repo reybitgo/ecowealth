@@ -85,6 +85,10 @@ final class DatabaseInstaller
      * install must fail verification if an award, an activity snapshot or a
      * closed period already exists. `product_unilevel_levels` is catalogue,
      * not money, so it is not in this list.
+     *
+     * Phase 20 adds the two transactional Team Harvest tables: a fresh
+     * install must fail verification if a position or an award already
+     * exists. `team_harvest_levels` is catalogue, like `package_levels`.
      */
     public const TRANSACTIONAL_TABLES = [
         'addresses',
@@ -96,6 +100,7 @@ final class DatabaseInstaller
         'ewallet_admin_topups',
         'ewallet_ledger',
         'ewallet_transfers',
+        'harvest_queue',
         'impersonation_log',
         'live_revisions',
         'payout_requests',
@@ -108,6 +113,7 @@ final class DatabaseInstaller
         'shop_orders',
         'shop_payment_proofs',
         'shop_shipments',
+        'team_harvest_awards',
         'unilevel_activity',
         'unilevel_awards',
         'unilevel_periods',
@@ -118,8 +124,8 @@ final class DatabaseInstaller
 
     /** The expected production counts — the numbers the footer prints (plan §6.5). */
     public const EXPECTED = [
-        'tables_created' => 33,
-        'settings_rows'  => 73,
+        'tables_created' => 36,
+        'settings_rows'  => 77,
         'staff_rows'     => 2,
         'members_rows'   => 0,
         'products_rows'  => 7,
@@ -127,6 +133,7 @@ final class DatabaseInstaller
         'levels_rows'    => 18,
         'contents_rows'  => 10,
         'codes_rows'     => 0,
+        'team_harvest_levels_rows' => 10,
     ];
 
     /** Demo counts (plan §6.2): five members, three codes, three ledger rows. */
@@ -901,6 +908,7 @@ final class DatabaseInstaller
             $counts['packages_rows'] = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM packages');
             $counts['levels_rows']   = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM package_levels');
             $counts['contents_rows'] = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM package_products');
+            $counts['team_harvest_levels_rows'] = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM team_harvest_levels');
             $counts['codes_rows']    = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM reg_codes');
             $counts['ledger_rows']   = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM ewallet_ledger');
         } catch (PDOException $e) {
@@ -945,7 +953,7 @@ final class DatabaseInstaller
             'Settings',
             $counts['settings_rows'] === $expected['settings_rows'],
             $counts['settings_rows'] . ' of ' . $expected['settings_rows'] . ' settings',
-            'The bundle seeds 70 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
+            'The bundle seeds 74 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
         );
 
         /* ---- Staff rows: exactly one per role, active ---------------- */
@@ -1021,16 +1029,20 @@ final class DatabaseInstaller
         $catalogueOk = $counts['products_rows'] === $expected['products_rows']
             && $counts['packages_rows'] === $expected['packages_rows']
             && $counts['levels_rows'] === $expected['levels_rows']
-            && $counts['contents_rows'] === $expected['contents_rows'];
+            && $counts['contents_rows'] === $expected['contents_rows']
+            && $counts['team_harvest_levels_rows'] === $expected['team_harvest_levels_rows'];
 
         $checks[] = self::check(
             'catalogue',
             'Catalogue',
             $catalogueOk,
             $counts['products_rows'] . ' products / ' . $counts['packages_rows'] . ' packages / '
-                . $counts['levels_rows'] . ' levels / ' . $counts['contents_rows'] . ' contents',
+                . $counts['levels_rows'] . ' levels / ' . $counts['contents_rows'] . ' contents / '
+                . $counts['team_harvest_levels_rows'] . ' harvest levels',
             'Expected ' . $expected['products_rows'] . ' / ' . $expected['packages_rows'] . ' / '
-                . $expected['levels_rows'] . ' / ' . $expected['contents_rows'] . '; rebuild the bundle from seeds 003–004.'
+                . $expected['levels_rows'] . ' / ' . $expected['contents_rows'] . ' / '
+                . $expected['team_harvest_levels_rows'] . '; rebuild the bundle from seeds 003–004 and '
+                . 'the Team Harvest ladder.'
         );
 
         $codesOk = $counts['codes_rows'] === $expected['codes_rows'];

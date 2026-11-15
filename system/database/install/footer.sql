@@ -26,9 +26,10 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 33    settings_rows = 73    staff_rows    = 2
+--      tables_created = 36    settings_rows = 77    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
+--      team_harvest_levels_rows = 10
 --
 --  A reset is expected to add audit_log rows, live_revisions rows and the
 --  generated registration codes; a fresh install has none of them.
@@ -44,6 +45,7 @@ SELECT
   (SELECT COUNT(*) FROM packages)                          AS packages_rows,
   (SELECT COUNT(*) FROM package_levels)                    AS levels_rows,
   (SELECT COUNT(*) FROM package_products)                  AS contents_rows,
+  (SELECT COUNT(*) FROM team_harvest_levels)                AS team_harvest_levels_rows,
   (SELECT COUNT(*) FROM reg_codes)                         AS codes_rows;
 
 SELECT key_name, value FROM settings

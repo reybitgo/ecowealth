@@ -10,7 +10,7 @@ declare(strict_types=1);
  *  touches ecowealth_sneat, ecowealth_sneat_test or their grants.
  *
  *      preflight    the check table, a missing schema, --create-database
- *      install      33 tables, 73 settings, 2 staff, 7/2/18/10, the lock
+ *      install      36 tables, 77 settings, 2 staff, 7/2/18/10, the lock
  *      credentials  the §6.8 policy, enforced before any SQL
  *      refusals     locked / not_empty, with the lock never overwritten
  *      guard        a table appearing mid-import is translated, not raw
@@ -103,7 +103,7 @@ return [
         assert_true($checks['database_exists']['ok'], 'the scratch schema exists');
         assert_true($checks['database_empty']['ok'], 'the scratch schema starts empty');
         assert_true($checks['install_sql']['ok'], 'database/install.sql parses');
-        assert_contains('60 statements', $checks['install_sql']['detail']);
+        assert_contains('64 statements', $checks['install_sql']['detail']);
         assert_true($checks['install_lock']['ok'], 'no lock is present');
         assert_true($preflight['ok'], 'the whole preflight passes');
         assert_false(DatabaseInstaller::isLocked(), 'preflight writes no lock');
@@ -144,7 +144,7 @@ return [
         assert_false($target->exists($missing), 'even --check --create-database creates nothing');
     },
 
-    'a fresh install produces 33/73/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
+    'a fresh install produces 36/77/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
         $clearLock();
 
         [$pdo, $database] = test_scratch_database('tool_a');
@@ -159,19 +159,20 @@ return [
             assert_same($database, $report['database']);
             assert_same('cli', $report['channel']);
 
-            assert_same(33, $report['counts']['tables_created']);
-            assert_same(73, $report['counts']['settings_rows']);
+            assert_same(36, $report['counts']['tables_created']);
+            assert_same(77, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
             assert_same(2, $report['counts']['packages_rows']);
             assert_same(18, $report['counts']['levels_rows']);
             assert_same(10, $report['counts']['contents_rows']);
+            assert_same(10, $report['counts']['team_harvest_levels_rows']);
             assert_same(0, $report['counts']['codes_rows']);
 
             /* The database itself, not just the report. */
-            assert_count(33, test_table_list($pdo, $database));
-            assert_same(73, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(36, test_table_list($pdo, $database));
+            assert_same(77, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
             /* Both operator passwords really authenticate. */
@@ -342,7 +343,7 @@ return [
             assert_same(5, $report['counts']['members_rows']);
             assert_same(3, $report['counts']['codes_rows']);
             assert_same(3, $report['counts']['ledger_rows']);
-            assert_same(33, $report['counts']['tables_created']);
+            assert_same(36, $report['counts']['tables_created']);
 
             /* The database itself, not just the report. */
             $usernames = $pdo->query(
@@ -551,12 +552,12 @@ return [
             assert_same(DatabaseToolException::KIND_NOT_EMPTY, $error->kind);
             assert_contains('is not empty', $error->getMessage());
             assert_same($database, $error->context['database']);
-            assert_same(33, (int) $error->context['tables']);
+            assert_same(36, (int) $error->context['tables']);
             assert_false(DatabaseInstaller::isLocked(), 'a refused install writes no lock');
 
             /* Nothing was deleted or added: the import is untouched. */
-            assert_count(33, test_table_list($pdo, $database));
-            assert_same(73, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(36, test_table_list($pdo, $database));
+            assert_same(77, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         } finally {
             $clearLock();
         }

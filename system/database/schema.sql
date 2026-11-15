@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 023).
+--  database/migrations/ (apply in order: 001, 002, …, 024).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -41,6 +41,9 @@
 --                indexes and the release settings.
 --  Phase 19 owns: royalty_periods, royalty_awards and the
 --                'royalty' ledger ref type (the stream is off).
+--  Phase 20 owns: harvest_queue, team_harvest_levels,
+--                team_harvest_awards and the 'team_harvest' ledger
+--                ref type (the stream is off and unseeded).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -60,7 +63,9 @@ SET time_zone = '+08:00';
 --                      (a suspended member cannot sign in)
 --    package_id        the activated associate package; NULL for a
 --                      standard (shopping-only) or pending member
---    sponsor_id        the ONE upline link — there is no binary tree
+--    sponsor_id        the ONE upline link — there is no binary tree.
+--                      Phase 20 derives the Team Harvest queue and its
+--                      teammate counters from this chain (harvest_queue).
 --    referral_code     8-character public code used by ?ref= links
 --    reg_payment_method  how the account joined
 --    reg_code_id       registration code redeemed, if any
@@ -331,6 +336,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      cancellation debit); ref_id = unilevel_awards.id.
 --                      Phase 19 appends 'royalty' last (a monthly
 --                      award credit); ref_id = royalty_awards.id.
+--                      Phase 20 appends 'team_harvest' last (a Team
+--                      Harvest level credit); ref_id = team_harvest_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -346,7 +353,7 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
-                         'unilevel_reversal','royalty') NOT NULL,
+                         'unilevel_reversal','royalty','team_harvest') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1050,6 +1057,106 @@ CREATE TABLE IF NOT EXISTS royalty_awards (
                                   AND personal_volume <= group_volume),
   CONSTRAINT chk_ra_rates  CHECK (group_pct BETWEEN 0 AND 100
                                   AND personal_pct BETWEEN 0 AND 100)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Harvest queue — one row per qualified member (Phase 20, plan §13.2)
+--
+--  `id` IS the position and it is a fact: auto-increment, 1-based,
+--  never renumbered, never reused, gaps allowed (D-03). Every Team
+--  Harvest award is computed from the difference between positions,
+--  and the later General Harvest stream reads the same order (D-16),
+--  so the queue is shared infrastructure.
+--
+--  `qualified_at`      the Nth direct's created_at (seed) or the new
+--                      member's created_at (live hook, 20C)
+--  `directs_at_qualification`  the direct count that opened the gate;
+--                      an audit fact, never re-read
+--  `teammates`         n — the maintained counter (D-05, 20C)
+--  `baseline_n`        n at the go-live baseline instant; written once
+--                      by the seed job, 0 for anyone queued later
+--  `source`            registration | seed | repair
+--
+--  The queue is populated by bin/harvest_queue_seed.php and the
+--  registration hook, never by this file: 20A ships it empty (D-04).
+--  chk_hq_baseline is a data-integrity assertion, not a business rule:
+--  teammates only grows after the baseline, so a recount below it means
+--  a descendant left the tree.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS harvest_queue (
+  id                      INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  user_id                 INT UNSIGNED     NOT NULL,
+  qualified_at            DATETIME         NOT NULL,
+  directs_at_qualification SMALLINT UNSIGNED NOT NULL,
+  teammates               INT UNSIGNED     NOT NULL DEFAULT 0,
+  baseline_n              INT UNSIGNED     NOT NULL DEFAULT 0,
+  source                  ENUM('registration','seed','repair') NOT NULL DEFAULT 'registration',
+  created_at              TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_queue_user (user_id),
+  KEY idx_queue_qualified (qualified_at),
+  KEY idx_queue_teammates (teammates),
+  CONSTRAINT fk_hq_user     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_hq_directs CHECK (directs_at_qualification >= 1),
+  CONSTRAINT chk_hq_baseline CHECK (teammates >= baseline_n)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Team Harvest levels — the ten amounts (Phase 20, plan §13.3)
+--
+--  Catalogue, not money: kept by a business reset, like package_levels
+--  and product_unilevel_levels. The slot counts and thresholds are
+--  structural and fixed (D-18); only these amounts are configurable.
+--  Ten rows always exist after a fresh install or a migration, seeded
+--  at the reference ladder (₱1,000 … ₱3,500,000).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS team_harvest_levels (
+  level      TINYINT UNSIGNED NOT NULL,
+  amount     DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  updated_at TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP,
+  updated_by INT UNSIGNED     NULL,
+  PRIMARY KEY (level),
+  CONSTRAINT chk_thl_level  CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_thl_amount CHECK (amount >= 0)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Team Harvest awards — the money ledger (Phase 20, plan §13.4)
+--
+--  One row per (member, level); `UNIQUE (user_id, level)` is the money
+--  anchor (D-06), so a replayed evaluation can never pay twice. There
+--  is no type column, no period, no order, no product and no rate:
+--  the level is the whole story.
+--
+--  `status = 'baseline'` records a level complete before go-live: it
+--  is kept for the audit, carries `ledger_id IS NULL`, and is never
+--  credited (D-07). A `credited` row always names its wallet movement.
+--  There is no `voided` status in v1 (D-12): the row is never edited.
+--  `ledger_id` is deliberately NOT a foreign key: the wallet ledger is
+--  append-only and outlives a correction (same as royalty_awards).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS team_harvest_awards (
+  id           INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  user_id      INT UNSIGNED     NOT NULL,
+  level        TINYINT UNSIGNED NOT NULL,
+  threshold_n  INT UNSIGNED     NOT NULL,
+  n_at_award   INT UNSIGNED     NOT NULL,
+  amount       DECIMAL(12,2)    NOT NULL,
+  status       ENUM('credited','baseline') NOT NULL DEFAULT 'credited',
+  ledger_id    INT UNSIGNED     NULL,
+  credited_at  DATETIME         NOT NULL,
+  created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tha_member_level (user_id, level),
+  KEY idx_tha_level (level, credited_at),
+  KEY idx_tha_credited (credited_at),
+  KEY idx_tha_status (status),
+  KEY idx_tha_ledger (ledger_id),
+  CONSTRAINT fk_tha_user   FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_tha_level  CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_tha_amount CHECK (amount >= 0),
+  CONSTRAINT chk_tha_n      CHECK (n_at_award >= threshold_n)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

@@ -3619,7 +3619,7 @@ without a filled row is not closed, whatever its code says.
 
 | Phase | Tag | Date | Suite passed/ran | Smoke passed/ran | Migration/bundle | Manual QA `QA20X-nn` | Tester | Deviations | Signed |
 |---|---|---|---:|---:|---|---|---|---|---|
-| 20A Foundation | `p20a-foundation` | — | — / — | — / — | migration `024` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 | A: —/8 | — | — | ☐ |
+| 20A Foundation | `p20a-foundation` | 2026-11-15 | 1,180 / 1,180 | 248 / 248 | migration `024` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (64 statements) | A: 4/8 automated (04–06 need the running app) | — (pending lead) | see §20A deviations in `docs/phase-log.md` | ☐ |
 | 20B Configuration | `p20b-configuration` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | B: —/9 | — | — | ☐ |
 | 20C The Harvest queue | `p20c-queue` | — | — / — | — / — | no schema change; the seed's dry run and rebuild both exit 0 | C: —/8 | — | — | ☐ |
 | 20D Money engine | `p20d-money` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 with the Team Harvest section; catch-up doctor exit 0 | D: —/10 | — | — | ☐ |

@@ -6105,3 +6105,132 @@ different grain. A rank-history or QA-gate proposal is a new plan, not a patch t
 
 ---
 
+## Phase 20A — Foundation (2026-11-15)
+
+**Status:** complete · **Tags:** `p20-start` (baseline, on `28f82f5`), `p20a-foundation` ·
+**Branch:** `feature/team-harvest`, cut from `feature/royalty` · **Schema:** 33 → 36 tables,
+73 → 77 settings · **Suite:** 1,162 → 1,180 cases, **1,180 / 1,180** green · **Smoke:** 248 / 248.
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §5 (Phase 20A), §13 in full and §12.3/§12.9. This phase
+ships the Team Harvest schema, the wallet vocabulary, the four settings, the ten reference amounts and
+the install/reset knowledge that 20B–20G build on. **No code path reads any of it:** the tables are
+empty and unread, no model, service, controller, view, route or job exists, `team_harvest_enabled` is
+`0`, and the queue is explicitly **unseeded** (`team_harvest_ledger_since = ''`, D-04).
+
+### Database
+
+| Object | Change |
+|---|---|
+| `database/migrations/024_team_harvest.sql` (new) | Three tables (`harvest_queue`, where `id` **is** the position and `UNIQUE (user_id)` is the one-row-per-member anchor; `team_harvest_levels`, the ten-row catalogue with a natural key; `team_harvest_awards`, with `UNIQUE (user_id, level)` as the money anchor), the extended `ewallet_ledger.ref_type` enum (`team_harvest` appended last), the four settings and the ten reference amounts. Every `CREATE TABLE` is `IF NOT EXISTS`; the ENUM change is guarded by an `information_schema.COLUMNS` probe on `COLUMN_TYPE` and a `PREPARE`/`EXECUTE` pair; the settings insert is `ON DUPLICATE KEY UPDATE key_name = key_name`; the ladder insert is `ON DUPLICATE KEY UPDATE level = level` (a re-run never overwrites an operator's amount). No backfill, no `DATE_FORMAT(NOW())`: the migration must not pretend the queue was seeded. Applied twice on a scratch schema (a no-op), both exit 0. |
+| `database/schema.sql` | The fresh-install mirror, block for block: the three tables sit after `royalty_awards` and before `impersonation_log`; `ewallet_ledger.ref_type` gains `team_harvest` (and its comment); the `users.sponsor_id` comment names the queue as a consumer of the chain; the header names Phase 20 and the migration range `001`–`024`. |
+| `database/seeds/001_settings.sql` | The four keys (with `team_harvest_ledger_since = ''`) **and** a separate `INSERT INTO team_harvest_levels` with the ten reference amounts, in the migration's order and with the same defaults. |
+| `database/install/header.sql` | Doc comment: **36 tables · 77 settings · 10 Team Harvest level amounts**. |
+| `database/install/footer.sql` | Expected counts: **36 tables, 77 settings, 10 ladder rows**; the verification pack gains a `team_harvest_levels_rows` column. |
+| `database/install.sql` | Regenerated only (`php bin/build_install_sql.php`): 64 statements, 89,851 bytes, sha256 `0ffd24f6657d1ddb720b2565a64330492aaa3e3074c617caa1f29a7149f41e0d`; `--check` exits 0. |
+
+### Code
+
+- **`WalletService::REF_TYPES`** — `team_harvest` appended last (12 values). The column and the constant
+  ship together because `P5-T8` compares them in both directions.
+- **`helpers.php`** — `wallet_ref_label('team_harvest')` = *Team Harvest bonus*;
+  `wallet_ref_icon('team_harvest')` = `bx-layer` (`bx bx-layer`). Rule 6: the label exists before the
+  money.
+- **`DatabaseInstaller`** — `EXPECTED` 33/73 → **36/77**, plus `team_harvest_levels_rows => 10`; the
+  settings hint now says “74 keys plus the three `install_*` metadata rows”; the catalogue check and
+  its detail carry the ladder count; `TRANSACTIONAL_TABLES` gains **`harvest_queue`** and
+  **`team_harvest_awards`** so a fresh install fails verification if a position or an award exists.
+  `team_harvest_levels` is catalogue, like `package_levels`, and is not in that list. `DEMO_TABLES` is
+  unchanged.
+- **`DatabaseResetService`** — `ALL_TABLES` 33 → **36**; `ZERO_TABLES` gains the queue and the awards;
+  `AUTO_INCREMENT_TABLES` gains both (they are the only two with a counter); a new **Team Harvest queue
+  positions and level awards** delete group (`team_harvest_awards` before `harvest_queue`) after the
+  Royalty group, before the order and member groups. A business reset also clears
+  `team_harvest_ledger_since` **inside the transaction** (§13.8 I-09): the baseline describes a queue
+  that no longer exists, and a fresh network must not pay against a dead baseline. `team_harvest_levels`
+  keeps its ten rows.
+
+No model, service, controller, view, route or job is added. The only visible change is the wallet
+statement's movement filter, which gains one option that matches nothing yet (accepted in plan §5
+Rule 6).
+
+### Tests
+
+**18 new cases: 1,162 → 1,180, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `TeamHarvestFoundationTest` (new) | 18 | P20A-T1 (structure, anchors, foreign keys, CHECKs, exact column lists, no backfill), T2 (a re-run is a no-op, keeps an operator's amount/setting and recreates a lost table), T3 (migrated ≡ fresh, including the CHECKs and the enum, and 024 is the last ordered migration), T4 (seed parity: four keys and ten amounts), T5 (bundle parity and 36/77 in header, footer and bundle; 36 CREATEs; the ladder insert), T6 (a real fresh install reports `36 / 77 / 2 / 0 / 7 / 2 / 18 / 10 / 0` plus 10 ladder rows), T7 (the transactional guard fails with `harvest_queue=1`, the ladder stays catalogue), T8 (a reset empties the queue and awards, clears the baseline, keeps the ladder and settings, restarts both counters), T9 (enum ↔ `REF_TYPES` both directions, 12 values, no reversal stub), T10 (label/icon for every movement), T11 (the four defaults on both sides, off + unseeded, no `DATE_FORMAT(NOW())`), T12 (the ten amounts and the ₱5,095,000.00 total; an operator edit survives), T13 (deleting an unqueued member is harmless), T14 (the two cascades plus the wallet ledger, reconciles clean), T15 (only the four manifest files name the objects; no class or route), T16 (inert: empty, no producer, no reader outside the reset engine), T17 (36 tables across schema, bundle and reset allow-list; transactional/catalogue split), T18 (the CHECKs refuse impossible rows and the unique anchor refuses a second level award) |
+
+Updated for the new counts: `MigrationTest` (024 in the ordered list; the migrated-vs-fresh case
+compares the three tables and asserts the appended enum), `InstallTest` (**36 / 77 / 10**, 64
+statements), `InstallSqlTest` (**36 / 77**, `74 seed keys + 3 install metadata keys`, the two new
+zero-pack tables and the ladder), `DbResetTest` (the 33-name helper becomes 36, 23 auto-increment
+counters, the dynamic `team_harvest_ledger_since` excluded from the parity snapshot, the baseline
+cleared after a reset, the ladder kept), `DbTargetTest` (36 tables, `users` derived as the last name),
+`SqlScriptTest` (the 36-name expected list), `WalletTest` (P5-T8 carries `team_harvest` and asserts
+twelve), `RoyaltyFoundationTest` (its 001–023 fixture now also applies 024 so migrated ≡ fresh; 36/77;
+the enum assertions read `royalty` second-to-last and `team_harvest` last), `UnilevelFoundationTest`
+(the bundle/EXPECTED counts and the vocabulary count), and `SeedParityTest` (unchanged by design — it
+already fails unless seed 001 carries every migration key).
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` applies 024 and migrated ≡ fresh is green.
+- [x] `php bin/build_install_sql.php` run; `--check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,180   Passed: 1,180   Failed: 0**, exit 0 (floor 1,180).
+- [x] `php bin/wallet_reconcile.php` exits 0 on the development copy (no `team_harvest` row exists).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 248   Failed: 0**, exit 0 (no new route).
+- [x] Every P20A-Tn case exists, is named for the phase and passes; `php tests/run.php
+      TeamHarvestFoundation` is **18 / 18**.
+- [x] The manual script (plan §5, `QA20A-01` … `QA20A-08`) is written; the automated pass captured
+      the scratch-schema transcripts (`02`, `03`, `07`, `08`). The page checks (`04`–`06`) and the
+      independent-tester run remain the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section A filled; `docs/qa/README.md` and `docs/qa/evidence/phase-20/README.md` carry
+      the Phase 20 row.
+- [x] This entry and Appendix H of the plan are filled; tag `p20a-foundation`.
+
+### Deviations
+
+1. **The branch starts at `28f82f5`, not at `p19g-release` (`9090cf9`).** `28f82f5` is the plan
+   commit stack on top of `p19g-release` (“plan team harvest bonus”, “plan general harvest”, “plan
+   product binary”, “plan package binary”); the application code is byte-identical, and cutting from
+   it keeps the plan documents on the branch. `p20-start` tags `28f82f5`, exactly as 19A did with its
+   plan commit.
+2. **`install/header.sql` was updated too.** The plan's database list names `footer.sql` only, but the
+   header prints the same fresh-install counts (and `RoyaltyFoundationTest`/`UnilevelFoundationTest`
+   assert it). Leaving it at 33/73 would have shipped a bundle whose own first page contradicts its
+   footer.
+3. **Two extra cases, P20A-T17 and P20A-T18.** The plan lists T1–T16 but sets the suite floor at
+   **≥ 1,180** (baseline 1,162 + 18); 16 cases would have left the count at 1,178. T17 pins the
+   three-way table count (schema, bundle, reset allow-list) and the transactional/catalogue split;
+   T18 pins the CHECK guards. No contract changed.
+4. **The reset baseline clear is an `UPDATE`, not an `upsert`.** `upsertSetting()` would *create*
+   `team_harvest_ledger_since` on a database that predates Phase 20; the guarded `UPDATE … WHERE
+   key_name = …` clears it only where it exists and is a no-op elsewhere.
+5. **The shared release documents still describe the Phase 19 build.** `docs/install-reset.md`
+   (33 / 73, migration range `001`–`023`), `docs/deploy.md`, `docs/runbook.md`, `docs/admin-guide.md`
+   and `system/README.md` are release documentation, not part of the 20A manifest; they are updated by
+   20G's documentation sweep (as they were at 19G). The 20A-only documents — this entry, the QA pack,
+   the QA index and the evidence index — are current. Recorded here so the 20G cold read does not miss
+   them.
+6. **The page checks were not executed by a second person.** As at every earlier gate, the automated
+   pass ran what it could (`02`, `03`, `07`, `08` on scratch schemas) and left the transcripts in
+   `docs/qa/evidence/phase-20/`; `04`–`06` need the running app and a human. The sign-off remains the
+   project lead's item.
+7. **`docs/qa/sign-off-sheet.md` gained a Phase 20A block.** The plan's 20A manifest lists the Phase 20
+   QA pack, the QA index and the evidence index only; the pack's own sign-off flow says one block per
+   phase, and leaving the sheet at Phase 19G would have broken the pack. The block records the four
+   automated checks and leaves 01/04–06 open for the lead.
+
+### Hand-off to 20B
+
+- A migrated database with the three tables, the `team_harvest` wallet movement, the label and the
+  icon, the four settings (off and unseeded) and ten ladder rows at the reference amounts; a
+  fresh-install bundle that produces the same database.
+- A reset engine that empties the queue and the awards, clears the baseline and keeps the ladder.
+- Install/reset counts of **36 tables · 77 settings · 10 ladder rows**.
+- **Nothing reads any of it.** 20B may assume the tables exist, are empty and are inert.
+
+---
+

@@ -72,7 +72,7 @@ $service = static function (PDO $pdo, string $database, array $options = [], ?ca
     );
 };
 
-/** The 33 table names the counts helper reads. */
+/** The 36 table names the counts helper reads. */
 $allTables = [
     'users', 'remember_tokens', 'settings', 'audit_log', 'products', 'packages',
     'package_levels', 'package_products', 'carts', 'cart_items', 'ewallet_ledger',
@@ -82,6 +82,7 @@ $allTables = [
     'activations', 'commissions', 'impersonation_log', 'live_revisions',
     'product_unilevel_levels', 'unilevel_awards', 'unilevel_activity', 'unilevel_periods',
     'royalty_awards', 'royalty_periods',
+    'harvest_queue', 'team_harvest_levels', 'team_harvest_awards',
 ];
 
 /** @return array<string,int> */
@@ -272,7 +273,7 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
 
     $settings = $pdo->query('SELECT key_name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since'] as $dynamic) {
+    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since', 'team_harvest_ledger_since'] as $dynamic) {
         unset($settings[$dynamic]);
     }
 
@@ -337,6 +338,7 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
         'addresses', 'activations', 'cart_items', 'carts', 'commissions',
         'ewallet_admin_topups', 'ewallet_transfers', 'impersonation_log',
         'payout_requests', 'remember_tokens', 'royalty_awards', 'royalty_periods',
+        'harvest_queue', 'team_harvest_awards',
         'shop_invoice_items', 'shop_invoices',
         'shop_order_events', 'shop_order_items', 'shop_orders', 'shop_payment_proofs',
         'shop_shipments', 'reg_codes', 'ewallet_ledger',
@@ -542,7 +544,7 @@ return [
         }
 
         assert_same(7, $plan['orders']['statements']);
-        assert_same(21, $plan['auto_increment']['statements']);
+        assert_same(23, $plan['auto_increment']['statements']);
         assert_same(0, $plan['catalogue']['statements'], 'the catalogue is kept by default');
     },
 
@@ -617,6 +619,15 @@ return [
         assert_true(array_key_exists('last_reset_by', $settingsAfter), 'last_reset_by is written');
         assert_same('cli', (string) $settingsAfter['last_reset_by']);
         assert_same(count($settingsBefore) + 2, count($settingsAfter), 'only the two reset keys are added');
+
+        /* Phase 20: a reset clears the Team Harvest baseline with its queue
+         * (the ladder rows are catalogue and survive, asserted below). */
+        assert_same('', (string) $settingsAfter['team_harvest_ledger_since'], 'the harvest baseline is cleared');
+        assert_same(
+            10,
+            (int) $pdo->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn(),
+            'the Team Harvest ladder survives a business reset'
+        );
 
         assert_same($productsBefore, $after['products'], 'the catalogue is kept by default');
         assert_same(1, $after['audit_log'], 'the reset row is the only audit row');
@@ -1146,7 +1157,7 @@ return [
 
         $report = $service($pdo, $database)->run();
         assert_true($report['ok']);
-        assert_same(21, $report['auto_increment']['reset']);
+        assert_same(23, $report['auto_increment']['reset']);
         assert_same(0, $report['auto_increment']['failed']);
 
         foreach (['shop_orders', 'ewallet_ledger', 'reg_codes', 'activations', 'commissions'] as $table) {

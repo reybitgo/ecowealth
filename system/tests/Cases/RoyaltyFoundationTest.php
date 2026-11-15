@@ -17,9 +17,9 @@ declare(strict_types=1);
  *                  value
  *      parity      a migrated database and a fresh install agree
  *      bundle      install.sql matches its sources and mirrors the
- *                  migration's objects (33 tables, 73 settings)
+ *                  migration's objects (36 tables, 77 settings)
  *      tools       DatabaseInstaller / DatabaseResetService agree
- *                  with the schema (33 tables; two money tables)
+ *                  with the schema (36 tables; two money tables)
  *      vocabulary  WalletService::REF_TYPES, the label and the icon
  *      defaults    everything off; no backfill; a datetime baseline
  *      guards      the cascades, the unique keys and the CHECKs
@@ -65,7 +65,7 @@ $buildStart = static function () use ($startMigrations, $fixtureFile): PDO {
 };
 
 /**
- * Build once and keep the connection: a full 001–023 replay is the most
+ * Build once and keep the connection: a full 001–024 replay is the most
  * expensive fixture in the suite, and every case only reads it (T2 and
  * T7 restore what they touch).
  */
@@ -77,6 +77,10 @@ $buildFoundation = static function () use (&$foundation, $buildStart, $migration
 
     $pdo = $buildStart();
     test_run_sql_file($pdo, $migrationDir . '023_royalty_bonus.sql');
+    /* Phase 20A adds migration 024 to the same chain: this file compares a
+     * migrated database with the current fresh install, and schema.sql now
+     * carries the three Team Harvest tables. */
+    test_run_sql_file($pdo, $migrationDir . '024_team_harvest.sql');
     $foundation = $pdo;
 
     return $pdo;
@@ -410,10 +414,11 @@ return [
 
         $php = WalletService::REF_TYPES;
 
-        assert_count(11, $php, 'eleven movement kinds after Phase 19 (D-19 adds royalty only)');
+        assert_count(12, $php, 'twelve movement kinds after Phase 20 (D-19 adds royalty, Phase 20 adds team_harvest)');
         assert_same($php, array_values(array_unique($php)), 'no duplicate movement kind');
-        assert_same('royalty', end($php), 'royalty is appended last, after unilevel_reversal');
-        assert_same('royalty', end($dbValues), 'the enum appends royalty last');
+        assert_same('royalty', $php[count($php) - 2], 'royalty keeps its place after unilevel_reversal');
+        assert_same('team_harvest', end($php), 'Phase 20 appends team_harvest last');
+        assert_same('team_harvest', end($dbValues), 'the enum appends team_harvest last');
 
         assert_same(
             1,
@@ -518,7 +523,7 @@ return [
     /* ==========================================================
      *  The bundle and the tools (P19A-T9, P19A-T10)
      * ========================================================== */
-    'P19A-T9 the committed install bundle matches its sources and carries 33 tables and 73 settings' => function () use ($appRoot): void {
+    'P19A-T9 the committed install bundle matches its sources and carries 36 tables and 77 settings' => function () use ($appRoot): void {
         require_once $appRoot . '/bin/build_install_sql.php';
 
         $result = build_install_sql_check($appRoot);
@@ -533,12 +538,12 @@ return [
         $footer = (string) file_get_contents($appRoot . '/database/install/footer.sql');
         $bundle = (string) file_get_contents($appRoot . '/database/install.sql');
 
-        assert_contains('33 tables', $header);
-        assert_contains('73 settings', $header);
-        assert_contains('tables_created = 33', $footer);
-        assert_contains('settings_rows = 73', $footer);
-        assert_contains('33 tables', $bundle);
-        assert_contains('73 settings', $bundle);
+        assert_contains('36 tables', $header);
+        assert_contains('77 settings', $header);
+        assert_contains('tables_created = 36', $footer);
+        assert_contains('settings_rows = 77', $footer);
+        assert_contains('36 tables', $bundle);
+        assert_contains('77 settings', $bundle);
 
         $script = SqlScript::fromFile($appRoot . '/database/install.sql');
         assert_false($script->containsDatabaseSwitch());
@@ -553,16 +558,16 @@ return [
             }
         }
 
-        assert_same(33, $creates, 'the bundle creates 33 tables');
+        assert_same(36, $creates, 'the bundle creates 36 tables');
 
         foreach (['royalty_periods', 'royalty_awards'] as $table) {
             assert_true(in_array($table, $created, true), 'the bundle creates ' . $table);
         }
     },
 
-    'P19A-T10 DatabaseInstaller expects 33 tables and 73 settings and installs them' => function (): void {
-        assert_same(33, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(73, DatabaseInstaller::EXPECTED['settings_rows']);
+    'P19A-T10 DatabaseInstaller expects 36 tables and 77 settings and installs them' => function (): void {
+        assert_same(36, DatabaseInstaller::EXPECTED['tables_created']);
+        assert_same(77, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(0, DatabaseInstaller::EXPECTED['members_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
@@ -601,8 +606,8 @@ return [
                 'the install reports ok: ' . json_encode($report['verification']['checks'] ?? [])
             );
 
-            assert_same(33, $report['counts']['tables_created']);
-            assert_same(73, $report['counts']['settings_rows']);
+            assert_same(36, $report['counts']['tables_created']);
+            assert_same(77, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -612,8 +617,8 @@ return [
             assert_same(0, $report['counts']['codes_rows']);
 
             /* The database itself, not just the report. */
-            assert_count(33, test_table_list($pdo, $database));
-            assert_same(73, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(36, test_table_list($pdo, $database));
+            assert_same(77, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM royalty_periods')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM royalty_awards')->fetchColumn());
         } finally {
@@ -1082,12 +1087,12 @@ return [
     /* ==========================================================
      *  The count (P19A-T18)
      * ========================================================== */
-    'P19A-T18 the schema, the bundle and the reset tooling all report 33 tables' => function () use ($appRoot): void {
+    'P19A-T18 the schema, the bundle and the reset tooling all report 36 tables' => function () use ($appRoot): void {
         $pdo    = test_pdo(['db' => DB_NAME]);
         $tables = test_table_list($pdo);
 
-        assert_count(33, $tables);
-        assert_same(33, DbTarget::fromConfig()->tableCount(DB_NAME));
+        assert_count(36, $tables);
+        assert_same(36, DbTarget::fromConfig()->tableCount(DB_NAME));
 
         /* The reset allow-list is exactly the schema's table list. */
         $allowList = DatabaseResetService::ALL_TABLES;
@@ -1095,7 +1100,7 @@ return [
         assert_same($tables, $allowList, 'ALL_TABLES must name every schema table exactly once');
 
         /* The fresh-install source of truth and the generated bundle both
-         * create 33 tables. */
+         * create 36 tables. */
         $creates = static function (string $file): int {
             $count = 0;
 
@@ -1108,8 +1113,8 @@ return [
             return $count;
         };
 
-        assert_same(33, $creates($appRoot . '/database/schema.sql'), 'schema.sql creates 33 tables');
-        assert_same(33, $creates($appRoot . '/database/install.sql'), 'the bundle creates 33 tables');
+        assert_same(36, $creates($appRoot . '/database/schema.sql'), 'schema.sql creates 36 tables');
+        assert_same(36, $creates($appRoot . '/database/install.sql'), 'the bundle creates 36 tables');
 
         /* The two royalty tables are money: a reset empties them. */
         foreach (['royalty_awards', 'royalty_periods'] as $table) {

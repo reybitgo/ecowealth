@@ -1072,6 +1072,48 @@ Sections A–G are final: 60 checks, 60 passed, 0 failed, 0 blocked.
 
 ---
 
+## 20A. Phase 20A — Team Harvest foundation (section A of the Phase 20 pack)
+
+Document: [phase-20-team-harvest.md](phase-20-team-harvest.md) — **section A only** (20B–20G append theirs)
+
+Phase 20 is the **Team Harvest bonus** workstream: a private 3×10 qualification matrix that pays a flat
+amount each time a member completes a level. 20A ships the **inert** foundation: three empty tables,
+the `team_harvest` wallet movement, its label and icon, four settings (the stream is **off**) and the
+ten reference amounts. **No application code reads any of it** until 20C/20D.
+
+**Prerequisites:** tag `p20-start` (`feature/team-harvest`); the development copy at migration `023`.
+**Expected suite count:** **1,180**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0
+php tests/run.php                             # Cases: 1180   Passed: 1180   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 248   Failed: 0 (no new route)
+php bin/wallet_reconcile.php                  # exit 0 (20A moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA20A-01 | A pre-migration dump exists outside the repo; the development copy is at **33 tables / 70 settings** (migration-built, so no `install_*` rows) and has no `harvest%` table | ☐ Pass ☐ Fail ☐ Blocked | `QA20A-01.txt` |
+| QA20A-02 | Migration `024` applied **twice** to a **p20-start** schema, both exit 0; **three** tables and the appended enum; the three documented column lists | ☑ Pass ☐ Fail ☐ Blocked | `QA20A-02.txt` |
+| QA20A-03 | The four `team_harvest_*` settings (`0`, `3`, `10`, `''`); **10** ladder rows totalling **5,095,000.00** | ☑ Pass ☐ Fail ☐ Blocked | `QA20A-03.txt` |
+| QA20A-04 | `/admin/settings` has **no** Team Harvest block and a member page **no** harvest panel | ☐ Pass ☐ Fail ☐ Blocked | `QA20A-04.txt` |
+| QA20A-05 | Three direct registrations leave `harvest_queue` at **0** and the sponsor's page unchanged | ☐ Pass ☐ Fail ☐ Blocked | `QA20A-05.txt` |
+| QA20A-06 | The member and admin wallet filters list **Team Harvest bonus** and select **no rows** | ☐ Pass ☐ Fail ☐ Blocked | `QA20A-06.txt` |
+| QA20A-07 | `build_install_sql` rebuilds **64 statements / 89,851 bytes**, `--check` exits 0, a fresh CLI install reports **36 / 77 / 10** and `wallet_reconcile` exits 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA20A-07.txt` |
+| QA20A-08 | A dry run plans the **harvest** step; the real reset empties the queue and awards, clears the baseline, keeps the ten ladder rows and four settings, and restarts both counters | ☑ Pass ☐ Fail ☐ Blocked | `QA20A-08.txt` |
+
+| Phase 20A summary | |
+|---|---|
+| Executed | **4 / 8** checks by the automated pass (02, 03, 07, 08); 01, 04–06 need the development copy and a human |
+| Passed / Failed / Blocked | **4 / 0 / 0** automated; 4 pending |
+| Defects | 0 |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected — **awaiting the lead's manual pass** |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 (partial) |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1128,6 +1170,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19E | ☑ Yes ☐ No | Royalty member visibility: the third pill on `/earnings` (rank card with the next-rank progress and the engine's own "if this month closed now", five counters, one row per closed month with its stored reason, Appendix C.6 CSV) and the Royalty tile on `/dashboard`. Leader is explained; the stream-off and payment-paused copies are explicit; every read is scoped to the session member and a `?user_id=` is ignored. **Read-only**: rendering, filtering and exporting write no period, award, wallet or audit row; the package and repeat tabs keep their bytes. 9 / 9 section-E checks, **1,142 / 1,142** PHP cases, **245 / 245** smoke checks, bundle check exit 0. |
 | Phase 19F | ☑ Yes ☐ No | Royalty operations: the scheduled close (`bin/royalty_month_close.php`), its guarded URL entry and Windows launcher — one implementation, three entries — with `--doctor`, the bounded `--max-batches` run, one log line, an advisory lock and the 0/1/2 exit codes; the read-only **Operations** panel on the Royalty tab (open month, last final, pending, awaiting payment, switches, last close, next run); the health check (tables, settings, a 48-hour stale-evaluation warning); and the cron/runbook documentation. `admin.reports` joins the surfaces a close bumps. **Moves no money by itself beyond the 19C engine**: 19F adds no new money rule. 8 / 8 section-F checks, **1,158 / 1,158** PHP cases (Royalty 150 / 150), **248 / 248** smoke checks, bundle check exit 0. |
 | Phase 19G | ☑ Yes ☐ No | Royalty release: `APP_PHASE` **19**; the Phase 19 QA pack complete and signed (sections A–G, **60 / 60**); the Appendix B acceptance run on a scratch database **12 / 12** (₱18,300.00; ₱515,000.00; ₱18,000.04; the two-month catch-up; the 11,111-member minimum-tree ladder); the release walk as admin and member on seven URLs with no console error or broken link; every stale count in the shared docs corrected. Three defects found by the cold read were fixed in their owning phases with regression cases (`P19G-T9`…`T12`) — the zero-quota display, the silent log-write failure and the `closed` count in `--evaluate-only`. **1,162 / 1,162** PHP cases (Royalty 154 / 154), **248 / 248** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0 and a green doctor. |
+| Phase 20A | ☐ Yes ☐ No | Team Harvest foundation: migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings, **stream off and queue unseeded**, no reader; migrated ≡ fresh, a reset empties the queue and awards and clears the baseline while keeping the ladder; fresh install **36 tables / 77 settings / 10 ladder rows**; **18** new PHP cases, **1,180 / 1,180** green and **248 / 248** smoke checks. Section A: **4 / 8** executed by the automated pass (02, 03, 07, 08); 01 and 04–06 await the lead's manual pass. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is **1,162 / 1,162** and the smoke run **248 / 248** on the

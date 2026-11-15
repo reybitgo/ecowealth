@@ -23,8 +23,9 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      33 tables · 73 settings · 2 staff accounts · 7 products
+--      36 tables · 77 settings · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
+--      10 Team Harvest level amounts
 --
 --  It seeds NO demo members, NO demo registration codes and NO demo wallet
 --  balances. Demo fixtures are a separate, explicit import:
