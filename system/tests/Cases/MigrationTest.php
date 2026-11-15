@@ -35,6 +35,7 @@ $migrations    = [
     $migrationDir . '020_unilevel_repeat_purchase.sql',
     $migrationDir . '021_unilevel_bonus_escrow.sql',
     $migrationDir . '022_shop_cancel_toggle.sql',
+    $migrationDir . '023_royalty_bonus.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -282,6 +283,20 @@ return [
         assert_same($columnList($fresh, 'unilevel_awards'), $columnList($migrated, 'unilevel_awards'), 'unilevel_awards columns differ from schema.sql');
         assert_same($columnList($fresh, 'unilevel_activity'), $columnList($migrated, 'unilevel_activity'), 'unilevel_activity columns differ from schema.sql');
         assert_same($columnList($fresh, 'unilevel_periods'), $columnList($migrated, 'unilevel_periods'), 'unilevel_periods columns differ from schema.sql');
+
+        /* Phase 19 (P19A-T3): the migrated database carries the two Royalty
+         * tables and the appended ledger movement, exactly like a fresh
+         * install. P19A-T1/T3 in RoyaltyFoundationTest prove the indexes,
+         * foreign keys and CHECK constraints. */
+        assert_same($columnList($fresh, 'royalty_periods'), $columnList($migrated, 'royalty_periods'), 'royalty_periods columns differ from schema.sql');
+        assert_same($columnList($fresh, 'royalty_awards'), $columnList($migrated, 'royalty_awards'), 'royalty_awards columns differ from schema.sql');
+
+        $refType = static fn (PDO $pdo): string
+            => (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
+
+        assert_same($refType($fresh), $refType($migrated), 'the migrated enum must equal the fresh-install enum');
+        assert_contains("'royalty'", $refType($migrated), 'migration 023 appends the royalty movement');
+        assert_contains("'unilevel_reversal'", $refType($migrated), 'the Phase 17 movements survive');
     },
 
     'migration 019 adds the reporting indexes and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {

@@ -1,0 +1,118 @@
+QA19A-03 — The two tables exist and the wallet ENUM names royalty
+=================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Database: ecowealth_sneat (migrated to 023)
+
+Command
+
+  mysql -u ecowealth -p ecowealth_sneat -e "
+    SHOW TABLES LIKE 'royalty%';
+    SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type';
+    SHOW CREATE TABLE royalty_periods\G
+    SHOW CREATE TABLE royalty_awards\G"
+
+Output
+
+  Tables_in_ecowealth_sneat (royalty%)
+  royalty_awards
+  royalty_periods
+
+  Field     Type
+  ref_type  enum('commission','payout','transfer','topup','registration','shop_order',
+                 'adjustment','refund','unilevel','unilevel_reversal','royalty')
+            NO / MUL / NULL default / no extra
+
+  *************************** 1. row ***************************
+         Table: royalty_periods
+  Create Table: CREATE TABLE `royalty_periods` (
+    `period` char(7) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `status` enum('evaluated','paid','skipped') NOT NULL DEFAULT 'evaluated',
+    `enabled` tinyint(1) NOT NULL DEFAULT '0',
+    `evaluated_at` datetime NOT NULL,
+    `evaluated_by` int unsigned DEFAULT NULL,
+    `paid_at` datetime DEFAULT NULL,
+    `paid_by` int unsigned DEFAULT NULL,
+    `as_of` datetime NOT NULL,
+    `leader_directs` smallint unsigned NOT NULL,
+    `supervisor_leaders` int unsigned NOT NULL,
+    `manager_supervisors` int unsigned NOT NULL,
+    `director_managers` int unsigned NOT NULL,
+    `quota_supervisor` decimal(12,2) NOT NULL,
+    `quota_manager` decimal(12,2) NOT NULL,
+    `quota_director` decimal(12,2) NOT NULL,
+    `group_pct_supervisor` decimal(6,3) NOT NULL,
+    `personal_pct_supervisor` decimal(6,3) NOT NULL,
+    `group_pct_manager` decimal(6,3) NOT NULL,
+    `personal_pct_manager` decimal(6,3) NOT NULL,
+    `group_pct_director` decimal(6,3) NOT NULL,
+    `personal_pct_director` decimal(6,3) NOT NULL,
+    `members_count` int unsigned NOT NULL DEFAULT '0',
+    `leaders_count` int unsigned NOT NULL DEFAULT '0',
+    `supervisors_count` int unsigned NOT NULL DEFAULT '0',
+    `managers_count` int unsigned NOT NULL DEFAULT '0',
+    `directors_count` int unsigned NOT NULL DEFAULT '0',
+    `award_count` int unsigned NOT NULL DEFAULT '0',
+    `paid_count` int unsigned NOT NULL DEFAULT '0',
+    `skipped_count` int unsigned NOT NULL DEFAULT '0',
+    `award_total` decimal(14,2) NOT NULL DEFAULT '0.00',
+    `paid_total` decimal(14,2) NOT NULL DEFAULT '0.00',
+    `note` varchar(160) DEFAULT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`period`),
+    KEY `idx_royalty_periods_status` (`status`,`paid_at`),
+    KEY `fk_rp_evaluator` (`evaluated_by`),
+    KEY `fk_rp_payer` (`paid_by`),
+    CONSTRAINT `fk_rp_evaluator` FOREIGN KEY (`evaluated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_rp_payer` FOREIGN KEY (`paid_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `chk_rp_period` CHECK (regexp_like(`period`,'^[0-9]{4}-(0[1-9]|1[0-2])$')),
+    CONSTRAINT `chk_rp_ranks` CHECK (`members_count` >=
+                                    `leaders_count` + `supervisors_count` + `managers_count` + `directors_count`),
+    CONSTRAINT `chk_rp_totals` CHECK (`award_total` >= 0 AND `paid_total` >= 0 AND `paid_total` <= `award_total`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+  *************************** 1. row ***************************
+         Table: royalty_awards
+  Create Table: CREATE TABLE `royalty_awards` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+    `period` char(7) NOT NULL,
+    `user_id` int unsigned NOT NULL,
+    `rank_level` tinyint unsigned NOT NULL,
+    `directs` smallint unsigned NOT NULL DEFAULT '0',
+    `downline_rank_count` int unsigned NOT NULL DEFAULT '0',
+    `team_size` int unsigned NOT NULL DEFAULT '0',
+    `group_volume` decimal(14,2) NOT NULL DEFAULT '0.00',
+    `personal_volume` decimal(14,2) NOT NULL DEFAULT '0.00',
+    `quota` decimal(12,2) NOT NULL,
+    `group_pct` decimal(6,3) NOT NULL,
+    `personal_pct` decimal(6,3) NOT NULL,
+    `amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+    `status` enum('pending','paid','skipped') NOT NULL DEFAULT 'pending',
+    `reason` varchar(120) DEFAULT NULL,
+    `ledger_id` int unsigned DEFAULT NULL,
+    `credited_at` datetime DEFAULT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_royalty_award` (`period`,`user_id`),
+    KEY `idx_royalty_user` (`user_id`,`period`),
+    KEY `idx_royalty_period_status` (`period`,`status`),
+    KEY `idx_royalty_status` (`status`,`created_at`),
+    KEY `idx_royalty_ledger` (`ledger_id`),
+    CONSTRAINT `fk_ra_period` FOREIGN KEY (`period`) REFERENCES `royalty_periods` (`period`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ra_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `chk_ra_amount` CHECK (`amount` >= 0),
+    CONSTRAINT `chk_ra_rank` CHECK (`rank_level` between 2 and 4),
+    CONSTRAINT `chk_ra_rates` CHECK (`group_pct` between 0 and 100 AND `personal_pct` between 0 and 100),
+    CONSTRAINT `chk_ra_volume` CHECK (`group_volume` >= 0 AND `personal_volume` >= 0
+                                      AND `personal_volume` <= `group_volume`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+Notes
+
+- Exactly two tables match `royalty%`.
+- The ref_type enum keeps its Phase 17 order and appends `royalty` last; no `royalty_reversal`.
+- `royalty_periods` has a natural `PRIMARY KEY (period)` and no AUTO_INCREMENT column.
+- `royalty_awards` has the AUTO_INCREMENT id, the `uq_royalty_award (period, user_id)` money anchor,
+  the four lookup indexes and the four CHECKs (rank 2–4, non-negative amount, volume pair, rates).
+
+RESULT: PASS

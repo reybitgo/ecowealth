@@ -23,7 +23,7 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      31 tables · 57 settings · 2 staff accounts · 7 products
+--      33 tables · 73 settings · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
 --
 --  It seeds NO demo members, NO demo registration codes and NO demo wallet
@@ -106,7 +106,7 @@ SET time_zone = '+08:00';
 
 -- ===========================================================================
 --  SECTION 1/7 — SCHEMA
---  source: database/schema.sql sha256=efd71aebd5c5a1a0a3b3d552630a8045d9e7d69581dcf3c0bf33c8155e56605c
+--  source: database/schema.sql sha256=b9b1b70615645fb969af3505b564749dc20eec36c210aca4188d5e822c03a56c
 -- ===========================================================================
 
 -- =============================================================
@@ -119,7 +119,7 @@ SET time_zone = '+08:00';
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 018).
+--  database/migrations/ (apply in order: 001, 002, …, 023).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -150,6 +150,8 @@ SET time_zone = '+08:00';
 --  Phase 18 owns: unilevel_awards.hold_days/credited_at, the
 --                'pending' + 'cancelled' award states, two lookup
 --                indexes and the release settings.
+--  Phase 19 owns: royalty_periods, royalty_awards and the
+--                'royalty' ledger ref type (the stream is off).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -438,6 +440,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      Phase 17 adds 'unilevel' (a repeat-purchase
 --                      award credit) and 'unilevel_reversal' (its
 --                      cancellation debit); ref_id = unilevel_awards.id.
+--                      Phase 19 appends 'royalty' last (a monthly
+--                      award credit); ref_id = royalty_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -453,7 +457,7 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
-                         'unilevel_reversal') NOT NULL,
+                         'unilevel_reversal','royalty') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1045,6 +1049,121 @@ CREATE TABLE IF NOT EXISTS unilevel_periods (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
+-- Royalty periods — one row per EVALUATED month (Phase 19, plan
+-- §13.2)
+--
+--  The header that makes a month authoritative and immutable: the
+--  ladder, quotas and rates in force (a snapshot, so a historic payout
+--  is always reproducible), the counts, the totals and the finality
+--  state. The close (19C) writes it with its award rows in one
+--  transaction; a closed month is never reopened (plan §12.6).
+--
+--  status: evaluated → paid (final). A `skipped` month (the stream was
+--          off) has no award rows and all totals zero.
+--  enabled  was `royalty_enabled` on when the month was evaluated?
+--  as_of    the period end used as the rank cutoff (D-06).
+--  paid_total is the money actually credited; `award_total − paid_total`
+--          is the pending liability at any instant.
+--
+--  No auto-increment column: the primary key is the period.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS royalty_periods (
+  period                 CHAR(7)       NOT NULL,
+  status                 ENUM('evaluated','paid','skipped') NOT NULL DEFAULT 'evaluated',
+  enabled                TINYINT(1)    NOT NULL DEFAULT 0,
+  evaluated_at           DATETIME      NOT NULL,
+  evaluated_by           INT UNSIGNED  NULL,
+  paid_at                DATETIME      NULL,
+  paid_by                INT UNSIGNED  NULL,
+  as_of                  DATETIME      NOT NULL,
+  leader_directs         SMALLINT UNSIGNED NOT NULL,
+  supervisor_leaders     INT UNSIGNED  NOT NULL,
+  manager_supervisors    INT UNSIGNED  NOT NULL,
+  director_managers      INT UNSIGNED  NOT NULL,
+  quota_supervisor       DECIMAL(12,2) NOT NULL,
+  quota_manager          DECIMAL(12,2) NOT NULL,
+  quota_director         DECIMAL(12,2) NOT NULL,
+  group_pct_supervisor   DECIMAL(6,3)  NOT NULL,
+  personal_pct_supervisor DECIMAL(6,3) NOT NULL,
+  group_pct_manager      DECIMAL(6,3)  NOT NULL,
+  personal_pct_manager   DECIMAL(6,3)  NOT NULL,
+  group_pct_director     DECIMAL(6,3)  NOT NULL,
+  personal_pct_director  DECIMAL(6,3)  NOT NULL,
+  members_count          INT UNSIGNED  NOT NULL DEFAULT 0,
+  leaders_count          INT UNSIGNED  NOT NULL DEFAULT 0,
+  supervisors_count      INT UNSIGNED  NOT NULL DEFAULT 0,
+  managers_count         INT UNSIGNED  NOT NULL DEFAULT 0,
+  directors_count        INT UNSIGNED  NOT NULL DEFAULT 0,
+  award_count            INT UNSIGNED  NOT NULL DEFAULT 0,
+  paid_count             INT UNSIGNED  NOT NULL DEFAULT 0,
+  skipped_count          INT UNSIGNED  NOT NULL DEFAULT 0,
+  award_total            DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  paid_total             DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  note                   VARCHAR(160)  NULL,
+  created_at             TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (period),
+  KEY idx_royalty_periods_status (status, paid_at),
+  CONSTRAINT fk_rp_evaluator FOREIGN KEY (evaluated_by) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_rp_payer     FOREIGN KEY (paid_by)      REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT chk_rp_period   CHECK (period REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  CONSTRAINT chk_rp_totals   CHECK (award_total >= 0 AND paid_total >= 0 AND paid_total <= award_total),
+  CONSTRAINT chk_rp_ranks    CHECK (members_count >= leaders_count + supervisors_count
+                                     + managers_count + directors_count)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Royalty awards — the monthly money ledger (Phase 19, plan §13.3)
+--
+--  One row per member per evaluated month; `UNIQUE (period, user_id)`
+--  is the money anchor (D-08), so a retried close is a no-op. Only
+--  Supervisor/Manager/Director rows exist (rank_level 2–4): Members
+--  and Leaders earn no Royalty and have no row.
+--
+--  The award is `group_pct × group_volume + personal_pct ×
+--  personal_volume`, rounded once, half-up, in centavos. A row below
+--  quota keeps amount 0.00 and `status = 'skipped'` with a `reason`.
+--
+--  The only update ever applied is pending → paid plus ledger_id and
+--  credited_at; every money column is immutable after the insert.
+--  `ledger_id` is deliberately NOT a foreign key: the wallet ledger is
+--  append-only and outlives a correction (same as unilevel_awards).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS royalty_awards (
+  id                   BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  period               CHAR(7)          NOT NULL,
+  user_id              INT UNSIGNED     NOT NULL,
+  rank_level           TINYINT UNSIGNED NOT NULL,
+  directs              SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  downline_rank_count  INT UNSIGNED     NOT NULL DEFAULT 0,
+  team_size            INT UNSIGNED     NOT NULL DEFAULT 0,
+  group_volume         DECIMAL(14,2)    NOT NULL DEFAULT 0.00,
+  personal_volume      DECIMAL(14,2)    NOT NULL DEFAULT 0.00,
+  quota                DECIMAL(12,2)    NOT NULL,
+  group_pct            DECIMAL(6,3)     NOT NULL,
+  personal_pct         DECIMAL(6,3)     NOT NULL,
+  amount               DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  status               ENUM('pending','paid','skipped') NOT NULL DEFAULT 'pending',
+  reason               VARCHAR(120)     NULL,
+  ledger_id            INT UNSIGNED     NULL,
+  credited_at          DATETIME         NULL,
+  created_at           TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_royalty_award (period, user_id),
+  KEY idx_royalty_user (user_id, period),
+  KEY idx_royalty_period_status (period, status),
+  KEY idx_royalty_status (status, created_at),
+  KEY idx_royalty_ledger (ledger_id),
+  CONSTRAINT fk_ra_period FOREIGN KEY (period)  REFERENCES royalty_periods (period) ON DELETE CASCADE,
+  CONSTRAINT fk_ra_user   FOREIGN KEY (user_id) REFERENCES users (id)              ON DELETE CASCADE,
+  CONSTRAINT chk_ra_rank   CHECK (rank_level BETWEEN 2 AND 4),
+  CONSTRAINT chk_ra_amount CHECK (amount >= 0),
+  CONSTRAINT chk_ra_volume CHECK (group_volume >= 0 AND personal_volume >= 0
+                                  AND personal_volume <= group_volume),
+  CONSTRAINT chk_ra_rates  CHECK (group_pct BETWEEN 0 AND 100
+                                  AND personal_pct BETWEEN 0 AND 100)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
 -- Impersonation log — super-login sessions (plan §4.2, §4.4,
 -- §7 Phase 14)
 --
@@ -1096,7 +1215,7 @@ CREATE TABLE IF NOT EXISTS live_revisions (
 
 -- ===========================================================================
 --  SECTION 2/7 — SETTINGS
---  source: database/seeds/001_settings.sql sha256=560f6a853ad5b966e7901465cd6470e6c3097fdd8cf5318277d82ba76d30b762
+--  source: database/seeds/001_settings.sql sha256=3b8b0c9a7685bdeb14136f5a9adab7c900148afb3c430d5b21ab5c3b64f4480f
 -- ===========================================================================
 
 -- =============================================================
@@ -1181,6 +1300,31 @@ INSERT INTO settings (key_name, value) VALUES
   -- its pending awards, whatever these two say).
   ('unilevel_hold_days',               '7'),
   ('unilevel_release_enabled',         '1'),
+
+  -- Royalty bonus (Phase 19). The reference preset: Leader at ten directs,
+  -- then ten downline Leaders / Supervisors / Managers for each rank above;
+  -- ₱500k / ₱1M / ₱5M monthly group-sales quotas; 3%/5%, 5%/10%, 10%/15%
+  -- group/personal rates. The stream ships OFF (`royalty_enabled = 0`) so a
+  -- deployment never starts paying by accident (D-14); `royalty_pay_enabled`
+  -- is the separate payment pause and ships on because nothing is evaluated
+  -- yet. `royalty_ledger_since` is the first-payable-month baseline for the
+  -- close job and reconciliation (D-15).
+  ('royalty_enabled',                  '0'),
+  ('royalty_pay_enabled',              '1'),
+  ('royalty_leader_directs',           '10'),
+  ('royalty_supervisor_leaders',       '10'),
+  ('royalty_manager_supervisors',      '10'),
+  ('royalty_director_managers',        '10'),
+  ('royalty_supervisor_quota',         '500000'),
+  ('royalty_manager_quota',            '1000000'),
+  ('royalty_director_quota',           '5000000'),
+  ('royalty_supervisor_group_pct',     '3.000'),
+  ('royalty_supervisor_personal_pct',  '5.000'),
+  ('royalty_manager_group_pct',        '5.000'),
+  ('royalty_manager_personal_pct',     '10.000'),
+  ('royalty_director_group_pct',       '10.000'),
+  ('royalty_director_personal_pct',    '15.000'),
+  ('royalty_ledger_since',             DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
@@ -1447,7 +1591,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=1bc286075f1bb97859f6fd585eae1b49bb4f7b2e7b3f306857742830c776d8ca
+--  source: database/install/footer.sql sha256=2f4178e0f093400c04a3c8ac1b3322837850a8ba35ae466ec2babcf41e479409
 -- ===========================================================================
 
 -- ===========================================================================
@@ -1475,14 +1619,14 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=1bc286075f1bb97859f6fd585eae1b49bb4f7b2e7b3f306857742830c776d8ca
+--  source: database/install/footer.sql sha256=2f4178e0f093400c04a3c8ac1b3322837850a8ba35ae466ec2babcf41e479409
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 31    settings_rows = 57    staff_rows    = 2
+--      tables_created = 33    settings_rows = 73    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --

@@ -330,14 +330,18 @@ return [
 
         $php = WalletService::REF_TYPES;
 
-        /* Phase 17 adds the two repeat-purchase movements; the list and the
-         * column must carry both or the stream cannot credit and reverse. */
-        foreach (['unilevel', 'unilevel_reversal'] as $refType) {
+        /* Phase 17 adds the two repeat-purchase movements; Phase 19 appends
+         * `royalty` last. The list and the column must carry all three or
+         * the stream cannot credit. */
+        foreach (['unilevel', 'unilevel_reversal', 'royalty'] as $refType) {
             assert_true(in_array($refType, $php, true), 'WalletService::REF_TYPES carries "' . $refType . '"');
             assert_true(in_array($refType, $dbValues, true), 'the ledger enum carries "' . $refType . '"');
         }
 
-        assert_count(10, $php, 'the Phase 17 vocabulary is ten movement kinds');
+        assert_same('royalty', end($php), 'royalty is appended last (plan D-19)');
+        assert_same('royalty', end($dbValues), 'the enum appends royalty last');
+
+        assert_count(11, $php, 'the Phase 19 vocabulary is eleven movement kinds');
 
         sort($dbValues);
         sort($php);

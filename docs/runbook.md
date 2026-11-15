@@ -126,7 +126,7 @@ also needs `config.local.php`, the uploads folder and the `system/storage` folde
 
 ### Install a fresh database
 
-Every install path ends at the same state: **31 tables, 57 settings, 2 staff accounts, 7
+Every install path ends at the same state: **33 tables, 73 settings, 2 staff accounts, 7
 products, 2 packages, 18 ladder levels, 10 package contents, 0 members, 0 codes**. None of
 them may be run against a schema that already holds data — `install.sql` is fresh-install only,
 and an existing database is upgraded with `database/migrations/NNN_*.sql` ([§5](#5-deploying-an-update)).
@@ -565,9 +565,9 @@ database dump before investigating further.
 
 ## 7. Go-live checklist (plan §9.6)
 
-- [ ] Production database created and migrated to `022`; `schema.sql` matches. A fresh install
+- [ ] Production database created and migrated to `023`; `schema.sql` matches. A fresh install
       was verified with the pack in [deploy.md §11.6](deploy.md#116-check-the-database):
-      **31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+      **33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
 - [ ] Seeds replaced or removed: **only one admin and one superadmin**, no demo members, codes,
       orders or wallets (the `005_demo_tree.sql` data is demo only). The two demo queries in
       [deploy.md §12](deploy.md#12-secure-and-clean-up) both return `0`.

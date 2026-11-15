@@ -16,7 +16,7 @@ declare(strict_types=1);
  *      bundle      install.sql matches its sources and mirrors the
  *                  migration's objects
  *      tools       DatabaseInstaller / DatabaseResetService agree with
- *                  the schema (31 tables, 57 settings, 3 money tables)
+ *                  the schema (33 tables, 73 settings, 3 money tables)
  *      vocabulary  WalletService::REF_TYPES, the labels and the icons
  *      defaults    a migrated and a fresh database agree; everything off
  *      guards      the cascades, the unique keys and the CHECKs
@@ -294,7 +294,7 @@ return [
             }
         }
 
-        assert_same(31, $creates, 'the bundle creates 31 tables');
+        assert_same(33, $creates, 'the bundle creates 33 tables (Phase 19 adds the two royalty tables)');
 
         foreach (['product_unilevel_levels', 'unilevel_awards', 'unilevel_activity', 'unilevel_periods'] as $table) {
             assert_true(in_array($table, $created, true), 'the bundle creates ' . $table);
@@ -305,8 +305,8 @@ return [
      *  The install/reset tools (P17A-T6)
      * ========================================================== */
     'P17A-T6 the installer and reset expectations match the schema' => function (): void {
-        assert_same(31, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(57, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(33, DatabaseInstaller::EXPECTED['tables_created']);
+        assert_same(73, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['packages_rows']);
@@ -369,7 +369,7 @@ return [
 
         $php = WalletService::REF_TYPES;
 
-        assert_count(10, $php, 'ten movement kinds after Phase 17');
+        assert_count(11, $php, 'eleven movement kinds after Phase 19 (Phase 17 added two, Phase 19 one)');
         assert_same($php, array_values(array_unique($php)), 'no duplicate movement kind');
 
         foreach (['unilevel', 'unilevel_reversal'] as $refType) {

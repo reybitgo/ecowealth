@@ -52,6 +52,11 @@ final class WalletService
      * `unilevel_reversal` is its cancellation debit. They ship in the same
      * phase as the enum because P5-T8 compares the list and the column in
      * both directions.
+     *
+     * Phase 19 appends `royalty`, the monthly royalty award credit
+     * (ref_id = royalty_awards.id), LAST in both the list and the column
+     * so MySQL's in-place ENUM append applies (plan D-19). There is no
+     * reversal type: a closed month is never clawed back (D-13).
      */
     public const REF_TYPES = [
         'commission',
@@ -64,6 +69,7 @@ final class WalletService
         'refund',
         'unilevel',
         'unilevel_reversal',
+        'royalty',
     ];
 
     /** DECIMAL(12,2) upper bound. */

@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 018).
+--  database/migrations/ (apply in order: 001, 002, …, 023).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -39,6 +39,8 @@
 --  Phase 18 owns: unilevel_awards.hold_days/credited_at, the
 --                'pending' + 'cancelled' award states, two lookup
 --                indexes and the release settings.
+--  Phase 19 owns: royalty_periods, royalty_awards and the
+--                'royalty' ledger ref type (the stream is off).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -327,6 +329,8 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      Phase 17 adds 'unilevel' (a repeat-purchase
 --                      award credit) and 'unilevel_reversal' (its
 --                      cancellation debit); ref_id = unilevel_awards.id.
+--                      Phase 19 appends 'royalty' last (a monthly
+--                      award credit); ref_id = royalty_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -342,7 +346,7 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
-                         'unilevel_reversal') NOT NULL,
+                         'unilevel_reversal','royalty') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -931,6 +935,121 @@ CREATE TABLE IF NOT EXISTS unilevel_periods (
   PRIMARY KEY (period),
   CONSTRAINT fk_up_closer FOREIGN KEY (closed_by) REFERENCES users (id) ON DELETE SET NULL,
   CONSTRAINT chk_up_period CHECK (period REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$')
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Royalty periods — one row per EVALUATED month (Phase 19, plan
+-- §13.2)
+--
+--  The header that makes a month authoritative and immutable: the
+--  ladder, quotas and rates in force (a snapshot, so a historic payout
+--  is always reproducible), the counts, the totals and the finality
+--  state. The close (19C) writes it with its award rows in one
+--  transaction; a closed month is never reopened (plan §12.6).
+--
+--  status: evaluated → paid (final). A `skipped` month (the stream was
+--          off) has no award rows and all totals zero.
+--  enabled  was `royalty_enabled` on when the month was evaluated?
+--  as_of    the period end used as the rank cutoff (D-06).
+--  paid_total is the money actually credited; `award_total − paid_total`
+--          is the pending liability at any instant.
+--
+--  No auto-increment column: the primary key is the period.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS royalty_periods (
+  period                 CHAR(7)       NOT NULL,
+  status                 ENUM('evaluated','paid','skipped') NOT NULL DEFAULT 'evaluated',
+  enabled                TINYINT(1)    NOT NULL DEFAULT 0,
+  evaluated_at           DATETIME      NOT NULL,
+  evaluated_by           INT UNSIGNED  NULL,
+  paid_at                DATETIME      NULL,
+  paid_by                INT UNSIGNED  NULL,
+  as_of                  DATETIME      NOT NULL,
+  leader_directs         SMALLINT UNSIGNED NOT NULL,
+  supervisor_leaders     INT UNSIGNED  NOT NULL,
+  manager_supervisors    INT UNSIGNED  NOT NULL,
+  director_managers      INT UNSIGNED  NOT NULL,
+  quota_supervisor       DECIMAL(12,2) NOT NULL,
+  quota_manager          DECIMAL(12,2) NOT NULL,
+  quota_director         DECIMAL(12,2) NOT NULL,
+  group_pct_supervisor   DECIMAL(6,3)  NOT NULL,
+  personal_pct_supervisor DECIMAL(6,3) NOT NULL,
+  group_pct_manager      DECIMAL(6,3)  NOT NULL,
+  personal_pct_manager   DECIMAL(6,3)  NOT NULL,
+  group_pct_director     DECIMAL(6,3)  NOT NULL,
+  personal_pct_director  DECIMAL(6,3)  NOT NULL,
+  members_count          INT UNSIGNED  NOT NULL DEFAULT 0,
+  leaders_count          INT UNSIGNED  NOT NULL DEFAULT 0,
+  supervisors_count      INT UNSIGNED  NOT NULL DEFAULT 0,
+  managers_count         INT UNSIGNED  NOT NULL DEFAULT 0,
+  directors_count        INT UNSIGNED  NOT NULL DEFAULT 0,
+  award_count            INT UNSIGNED  NOT NULL DEFAULT 0,
+  paid_count             INT UNSIGNED  NOT NULL DEFAULT 0,
+  skipped_count          INT UNSIGNED  NOT NULL DEFAULT 0,
+  award_total            DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  paid_total             DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  note                   VARCHAR(160)  NULL,
+  created_at             TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (period),
+  KEY idx_royalty_periods_status (status, paid_at),
+  CONSTRAINT fk_rp_evaluator FOREIGN KEY (evaluated_by) REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_rp_payer     FOREIGN KEY (paid_by)      REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT chk_rp_period   CHECK (period REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  CONSTRAINT chk_rp_totals   CHECK (award_total >= 0 AND paid_total >= 0 AND paid_total <= award_total),
+  CONSTRAINT chk_rp_ranks    CHECK (members_count >= leaders_count + supervisors_count
+                                     + managers_count + directors_count)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Royalty awards — the monthly money ledger (Phase 19, plan §13.3)
+--
+--  One row per member per evaluated month; `UNIQUE (period, user_id)`
+--  is the money anchor (D-08), so a retried close is a no-op. Only
+--  Supervisor/Manager/Director rows exist (rank_level 2–4): Members
+--  and Leaders earn no Royalty and have no row.
+--
+--  The award is `group_pct × group_volume + personal_pct ×
+--  personal_volume`, rounded once, half-up, in centavos. A row below
+--  quota keeps amount 0.00 and `status = 'skipped'` with a `reason`.
+--
+--  The only update ever applied is pending → paid plus ledger_id and
+--  credited_at; every money column is immutable after the insert.
+--  `ledger_id` is deliberately NOT a foreign key: the wallet ledger is
+--  append-only and outlives a correction (same as unilevel_awards).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS royalty_awards (
+  id                   BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  period               CHAR(7)          NOT NULL,
+  user_id              INT UNSIGNED     NOT NULL,
+  rank_level           TINYINT UNSIGNED NOT NULL,
+  directs              SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  downline_rank_count  INT UNSIGNED     NOT NULL DEFAULT 0,
+  team_size            INT UNSIGNED     NOT NULL DEFAULT 0,
+  group_volume         DECIMAL(14,2)    NOT NULL DEFAULT 0.00,
+  personal_volume      DECIMAL(14,2)    NOT NULL DEFAULT 0.00,
+  quota                DECIMAL(12,2)    NOT NULL,
+  group_pct            DECIMAL(6,3)     NOT NULL,
+  personal_pct         DECIMAL(6,3)     NOT NULL,
+  amount               DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  status               ENUM('pending','paid','skipped') NOT NULL DEFAULT 'pending',
+  reason               VARCHAR(120)     NULL,
+  ledger_id            INT UNSIGNED     NULL,
+  credited_at          DATETIME         NULL,
+  created_at           TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_royalty_award (period, user_id),
+  KEY idx_royalty_user (user_id, period),
+  KEY idx_royalty_period_status (period, status),
+  KEY idx_royalty_status (status, created_at),
+  KEY idx_royalty_ledger (ledger_id),
+  CONSTRAINT fk_ra_period FOREIGN KEY (period)  REFERENCES royalty_periods (period) ON DELETE CASCADE,
+  CONSTRAINT fk_ra_user   FOREIGN KEY (user_id) REFERENCES users (id)              ON DELETE CASCADE,
+  CONSTRAINT chk_ra_rank   CHECK (rank_level BETWEEN 2 AND 4),
+  CONSTRAINT chk_ra_amount CHECK (amount >= 0),
+  CONSTRAINT chk_ra_volume CHECK (group_volume >= 0 AND personal_volume >= 0
+                                  AND personal_volume <= group_volume),
+  CONSTRAINT chk_ra_rates  CHECK (group_pct BETWEEN 0 AND 100
+                                  AND personal_pct BETWEEN 0 AND 100)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

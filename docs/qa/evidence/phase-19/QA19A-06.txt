@@ -1,0 +1,59 @@
+QA19A-06 — A fresh install on a scratch schema reports 33 / 73 / …
+==================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Scratch schema: ecowealth_sneat_tool_a_test (recreated empty)
+Working directory: C:\laragon\www\ecowealth\system
+
+Preparation
+
+  - The real storage/install.lock (a Phase 16 QA leftover, pointing at
+    ecowealth_sneat_install_web_test) was copied to
+    C:\laragon\www\ecowealth-backups\phase-19\install-lock-before-19a.json and removed, so the
+    scratch installs could run. It was restored afterwards.
+  - DROP DATABASE IF EXISTS ecowealth_sneat_tool_a_test; CREATE DATABASE … (empty)
+
+Command
+
+  php bin\db_install.php --database=ecowealth_sneat_tool_a_test --force --json \
+      --admin-password=AdminPassw0rd!23 --superadmin-password=SuperPassw0rd!23
+
+Output (JSON, exit 0)
+
+  {
+    "tool": "db_install",
+    "version": 1,
+    "ok": true,
+    "mode": "install",
+    "database": "ecowealth_sneat_tool_a_test",
+    "channel": "cli",
+    "counts": {
+      "tables_created": 33,
+      "settings_rows":  73,
+      "staff_rows":     2,
+      "members_rows":   0,
+      "products_rows":  7,
+      "packages_rows":  2,
+      "levels_rows":    18,
+      "contents_rows":  10,
+      "codes_rows":     0,
+      "ledger_rows":    0
+    }
+  }
+
+Verification after the install
+
+  SHOW TABLES LIKE 'royalty%'          -> royalty_awards, royalty_periods
+  SELECT COUNT(*) FROM settings        -> 73
+  SELECT COUNT(*) FROM royalty_awards  -> 0
+  SELECT COUNT(*) FROM royalty_periods -> 0
+  storage/install.lock                 -> written; records the database and "cli" channel
+
+Notes
+
+- The guided installer writes the lock by design. It was removed before QA19A-07's install and the
+  real lock was restored at the end of the pass.
+- The fresh install (33 tables) matches the migrated development copy (33 tables); the settings
+  difference is only the three install_* metadata rows the footer writes.
+
+RESULT: PASS

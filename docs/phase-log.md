@@ -5091,3 +5091,117 @@ switch is off; an unpaid order never produced an award or a refund.
   reports 1045, which is a server-plugin path rather than the credential refusal that case pins. No
   application code changed for this; the cancellation feature is unaffected.
 
+---
+
+## Phase 19A — Foundation (2026-11-15)
+
+**Status:** complete · **Tags:** `p19-start` (baseline, on `efeddbe`), `p19a-foundation` ·
+**Branch:** `feature/royalty`, cut from `feature/unilevel` · **Schema:** 31 → 33 tables ·
+**Suite:** 1,008 → 1,026 cases, **1,026 / 1,026** green · **Smoke:** 229 / 229.
+
+Plan: `dmp/plan-ecowealth-royalty.md` §5 (Phase 19A), §12–§13 and §15.1. This phase ships the Royalty
+schema, the wallet vocabulary and the install/reset knowledge that 19B–19G build on. **No code path
+reads any of it:** the tables are empty and unread, no model, service, controller, view, route or job
+exists, `royalty_enabled` is `0`, and a paid order still pays nothing.
+
+### Database
+
+| Object | Change |
+|---|---|
+| `database/migrations/023_royalty_bonus.sql` (new) | Two tables (`royalty_periods` with the natural `period` primary key, `royalty_awards` with `UNIQUE (period, user_id)` and an `AUTO_INCREMENT` id), the extended `ewallet_ledger.ref_type` enum (`royalty` appended last) and the sixteen settings. Every `CREATE TABLE` is `IF NOT EXISTS`; the ENUM change is guarded by an `information_schema.COLUMNS` probe on `COLUMN_TYPE` and a `PREPARE`/`EXECUTE` pair; the settings insert is `ON DUPLICATE KEY UPDATE key_name = key_name`. No backfill, no data migration, no `ALTER` of any existing money column. Applied twice on a scratch schema and twice on the development copy (a no-op), both exit 0. |
+| `database/schema.sql` | The fresh-install mirror, block for block: `ewallet_ledger.ref_type` gains `royalty` (and its comment), `royalty_periods` and `royalty_awards` sit after `unilevel_periods` and before `impersonation_log`. |
+| `database/seeds/001_settings.sql` | The sixteen keys, in the migration's order and with the reference defaults; `royalty_ledger_since` uses `DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')`, like the two existing baselines. |
+| `database/install/header.sql` | Doc comment: **33 tables · 73 settings**. |
+| `database/install/footer.sql` | Expected counts: **33 tables, 73 settings**. |
+| `database/install.sql` | Regenerated only (`php bin/build_install_sql.php`): 60 statements, 82,518 bytes, sha256 `026c6755032fb7ab98fc6accb9e26550de3eea9cda2d066235e2967fb6e5eb50`; `--check` exits 0. |
+
+### Code
+
+- **`WalletService::REF_TYPES`** — `royalty` appended last (11 values). The column and the constant
+  ship together because `P5-T8` compares them in both directions.
+- **`helpers.php`** — `wallet_ref_label('royalty')` = *Royalty bonus*; `wallet_ref_icon('royalty')` =
+  `bx-crown` (`bx bx-crown`). Rule 8 of the phase: the label exists before the money.
+- **`DatabaseInstaller`** — `EXPECTED` 31/57 → **33/73**; the settings hint now says “70 keys plus the
+  three `install_*` metadata rows” (it had drifted to 51 since Phase 17A). `TRANSACTIONAL_TABLES` is
+  unchanged: the plan assigns it no royalty entry in 19A, and the installer needs no knowledge of the
+  tables to count them.
+- **`DatabaseResetService`** — `ALL_TABLES` 31 → **33**; `ZERO_TABLES` gains both tables; a new
+  **Royalty bonus awards and month headers** delete group (`royalty_awards` before
+  `royalty_periods`) after the repeat-purchase group; `AUTO_INCREMENT_TABLES` gains **`royalty_awards`
+  only** (the header has a natural primary key, so an `ALTER … AUTO_INCREMENT` on it would fail).
+
+No model, service, controller, view, route or job is added. The only visible change is the wallet
+statement's Source filter, which gains one option that matches nothing yet (accepted in plan §5 Rule 8).
+
+### Tests
+
+**18 new cases: 1,008 → 1,026, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `RoyaltyFoundationTest` (new) | 18 | P19A-T1 (structure, anchor, foreign keys, CHECKs), T2 (a re-run is a no-op and recreates a lost table), T3 (migrated ≡ fresh, including the enum and the CHECKs), T4 (enum ↔ `REF_TYPES`, both directions, no reversal stub), T5 (label/icon for every movement), T6 (the sixteen defaults on both sides), T7 (a re-run never overwrites an operator value), T8 (the earning switch is off, the payment switch on), T9 (bundle parity and 33/73 in header, footer and bundle), T10 (a real fresh install reports `33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0`), T11 (a reset empties both tables, resets only the award counter, keeps the settings), T12 (the preview counts both tables and the dry run plans the delete), T13 (no reader, no class, no route, no view), T14 (rank, amount, volume, rate and period CHECKs), T15 (the two cascades and the null-on-delete actor), T16 (the datetime baseline), T17 (seed parity, sixteen keys) and T18 (33 tables across schema, bundle and reset allow-list) |
+
+Updated for the new counts: `MigrationTest` (023 in the ordered list; the migrated-vs-fresh case now
+compares the two royalty tables and the extended enum), `InstallTest` (**33 / 73**, 60 statements),
+`InstallSqlTest` (**33 / 73**, `70 seed keys + 3 install metadata keys`, the third `*_ledger_since`
+shape check), `DbResetTest` (the 31-name helper becomes 33, 21 auto-increment counters, the dynamic
+`royalty_ledger_since` excluded from the parity snapshot), `DbTargetTest` (33 tables, `users` still the
+last name), `SqlScriptTest` (the 33-name expected list), `WalletTest` (P5-T8 carries `royalty` and
+asserts eleven), `UnilevelFoundationTest` (the bundle count, the EXPECTED pair and the vocabulary
+count), `SeedParityTest` (unchanged by design — it already fails unless seed 001 carries every
+migration key).
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` applies 023 and migrated ≡ fresh is green.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,026   Passed: 1,026   Failed: 0**, exit 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 on the migrated development copy.
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 229   Failed: 0**, exit 0 (no new route, so the
+      count is unchanged from the baseline).
+- [x] Every P19A-Tn case exists, is named for the phase and passes.
+- [x] The manual script (plan §5, `QA19A-01` … `QA19A-08`) executed **8 / 8** on the development copy
+      (01/02) and on scratch schemas (02–07), with `wallet_reconcile` at the end; the automated pass
+      (DSH) ran every check and left the transcripts in `docs/qa/evidence/phase-19/`. The
+      independent-tester review remains the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass (the only
+      `[ERROR]` lines are the deliberate Phase 17F refusal cases from 2026-11-12).
+- [x] QA pack section A filled; `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` and
+      `docs/qa/evidence/phase-19/README.md` carry the Phase 19 row.
+- [x] This entry and Appendix H of the plan are filled; tag `p19a-foundation`.
+
+### Deviations
+
+1. **The branch starts at `efeddbe`, not `d8e626a`.** `efeddbe` is the plan commit on top of
+   `d8e626a` (“plan royalty”); the application code is byte-identical, and cutting from it keeps the
+   plan document on the branch. `p19-start` tags `efeddbe`.
+2. **`royalty_periods` carries the third CHECK from §13.2.** The normative key list names
+   `members_count >= leaders_count + supervisors_count + managers_count + directors_count`; the SQL
+   block in §13.5 omitted it. The table ships it as `chk_rp_ranks` (schema and migration agree), and
+   `P19A-T14` proves it refuses a rank count above `members_count`.
+3. **`DatabaseInstaller::TRANSACTIONAL_TABLES` was not extended.** Phase 17A added its three money
+   tables to the install-time zero pack; the Royalty plan lists only `EXPECTED` for the installer, and
+   P19A-T13's “no reference outside the allow-list” is sharper while the installer does not name the
+   tables. The reset's zero pack *does* cover both tables (`DatabaseResetService::ZERO_TABLES`), which
+   is the reset-parity gate (`P19A-T11/T18`).
+4. **The development copy was migrated at this gate**, exactly like 17A: backed up first
+   (`C:\laragon\www\ecowealth-backups\phase-19\ecowealth_sneat-pre-19a-20261115-081838.sql`,
+   897,353 bytes) and then migrated; both runs exited 0 and every page was re-checked. The real
+   `storage/install.lock` (a Phase 16 QA leftover) was moved aside for the scratch installs in
+   QA19A-06/07 and restored afterwards.
+5. **`system/README.md` and `docs/runbook.md` carry the new counts too.** The plan names
+   `install-reset.md` and `deploy.md`; the other two state the same fresh-install numbers and would be
+   stale on the next cold read.
+
+### Hand-off to 19B
+
+- A migrated database with both tables, the `royalty` wallet movement, the label and the icon, and the
+  sixteen settings, all empty and unread; a fresh-install bundle that produces the same database
+  (`MigrationTest`, `InstallSqlTest`, `RoyaltyFoundationTest` green).
+- A reset engine that empties both tables, resets only the award counter, keeps the settings and
+  leaves `wallet_reconcile` clean.
+- Install/reset counts of **33 tables · 73 settings**.
+- **Nothing reads any of it.** 19B may assume the tables exist and are empty.
+
+---
+

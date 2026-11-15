@@ -81,6 +81,31 @@ INSERT INTO settings (key_name, value) VALUES
   ('unilevel_hold_days',               '7'),
   ('unilevel_release_enabled',         '1'),
 
+  -- Royalty bonus (Phase 19). The reference preset: Leader at ten directs,
+  -- then ten downline Leaders / Supervisors / Managers for each rank above;
+  -- ₱500k / ₱1M / ₱5M monthly group-sales quotas; 3%/5%, 5%/10%, 10%/15%
+  -- group/personal rates. The stream ships OFF (`royalty_enabled = 0`) so a
+  -- deployment never starts paying by accident (D-14); `royalty_pay_enabled`
+  -- is the separate payment pause and ships on because nothing is evaluated
+  -- yet. `royalty_ledger_since` is the first-payable-month baseline for the
+  -- close job and reconciliation (D-15).
+  ('royalty_enabled',                  '0'),
+  ('royalty_pay_enabled',              '1'),
+  ('royalty_leader_directs',           '10'),
+  ('royalty_supervisor_leaders',       '10'),
+  ('royalty_manager_supervisors',      '10'),
+  ('royalty_director_managers',        '10'),
+  ('royalty_supervisor_quota',         '500000'),
+  ('royalty_manager_quota',            '1000000'),
+  ('royalty_director_quota',           '5000000'),
+  ('royalty_supervisor_group_pct',     '3.000'),
+  ('royalty_supervisor_personal_pct',  '5.000'),
+  ('royalty_manager_group_pct',        '5.000'),
+  ('royalty_manager_personal_pct',     '10.000'),
+  ('royalty_director_group_pct',       '10.000'),
+  ('royalty_director_personal_pct',    '15.000'),
+  ('royalty_ledger_since',             DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),

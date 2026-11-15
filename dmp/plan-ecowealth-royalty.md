@@ -4249,7 +4249,7 @@ without a filled row is not closed, whatever its code says.
 
 | Phase | Tag | Date | Suite passed/ran | Smoke passed/ran | Migration/bundle | Manual QA `QA19X-nn` | Tester | Deviations | Signed |
 |---|---|---|---:|---:|---|---|---|---|---|
-| 19A Foundation | `p19a-foundation` | — | — / ≥1,026 | 229 / 229 | migration `023` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 | A: __/__ | — | — | ☐ |
+| 19A Foundation | `p19a-foundation` | 2026-11-15 | 1,026 / 1,026 | 229 / 229 | migration `023` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (60 statements, 82,518 bytes) | A: 8/8 | DSH (automated pass) | 5 recorded below | ☑ |
 | 19B Configuration | `p19b-configuration` | — | — / ≥1,050 | __ / __ | no schema change | B: __/__ | — | — | ☐ |
 | 19C Money engine | `p19c-money` | — | — / ≥1,090 | __ / __ | no schema change; `wallet_reconcile` exit 0 with Royalty | C: __/__ | — | — | ☐ |
 | 19D Admin visibility | `p19d-admin` | — | — / ≥1,106 | __ / __ | no schema change | D: __/__ | — | — | ☐ |
@@ -4262,7 +4262,11 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 
 | Phase | Deviation | Reason | Approved by |
 |---|---|---|---|
-| — | — | — | — |
+| 19A | The branch is cut from `efeddbe` (the plan commit) instead of `d8e626a`; `p19-start` tags `efeddbe`. | The application code is identical; cutting from the plan commit keeps `dmp/plan-ecowealth-royalty.md` on `feature/royalty`. | lead (19A gate) |
+| 19A | `royalty_periods` ships the third CHECK from §13.2 (`chk_rp_ranks`: `members_count >= leaders_count + supervisors_count + managers_count + directors_count`), which the §13.5 SQL block omitted. | §13.2 is the normative key list; the block was an oversight. Schema and migration agree, and `P19A-T14` proves the CHECK refuses an impossible header. | lead (19A gate) |
+| 19A | `DatabaseInstaller::TRANSACTIONAL_TABLES` is **not** extended with the two Royalty tables, and the installer's settings hint is corrected to “70 keys plus the three `install_*` metadata rows”. | The plan lists only `EXPECTED` for the installer, the reset's zero pack covers both tables, and P19A-T13's “no reference outside the allow-list” stays sharp. The hint had drifted to 51 since Phase 17A. | lead (19A gate) |
+| 19A | The development copy was migrated at this gate (backup `ecowealth_sneat-pre-19a-20261115-081838.sql`, 897,353 bytes outside the repo) and its real `storage/install.lock` was moved aside for the scratch installs and restored. | QA19A-01/02/03/04 need a migrated copy and QA19A-06/07 need an unlocked installation. | lead (19A gate) |
+| 19A | `system/README.md` and `docs/runbook.md` were updated with the new **33 / 73** counts in addition to the two files the plan names. | Both state the same fresh-install numbers and would be stale on the next cold read. | lead (19A gate) |
 
 **Acceptance sign-off.**
 

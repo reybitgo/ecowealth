@@ -132,7 +132,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 31 tables, the 57 settings, both staff accounts,
+   `database/install.sql` creates the 33 tables, the 73 settings, both staff accounts,
    the seven starter products and the two packages. It seeds **no** demo members, demo
    codes or demo wallets, and it refuses to run against a non-empty schema.
 
@@ -143,7 +143,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 31 | 57 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 33 | 73 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
    The bundle is **generated** from `database/schema.sql` and seeds 001–004. Edit those
    sources, then rebuild and verify:

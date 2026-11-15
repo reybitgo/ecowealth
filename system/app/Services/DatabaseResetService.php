@@ -74,6 +74,10 @@ final class DatabaseResetService
      * Phase 17 adds the four repeat-purchase tables: `product_unilevel_levels`
      * is catalogue (emptied only by a catalogue reset), the other three are
      * money and are emptied by every business reset.
+     *
+     * Phase 19 adds the two Royalty tables. Both are money: the monthly
+     * awards and the period headers are emptied by every business reset and
+     * `royalty_awards` is the only one with a counter (plan §13.7).
      */
     public const ALL_TABLES = [
         'addresses',
@@ -95,6 +99,8 @@ final class DatabaseResetService
         'products',
         'reg_codes',
         'remember_tokens',
+        'royalty_awards',
+        'royalty_periods',
         'settings',
         'shop_invoice_items',
         'shop_invoices',
@@ -128,6 +134,8 @@ final class DatabaseResetService
         'impersonation_log',
         'payout_requests',
         'remember_tokens',
+        'royalty_awards',
+        'royalty_periods',
         'shop_invoice_items',
         'shop_invoices',
         'shop_order_events',
@@ -152,6 +160,10 @@ final class DatabaseResetService
      * column: `unilevel_activity` and `unilevel_periods` have natural
      * primary keys, so an `ALTER TABLE … AUTO_INCREMENT` on them would
      * fail (plan §13.7).
+     *
+     * `royalty_awards` is the only Phase 19 table with a counter;
+     * `royalty_periods` has a natural primary key (`period`), so it must
+     * never be altered (plan §13.7).
      */
     public const AUTO_INCREMENT_TABLES = [
         'shop_orders',
@@ -170,6 +182,7 @@ final class DatabaseResetService
         'payout_requests',
         'commissions',
         'unilevel_awards',
+        'royalty_awards',
         'activations',
         'reg_codes',
         'impersonation_log',
@@ -248,6 +261,18 @@ final class DatabaseResetService
                 'DELETE FROM unilevel_awards',
                 'DELETE FROM unilevel_activity',
                 'DELETE FROM unilevel_periods',
+            ],
+        ],
+        [
+            /* A royalty award references its month header, so the money
+             * ledger is emptied first. Royalty has no order link at all
+             * (plan D-02), so the group's position is independent of the
+             * orders group. */
+            'key'   => 'royalty',
+            'label' => 'Royalty bonus awards and month headers',
+            'sql'   => [
+                'DELETE FROM royalty_awards',
+                'DELETE FROM royalty_periods',
             ],
         ],
         [

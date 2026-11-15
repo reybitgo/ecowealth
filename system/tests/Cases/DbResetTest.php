@@ -72,7 +72,7 @@ $service = static function (PDO $pdo, string $database, array $options = [], ?ca
     );
 };
 
-/** The 31 table names the counts helper reads. */
+/** The 33 table names the counts helper reads. */
 $allTables = [
     'users', 'remember_tokens', 'settings', 'audit_log', 'products', 'packages',
     'package_levels', 'package_products', 'carts', 'cart_items', 'ewallet_ledger',
@@ -81,6 +81,7 @@ $allTables = [
     'shop_shipments', 'shop_invoices', 'shop_invoice_items', 'reg_codes',
     'activations', 'commissions', 'impersonation_log', 'live_revisions',
     'product_unilevel_levels', 'unilevel_awards', 'unilevel_activity', 'unilevel_periods',
+    'royalty_awards', 'royalty_periods',
 ];
 
 /** @return array<string,int> */
@@ -271,7 +272,7 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
 
     $settings = $pdo->query('SELECT key_name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since'] as $dynamic) {
+    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since'] as $dynamic) {
         unset($settings[$dynamic]);
     }
 
@@ -335,7 +336,8 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
     $countTables = [
         'addresses', 'activations', 'cart_items', 'carts', 'commissions',
         'ewallet_admin_topups', 'ewallet_transfers', 'impersonation_log',
-        'payout_requests', 'remember_tokens', 'shop_invoice_items', 'shop_invoices',
+        'payout_requests', 'remember_tokens', 'royalty_awards', 'royalty_periods',
+        'shop_invoice_items', 'shop_invoices',
         'shop_order_events', 'shop_order_items', 'shop_orders', 'shop_payment_proofs',
         'shop_shipments', 'reg_codes', 'ewallet_ledger',
     ];
@@ -540,7 +542,7 @@ return [
         }
 
         assert_same(7, $plan['orders']['statements']);
-        assert_same(20, $plan['auto_increment']['statements']);
+        assert_same(21, $plan['auto_increment']['statements']);
         assert_same(0, $plan['catalogue']['statements'], 'the catalogue is kept by default');
     },
 
@@ -1144,7 +1146,7 @@ return [
 
         $report = $service($pdo, $database)->run();
         assert_true($report['ok']);
-        assert_same(20, $report['auto_increment']['reset']);
+        assert_same(21, $report['auto_increment']['reset']);
         assert_same(0, $report['auto_increment']['failed']);
 
         foreach (['shop_orders', 'ewallet_ledger', 'reg_codes', 'activations', 'commissions'] as $table) {

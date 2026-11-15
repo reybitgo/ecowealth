@@ -1,0 +1,37 @@
+QA19A-01 — Back up the development copy and confirm it is at migration 022
+=======================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Host: C:\laragon (MySQL 8.4.3, application account ecowealth)
+Database under test: ecowealth_sneat (the development copy)
+
+Commands (PowerShell, from C:\laragon\www\ecowealth)
+
+  mysqldump -u ecowealth -p --single-transaction --routines --databases ecowealth_sneat
+      > C:\laragon\www\ecowealth-backups\phase-19\ecowealth_sneat-pre-19a-20261115-081838.sql
+
+  mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM information_schema.tables
+                                WHERE table_schema='ecowealth_sneat'"
+  mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM ecowealth_sneat.settings"
+  mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM information_schema.tables
+                                WHERE table_schema='ecowealth_sneat'
+                                  AND table_name LIKE 'royalty%'"
+
+Output
+
+  backup = C:\laragon\www\ecowealth-backups\phase-19\ecowealth_sneat-pre-19a-20261115-081838.sql
+  bytes  = 897,353
+  header = "-- MySQL dump 10.13  Distrib 8.4.3, for Win64 (x86_64)"   (no BOM)
+
+  31        <- tables before 19A
+  54        <- settings before 19A
+  0         <- no royalty% table: migration 023 has not run yet
+
+Notes
+
+- The dump lives outside the repository (C:\laragon\www\ecowealth-backups\phase-19\).
+- The development copy is migration-built: it carries no install_* metadata rows, so it reads
+  54 settings where a fresh install reads 57.
+- 31 tables is the documented p19-start baseline (migration 022 applied).
+
+RESULT: PASS

@@ -1,4 +1,4 @@
-# EcoWealth — QA sign-off sheet (Phases 1–18)
+# EcoWealth — QA sign-off sheet (Phases 1–19)
 
 Fill this sheet while working through the phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
@@ -759,6 +759,48 @@ php bin/unilevel_release.php --doctor      # cancelled_due 0, due_now 0 after th
 
 ---
 
+## 19A. Phase 19A — Royalty foundation (section A of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **section A only** (19B–19G append theirs)
+
+Phase 19 is the Royalty bonus workstream, a derived five-rank ladder plus a monthly group-sales
+override paid once per closed calendar month. 19A ships the **inert** foundation: two empty tables,
+the `royalty` wallet movement, its label and icon, and the sixteen settings (the stream is **off**).
+**No application code reads any of it** until 19B/19C.
+
+**Prerequisites:** tag `p19-start` (`feature/royalty`); the development copy at migration `022`.
+**Expected suite count:** **1,026**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check     # exit 0
+php tests/run.php                         # Cases: 1026   Passed: 1026   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 229   Failed: 0 (no new route)
+php bin/wallet_reconcile.php              # exit 0 (19A moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19A-01 | A pre-migration dump exists outside the repo; the development copy is at **31 tables / 54 settings** (migration-built, so no `install_*` rows) and has no `royalty%` table | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-01.txt` |
+| QA19A-02 | Migration `023` applied **twice**, both exit 0; the copy ends at **33 tables / 70 settings** with **16** royalty settings | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-02.txt` |
+| QA19A-03 | `SHOW TABLES LIKE 'royalty%'` = 2; the ledger enum ends `'royalty'` with no reversal type; `royalty_periods` has the natural key, `royalty_awards` the unique anchor and the four CHECKs | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-03.txt` |
+| QA19A-04 | The sixteen settings carry the reference defaults; `royalty_enabled = 0`, `royalty_pay_enabled = 1`, `royalty_ledger_since` a datetime | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-04.txt` |
+| QA19A-05 | `build_install_sql` rebuilds **60 statements / 82,518 bytes**, `--check` exits 0, header/footer say **33 / 73** | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-05.txt` |
+| QA19A-06 | A fresh CLI install on `ecowealth_sneat_tool_a_test` reports **33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0**, both royalty tables empty | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-06.txt` |
+| QA19A-07 | The reset preview/dry run names both tables; the real reset empties them, restarts only the award counter (next id 1) and keeps the settings | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-07.txt` |
+| QA19A-08 | `wallet_reconcile` exit 0, the suite **1,026 / 1,026**, the smoke walk **229 / 229**, the bundle check exit 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA19A-08.txt` |
+
+| Phase 19A summary | |
+|---|---|
+| Executed | **8 / 8** checks |
+| Passed / Failed / Blocked | **8 / 0 / 0** |
+| Defects | 0 (see the phase log for the three recorded deviations) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -805,6 +847,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 17G | ☑ Yes ☐ No | 6 / 6 checks passed; 948 / 948 PHP cases, 225 / 225 smoke checks, `build_install_sql --check` exit 0, `wallet_reconcile` exit 0, `APP_PHASE = 17`; the release acceptance table 27 / 27 and the scratch-install deploy replay green; three deviations recorded (no build-phase badge, nine documentation corrections, the automated manual pass). |
 | Phase 18 | ☐ Yes ☐ No | Post-17 point release (`APP_PHASE` stays 17): migrations `021`–`022`, **31 tables / 57 settings**, five cron jobs; the escrow checks C1a, C1b, C4, E4, E5, E6 in §19 (E4 needs **Enable Cancel of Order** on), plus the automated pending/release/reconcile rows. Record the counts and the evidence names on the lines above. |
 | Phase 18 follow-up | ☐ Yes ☐ No | Order-cancellation kill switch (`shop_cancel_enabled`, **off** by default): both cancellation services refuse with `cancel_disabled` and no refund/escrow reversal runs while it is off; enabling it restores the plan §8 escrow contract. `CancelSettingTest` plus the full PHP/smoke gates. |
+| Phase 19A | ☑ Yes ☐ No | Royalty foundation: migration `023` adds `royalty_periods`, `royalty_awards`, the `royalty` wallet movement and sixteen settings, **stream off**, no reader; migrated ≡ fresh, a reset empties both tables, fresh install **33 tables / 73 settings**; 8 / 8 section-A checks, **1,026 / 1,026** PHP cases and **229 / 229** smoke checks. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

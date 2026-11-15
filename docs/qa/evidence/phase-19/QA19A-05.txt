@@ -1,0 +1,47 @@
+QA19A-05 — Rebuild the install bundle and prove it matches its sources
+=======================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+
+Command 1
+
+  php bin\build_install_sql.php
+
+Output 1
+
+  Built database/install.sql (82,518 bytes, sha256
+  026c6755032fb7ab98fc6accb9e26550de3eea9cda2d066235e2967fb6e5eb50).
+  build-exit=0
+
+Command 2
+
+  php bin\build_install_sql.php --check
+
+Output 2
+
+  (no output)
+  check-exit=0
+
+Source and bundle counts
+
+  database/install/header.sql:
+    --      33 tables · 73 settings · 2 staff accounts · 7 products
+    --      2 packages · 18 ladder levels · 10 package contents
+
+  database/install/footer.sql:
+    --      tables_created = 33    settings_rows = 73    staff_rows    = 2
+
+  database/install.sql (generated): 82,518 bytes
+  sha256 (lower case)            : 026c6755032fb7ab98fc6accb9e26550de3eea9cda2d066235e2967fb6e5eb50
+
+  Statements in the bundle: 60 (the previous 58 + the two CREATE TABLE statements).
+
+Notes
+
+- The bundle grew from 74,387 bytes (the 022 build) to 82,518 bytes; it still stays under
+  phpMyAdmin's 100 KB limit.
+- `--check` is the drift gate: it exits 0 only when the committed bundle is byte-identical to a
+  fresh build from the six sources.
+
+RESULT: PASS

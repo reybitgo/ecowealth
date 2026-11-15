@@ -40,7 +40,7 @@ return [
 
         $tables = $target->tables(DB_NAME);
         assert_same(test_table_list(test_pdo(['db' => DB_NAME])), $tables);
-        assert_same(31, $target->tableCount(DB_NAME));
+        assert_same(33, $target->tableCount(DB_NAME));
         assert_same($tables, $target->tables(DB_NAME), 'stable across calls');
 
         /* An explicit schema argument is read, not the connection default. */
@@ -58,12 +58,12 @@ return [
         $pdo = test_pdo(['db' => DB_NAME]);
 
         $tables = test_table_list($pdo);
-        assert_count(31, $tables);
+        assert_count(33, $tables);
         assert_same('activations', $tables[0], 'tables are sorted');
-        assert_same('users', $tables[30]);
+        assert_same('users', $tables[32]);
 
         $columns = test_column_list($pdo);
-        assert_count(31, $columns);
+        assert_count(33, $columns);
         assert_same('id', $columns['users'][0]['name'], 'columns are in ordinal order');
         assert_same('int unsigned', $columns['users'][0]['type']);
         assert_same('NO', $columns['users'][0]['nullable']);
