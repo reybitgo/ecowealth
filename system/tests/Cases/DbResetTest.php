@@ -1160,7 +1160,7 @@ return [
     /* ==========================================================
      *  15. Verification
      * ========================================================== */
-    'verification runs the five reconciliations on the injected PDO' => function () use ($fresh, $service, $byKey): void {
+    'verification runs the six reconciliations on the injected PDO' => function () use ($fresh, $service, $byKey): void {
         [$pdo, $database] = $fresh();
         $service($pdo, $database)->run();
 
@@ -1169,7 +1169,7 @@ return [
 
         $checks = $byKey($verify['checks']);
 
-        foreach (['members', 'zero_transactional', 'staff', 'catalogue', 'codes', 'audit', 'wallets', 'commissions', 'transfers', 'payouts', 'unilevel', 'live', 'auto_increment'] as $key) {
+        foreach (['members', 'zero_transactional', 'staff', 'catalogue', 'codes', 'audit', 'wallets', 'commissions', 'transfers', 'payouts', 'unilevel', 'royalty', 'live', 'auto_increment'] as $key) {
             assert_true(isset($checks[$key]), 'verify() carries "' . $key . '"');
             assert_true($checks[$key]['ok'], '"' . $key . '" must pass');
         }
@@ -1179,6 +1179,7 @@ return [
         assert_contains('TransferService::reconcile clean', $checks['transfers']['detail']);
         assert_contains('PayoutService::reconcile clean', $checks['payouts']['detail']);
         assert_contains('UnilevelService::reconcile clean', $checks['unilevel']['detail']);
+        assert_contains('RoyaltyService::reconcile clean', $checks['royalty']['detail']);
     },
 
     /* ==========================================================

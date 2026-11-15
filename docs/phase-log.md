@@ -5336,3 +5336,160 @@ may read `users`/settings, but nothing reads the money tables or writes a `royal
 
 ---
 
+## Phase 19C — Money engine (2026-11-15)
+
+**Status:** complete · **Tag:** `p19c-money` · **Branch:** `feature/royalty` ·
+**Schema:** unchanged (33 tables, no migration; no route, no controller, no view — D-16) ·
+**Suite:** 1,054 → **1,106** cases, **1,106 / 1,106** green · **Smoke:** 232 / 232 (unchanged: 19C
+adds no URL).
+
+Plan: `dmp/plan-ecowealth-royalty.md` §7 (Phase 19C), §12.4–§12.10, §13.2–§13.8, §14.1–§14.13 and
+§15.2–§15.4. This phase ships **the whole money path** and nothing else: a completed calendar month is
+evaluated (rank as of the period end, GS/PS from paid line totals, the all-or-nothing quota, one
+rounding, one award per member) and paid in resumable batches to the withdrawable e-wallet. There is
+no page and no route; the CLI close is the observation surface, and 19D/19E/19F build on the API.
+
+### Code
+
+| File | What it is |
+|---|---|
+| `app/Models/RoyaltyPeriod.php` (new) | The `Asia/Manila` month helpers (`periodOf`, `previous`, `next`, `bounds`, `isPeriod`, duplicated from `UnilevelCycle` on purpose so the two calendars can be tested against each other), the **baseline** (`royalty_ledger_since`: the month itself when the timestamp is exactly its first instant, else the next month; a missing/malformed value resolves to the current month so nothing retroactive can pay), and the read API (`exists`, `status`, `find`, `periods`, `pendingPeriods`, `evaluatedPeriods`, `duePeriods`, `lastPaid`, `label`). Writes nothing. |
+| `app/Models/RoyaltyAward.php` (new) | The money ledger: `create()` (one row inside the caller's transaction), `pendingForPeriod()` (locked, ascending `user_id`), `markPaid()` (the **only** update path, conditional on `status = 'pending'`), `forMemberPeriod()`, `rowsForPeriod()`, `historyForUser()`, `totalsForPeriod()`, `totalsForUser()`, `rankBreakdown()`, the 19D/19E filters and pages (`filterDefaults`, `normaliseFilters`, `countForPeriod`, `pageForPeriod`, `countForUser`, `pageForUser`, `exportRows`), `STATUSES`, `STATUS_LABELS`, `MEMBER_STATUS_LABELS`, `STATUS_BADGES`, `REASONS` (`group sales below quota`, `account is not active`, `membership is not active`, `zero amount`), `walletNote()` and `reasonLabel()`. Money is stored through an exact **decimal-string** helper (`money()`), never a binary float (plan §12.8). |
+| `app/Services/RoyaltyService.php` (new) | `preview()`, `evaluate()`, `pay()`, `close()`, `statusFor()`, `reconcile()`, `volumes()`, `awardCents()` and the switches/ladder statics. `evaluate()` is one transaction (header first because of the FK, then the rows) and writes **no wallet money**; `pay()` is one transaction **per batch** (header lock → pending awards ascending `user_id` → each wallet row), resumable and idempotent; `close()` evaluates then pays, and resumes an `evaluated` month without re-evaluating it. |
+| `app/Services/RoyaltyException.php` (new) | Typed reasons `not_found`, `closed`, `future`, `current`, `state`, `paused`, `empty`. No repair path exists: a closed month is never reopened. |
+| `bin/royalty_month_close.php` (new) | The close runner: `--period=`, `--dry-run`, `--evaluate-only`, `--pay-only`, `--limit=`, `--max-batches=`, `--json`, `--quiet`, `--log-dir=`, `--help`; `CronLock('royalty_month_close')`, `CronLog('royalty_month_close')`; exit 0 success/no-op/busy/paused, 1 processing/validation, 2 environment. Default run resumes every `evaluated` month, then closes every pending completed month from the baseline through last month, oldest first. `--doctor`, the web entry and the `.cmd` are **19F** and deliberately absent. |
+| `bin/wallet_reconcile.php` | A sixth report: the **Royalty** section (periods by state, paid/pending/skipped rows and totals, the `royalty` ledger total, the warnings, the corrupt-tree count, the legacy rows) and `royalty` in the `--json` payload. Exit 1 on a mismatch only. |
+| `app/Services/DatabaseResetService.php` | The verification pack gains its **sixth** reconciliation: `(new RoyaltyService($this->pdo))->reconcile()`, so a reset proves the Royalty books are empty and consistent. |
+| `app/Models/RoyaltyRank.php` | One backwards-compatible extension: `map()` and `forMember()` accept an optional `?PDO` so the reset integrity pack reads the injected scratch connection instead of the application one. Behaviour, signatures and every 19B caller are unchanged. |
+
+### The money rules, as shipped
+
+- **Rank gate:** ranks are derived with `RoyaltyRank::map($periodEnd)`, so a late close reproduces the
+  on-time ranks (D-06). Only Supervisor/Manager/Director get a row; a Leader earns nothing (D-01).
+- **Volume:** `PS` = the member's paid line totals in `[start, end)` excluding `cancelled`;
+  `GS` = `PS` plus every member descendant's `PS` at any depth. Shipping, activations, top-ups,
+  transfers and staff purchases are excluded (D-03, D-05).
+- **Quota:** all-or-nothing in integer centavos; exactly at the quota pays, one centavo below pays
+  nothing including the personal component (D-09).
+- **Amount:** one rounding, half-up, on `group_milli × GS_cents + personal_milli × PS_cents` over
+  100,000 — the group and personal components are never rounded separately (D-10). No stacking: the
+  achieved rank selects exactly one `(quota, group %, personal %)` triple (D-11).
+- **Statuses:** `pending` → `paid` is the only transition; `skipped` rows explain a missing payment
+  with a stable reason; a month with nothing pending is final (`paid`) with `paid_total = 0.00`.
+- **Switches:** `royalty_enabled` is read at evaluation (off → a final `skipped` header,
+  `note = 'royalty stream off'`, no rows, D-14/D-15); `royalty_pay_enabled` is read at payment (off →
+  the awards stay pending and the run reports `paused`, D-12).
+- **Idempotency at four layers:** the `royalty_periods` primary key, `UNIQUE (period, user_id)`, the
+  conditional `pending → paid` update, and the wallet's own `(user, ref_type, ref_id, type)` anchor.
+  The cron lock is the fifth and is 19F's.
+- **Baseline:** `pendingPeriods()` starts at the first **full** month after `royalty_ledger_since`;
+  `evaluate()` and the CLI also refuse an explicitly requested earlier month (extension, deviation 4).
+
+### Database
+
+None. 19C adds no table, column, index, seed or install count; `build_install_sql.php --check` still
+exits 0 and a fresh install still reports 33 tables / 73 settings. `APP_PHASE` stays 17 until 19G.
+
+### Docs
+
+- `docs/runbook.md` — a **The Royalty month close** subsection: the four commands, the flag table, the
+  exit codes, how to read the log line, the exact resume procedure after a partial payment, and the
+  “never edit a closed award” rule with the switch-off/rollback guidance.
+- `docs/qa/phase-19-royalty.md` — **section C** (`QA19C-01` … `QA19C-12`): the fixture and its
+  expected arithmetic, the twelve checks with exact commands and expected numbers, and the sign-off
+  row. The document is appended, never rewritten.
+- `docs/qa/evidence/phase-19/QA19C-01.txt … QA19C-12.txt` — real transcripts of the twelve checks
+  against `ecowealth_sneat_tool_a_test`, indexed in that folder's `README.md`.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` — section C counts, the Phase 19C gate row and the
+  final-decision row.
+
+### Tests
+
+**52 new cases: 1,054 → 1,106, all green** (the Royalty group alone is **98 / 98**).
+
+| Group | Added | What it proves |
+|---|---|---|
+| `RoyaltyEngineTest` (new) | 34 | T1 (a preview writes nothing; the current month may be previewed), T2 (stream off → a skipped header with the note and no money), T3 (a Supervisor at quota: GS/PS/quota/rates/amount 18,300.00, the requirement count, the header snapshot, no wallet), T4 (one withdrawable credit with its ledger note and pointer, header `paid`), T5 (a second pay moves nothing; a paid row cannot be marked twice), T6/T7 (a paid/skipped month is never re-evaluated), T8 (499,999.99 → skipped `group sales below quota`), T9 (exactly at quota → 15,000.00 group-only), T10 (a Leader with 10M earns nothing), T11 (a Member with volume earns nothing), T12 (Manager 50,000 / Director 500,000, own rates only), T13 (PS paid twice → 515,000.00), T14 (self-funded quota → 40,000.00), T15 (the centavo boundary), T16 (one rounding → 18,000.04), T17 (3.125% → 312.50 and 479.17, rate snapshotted), T18 (a 12-level-deep purchase in GS), T19 (cancelled before the close excluded), T20 (shipping excluded), T21 (package activation excluded), T22 (staff purchase excluded), T23 (the period-end cutoff), T24/T25 (disabled account / pending membership → skipped rows), T26 (zero rates → `zero amount`), T27 (header counters and totals against the rows), T28 (the exclusive rank distribution), T29 (a partial batch resumes without double-paying), T30 (payments paused → pending, no wallet, then paid once), T31 (ascending `user_id` credits), T48 (no route/controller/view; `pay()` is the only Royalty creditor), T49 (a month before the baseline is refused) and T50 (`statusFor()` projects exactly what the close pays) |
+| `RoyaltyCloseJobTest` (new) | 8 | T38 (`--dry-run` writes nothing), T39 (`--evaluate-only` writes rows + header, no wallet), T40 (`--pay-only` pays; an absent or final month is refused), T41 (two missed months close oldest first, each with its own `as_of`, and a rerun pays nothing), T42 (the current month exits 1), T43 (a future or malformed month exits 1), T44 (a held lock prints `[SKIP ]`, exits 0), T45 (the log line carries the JSON's numbers) |
+| `RoyaltyReconcileTest` (new) | 8 | T32 (a clean month reconciles; the documented shape), T33 (a paid award with no movement), T34 (an orphan `royalty` movement), T35 (an amount drift), T36 (a header total drift), T37 (a pending award in a paid month fails; an evaluated month with no pending award is a warning and `ok = true`), T46 (`wallet_reconcile.php` has the Royalty section and fails only on a mismatch), T47 (the reset verification runs the Royalty reconcile and empties both tables) |
+| `WalletTest` | +1 | A `royalty` credit raises both buckets, is labelled *Royalty bonus* with the crown icon, and replays idempotently on `(user, royalty, award id)` |
+| `AuditLogTest` | +1 | The three `royalty.period.*` actions are recorded, appear in the desk's vocabulary and are filterable |
+
+Updated: `RoyaltyFoundationTest` (**P19A-T13 rewritten** for 19C: the money engine exists and is the
+only producer; no controller/view renders a Royalty money surface; the tables start empty with the
+stream off — the phase-boundary tightening 19B promised) and `DbResetTest` (the verification case is
+now “six reconciliations”, carries the `royalty` check and asserts `RoyaltyService::reconcile clean`).
+
+Every reference example reproduces exactly: B.1 **18,300.00**, B.2 **15,000.00**, B.3 **515,000.00**,
+B.4 **0.00**, B.5 **40,000.00**, D **50,000.00**, E **500,000.00**, I **18,000.04**, J **312.50** and
+**479.17**.
+
+### Gate
+
+- [x] Schema state matches the plan — 19C changes no schema; `MigrationTest` and
+      `RoyaltyFoundationTest` stay green and the install bundle still reports 33 / 73.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,106   Passed: 1,106   Failed: 0**, exit 0 (floor 1,090).
+- [x] `php bin/wallet_reconcile.php` exits 0 on the development copy with the **Royalty** section;
+      the scratch months reconcile clean too (`P19C-T46`).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 232   Failed: 0**, exit 0 (no new URL).
+- [x] Every P19C-T1 … T48 case exists, is named for the phase and passes, plus T49/T50 for the two
+      behaviours the plan implies but does not number (the baseline refusal and the projection).
+- [x] The manual script (plan §7, `QA19C-01` … `QA19C-12`) executed **12 / 12** on
+      `ecowealth_sneat_tool_a_test`, with real transcripts in `docs/qa/evidence/phase-19/`. The
+      independent-tester review remains the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section C filled; `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` and the evidence
+      index carry the Phase 19C rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p19c-money`.
+
+### Deviations
+
+1. **Eligibility is decided from the rank-map row, not a per-member call.** §14.4's sketch calls
+   `accountEligible($id)` per member; the map row already carries `is_active` and `member_status`, so
+   the engine decides `account is not active` / `membership is not active` from it. This keeps the
+   evaluation at one tree query plus one volume query (§14.9) instead of N eligibility queries.
+2. **`RoyaltyRank::map()`/`forMember()` take an optional `?PDO`.** The reset integrity pack runs
+   `RoyaltyService::reconcile()` on the injected scratch connection (the same reason
+   `UnilevelService::reconcile()` reads its own baseline); without it the corrupt-tree warning would
+   be computed from the application database. The new parameter is optional and every 19B caller is
+   unchanged.
+3. **The stored money never passes through a float.** §12.8 forbids a float in a stored amount;
+   §14.5's sketch casts `(float) $award['amount']` at the wallet boundary. `RoyaltyAward::money()`
+   converts every value to an exact decimal string (integer centavos / milli-percent) and the service
+   computes awards in integer centavos; only `WalletService::credit()`'s float parameter is used at
+   the boundary, where the amount is already an exact two-decimal value below ₱10 billion.
+4. **A month before the baseline is explicitly refused.** `pendingPeriods()` already starts at the
+   first full month (D-15), and 19C adds the same guard to `evaluate()` (typed reason `state`) and to
+   the CLI (reason `baseline`, exit 1), so an operator cannot pay a pre-baseline month by naming it.
+5. **The CLI probes the database before `db()` and has no `--doctor`.** `db()`'s existing failure path
+   prints an HTML page and exits 0, so the job opens a throwaway connection first and exits **2** when
+   the database or the two tables are unavailable (the plan's exit code 2). `--doctor` is 19F's and
+   is deliberately absent — the job also prints an explicit note when a `--evaluate-only` month is
+   evaluated but not final.
+6. **A finalisation audit row joins the per-batch ones.** §15.4 lists “paid (per batch)” and the
+   partial run; the engine writes one `royalty.period.pay` per batch **and** one with
+   `final: true` when the header becomes `paid` (including the heal-after-crash case), so the audit
+   trail closes the lifecycle and a finance review can see the month become final.
+7. **Additive shapes and a stricter `create()`.** `statusFor()` adds `award` (the stored row) and
+   `next`; `reconcile()` adds the three period counts, `award_rows` and `legacy_total`; the
+   `RoyaltyAward::create()` guard refuses a skipped row without a reason and a pending row of 0.00,
+   which is stricter than the table's CHECKs and keeps the ledger explainable. None of these changes a
+   documented key or a 19A/19B contract.
+
+### Hand-off to 19D, 19E and 19F
+
+- `RoyaltyPeriod`, `RoyaltyAward`, `RoyaltyService` and `bin/royalty_month_close.php` exist;
+  `reconcile()` is clean; periods can be `evaluated`, `paid` or `skipped`.
+- Award rows carry every display field (rank, GS, PS, quota, rates, amount, status, reason, ledger id,
+  credited time) plus `username`/`full_name`/`period_status` from the read joins; the filter/page/export
+  API is built and tested.
+- `statusFor($userId, $period)` returns the rank, MTD PS/GS, quota, rates, progress, projection,
+  `paid_all_time`, `last_paid` and history, and its projection equals a real `preview()` award.
+- The `royalty` wallet ref type, label and icon are live and reconcile; `wallet_reconcile` and the
+  reset verification both include the stream.
+- 19D/19E/19F may assume **no** admin or member surface, no web cron and no `--doctor` — they create
+  them. The close is manual until 19F schedules it.
+
+---
+

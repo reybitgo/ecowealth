@@ -265,6 +265,11 @@ final class RoyaltyRank
      * `$asOf` is a `Y-m-d H:i:s` period end for a close, or null for
      * the live tree (plan §12.3, §14.3).
      *
+     * `$pdo` is the connection to read: the 19C reset integrity pack
+     * runs the same pass against a scratch database, where the global
+     * `db()` would point at the application instead (the same reason
+     * `UnilevelService::reconcile()` reads its own baseline).
+     *
      * @return array<int, array{
      *   id:int, username:string, member_status:string, is_active:int,
      *   parent_id:int|null, rank:int, rank_name:string, directs:int,
@@ -272,7 +277,7 @@ final class RoyaltyRank
      *   team_size:int, volume_cents:int, group_volume_cents:int
      * }>
      */
-    public static function map(?string $asOf = null): array
+    public static function map(?string $asOf = null, ?PDO $pdo = null): array
     {
         $sql    = "SELECT id, sponsor_id, username, member_status, is_active, created_at
                      FROM users
@@ -286,7 +291,8 @@ final class RoyaltyRank
 
         $sql .= ' ORDER BY id';
 
-        $stmt = db()->prepare($sql);
+        $pdo  = $pdo ?? db();
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
 
         $rows = [];
@@ -439,13 +445,13 @@ final class RoyaltyRank
      *
      * @return array<string, mixed>|null
      */
-    public static function forMember(int $userId, ?string $asOf = null): ?array
+    public static function forMember(int $userId, ?string $asOf = null, ?PDO $pdo = null): ?array
     {
         if ($userId <= 0) {
             return null;
         }
 
-        return self::map($asOf)[$userId] ?? null;
+        return self::map($asOf, $pdo)[$userId] ?? null;
     }
 
     /**

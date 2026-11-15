@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 /* ==============================================================
  *  EcoWealth — finance reconciliation command (plan §6.8, §7 Phase 5,
- *  10, 12 and 13)
+ *  10, 12, 13 and 19)
  *
  *      php bin/wallet_reconcile.php [--json]
  *
- *  Five read-only reports:
+ *  Six read-only reports:
  *
  *    1. Wallets — both buckets recomputed from `ewallet_ledger`.
  *    2. Commissions — every credited award against its wallet movement
@@ -28,6 +28,11 @@ declare(strict_types=1);
  *       must carry no reversal money, and a pending award on a
  *       cancelled order is a mismatch. A stuck release is printed as a
  *       warning — a delay is not a books error.
+ *    6. Royalty — every paid award against its `royalty` credit, the
+ *       period headers' counters and totals against their award rows,
+ *       the money anchor's rank/volume sanity, and the corrupt-tree
+ *       warning (plan §14.12). A period waiting for finalisation is a
+ *       warning, never a failure.
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -66,12 +71,14 @@ try {
     $transfers   = (new TransferService())->reconcile();
     $payouts     = (new PayoutService())->reconcile();
     $unilevel    = (new UnilevelService())->reconcile();
+    $royalty     = (new RoyaltyService())->reconcile();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
 
-$ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok'] && $unilevel['ok'];
+$ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok']
+    && $unilevel['ok'] && $royalty['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -87,6 +94,7 @@ if (isset($options['json'])) {
             'transfers'   => $transfers,
             'payouts'     => $payouts,
             'unilevel'    => $unilevel,
+            'royalty'     => $royalty,
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
@@ -304,8 +312,80 @@ if ($unilevel['ok']) {
 
 echo PHP_EOL;
 
+echo 'Royalty', PHP_EOL;
+printf(
+    "  periods:           %d (paid %d · evaluated %d · skipped %d)%s",
+    $royalty['periods'],
+    $royalty['paid_periods'],
+    $royalty['evaluated_periods'],
+    $royalty['skipped_periods'],
+    PHP_EOL
+);
+printf(
+    "  paid awards:       %d (%s)%s",
+    $royalty['paid_rows'],
+    $format($royalty['paid_total']),
+    PHP_EOL
+);
+printf(
+    "  pending awards:    %d (%s) — evaluated, not in a wallet yet%s",
+    $royalty['pending_rows'],
+    $format($royalty['pending_total']),
+    PHP_EOL
+);
+printf("  skipped awards:    %d%s", $royalty['skipped_rows'], PHP_EOL);
+printf("  royalty ledger:    %s%s", $format($royalty['ledger_total']), PHP_EOL);
+
+/* A month waiting for finalisation and an unreachable branch are
+ * operational warnings, not books errors: they must never turn a clean
+ * reconciliation into exit 1 (plan §14.12). */
+foreach ($royalty['warnings'] ?? [] as $warning) {
+    printf(
+        "  warning:           [%s] %s%s",
+        (string) $warning['kind'],
+        (string) $warning['message'],
+        PHP_EOL
+    );
+}
+
+if (($royalty['cycle_members'] ?? 0) > 0) {
+    printf(
+        "  corrupt tree:      %d member account(s) unreachable from a root — check sponsor_id%s",
+        (int) $royalty['cycle_members'],
+        PHP_EOL
+    );
+}
+
+if (($royalty['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy movements:  %d (%s) — royalty movements before the award history began%s",
+        $royalty['legacy_rows'],
+        $format($royalty['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($royalty['ok']) {
+    echo '  OK — every paid award has its wallet movement and every period header agrees with its rows.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($royalty['mismatches']), PHP_EOL);
+
+    foreach ($royalty['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
 if ($ok) {
-    echo 'All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.', PHP_EOL;
+    echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase and royalty awards reconcile.', PHP_EOL;
     exit(0);
 }
 

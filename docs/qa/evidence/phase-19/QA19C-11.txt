@@ -1,0 +1,258 @@
+QA19C-11 - A catch-up closes two missed months oldest first, each with its own cutoff
+=====================================================================================
+
+Date: 2026-11-15 11:47:56 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: a late or missed cron must produce the same awards an on-time run would have made.
+
+Fixture: one Supervisor created before 2026-09, 500,000.00 in 2026-09 and 1,000,000.00 in 2026-10.
+         The baseline is 2026-09-01 00:00:00, so both months are payable.
+
+Command
+
+   php bin\royalty_month_close.php --json
+   exit 0
+
+Observed
+
+   {
+       "ok": true,
+       "trigger": "cli",
+       "dry_run": false,
+       "evaluate_only": false,
+       "pay_only": false,
+       "closed": 2,
+       "periods": [
+           "2026-09",
+           "2026-10"
+       ],
+       "award": 2,
+       "paid": 2,
+       "amount": 120000,
+       "skipped": 0,
+       "status": "paid",
+       "paused": false,
+       "resume_required": false,
+       "results": [
+           {
+               "period": "2026-09",
+               "evaluated": true,
+               "evaluation": {
+                   "period": "2026-09",
+                   "as_of": "2026-10-01 00:00:00",
+                   "enabled": true,
+                   "eligible": 1,
+                   "paid_members": 1,
+                   "skipped": 0,
+                   "award_total": 40000,
+                   "paid_total": 0,
+                   "pending": 1,
+                   "pending_total": 40000,
+                   "rank_counts": {
+                       "member": 4,
+                       "leader": 2,
+                       "supervisor": 1,
+                       "manager": 0,
+                       "director": 0
+                   },
+                   "awards": [
+                       {
+                           "id": 1,
+                           "period": "2026-09",
+                           "user_id": 1,
+                           "rank_level": 2,
+                           "directs": 2,
+                           "downline_rank_count": 2,
+                           "team_size": 6,
+                           "group_volume": "500000.00",
+                           "personal_volume": "500000.00",
+                           "quota": "500000.00",
+                           "group_pct": "3.000",
+                           "personal_pct": "5.000",
+                           "amount": "40000.00",
+                           "status": "pending",
+                           "reason": null,
+                           "ledger_id": null,
+                           "credited_at": null,
+                           "created_at": "2026-11-15 11:47:56",
+                           "username": "qa11_sup",
+                           "full_name": "Qa11_sup",
+                           "period_status": "evaluated",
+                           "period_paid_at": null
+                       }
+                   ],
+                   "header": {
+                       "period": "2026-09",
+                       "status": "evaluated",
+                       "enabled": 1,
+                       "evaluated_at": "2026-11-15 11:47:56",
+                       "evaluated_by": null,
+                       "paid_at": null,
+                       "paid_by": null,
+                       "as_of": "2026-10-01 00:00:00",
+                       "leader_directs": 2,
+                       "supervisor_leaders": 2,
+                       "manager_supervisors": 2,
+                       "director_managers": 2,
+                       "quota_supervisor": "500000.00",
+                       "quota_manager": "1000000.00",
+                       "quota_director": "5000000.00",
+                       "group_pct_supervisor": "3.000",
+                       "personal_pct_supervisor": "5.000",
+                       "group_pct_manager": "5.000",
+                       "personal_pct_manager": "10.000",
+                       "group_pct_director": "10.000",
+                       "personal_pct_director": "15.000",
+                       "members_count": 7,
+                       "leaders_count": 2,
+                       "supervisors_count": 1,
+                       "managers_count": 0,
+                       "directors_count": 0,
+                       "award_count": 1,
+                       "paid_count": 0,
+                       "skipped_count": 0,
+                       "award_total": "40000.00",
+                       "paid_total": "0.00",
+                       "note": null,
+                       "created_at": "2026-11-15 11:47:56"
+                   },
+                   "status": "evaluated"
+               },
+               "payment": {
+                   "period": "2026-09",
+                   "paid": 1,
+                   "amount": 40000,
+                   "pending_left": 0,
+                   "status": "paid",
+                   "paused": false,
+                   "resume_required": false,
+                   "batches": 1,
+                   "final": true
+               },
+               "status": "paid"
+           },
+           {
+               "period": "2026-10",
+               "evaluated": true,
+               "evaluation": {
+                   "period": "2026-10",
+                   "as_of": "2026-11-01 00:00:00",
+                   "enabled": true,
+                   "eligible": 1,
+                   "paid_members": 1,
+                   "skipped": 0,
+                   "award_total": 80000,
+                   "paid_total": 0,
+                   "pending": 1,
+                   "pending_total": 80000,
+                   "rank_counts": {
+                       "member": 4,
+                       "leader": 2,
+                       "supervisor": 1,
+                       "manager": 0,
+                       "director": 0
+                   },
+                   "awards": [
+                       {
+                           "id": 2,
+                           "period": "2026-10",
+                           "user_id": 1,
+                           "rank_level": 2,
+                           "directs": 2,
+                           "downline_rank_count": 2,
+                           "team_size": 6,
+                           "group_volume": "1000000.00",
+                           "personal_volume": "1000000.00",
+                           "quota": "500000.00",
+                           "group_pct": "3.000",
+                           "personal_pct": "5.000",
+                           "amount": "80000.00",
+                           "status": "pending",
+                           "reason": null,
+                           "ledger_id": null,
+                           "credited_at": null,
+                           "created_at": "2026-11-15 11:47:56",
+                           "username": "qa11_sup",
+                           "full_name": "Qa11_sup",
+                           "period_status": "evaluated",
+                           "period_paid_at": null
+                       }
+                   ],
+                   "header": {
+                       "period": "2026-10",
+                       "status": "evaluated",
+                       "enabled": 1,
+                       "evaluated_at": "2026-11-15 11:47:56",
+                       "evaluated_by": null,
+                       "paid_at": null,
+                       "paid_by": null,
+                       "as_of": "2026-11-01 00:00:00",
+                       "leader_directs": 2,
+                       "supervisor_leaders": 2,
+                       "manager_supervisors": 2,
+                       "director_managers": 2,
+                       "quota_supervisor": "500000.00",
+                       "quota_manager": "1000000.00",
+                       "quota_director": "5000000.00",
+                       "group_pct_supervisor": "3.000",
+                       "personal_pct_supervisor": "5.000",
+                       "group_pct_manager": "5.000",
+                       "personal_pct_manager": "10.000",
+                       "group_pct_director": "10.000",
+                       "personal_pct_director": "15.000",
+                       "members_count": 7,
+                       "leaders_count": 2,
+                       "supervisors_count": 1,
+                       "managers_count": 0,
+                       "directors_count": 0,
+                       "award_count": 1,
+                       "paid_count": 0,
+                       "skipped_count": 0,
+                       "award_total": "80000.00",
+                       "paid_total": "0.00",
+                       "note": null,
+                       "created_at": "2026-11-15 11:47:56"
+                   },
+                   "status": "evaluated"
+               },
+               "payment": {
+                   "period": "2026-10",
+                   "paid": 1,
+                   "amount": 80000,
+                   "pending_left": 0,
+                   "status": "paid",
+                   "paused": false,
+                   "resume_required": false,
+                   "batches": 1,
+                   "final": true
+               },
+               "status": "paid"
+           }
+       ],
+       "duration_ms": 176,
+       "log": "C:\\laragon\\www\\ecowealth\\system/storage\\logs\\royalty_month_close-2026-11.log"
+   }
+
+Headers
+
+   2026-09
+   period 2026-09  status paid  enabled 1  as_of 2026-10-01 00:00:00  evaluated_at 2026-11-15 11:47:56
+   members 7  leaders 2  supervisors 1  managers 0  directors 0
+   award_count 1  paid_count 1  skipped_count 0  award_total 40000.00  paid_total 40000.00  note -
+   2026-10
+   period 2026-10  status paid  enabled 1  as_of 2026-11-01 00:00:00  evaluated_at 2026-11-15 11:47:56
+   members 7  leaders 2  supervisors 1  managers 0  directors 0
+   award_count 1  paid_count 1  skipped_count 0  award_total 80000.00  paid_total 80000.00  note -
+   Award rows
+
+   2026-09  qa11_sup       rank 2  GS    500000.00  PS    500000.00  quota    500000.00  3.000/5.000  amount     40000.00  paid     
+   2026-10  qa11_sup       rank 2  GS   1000000.00  PS   1000000.00  quota    500000.00  3.000/5.000  amount     80000.00  paid     
+
+   periods 2  award rows 2 (pending 0, paid 2)  royalty ledger rows 2  ledger total 120000.00  withdrawable (members) 120000.00
+
+RESULT: PASS

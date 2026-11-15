@@ -1,0 +1,47 @@
+QA19C-04 - --pay-only credits the withdrawable wallet and finalises the month
+=============================================================================
+
+Date: 2026-11-15 11:47:42 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: the payment step is the only Royalty creditor.
+
+Command
+
+   php bin\royalty_month_close.php --period=2026-10 --pay-only
+   exit 0
+
+   EcoWealth Royalty month close
+     database:  ecowealth_sneat_tool_a_test (127.0.0.1)
+     enabled:   yes
+     payments:  on
+     closed:    1
+     periods:   2026-10
+     awards:    0 written · 0 skipped
+     paid:      7 award(s) · ₱1,152,000.00
+     duration:  220ms
+     log:       C:\laragon\www\ecowealth\system/storage\logs\royalty_month_close-2026-11.log
+
+Wallet movements
+
+   ledger #1  qa_director        515000.00  ref_id 1  Royalty bonus — 2026-10 — Director
+   ledger #2  qa_mgr_a           122500.00  ref_id 2  Royalty bonus — 2026-10 — Manager
+   ledger #3  qa_sup_a1           98000.00  ref_id 3  Royalty bonus — 2026-10 — Supervisor
+   ledger #4  qa_sup_a2           98000.00  ref_id 4  Royalty bonus — 2026-10 — Supervisor
+   ledger #5  qa_mgr_b           122500.00  ref_id 5  Royalty bonus — 2026-10 — Manager
+   ledger #6  qa_sup_b1           98000.00  ref_id 6  Royalty bonus — 2026-10 — Supervisor
+   ledger #7  qa_sup_b2           98000.00  ref_id 7  Royalty bonus — 2026-10 — Supervisor
+
+Header
+
+   period 2026-10  status paid  enabled 1  as_of 2026-11-01 00:00:00  evaluated_at 2026-11-15 11:47:41
+   members 31  leaders 8  supervisors 4  managers 2  directors 1
+   award_count 7  paid_count 7  skipped_count 0  award_total 1152000.00  paid_total 1152000.00  note -
+
+   periods 1  award rows 7 (pending 0, paid 7)  royalty ledger rows 7  ledger total 1152000.00  withdrawable (members) 1152000.00
+
+RESULT: PASS

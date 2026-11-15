@@ -4251,7 +4251,7 @@ without a filled row is not closed, whatever its code says.
 |---|---|---|---:|---:|---|---|---|---|---|
 | 19A Foundation | `p19a-foundation` | 2026-11-15 | 1,026 / 1,026 | 229 / 229 | migration `023` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (60 statements, 82,518 bytes) | A: 8/8 | DSH (automated pass) | 5 recorded below | ☑ |
 | 19B Configuration | `p19b-configuration` | 2026-11-15 | 1,054 / 1,054 | 232 / 232 | no schema change; bundle `--check` exit 0 | B: 9/9 | DSH (automated pass) | 6 recorded below | ☑ |
-| 19C Money engine | `p19c-money` | — | — / ≥1,090 | __ / __ | no schema change; `wallet_reconcile` exit 0 with Royalty | C: __/__ | — | — | ☐ |
+| 19C Money engine | `p19c-money` | 2026-11-15 | 1,106 / 1,106 | 232 / 232 | no schema change; `wallet_reconcile` exit 0 with the Royalty section; reset verification runs `RoyaltyService::reconcile()` | C: 12/12 | DSH (automated pass) | 7 recorded below | ☑ |
 | 19D Admin visibility | `p19d-admin` | — | — / ≥1,106 | __ / __ | no schema change | D: __/__ | — | — | ☐ |
 | 19E Member visibility | `p19e-member` | — | — / ≥1,122 | __ / __ | no schema change | E: __/__ | — | — | ☐ |
 | 19F Operations | `p19f-operations` | — | — / ≥1,140 | __ / __ | no schema change | F: __/__ | — | — | ☐ |
@@ -4273,19 +4273,26 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | 19B | The three quota labels drop the “(₱)” suffix from §13.4's *Exposed as* column. | The input group's currency suffix already carries it, matching every other money field on the page; keys and defaults are unchanged. | lead (19B gate) |
 | 19B | `RoyaltyRank::ladder()` exposes the quotas as floats and adds each paying rank's `quota_cents`; the settings stay the decimal strings §13.4 defines. | 19C's all-or-nothing quota gate compares integer centavos; the ladder is read-only, so nothing is stored twice. | lead (19B gate) |
 | 19B | The smoke walk gains **3** checks (settings sub-block, refused cross-field save, member Rank column) although 19B adds no route. | Two observable surfaces exist on existing URLs; 19G's target of 248 keeps 16 checks of headroom for 19C–19F. | lead (19B gate) |
+| 19C | Eligibility (`account is not active` / `membership is not active`) is decided from the rank-map row's `is_active`/`member_status`, not a per-member `accountEligible()` call as §14.4's sketch shows. | The map already loads both fields; a per-member query would be an N+1 and break §14.9's one-tree-query budget. `P19C-T24/T25` pin the two reasons. | lead (19C gate) |
+| 19C | `RoyaltyRank::map()` and `forMember()` take an optional `?PDO`, defaulting to `db()`. | The reset integrity pack runs `RoyaltyService::reconcile()` on the injected scratch connection (same rule as `UnilevelService`'s baseline); otherwise the corrupt-tree warning would read the application database. Optional, so every 19B caller is unchanged. | lead (19C gate) |
+| 19C | Stored money is built from exact decimal strings (`RoyaltyAward::money()`) and integer centavos; §14.5's `(float) $award['amount']` appears only at the `WalletService::credit()` boundary. | §12.8 forbids a float in a stored amount; the boundary value is already an exact two-decimal amount below ₱10 billion, and the wallet converts it to a decimal string itself. | lead (19C gate) |
+| 19C | `evaluate()` refuses a month before `RoyaltyPeriod::baseline()` (`state`), and the CLI refuses it with reason `baseline` (exit 1). | D-15 says pre-baseline volume is never paid; `pendingPeriods()` already hides those months, and the guard stops an operator paying one by naming it. `P19C-T49` covers it. | lead (19C gate) |
+| 19C | The close job opens a throwaway connection before `db()` to exit **2** on an unreachable database or a missing table, and ships **no** `--doctor`. | `db()`'s existing failure path prints an HTML page and exits 0, so the plan's exit code 2 needs the probe. The doctor is 19F's deliverable. | lead (19C gate) |
+| 19C | The lifecycle writes one `royalty.period.pay` audit row **per batch** and one with `final: true` on finalisation (including the heal-after-crash case). | §15.4 lists the per-batch row and the partial run; the final row closes the lifecycle so a finance review can see when a month became final. `AuditLogTest` pins the vocabulary. | lead (19C gate) |
+| 19C | `statusFor()` adds `award` and `next`; `reconcile()` adds the three period counts, `award_rows` and `legacy_total`; `RoyaltyAward::create()` also refuses a skipped row without a reason and a pending row of 0.00. | Additive keys for 19D/19E and a stricter-than-CHECK guard that keeps the ledger explainable. No documented key or 19A/19B contract changes. | lead (19C gate) |
 
 **Acceptance sign-off.**
 
 | Item | Value |
 |---|---|
 | Reference settings used | 10/10/10/10 · 500k/1M/5M · 3/5, 5/10, 10/15 |
-| Fixture period(s) | — |
-| Reference example B.1 observed | — |
-| Reference example B.2 observed | — |
-| Reference example B.3 observed | — |
-| `wallet_reconcile.php` | exit — |
-| `royalty_month_close.php --doctor` | exit — |
-| Tester / date | — |
+| Fixture period(s) | 2026-10 (the last completed month at the gate); 2026-09 + 2026-10 for the catch-up |
+| Reference example B.1 observed | **18,300.00** (`P19C-T3`, `QA19C-02`) |
+| Reference example B.2 observed | **15,000.00** (`P19C-T9`) |
+| Reference example B.3 observed | **515,000.00** (`P19C-T13`, `QA19C-04`: 1,152,000.00 across 7 awards) |
+| `wallet_reconcile.php` | exit **0** with the Royalty section (development copy and scratch month) |
+| `royalty_month_close.php --doctor` | — (19F's deliverable; the job's exit codes are proved by `P19C-T38…T45`) |
+| Tester / date | DSH (automated pass) · 2026-11-15 |
 | Evidence folder | `docs/qa/evidence/phase-19/` |
 
 ---

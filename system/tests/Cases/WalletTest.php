@@ -349,6 +349,42 @@ return [
         assert_same($dbValues, $php, 'WalletService::REF_TYPES and the enum must agree in both directions');
     },
 
+    /* ---------- 19C: the royalty movement ------------------------- */
+
+    'P19C the royalty movement is a labelled, withdrawable, idempotent credit' => function () use ($makeMember, $wallet, $ledgerRows): void {
+        $member = $makeMember();
+        $id     = (int) $member['id'];
+
+        $first = $wallet()->credit($id, '18300.00', 'royalty', 77, 'Royalty bonus - 2026-10 - Supervisor');
+
+        assert_same(false, $first['replayed']);
+        assert_same(18300.0, $wallet()->balance($id));
+        assert_same(18300.0, $wallet()->withdrawable($id), 'the Royalty credit is withdrawable');
+
+        $rows = $ledgerRows($id);
+
+        assert_count(1, $rows);
+        assert_same('credit', $rows[0]['type']);
+        assert_same('royalty', $rows[0]['ref_type']);
+        assert_same(77, (int) $rows[0]['ref_id']);
+        assert_same('18300.00', number_format((float) $rows[0]['amount'], 2, '.', ''));
+        assert_same('Royalty bonus', wallet_ref_label('royalty'));
+        assert_same('bx bx-crown', wallet_ref_icon('royalty'));
+
+        /* The award id is the wallet anchor: a replayed credit for the
+         * same award returns the original movement (plan §14.6). */
+        $replay = $wallet()->credit($id, '18300.00', 'royalty', 77, 'Royalty bonus - 2026-10 - Supervisor');
+
+        assert_same(true, $replay['replayed']);
+        assert_same($first['ledger_id'], $replay['ledger_id']);
+        assert_same(18300.0, $wallet()->balance($id), 'money moved exactly once');
+
+        /* A different award is a different movement for the same month. */
+        $wallet()->credit($id, '15000.00', 'royalty', 78, 'Royalty bonus - 2026-09 - Supervisor');
+        assert_count(2, $ledgerRows($id));
+        assert_same(33300.0, $wallet()->balance($id));
+    },
+
     /* ---------- P5-T9: statement filters -------------------------- */
 
     'P5-T9 the statement filters, paginates and totals exactly' => function () use ($makeMember, $wallet, $money): void {

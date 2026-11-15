@@ -26,6 +26,18 @@ Index:
 | `QA19B-07.txt` | QA19B-07 | The demo accounts' badges follow the 10-direct rule on this copy (juan is a Leader from accumulated QA members; maria/peter/sarah/david are Members), and at `leader_directs=1` juan/maria/peter/sarah become Leader; threshold restored |
 | `QA19B-08.txt` | QA19B-08 | `/admin/commissions`, the repeat tab, `/admin/wallets`, the member statement, `/earnings` and `/dashboard` show no Royalty row; **0 / 0 / 0** for periods, awards and the royalty ledger; wallet totals unchanged |
 | `QA19B-09.txt` | QA19B-09 | The Royalty stream **46 / 46**, the full suite **1,054 / 1,054**, the smoke walk **232 / 232** (including the three P19B checks), `wallet_reconcile` exit 0 and the bundle check exit 0 |
+| `QA19C-01.txt` | QA19C-01 | The 31-account section C fixture on `ecowealth_sneat_tool_a_test`: the exact rank distribution at 2/2/2/2, the period bounds, the five paid orders and the expected 7 awards / ₱1,152,000.00 |
+| `QA19C-02.txt` | QA19C-02 | `--dry-run --json`: 7 awards, ₱1,152,000.00, the per-member drafts and rank counts, and **0** period / award / ledger / audit rows afterwards |
+| `QA19C-03.txt` | QA19C-03 | `--evaluate-only`: the 7 `pending` rows with GS/PS/quota/rates/amount, the `evaluated` header (31/8/4/2/1, award_total 1,152,000.00, paid_total 0.00) and **0** ledger rows |
+| `QA19C-04.txt` | QA19C-04 | `--pay-only`: the 7 credits in ascending member order with their notes, the `paid` header (paid_count 7, paid_total 1,152,000.00) and the 1,152,000.00 withdrawable total |
+| `QA19C-05.txt` | QA19C-05 | A second run on the paid month: exit 0, “already final”, ledger 7 and the wallet total unchanged |
+| `QA19C-06.txt` | QA19C-06 | `wallet_reconcile.php` on the closed scratch month: the Royalty section, the 7 paid awards, the ledger total and exit 0 |
+| `QA19C-07.txt` | QA19C-07 | A ₱200,000 order cancelled before the close: GS/PS ₱1,225,000.00 and the ₱98,000.00 award, with the cancelled volume absent |
+| `QA19C-08.txt` | QA19C-08 | The Director award before and after a post-close cancellation: ₱515,000.00 unchanged, `preview()` still the stored header |
+| `QA19C-09.txt` | QA19C-09 | The pause: 1 pending / 0 ledger / 0.00 withdrawable while `royalty_pay_enabled = 0`, then ₱40,000.00 paid once after re-enabling and `--pay-only` |
+| `QA19C-10.txt` | QA19C-10 | `royalty_enabled = 0`: the `skipped` header with `royalty stream off`, every count 0 and zero awards/ledger rows |
+| `QA19C-11.txt` | QA19C-11 | The two-month catch-up: oldest-first periods, each month's own `as_of`, ₱40,000.00 + ₱80,000.00 paid, and a second run that pays nothing |
+| `QA19C-12.txt` | QA19C-12 | `php tests/run.php Royalty` **98 / 98**, the bundle check exit 0 and the development-copy `wallet_reconcile` exit 0 with the Royalty section |
 
 Notes for the reader:
 
@@ -41,3 +53,8 @@ Notes for the reader:
   real direct count for that reason; the pristine tree is covered by `RoyaltyAdminMemberViewTest`.
 - Section B moves no money: every check either reads a page or sends a refused save, and the wallet
   aggregate is compared before and after the pass.
+- **Section C moves test money on a scratch schema.** Every QA19C check runs with
+  `ECO_DB_NAME=ecowealth_sneat_tool_a_test`; the schema is dropped and rebuilt per scenario, so the
+  amounts are disposable. The transcripts record the real command output and the real `SELECT` results
+  of that scratch database — no number in them is typed by hand. The full suite and the bundle check
+  in `QA19C-12` run normally (the test harness re-creates its own `ecowealth_sneat_test`).

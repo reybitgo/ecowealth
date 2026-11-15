@@ -845,6 +845,55 @@ php bin/wallet_reconcile.php                  # exit 0 (19B moves no money)
 
 ---
 
+## 19C. Phase 19C — Money engine (section C of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **sections A, B and C** (19D–19G append theirs)
+
+19C ships the whole Royalty money path, with **no new page and no new route** (D-16): a completed
+month is evaluated (rank as of the period end, GS/PS, the all-or-nothing quota, one rounding) into
+`royalty_periods` + `royalty_awards`, and paid in resumable batches to the withdrawable wallet with a
+`royalty` ledger movement. `bin/royalty_month_close.php` is the only writer, `wallet_reconcile.php`
+gains a **Royalty** section, and the reset integrity pack runs the same reconciliation.
+
+**Prerequisites:** tag `p19b-configuration`; a scratch schema (`ecowealth_sneat_tool_a_test`) for every
+check that moves money — never the development copy or production.
+**Expected suite count:** **1,106** (Royalty group **98**); smoke **232** (no new URL).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1106   Passed: 1106   Failed: 0
+php tests/run.php Royalty                     # 98 / 98
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 232   Failed: 0
+php bin/wallet_reconcile.php                  # exit 0, with the Royalty section
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19C-01 | The 31-member fixture ranks Director 1, Manager 2, Supervisor 4, Leader 8, Member 16 at 2/2/2/2, with the five paid orders and no Royalty row yet | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-01.txt` |
+| QA19C-02 | `--dry-run --json` reports 7 awards / ₱1,152,000.00 and writes nothing (periods 0, awards 0, ledger 0, audit 0) | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-02.txt` |
+| QA19C-03 | `--evaluate-only` writes 7 `pending` rows and the `evaluated` header with the exact GS/PS/quota/rates/amount, and no wallet money | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-03.txt` |
+| QA19C-04 | `--pay-only` writes 7 `royalty` credits (ref_id = award id) to the withdrawable wallets, ₱1,152,000.00 total, and finalises the header | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-04.txt` |
+| QA19C-05 | Re-running a paid month exits 0 with “already final”, no second credit and no wallet change | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-05.txt` |
+| QA19C-06 | `wallet_reconcile.php` shows the Royalty section (1 period, 7 paid, ₱1,152,000.00) and exits 0; `--json` carries `royalty.ok = true` | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-06.txt` |
+| QA19C-07 | An order cancelled **before** the close is excluded: GS/PS ₱1,225,000.00 (not 1,425,000.00), award ₱98,000.00 | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-07.txt` |
+| QA19C-08 | An order cancelled **after** the close leaves the stored award (₱515,000.00) and the header unchanged; `preview()` returns the stored month | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-08.txt` |
+| QA19C-09 | `royalty_pay_enabled = 0` evaluates 1 pending award with no wallet money and a paused header; re-enabling and `--pay-only` pays ₱40,000.00 once | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-09.txt` |
+| QA19C-10 | `royalty_enabled = 0` closes the month as `skipped` (`note = 'royalty stream off'`, all counts 0, no awards, no money) | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-10.txt` |
+| QA19C-11 | A two-month catch-up closes oldest first with each month's own `as_of`, paying ₱40,000.00 + ₱80,000.00; a second run pays nothing | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-11.txt` |
+| QA19C-12 | `php tests/run.php Royalty` 98 / 98, the bundle check exit 0, and the development-copy `wallet_reconcile` exit 0 with a clean Royalty section; the full suite **1,106 / 1,106** and the smoke walk **232 / 232** | ☑ Pass ☐ Fail ☐ Blocked | `QA19C-12.txt` |
+
+| Phase 19C summary | |
+|---|---|
+| Executed | **12 / 12** checks |
+| Passed / Failed / Blocked | **12 / 0 / 0** |
+| Defects | 0 (see the phase log for the seven recorded deviations) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -893,6 +942,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 18 follow-up | ☐ Yes ☐ No | Order-cancellation kill switch (`shop_cancel_enabled`, **off** by default): both cancellation services refuse with `cancel_disabled` and no refund/escrow reversal runs while it is off; enabling it restores the plan §8 escrow contract. `CancelSettingTest` plus the full PHP/smoke gates. |
 | Phase 19A | ☑ Yes ☐ No | Royalty foundation: migration `023` adds `royalty_periods`, `royalty_awards`, the `royalty` wallet movement and sixteen settings, **stream off**, no reader; migrated ≡ fresh, a reset empties both tables, fresh install **33 tables / 73 settings**; 8 / 8 section-A checks, **1,026 / 1,026** PHP cases and **229 / 229** smoke checks. |
 | Phase 19B | ☑ Yes ☐ No | Royalty configuration and rank ladder: the Commissions card owns the thirteen values and two switches with full cross-field validation and an audited save; `RoyaltyRank` derives the five ranks from the sponsor tree (any depth, staff excluded, cycles excluded, cutoff-aware); `/admin/members` shows the Rank badge and distribution; **no money moves**. 9 / 9 section-B checks, **1,054 / 1,054** PHP cases and **232 / 232** smoke checks. |
+| Phase 19C | ☑ Yes ☐ No | Royalty money engine: `RoyaltyService` evaluates a completed month (rank as of the period end, GS/PS from paid line totals, all-or-nothing quota, one rounding, one award per member) and pays it in resumable batches to the withdrawable wallet; `bin/royalty_month_close.php` has `--dry-run`, `--evaluate-only`, `--pay-only`, `--json` and a lock; `wallet_reconcile` gains a Royalty section and the reset verifies it. 12 / 12 section-C checks, **1,106 / 1,106** PHP cases, **232 / 232** smoke checks (no new URL), bundle check exit 0. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

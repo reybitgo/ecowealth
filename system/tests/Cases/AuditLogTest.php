@@ -149,6 +149,49 @@ return [
         assert_true($stats['settings'] >= 0);
     },
 
+    'P19C the three Royalty period actions are audited' => function (): void {
+        /* The engine writes one of these per lifecycle event (plan §15.4):
+         * `royalty.period.evaluate`, `royalty.period.pay` (per batch and
+         * on finalisation) and `royalty.period.skip`. They are plain
+         * audit actions, so the desk's vocabulary and filters pick them
+         * up with no extra wiring. */
+        AuditLog::record([
+            'action'       => 'royalty.period.evaluate',
+            'subject_type' => 'royalty_period',
+            'meta'         => ['period' => '2026-10', 'awards' => 3, 'award_total' => '120000.00'],
+        ]);
+        AuditLog::record([
+            'action'       => 'royalty.period.pay',
+            'subject_type' => 'royalty_period',
+            'meta'         => ['period' => '2026-10', 'rows' => 3, 'amount' => '120000.00', 'final' => true],
+        ]);
+        AuditLog::record([
+            'action'       => 'royalty.period.skip',
+            'subject_type' => 'royalty_period',
+            'meta'         => ['period' => '2026-11', 'note' => 'royalty stream off'],
+        ]);
+
+        $vocabulary = AuditLog::vocabulary();
+
+        foreach (['royalty.period.evaluate', 'royalty.period.pay', 'royalty.period.skip'] as $action) {
+            assert_true(in_array($action, $vocabulary['actions'], true), 'the desk lists ' . $action);
+        }
+
+        $page = AuditLog::adminList(
+            ['q' => 'royalty.period'] + AuditLog::filterDefaults(),
+            Paginator::make(20, 1, 20)
+        );
+
+        assert_count(3, $page);
+        assert_same('royalty_period', $page[0]['subject_type']);
+
+        /* The meta is readable JSON, so a finance review can reconstruct
+         * the month without reading the money tables. */
+        $meta = json_decode((string) $page[1]['meta_json'], true);
+        assert_same('2026-10', $meta['period']);
+        assert_same(true, $meta['final']);
+    },
+
     'P15 the audit trail has no update or delete path' => function (): void {
         $reflection = new ReflectionClass(AuditLog::class);
 

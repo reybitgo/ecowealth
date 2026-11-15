@@ -1,0 +1,30 @@
+QA19C-07 - An order cancelled before the close is excluded from GS
+==================================================================
+
+Date: 2026-11-15 11:47:45 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: cancellation before the close lowers the volume the month is judged on (D-13).
+
+Fixture
+
+   one Supervisor (2 Leaders, 4 directs), thresholds 2/2/2/2
+   paid order 1,225,000.00 + a 200,000.00 order already cancelled before the close
+   expected GS 1,225,000.00 (not 1,425,000.00) and an award of 98,000.00
+
+Command
+
+   php bin\royalty_month_close.php --period=2026-10
+   exit 0
+
+Award row
+
+   2026-10  qa07_sup       rank 2  GS   1225000.00  PS   1225000.00  quota    500000.00  3.000/5.000  amount     98000.00  paid     
+
+   periods 1  award rows 1 (pending 0, paid 1)  royalty ledger rows 1  ledger total 98000.00  withdrawable (members) 98000.00
+
+RESULT: PASS

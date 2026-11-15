@@ -742,10 +742,12 @@ return [
     /* ==========================================================
      *  No money reader (P19A-T13)
      * ========================================================== */
-    'P19A-T13 no application code reads the royalty money tables before 19C' => function () use ($appRoot): void {
-        /* 19B adds the rank engine, the settings card and the directory
-         * badges. Those read `users` and the settings only; the two money
-         * tables stay unread until 19C. */
+    'P19A-T13 only the 19C engine produces Royalty rows and no surface renders them' => function () use ($appRoot): void {
+        /* 19A asserted the objects were inert; 19B asserted the rank
+         * engine may read `users` but nothing the money tables; 19C
+         * ships the engine, so the invariant is now: the engine is the
+         * ONLY producer, and no controller or view renders Royalty
+         * money until 19D/19E. */
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($appRoot . '/app', FilesystemIterator::SKIP_DOTS)
         );
@@ -763,50 +765,62 @@ return [
         $relative = static fn (string $path): string
             => str_replace('\\', '/', substr($path, strlen($appRoot)));
 
-        /* The reset tooling names the tables (19A's deliverable); nothing
-         * else may read or write them before 19C. */
+        /* The engine's own files plus the reset tooling that empties the
+         * tables. Nothing else may name them. */
         $allowList = [
+            '/app/Models/RoyaltyAward.php',
+            '/app/Models/RoyaltyPeriod.php',
+            '/app/Services/RoyaltyService.php',
             '/app/Services/DatabaseResetService.php',
         ];
 
+        $writers = [];
+
         foreach ($files as $path) {
-            $file = $relative($path);
+            $file   = $relative($path);
+            $source = (string) file_get_contents($path);
+
+            if (preg_match("/->credit\\([^;]*'royalty'/s", $source) === 1) {
+                $writers[] = $file;
+            }
 
             if (in_array($file, $allowList, true)) {
                 continue;
             }
 
-            $source = (string) file_get_contents($path);
-
             assert_same(
                 0,
                 preg_match('/\b(FROM|INTO|UPDATE|JOIN)\s+`?royalty_(awards|periods)/i', $source),
-                $file . ' must not read the royalty money tables in 19B'
-            );
-
-            assert_same(
-                0,
-                preg_match("/->credit\\([^;]*'royalty'/s", $source),
-                $file . ' must not write a royalty wallet movement in 19B'
+                $file . ' must not read the Royalty money tables outside the engine'
             );
         }
 
-        /* The rank engine is the only Royalty class 19B ships; the money
-         * engine (19C) does not exist yet. */
-        assert_true(is_file($appRoot . '/app/Models/RoyaltyRank.php'), 'the rank engine exists');
-        assert_same(
-            1,
-            count(array_filter($files, static fn (string $path): bool => preg_match('/Royalty/', basename($path)) === 1)),
-            'RoyaltyRank is the only Royalty application class'
-        );
+        assert_same(['/app/Services/RoyaltyService.php'], $writers, 'only pay() writes a royalty movement');
 
+        /* The four 19C classes exist; no controller or view does. */
         foreach ([
             '/app/Models/RoyaltyAward.php',
             '/app/Models/RoyaltyPeriod.php',
             '/app/Services/RoyaltyService.php',
-            '/app/Controllers/RoyaltyController.php',
+            '/app/Services/RoyaltyException.php',
         ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist before 19C');
+            assert_true(is_file($appRoot . $file), $file . ' must exist after 19C');
+        }
+
+        assert_false(is_file($appRoot . '/app/Controllers/RoyaltyController.php'));
+
+        foreach ($files as $path) {
+            $file = $relative($path);
+
+            if (!str_contains($file, '/Controllers/') && !str_contains($file, '/views/')) {
+                continue;
+            }
+
+            assert_same(
+                0,
+                preg_match('/\bRoyalty(Service|Award|Period|Exception)\b/', (string) file_get_contents($path)),
+                $file . ' must not render a Royalty money surface in 19C'
+            );
         }
 
         /* No route, by design (D-16). */
@@ -818,7 +832,7 @@ return [
             );
         }
 
-        /* The tables are empty on a fresh database, and the stream is off. */
+        /* A fresh install starts empty and off, exactly as 19A left it. */
         setting_cache_clear();
         assert_same('0', setting('royalty_enabled'));
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM royalty_periods')->fetchColumn());

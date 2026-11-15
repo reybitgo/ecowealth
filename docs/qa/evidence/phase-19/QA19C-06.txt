@@ -1,0 +1,64 @@
+QA19C-06 - wallet_reconcile.php has a Royalty section and exits 0
+=================================================================
+
+Date: 2026-11-15 11:47:42 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: finance must be able to audit the month from one read-only command.
+
+Command
+
+   php bin\wallet_reconcile.php
+   exit 0
+
+Observed
+
+   EcoWealth finance reconciliation
+     database:          ecowealth_sneat_tool_a_test (127.0.0.1)
+     accounts checked:  31
+     accounts with ledger: 7
+   
+   Wallets
+     OK — every wallet matches its ledger on both buckets.
+   
+   Commissions
+     credited awards:   0 (0.00)
+     skipped awards:    0
+     ledger total:      0.00
+     OK — every credited award has its wallet movement and the totals agree.
+   
+   Transfers
+     transfers checked: 0
+     OK — every transfer has its sender debit, recipient credit and fee credit.
+   
+   Payouts
+     requests checked:  0
+     held by open requests: 0.00
+     OK — every request has its hold, and every rejection its refund.
+   
+   Repeat-purchase
+     credited awards:   0 (0.00)
+     pending awards:    0 (0.00) — earned, not in a wallet yet
+     cancelled awards:  0 (0.00) — order cancelled before release, never paid
+     skipped awards:    0
+     voided awards:     0
+     awarded total:     0.00 (pending + credited)
+     unilevel ledger:   0.00
+     reversals:         0.00
+     OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+   
+   Royalty
+     periods:           1 (paid 1 · evaluated 0 · skipped 0)
+     paid awards:       7 (1,152,000.00)
+     pending awards:    0 (0.00) — evaluated, not in a wallet yet
+     skipped awards:    0
+     royalty ledger:    1,152,000.00
+     OK — every paid award has its wallet movement and every period header agrees with its rows.
+   
+   All good — wallets, commissions, transfers, payouts, repeat-purchase and royalty awards reconcile.
+
+RESULT: PASS
