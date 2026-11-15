@@ -1,0 +1,27 @@
+﻿QA20C-01 - three registrations with the hook deployed and the queue unseeded
+schema: ecowealth_sneat_tool_b_test (scratch copy built from database/schema.sql + seeds 001-004)
+date:   2026-11-15 23:49:36
+
+== the QA tree (created directly: a tree that predates the feature)
+tree created: QA20C_Top (id 3) → QA20C_Mid (id 4) → QA20C_Low (id 5)
+  QA20C_Top holds 3 member directs; QA20C_Mid holds 3; QA20C_Low holds 0
+
+== three real registrations under QA20C_Low (RegistrationService::register)
+registered QA20C_New_1 (id 10) under @QA20C_Low
+registered QA20C_New_2 (id 11) under @QA20C_Low
+registered QA20C_New_3 (id 12) under @QA20C_Low
+
+== counts after the three registrations
+harvest_queue          = 0
+team_harvest_awards    = 0
+ewallet_ledger         = 0 rows · SUM(amount) = 0.00
+team_harvest ledger    = 0 row(s)
+team_harvest_ledger_since = ''
+team_harvest_levels    = 10 rows
+members                = 10
+
+== the queue itself
+pos  username          teammates  baseline_n   directs source        qualified_at
+
+Expected: harvest_queue = 0 (the hook is inert until the seed writes
+team_harvest_ledger_since), all three registrations succeeded, no error.

@@ -3623,7 +3623,7 @@ without a filled row is not closed, whatever its code says.
 |---|---|---|---:|---:|---|---|---|---|---|
 | 20A Foundation | `p20a-foundation` | 2026-11-15 | 1,180 / 1,180 | 248 / 248 | migration `024` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (64 statements) | A: 4/8 automated (04–06 need the running app) | — (pending lead) | see §20A deviations in `docs/phase-log.md` | ☐ |
 | 20B Configuration | `p20b-configuration` | 2026-11-15 | 1,204 / 1,204 | 251 / 251 | no schema change; bundle `--check` exit 0 (64 statements) | B: 6/9 automated (01–06; 07–09 need a browser) | — (pending lead) | see §20B deviations in `docs/phase-log.md` | ☐ |
-| 20C The Harvest queue | `p20c-queue` | — | — / — | — / — | no schema change; the seed's dry run and rebuild both exit 0 | C: —/8 | — | — | ☐ |
+| 20C The Harvest queue | `p20c-queue` | 2026-11-15 | 1,234 / 1,234 | 251 / 251 | no schema change; the seed's dry run and rebuild both exit 0; a refused second seed exits 1 | C: 8/8 automated on a scratch schema (01/05's browser session pending the lead) | — (pending lead) | see §20C deviations in `docs/phase-log.md` | ☐ |
 | 20D Money engine | `p20d-money` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 with the Team Harvest section; catch-up doctor exit 0 | D: —/10 | — | — | ☐ |
 | 20E Admin visibility | `p20e-admin` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | E: —/8 | — | — | ☐ |
 | 20F Member visibility | `p20f-member` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 (moves no money) | F: —/9 | — | — | ☐ |
@@ -3636,6 +3636,8 @@ that owns it. An empty deviation log at the 20G gate means the plan and the buil
 |---|---|---|---|
 | 20B | QA20B-03's example (“level 10 at ₱20,000,000”) is refused by Rule 2's per-level ceiling before the total rule; the check now uses three levels at ₱10,000,000 (₱30,195,000.00) | The two rules are both correct; only the drafted example contradicted Rule 2. §6 QA20B-03 amended. | — (recorded in `docs/phase-log.md`) |
 | 20B | Four extra cases, P20B-T21 … T24, beyond the plan's T1–T20 | The floor is ≥ 1,202 cases (1,180 + 22); twenty cases would have left 1,200. T21 pins the ladder audit payload, T22 the card's scope, T23 the history copy, T24 the missing-amount-fields guard. No contract changed. | — (recorded in `docs/phase-log.md`) |
+| 20C | Four extra cases, P20C-T27 … T30, beyond the plan's T1–T26 | The floor is ≥ 1,232 cases (1,204 + 28); twenty-six cases would have left 1,230. T27 proves the CLI as a process, T28 the two `directs_at_qualification` paths, T29 the slot arithmetic against `TeamHarvestLevel`, T30 the invalid-gate refusal. No contract changed. | — (recorded in `docs/phase-log.md`) |
+| 20C | `seed()` reports the positions the table assigned, not its prediction; the dry run still predicts from `MAX(id)+1` | A position is a fact (D-03). On a fresh table both are 1…N; the test harness's rolled-back inserts advance `AUTO_INCREMENT`, so the cases assert positions relatively and prove order/contiguity, while the CLI case proves `MIN(id) = 1` on a real table. | — (recorded in `docs/phase-log.md`) |
 
 **Acceptance sign-off.**
 

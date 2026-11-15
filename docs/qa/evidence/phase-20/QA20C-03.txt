@@ -1,0 +1,44 @@
+﻿QA20C-03 - the seed for real: positions, teammates and the baseline
+command: php bin/harvest_queue_seed.php
+schema:  ecowealth_sneat_tool_b_test
+date:    2026-11-15 23:49:50
+
+== the real seed
+EcoWealth Team Harvest queue seed
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  gate:      3 direct member account(s)
+  order:     qualified_at — the gate-th direct's created_at
+  members:   3 member(s) hold the gate
+  queued:    0 position(s) already assigned · 0 candidate(s) skipped
+  inserted:  3 position(s)
+  baseline:  2026-11-15 23:49:51 (team_harvest_ledger_since)
+  excludes:  0 level(s) already complete at the baseline · ₱0.00 over 0 member(s) — recorded as baseline rows by 20D, never credited (D-07)
+
+The first 3 position(s) of the queue:
+  #1    @QA20C_Top            qualified 2026-11-01 09:02:00  directs 3  seed
+  #2    @QA20C_Mid            qualified 2026-11-01 09:04:00  directs 3  seed
+  #3    @QA20C_Low            qualified 2026-11-15 23:49:37  directs 3  seed
+
+The registration hook is now live (team_harvest_ledger_since is set).
+The stream is still switched off: turn on Team Harvest in /admin/settings → Commissions.
+exit code: 0
+
+== SELECT id, user_id, teammates, baseline_n ... ORDER BY id LIMIT 20
+pos  username          teammates  baseline_n   directs source        qualified_at
+1    QA20C_Top                 2           2         3 seed          2026-11-01 09:02:00
+2    QA20C_Mid                 1           1         3 seed          2026-11-01 09:04:00
+3    QA20C_Low                 0           0         3 seed          2026-11-15 23:49:37
+
+== counts
+harvest_queue          = 3
+team_harvest_awards    = 0
+ewallet_ledger         = 0 rows · SUM(amount) = 0.00
+team_harvest ledger    = 0 row(s)
+team_harvest_ledger_since = '2026-11-15 23:49:51'
+team_harvest_levels    = 10 rows
+members                = 10
+
+Expected: positions 1..3 contiguous in qualification order (Top, Mid, Low);
+teammates = 2, 1, 0; baseline_n = teammates for every row (the go-live
+baseline); source = seed; team_harvest_ledger_since is now a DATETIME;
+team_harvest_awards is still 0 (the seed moves no money).

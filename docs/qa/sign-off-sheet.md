@@ -1157,6 +1157,53 @@ php bin/wallet_reconcile.php                  # exit 0 (20B moves no money)
 
 ---
 
+## 20C. Phase 20C — The Harvest queue (section C of the Phase 20 pack)
+
+Document: [phase-20-team-harvest.md](phase-20-team-harvest.md) — **sections A–C** (20D–20G append theirs)
+
+Phase 20C stores **qualification**, the feature's irreversible part: a member who holds the configured
+number of direct member accounts gets one permanent position, every queued ancestor's teammate counter
+moves by one, the historical tree is reconstructed once by a deterministic seed job, and a rebuild can
+prove every counter. **No money moves** — `team_harvest_awards` stays empty and no wallet balance
+changes.
+
+**Prerequisites:** tag `p20b-configuration` (or later, `feature/team-harvest`); a **scratch schema**
+(`ecowealth_sneat_tool_b_test`) for every check that writes, because the section seeds a queue,
+registers members and finally resets the database; the development copy is **not** seeded by it.
+**Expected suite count:** **1,234**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0
+php tests/run.php                             # Cases: 1234   Passed: 1234   Failed: 0
+php tests/run.php HarvestQueue                # Cases: 30   Passed: 30   Failed: 0
+php bin/harvest_queue_seed.php --help         # exit 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 251   Failed: 0 (20C adds no smoke check)
+php bin/wallet_reconcile.php                  # exit 0 (20C moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA20C-01 | Three real registrations on an unseeded copy: `harvest_queue` **0**, no award, the baseline still `''` — the hook is inert | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-01.txt` |
+| QA20C-02 | The seed's dry run: the gate holders, positions 1…N in `(created_at, id)` order, the baseline instant and the excluded money — and **no** row, setting or audit change | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-02.txt` |
+| QA20C-03 | The real seed: contiguous positions, `baseline_n = teammates` on every row, `source = seed`, `directs_at_qualification = 3`, the baseline instant written, the awards still 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-03.txt` |
+| QA20C-04 | A second real seed exits **1**, writes nothing, moves no position and writes no second audit row | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-04.txt` |
+| QA20C-05 | A newcomer appends at the **end** and every queued ancestor moves by exactly one (Low 0→1, Mid 1→2, Top 2→3); `verify()` clean | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-05.txt` |
+| QA20C-06 | The rebuild drill: 0 drift on a clean queue, a hand-edited counter reported (`stored 7 / recount 2`) with nothing written, `--apply` repairing it without moving a position, one `harvest.queue.repair` audit row | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-06.txt` |
+| QA20C-07 | After 01–06: `team_harvest_awards` **0**, no `team_harvest` ledger row, both wallet buckets untouched, the ten ladder rows and the switch unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-07.txt` |
+| QA20C-08 | A business reset empties the queue and the awards, clears the baseline, keeps the ladder, and the next seed starts at **#1** again | ☑ Pass ☐ Fail ☐ Blocked | `QA20C-08.txt` |
+
+| Phase 20C summary | |
+|---|---|
+| Executed | **8 / 8** by the automated pass on `ecowealth_sneat_tool_b_test` (the signed-in `/register` step of 01 and 05 is the lead's) |
+| Passed / Failed / Blocked | 8 / 0 / 0 |
+| Defects | 0 so far |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | — |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1215,6 +1262,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19G | ☑ Yes ☐ No | Royalty release: `APP_PHASE` **19**; the Phase 19 QA pack complete and signed (sections A–G, **60 / 60**); the Appendix B acceptance run on a scratch database **12 / 12** (₱18,300.00; ₱515,000.00; ₱18,000.04; the two-month catch-up; the 11,111-member minimum-tree ladder); the release walk as admin and member on seven URLs with no console error or broken link; every stale count in the shared docs corrected. Three defects found by the cold read were fixed in their owning phases with regression cases (`P19G-T9`…`T12`) — the zero-quota display, the silent log-write failure and the `closed` count in `--evaluate-only`. **1,162 / 1,162** PHP cases (Royalty 154 / 154), **248 / 248** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0 and a green doctor. |
 | Phase 20A | ☐ Yes ☐ No | Team Harvest foundation: migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings, **stream off and queue unseeded**, no reader; migrated ≡ fresh, a reset empties the queue and awards and clears the baseline while keeping the ladder; fresh install **36 tables / 77 settings / 10 ladder rows**; **18** new PHP cases, **1,180 / 1,180** green and **248 / 248** smoke checks. Section A: **4 / 8** executed by the automated pass (02, 03, 07, 08); 01 and 04–06 await the lead's manual pass. |
 | Phase 20B | ☐ Yes ☐ No | Team Harvest configuration: the Commissions card's Team Harvest sub-block (switch, gate, depth, ten amounts), the generated 3×10 ladder equal to Appendix A, the ₱25,000,000.00 total guard and the all-zero enable refusal, an atomic save with `team_harvest.ladder.update` + `settings.update` audit rows, the four-state status strip, and the phase's inertness (no queue row, no award, no money). **24** new PHP cases, **1,204 / 1,204** green, **251 / 251** smoke checks (three new 20B checks), bundle check exit 0, `wallet_reconcile` exit 0. Section B: **— / 9** executed by the automated pass; the card, audit desk, JS-off and 390 px checks await the lead. |
+| Phase 20C | ☐ Yes ☐ No | Team Harvest queue: the registration hook inside the registration transaction, the gate counting `role = 'member'` accounts only (status ignored), the inert-until-seeded guard, append-only positions, the any-depth ancestor walk (eleven ancestors — one more than `SponsorService::MAX_LEVELS`), the "qualified after me" exclusion, the maintained counter with its proof (`recount()`/`rebuild()`), the one-time deterministic seed (`baseline_n`, idempotent, `--force` appends only), the 3-ary matrix, and the phase's purity (no award, no wallet row, no balance). **30** new PHP cases, **1,234 / 1,234** green, **251 / 251** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section C: **8 / 8** executed on a scratch schema; the signed-in `/register` step and the independent-tester run await the lead. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is **1,162 / 1,162** and the smoke run **248 / 248** on the

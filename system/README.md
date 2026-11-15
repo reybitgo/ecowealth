@@ -1387,7 +1387,7 @@ php bin/wallet_reconcile.php              # six sections, exit 0 when clean
 
 ---
 
-## Team Harvest bonus (Phases 20A–20B)
+## Team Harvest bonus (Phases 20A–20C)
 
 A **flat amount per completed level** of a member's private **3×10 matrix**, paid into the withdrawable
 e-wallet when the level's block fills. It has no month, no purchase input and no rank: a member enters
@@ -1410,8 +1410,8 @@ who joins their team **after** them fills one slot.
 **The schema (20A, migration `024`).** `harvest_queue` (one row per qualified member; `id` **is** the
 position, `UNIQUE (user_id)`), `team_harvest_levels` (the ten amounts, natural key) and
 `team_harvest_awards` (the money ledger, `UNIQUE (user_id, level)`), plus `team_harvest` on
-`ewallet_ledger.ref_type` and four settings. **The configuration (20B)** is the only reader: the queue
-and the awards stay empty and unwritten until 20C/20D.
+`ewallet_ledger.ref_type` and four settings. **The configuration (20B)** edits the ladder; **the queue
+(20C)** stores qualification. `team_harvest_awards` stays empty until 20D.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1470,9 +1470,87 @@ A posted card that does **not** carry the amount fields at all (an older form, a
 flips the switch) keeps the stored ladder; an explicit empty array clears it. The card writes no
 position, no award and no wallet row.
 
+### `HarvestQueue` (20C)
+
+The queue is the **irreversible** part of the bonus: `harvest_queue.id` is a member's position, it is
+assigned by auto-increment, never computed and never renumbered, and every later award is derived from
+it. Three writers, and no others:
+
+| Writer | When | `source` |
+|---|---|---|
+| `qualifySponsor($sponsorId)` | inside `RegistrationService::register()`'s transaction, after the new user row exists | `registration` |
+| `seed()` | once, at go-live, from `bin/harvest_queue_seed.php` | `seed` |
+| `rebuild(apply: true)` | the repair drill: appends a gate holder with no row (never before an existing position) | `repair` |
+
+```php
+$queue = new HarvestQueue();
+$queue->qualifySponsor($sponsorId);   // ?int — the new position, or null
+$queue->positionOf($userId);          // ?int
+$queue->teammatesOf($userId);         // int  — the stored counter n
+$queue->recount($userId);             // int  — the authoritative count (the proof)
+$queue->ancestorsOf($userId);         // queued ancestors, nearest first, any depth, cycle-safe
+$queue->teamRoster($userId, 25);      // teammates in position order
+$queue->matrix($userId, 0, 25);       // a page of the private 3×10 board
+$queue->stats();                      // queued · positions · next · deepest · awards
+$queue->verify();                     // corrupt chains, non-member rows, counter drift
+$queue->seed($dryRun, $byId, $force);
+$queue->rebuild($dryRun, $apply);
+```
+
+The rules it owns:
+
+- **The gate** is `team_harvest_qualify_directs` (default 3) **direct `role = 'member'` accounts**.
+  Staff accounts never count, never qualify and are never queued — the company account included.
+  **Status is not read**: a pending, inactive or suspended direct counts exactly like an active one,
+  and a suspended member qualifies like any other.
+- **The hook is inert until the queue is seeded.** An empty `team_harvest_ledger_since` makes
+  `qualifySponsor()` return `null` before it reads anything: deploy → seed → live (D-04).
+- **`qualified_at` is the qualification instant**: the gate-th direct's `created_at`, on the live path
+  and in the reconstruction alike, so the two can never disagree.
+- **The counter is maintained and proved.** Each qualification moves every queued ancestor by one
+  (`teammates = teammates + 1`, one statement), at any depth and with no ten-level cap;
+  `recount()` computes the definition from the tree and `rebuild()` reports any disagreement. A
+  counter the recount disagrees with is a defect, never a variant.
+- **"Qualified after me" is the traffic rule.** A descendant who qualified *before* the member is
+  permanently excluded and is never replaced. That is why a level completion is a one-way door.
+- **The matrix is derived, never stored.** `matrix()` fills the 3×10 board from the ordered roster:
+  level `L` holds `3^L` slots and starts at `(3^L − 3)/2`; `placed_under(r)` is `you` for the first
+  three slots and `teammate[r/3 − 1]` after that.
+
+`qualifySponsor()` runs inside the registration's transaction: a registration that cannot record its
+qualification rolls back rather than leaving an unrecorded position behind.
+
+### The seed job (20C)
+
+**One-time, on-demand — not a cron entry.** It reconstructs the queue for the tree that already
+exists, records every member's baseline (`baseline_n`, the `n` they hold at that instant) and only
+then switches the hook on by writing `team_harvest_ledger_since`.
+
 ```bash
-php tests/run.php TeamHarvestConfiguration   # 24 configuration cases (20B)
-php tests/run.php TeamHarvest                # the whole stream so far (20A + 20B)
+php bin/harvest_queue_seed.php --dry-run     # preview: positions, order, baseline, excluded money
+php bin/harvest_queue_seed.php               # reconstruct (refused on a non-empty queue)
+php bin/harvest_queue_seed.php --by-id       # order by member id (imported/backdated data)
+php bin/harvest_queue_seed.php --force       # append only the members that are missing
+php bin/harvest_queue_seed.php --rebuild     # report counter drift (writes nothing)
+php bin/harvest_queue_seed.php --rebuild --apply   # repair the counters
+```
+
+Windows: `bin\harvest_queue_seed.cmd` takes the same flags. Exit codes: **0** success / nothing to do,
+**1** refused (already seeded, a non-empty queue without `--force`, an invalid gate, drift found by a
+rebuild dry run), **2** environment (database unreachable, tables missing).
+
+The order is deterministic — the gate-th direct's `(created_at, id)`, or the member's own id with
+`--by-id` — and every run is audited (`harvest.seed`, `harvest.queue.repair`). The dry run prints the
+order and **what the baseline excludes**: the levels already complete at that instant, with their
+amount, because those levels are recorded as `baseline` rows and are never credited (D-07).
+
+**Go-live order** (also in `docs/runbook.md`): deploy the code → `--dry-run` → run the seed → turn the
+bonus on in **Settings → Commissions**. The seed moves no money.
+
+```bash
+php tests/run.php HarvestQueue                # 30 queue cases (20C)
+php tests/run.php TeamHarvestConfiguration    # 24 configuration cases (20B)
+php tests/run.php TeamHarvest                 # the whole stream so far (20A + 20B + 20C)
 ```
 
 ---

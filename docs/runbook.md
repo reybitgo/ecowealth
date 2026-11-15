@@ -134,6 +134,64 @@ do not rewrite the closed row. To stop future Royalty, set `royalty_enabled = 0`
 testing and for a host whose cron only calls URLs; it follows the same lock, the same rules and the
 same log, but the CLI is the scheduled path and the one whose exit code your cron mail reports.
 
+### Team Harvest go-live order (once, Phase 20C)
+
+Team Harvest is the **only** stream with no schedule: no month, no close job, no cron entry. Its one
+job is the go-live **seed**, and the order is the whole point of it — the registration hook is inert
+until the seed writes the baseline instant, so a deploy can never queue or pay anything by accident.
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+# 1. Deploy the code (it ships with team_harvest_enabled = 0 and an unseeded queue).
+#    backend -> /admin/settings -> Commissions -> Team Harvest bonus must read
+#    "Not seeded - no position has been assigned".
+
+# 2. Preview. This writes nothing and is the report the business decides on:
+#    the members that would be queued, positions 1..N in qualification order,
+#    the baseline instant, and the levels already complete at that instant
+#    (their count and their amount - the money the baseline excludes, D-07).
+php bin\harvest_queue_seed.php --dry-run
+
+# 3. Reconstruct the queue. One transaction; refused if the queue already has rows.
+php bin\harvest_queue_seed.php
+exit 0
+
+# 4. Check the counters against a from-scratch recount. Must report 0 drift.
+php bin\harvest_queue_seed.php --rebuild --dry-run
+exit 0
+
+# 5. Only now turn the money on: /admin/settings -> Commissions ->
+#    Enable the Team Harvest bonus, then Save settings.
+#    No award is written while the switch is off; the queue grows regardless.
+```
+
+**Read the result.** Step 2 and step 3 print the same positions; `baseline_n` equals `teammates` on
+every row the seed wrote, and `team_harvest_ledger_since` holds the seed's timestamp. Step 4 says
+every counter equals a recount. `php bin\wallet_reconcile.php` is untouched by the whole sequence: the
+seed moves no money (levels complete at the baseline are recorded by the award engine as `baseline`
+rows and are never credited).
+
+**If the seed is run twice:** it refuses (`exit 1`, "already seeded … holds N position(s)"). That is
+not an error — positions are facts and are never renumbered. Use `--dry-run` to look again, or
+`--force` to append only the members that are missing (after the existing positions, never before).
+
+**If a member is missing from the queue** because a registration happened while the seed had not run
+or a job failed: `php bin\harvest_queue_seed.php --rebuild` names them under `missing:`; `--rebuild
+--apply` appends them with `source = 'repair'` and audits `harvest.queue.repair`. A member who holds
+the gate is never deleted from the queue and never renumbered.
+
+**If a counter looks wrong** (a level completes that should not, or a level that should complete does
+not): `php bin\harvest_queue_seed.php --rebuild` reports `stored N  recount M` per member and writes
+nothing; `--rebuild --apply` repairs the counter to the recount, refuses to lower a counter below its
+`baseline_n` (that can only mean a descendant left the tree), and audits every before/after. Positions
+are never touched by a repair.
+
+**Never edit `harvest_queue` by hand.** There is no supported way to change a position, and a manual
+`UPDATE teammates` is exactly what `--rebuild` exists to detect and undo. If the queue is wrong in a
+way the repair cannot express, stop and record it: the alternative (re-seeding a live queue) rewrites
+history.
+
 ---
 
 ## 3. Backups, install, reset and restore

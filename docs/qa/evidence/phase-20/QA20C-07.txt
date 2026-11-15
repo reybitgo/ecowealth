@@ -1,0 +1,28 @@
+﻿QA20C-07 - the whole phase moves no money
+schema:  ecowealth_sneat_tool_b_test
+date:    2026-11-15 23:50:25
+
+== after QA20C-01..06 (4 positions, a seed, a live qualification, a repair)
+harvest_queue          = 4
+team_harvest_awards    = 0
+ewallet_ledger         = 0 rows · SUM(amount) = 0.00
+team_harvest ledger    = 0 row(s)
+team_harvest_ledger_since = '2026-11-15 23:49:51'
+team_harvest_levels    = 10 rows
+members                = 13
+
+== the wallet ledger and the Team Harvest tables
+-- ewallet_ledger by ref_type --
+  (no ledger row at all)
+-- wallet buckets --
+  ewallet_balance      sum = 0.00
+  withdrawable_balance sum = 0.00
+-- Team Harvest --
+  team_harvest_awards  = 0
+  team_harvest_levels  = 10 rows, total 5095000.00
+  team_harvest_enabled = '0'
+
+Expected: team_harvest_awards = 0 and no ewallet_ledger row with
+ref_type = team_harvest; every wallet balance is untouched (this scratch copy
+has no wallet ledger row at all, so both bucket totals are 0.00); the ladder
+still holds its ten rows and the stream is still switched off - 20C pays nothing.

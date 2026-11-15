@@ -1,0 +1,87 @@
+﻿QA20C-08 - a business reset empties the queue, clears the baseline and keeps the ladder
+schema:  ecowealth_sneat_tool_b_test (a scratch copy: the reset destroys every member)
+date:    2026-11-15 23:50:40
+
+== 1. before the reset
+pos  username          teammates  baseline_n   directs source        qualified_at
+1    QA20C_Top                 3           2         3 seed          2026-11-01 09:02:00
+2    QA20C_Mid                 2           1         3 seed          2026-11-01 09:04:00
+3    QA20C_Low                 1           0         3 seed          2026-11-15 23:49:37
+4    QA20C_New_1               0           0         3 registration  2026-11-15 23:50:03
+harvest_queue          = 4
+team_harvest_awards    = 0
+ewallet_ledger         = 0 rows · SUM(amount) = 0.00
+team_harvest ledger    = 0 row(s)
+team_harvest_ledger_since = '2026-11-15 23:49:51'
+team_harvest_levels    = 10 rows
+members                = 13
+
+== 2. the reset's dry run plans the harvest step
+Plan (57 statement(s), 0 writes)
+  royalty               Royalty bonus awards and month headers               2
+  harvest               Team Harvest queue positions and level awards        2
+  members               Delete the member accounts                           1
+
+== 3. the reset
+   OK   Transfer reconciliation       TransferService::reconcile clean
+   OK   Payout reconciliation         PayoutService::reconcile clean
+   OK   Repeat-purchase reconciliation  UnilevelService::reconcile clean
+   OK   Royalty reconciliation        RoyaltyService::reconcile clean
+   OK   Live revisions                18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters       23 counter(s) at 1
+
+  deleted: 17 rows · members 13 → 0 · orders 0 → 0 · ledger 0 → 0 · codes 0 → 0
+  catalogue: 7 products / 2 packages · audit 9 rows · live 33 surfaces · counters reset 23
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+exit code: 0
+
+== 4. after the reset
+harvest_queue          = 0
+team_harvest_awards    = 0
+ewallet_ledger         = 0 rows · SUM(amount) = 0.00
+team_harvest ledger    = 0 row(s)
+team_harvest_ledger_since = ''
+team_harvest_levels    = 10 rows
+members                = 0
+-- ewallet_ledger by ref_type --
+  (no ledger row at all)
+-- wallet buckets --
+  ewallet_balance      sum = 0.00
+  withdrawable_balance sum = 0.00
+-- Team Harvest --
+  team_harvest_awards  = 0
+  team_harvest_levels  = 10 rows, total 5095000.00
+  team_harvest_enabled = '0'
+
+== 5. the next seed starts at position 1 again
+tree created: QA20C_Top (id 16) → QA20C_Mid (id 17) → QA20C_Low (id 18)
+  QA20C_Top holds 3 member directs; QA20C_Mid holds 3; QA20C_Low holds 0
+EcoWealth Team Harvest queue seed
+  database:  ecowealth_sneat_tool_b_test (127.0.0.1)
+  gate:      3 direct member account(s)
+  order:     qualified_at — the gate-th direct's created_at
+  members:   2 member(s) hold the gate
+  queued:    0 position(s) already assigned · 0 candidate(s) skipped
+  inserted:  2 position(s)
+  baseline:  2026-11-15 23:50:42 (team_harvest_ledger_since)
+  excludes:  0 level(s) already complete at the baseline · ₱0.00 over 0 member(s) — recorded as baseline rows by 20D, never credited (D-07)
+
+The first 2 position(s) of the queue:
+  #1    @QA20C_Top            qualified 2026-11-01 09:02:00  directs 3  seed
+  #2    @QA20C_Mid            qualified 2026-11-01 09:04:00  directs 3  seed
+
+The registration hook is now live (team_harvest_ledger_since is set).
+The stream is still switched off: turn on Team Harvest in /admin/settings → Commissions.
+pos  username          teammates  baseline_n   directs source        qualified_at
+1    QA20C_Top                 1           1         3 seed          2026-11-01 09:02:00
+2    QA20C_Mid                 0           0         3 seed          2026-11-01 09:04:00
+
+Expected: the dry run names the harvest step; the reset empties
+harvest_queue and team_harvest_awards, sets team_harvest_ledger_since back to
+'', keeps the ten ladder rows and the four settings, and restarts the
+auto-increment - so the next seed's first position is #1 again.
+

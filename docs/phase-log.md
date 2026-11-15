@@ -1,4 +1,4 @@
-# EcoWealth — Phase Log
+﻿# EcoWealth — Phase Log
 
 Running record of decisions, migrations, backups and test results. One section per phase; append, never rewrite history.
 
@@ -6419,4 +6419,180 @@ restored in the `finally` block); P15-T7's card payload gains the three knobs.
 - `save()` rewrites ten rows or refuses; no later phase may write `team_harvest_levels` directly.
 
 ---
+
+## Phase 20C — The Harvest queue (2026-11-15)
+
+**Status:** complete · **Tags:** `p20b-configuration` (start), `p20c-queue` ·
+**Branch:** `feature/team-harvest` · **Schema:** 36 tables, 77 settings (unchanged — this phase adds no
+schema) · **Suite:** 1,204 → **1,234** cases, **1,234 / 1,234** green · **Smoke:** 251 (unchanged —
+the phase adds no route and no page).
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §7 (Phase 20C), §12.2–§12.5, §14.3–§14.4 and §14.10. This
+phase makes qualification a **stored fact**: a member who reaches the gate gets one permanent position,
+every queued ancestor's teammate counter moves by one, the historical tree is reconstructed once by a
+deterministic seed job, and a rebuild can prove every counter. **No money moves:** `team_harvest_awards`
+is empty, no wallet row exists and no balance changes after the whole fixture.
+
+### Database
+
+None. 20A shipped every column this phase writes, and 20B configured what it reads. The development
+copy (`ecowealth_sneat`) was **not** seeded by this phase: it stays at `team_harvest_ledger_since = ''`,
+which is the shipped default and the state the manual gate's `QA20C-01` proves.
+
+### Code
+
+- **`app/Models/HarvestQueue.php`** (new, ~1,700 lines) — the queue, the matrix and the two structure
+  jobs, and the only writer of `harvest_queue` besides the registration hook:
+  - reads: `row()`, `positionOf()`, `isQueued()`, `map()` (one query, `user_id => position`),
+    `teammatesOf()`, `baselineN()`, `directs()`, `baseline()`, `seeded()`, `stats()`,
+    `ancestorsOf()`, `teamRoster()`, `recount()`, `recountAll()`, `matrix()`, `verify()`;
+  - writes: `qualifySponsor()` (the hook), `insert()`, `incrementAncestors()`, `seed()`, `rebuild()`;
+  - pure arithmetic: `levelOfSlot()`, `slotsOfLevel()`, `startOfLevel()`.
+  **`id` is the position** and is only ever assigned by auto-increment (D-03). `qualifySponsor()`
+  returns `null` before it reads anything while `team_harvest_ledger_since` is empty (Rule 2), refuses a
+  non-member sponsor (Rule 4), and takes a `SELECT … FOR UPDATE` on the sponsor's row so two
+  simultaneous registrations under one sponsor cannot both queue them; a duplicate-key loser returns
+  `null` instead of failing the registration. Every early exit is wrapped so the method still honours
+  "join the caller's transaction, or own one". `qualified_at` is the **gate-th direct's `created_at`**
+  on both paths (Rule 12), so a live row and a seeded row can never disagree about the instant.
+  `directs_at_qualification` is the observed count on the live path and the gate itself on a
+  reconstructed row (at that instant the member held exactly the gate).
+- **`app/Services/RegistrationService.php`** — **one added call**, inside the existing registration
+  transaction, after the activation branches: `(new HarvestQueue($this->pdo))->qualifySponsor((int)
+  $sponsor['id'])`. It is the only change to a registration path in the whole plan; a failure rolls the
+  registration back (Rule 3, P20C-T23).
+- **`bin/harvest_queue_seed.php`** (new) — the one-time go-live job. Flags `--dry-run`, `--by-id`,
+  `--force`, `--rebuild`, `--apply`, `--json`, `--quiet`, `--help`; a `GET_LOCK` advisory lock; one
+  transaction for the rows, the counters, the baseline and the audit row. It probes the connection with
+  its own `PDO` **before** touching `db()`, because `db()` answers a failed connection with an HTML page
+  and exit 0 — the plan's "unreachable database exits 2" would otherwise be unreachable. Exit codes:
+  0 success/nothing to do, 1 refused or drift found, 2 environment.
+- **`bin/harvest_queue_seed.cmd`** (new) — the Windows launcher, like the other `.cmd` files.
+- **`app/Models/AuditLog.php`** — unchanged, as the plan says: the job writes `harvest.seed` and the
+  repair writes `harvest.queue.repair` through the existing helper (`actor_role = 'system'`).
+
+No route, no view, no page and no schema change (D-14). `APP_PHASE` stays **19**.
+
+### The two jobs
+
+| Job | What it does | Writes |
+|---|---|---|
+| `seed($dryRun, $byId, $force)` | reconstructs positions from the gate-th direct's `(created_at, id)` (or the member's id), recounts every member, writes `teammates` and `baseline_n = teammates` for the rows it creates, then writes the baseline instant | queue rows (`source = 'seed'`), the counters, the baselines, `team_harvest_ledger_since`, one `harvest.seed` row |
+| `rebuild($dryRun, $apply)` | recounts every counter, compares, reports drift / violations / missing members; with `--apply` appends the missing (`source = 'repair'`) and repairs the counters | counters; an appended row; one `harvest.queue.repair` row |
+
+A real seed on a seeded queue is refused with the instant and the position count; `--force` appends
+only the members that are missing, after the existing positions. `--dry-run` is allowed on a
+non-empty queue and reports a `diff` — the rank a `--by-id` order would give each member against the
+position they already hold — so the operator can see what a different order would have meant without
+any renumbering. The dry run also prints **what the baseline excludes**: the levels already complete at
+that instant and their total (D-07's "quantify the excluded money before anyone decides").
+
+### Tests
+
+**30 new cases: 1,204 → 1,234, all green.** `HarvestQueueTest` (new): T1 (three directs → position and
+the gate-th instant), T2 (a fourth direct writes no row), T3 (two members in gate order), T4 (position
+is qualification order, not tree order), T5 (a staff direct neither counts nor qualifies), T6 (the
+company account never holds a position), T7 (suspended and pending directs count), T8 (a configurable
+gate that is not retroactive), T9 (inert before the seed, live after it), T10 (the dry run writes
+nothing and reports 40 positions), T11 (the reconstruction: contiguous positions, `n = 39/12/3/0`,
+`baseline_n = teammates`, 18 baseline levels worth ₱25,000.00, one audit row), T12 (`--by-id` order and
+the reported diff, with no renumbering), T13 (a second seed writes nothing; no second audit row), T14
+(a non-empty queue refused with the count; `--force` appends only the missing at position 41), T15 (a
+tree with no gate holder seeds an empty but live queue), T16 (the twelve-deep spine: eleven queued
+ancestors move, the unqueued one does not), T17 (a sibling subtree is untouched), T18 (an earlier
+qualification is never retro-counted), T19 (all 40 counters equal a from-scratch recount; `verify()`
+clean), T20 (a hand-edited counter is reported and repaired only with `--apply`; the audit names
+before/after; a repair never renumbers), T21 (a rebuild never rewrites `baseline_n`), T22 (the whole
+fixture moves no money), T23 (the hook commits and rolls back with the registration), T24 (a sponsor
+cycle and a self-sponsor terminate, move once, and are reported), T25 (the `n = 12` matrix: slots 0–11,
+levels `1,1,1,2,…`, `placed_under`, pagination), T26 (`stats()` on fixture B: 121 queued, deepest 120,
+88000.00 excluded), T27 (the real CLI as a subprocess: `--help` exit 0, an unreachable database exit 2,
+a dry run, a real seed, and a refused second run on a scratch schema), T28 (a seeded row records the
+gate as its direct count and the third instant; a live row records the observed count), T29 (the 3-ary
+slot arithmetic is exact and agrees with `TeamHarvestLevel` for levels 1–10), T30 (an invalid gate
+refuses the seed and a clean queue verifies).
+
+Updated for the phase: `TeamHarvestFoundationTest` — P20A-T15's allow-list admits
+`app/Models/HarvestQueue.php` and its "must not exist" list drops it (keeping the money model, the
+service and the controller out), and P20A-T16's reader list gains the queue (the writer list stays
+empty). Both are phase-scoped guards, as they were for 20B.
+
+`smoke.ps1` is unchanged: 20C adds no route and no page, and the plan's §16.4 assigns the Phase 20
+smoke checks to 20G. The registration path's existing cases (`LaunchTest`, `HardeningTest`, the
+registration views) stay green with the hook in place — and because the development copy is unseeded,
+the smoke run's registrations queue nobody.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration; `MigrationTest` green.
+- [x] `php bin/build_install_sql.php --check` → exit 0, no output (no bundle change).
+- [x] `php tests/run.php` → **Cases: 1,234   Passed: 1,234   Failed: 0**, exit 0 (floor 1,232).
+- [x] `php bin/wallet_reconcile.php` → exit 0 (no `team_harvest` row exists; the seed moves no money).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 251   Failed: 0**, exit 0.
+- [x] Every P20C-Tn case exists, is named for the phase and passes; `php tests/run.php HarvestQueue` is
+      **30 / 30**.
+- [x] The seed is deterministic (two dry runs produce the same positions — asserted inside P20C-T10)
+      and idempotent (two real runs write once): P20C-T10/T13, and `QA20C-02`/`04` on a scratch
+      schema.
+- [x] The 40-qualified fixture's counters equal a from-scratch recount, member by member (P20C-T19).
+- [x] No award row and no wallet movement exists anywhere in the phase's tests (P20C-T22, `QA20C-07`).
+- [x] The manual script (plan §7, `QA20C-01` … `QA20C-08`) is written; the automated pass captured all
+      eight as transcripts on `ecowealth_sneat_tool_b_test`. The signed-in `/register` browser session
+      (01/05) and the independent-tester run remain the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section C filled; the evidence index carries the eight new rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p20c-queue`.
+
+### Deviations
+
+1. **The rebuild's `drift` array names what it found, not what is left.** An applied `--rebuild
+   --apply` reports `repaired: 1` and keeps the finding in `drift` so an operator can see it; `ok` is
+   computed from the end state (`violations === []` after an apply, "nothing to do" before one). The
+   plan's T20 wording ("the drift is gone") is honoured in the database and by a second rebuild's
+   `drift: 0`, which the case asserts.
+2. **`seed()` reports the positions the table assigned, not the ones it predicted.** A preview numbers
+   from `MAX(id)+1` (1 on the empty queue a go-live seed sees); the real run re-reads the rows, because
+   a position is a fact (D-03). The harness amplifies the difference — a rolled-back INSERT still
+   advances `AUTO_INCREMENT` — so the cases assert positions **relatively** (the case's first position
+   plus an offset) and assert the *order and contiguity*, which is the contract. On a fresh production
+   table both are 1…N (proved by P20C-T27's scratch-schema run: `MIN(id) = 1`).
+3. **`directs_at_qualification` is the gate, not today's count, on a reconstructed row.** At the
+   qualifying instant the member held exactly the gate, so storing today's larger count with that
+   instant would be a false audit fact. A live row stores the count the hook observed (the gate on the
+   live path, since the row is written the moment the gate is crossed). P20C-T28 pins both halves.
+4. **The seed job probes the connection itself.** `db()` answers an unreachable database with an HTML
+   page and `exit 0`; the plan (§14.10) wants exit 2, so the job constructs one `PDO` before touching
+   `db()`. Without it the CLI would report success for a database that does not exist.
+5. **Two extra cases (T27–T30 beyond the plan's T1–T26).** The floor is ≥ 1,232 (1,204 + 28); 26 cases
+   would have left 1,230. T27 proves the CLI as a process (help, exit 2, a real seed, the refusal),
+   T28 the two `directs_at_qualification` paths, T29 the slot arithmetic against `TeamHarvestLevel`,
+   T30 the invalid-gate refusal and `verify()`. No contract changed.
+6. **The dry run computes the baseline report from a projected queue.** A real run reads the queue it
+   just wrote; a dry run projects `user_id => position` and recounts from that map, so the number an
+   operator decides on is the number the run will produce.
+7. **The queue model reads `team_harvest_awards` once, for `stats()['awards']`.** The plan's T26 asks
+   `stats()` to report "0 awards"; reading a count is not money and writes nothing, but it does make
+   the model a reader of the ledger table, so P20A-T16's reader list gains it.
+8. **The page checks were not executed by a second person.** As at every earlier gate, the automated
+   pass captured all eight checks as transcripts on a scratch schema and left them in
+   `docs/qa/evidence/phase-20/`; the signed-in `/register` step of 01/05 needs the running app and a
+   human. `docs/qa/sign-off-sheet.md` gained the Phase 20C block with the checks left open for the lead.
+
+### Hand-off to 20D
+
+- `HarvestQueue::positionOf()`, `teammatesOf()`, `baseline()`/`baselineN()`, `ancestorsOf()` and
+  `map()` are the only way the engine may learn a member's standing; **the engine never recounts a
+  counter** — `recount()` is the proof, not a read path.
+- Every queued member has a fixed position, a monotonically growing `teammates` and an immutable
+  `baseline_n`; after the seed, `team_harvest_ledger_since` is a valid `DATETIME` and `seeded()` is
+  `true`. **Until it is, nothing may pay** — an unseeded queue is a hard refusal.
+- `rebuild()` and `verify()` exist, so a counter defect is detectable and repairable; a repair appends
+  and recounts, and never renumbers.
+- Levels with `threshold(L) ≤ baseline_n` are **already complete at go-live** and must become
+  `baseline` rows on the first evaluation, never credits (D-07). The seed's report quantifies them.
+- **Nothing pays.** `team_harvest_awards` is empty after this phase, and the engine must work with an
+  empty queue.
+
+---
+
 

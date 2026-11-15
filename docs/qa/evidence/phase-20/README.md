@@ -29,6 +29,14 @@ Index:
 | `QA20B-07.txt` | QA20B-07 | Three registrations under one sponsor leave `harvest_queue` at **0**, no award and no `team_harvest` wallet row | pending (needs a signed-in browser session on `/register`) |
 | `QA20B-08.txt` | QA20B-08 | The card saves and validates with JavaScript disabled; only the live totals are missing | pending (needs a browser with JS off) |
 | `QA20B-09.txt` | QA20B-09 | 390 px: the ten inputs stack, the saved table scrolls inside the card, no page-level horizontal scroll; 1440 px: two columns | pending (needs a browser at both widths; `P20B-T18` pins the markup) |
+| `QA20C-01.txt` | QA20C-01 | Three real `RegistrationService` registrations under `QA20C_Low` on an unseeded scratch copy: `harvest_queue` **0**, no award, `team_harvest_ledger_since` still `''` — the hook is inert | captured (automated pass) |
+| `QA20C-02.txt` | QA20C-02 | The seed's dry run: the 3 gate holders (including the member who crossed the gate while unseeded), positions 1–3 in `(created_at, id)` order, the first 20 rows, the baseline instant, the excluded money — and **no** row, setting or audit change | captured (automated pass) |
+| `QA20C-03.txt` | QA20C-03 | The real seed: a contiguous 1…3, `baseline_n = teammates` on every row (2/2, 1/1, 0/0), `directs_at_qualification = 3`, `source = seed`, the baseline instant written, `team_harvest_awards` still 0 | captured (automated pass) |
+| `QA20C-04.txt` | QA20C-04 | A second real seed: exit **1**, the "already seeded … holds 3 position(s)" message, zero rows written, positions and baseline unchanged, one audit row | captured (automated pass) |
+| `QA20C-05.txt` | QA20C-05 | Three registrations under a member with no directs: the newcomer appends at **position 4** with `baseline_n 0`, and every queued ancestor moves by exactly one (Low 0→1, Mid 1→2, Top 2→3); `verify()` clean | captured (automated pass) |
+| `QA20C-06.txt` | QA20C-06 | The rebuild drill: 0 drift on a clean queue, a hand-edited counter reported as `stored 7 / recount 2` with nothing written, `--apply` repairing it to 2 without moving a position, and one `harvest.queue.repair` audit row naming before/after | captured (automated pass) |
+| `QA20C-07.txt` | QA20C-07 | After 20C-01…06: `team_harvest_awards` **0**, no `team_harvest` ledger row, both wallet buckets untouched (0.00), the ten ladder rows still ₱5,095,000.00 and the switch still `0` | captured (automated pass) |
+| `QA20C-08.txt` | QA20C-08 | The reset's dry run planning the **harvest** step; the reset emptying the queue and the awards, clearing the baseline and keeping the ladder; the next seed starting at **#1** again | captured (automated pass) |
 
 Notes for the reader:
 
@@ -58,3 +66,11 @@ Notes for the reader:
 - The automated pass restored the reference ladder, gate `3`, depth `10` and the switch `0` on the
   development copy before it exited; its only lasting trace is the `team_harvest.ladder.update` and
   `settings.update` rows it wrote (the audit trail the checks describe).
+- Section C's eight transcripts were captured by the automated pass on a **scratch schema**
+  (`ecowealth_sneat_tool_b_test`, rebuilt from `database/schema.sql` + seeds 001–004), because the
+  section seeds a queue, registers members and finally runs a business reset. The app-level steps
+  (the tree, the registrations, the counter edit) went through the real `RegistrationService` and
+  `HarvestQueue`; the CLI steps went through `bin/harvest_queue_seed.php` and `bin/db_reset.php`
+  unchanged. The development copy (`ecowealth_sneat`) was **not** seeded: it stays unseeded, which is
+  the shipped default. The browser part of `QA20C-01`/`05` (a signed-in `/register` session) is the
+  only human step and is left for the lead, as in sections A and B.

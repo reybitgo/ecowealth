@@ -12,7 +12,8 @@ and every one of those runs on a scratch schema — never on a production databa
 
 **Document status.** Section A (20A — Foundation) written 2026-11-15 with the automated gate green;
 section B (20B — Configuration) appended 2026-11-15 with the automated gate green. Section B moves no
-money and writes no position.
+money and writes no position. Section C (20C — The Harvest queue) appended 2026-11-15 with the
+automated gate green: it stores positions, writes no award and moves no money.
 
 ---
 
@@ -596,3 +597,279 @@ manual run stopped midway, press **Load reference ladder** and **Save settings**
 `php bin/build_install_sql.php --check` and restore the ladder with the SQL in `QA20B-01`'s transcript.
 `QA20B-07` creates three QA members; leave them (20B writes nothing about them) or delete the
 `QA20B_*` accounts from **Members**. Do not delete anything whose name does not start with `QA`.
+
+---
+
+# Section C — Phase 20C: The Harvest queue (`QA20C-01` … `QA20C-08`)
+
+**Prerequisites.** Tag `p20b-configuration` (or later) on `feature/team-harvest`; the development copy
+migrated through `024` (**36 tables**, the four `team_harvest_*` settings, the ten ladder rows); a
+**scratch schema** for every check that writes (`ecowealth_sneat_tool_a_test` / `_tool_b_test` are the
+provisioned slots); the app running (Laragon → Start All) only for the page steps. Expected suite count
+for this section: **1,234**.
+
+> **Notation.** As in sections A and B: `mysql` is
+> `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe` with the app account, `php` is Laragon's PHP
+> 8.3 CLI, and every command runs from `system/`. A command that must hit a different schema sets
+> `ECO_DB_NAME` first (`$env:ECO_DB_NAME='ecowealth_sneat_tool_b_test'`), which outranks
+> `config.local.php` and keeps the development copy untouched.
+>
+> **Money.** Section C moves **no money**. It writes positions, counters and the baseline, and
+> `QA20C-07` proves that `team_harvest_awards` and the wallet are exactly where they were. There is
+> nothing to clean up: `QA20C-08`'s business reset removes the test tree.
+>
+> **What section C changed in the app.** One line in `RegistrationService::register()` (the hook),
+> `app/Models/HarvestQueue.php` and `bin/harvest_queue_seed.php`. No route, no page and no schema —
+> `routes.php`, `routes_inventory.php` and `ParityTest` are untouched, and `APP_PHASE` is still 19.
+
+The automated pass, run before these checks, is:
+
+```text
+php tests\run.php                          → Cases: 1234   Passed: 1234   Failed: 0
+php tests\run.php HarvestQueue             → Cases: 30   Passed: 30   Failed: 0
+php bin\harvest_queue_seed.php --help      → exit 0
+powershell -File tests/smoke.ps1           → Passed: 251   Failed: 0
+php bin\wallet_reconcile.php               → exit 0
+php bin\build_install_sql.php --check      → exit 0
+```
+
+`QA20C-01` to `QA20C-08` were executed by the automated pass on `ecowealth_sneat_tool_b_test` and
+captured as transcripts; the browser steps a human adds are named in each check's **Where** line. 20C
+adds **no smoke check**, because it adds no route and no page.
+
+### QA20C-01 — Three registrations write no queue row (the hook is inert)
+
+| Why | Rule 2 / D-04: the hook returns `null` while `team_harvest_ledger_since` is empty, so a deploy can neither queue nor pay |
+|---|---|
+| Where | `/register` (or a scripted `RegistrationService::register()`), and `mysql` |
+| Evidence | `QA20C-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Build a scratch copy (or take the development copy) at `p20b-configuration` + this phase's code,
+   **before** any seed. `team_harvest_ledger_since` must still be `''`.
+2. Create the QA tree: `QA20C_Top` (three member directs: `QA20C_Mid`, `QA20C_T1`, `QA20C_T2`) and
+   `QA20C_Mid` (three directs: `QA20C_Low`, `QA20C_M1`, `QA20C_M2`). `QA20C_Low` holds none.
+3. Register three members under `QA20C_Low` through `/register` (standard mode needs no package).
+4. `SELECT COUNT(*) FROM harvest_queue;` and `SELECT COUNT(*) FROM team_harvest_awards;`
+5. `SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since';`
+
+Expected
+
+- All three registrations succeed, and `harvest_queue` is **0**: `QA20C_Low` now holds three directs and
+  is **not** queued, because the queue is unseeded.
+- `team_harvest_awards` is **0** and `team_harvest_ledger_since` is still `''` — nothing in the phase
+  pretends the stream has started.
+- The three members are ordinary `member` rows with their sponsor set; no page shows a position.
+- If it fails: a queue row here means the inert guard is missing — a deploy could queue (and later pay)
+  history before the baseline exists. Stop and report it.
+
+### QA20C-02 — The seed dry run writes nothing
+
+| Why | Rule 8 / D-07: the reconstruction is deterministic and previewable, and the baseline's cost is quantified before anyone decides |
+|---|---|
+| Where | PowerShell on `system/`, and `mysql` |
+| Evidence | `QA20C-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\harvest_queue_seed.php --dry-run`
+2. `SELECT COUNT(*) FROM harvest_queue;` and `SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since';`
+3. `SELECT COUNT(*) FROM audit_log WHERE action = 'harvest.seed';`
+
+Expected
+
+- The summary names every member who holds the gate (on this fixture **3**: `QA20C_Low` crossed the gate
+  during `QA20C-01` while the hook was inert, and the reconstruction catches it up — exactly the D-04
+  behaviour), prints positions 1…N in qualification order, the first 20 rows, the baseline instant and
+  the **excluded money** line (levels already complete at the baseline, with their total).
+- `harvest_queue` is still **0**, `team_harvest_ledger_since` is still `''`, and there is **no**
+  `harvest.seed` audit row: a dry run writes nothing at all.
+- Exit code **0**.
+- If it fails: a written row means the dry run is not dry. A summary that lists positions out of
+  `(created_at, id)` order means the reconstruction rule drifted.
+
+### QA20C-03 — The seed for real: positions, counters and the baseline
+
+| Why | Rules 1, 8, 9, 12: `id` is the position, `baseline_n = teammates`, and `qualified_at` is the gate-th direct's instant |
+|---|---|
+| Where | PowerShell on `system/`, and `mysql` |
+| Evidence | `QA20C-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\harvest_queue_seed.php` → exit **0**.
+2. `SELECT id, user_id, teammates, baseline_n, directs_at_qualification, source, qualified_at FROM harvest_queue ORDER BY id LIMIT 20;`
+3. `SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since';`
+4. `SELECT COUNT(*) FROM team_harvest_awards;`
+
+Expected
+
+- A contiguous `1 … N` with no gaps and no renumbering; on this fixture `QA20C_Top` is **#1**
+  (`teammates 2, baseline_n 2`), `QA20C_Mid` **#2** (`1, 1`), `QA20C_Low` **#3** (`0, 0`).
+- `baseline_n = teammates` on **every** row the seed wrote, `source = 'seed'`, and
+  `directs_at_qualification` is the gate (**3**) — the count at the qualifying instant, not today's
+  larger count.
+- `qualified_at` is the gate-th direct's `created_at` (`2026-11-01 09:02:00` for Top, `2026-11-01
+  09:04:00` for Mid), not the seed instant.
+- `team_harvest_ledger_since` is now a `DATETIME`; `team_harvest_awards` is still **0**.
+- If it fails: a non-contiguous sequence or a `baseline_n` that differs from `teammates` is a Rule 1 /
+  Rule 9 defect. A `team_harvest_awards` row means 20C paid something — it must not.
+
+### QA20C-04 — A second seed writes nothing
+
+| Why | Rule 8 / §14.10 step 5: a real run on a non-empty queue is refused, so a go-live script cannot re-seed history |
+|---|---|
+| Where | PowerShell on `system/`, and `mysql` |
+| Evidence | `QA20C-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\harvest_queue_seed.php` again → exit **1**.
+2. Read the refusal message.
+3. `SELECT id, teammates, baseline_n FROM harvest_queue ORDER BY id;`
+4. `SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since';`
+5. `SELECT COUNT(*) FROM audit_log WHERE action = 'harvest.seed';`
+
+Expected
+
+- The message names the instant and the stored count: *“The queue is already seeded
+  (team_harvest_ledger_since = …) and holds 3 position(s); use --dry-run to preview or --force to
+  append the 0 member(s) that are missing.”*
+- Zero rows written, every position and baseline unchanged, **one** audit row (not two).
+- Exit **1** is correct and deliberate: a non-zero exit is how a go-live script learns that the seed did
+  not run again.
+- If it fails: a second audit row or a moved position means the idempotency guard is missing.
+
+### QA20C-05 — A live qualification appends at the end and moves every queued ancestor
+
+| Why | Rules 3, 7: the hook runs inside the registration, appends after the existing positions and increments every queued ancestor at any depth |
+|---|---|
+| Where | `/register` (or a scripted registration), and `mysql` |
+| Evidence | `QA20C-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Note the queue (`SELECT id, user_id, teammates FROM harvest_queue ORDER BY id;`).
+2. Register three members under `QA20C_New_1` — a member with no directs who sits below the queued
+   `QA20C_Low`.
+3. `SELECT id, user_id, teammates, baseline_n, source FROM harvest_queue ORDER BY id;`
+4. Compare each member's `teammates` with step 1.
+5. `php bin\harvest_queue_seed.php --rebuild --dry-run`
+
+Expected
+
+- `QA20C_New_1` appears at **the end** (position 4), `teammates 0`, `baseline_n 0`,
+  `source = 'registration'`, `qualified_at` = the third registration's instant.
+- Every queued ancestor moved by **exactly one**: `QA20C_Low 0 → 1`, `QA20C_Mid 1 → 2`,
+  `QA20C_Top 2 → 3`. Nobody else moved.
+- Step 5 reports **0 drift**: the increment is the recount.
+- If it fails: a newcomer inserted before an existing position breaks D-03 (positions are facts); an
+  ancestor that moved by two means the walk counted the same event twice; no movement at all means the
+  hook did not run inside the registration.
+
+### QA20C-06 — The rebuild drill: report the drift, repair only with `--apply`
+
+| Why | Rule 10 / §14.4: the counter is maintained, so it needs a proof — the recount is the authority and a repair never renumbers |
+|---|---|
+| Where | PowerShell on `system/`, and `mysql` |
+| Evidence | `QA20C-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\harvest_queue_seed.php --rebuild --dry-run` → **0 drift**, exit **0**.
+2. Edit one counter by hand:
+   `UPDATE harvest_queue SET teammates = teammates + 5 WHERE user_id = <QA20C_Mid>;`
+3. `php bin\harvest_queue_seed.php --rebuild` → report only.
+4. `php bin\harvest_queue_seed.php --rebuild --apply`
+5. `SELECT id, teammates FROM harvest_queue ORDER BY id;`
+6. `SELECT action, meta_json FROM audit_log WHERE action = 'harvest.queue.repair';`
+
+Expected
+
+- Step 1 (`--dry-run`) reports `drift: 0 counter(s)` and `missing: 0 member(s)`.
+- Step 3 names the member (`#2 @QA20C_Mid stored 7  recount 2`), writes **nothing**, exits **1**.
+- Step 4 reports `repaired: 1 counter(s)`, exits **0**; the counter is back to `2` and **every position
+  is unchanged** (1…4).
+- Step 6 holds exactly one `harvest.queue.repair` row with `{"repaired":[{"before":7,"after":2,…}]}` and
+  `"appended":[]`.
+- If it fails: a repair that renumbers a position is a Rule 1 violation; a repair applied without
+  `--apply` is a Rule 10 violation.
+
+### QA20C-07 — The whole phase moves no money
+
+| Why | Rule 11 / P20C-T22: 20C writes no award, no wallet row and no balance; the money is 20D |
+|---|---|
+| Where | `mysql` (or the reconciler) |
+| Evidence | `QA20C-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `SELECT COUNT(*) FROM team_harvest_awards;`
+2. `SELECT ref_type, COUNT(*), COALESCE(SUM(amount),0) FROM ewallet_ledger GROUP BY ref_type;`
+3. `SELECT COALESCE(SUM(ewallet_balance),0), COALESCE(SUM(withdrawable_balance),0) FROM users;`
+4. `SELECT COUNT(*) FROM team_harvest_levels; SELECT SUM(amount) FROM team_harvest_levels;`
+5. `php bin\wallet_reconcile.php`
+
+Expected
+
+- `team_harvest_awards` is **0** and no `ewallet_ledger` row has `ref_type = 'team_harvest'`.
+- Both wallet-bucket totals are exactly what they were before the section ran (on a fresh scratch copy:
+  `0.00`), and `wallet_reconcile.php` exits **0**.
+- The ladder still holds its **10** rows totalling **₱5,095,000.00**, and `team_harvest_enabled` is
+  still `0`: the phase never touched the configuration either.
+- If it fails: any `team_harvest` ledger row or a changed balance is a phase-boundary violation — 20C
+  must not pay.
+
+### QA20C-08 — A business reset empties the queue, clears the baseline and keeps the ladder
+
+| Why | 20A Rule 8 / §13.8 I-09: a reset removes the positions and the baseline instant, keeps the catalogue, and restarts the counter at 1 |
+|---|---|
+| Where | the reset console or `bin\db_reset.php` on a scratch schema |
+| Evidence | `QA20C-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Note the queue and the settings (`SELECT id, teammates, baseline_n FROM harvest_queue;`).
+2. `php bin\db_reset.php --dry-run` → the plan carries a **harvest** step.
+3. `php bin\db_reset.php --force --confirm=<database>`
+4. `SELECT COUNT(*) FROM harvest_queue; SELECT COUNT(*) FROM team_harvest_awards; SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since'; SELECT COUNT(*) FROM team_harvest_levels;`
+5. Re-create a two-level QA tree and run `php bin\harvest_queue_seed.php` again.
+6. `SELECT id, teammates, baseline_n FROM harvest_queue ORDER BY id;`
+
+Expected
+
+- The dry run lists `harvest  Team Harvest queue positions and level awards` and writes nothing.
+- After the reset `harvest_queue` and `team_harvest_awards` are **0**, the baseline is `''`, the ten
+  ladder rows survive with their amounts, and the four settings keep their values (the switch keeps
+  whatever the operator set).
+- The next seed's first position is **#1** again, with `baseline_n = teammates` — the reset restarted
+  the counter, and no position from the old network survives.
+- If it fails: a surviving queue row means the reset's harvest group is missing; a baseline that is
+  still a date would let a fresh network pay against a dead baseline.
+
+---
+
+## Evidence — section C
+
+Save each check's transcript under `docs/qa/evidence/phase-20/`, named exactly as its **Evidence** line
+(`QA20C-01.txt` … `QA20C-08.txt`). Every check is a CLI/mysql check, so all eight are text transcripts;
+the browser steps a human adds (`/register` in 01 and 05) reuse the same commands. The folder's
+`README.md` indexes the new rows.
+
+## Cleanup — section C
+
+`QA20C-01` creates three members and `QA20C-05` three more, all named `QA20C_*`; `QA20C-08`'s business
+reset removes them with every other member. If the reset is skipped, drop the scratch schema
+(`DROP DATABASE ecowealth_sneat_tool_b_test;` and rebuild it with `php bin\db_install.php`) — never
+leave a seeded queue on a database whose members you keep. Do not delete anything whose name does not
+start with `QA`.
+
