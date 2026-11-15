@@ -21,6 +21,10 @@ $repeat   = array_merge(
     ['amount' => 0.0, 'count' => 0, 'recipients' => 0, 'all_time' => 0.0, 'this_month' => 0.0],
     (array) ($commerce['unilevel'] ?? [])
 );
+$royalty  = array_merge(
+    ['paid' => 0.0, 'pending' => 0.0, 'this_month' => 0.0, 'periods' => 0],
+    (array) ($commerce['royalty'] ?? [])
+);
 $wallet   = array_merge(['accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0], (array) ($commerce['wallet'] ?? []));
 $payouts  = array_merge(['held' => 0.0, 'held_requests' => 0], (array) ($commerce['payouts'] ?? []));
 $members  = array_merge(['active' => 0, 'pending' => 0, 'new_30d' => 0], (array) ($commerce['members'] ?? []));
@@ -65,6 +69,14 @@ $cards = [
         'icon'  => 'bx-receipt',
         'tone'  => 'dark',
         'href'  => 'admin/commissions?ledger=repeat',
+    ],
+    [
+        'label' => 'Royalty paid',
+        'value' => money($royalty['paid']),
+        'hint'  => money($royalty['this_month']) . ' this month · ' . money($royalty['pending']) . ' awaiting payment',
+        'icon'  => 'bx-crown',
+        'tone'  => 'success',
+        'href'  => 'admin/commissions?ledger=royalty',
     ],
     [
         'label' => 'Wallet float',

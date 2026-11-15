@@ -2,17 +2,17 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  RoyaltyAdminMemberViewTest — Phase 19B (plan §6, §12.2)
+ *  RoyaltyAdminMemberViewTest — Phase 19B / 19D (plan §6, §8, §12.2)
  *
- *  Proves the two admin surfaces 19B adds: the Rank column in the
- *  member directory and the compact rank distribution on its stats
- *  strip. The member's own royalty panel is 19D and is not asserted
- *  here; nothing in this file moves money.
+ *  Proves the admin surfaces around the rank ladder:
  *
- *      column      each row's badge is the rank RoyaltyRank derived
- *      distribution the five exclusive counts plus `ranked`
- *      money       saving the card and rendering the list moves no
- *                  wallet, ledger, period or award row (P19B-T25)
+ *      column        each row's badge is the rank RoyaltyRank derived
+ *      distribution  the five exclusive counts plus `ranked`
+ *      money         saving the card and rendering the list moves no
+ *                    wallet, ledger, period or award row (P19B-T25)
+ *      member panel  the read-only Royalty card on /admin/members/{id}:
+ *                    rank, quota progress, MTD volume, the last six
+ *                    awards and all-time paid (P19D-T14)
  *
  *  Run this group alone with:  php tests/run.php RoyaltyAdminMemberView
  * ============================================================== */
@@ -310,5 +310,154 @@ return [
         $audits->execute([$auditBefore]);
 
         assert_same(['settings.update'], array_map('strval', $audits->fetchAll(PDO::FETCH_COLUMN)));
+    },
+
+    /* ==========================================================
+     *  The member Royalty panel (P19D-T14)
+     * ========================================================== */
+
+    'P19D-T14 the member page shows rank, progress, MTD volume, six awards and all-time paid' => function () use ($setThresholds, $directorTree, $renderPage): void {
+        $setThresholds(['leader' => 1, 'supervisor' => 2, 'manager' => 2, 'director' => 2]);
+
+        foreach ([
+            'royalty_enabled'          => '1',
+            'royalty_pay_enabled'      => '1',
+            'royalty_supervisor_quota' => '100000',
+            'royalty_manager_quota'    => '250000',
+            'royalty_director_quota'   => '500000',
+        ] as $key => $value) {
+            setting_set($key, $value);
+        }
+
+        setting_cache_clear();
+
+        $admin    = test_user('view_royalty_panel_admin', 'admin');
+        $tree     = $directorTree();
+        $director = $tree['director'];
+
+        /* A paid order in the open month: the panel's month-to-date
+         * volume and its quota progress read `paid_at`, not the tree. */
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $orderId   = test_order($director, [['product_id' => $productId]], 'paid', [
+            'paid_at'  => date('Y-m-d H:i:s'),
+            'subtotal' => '600000.00',
+            'total'    => '600000.00',
+        ]);
+
+        db()->prepare('UPDATE shop_order_items SET line_total = ?, unit_price = ? WHERE order_id = ?')
+            ->execute(['600000.00', '600000.00', $orderId]);
+
+        /* Seven closed months of awards, so the panel must slice six. */
+        $months = [];
+        $cursor = RoyaltyPeriod::previous(RoyaltyPeriod::periodOf());
+
+        for ($i = 0; $i < 7; $i++) {
+            $months[] = $cursor;
+            $cursor   = RoyaltyPeriod::previous($cursor);
+        }
+
+        foreach ($months as $period) {
+            [$start, $end] = RoyaltyPeriod::bounds($period);
+
+            db()->prepare(
+                'INSERT INTO royalty_periods
+                   (period, status, enabled, evaluated_at, evaluated_by, paid_at, paid_by, as_of,
+                    leader_directs, supervisor_leaders, manager_supervisors, director_managers,
+                    quota_supervisor, quota_manager, quota_director,
+                    group_pct_supervisor, personal_pct_supervisor,
+                    group_pct_manager, personal_pct_manager,
+                    group_pct_director, personal_pct_director,
+                    members_count, leaders_count, supervisors_count, managers_count, directors_count,
+                    award_count, paid_count, skipped_count, award_total, paid_total, note)
+                 VALUES (?, \'paid\', 1, ?, NULL, ?, NULL, ?, 1, 2, 2, 2,
+                         100000.00, 250000.00, 500000.00,
+                         3.000, 5.000, 5.000, 10.000, 10.000, 15.000,
+                         1, 0, 0, 0, 1, 1, 1, 0, 1000.00, 1000.00, NULL)'
+            )->execute([$period, $start, $start, $end]);
+
+            $awardId = RoyaltyAward::create([
+                'period'          => $period,
+                'user_id'         => $director,
+                'rank_level'      => RoyaltyRank::DIRECTOR,
+                'group_volume'    => 5000000,
+                'personal_volume' => 0,
+                'quota'           => 500000,
+                'group_pct'       => 10,
+                'personal_pct'    => 15,
+                'amount'          => 1000.00,
+                'status'          => 'pending',
+            ]);
+
+            RoyaltyAward::markPaid($awardId, 500000 + $awardId);
+        }
+
+        test_signed_in_as($admin);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members/' . $director;
+
+        $controller = new AdminMemberController();
+        $context    = $controller->memberContext(Member::find($director));
+
+        assert_true(isset($context['royalty']), 'the panel data is built for the member page');
+
+        $panel = $context['royalty'];
+        assert_same(RoyaltyRank::DIRECTOR, (int) $panel['rank']);
+        assert_same('Director', (string) $panel['rank_name']);
+        assert_same(600000.0, (float) $panel['group'], 'group sales are the month-to-date volume');
+        assert_same(600000.0, (float) $panel['personal'], 'the own purchase is inside the group');
+        assert_same(500000.0, (float) $panel['quota']);
+        assert_same(100, (int) $panel['progress'], 'the quota is met and the bar is capped');
+        assert_same(7000.0, (float) $panel['paid_all_time']);
+        assert_count(7, $panel['history']);
+
+        $payload  = $controller->detailFeedPayload(2, '"x"', $context);
+        $fragment = $payload['fragments']['member-royalty'];
+
+        assert_contains('data-live-region="member-royalty"', $fragment);
+        assert_contains('Royalty', $fragment);
+        assert_contains('Director', $fragment);
+        assert_contains('Quota progress', $fragment);
+        assert_contains('Personal this month', $fragment);
+        assert_contains('Group sales ' . money(600000.0) . ' of the ' . money(500000.0) . ' quota', $fragment);
+        assert_contains('met', $fragment);
+        assert_contains('Paid all time', $fragment);
+        assert_contains(money(7000.0), $fragment);
+        assert_contains('Last six awards', $fragment);
+
+        $monthLabel = static function (string $period): string {
+            $ts = strtotime($period . '-01 12:00:00');
+
+            return $ts === false ? $period : date('M Y', $ts);
+        };
+
+        foreach (array_slice($months, 0, 6) as $period) {
+            assert_contains($monthLabel($period), $fragment, 'the last six awards include ' . $period);
+        }
+
+        assert_not_contains($monthLabel($months[6]), $fragment, 'the seventh month is outside the slice');
+
+        /* The page carries the region and the card is read-only. */
+        $ledgerBefore = (int) db()->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn();
+        $walletBefore = (string) db()->query(
+            "SELECT CONCAT(COALESCE(SUM(ewallet_balance), 0), '|', COALESCE(SUM(withdrawable_balance), 0)) FROM users"
+        )->fetchColumn();
+
+        $html = $renderPage($context + [
+            'page_title'  => 'Member',
+            'current_nav' => 'admin.members',
+            'page_css'    => ['assets/css/membership.css'],
+            'page_js'     => ['assets/js/admin-live.js'],
+            'live'        => Live::meta(Live::memberSurface($director), 'page'),
+        ], 'admin/members/show');
+
+        assert_contains('data-live-region="member-royalty"', $html);
+        assert_contains('Quota progress', $html);
+        assert_contains('Paid all time', $html);
+
+        assert_same($ledgerBefore, (int) db()->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn(), 'no wallet movement');
+        assert_same($walletBefore, (string) db()->query(
+            "SELECT CONCAT(COALESCE(SUM(ewallet_balance), 0), '|', COALESCE(SUM(withdrawable_balance), 0)) FROM users"
+        )->fetchColumn());
     },
 ];

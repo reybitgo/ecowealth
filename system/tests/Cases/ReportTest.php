@@ -80,6 +80,102 @@ $unilevelAward = static function (array $overrides = []): array {
     return $values + ['id' => $id, 'product_id' => $productId];
 };
 
+/**
+ * One royalty period header + its award rows (Phase 19D report fixtures).
+ *
+ * @param list<array{user:array<string, mixed>, rank:int, gs?:float, ps?:float,
+ *                   amount?:float, status?:string, reason?:string}> $drafts
+ */
+$royaltyPeriod = static function (string $period, array $drafts, string $status = 'evaluated'): void {
+    $quotas    = [RoyaltyRank::SUPERVISOR => 500000.0, RoyaltyRank::MANAGER => 1000000.0, RoyaltyRank::DIRECTOR => 5000000.0];
+    $groups    = [RoyaltyRank::SUPERVISOR => 3.0, RoyaltyRank::MANAGER => 5.0, RoyaltyRank::DIRECTOR => 10.0];
+    $personals = [RoyaltyRank::SUPERVISOR => 5.0, RoyaltyRank::MANAGER => 10.0, RoyaltyRank::DIRECTOR => 15.0];
+
+    $awardTotal = 0.0;
+    $paidTotal  = 0.0;
+    $paidCount  = 0;
+    $skipCount  = 0;
+
+    foreach ($drafts as $draft) {
+        $draftStatus = (string) ($draft['status'] ?? 'pending');
+
+        if ($draftStatus === 'skipped') {
+            $skipCount++;
+            continue;
+        }
+
+        $rank   = (int) $draft['rank'];
+        $amount = isset($draft['amount'])
+            ? (float) $draft['amount']
+            : round((float) ($draft['gs'] ?? 0) * (float) ($groups[$rank] ?? 0) / 100
+                + (float) ($draft['ps'] ?? 0) * (float) ($personals[$rank] ?? 0) / 100, 2);
+
+        $awardTotal += $amount;
+
+        if ($draftStatus === 'paid') {
+            $paidTotal += $amount;
+            $paidCount++;
+        }
+    }
+
+    [$start, $end] = RoyaltyPeriod::bounds($period);
+
+    db()->prepare(
+        'INSERT INTO royalty_periods
+           (period, status, enabled, evaluated_at, evaluated_by, paid_at, paid_by, as_of,
+            leader_directs, supervisor_leaders, manager_supervisors, director_managers,
+            quota_supervisor, quota_manager, quota_director,
+            group_pct_supervisor, personal_pct_supervisor,
+            group_pct_manager, personal_pct_manager,
+            group_pct_director, personal_pct_director,
+            members_count, leaders_count, supervisors_count, managers_count, directors_count,
+            award_count, paid_count, skipped_count, award_total, paid_total, note)
+         VALUES (?, ?, 1, ?, NULL, ?, NULL, ?, 10, 10, 10, 10,
+                 500000.00, 1000000.00, 5000000.00,
+                 3.000, 5.000, 5.000, 10.000, 10.000, 15.000,
+                 ?, 0, 0, 0, 0, ?, ?, ?, ?, ?, NULL)'
+    )->execute([
+        $period,
+        $status,
+        $start,
+        $status === 'paid' ? $start : null,
+        $end,
+        max(1, count($drafts)),
+        count($drafts),
+        $paidCount,
+        $skipCount,
+        number_format(round($awardTotal, 2), 2, '.', ''),
+        number_format(round($paidTotal, 2), 2, '.', ''),
+    ]);
+
+    foreach ($drafts as $draft) {
+        $draftStatus = (string) ($draft['status'] ?? 'pending');
+        $rank        = (int) $draft['rank'];
+        $amount      = isset($draft['amount'])
+            ? (float) $draft['amount']
+            : round((float) ($draft['gs'] ?? 0) * (float) ($groups[$rank] ?? 0) / 100
+                + (float) ($draft['ps'] ?? 0) * (float) ($personals[$rank] ?? 0) / 100, 2);
+
+        $awardId = RoyaltyAward::create([
+            'period'          => $period,
+            'user_id'         => (int) $draft['user']['id'],
+            'rank_level'      => $rank,
+            'group_volume'    => $draft['gs'] ?? 0.0,
+            'personal_volume' => $draft['ps'] ?? 0.0,
+            'quota'           => $quotas[$rank] ?? 0.0,
+            'group_pct'       => $groups[$rank] ?? 0.0,
+            'personal_pct'    => $personals[$rank] ?? 0.0,
+            'amount'          => $draftStatus === 'skipped' ? 0.0 : $amount,
+            'status'          => $draftStatus === 'skipped' ? 'skipped' : 'pending',
+            'reason'          => $draftStatus === 'skipped' ? (string) ($draft['reason'] ?? RoyaltyAward::REASON_QUOTA) : null,
+        ]);
+
+        if ($draftStatus === 'paid') {
+            RoyaltyAward::markPaid($awardId, 300000 + $awardId);
+        }
+    }
+};
+
 return [
     /* ---------- Window maths -------------------------------------- */
 
@@ -528,5 +624,92 @@ return [
         assert_true($byProduct !== []);
         assert_same(2, (int) $byProduct[0]['pending_count'], 'the product card counts pending rows');
         assert_same(25.0, (float) $byProduct[0]['pending_amount']);
+    },
+
+    /* ---------- Phase 19D: the royalty report reads ------------------- */
+
+    'P19D the royalty report reads award periods, ranks, months and the payout ratio' => function () use ($royaltyPeriod): void {
+        $period = RoyaltyPeriod::previous(RoyaltyPeriod::periodOf());
+        $prior  = RoyaltyPeriod::previous($period);
+
+        $director   = test_user('rep_roy_director');
+        $manager    = test_user('rep_roy_manager');
+        $supervisor = test_user('rep_roy_supervisor');
+
+        $royaltyPeriod($period, [
+            ['user' => $director, 'rank' => RoyaltyRank::DIRECTOR, 'gs' => 5000000, 'ps' => 100000, 'status' => 'paid'],
+            ['user' => $manager, 'rank' => RoyaltyRank::MANAGER, 'gs' => 2450000, 'status' => 'paid'],
+            ['user' => $supervisor, 'rank' => RoyaltyRank::SUPERVISOR, 'gs' => 410000, 'status' => 'skipped', 'reason' => RoyaltyAward::REASON_QUOTA],
+        ], 'paid');
+
+        $royaltyPeriod($prior, [
+            ['user' => $supervisor, 'rank' => RoyaltyRank::SUPERVISOR, 'gs' => 600000, 'amount' => 18000.00, 'status' => 'pending'],
+        ], 'evaluated');
+
+        /* A paid sale in the paid month, so the ratio has a denominator. */
+        $buyer     = test_user('rep_roy_buyer');
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $start     = substr(RoyaltyPeriod::bounds($period)[0], 0, 10);
+        $last      = date('Y-m-d', (int) strtotime(substr(RoyaltyPeriod::bounds($period)[1], 0, 10) . ' -1 day'));
+        $priorFrom = substr(RoyaltyPeriod::bounds($prior)[0], 0, 10);
+
+        test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+            'paid_at'  => $start . ' 12:00:00',
+            'subtotal' => '1000000.00',
+            'total'    => '1000000.00',
+        ]);
+
+        $summary = Report::royaltySummary($priorFrom, $last);
+
+        assert_same(637500.0, (float) $summary['paid'], 'the two paid awards');
+        assert_same(18000.0, (float) $summary['pending']);
+        assert_same(655500.0, (float) $summary['awarded']);
+        assert_same(2, (int) $summary['paid_rows']);
+        assert_same(1, (int) $summary['pending_rows']);
+        assert_same(3, (int) $summary['recipients']);
+        assert_same(2, (int) $summary['paid_recipients']);
+        assert_same(1, (int) $summary['skipped']);
+        assert_same(318750.0, (float) $summary['average']);
+        assert_same(2, (int) $summary['periods']);
+        assert_same(1000000.0, (float) $summary['paid_sales']);
+        assert_same(63.8, (float) $summary['payout_ratio'], 'royalty paid ÷ paid sales, one decimal');
+        assert_same(637500.0, (float) $summary['paid_this_month'], 'both paid awards were credited now');
+
+        /* A window that predates every period reports zeros. */
+        $old = Report::royaltySummary('2020-01-01', '2020-01-31');
+        assert_same(0.0, (float) $old['paid']);
+        assert_same(0, (int) $old['periods']);
+        assert_same(0.0, (float) $old['payout_ratio']);
+
+        /* The rank table is zero-filled and highest rank first. */
+        $ranks = Report::royaltyByRank($priorFrom, $last);
+        assert_count(3, $ranks);
+        assert_same([RoyaltyRank::DIRECTOR, RoyaltyRank::MANAGER, RoyaltyRank::SUPERVISOR], array_column($ranks, 'rank'));
+        assert_same(['Director', 'Manager', 'Supervisor'], array_column($ranks, 'name'));
+        assert_same(515000.0, (float) $ranks[0]['paid']);
+        assert_same(1, (int) $ranks[0]['recipients']);
+        assert_same(122500.0, (float) $ranks[1]['paid']);
+        assert_same(0.0, (float) $ranks[2]['paid']);
+        assert_same(18000.0, (float) $ranks[2]['pending']);
+        assert_same(1, (int) $ranks[2]['skipped']);
+
+        /* The month card is newest first and carries the stored counts. */
+        $months = Report::royaltyByPeriod(6);
+        assert_count(2, $months);
+        assert_same(
+            ['period', 'status', 'award_count', 'paid_count', 'skipped_count', 'award_total', 'paid_total'],
+            array_keys($months[0])
+        );
+        assert_same($period, $months[0]['period']);
+        assert_same('paid', $months[0]['status']);
+        assert_same(3, $months[0]['award_count']);
+        assert_same(2, $months[0]['paid_count']);
+        assert_same(637500.0, $months[0]['award_total']);
+        assert_same($prior, $months[1]['period']);
+
+        $ratio = Report::royaltyPayoutRatio($priorFrom, $last);
+        assert_same(637500.0, $ratio['royalty']);
+        assert_same(1000000.0, $ratio['sales']);
+        assert_same(63.8, $ratio['ratio']);
     },
 ];

@@ -50,6 +50,9 @@ return [
         assert_contains('Repeat-purchase bonus', $html);
         assert_contains('Repeat-purchase by level', $html);
         assert_contains('Repeat-purchase by product', $html);
+        assert_contains('Royalty bonus', $html);
+        assert_contains('Royalty by rank', $html);
+        assert_contains('Royalty months', $html);
         assert_contains('Closed months', $html);
         assert_contains('Payout register', $html);
         assert_contains('Registration-code revenue', $html);
@@ -76,7 +79,29 @@ return [
         assert_contains('data-live-region="report-unilevel-levels"', $html);
         assert_contains('data-live-region="report-unilevel-products"', $html);
         assert_contains('data-live-region="report-unilevel-periods"', $html);
+        assert_contains('data-live-region="report-royalty"', $html);
+        assert_contains('data-live-region="report-royalty-ranks"', $html);
+        assert_contains('data-live-region="report-royalty-periods"', $html);
         assert_contains('window.ECOWEALTH_REPORTS', $html);
+    },
+
+    'P19D the royalty cards render their empty state and the ratio line' => function () use ($renderReports): void {
+        test_signed_in_as(test_user('rpt19d_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        /* No royalty row exists in this fixture: the cards must still
+           render, with a zero ratio and the plan’s empty-state copy. */
+        assert_contains('Royalty paid ÷ paid sales', $html);
+        assert_contains('0.0%', $html);
+        assert_contains('No Royalty month has closed yet', $html);
+        assert_contains('Director', $html, 'the rank table lists every paying rank');
+        assert_contains('Supervisor', $html);
+        assert_contains('data-live-region="report-royalty"', $html);
+        assert_contains('type=royalty', $html, 'the royalty export is in the menu');
     },
 
     'P15 a report window comes from the query and is echoed in the form' => function () use ($renderReports): void {

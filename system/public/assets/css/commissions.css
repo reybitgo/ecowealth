@@ -255,3 +255,12 @@
     overflow-wrap: anywhere;
   }
 }
+
+/* ---------- Royalty ledger (Phase 19D) ----------
+ * GS/PS and the quota can run to seven figures, so the money columns
+ * keep their digits aligned (plan §8 Rule 6).
+ */
+.commission-table .commission-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -31,6 +31,7 @@ final class ReportService
         'sales'       => 'Sales by day',
         'commissions' => 'Commissions by level',
         'unilevel'    => 'Repeat-purchase bonus',
+        'royalty'     => 'Royalty',
         'wallet'      => 'Wallet statement',
         'payouts'     => 'Payout register',
         'codes'       => 'Registration codes',
@@ -103,9 +104,34 @@ final class ReportService
             'top_products'     => Report::topProducts($last30['from'], $last30['to'], 5),
             'commissions'      => Report::commissionSummary($last30['from'], $last30['to']),
             'unilevel'         => Report::unilevelSummary($last30['from'], $last30['to']),
+            'royalty'          => $this->royaltyDashboard(),
             'wallet'           => Report::walletFloat(),
             'payouts'          => Report::payoutSummary($last30['from'], $last30['to']),
             'members'          => Report::memberCounts(),
+        ];
+    }
+
+    /**
+     * The Royalty dashboard tile figures.
+     *
+     * `paid` / `pending` are all-time; `this_month` is the money
+     * credited during the current calendar month (the ledger's `paid`
+     * time, not the award period, because a month is paid after it
+     * closes). It is never the next close's preview, so the tile
+     * cannot disagree with the ledger after a month closes (plan §8
+     * Rule 10).
+     *
+     * @return array{paid:float, pending:float, this_month:float, periods:int}
+     */
+    private function royaltyDashboard(): array
+    {
+        $allTime = Report::royaltySummary('1970-01-01', date('Y-m-d'));
+
+        return [
+            'paid'       => $allTime['paid'],
+            'pending'    => $allTime['pending'],
+            'this_month' => $allTime['paid_this_month'],
+            'periods'    => $allTime['periods'],
         ];
     }
 
@@ -134,6 +160,10 @@ final class ReportService
             'unilevel_levels'   => Report::unilevelByLevel($range['from'], $range['to']),
             'unilevel_products' => Report::unilevelByProduct($range['from'], $range['to'], 6),
             'unilevel_periods'  => Report::unilevelByPeriod(6),
+            'royalty'           => Report::royaltySummary($range['from'], $range['to']),
+            'royalty_ranks'     => Report::royaltyByRank($range['from'], $range['to']),
+            'royalty_periods'   => Report::royaltyByPeriod(6),
+            'royalty_ratio'     => Report::royaltyPayoutRatio($range['from'], $range['to']),
             'wallet'        => Report::walletFloat(),
             'payouts'       => Report::payoutSummary($range['from'], $range['to']),
             'codes'         => Report::codeRevenue(),
@@ -158,6 +188,7 @@ final class ReportService
             'sales'       => $this->salesExport($from, $to),
             'commissions' => $this->commissionsExport($from, $to),
             'unilevel'    => $this->unilevelExport($from, $to),
+            'royalty'     => $this->royaltyExport($from, $to),
             'wallet'      => $this->walletExport($from, $to),
             'payouts'     => $this->payoutExport($from, $to),
             'codes'       => $this->codesExport($from, $to),
@@ -239,6 +270,76 @@ final class ReportService
             'filename' => self::filename('unilevel', ['from' => $from, 'to' => $to]),
             'header'   => UnilevelAward::csvHeader(),
             'rows'     => UnilevelAward::csvRows($rows),
+        ];
+    }
+
+    /**
+     * The Royalty report CSV: the window's closed months and its rank
+     * breakdown in one table, told apart by a `Scope` column, so
+     * finance can read both dimensions from one file (P19D-T13).
+     *
+     * The period rows come from `Report::royaltyByPeriod()` (headers
+     * only the close writes) and the rank rows from the awards of the
+     * window; the two are the same numbers the report cards render.
+     *
+     * @return array{filename:string, header:list<string>, rows:list<list<string>>}
+     */
+    private function royaltyExport(string $from, string $to): array
+    {
+        $start = substr($from, 0, 7);
+        $end   = substr($to, 0, 7);
+
+        if ($start > $end) {
+            [$start, $end] = [$end, $start];
+        }
+
+        $rows = [];
+
+        foreach (Report::royaltyByPeriod(120) as $period) {
+            if ($period['period'] < $start || $period['period'] > $end) {
+                continue;
+            }
+
+            $average = $period['paid_count'] === 0
+                ? 0.0
+                : $period['paid_total'] / $period['paid_count'];
+
+            $rows[] = [
+                'Period',
+                (string) $period['period'],
+                (string) $period['status'],
+                (string) max(0, $period['award_count'] - $period['skipped_count']),
+                self::decimal($period['paid_total']),
+                self::decimal(round($period['award_total'] - $period['paid_total'], 2)),
+                (string) $period['skipped_count'],
+                self::decimal($period['award_total']),
+                self::decimal($average),
+            ];
+        }
+
+        foreach (Report::royaltyByRank($from, $to) as $rank) {
+            $awarded = round($rank['paid'] + $rank['pending'], 2);
+
+            $rows[] = [
+                'Rank',
+                (string) $rank['name'],
+                '',
+                (string) $rank['recipients'],
+                self::decimal($rank['paid']),
+                self::decimal($rank['pending']),
+                (string) $rank['skipped'],
+                self::decimal($awarded),
+                self::decimal($rank['average']),
+            ];
+        }
+
+        return [
+            'filename' => self::filename('royalty', ['from' => $from, 'to' => $to]),
+            'header'   => [
+                'Scope', 'Period / rank', 'Status', 'Recipients', 'Paid',
+                'Pending', 'Skipped', 'Award total', 'Average award',
+            ],
+            'rows'     => $rows,
         ];
     }
 

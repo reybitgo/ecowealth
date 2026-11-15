@@ -483,12 +483,13 @@ and **never paid on a cancelled order**.
 
 ---
 
-## 16. Royalty bonus: the rank ladder (Phase 19B)
+## 16. Royalty bonus: the rank ladder and the monthly ledger (Phase 19B–19D)
 
 The Royalty bonus is a **monthly override on group sales**, paid once per closed calendar month to
 **Supervisor, Manager and Director** only. Phase 19B ships its configuration and the derived rank
-ladder; the monthly evaluation and payment arrive in 19C. **The stream ships off and this build moves
-no money.**
+ladder; 19C ships the monthly evaluation and payment; 19D ships the read-only admin views — the
+ledger, the report cards, the member panel and the dashboard tile. **The stream still ships off and
+no member has a Royalty card of their own until 19E.**
 
 ### The five ranks
 
@@ -558,12 +559,16 @@ flash-only message:
 Every successful save writes one `settings.update` audit row with the before/after of each changed key
 and the section `commissions`. A save writes no period, award, wallet or other money row.
 
-### What 19B does not do
+### What this build does not do
 
-There is no **Run close** button and no royalty money yet: the monthly evaluation, the award rows,
-the wallet credits and the admin/member royalty statements are 19C–19F. Until then `/admin/commissions`,
-`/earnings` and the wallet statements show no Royalty movement, and no member has received one. Do not
-create an award or a period by hand.
+There is still no **Run close** button: closing a month is the CLI job
+(`bin/royalty_month_close.php`), never a page. The Royalty ledger and the member panel are
+**read-only** — no admin screen can evaluate, pay, edit or reverse an award. The member-facing
+Royalty tab on `/earnings` and the member dashboard tile arrive with **19E**; the scheduled close, the
+doctor and the operations panel arrive with **19F**.
+
+The money is real and already visible in the member's wallet statement as a **Royalty bonus** credit
+(with its ledger id), but there is no member-facing Royalty tab or card of their own until 19E.
 
 ### Reading a "why is nobody ranked" report
 
@@ -574,3 +579,79 @@ create an award or a period by hand.
 3. Check the four thresholds on the settings card — they may have been raised.
 4. Ranks count members regardless of status, but only `role = 'member'` accounts count. A staff account
    in the middle of a chain is not a bridge: the member below it starts a new root.
+
+### Reading the Royalty ledger (Phase 19D)
+
+**Admin → Commissions → Royalty** (`/admin/commissions?ledger=royalty`) is the finance view of the
+monthly money engine. The page reads `royalty_periods` and `royalty_awards`; it never writes them.
+
+- **Period** is the primary filter. It defaults to the **latest final month**, and you can pick any
+  closed month from the dropdown. `— current month (preview)` opens the open month as a projection
+  (see below).
+- **The closed-month cards** list every month with its status, award/paid/skipped counts, the award
+  total, the paid total, the evaluation time and the time it became final. Clicking a month filters
+  the ledger to it. A closed month is never rewritten.
+- **The counters** describe the selected month: paid in this period, awaiting payment, the period
+  total, recipients, skipped, average award, the top rank and the all-time paid figure.
+- **The rows** are one member each: member, rank, group sales (GS), personal sales (PS), quota, the
+  two rates, the amount, the status, the ledger id with a link to the wallet movement and the paid
+  time. GS and PS are the stored values the award was calculated from; the rates are the ones
+  snapshotted at the close (`3.000% / 5.000%` for a Supervisor, for example).
+- **Only Supervisor, Manager and Director have rows.** A Leader earns nothing, however large their
+  group is — Leader is a rank, not a royalty rank. A Leader therefore never appears in this ledger.
+- **“If this month closed now.”** The open month is a **read-only preview** computed by the engine
+  with the current tree and the month's paid orders so far. It is clearly labelled, it is not a period
+  row, and it never enters a period total. The month is only written by the close job.
+- **The CSV** is the **Export CSV** button on the same page. It reuses the filters you have selected
+  and downloads the columns in the next section. Every download writes one `royalty.export` row to
+  **Admin → Audit**.
+
+### Period states
+
+| Status | What it means | Can it change? |
+|---|---|---|
+| **Evaluated — awaiting payment** | The month's awards are written and sitting `pending`. This is the review window after `--evaluate-only`, or a run whose payment is paused. | Yes — a later `--pay-only` pays it and the month becomes **Paid**. |
+| **Paid** | Final. Every award was paid, or was `skipped` and paid nothing. Money reached the withdrawable wallets. | **No.** A closed month is never recalculated. |
+| **Skipped (stream off)** | The stream was off when the month closed. No awards, no money, and a note on the header. | **No.** The month cannot be paid later. |
+
+A month with award rows all `skipped` still ends **Paid**: the month was settled, it just paid nothing.
+
+### Why a row is skipped
+
+A skipped row stores `0.00` and the reason it was not paid. The reason is rendered **verbatim** — the
+ledger never invents an explanation:
+
+| Stored reason | What happened |
+|---|---|
+| `group sales below quota` | The member's group sales missed the rank's monthly quota. The quota is **all-or-nothing**: one centavo short pays nothing, including the personal percentage. |
+| `account is not active` | The member account was not active at evaluation. |
+| `membership is not active` | The membership status was not `active` at evaluation. |
+| `zero amount` | The member was eligible and at quota, but the configured rates produced `0.00`. |
+
+The row also shows **“would have been ₱X”**: the amount the stored GS/PS/rates would have produced.
+That is a display-only derivation; the stored amount is `0.00` and never enters a paid total.
+
+### Royalty ledger CSV columns
+
+`Period, Member, Full name, Rank, Group sales, Personal sales, Quota, Group %, Personal %, Amount,
+Status, Reason, Evaluated at, Paid at, Ledger id`
+
+- **Member** is the username; **Full name** the profile name.
+- **Rank** is the rank the member was judged at, not their rank today.
+- **Group sales / Personal sales / Quota / Group % / Personal %** are the stored snapshot values.
+- **Status** is `pending`, `paid` or `skipped`; **Reason** is the stored reason (empty when paid).
+- **Evaluated at** is when the row was written; **Paid at** is when the wallet credit happened.
+- **Ledger id** is the `ewallet_ledger` row that paid it (`—` for a skipped row).
+
+### The member panel and the dashboard
+
+- **Admin → Members → one member** now has a **Royalty** card: the derived rank, the quota progress,
+  this month's personal and group sales against the quota, the last six awards, the all-time paid
+  figure and the member's downline counts. It is read-only and uses the same engine read as the
+  member's own (19E) card, so the two can never promise different amounts.
+- **Admin → Dashboard** has a **Royalty paid** tile: all-time money in wallets, the amount paid **this
+  calendar month** and the pending liability. It is never the open month's projection, so it cannot
+  disagree with the ledger after a close.
+- **Admin → Reports** has the Royalty summary (including **royalty paid ÷ paid sales**), the rank
+  table and the month table, with a `Royalty` CSV export. Use the ratio to watch the plan economics:
+  a rising figure means the ladder is paying more of every peso of sales.

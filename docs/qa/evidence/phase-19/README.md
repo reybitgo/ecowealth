@@ -38,6 +38,14 @@ Index:
 | `QA19C-10.txt` | QA19C-10 | `royalty_enabled = 0`: the `skipped` header with `royalty stream off`, every count 0 and zero awards/ledger rows |
 | `QA19C-11.txt` | QA19C-11 | The two-month catch-up: oldest-first periods, each month's own `as_of`, ₱40,000.00 + ₱80,000.00 paid, and a second run that pays nothing |
 | `QA19C-12.txt` | QA19C-12 | `php tests/run.php Royalty` **98 / 98**, the bundle check exit 0 and the development-copy `wallet_reconcile` exit 0 with the Royalty section |
+| `QA19D-01.txt` | QA19D-01 | The fixture month closed by the real service (**7 awards, ₱1,152,000.00**) and the rendered ledger: the five `commission-royalty-*` regions, the counters (paid / awaiting / period total / recipients / average / top rank / all time), the seven rows with their stored GS/PS/quota/rates/amount, and the labelled preview |
+| `QA19D-02.txt` | QA19D-02 | The period filter on the **skipped** month (`2026-09`: 7 rows, all `group sales below quota`, ₱0.00 paid), the Manager rank filter (2 rows), the `status=paid` filter and the `q=qa19d_sup_a` search (2 Supervisors) |
+| `QA19D-03.txt` | QA19D-03 | The ledger CSV: the fifteen Appendix C.5 columns, the seven rows with two printed samples, the ₱1,152,000.00 checked total, and exactly **one** `royalty.export` audit row with its meta |
+| `QA19D-04.txt` | QA19D-04 | The reports desk over 2026-09-01 … 2026-10-31: paid / pending / recipients / skipped / months, **royalty paid ÷ paid sales = 23.0%** (₱1,152,000.00 of ₱5,001,000.00), the three rank rows (including the prior month's 7 skipped), both month rows, the three card regions, and the `type=royalty` CSV (5 rows, Period then Rank) |
+| `QA19D-05.txt` | QA19D-05 | The member page for the fixture Director: rank, quota progress, this month's PS/GS/quota, downline counts, next rank, all-time paid, last paid and the last awards, plus the `member-royalty` region |
+| `QA19D-06.txt` | QA19D-06 | The dashboard tile: all-time **₱1,152,000.00**, the same figure this month, ₱0.00 awaiting, 2 closed months and the ledger link — never the preview |
+| `QA19D-07.txt` | QA19D-07 | The package tab keeps its four fragments and the repeat tab its five; the repeat CSV still carries its fifteen escrow columns; neither renders a `commission-royalty-*` region |
+| `QA19D-08.txt` | QA19D-08 | The audit log rows behind `/admin/audit`: the `royalty.export` row (tab, period, rows) and the two `settings.update` rows from the commissions card |
 
 Notes for the reader:
 
@@ -58,3 +66,11 @@ Notes for the reader:
   amounts are disposable. The transcripts record the real command output and the real `SELECT` results
   of that scratch database — no number in them is typed by hand. The full suite and the bundle check
   in `QA19C-12` run normally (the test harness re-creates its own `ecowealth_sneat_test`).
+- **Section D reads the finished ledger.** 19D adds no route and no write path, so its eight checks
+  run against the application itself (the same in-process rendering sections A and B used): a
+  transient generator rebuilds the test schema (`ecowealth_sneat_test`), builds the plan §16.2 A tree
+  at 2/2/2/2, runs the **real** `RoyaltyService::close()` for a prior month (all seven rows skipped)
+  and the fixture month (**7 awards, ₱1,152,000.00**), then renders each surface and records what the
+  screen shows. The development copy is never touched and nothing is typed by hand; every file ends
+  with its `RESULT: PASS`. The generator lives in the git-ignored `system/tests/tmp/`, so the
+  transcripts — not the script — are the committed evidence.

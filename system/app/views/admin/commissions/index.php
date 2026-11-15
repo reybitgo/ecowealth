@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 /**
  * Admin commission ledger (plan §6, §7 Phase 10, Appendix A extension;
- * Phase 17D adds the repeat-purchase tab of plan §8).
+ * Phase 17D adds the repeat-purchase tab of plan §8; Phase 19D adds the
+ * Royalty tab).
  *
- * Two tabs, one URL:
+ * Three tabs, one URL:
  *
  *   Package commissions        the referral ledger (`commissions`):
  *                              every credited and skipped award,
@@ -15,19 +16,24 @@ declare(strict_types=1);
  *                              (`unilevel_awards`): one row per order
  *                              line, recipient and level 1–10, with the
  *                              closed-month history above it.
+ *   Royalty                    the monthly royalty ledger
+ *                              (`royalty_awards`): one row per member
+ *                              per closed month, with the closed-month
+ *                              cards and the open-month preview above it.
  *
  * One live surface: the counters, the period card, the card heading's
  * row count, the rows and the pagination are regions. The filter form
  * stays outside them so a background refresh never discards an
  * unsubmitted filter.
  *
- * @var string $tab 'package' (default) or 'repeat'
+ * @var string $tab 'package' (default), 'repeat' or 'royalty'
  * @var string $ledger The tab, as a query value
  * @var string $ledger_url  This tab's URL
  * @var string $export_url  This tab's CSV export URL
  * @var string $wallet_url
  * @var string $package_url
  * @var string $repeat_url
+ * @var string $royalty_url
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  *
  * Package tab:
@@ -42,12 +48,27 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $awards
  * @var list<array<string, mixed>> $periods
  * @var list<array<string, mixed>> $products
+ *
+ * Royalty tab:
+ * @var array{period:string, period_status:?string, rows:int, paid_rows:int, pending_rows:int, skipped_rows:int, recipients:int, paid_total:float, pending_total:float, award_total:float, average:float, top_rank:?string, lifetime_paid:float} $stats
+ * @var array{period:string, status:string, rank:string, q:string} $filters
+ * @var list<array<string, mixed>> $awards
+ * @var list<array<string, mixed>> $periods
+ * @var array<string, mixed>|null $preview
+ * @var bool   $preview_mode
+ * @var string $open_period
+ * @var array<int, array<string, mixed>> $rank_breakdown
  */
 
-$tab         = ($tab ?? 'package') === 'repeat' ? 'repeat' : 'package';
+$tab         = in_array($tab ?? 'package', ['repeat', 'royalty'], true) ? (string) $tab : 'package';
 $package_url = $package_url ?? url('admin/commissions');
 $repeat_url  = $repeat_url ?? url('admin/commissions?ledger=repeat');
-$ledger_url  = $ledger_url ?? ($tab === 'repeat' ? $repeat_url : $package_url);
+$royalty_url = $royalty_url ?? url('admin/commissions?ledger=royalty');
+$ledger_url  = $ledger_url ?? match ($tab) {
+    'repeat'  => $repeat_url,
+    'royalty' => $royalty_url,
+    default   => $package_url,
+};
 $export_url  = $export_url ?? url('admin/commissions/export');
 $wallet_url  = $wallet_url ?? url('admin/wallets');
 
@@ -59,9 +80,55 @@ $live = $live ?? [
     'interval' => 30000,
 ];
 
-$isRepeat = $tab === 'repeat';
+$isRepeat  = $tab === 'repeat';
+$isRoyalty = $tab === 'royalty';
 
-if ($isRepeat) {
+if ($isRoyalty) {
+    $stats        = $stats ?? [];
+    $filters      = $filters ?? RoyaltyAward::filterDefaults();
+    $awards       = $awards ?? [];
+    $periods      = $periods ?? [];
+    $preview      = $preview ?? null;
+    $preview_mode = (bool) ($preview_mode ?? false);
+    $open_period  = (string) ($open_period ?? RoyaltyPeriod::periodOf());
+    $pager        = $pager ?? new Paginator(0, Paginator::perPageFromRequest());
+
+    $hasFilters = (string) $filters['status'] !== ''
+        || (string) $filters['rank'] !== ''
+        || (string) $filters['q'] !== '';
+
+    $rankOptions = [['value' => '', 'label' => 'All paying ranks']];
+    foreach ([RoyaltyRank::DIRECTOR, RoyaltyRank::MANAGER, RoyaltyRank::SUPERVISOR] as $rank) {
+        $rankOptions[] = ['value' => (string) $rank, 'label' => RoyaltyRank::NAMES[$rank]];
+    }
+
+    $statusOptions = ['' => 'All statuses'];
+    foreach (RoyaltyAward::STATUSES as $status) {
+        $stateLabels = [
+            'pending' => 'Awaiting payment',
+            'paid'    => 'Paid',
+            'skipped' => 'Skipped',
+        ];
+        $statusOptions[$status] = $stateLabels[$status] ?? RoyaltyAward::STATUS_LABELS[$status] ?? ucfirst($status);
+    }
+
+    $periodOptions = [['value' => '', 'label' => 'Latest closed month']];
+
+    foreach ($periods as $row) {
+        $ts = strtotime((string) $row['period'] . '-01 12:00:00');
+        $periodOptions[] = [
+            'value' => (string) $row['period'],
+            'label' => ($ts === false ? (string) $row['period'] : date('M Y', $ts))
+                . ' — ' . RoyaltyPeriod::label((string) $row['status']),
+        ];
+    }
+
+    $openTs = strtotime($open_period . '-01 12:00:00');
+    $periodOptions[] = [
+        'value' => $open_period,
+        'label' => ($openTs === false ? $open_period : date('M Y', $openTs)) . ' — current month (preview)',
+    ];
+} elseif ($isRepeat) {
     $filters = $filters ?? UnilevelAward::filterDefaults();
     $awards  = $awards ?? [];
     $periods = $periods ?? [];
@@ -130,7 +197,13 @@ if ($isRepeat) {
 
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
                 <div>
-<?php if ($isRepeat): ?>
+<?php if ($isRoyalty): ?>
+                  <h4 class="mb-1">Royalty bonus</h4>
+                  <p class="text-body-secondary mb-0">
+                    Every Royalty award, one per member per closed month, with the closed-month cards and
+                    the open-month preview. Never per order.
+                  </p>
+<?php elseif ($isRepeat): ?>
                   <h4 class="mb-1">Repeat-purchase bonus</h4>
                   <p class="text-body-secondary mb-0">
                     Every award a paid order earned, with its release state. One row per line, recipient and level 1–10.
@@ -156,8 +229,8 @@ if ($isRepeat) {
                 <li class="nav-item" role="listitem">
                   <a
                     href="<?= e($package_url) ?>"
-                    class="nav-link<?= $isRepeat ? '' : ' active' ?>"
-<?= $isRepeat ? '' : ' aria-current="page"' ?>
+                    class="nav-link<?= $tab === 'package' ? ' active' : '' ?>"
+<?= $tab === 'package' ? ' aria-current="page"' : '' ?>
                   >
                     <i class="icon-base bx bx-line-chart me-1"></i> Package commissions
                   </a>
@@ -169,6 +242,15 @@ if ($isRepeat) {
 <?= $isRepeat ? ' aria-current="page"' : '' ?>
                   >
                     <i class="icon-base bx bx-gift me-1"></i> Repeat-purchase bonus
+                  </a>
+                </li>
+                <li class="nav-item" role="listitem">
+                  <a
+                    href="<?= e($royalty_url) ?>"
+                    class="nav-link<?= $isRoyalty ? ' active' : '' ?>"
+<?= $isRoyalty ? ' aria-current="page"' : '' ?>
+                  >
+                    <i class="icon-base bx bx-crown me-1"></i> Royalty
                   </a>
                 </li>
               </ul>
@@ -274,6 +356,113 @@ if ($isRepeat) {
                 </div>
 
 <?= View::capture('admin/commissions/_repeat_pagination', ['pager' => $pager]) ?>
+              </div>
+<?php elseif ($isRoyalty): ?>
+<?= View::capture('admin/commissions/_royalty_stats', [
+    'stats'        => $stats,
+    'preview'      => $preview,
+    'preview_mode' => $preview_mode,
+    'open_period'  => $open_period,
+]) ?>
+
+<?= View::capture('admin/commissions/_royalty_periods', [
+    'periods'  => $periods,
+    'selected' => $filters['period'],
+    'open'     => $open_period,
+]) ?>
+
+              <div class="card">
+<?= View::capture('admin/commissions/_royalty_header', [
+    'pager'         => $pager,
+    'period'        => $filters['period'],
+    'period_status' => $stats['period_status'] ?? null,
+    'preview_mode'  => $preview_mode,
+]) ?>
+
+                <div class="card-body border-bottom">
+                  <form method="GET" action="<?= e($ledger_url) ?>" class="d-flex flex-wrap align-items-end gap-3 commission-filters">
+                    <?= per_page_hidden() ?>
+                    <input type="hidden" name="ledger" value="royalty" />
+
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="royalty-filter-period">Period</label>
+                      <select name="period" id="royalty-filter-period" class="form-select">
+<?php foreach ($periodOptions as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $filters['period'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="royalty-filter-rank">Rank</label>
+                      <select name="rank" id="royalty-filter-rank" class="form-select">
+<?php foreach ($rankOptions as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $filters['rank'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="royalty-filter-status">Status</label>
+                      <select name="status" id="royalty-filter-status" class="form-select">
+<?php foreach ($statusOptions as $value => $label): ?>
+                        <option value="<?= e($value) ?>" <?= $filters['status'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="royalty-filter-q">Member</label>
+                      <input
+                        type="search"
+                        name="q"
+                        id="royalty-filter-q"
+                        class="form-control"
+                        value="<?= e((string) $filters['q']) ?>"
+                        placeholder="Username or full name…"
+                      />
+                    </div>
+
+                    <div class="commission-filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
+<?php if ($hasFilters): ?>
+                      <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
+                        <i class="icon-base bx bx-x me-1"></i> Clear
+                      </a>
+<?php endif; ?>
+                    </div>
+                  </form>
+                  <div class="text-end">
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
+                  </div>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle commission-table mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col">Member</th>
+                        <th scope="col">Rank</th>
+                        <th scope="col" class="text-end">Group sales</th>
+                        <th scope="col" class="text-end">Personal sales</th>
+                        <th scope="col" class="text-end">Quota</th>
+                        <th scope="col" class="text-end">Rates</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Ledger</th>
+                        <th scope="col" class="text-nowrap">Paid</th>
+                      </tr>
+                    </thead>
+<?= View::capture('admin/commissions/_royalty_rows', [
+    'awards'       => $awards,
+    'filters'      => $filters,
+    'preview_mode' => $preview_mode,
+    'open_period'  => $open_period,
+]) ?>
+                  </table>
+                </div>
+
+<?= View::capture('admin/commissions/_royalty_pagination', ['pager' => $pager]) ?>
               </div>
 <?php else: ?>
 <?= View::capture('admin/commissions/_stats', ['stats' => $stats]) ?>

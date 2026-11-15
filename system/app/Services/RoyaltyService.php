@@ -213,6 +213,10 @@ final class RoyaltyService
                 ],
             ], $this->pdo);
 
+            /* Phase 19D: the admin ledger shows skipped months too, so
+             * writing the header must bump the surface `pay()` bumps. */
+            Live::touch(['admin.commissions', 'admin.dashboard']);
+
             return [
                 'period'        => $period,
                 'as_of'         => $end,
@@ -317,6 +321,11 @@ final class RoyaltyService
                 ],
             ],
         ], $this->pdo);
+
+        /* Phase 19D: the admin ledger lists evaluated months and their
+         * pending rows, so an evaluation must revalidate that surface
+         * even when it is not followed by a payment in this call. */
+        Live::touch(['admin.commissions', 'admin.dashboard']);
 
         return [
             'period'        => $period,

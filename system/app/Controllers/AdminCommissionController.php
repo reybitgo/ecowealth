@@ -4,16 +4,18 @@ declare(strict_types=1);
 /* ==============================================================
  *  AdminCommissionController — the company-wide commission ledger
  *  (plan §7 Phase 10, Appendix A extension; Phase 17D adds the
- *  repeat-purchase tab of plan §8)
+ *  repeat-purchase tab of plan §8; Phase 19D adds the Royalty tab)
  *
  *  Route: GET /admin/commissions   guard `admin`
  *
- *  Two ledgers, one page, one URL:
+ *  Three ledgers, one page, one URL:
  *
- *      /admin/commissions                package referral awards
- *                                        (`commissions`)
- *      /admin/commissions?ledger=repeat  repeat-purchase awards
- *                                        (`unilevel_awards`)
+ *      /admin/commissions                 package referral awards
+ *                                         (`commissions`)
+ *      /admin/commissions?ledger=repeat   repeat-purchase awards
+ *                                         (`unilevel_awards`)
+ *      /admin/commissions?ledger=royalty  the monthly Royalty ledger
+ *                                         (`royalty_awards`)
  *
  *  The package tab is the Phase 10–11 ledger, unchanged: filters by
  *  recipient/source/package (q), type, level, status and date, and the
@@ -22,14 +24,22 @@ declare(strict_types=1);
  *  (D-17), with the periods card showing the closed months. Skipped
  *  rows are audit notes and never enter a credited total.
  *
+ *  The Royalty tab (19D) is read-only over the rows 19C writes: one
+ *  award per member per closed month, the period as the primary filter
+ *  (latest final month by default), the closed-month cards, seven
+ *  counters, a clearly labelled “if this month closed now” preview and
+ *  a CSV with the plan Appendix C.5 columns. No admin page writes a
+ *  period or an award; the close is the CLI job (plan §8 Rule 1).
+ *
  *  The ledger is read-only by design: an award is never edited. A
  *  correction would be a new `adjustment` wallet movement plus a
  *  `voided` row (Phase 15), never an UPDATE on money history.
  *
  *  The page is one live surface (`admin.commissions`): the card heading,
  *  counters, rows and pagination are regions; the filter form stays
- *  outside them. The tab is part of the URL, so an open repeat tab
- *  refreshes on the same surface an award bumps (P17D-T14).
+ *  outside them. The tab and the period are part of the URL and of the
+ *  ETag scope, so an open Royalty tab refreshes on the surface a close
+ *  bumps and never shares a 304 with another tab (P17D-T14, P19D-T16).
  * ============================================================== */
 
 final class AdminCommissionController
@@ -39,6 +49,9 @@ final class AdminCommissionController
 
     /** Repeat-purchase ladder ledger. */
     public const TAB_REPEAT = 'repeat';
+
+    /** Monthly Royalty ledger (Phase 19D). */
+    public const TAB_ROYALTY = 'royalty';
 
     /** @param array<string, string> $params */
     public function index(array $params = []): void
@@ -59,12 +72,14 @@ final class AdminCommissionController
         ]);
     }
 
-    /** The tab named by `?ledger=`; anything but `repeat` is the package tab. */
+    /** The tab named by `?ledger=`; anything but `repeat`/`royalty` is the package tab. */
     public static function tab(): string
     {
-        return strtolower(trim(Request::string('ledger'))) === self::TAB_REPEAT
-            ? self::TAB_REPEAT
-            : self::TAB_PACKAGE;
+        return match (strtolower(trim(Request::string('ledger')))) {
+            self::TAB_REPEAT  => self::TAB_REPEAT,
+            self::TAB_ROYALTY => self::TAB_ROYALTY,
+            default           => self::TAB_PACKAGE,
+        };
     }
 
     /**
@@ -74,7 +89,11 @@ final class AdminCommissionController
      */
     public function context(): array
     {
-        return self::tab() === self::TAB_REPEAT ? $this->repeatContext() : $this->listContext();
+        return match (self::tab()) {
+            self::TAB_REPEAT  => $this->repeatContext(),
+            self::TAB_ROYALTY => $this->royaltyContext(),
+            default           => $this->listContext(),
+        };
     }
 
     /**
@@ -152,6 +171,160 @@ final class AdminCommissionController
     }
 
     /**
+     * Everything the Royalty tab renders, built once for the page and
+     * its feed (plan §8 Phase 19D).
+     *
+     * The period is the primary filter (Rule 3): an explicit
+     * `?period=YYYY-MM` or `?period=current` wins, otherwise the latest
+     * final month, then the latest header, then the open month. The open
+     * month is a labelled preview computed by `RoyaltyService::preview()`
+     * and is never a period row or part of a ledger total (Rule 4).
+     *
+     * @return array<string, mixed>
+     */
+    public function royaltyContext(): array
+    {
+        /* `period=current` is URL state, not a stored month, so the raw
+         * value is resolved before the award filters validate it. */
+        $requested = trim(Request::string('period'));
+
+        $filters = RoyaltyAward::normaliseFilters([
+            'period' => $requested,
+            'status' => Request::string('status'),
+            'rank'   => Request::string('rank'),
+            'q'      => Request::string('q'),
+        ]);
+
+        $open    = RoyaltyPeriod::periodOf();
+        $periods = RoyaltyPeriod::periods(24);
+        $period  = self::royaltyPeriod($requested, $periods, $open);
+
+        /* The screen is always scoped to one period, so the export, the
+         * filters and the header all speak about the same month. */
+        $filters['period'] = $period;
+
+        $previewMode = $period === $open;
+
+        if ($previewMode) {
+            /* No stored rows can exist for an open month; the preview
+             * panel above the ledger carries the projection instead. */
+            $pager     = new Paginator(0, Paginator::perPageFromRequest());
+            $awards    = [];
+            $totals    = [
+                'rows' => 0, 'paid_rows' => 0, 'pending_rows' => 0, 'skipped_rows' => 0,
+                'paid_total' => 0.0, 'pending_total' => 0.0, 'award_total' => 0.0,
+            ];
+            $breakdown = RoyaltyAward::rankBreakdown($period);
+        } else {
+            $pager     = Paginator::fromTableRequest(RoyaltyAward::countForPeriod($period, $filters));
+            $awards    = RoyaltyAward::pageForPeriod($period, $filters, $pager);
+            $totals    = RoyaltyAward::totalsForPeriod($period);
+            $breakdown = RoyaltyAward::rankBreakdown($period);
+        }
+
+        $preview = null;
+
+        try {
+            $preview = (new RoyaltyService())->preview($open);
+        } catch (Throwable $e) {
+            /* A broken preview panel must never blank the ledger. */
+            error_log('[ecowealth] royalty preview unavailable: ' . $e->getMessage());
+        }
+
+        $lifetimePaid = 0.0;
+
+        foreach (RoyaltyPeriod::periods(120) as $row) {
+            $lifetimePaid += (float) $row['paid_total'];
+        }
+
+        $earning = $totals['paid_rows'] + $totals['pending_rows'];
+
+        $stats = [
+            'period'        => $period,
+            'period_status' => RoyaltyPeriod::status($period),
+            'rows'          => $totals['rows'],
+            'paid_rows'     => $totals['paid_rows'],
+            'pending_rows'  => $totals['pending_rows'],
+            'skipped_rows'  => $totals['skipped_rows'],
+            'recipients'    => $earning,
+            'paid_total'    => $totals['paid_total'],
+            'pending_total' => $totals['pending_total'],
+            'award_total'   => $totals['award_total'],
+            'average'       => $earning === 0 ? 0.0 : round($totals['award_total'] / $earning, 2),
+            'top_rank'      => self::topRoyaltyRank($breakdown),
+            'lifetime_paid' => round($lifetimePaid, 2),
+        ];
+
+        return [
+            'tab'            => self::TAB_ROYALTY,
+            'ledger'         => self::TAB_ROYALTY,
+            'stats'          => $stats,
+            'filters'        => $filters,
+            'pager'          => $pager,
+            'awards'         => $awards,
+            'periods'        => $periods,
+            'rank_breakdown' => $breakdown,
+            'preview'        => $preview,
+            'preview_mode'   => $previewMode,
+            'open_period'    => $open,
+            'ledger_url'     => url('admin/commissions?ledger=royalty'),
+            'export_url'     => url('admin/commissions/export' . self::royaltyQueryString($filters)),
+            'wallet_url'     => url('admin/wallets'),
+            'package_url'    => url('admin/commissions'),
+            'repeat_url'     => url('admin/commissions?ledger=repeat'),
+            'royalty_url'    => url('admin/commissions?ledger=royalty'),
+        ];
+    }
+
+    /**
+     * The period the Royalty tab shows (plan §8 Rule 3): an explicit
+     * `current` or `YYYY-MM` wins; otherwise the latest final period,
+     * then the latest header of any status, then the open month.
+     *
+     * @param list<array<string, mixed>> $periods newest first
+     */
+    private static function royaltyPeriod(string $requested, array $periods, string $open): string
+    {
+        $requested = trim($requested);
+
+        if (strtolower($requested) === 'current') {
+            return $open;
+        }
+
+        if (RoyaltyPeriod::isPeriod($requested)) {
+            return $requested;
+        }
+
+        foreach ($periods as $row) {
+            if (in_array((string) $row['status'], RoyaltyPeriod::FINAL, true)) {
+                return (string) $row['period'];
+            }
+        }
+
+        if ($periods !== []) {
+            return (string) $periods[0]['period'];
+        }
+
+        return $open;
+    }
+
+    /**
+     * The highest paying rank that has a row in the period, or null.
+     *
+     * @param array<int, array<string, mixed>> $breakdown
+     */
+    private static function topRoyaltyRank(array $breakdown): ?string
+    {
+        foreach ([RoyaltyRank::DIRECTOR, RoyaltyRank::MANAGER, RoyaltyRank::SUPERVISOR] as $rank) {
+            if ((int) ($breakdown[$rank]['rows'] ?? 0) > 0) {
+                return (string) $breakdown[$rank]['name'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * CSV of the filtered commission ledger (plan §7 Phase 11:
      * "Unilevel statement" export).
      *
@@ -164,12 +337,20 @@ final class AdminCommissionController
      * instead, with the columns the repeat tab shows, under its own
      * `unilevel.export` audit action (plan §15.4).
      *
+     * Phase 19D: `?ledger=royalty` exports the filtered Royalty awards
+     * with the plan Appendix C.5 columns, under `royalty.export`.
+     *
      * @param array<string, string> $params
      */
     public function export(array $params = []): void
     {
         if (self::tab() === self::TAB_REPEAT) {
             $this->exportRepeat();
+            return;
+        }
+
+        if (self::tab() === self::TAB_ROYALTY) {
+            $this->exportRoyalty();
             return;
         }
 
@@ -289,6 +470,134 @@ final class AdminCommissionController
     }
 
     /**
+     * GET /admin/commissions/export?ledger=royalty — the filtered
+     * Royalty awards as CSV, with the columns of plan Appendix C.5.
+     *
+     * The download reuses the screen's filters (Rule 7) and is audited
+     * once as `royalty.export` with the tab, the filters and the row
+     * count (plan §15.4). It writes no period and no award.
+     */
+    private function exportRoyalty(): void
+    {
+        $export = $this->royaltyExportPayload();
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="royalty-awards_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, self::royaltyCsvHeader());
+
+        foreach (self::royaltyCsvRows($export['rows']) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The filtered Royalty export rows and the one audit row they write.
+     *
+     * Public so the gate can assert the `royalty.export` row and the
+     * exact CSV payload without streaming a file out of the harness;
+     * the routed `export()` still exits after the CSV (P19D-T10/T11).
+     *
+     * @return array{filters:array{period:string, status:string, rank:string, q:string}, rows:list<array<string, mixed>>}
+     */
+    public function royaltyExportPayload(): array
+    {
+        $requested = trim(Request::string('period'));
+
+        $filters = RoyaltyAward::normaliseFilters([
+            'period' => $requested,
+            'status' => Request::string('status'),
+            'rank'   => Request::string('rank'),
+            'q'      => Request::string('q'),
+        ]);
+
+        /* The screen always shows one period; the CSV mirrors it. */
+        $filters['period'] = self::royaltyPeriod(
+            $requested,
+            RoyaltyPeriod::periods(24),
+            RoyaltyPeriod::periodOf()
+        );
+
+        $rows  = RoyaltyAward::exportRows($filters);
+        $admin = auth_user();
+
+        AuditLog::record([
+            'action'       => 'royalty.export',
+            'actor_id'     => $admin === null ? null : (int) $admin['id'],
+            'actor_role'   => $admin === null ? null : (string) $admin['role'],
+            'subject_type' => 'royalty_award',
+            'subject_id'   => null,
+            'meta'         => [
+                'tab'     => self::TAB_ROYALTY,
+                'filters' => $filters,
+                'rows'    => count($rows),
+            ],
+        ]);
+
+        return ['filters' => $filters, 'rows' => $rows];
+    }
+
+    /**
+     * The Royalty ledger CSV header — exactly plan Appendix C.5.
+     *
+     * @return list<string>
+     */
+    public static function royaltyCsvHeader(): array
+    {
+        return [
+            'Period', 'Member', 'Full name', 'Rank', 'Group sales', 'Personal sales',
+            'Quota', 'Group %', 'Personal %', 'Amount', 'Status', 'Reason',
+            'Evaluated at', 'Paid at', 'Ledger id',
+        ];
+    }
+
+    /**
+     * The Royalty ledger CSV rows, one per award.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<list<string>>
+     */
+    public static function royaltyCsvRows(array $rows): array
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $out[] = [
+                (string) $row['period'],
+                (string) ($row['username'] ?? ''),
+                (string) ($row['full_name'] ?? ''),
+                RoyaltyRank::NAMES[(int) $row['rank_level']] ?? 'Rank ' . (int) $row['rank_level'],
+                number_format((float) $row['group_volume'], 2, '.', ''),
+                number_format((float) $row['personal_volume'], 2, '.', ''),
+                number_format((float) $row['quota'], 2, '.', ''),
+                number_format((float) $row['group_pct'], 3, '.', ''),
+                number_format((float) $row['personal_pct'], 3, '.', ''),
+                number_format((float) $row['amount'], 2, '.', ''),
+                (string) $row['status'],
+                (string) ($row['reason'] ?? ''),
+                (string) $row['created_at'],
+                (string) ($row['credited_at'] ?? ''),
+                $row['ledger_id'] === null ? '' : (string) $row['ledger_id'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * The current filters as an export query string ('' when none).
      *
      * @param array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
@@ -320,16 +629,37 @@ final class AdminCommissionController
     }
 
     /**
+     * The Royalty export query string: the tab first, then the present
+     * filters. The period is always present (the screen shows one).
+     *
+     * @param array{period:string, status:string, rank:string, q:string} $filters
+     */
+    private static function royaltyQueryString(array $filters): string
+    {
+        $query = ['ledger' => self::TAB_ROYALTY] + array_filter(
+            $filters,
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return '?' . http_build_query($query);
+    }
+
+    /**
      * ETag scope for the ledger.
      *
      * `this_month` counts from the first of the month, so the day is part
      * of the scope: a tab left open across midnight revalidates on its next
      * poll instead of showing yesterday's month figure. `Live::scope()`
-     * carries the query string, so the two tabs never share an ETag.
+     * carries the query string, so the tabs never share an ETag; the tab
+     * and the selected Royalty period are also named explicitly so a
+     * stale page can never answer for another tab's data (P19D-T16).
      */
     private function listScope(int $userId): string
     {
-        return Live::scope($_GET, $userId) . '|day:' . date('Y-m-d');
+        return Live::scope($_GET, $userId)
+            . '|day:' . date('Y-m-d')
+            . '|tab:' . self::tab()
+            . '|period:' . trim(Request::string('period'));
     }
 
     /** @return array{surface:string, enabled:bool, revision:int, etag:string, interval:int} */
@@ -380,6 +710,10 @@ final class AdminCommissionController
     {
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_REPEAT) {
             return $this->repeatFeedPayload($revision, $etag, $data);
+        }
+
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_ROYALTY) {
+            return $this->royaltyFeedPayload($revision, $etag, $data);
         }
 
         $pager = $data['pager'];
@@ -458,9 +792,64 @@ final class AdminCommissionController
         ];
     }
 
-    /** The ledger URL with an out-of-range page clamped to a real page. */
-    private function canonicalListUrl(Paginator $pager): string
+    /**
+     * The Royalty tab's fragments: the heading, counters, closed months,
+     * rows and pagination, under their own `commission-royalty-*` names
+     * so an open Royalty tab never patches a package or repeat region.
+     * The filter form never travels in a fragment.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function royaltyFeedPayload(int $revision, string $etag, array $data): array
     {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.commissions',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'commission-royalty-header' => View::capture('admin/commissions/_royalty_header', [
+                    'pager'         => $pager,
+                    'period'        => $data['filters']['period'],
+                    'period_status' => $data['stats']['period_status'],
+                    'preview_mode'  => $data['preview_mode'],
+                ]),
+                'commission-royalty-stats' => View::capture('admin/commissions/_royalty_stats', [
+                    'stats'        => $data['stats'],
+                    'preview'      => $data['preview'],
+                    'preview_mode' => $data['preview_mode'],
+                    'open_period'  => $data['open_period'],
+                ]),
+                'commission-royalty-periods' => View::capture('admin/commissions/_royalty_periods', [
+                    'periods'  => $data['periods'],
+                    'selected' => $data['filters']['period'],
+                    'open'     => $data['open_period'],
+                ]),
+                'commission-royalty-rows' => View::capture('admin/commissions/_royalty_rows', [
+                    'awards'       => $data['awards'],
+                    'filters'      => $data['filters'],
+                    'preview_mode' => $data['preview_mode'],
+                    'open_period'  => $data['open_period'],
+                ]),
+                'commission-royalty-pagination' => View::capture('admin/commissions/_royalty_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalListUrl($pager),
+            ],
+        ];
+    }
+
+    /** The ledger URL with an out-of-range page clamped to a real page. */
+    private function canonicalListUrl(Paginator $pager): string    {
         $query = [];
 
         foreach ($_GET as $key => $value) {

@@ -819,4 +819,77 @@ return [
         assert_contains('Never paid; no shortfall', $tiles);
         assert_contains('Voided awards only', $tiles, 'the Unrecovered hint is scoped to voided rows');
     },
+
+    /* ==========================================================
+     *  Phase 19D — the Royalty tab on the same surface
+     * ========================================================== */
+
+    'P19D-T16 the Royalty tab rides admin.commissions and its ETag changes when a period closes' => function (): void {
+        foreach ([
+            'royalty_enabled'              => '1',
+            'royalty_pay_enabled'          => '1',
+            'royalty_ledger_since'         => '2020-01-01 00:00:00',
+            'royalty_leader_directs'       => '10',
+            'royalty_supervisor_leaders'   => '10',
+            'royalty_manager_supervisors'  => '10',
+            'royalty_director_managers'    => '10',
+        ] as $key => $value) {
+            setting_set($key, $value);
+        }
+
+        setting_cache_clear();
+
+        test_signed_in_as(test_user('p19d_live_admin', 'admin'));
+
+        $period = RoyaltyPeriod::previous(RoyaltyPeriod::periodOf());
+
+        $ledgerBefore    = Live::revision('admin.commissions');
+        $dashboardBefore = Live::revision('admin.dashboard');
+
+        /* No member is ranked yet, so the evaluation writes an empty
+         * but real header — enough to prove the surface bump. */
+        (new RoyaltyService())->evaluate($period);
+
+        assert_same($ledgerBefore + 1, Live::revision('admin.commissions'), 'a closed period bumps the ledger');
+        assert_same($dashboardBefore + 1, Live::revision('admin.dashboard'), 'and the dashboard tile');
+
+        /* One surface, three tabs: the tab and period are in the scope. */
+        $revision = Live::revision('admin.commissions');
+        $package  = Live::etag('admin.commissions', $revision, Live::scope([], 1));
+        $repeat   = Live::etag('admin.commissions', $revision, Live::scope(['ledger' => 'repeat'], 1));
+        $royalty  = Live::etag('admin.commissions', $revision, Live::scope(['ledger' => 'royalty', 'period' => $period], 1));
+
+        assert_not_same($package, $repeat);
+        assert_not_same($package, $royalty);
+        assert_not_same($repeat, $royalty);
+
+        $_GET = ['ledger' => 'royalty', 'period' => $period];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/commissions?ledger=royalty&period=' . $period;
+
+        $controller = new AdminCommissionController();
+        $data       = $controller->royaltyContext();
+        $payload    = $controller->feedPayload($revision, $royalty, $data);
+
+        assert_same('admin.commissions', $payload['surface']);
+        assert_same(
+            [
+                'commission-royalty-header',
+                'commission-royalty-stats',
+                'commission-royalty-periods',
+                'commission-royalty-rows',
+                'commission-royalty-pagination',
+            ],
+            array_keys($payload['fragments'])
+        );
+
+        assert_contains('Royalty ledger', $payload['fragments']['commission-royalty-header']);
+        assert_contains('Closed months', $payload['fragments']['commission-royalty-periods']);
+        assert_contains($period, $payload['fragments']['commission-royalty-periods']);
+        assert_contains('If this month closed now', $payload['fragments']['commission-royalty-stats']);
+
+        /* The tab is URL state, not a second surface. */
+        foreach ([$package, $repeat, $royalty] as $etag) {
+            assert_contains('"admin.commissions:', $etag);
+        }
+    },
 ];

@@ -4252,7 +4252,7 @@ without a filled row is not closed, whatever its code says.
 | 19A Foundation | `p19a-foundation` | 2026-11-15 | 1,026 / 1,026 | 229 / 229 | migration `023` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (60 statements, 82,518 bytes) | A: 8/8 | DSH (automated pass) | 5 recorded below | ☑ |
 | 19B Configuration | `p19b-configuration` | 2026-11-15 | 1,054 / 1,054 | 232 / 232 | no schema change; bundle `--check` exit 0 | B: 9/9 | DSH (automated pass) | 6 recorded below | ☑ |
 | 19C Money engine | `p19c-money` | 2026-11-15 | 1,106 / 1,106 | 232 / 232 | no schema change; `wallet_reconcile` exit 0 with the Royalty section; reset verification runs `RoyaltyService::reconcile()` | C: 12/12 | DSH (automated pass) | 7 recorded below | ☑ |
-| 19D Admin visibility | `p19d-admin` | — | — / ≥1,106 | __ / __ | no schema change | D: __/__ | — | — | ☐ |
+| 19D Admin visibility | `p19d-admin` | 2026-11-15 | 1,127 / 1,127 | 239 / 239 | no schema change; bundle `--check` exit 0 | D: 8/8 | DSH (automated pass) | 9 recorded below | ☑ |
 | 19E Member visibility | `p19e-member` | — | — / ≥1,122 | __ / __ | no schema change | E: __/__ | — | — | ☐ |
 | 19F Operations | `p19f-operations` | — | — / ≥1,140 | __ / __ | no schema change | F: __/__ | — | — | ☐ |
 | 19G Release | `p19g-release` | — | — / ≥1,140 | 248 / 248 | no schema change; `APP_PHASE = 19` | G: __/__ | — | — | ☐ |
@@ -4280,18 +4280,27 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | 19C | The close job opens a throwaway connection before `db()` to exit **2** on an unreachable database or a missing table, and ships **no** `--doctor`. | `db()`'s existing failure path prints an HTML page and exits 0, so the plan's exit code 2 needs the probe. The doctor is 19F's deliverable. | lead (19C gate) |
 | 19C | The lifecycle writes one `royalty.period.pay` audit row **per batch** and one with `final: true` on finalisation (including the heal-after-crash case). | §15.4 lists the per-batch row and the partial run; the final row closes the lifecycle so a finance review can see when a month became final. `AuditLogTest` pins the vocabulary. | lead (19C gate) |
 | 19C | `statusFor()` adds `award` and `next`; `reconcile()` adds the three period counts, `award_rows` and `legacy_total`; `RoyaltyAward::create()` also refuses a skipped row without a reason and a pending row of 0.00. | Additive keys for 19D/19E and a stricter-than-CHECK guard that keeps the ledger explainable. No documented key or 19A/19B contract changes. | lead (19C gate) |
+| 19D | The default period is the latest **final** month, then the latest header of any status, then the open month. | §8 Rule 3 names the latest final period; the fallback keeps a lone `evaluated` month (payments paused) visible instead of hiding it behind the preview. `P19D-T4` pins both. | lead (19D gate) |
+| 19D | `RoyaltyService::evaluate()` now bumps `admin.commissions` and `admin.dashboard` (19C bumped them only in `pay()`). | Without it an `--evaluate-only` month would not revalidate an open admin ledger, so its pending rows would stay invisible until an unrelated write. `P19D-T16` proves the bump; no money or ledger behaviour changes. | lead (19D gate) |
+| 19D | The report window is read by **award period** (every period whose `YYYY-MM` is inside it), not by `created_at`. | A month is the unit of the Royalty ledger; a period-based window makes “royalty paid ÷ paid sales” comparable month-over-month and keeps the card and the ledger on the same unit. No pro-rata. | lead (19D gate) |
+| 19D | `Report::royaltySummary()` carries `paid_this_month` (computed from `credited_at`, independent of the window). | The dashboard tile's Rule 10 definition is all-time + this calendar month; a month is paid after it closes, so a period-based “this month” would always be zero. | lead (19D gate) |
+| 19D | The `royalty` report export is one `Scope`-labelled table: `Period` rows then `Rank` rows, one header. | §8 asks for “the period/rank CSV” in one `type=royalty` download; two blocks in one file with one header is the only shape a CSV consumer can read. `P19D-T13` asserts both blocks and their reconciliation. | lead (19D gate) |
+| 19D | `AdminCommissionController::royaltyExportPayload()`, `royaltyCsvHeader()` and `royaltyCsvRows()` are public. | The gate must assert the exact CSV and the one audit row without streaming a file through `export()`'s `exit`; the routed export still streams and exits unchanged (the `feedPayload()` pattern). | lead (19D gate) |
+| 19D | When the open month is selected, the `commission-royalty-stats` region renders the labelled preview panel instead of eight zero cards. | An open month has no stored totals; the five fragment names stay stable for the live feed, and the preview is still clearly labelled and excluded from every total (Rule 4). | lead (19D gate) |
+| 19D | `AdminMemberLiveTest` gains the `member-royalty` fragment and `AdminDashboardLiveTest` gains the tile fixture. | Additive assertions for regions 19D creates; no existing expectation or behaviour changes. | lead (19D gate) |
+| 19D | `docs/admin-guide.md` §16's 19B-only “what 19B does not do” paragraph is replaced by “what this build does not do”. | It still said “there is no royalty money yet”, which 19C made false; the new paragraph names the genuinely absent 19E member surfaces and 19F operations. | lead (19D gate) |
 
 **Acceptance sign-off.**
 
 | Item | Value |
 |---|---|
-| Reference settings used | 10/10/10/10 · 500k/1M/5M · 3/5, 5/10, 10/15 |
-| Fixture period(s) | 2026-10 (the last completed month at the gate); 2026-09 + 2026-10 for the catch-up |
-| Reference example B.1 observed | **18,300.00** (`P19C-T3`, `QA19C-02`) |
-| Reference example B.2 observed | **15,000.00** (`P19C-T9`) |
-| Reference example B.3 observed | **515,000.00** (`P19C-T13`, `QA19C-04`: 1,152,000.00 across 7 awards) |
-| `wallet_reconcile.php` | exit **0** with the Royalty section (development copy and scratch month) |
-| `royalty_month_close.php --doctor` | — (19F's deliverable; the job's exit codes are proved by `P19C-T38…T45`) |
+| Reference settings used | 2/2/2/2 thresholds · 500k/1M/5M quotas · 3/5, 5/10, 10/15 rates (the plan §16.2 A fixture) |
+| Fixture period(s) | 2026-09 (prior month, all 7 rows skipped), 2026-10 (7 awards, ₱1,152,000.00), 2026-11 (open month, preview only) |
+| Reference example B.3 observed | **515,000.00** (the Director row, `P19D-T1`, `QA19D-01`); the month total **1,152,000.00** across 7 awards |
+| Ledger CSV total | **1,152,000.00** across 7 rows, one `royalty.export` audit row (`P19D-T10/T11`, `QA19D-03`) |
+| Reports ratio | **23.0%** royalty paid ÷ paid sales over 2026-09-01 … 2026-10-31 (`P19D-T12`, `QA19D-04`) |
+| `wallet_reconcile.php` | exit **0** (19D moves no money; the Royalty section is unchanged) |
+| `royalty_month_close.php --doctor` | — (19F's deliverable) |
 | Tester / date | DSH (automated pass) · 2026-11-15 |
 | Evidence folder | `docs/qa/evidence/phase-19/` |
 

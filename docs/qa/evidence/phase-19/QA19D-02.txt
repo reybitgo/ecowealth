@@ -1,0 +1,20 @@
+QA19D-02 - The period, rank and status filters narrow the rows and the counters
+===============================================================================
+
+Date: 2026-11-15 12:59:18 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19d-admin (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts, the QA19C-01 orders
+         (Director 100,000; each Supervisor 1,225,000), a prior month below quota and a
+         current-month Director purchase for the preview; the real RoyaltyService close.
+
+Why: Plan §8 Rule 3: the period is the primary filter; rank and status narrow the ledger. A skipped month shows its reasons verbatim.
+
+period=2026-09  status=Paid   rows 7   skipped 7   paid ₱0.00
+  reasons stored: group sales below quota
+rank=3 (Manager)  rows 2   all Manager: yes
+status=paid        rows 7   paid total ₱1,152,000.00
+q=qa19d_sup_a      rows 2   member(s): qa19d_sup_ax, qa19d_sup_ay
+
+RESULT: PASS

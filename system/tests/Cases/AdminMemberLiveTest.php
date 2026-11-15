@@ -228,6 +228,7 @@ return [
                 'member-account',
                 'member-membership',
                 'member-wallet',
+                'member-royalty',
                 'member-activations',
                 'member-upline',
                 'member-audit',
@@ -266,6 +267,8 @@ return [
         assert_contains('Paid to the shop', $walletCard);
         assert_contains('Commission credited', $walletCard);
         assert_contains('Activation requests', $walletCard);
+
+        assert_contains('data-live-region="member-royalty"', $fragments['member-royalty']);
 
         assert_contains('data-live-region="member-activations"', $activations);
         assert_contains('Activation history', $activations);
@@ -353,6 +356,7 @@ return [
         assert_contains('data-live-region="member-account"', $detailHtml);
         assert_contains('data-live-region="member-membership"', $detailHtml);
         assert_contains('data-live-region="member-wallet"', $detailHtml);
+        assert_contains('data-live-region="member-royalty"', $detailHtml);
         assert_contains('data-live-region="member-activations"', $detailHtml);
         assert_contains('data-live-region="member-upline"', $detailHtml);
         assert_contains('data-live-region="member-audit"', $detailHtml);

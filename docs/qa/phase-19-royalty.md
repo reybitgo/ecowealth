@@ -788,14 +788,209 @@ Expected
 
 ---
 
-## 6. Sign-off
+## 6. Section D — Phase 19D: Admin visibility (`QA19D-01` … `QA19D-08`)
+
+**Prerequisites.** Tag `p19c-money` on `feature/royalty`; the development copy at migration **023**;
+PHP 8.3 CLI. 19D adds no route and no write path (plan §8 Rule 1, D-16): every check reads the surfaces
+the phase adds, so it can run on any copy that already has a closed month. The evidence in
+`docs/qa/evidence/phase-19/QA19D-01 … 08.txt` was produced by the application's own rendering
+(`View::page()` / `View::capture()`) on the test schema after building the plan §16.2 A fixture and
+running the **real** close — the same technique as sections A and B; see that folder's `README.md`.
+The development copy is never touched. Expected suite count: **1,127** (Royalty group **119**); smoke
+**239** (the seven new Phase 19D URL checks in `tests/smoke.ps1`).
+
+> **Notation.** `php` means Laragon's PHP 8.3 CLI, run from `system/`. No browser is required for the
+> transcripts: the checks render the real pages and record what the screen shows. A manual pass may
+> repeat the same URLs in a browser.
+
+> **Section D moves no money.** Every check is a read (the only write is the `royalty.export` audit
+> row of QA19D-03, which the phase is allowed to write). If a check would change a wallet, a period or
+> an award, stop: the build is wrong.
+
+### QA19D-01 — The Royalty tab renders from a closed month
+
+| Why | Plan §8 Rules 3–5 and Appendix C.2: the ledger is the finance view of the close. |
+|---|---|
+| Where | `GET /admin/commissions?ledger=royalty` (admin session) |
+| Evidence | `QA19D-01.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Sign in as an administrator and open `/admin/commissions?ledger=royalty`.
+2. Confirm the third pill **Royalty** is active, the page title is **Royalty bonus** and the card says
+   **One award per member per closed month** and **never per order**.
+3. Confirm the five regions: `commission-royalty-header`, `-stats`, `-periods`, `-rows`,
+   `-pagination`, and the **If this month closed now** panel.
+
+Expected (fixture month `2026-10`, plan §16.2 A at 2/2/2/2)
+
+- Period `2026-10`, status **Paid**; **7** rows; paid **₱1,152,000.00**; awaiting **₱0.00**;
+  period total **₱1,152,000.00**; recipients **7**; skipped **0**; average **₱164,571.43**;
+  top rank **Director**; paid all time **₱1,152,000.00**.
+- The rows: the Director **₱515,000.00**, each Manager **₱122,500.00**, each Supervisor
+  **₱98,000.00**, with the stored GS/PS/quota and the snapshotted `10.000% / 15.000%`,
+  `5.000% / 10.000%`, `3.000% / 5.000%` rates.
+
+### QA19D-02 — Period, rank and status filters
+
+| Why | Plan §8 Rule 3: the period is the primary filter; rank and status narrow the ledger. |
+|---|---|
+| Where | The same URL with `&period=`, `&rank=`, `&status=`, `&q=` |
+| Evidence | `QA19D-02.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Select the prior, all-skipped month (`2026-09`); confirm its status and rows.
+2. Select `rank=3` (Manager) on `2026-10`; confirm only Manager rows.
+3. Select `status=paid`; then `status=skipped`; confirm each tab shows only that state.
+4. Search `qa19d_sup_a`; confirm only the two matching Supervisors.
+
+Expected
+
+- `2026-09`: **Paid**, **7** rows, **7** skipped, **₱0.00** paid, every reason
+  `group sales below quota`.
+- `rank=3`: **2** rows, both Manager. `status=paid` on `2026-10`: **7** rows and
+  **₱1,152,000.00**. `status=skipped` on `2026-09`: **7** rows with the verbatim reason.
+- The search: **2** rows, both usernames containing `qa19d_sup_a`.
+
+### QA19D-03 — The ledger CSV and its audit row
+
+| Why | Plan §8 Rule 7 and §15.4: the CSV reuses the screen filters and is audited once. |
+|---|---|
+| Where | `GET /admin/commissions/export?ledger=royalty&period=<P>` |
+| Evidence | `QA19D-03.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Press **Export CSV** on the filtered ledger (or open the URL above).
+2. Open the file and confirm the fifteen columns.
+3. Confirm `/admin/audit` shows one `royalty.export` row with the tab, the filters and the row count.
+
+Expected
+
+- `text/csv` with `Period,Member,Full name,Rank,Group sales,Personal sales,Quota,Group %,Personal %,
+  Amount,Status,Reason,Evaluated at,Paid at,Ledger id`.
+- **7** rows for `2026-10`; the paid amount column sums to **₱1,152,000.00** (`paid` rows only);
+  every skipped row carries its reason and no ledger id.
+- Exactly **one** `royalty.export` audit row: `tab=royalty`, the selected period, `rows=7`.
+
+### QA19D-04 — The reports desk
+
+| Why | Plan §8 and §17 risk 1: royalty paid ÷ paid sales is the economics monitor. |
+|---|---|
+| Where | `GET /admin/reports?from=2026-09-01&to=2026-10-31` and its `type=royalty` export |
+| Evidence | `QA19D-04.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open `/admin/reports` with the two-month window.
+2. Confirm the Royalty summary card, the rank table and the month table.
+3. Download the `Royalty` CSV.
+
+Expected
+
+- Paid **₱1,152,000.00**, pending **₱0.00**, recipients **7**, skipped **7**, months **2**;
+  **royalty paid ÷ paid sales = 23.0%** (₱1,152,000.00 of ₱5,001,000.00).
+- The rank table lists Director / Manager / Supervisor (paid 515,000 / 245,000 / 392,000 and the
+  prior month's 1 / 2 / 4 skips).
+- The CSV has 5 rows — two `Period` rows and three `Rank` rows — with the header
+  `Scope,Period / rank,Status,Recipients,Paid,Pending,Skipped,Award total,Average award`.
+
+### QA19D-05 — The member panel
+
+| Why | Plan §8 and §14.11: the admin panel is the reference for the member card's field meanings. |
+|---|---|
+| Where | `GET /admin/members/{id}` for the fixture Director |
+| Evidence | `QA19D-05.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open the Director's member page.
+2. Confirm the **Royalty** card: rank, quota progress, this month's PS/GS/quota, the downline
+   counts, the next rank, the all-time paid figure and the last awards.
+
+Expected
+
+- Rank **Director**; **this month** personal/group from the open-month order and the reference quota;
+  the progress bar is capped at 100%.
+- **Paid all time ₱515,000.00**, last paid `2026-10` **₱515,000.00**, and the last awards list is the
+  stored history (the prior month's skipped row and the fixture month's paid row).
+- The `member-royalty` live region is present; the card is read-only (no form, no button that writes).
+
+### QA19D-06 — The dashboard tile
+
+| Why | Plan §8 Rule 10: all-time + this month, never the open month's preview. |
+|---|---|
+| Where | `GET /dashboard` (admin session) |
+| Evidence | `QA19D-06.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open the admin dashboard.
+2. Confirm the **Royalty paid** tile.
+
+Expected
+
+- All-time **₱1,152,000.00**; this month **₱1,152,000.00** (the fixture was credited now);
+  awaiting payment **₱0.00**; **2** closed months; the tile links to
+  `admin/commissions?ledger=royalty`.
+- The open month's projection (the preview) is **not** on the tile.
+
+### QA19D-07 — The package and repeat tabs are unchanged
+
+| Why | Plan §8 Rule 2 and the named regression cases: 19D adds one pill and one branch. |
+|---|---|
+| Where | `GET /admin/commissions` and `?ledger=repeat` |
+| Evidence | `QA19D-07.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open the package tab and the repeat tab.
+2. Confirm each keeps its own regions, columns, filters and export.
+
+Expected
+
+- Package tab: the four `commission-*` fragments, its columns and the drawer; no `commission-royalty-*`
+  region. Repeat tab: the five `repeat-*` fragments, the escrow counters, the Lvl column and the
+  fifteen-column CSV (`Hold days`, `Released at` included); no `commission-royalty-*` region.
+
+### QA19D-08 — The audit desk
+
+| Why | Plan §15.4: the export is the only write 19D performs and must be visible beside the 19B save. |
+|---|---|
+| Where | `GET /admin/audit` (admin session) |
+| Evidence | `QA19D-08.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open `/admin/audit`; filter by the `royalty.export` action.
+2. Confirm the row's meta and the `settings.update` rows from the Commissions card.
+
+Expected
+
+- One `royalty.export` row: `tab=royalty`, the period, `rows=7`, actor `admin`.
+- The `settings.update` rows from the commissions section are listed beside it; nothing in the
+  Royalty tables or the wallets changed.
+
+---
+
+## 7. Sign-off
 
 | Section | Checks | Passed | Failed | Blocked | Tester | Date | Evidence |
 |---|---:|---:|---:|---:|---|---|---|
 | A — Foundation | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | B — Configuration and the rank ladder | 9 | 9 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | C — Money engine | 12 | 12 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
+| D — Admin visibility | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 
 **Decision:** ☑ Pass  ☐ Pass with notes  ☐ Fail
 
-Sections C–G are appended by 19C–19G before their gates; sections A and B are final.
+Sections E–G are appended by 19E–19G before their gates; sections A–D are final.

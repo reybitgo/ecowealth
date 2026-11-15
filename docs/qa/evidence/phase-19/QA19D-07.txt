@@ -1,0 +1,21 @@
+QA19D-07 - The package and repeat tabs keep their own regions and CSV shapes
+============================================================================
+
+Date: 2026-11-15 12:59:18 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19d-admin (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts, the QA19C-01 orders
+         (Director 100,000; each Supervisor 1,225,000), a prior month below quota and a
+         current-month Director purchase for the preview; the real RoyaltyService close.
+
+Why: Plan §8 Rule 2 and the named regression cases: 19D adds one pill and one branch, nothing else.
+
+fragments:
+  package tab: commission-header, commission-stats, commission-rows, commission-pagination
+  repeat tab:  repeat-header, repeat-stats, repeat-periods, repeat-rows, repeat-pagination
+  package CSV columns: 14 (unchanged: Award … Ledger)
+  repeat CSV columns:  15  Award,Date,Order,Buyer,Recipient,Product,Level,Base,Rate %,Amount,Status,Reason,Recovered,Hold days,Released at
+  no royalty region on either tab: confirmed
+
+RESULT: PASS

@@ -894,6 +894,53 @@ php bin/wallet_reconcile.php                  # exit 0, with the Royalty section
 
 ---
 
+## 19D. Phase 19D — Admin visibility (section D of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **sections A, B, C and D** (19E–19G append theirs)
+
+19D makes the money visible to administrators and writes nothing: a third **Royalty** tab on
+`/admin/commissions` (one award per member per closed month, the period as the primary filter, the
+closed-month cards, the counters, the labelled open-month preview and the CSV in the Appendix C.5
+columns), the Royalty cards on `/admin/reports` with the `royalty` export type, the read-only member
+panel on `/admin/members/{id}`, the all-time + this-month **Royalty paid** dashboard tile and the
+`royalty.export` audit row. The package and repeat tabs keep their bytes (P19D-T2/T3).
+
+**Prerequisites:** tag `p19c-money`; a copy with at least one closed month (the evidence used the plan
+§16.2 A fixture and the real close on the test schema; the development copy is never touched).
+**Expected suite count:** **1,127** (Royalty group **119**); smoke **239** (seven new Phase 19D URL
+checks).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1127   Passed: 1127   Failed: 0
+php tests/run.php Royalty                     # 119 / 119
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 239   Failed: 0
+php bin/wallet_reconcile.php                  # exit 0 (19D moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19D-01 | The Royalty tab renders from the closed `2026-10` fixture: 7 rows, ₱1,152,000.00 paid, top rank Director, the five `commission-royalty-*` regions and the labelled preview | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-01.txt` |
+| QA19D-02 | The period filter on the all-skipped `2026-09` month (7 skipped, ₱0.00, reasons verbatim), `rank=3` (2 rows), `status=paid` (7) and the username/full-name search (2 Supervisors) | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-02.txt` |
+| QA19D-03 | The ledger CSV: the fifteen Appendix C.5 columns, 7 rows, ₱1,152,000.00 across the `paid` rows, one `royalty.export` audit row with the tab/filters/row count | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-03.txt` |
+| QA19D-04 | The reports desk: paid/pending/recipients/skipped/months, royalty paid ÷ paid sales 23.0%, the three rank rows, both month rows and the `type=royalty` CSV (Period then Rank rows) | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-04.txt` |
+| QA19D-05 | The member panel for the fixture Director: rank, quota progress, MTD PS/GS/quota, downline counts, next rank, all-time paid, last paid and the last awards; read-only | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-05.txt` |
+| QA19D-06 | The dashboard **Royalty paid** tile: all-time ₱1,152,000.00, the same this month, ₱0.00 awaiting, 2 months, the ledger link — never the preview | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-06.txt` |
+| QA19D-07 | The package tab keeps its four fragments and the repeat tab its five; the repeat CSV keeps its fifteen escrow columns; neither renders a `commission-royalty-*` region | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-07.txt` |
+| QA19D-08 | `/admin/audit`: the `royalty.export` row (tab, period, rows) and the commissions `settings.update` rows; no royalty/wallet row changed | ☑ Pass ☐ Fail ☐ Blocked | `QA19D-08.txt` |
+
+| Phase 19D summary | |
+|---|---|
+| Executed | **8 / 8** checks |
+| Passed / Failed / Blocked | **8 / 0 / 0** |
+| Defects | 0 (see the phase log for the recorded deviations) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -943,6 +990,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19A | ☑ Yes ☐ No | Royalty foundation: migration `023` adds `royalty_periods`, `royalty_awards`, the `royalty` wallet movement and sixteen settings, **stream off**, no reader; migrated ≡ fresh, a reset empties both tables, fresh install **33 tables / 73 settings**; 8 / 8 section-A checks, **1,026 / 1,026** PHP cases and **229 / 229** smoke checks. |
 | Phase 19B | ☑ Yes ☐ No | Royalty configuration and rank ladder: the Commissions card owns the thirteen values and two switches with full cross-field validation and an audited save; `RoyaltyRank` derives the five ranks from the sponsor tree (any depth, staff excluded, cycles excluded, cutoff-aware); `/admin/members` shows the Rank badge and distribution; **no money moves**. 9 / 9 section-B checks, **1,054 / 1,054** PHP cases and **232 / 232** smoke checks. |
 | Phase 19C | ☑ Yes ☐ No | Royalty money engine: `RoyaltyService` evaluates a completed month (rank as of the period end, GS/PS from paid line totals, all-or-nothing quota, one rounding, one award per member) and pays it in resumable batches to the withdrawable wallet; `bin/royalty_month_close.php` has `--dry-run`, `--evaluate-only`, `--pay-only`, `--json` and a lock; `wallet_reconcile` gains a Royalty section and the reset verifies it. 12 / 12 section-C checks, **1,106 / 1,106** PHP cases, **232 / 232** smoke checks (no new URL), bundle check exit 0. |
+| Phase 19D | ☑ Yes ☐ No | Royalty admin visibility: the third tab on `/admin/commissions` (period-first ledger, closed-month cards, labelled open-month preview, Appendix C.5 CSV, `royalty.export` audit), the Royalty report cards and `type=royalty` export, the read-only member panel, the all-time + this-month dashboard tile. **Read-only**: no admin page writes a period, award or wallet row; the package and repeat tabs are byte-identical. 8 / 8 section-D checks, **1,127 / 1,127** PHP cases, **239 / 239** smoke checks, bundle check exit 0. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

@@ -1237,10 +1237,10 @@ return [
     },
 
     /* ==========================================================
-     *  No route, no controller, one producer (P19C-T48)
+     *  No route, no write surface, one producer (P19C-T48)
      * ========================================================== */
 
-    'P19C-T48 the engine is the only producer and adds no route or controller' => function (): void {
+    'P19C-T48 the engine is the only producer; 19D adds no route and no write surface' => function (): void {
         $appRoot  = dirname(__DIR__, 2);
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($appRoot . '/app', FilesystemIterator::SKIP_DOTS)
@@ -1257,14 +1257,15 @@ return [
             }
         }
 
-        /* The three 19C classes and the reset tooling are the only
-         * application files that may name the money tables besides the
-         * rank engine (19C hand-off: no second writer). */
+        /* The three 19C classes, the reset tooling and the 19D report
+         * read model are the only application files that may name the
+         * money tables besides the rank engine. */
         $allowList = [
             '/app/Models/RoyaltyAward.php',
             '/app/Models/RoyaltyPeriod.php',
             '/app/Services/RoyaltyService.php',
             '/app/Services/DatabaseResetService.php',
+            '/app/Models/Report.php',
         ];
 
         $writers = [];
@@ -1290,9 +1291,9 @@ return [
 
         assert_same(['/app/Services/RoyaltyService.php'], $writers, 'pay() is the only Royalty creditor');
 
-        /* No controller and no view reads the Royalty money tables or
-         * the money engine in 19C. The rank badges 19B added mention
-         * `RoyaltyRank`, which is a derived rank, not money. */
+        /* 19D's controllers and views may name the engine classes — the
+         * admin ledger, member panel, reports and dashboard are reads —
+         * but no controller or view may WRITE the money tables. */
         foreach ($files as $path) {
             $file = $relative($path);
 
@@ -1304,13 +1305,8 @@ return [
 
             assert_same(
                 0,
-                preg_match('/\b(FROM|INTO|UPDATE|JOIN)\s+`?royalty_(awards|periods)/i', $source),
-                $file . ' must not read the Royalty money tables in 19C'
-            );
-            assert_same(
-                0,
-                preg_match('/\bRoyalty(Service|Award|Period|Exception)\b/', $source),
-                $file . ' must not render a Royalty money surface in 19C'
+                preg_match('/\b(INTO|UPDATE|DELETE\s+FROM)\s+`?royalty_(awards|periods)/i', $source),
+                $file . ' must not write the Royalty money tables'
             );
         }
 
@@ -1325,7 +1321,7 @@ return [
             );
         }
 
-        /* 19C ships a CLI job and no web entry (that is 19F). */
+        /* The 19C CLI job exists and still has no web entry (19F). */
         assert_true(is_file($appRoot . '/bin/royalty_month_close.php'));
         assert_false(is_file($appRoot . '/public/cron/royalty_month_close.php'));
         assert_false(is_file($appRoot . '/bin/royalty_month_close.cmd'));

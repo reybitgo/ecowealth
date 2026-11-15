@@ -7,7 +7,8 @@
     P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13,
     P15-T1 ... P15-T12; Phase 17: P17B-T1 ... P17B-T20,
     P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
-    P17F-T10 / P17F-T11; Phase 19B: P19B-T1 / T6 / T23).
+    P17F-T10 / P17F-T11; Phase 19B: P19B-T1 / T6 / T23;
+    Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -3269,6 +3270,82 @@ try {
             -and $p19bMembers.Body -match 'ranked \(Supervisor\+\)' `
             -and $p19bMembers.Body -match 'badge bg-label-(secondary|info|primary|warning|success)">(Member|Leader|Supervisor|Manager|Director)<') `
         "the member directory renders the Rank column and the derived distribution (status=$($p19bMembers.Status))"
+
+    # ---- Phase 19D: the admin Royalty ledger ----------------------------
+    $p19dAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    # P19D-T1 / QA19D-01 - the third tab renders its five regions, the
+    # closed-month cards, the filters and the labelled open-month preview.
+    $p19dLedger = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'admin'
+    Assert-That 'P19D-T1' ($p19dLedger.Status -eq 200 `
+            -and $p19dLedger.Body -match 'Royalty bonus' `
+            -and $p19dLedger.Body -match 'Royalty ledger' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-header"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-stats"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-periods"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-rows"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-pagination"' `
+            -and $p19dLedger.Body -match 'One award per member per closed month' `
+            -and $p19dLedger.Body -match 'name="ledger" value="royalty"' `
+            -and $p19dLedger.Body -match 'name="period"' `
+            -and $p19dLedger.Body -match 'If this month closed now') `
+        "GET /admin/commissions?ledger=royalty renders the third tab, its five regions and the preview (status=$($p19dLedger.Status))"
+
+    # P19D-T2 / T3 - the two existing tabs have not moved.
+    $p19dPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $p19dRepeat  = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
+    Assert-That 'P19D-T2' ($p19dPackage.Status -eq 200 `
+            -and $p19dPackage.Body -match 'Commission ledger' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-header"' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-stats"' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-rows"' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-pagination"' `
+            -and $p19dPackage.Body -match 'id="commissionDetail"' `
+            -and $p19dPackage.Body -notmatch 'commission-royalty-') `
+        "the package tab keeps its four regions and drawer and never renders the Royalty regions (status=$($p19dPackage.Status))"
+
+    Assert-That 'P19D-T3' ($p19dRepeat.Status -eq 200 `
+            -and $p19dRepeat.Body -match 'Repeat-purchase ledger' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-header"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-stats"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-periods"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-rows"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-pagination"' `
+            -and $p19dRepeat.Body -notmatch 'commission-royalty-') `
+        "the repeat tab keeps its five regions and never renders the Royalty regions (status=$($p19dRepeat.Status))"
+
+    # P19D-T10 / T11 - the ledger CSV has the Appendix C.5 columns and one
+    # `royalty.export` audit row.
+    $p19dCsv = Invoke-App -Path '/admin/commissions/export?ledger=royalty' -Session 'admin'
+    $p19dCsvHeader = 'Period,Member,"Full name",Rank,"Group sales","Personal sales",Quota,"Group %","Personal %",Amount,Status,Reason,"Evaluated at","Paid at","Ledger id"'
+    $p19dExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'royalty.export' AND id > $p19dAuditStart;" | Out-String).Trim()
+
+    Assert-That 'P19D-T10' ($p19dCsv.Status -eq 200 `
+            -and $p19dCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p19dCsv.Body -match [regex]::Escape($p19dCsvHeader)) `
+        "GET /admin/commissions/export?ledger=royalty returns the Appendix C.5 CSV (status=$($p19dCsv.Status))"
+
+    Assert-That 'P19D-T11' ($p19dExportAudit -eq '1') `
+        "the Royalty export writes exactly one royalty.export audit row (rows=$p19dExportAudit)"
+
+    # P19D-T15 - the reports desk and the dashboard carry the Royalty cards.
+    $p19dReports   = Invoke-App -Path '/admin/reports' -Session 'admin'
+    $p19dDashboard = Invoke-App -Path '/dashboard' -Session 'admin'
+    Assert-That 'P19D-T15' ($p19dReports.Status -eq 200 `
+            -and $p19dReports.Body -match 'data-live-region="report-royalty"' `
+            -and $p19dReports.Body -match 'data-live-region="report-royalty-ranks"' `
+            -and $p19dReports.Body -match 'data-live-region="report-royalty-periods"' `
+            -and $p19dReports.Body -match 'type=royalty' `
+            -and $p19dDashboard.Status -eq 200 `
+            -and $p19dDashboard.Body -match 'Royalty paid') `
+        "the reports page renders the Royalty cards and the dashboard carries the KPI (reports=$($p19dReports.Status), dashboard=$($p19dDashboard.Status))"
+
+    # P19D-T18 - a member is refused the ledger and its export.
+    $p19dMember    = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'other'
+    $p19dMemberCsv = Invoke-App -Path '/admin/commissions/export?ledger=royalty' -Session 'other'
+    Assert-That 'P19D-T18' ($p19dMember.Status -eq 403 -and $p19dMember.Body -match 'Access denied' `
+            -and $p19dMemberCsv.Status -eq 403) `
+        "a member is refused the Royalty ledger and its export (page=$($p19dMember.Status), csv=$($p19dMemberCsv.Status))"
 
     # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
     $p17dRan        = $true

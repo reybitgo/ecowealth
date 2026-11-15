@@ -134,6 +134,9 @@ return [
                     'amount' => 500.0, 'count' => 1, 'skipped' => 0,
                     'recipients' => 1, 'all_time' => 900.0, 'this_month' => 500.0,
                 ],
+                'royalty' => [
+                    'paid' => 735500.0, 'pending' => 25000.0, 'this_month' => 735500.0, 'periods' => 2,
+                ],
                 'wallet' => [
                     'accounts' => 5, 'float' => 3000.0, 'withdrawable' => 2500.0,
                     'credited_today' => 0.0, 'debited_today' => 0.0, 'movements_today' => 0,
@@ -202,6 +205,13 @@ return [
         assert_contains('Sales · 30 days', $commerce);
         assert_contains('Commissions · 30 days', $commerce);
         assert_contains('Wallet float', $commerce);
+
+        /* Phase 19D: the Royalty KPI is all-time plus this month. */
+        assert_contains('Royalty paid', $commerce);
+        assert_contains('₱735,500.00', $commerce);
+        assert_contains('this month', $commerce);
+        assert_contains('₱25,000.00 awaiting payment', $commerce);
+        assert_contains('admin/commissions?ledger=royalty', $commerce);
 
         assert_contains('data-live-region="dashboard-order-status"', $orders);
         assert_contains('Payment review, packing, ready, shipped', $commerce);

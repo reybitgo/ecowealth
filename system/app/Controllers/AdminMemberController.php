@@ -292,11 +292,37 @@ final class AdminMemberController
             /* Phase 18: earned but not in the wallet; the card shows it
              * as a separate line (plan §19.5). */
             'pending_repeat'    => UnilevelAward::pendingSummaryForUser($userId),
+            /* Phase 19D: the read-only Royalty panel (rank, progress,
+             * this month's PS/GS/quota, recent awards, all-time paid). */
+            'royalty'           => $this->royaltyPanel($userId),
             'team'              => (new SponsorService())->teamStats($userId),
             'upline'            => (new SponsorService())->chain($userId, SponsorService::MAX_LEVELS),
             'audits'            => AuditLog::forSubject('user', $userId, 8),
             'statement_url'     => url('admin/wallets/' . $userId),
         ];
+    }
+
+    /**
+     * The member's Royalty panel data (plan §8 Phase 19D).
+     *
+     * `RoyaltyService::statusFor()` uses the same rank map, volumes and
+     * award arithmetic as the close, so the panel cannot promise an
+     * amount the engine would not pay. Read-only: the service's only
+     * write is a payment, and this call never reaches it.
+     *
+     * @return array<string, mixed>|null null when the stream's tables
+     *                                    are unavailable (never blanks
+     *                                    the member page)
+     */
+    private function royaltyPanel(int $userId): ?array
+    {
+        try {
+            return (new RoyaltyService())->statusFor($userId);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] member royalty panel unavailable: ' . $e->getMessage());
+
+            return null;
+        }
     }
 
     /**
@@ -381,6 +407,10 @@ final class AdminMemberController
                     'pending_repeat' => $data['pending_repeat'],
                     'activations'    => $data['activations'],
                     'statement_url'  => $data['statement_url'],
+                ]),
+                'member-royalty' => View::capture('admin/members/_royalty', [
+                    'member'  => $member,
+                    'royalty' => $data['royalty'] ?? null,
                 ]),
                 'member-activations' => View::capture('admin/members/_activations', [
                     'activations'       => $data['activations'],

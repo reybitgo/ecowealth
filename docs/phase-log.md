@@ -5493,3 +5493,146 @@ B.4 **0.00**, B.5 **40,000.00**, D **50,000.00**, E **500,000.00**, I **18,000.0
 
 ---
 
+
+## Phase 19D — Admin visibility (2026-11-15)
+
+**Status:** complete · **Tag:** `p19d-admin` · **Branch:** `feature/royalty` ·
+**Schema:** unchanged (33 tables, no migration; no new route — D-16) ·
+**Suite:** 1,106 → **1,127** cases, **1,127 / 1,127** green · **Smoke:** 232 → **239** (seven new URL
+checks on the existing pages).
+
+Plan: `dmp/plan-ecowealth-royalty.md` §8 (Phase 19D), §12.7, §13.2–§13.3, §14.11, §15.4, §16.6 and
+Appendix C.2/C.5. 19D is the **read-only admin visibility layer** over the 19C money engine: finance can
+see, filter, export and audit every Royalty award and every closed period without touching SQL. No
+admin page writes a period, an award or a wallet row; the only write is the export's audit row.
+
+### Code
+
+| File | What it is |
+|---|---|
+| `app/Controllers/AdminCommissionController.php` | A third tab (`TAB_ROYALTY`): `tab()` recognises `royalty`, `royaltyContext()` builds the period-first ledger (resolved period, filters, pagination, period cards, counters, rank breakdown, the open-month preview), `export()` gains `?ledger=royalty`, `royaltyExportPayload()` writes the one `royalty.export` audit row, `royaltyCsvHeader()`/`royaltyCsvRows()` are the Appendix C.5 shape, and the live feed gains the five `commission-royalty-*` fragments. The ETag scope now names the tab and the requested period beside the existing day. The package and repeat branches are untouched. |
+| `app/views/admin/commissions/index.php` | One third pill and one third branch; the package and repeat branches keep their markup (P19D-T2/T3 compare the fragments byte-for-byte). |
+| `app/views/admin/commissions/_royalty_*.php` (new) | `_royalty_header` (title, the “one award per member per closed month — never per order” copy, the period/state badge), `_royalty_stats` (paid, pending, period total, recipients, skipped, average, top rank, all-time paid; the labelled preview panel), `_royalty_periods` (the closed-month cards with counts, totals, times and a filter link; the open month is a footer link, never a row), `_royalty_rows` (member, rank, GS, PS, quota, rates, amount, status/reason, ledger id, paid time; a skipped row shows the stored reason verbatim and its “would have been”), `_royalty_pagination` (its own live region). |
+| `app/Models/Report.php` | Four read methods: `royaltySummary()` (paid, pending, awarded, recipients, skipped, average, periods, paid sales, payout ratio, payment-time `paid_this_month`), `royaltyByRank()` (Director/Manager/Supervisor, zero-filled), `royaltyByPeriod()` (the stored month headers) and `royaltyPayoutRatio()` (royalty paid ÷ paid sales, one decimal). The window is read by **award period** (§Deviation 3). |
+| `app/Services/ReportService.php` | `page()` adds `royalty`, `royalty_ranks`, `royalty_periods` and `royalty_ratio`; `EXPORTS` adds `'royalty' => 'Royalty'`; `export('royalty')` builds the `Scope`-labelled period/rank CSV; `dashboard()` adds the all-time + this-month tile figures. |
+| `app/views/admin/reports/_royalty.php`, `_royalty_ranks.php`, `_royalty_periods.php` (new) | The summary card with the paid ÷ paid-sales ratio and the pending liability, the rank table, the month table; wired into `admin/reports/index.php`. |
+| `app/Controllers/AdminMemberController.php` + `app/views/admin/members/_royalty.php` (new) | The read-only member panel: `RoyaltyService::statusFor()` (the same read 19E will use), the rank badge, quota progress, this month's PS/GS/quota, the downline counts, the next rank, all-time paid, last paid and the last six stored awards. A `member-royalty` live region rides `admin.members:{id}`. |
+| `app/Controllers/AdminDashboardController.php` + `app/views/admin/dashboard/_commerce.php` | One **Royalty paid** tile: all-time money, this month's paid money and the pending liability; the existing tile width (no grid change). `emptyCommerce()` keeps the zero shape. |
+| `app/Services/RoyaltyService.php` | One line: `evaluate()` now bumps `admin.commissions` and `admin.dashboard` after writing a header (a 19C omission surfaced by the 19D live gate — Deviation 2). No money change. |
+| `public/assets/css/commissions.css` | The `.commission-num` tabular-figures rule for GS/PS/quota. |
+
+**Unchanged by design:** `app/Services/Live.php` (the tab rides `admin.commissions`, the panel
+`admin.members:{id}`, the tile `admin.dashboard`), `app/helpers.php` (`money()` and the existing badges),
+`RoyaltyAward`/`RoyaltyPeriod` (only their 19C read API is used) and every route.
+
+### The tab, as shipped
+
+- **Period is the primary filter.** The default is the latest **final** month; a lone `evaluated` month
+  is the fallback so pending money is never hidden; with no header at all the open month is shown as
+  the labelled preview. `?period=YYYY-MM` picks any month; `?period=current` is the open month.
+- **The closed-month cards** read only `royalty_periods`: status, award/paid/skipped counts, both
+  totals, the evaluation time, the final time, and a link that filters the ledger to the month. The
+  open month is **not** a row: it is one footer link and a labelled panel.
+- **The counters** describe the selected month (paid, pending, period total, recipients, skipped,
+  average, top rank) plus the all-time paid figure, which sums the stored period headers.
+- **Row statuses and reasons render verbatim:** `pending` → *Awaiting payment*, `paid` → *Paid*,
+  `skipped` → *Skipped* with the stored reason (`group sales below quota`, …) and the amount that would
+  have been paid, derived from the stored GS/PS/rates with the engine's single rounding.
+- **The CSV** reuses the screen's period/rank/status/search filters and has the fifteen Appendix C.5
+  columns; it writes one `royalty.export` audit row (`tab`, `filters`, `rows`).
+- **The preview** is computed by `RoyaltyService::preview()` — the engine's own read — and is clearly
+  labelled: it is not a period row and never enters a period total.
+- **The dashboard tile** uses period headers and `credited_at`: all-time + this calendar month, never
+  the preview, so it cannot disagree with the ledger after a close.
+
+### Tests
+
+**21 new cases: 1,106 → 1,127, all green** (the Royalty group alone is **119 / 119**).
+
+| Group | Added | What it proves |
+|---|---|---|
+| `RoyaltyAdminViewTest` (new) | 14 | T1 (the tab, pill, header, stats, cards, rows and preview), T1b (the open month is a labelled preview that enters no total), T2 (the package tab's four fragments are byte-identical, filters/columns/drawer/export intact), T3 (the repeat tab's five fragments, escrow counters and CSV header intact), T4 (period-card counts/totals equal the header and the rows; a newer evaluated month does not displace the default), T5 (paid/pending/skipped/recipients/average/top-rank equal the rows), T6 (rank filter, unknown rank ignored), T7 (status filter, unknown status ignored, reasons verbatim), T8 (username and full-name search, no other member), T9 (10/25/50/100, default fallback, page clamp and canonical), T10 (Appendix C.5 header/rows and the screen total), T11 (exactly one `royalty.export` row with its meta; no money moved), T17 (every commission/report route is a GET; rendering every 19D surface writes no period/award/wallet/audit row), T18 (the admin guard on the ledger, export, reports, member and dashboard pages) |
+| `RoyaltyReportTest` (new) | 3 | T12 (summary, rank table and month table from the same read; the ratio and the pending liability render), T13 (`type=royalty` writes the Period then Rank rows and reconciles with the card), T15 (the dashboard tile is all-time + this month, never the preview) |
+| `AdminCommissionLiveTest` | +1 | T16 (the Royalty tab rides `admin.commissions`; a closed period bumps the ledger and dashboard revisions; the three tabs never share an ETag) |
+| `ReportTest` | +1 | The royalty read model: award-period windows, rank/month shapes, the ratio (63.8% on the fixture), the zero window |
+| `ReportViewTest` | +1 | The three Royalty cards render (and their empty state) on `/admin/reports` |
+| `RoyaltyAdminMemberViewTest` | +1 | T14 (the member panel: rank, quota progress, MTD PS/GS/quota, the last six awards with the seventh excluded, all-time paid; the render moves no money) |
+| `AdminMemberLiveTest` | updated | The `member-royalty` fragment joins the exact fragment list, and the page declares the region |
+
+### Docs
+
+- `docs/admin-guide.md` §16 — **Reading the Royalty ledger**, **Period states**, **Why a row is
+  skipped**, the **CSV column list**, the member panel and the dashboard tile; the stale 19B-only
+  “what this build does not do” paragraph is replaced (19E/19F still pending).
+- `docs/qa/phase-19-royalty.md` — **section D** (`QA19D-01` … `QA19D-08`) and the sign-off row; the
+  document is appended, never rewritten.
+- `docs/qa/evidence/phase-19/QA19D-01.txt … QA19D-08.txt` — transcripts of the application's own
+  rendering over the real fixture and close, indexed in that folder's `README.md`.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` — section D counts, the Phase 19D gate row and the
+  final-decision row.
+- `tests/smoke.ps1` — seven new checks (`P19D-T1`, `T2`, `T3`, `T10`, `T11`, `T15`, `T18`): 232 → 239.
+
+### Gate
+
+- [x] Schema state matches the plan — 19D changes no schema; `MigrationTest` stays green and the install
+      bundle still reports 33 / 73.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,127   Passed: 1,127   Failed: 0**, exit 0 (floor 1,106).
+- [x] `php bin/wallet_reconcile.php` exits 0 (19D moves no money; the Royalty section is unchanged).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 239   Failed: 0**, exit 0.
+- [x] Every P19D-T1 … T18 case exists, is named for the phase and passes.
+- [x] The manual script (plan §8, `QA19D-01` … `QA19D-08`) executed **8 / 8**, with real transcripts in
+      `docs/qa/evidence/phase-19/`. The independent-tester review remains the project lead's item, as at
+      every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section D filled; the evidence index, `docs/qa/README.md` and `docs/qa/sign-off-sheet.md`
+      carry the Phase 19D rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p19d-admin`.
+
+### Deviations
+
+1. **The default period falls back when no month is final.** §8 Rule 3 says “defaults to the latest
+   final period”. The implementation takes the latest final month, then the latest header of any status,
+   then the open month — so a lone `evaluated` month (payment paused) is never hidden behind the preview.
+   `P19D-T4` pins both the rule and the fallback.
+2. **`RoyaltyService::evaluate()` now bumps the ledger and dashboard revisions.** 19C touched
+   `admin.commissions` only in `pay()`, so an `--evaluate-only` month would not have revalidated an open
+   admin ledger (its pending rows would have stayed invisible until an unrelated write). The one-line
+   `Live::touch(['admin.commissions', 'admin.dashboard'])` after the header/rows write fixes the 19D live
+   contract; `P19D-T16` proves the bump, and no money or ledger behaviour changes.
+3. **The report window is read by award period, not `created_at`.** Royalty is monthly: a window reads
+   every `period` whose `YYYY-MM` falls inside it, with no pro-rata. That makes “royalty paid ÷ paid sales”
+   comparable month-over-month and keeps the report card and the ledger on the same unit; the card labels
+   it “read by award period”.
+4. **`royaltySummary()` carries `paid_this_month`.** The dashboard tile needs a payment-time figure
+   (a month is paid after it closes, so a period-based “this month” would always be zero). The key is
+   computed from `credited_at`, is independent of the window, and is documented as the tile's definition.
+5. **The Royalty report CSV is one table with a `Scope` column.** §8 asks `export('royalty')` to build
+   “the period/rank CSV”; one file with `Period` rows then `Rank` rows (and one header) is the only shape
+   a CSV consumer can read. `P19D-T13` asserts both blocks and their reconciliation with the card.
+6. **The export has a public payload method.** `royaltyExportPayload()`, `royaltyCsvHeader()` and
+   `royaltyCsvRows()` are public so the gate can assert the exact CSV and the audit row without streaming
+   a file through `export()`'s `exit`; the routed export still streams and exits unchanged. Same
+   testability pattern as `feedPayload()`.
+7. **The preview shares the stats region.** When the open month is selected, the `commission-royalty-stats`
+   region renders the labelled preview panel instead of eight zero cards (an open month has no stored
+   totals). The five fragment names never change, so the live feed stays stable.
+8. **Test-file updates beyond the plan's 19D list.** `AdminMemberLiveTest` gains the `member-royalty`
+   fragment and `AdminDashboardLiveTest` gains the tile fixture; both are additive assertions for regions
+   19D creates, not changes to existing behaviour.
+9. **`docs/admin-guide.md` §16's 19B-only paragraph is replaced.** It said “there is no royalty money
+   yet”, which 19C had already made false. The new “what this build does not do” paragraph names the two
+   genuinely absent deliverables (19E's member surfaces and 19F's operations).
+
+### Hand-off to 19E, 19F and 19G
+
+- The award/period read models, their filters/pages/exports and the admin ledger exist; the ledger is the
+  reference for field meanings and for the “would have been” derivation.
+- The open-month preview is safe to reuse for the member's “if evaluated now” card: it is the engine's
+  own read, labelled, and never a stored total.
+- `Report::royaltySummary()`/`royaltyByRank()`/`royaltyByPeriod()`/`royaltyPayoutRatio()` and the
+  `royalty` export type exist; `ReportService::dashboard()` carries the all-time + this-month tile.
+- The period cards and the dashboard KPI exist, so 19F's operations panel can link to them.
+- Admin surfaces are read-only; the close is still CLI-only until 19F; the member surfaces are 19E's.
+
+---

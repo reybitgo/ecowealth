@@ -24,6 +24,7 @@ declare(strict_types=1);
  * @var Paginator                  $activations_pager
  * @var array{total:int, open:int, completed:int, spent:float} $orders
  * @var array{count:int, credited:float, this_month:float, last_at:?string} $commissions
+ * @var array<string, mixed>|null $royalty  the read-only Royalty panel data (19D)
  * @var array{direct:int, team:int, levels:int} $team
  * @var list<array<string, mixed>> $upline
  * @var list<array<string, mixed>> $audits
@@ -115,6 +116,15 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
     'commissions'   => $commissions,
     'activations'   => $activations,
     'statement_url' => $statement_url,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-4 mb-4">
+                <div class="col-12">
+<?= View::capture('admin/members/_royalty', [
+    'member'  => $member,
+    'royalty' => $royalty ?? null,
 ]) ?>
                 </div>
               </div>

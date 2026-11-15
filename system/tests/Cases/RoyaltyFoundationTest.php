@@ -23,8 +23,9 @@ declare(strict_types=1);
  *      vocabulary  WalletService::REF_TYPES, the label and the icon
  *      defaults    everything off; no backfill; a datetime baseline
  *      guards      the cascades, the unique keys and the CHECKs
- *      inert       no model, service, controller, view or route
- *                  reads the tables (P19A-T13)
+ *      inert       one producer (the 19C engine), read-only admin
+ *                  readers (19D) and no member surface before 19E
+ *                  (P19A-T13)
  *
  *  Run this group alone with:  php tests/run.php Royalty
  * ============================================================== */
@@ -740,14 +741,16 @@ return [
     },
 
     /* ==========================================================
-     *  No money reader (P19A-T13)
+     *  One producer, admin readers only (P19A-T13)
      * ========================================================== */
-    'P19A-T13 only the 19C engine produces Royalty rows and no surface renders them' => function () use ($appRoot): void {
+    'P19A-T13 only the engine produces Royalty rows and only the admin reads render them' => function () use ($appRoot): void {
         /* 19A asserted the objects were inert; 19B asserted the rank
          * engine may read `users` but nothing the money tables; 19C
-         * ships the engine, so the invariant is now: the engine is the
-         * ONLY producer, and no controller or view renders Royalty
-         * money until 19D/19E. */
+         * shipped the engine; 19D adds the **read-only** admin ledger.
+         * The invariant is now: the engine is the ONLY producer, the
+         * money tables are named only by the engine, the reset tooling
+         * and the 19D report read model, and no member surface renders
+         * them yet (19E). */
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($appRoot . '/app', FilesystemIterator::SKIP_DOTS)
         );
@@ -765,13 +768,15 @@ return [
         $relative = static fn (string $path): string
             => str_replace('\\', '/', substr($path, strlen($appRoot)));
 
-        /* The engine's own files plus the reset tooling that empties the
-         * tables. Nothing else may name them. */
+        /* The engine's own files, the reset tooling that empties the
+         * tables, and the 19D report read model. Nothing else may name
+         * them. */
         $allowList = [
             '/app/Models/RoyaltyAward.php',
             '/app/Models/RoyaltyPeriod.php',
             '/app/Services/RoyaltyService.php',
             '/app/Services/DatabaseResetService.php',
+            '/app/Models/Report.php',
         ];
 
         $writers = [];
@@ -797,29 +802,39 @@ return [
 
         assert_same(['/app/Services/RoyaltyService.php'], $writers, 'only pay() writes a royalty movement');
 
-        /* The four 19C classes exist; no controller or view does. */
+        /* The four 19C classes and the 19D admin reads exist. */
         foreach ([
             '/app/Models/RoyaltyAward.php',
             '/app/Models/RoyaltyPeriod.php',
             '/app/Services/RoyaltyService.php',
             '/app/Services/RoyaltyException.php',
+            '/app/views/admin/commissions/_royalty_rows.php',
+            '/app/views/admin/commissions/_royalty_stats.php',
+            '/app/views/admin/commissions/_royalty_periods.php',
+            '/app/views/admin/members/_royalty.php',
+            '/app/views/admin/reports/_royalty.php',
         ] as $file) {
-            assert_true(is_file($appRoot . $file), $file . ' must exist after 19C');
+            assert_true(is_file($appRoot . $file), $file . ' must exist after 19D');
         }
 
         assert_false(is_file($appRoot . '/app/Controllers/RoyaltyController.php'));
 
+        /* No **member-facing** surface renders Royalty money yet: that
+         * is 19E's deliverable. The admin surfaces are 19D's and are
+         * allowed to read the engine. */
+        $memberFiles = ['/app/Controllers/EarningsController.php', '/app/Controllers/DashboardController.php'];
+
         foreach ($files as $path) {
             $file = $relative($path);
 
-            if (!str_contains($file, '/Controllers/') && !str_contains($file, '/views/')) {
+            if (!str_contains($file, '/views/member/') && !in_array($file, $memberFiles, true)) {
                 continue;
             }
 
             assert_same(
                 0,
                 preg_match('/\bRoyalty(Service|Award|Period|Exception)\b/', (string) file_get_contents($path)),
-                $file . ' must not render a Royalty money surface in 19C'
+                $file . ' must not render a Royalty money surface before 19E'
             );
         }
 

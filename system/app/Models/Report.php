@@ -523,6 +523,211 @@ final class Report
     }
 
     /* ----------------------------------------------------------
+     *  Royalty bonus (Phase 19D)
+     *
+     *  Royalty is awarded once per closed calendar month, so a window
+     *  is read as whole award **periods**: every `period` whose
+     *  `YYYY-MM` falls inside the window's months. The month is the
+     *  unit of the ledger, so a window that starts mid-month still
+     *  reads that period in full — there is no pro-rata.
+     * ---------------------------------------------------------- */
+
+    /**
+     * Royalty counters for a window of award periods.
+     *
+     * `awarded` is paid + pending (the money the months awarded);
+     * `paid` is what reached a wallet; `skipped` rows were judged and
+     * paid nothing (plan §13.3). `average` is per paid award.
+     * `paid_this_month` ignores the window: it is the money credited
+     * during the current calendar month, the dashboard tile's
+     * definition (plan §8 Rule 10).
+     *
+     * `payout_ratio` is paid royalty as a percentage of the paid sales
+     * in the same date window, one decimal (plan §17 risk 1).
+     *
+     * @return array{
+     *   paid:float, pending:float, awarded:float, paid_rows:int, pending_rows:int,
+     *   recipients:int, paid_recipients:int, skipped:int, average:float,
+     *   periods:int, paid_sales:float, payout_ratio:float, paid_this_month:float
+     * }
+     */
+    public static function royaltySummary(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+        [$start, $end] = self::royaltyMonths($from, $to);
+
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(CASE WHEN status = 'paid'    THEN 1 END) AS paid_rows,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_rows,
+                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped,
+                    COALESCE(SUM(CASE WHEN status = 'paid'    THEN amount ELSE 0 END), 0) AS paid,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending,
+                    COALESCE(SUM(CASE WHEN status IN ('paid','pending') THEN amount ELSE 0 END), 0) AS awarded,
+                    COUNT(DISTINCT CASE WHEN status IN ('paid','pending') THEN user_id END) AS recipients,
+                    COUNT(DISTINCT CASE WHEN status = 'paid' THEN user_id END) AS paid_recipients
+               FROM royalty_awards
+              WHERE period >= ? AND period <= ?"
+        );
+        $stmt->execute([$start, $end]);
+        $row = $stmt->fetch() ?: [];
+
+        $periods = $pdo->prepare('SELECT COUNT(*) FROM royalty_periods WHERE period >= ? AND period <= ?');
+        $periods->execute([$start, $end]);
+
+        /* Independent of the window: the dashboard tile's "this month"
+         * is the money credited in the current calendar month. */
+        $paidThisMonth = round((float) $pdo->query(
+            "SELECT COALESCE(SUM(amount), 0)
+               FROM royalty_awards
+              WHERE status = 'paid'
+                AND credited_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')"
+        )->fetchColumn(), 2);
+
+        $paidRows = (int) ($row['paid_rows'] ?? 0);
+        $paid     = round((float) ($row['paid'] ?? 0), 2);
+        $sales    = self::paidBetween($from, $to, $pdo)['amount'];
+
+        return [
+            'paid'            => $paid,
+            'pending'         => round((float) ($row['pending'] ?? 0), 2),
+            'awarded'         => round((float) ($row['awarded'] ?? 0), 2),
+            'paid_rows'       => $paidRows,
+            'pending_rows'    => (int) ($row['pending_rows'] ?? 0),
+            'recipients'      => (int) ($row['recipients'] ?? 0),
+            'paid_recipients' => (int) ($row['paid_recipients'] ?? 0),
+            'skipped'         => (int) ($row['skipped'] ?? 0),
+            'average'         => $paidRows === 0 ? 0.0 : round($paid / $paidRows, 2),
+            'periods'         => (int) $periods->fetchColumn(),
+            'paid_sales'      => $sales,
+            'payout_ratio'    => $sales <= 0.0 ? 0.0 : round($paid * 100 / $sales, 1),
+            'paid_this_month' => $paidThisMonth,
+        ];
+    }
+
+    /**
+     * Royalty money per paying rank for a window.
+     *
+     * Every paying rank is listed, zero-filled: a rank that paid
+     * nothing in this window is information (plan §17 risk 2).
+     *
+     * @return list<array{
+     *   rank:int, name:string, recipients:int, paid_recipients:int,
+     *   paid:float, pending:float, skipped:int, average:float
+     * }>
+     */
+    public static function royaltyByRank(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+        [$start, $end] = self::royaltyMonths($from, $to);
+
+        $stmt = $pdo->prepare(
+            "SELECT rank_level,
+                    COUNT(DISTINCT CASE WHEN status IN ('paid','pending') THEN user_id END) AS recipients,
+                    COUNT(DISTINCT CASE WHEN status = 'paid' THEN user_id END) AS paid_recipients,
+                    COUNT(CASE WHEN status = 'paid'    THEN 1 END) AS paid_rows,
+                    COUNT(CASE WHEN status = 'skipped' THEN 1 END) AS skipped,
+                    COALESCE(SUM(CASE WHEN status = 'paid'    THEN amount ELSE 0 END), 0) AS paid,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending
+               FROM royalty_awards
+              WHERE period >= ? AND period <= ?
+              GROUP BY rank_level"
+        );
+        $stmt->execute([$start, $end]);
+
+        $found = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $found[(int) $row['rank_level']] = $row;
+        }
+
+        $rows = [];
+
+        foreach ([RoyaltyRank::DIRECTOR, RoyaltyRank::MANAGER, RoyaltyRank::SUPERVISOR] as $rank) {
+            $row      = $found[$rank] ?? [];
+            $paidRows = (int) ($row['paid_rows'] ?? 0);
+            $paid     = round((float) ($row['paid'] ?? 0), 2);
+
+            $rows[] = [
+                'rank'            => $rank,
+                'name'            => RoyaltyRank::NAMES[$rank],
+                'recipients'      => (int) ($row['recipients'] ?? 0),
+                'paid_recipients' => (int) ($row['paid_recipients'] ?? 0),
+                'paid'            => $paid,
+                'pending'         => round((float) ($row['pending'] ?? 0), 2),
+                'skipped'         => (int) ($row['skipped'] ?? 0),
+                'average'         => $paidRows === 0 ? 0.0 : round($paid / $paidRows, 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The closed-month history, newest first — the royalty period card.
+     *
+     * @return list<array{
+     *   period:string, status:string, award_count:int, paid_count:int,
+     *   skipped_count:int, award_total:float, paid_total:float
+     * }>
+     */
+    public static function royaltyByPeriod(int $limit = 6, ?PDO $pdo = null): array
+    {
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(120, $limit));
+
+        $rows = $pdo->query(
+            'SELECT period, status, award_count, paid_count, skipped_count, award_total, paid_total
+               FROM royalty_periods
+              ORDER BY period DESC
+              LIMIT ' . $limit
+        )->fetchAll();
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            $out[] = [
+                'period'        => (string) $row['period'],
+                'status'        => (string) $row['status'],
+                'award_count'   => (int) $row['award_count'],
+                'paid_count'    => (int) $row['paid_count'],
+                'skipped_count' => (int) $row['skipped_count'],
+                'award_total'   => round((float) $row['award_total'], 2),
+                'paid_total'    => round((float) $row['paid_total'], 2),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Royalty paid as a percentage of the paid sales in the same
+     * window, one decimal (plan §17 risk 1).
+     *
+     * @return array{royalty:float, sales:float, ratio:float}
+     */
+    public static function royaltyPayoutRatio(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+        [$start, $end] = self::royaltyMonths($from, $to);
+
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(amount), 0)
+               FROM royalty_awards
+              WHERE status = 'paid' AND period >= ? AND period <= ?"
+        );
+        $stmt->execute([$start, $end]);
+        $royalty = round((float) $stmt->fetchColumn(), 2);
+
+        $sales = self::paidBetween($from, $to, $pdo)['amount'];
+
+        return [
+            'royalty' => $royalty,
+            'sales'   => $sales,
+            'ratio'   => $sales <= 0.0 ? 0.0 : round($royalty * 100 / $sales, 1),
+        ];
+    }
+
+    /* ----------------------------------------------------------
      *  Wallets
      * ---------------------------------------------------------- */
 
@@ -824,5 +1029,25 @@ final class Report
         $ts = strtotime($day . ' 00:00:00');
 
         return $ts === false ? $day : date('Y-m-d', strtotime('+1 day', $ts));
+    }
+
+    /**
+     * The inclusive month window of a date range, as 'YYYY-MM' keys.
+     *
+     * A reversed range is swapped rather than trusted; the report
+     * service normalises its windows, but a direct caller may not.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function royaltyMonths(string $from, string $to): array
+    {
+        $start = substr($from, 0, 7);
+        $end   = substr($to, 0, 7);
+
+        if ($start > $end) {
+            [$start, $end] = [$end, $start];
+        }
+
+        return [$start, $end];
     }
 }
