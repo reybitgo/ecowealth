@@ -873,6 +873,7 @@ return [
         assert_same('admin.commissions', $payload['surface']);
         assert_same(
             [
+                'commission-royalty-ops',
                 'commission-royalty-header',
                 'commission-royalty-stats',
                 'commission-royalty-periods',
@@ -882,6 +883,7 @@ return [
             array_keys($payload['fragments'])
         );
 
+        assert_contains('Operations', $payload['fragments']['commission-royalty-ops']);
         assert_contains('Royalty ledger', $payload['fragments']['commission-royalty-header']);
         assert_contains('Closed months', $payload['fragments']['commission-royalty-periods']);
         assert_contains($period, $payload['fragments']['commission-royalty-periods']);

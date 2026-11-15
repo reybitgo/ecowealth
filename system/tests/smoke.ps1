@@ -9,7 +9,8 @@
     P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
     P17F-T10 / P17F-T11; Phase 19B: P19B-T1 / T6 / T23;
     Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18;
-    Phase 19E: P19E-T1, T2, T3, T12, T13, T14).
+    Phase 19E: P19E-T1, T2, T3, T12, T13, T14;
+    Phase 19F: P19F-T1, T2, T13).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -3431,6 +3432,54 @@ try {
             -and $p19eTab.Body -match 'Repeat-purchase bonus' `
             -and $p19eTab.Body -match '>\s*<i class="icon-base bx bx-crown me-1"></i>\s*Royalty') `
         "the third pill wraps with the others and the monthly columns collapse on a phone (css=$($p19eCss.Status))"
+
+    # ---- Phase 19F: the Royalty close's operations surface --------------
+    # The URL entry must be the same job as the CLI (plan 19F Rule 1): the
+    # doctor reports the clocks/tables/settings/lock/wallet, and the dry run
+    # returns the CLI's JSON shape plus the operations block. Both URLs are
+    # loopback-trusted, so no key is needed on the development machine.
+    $p19fDoctor = Invoke-App -Path '/cron/royalty_month_close.php?doctor=1'
+    Assert-That 'P19F-T1' ($p19fDoctor.Status -eq 200 `
+            -and $p19fDoctor.Body -match 'EcoWealth Royalty month close' `
+            -and $p19fDoctor.Body -match 'clocks\s+agree' `
+            -and $p19fDoctor.Body -match 'timezone\s+Asia/Manila' `
+            -and $p19fDoctor.Body -match 'royalty_periods, royalty_awards present' `
+            -and $p19fDoctor.Body -match '16/16 present; ladder valid' `
+            -and $p19fDoctor.Body -match 'last paid' `
+            -and $p19fDoctor.Body -match 'lock\s+free' `
+            -and $p19fDoctor.Body -match 'Royalty reconcile clean' `
+            -and $p19fDoctor.Body -match '\(writable\)') `
+        "GET /cron/royalty_month_close.php?doctor=1 reports the clocks, tables, settings, lock and wallet (status=$($p19fDoctor.Status))"
+
+    $p19fDryRaw = Invoke-App -Path '/cron/royalty_month_close.php?dry-run=1&json=1'
+    $p19fDry    = $null
+    try { $p19fDry = ($p19fDryRaw.Body | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P19F-T2' ($p19fDryRaw.Status -eq 200 -and $null -ne $p19fDry `
+            -and $p19fDry.ok -eq $true -and $p19fDry.trigger -eq 'http' `
+            -and $p19fDry.http_status -eq 200 -and $p19fDry.exit_code -eq 0 `
+            -and $p19fDry.dry_run -eq $true `
+            -and $null -ne $p19fDry.periods -and $null -ne $p19fDry.award `
+            -and $null -ne $p19fDry.operations -and $null -ne $p19fDry.operations.open) `
+        "GET /cron/royalty_month_close.php?dry-run=1&json=1 returns the CLI's dry-run payload and the operations block (status=$($p19fDryRaw.Status), award=$($p19fDry.award), open=$($p19fDry.operations.open))"
+
+    # P19F-T13 / QA19F-06 - the Operations panel on the Royalty tab is
+    # read-only: state, months and the runbook command, never a close button.
+    $p19fPanel = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'admin'
+    $p19fOpsHtml = ''
+    if ($p19fPanel.Status -eq 200 -and $p19fPanel.Body -match '(?s)data-live-region="commission-royalty-ops".*?</div>\s*</div>\s*</div>') {
+        $p19fOpsHtml = $matches[0]
+    }
+    Assert-That 'P19F-T13' ($p19fPanel.Status -eq 200 `
+            -and $p19fPanel.Body -match 'data-live-region="commission-royalty-ops"' `
+            -and $p19fPanel.Body -match 'Open month' `
+            -and $p19fPanel.Body -match 'not closable yet' `
+            -and $p19fPanel.Body -match 'Last final month' `
+            -and $p19fPanel.Body -match 'Pending periods' `
+            -and $p19fPanel.Body -match 'Awaiting payment' `
+            -and $p19fPanel.Body -match 'Royalty earning' `
+            -and $p19fPanel.Body -match 'Last close' `
+            -and $p19fOpsHtml -notmatch 'Run close') `
+        "GET /admin/commissions?ledger=royalty renders the read-only Operations panel (status=$($p19fPanel.Status), panel=$([bool]($p19fOpsHtml -ne '')))"
 
     # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
     $p17dRan        = $true

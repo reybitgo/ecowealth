@@ -1,0 +1,43 @@
+Phase 19F — Operations
+Check QA19F-03 — A non-loopback caller is refused with 403 unless it supplies CRON_KEY
+Prerequisite: the URL entry, exercised through the same file with the request remote address set (this harness has no second host)
+Executed: 2026-11-15 15:20:43 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+This host cannot originate a request from another machine, so the remote path is exercised by
+requiring the same URL entry from a PHP process with $_SERVER['REMOTE_ADDR'] set. That is the
+exact variable and the exact file the web server uses; the decision itself is CronAccess::allowed()
+(Phase 7, unchanged).
+
+A. Remote, no key, ?json=1
+
+   exit code: 1
+   body: {
+    "ok": false,
+    "trigger": "http",
+    "error": "Forbidden",
+    "http_status": 403,
+    "exit_code": 1
+}
+
+B. Remote, CRON_KEY configured, correct key, ?doctor=1&json=1
+
+   exit code: 0
+   ok: true
+   http_status: 200
+
+C. Remote, CRON_KEY configured, wrong key
+
+   exit code: 1
+   body: {
+    "ok": false,
+    "trigger": "http",
+    "error": "Forbidden",
+    "http_status": 403,
+    "exit_code": 1
+}
+
+The guard runs before any database access, so the two refused requests above cannot have written a
+period, an award, a wallet row or an audit row.
+==============================================================================
+Asserted: A: 403 Forbidden, exit 1. B: the correct key runs the doctor, HTTP 200, exit 0. C: a wrong key is 403 again.
+RESULT: PASS

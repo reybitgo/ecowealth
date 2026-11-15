@@ -29,7 +29,7 @@ balance automatically; a mismatch means a write happened outside its service.
 
 ## 2. Scheduled jobs
 
-Five jobs run unattended; the exact commands, Windows Task Scheduler registration, kill switches
+Six jobs run unattended; the exact commands, Windows Task Scheduler registration, kill switches
 and log formats are in [`cron.md`](cron.md) (see §5 for the Task Scheduler block).
 
 | Job | Schedule | Entry |
@@ -39,11 +39,12 @@ and log formats are in [`cron.md`](cron.md) (see §5 for the Task Scheduler bloc
 | Transfer-limit reset | daily at 00:00 | `bin\reset_transfer_limits.php` |
 | Unilevel month close (the Active snapshot) | monthly, 00:15 on the 1st | `bin\unilevel_month_close.php` |
 | Unilevel release (credits pending repeat-purchase awards) | hourly at :20 | `bin\unilevel_release.php --limit=200` |
+| Royalty month close (evaluates and pays the Royalty bonus) | monthly, 00:30 on the 1st | `bin\royalty_month_close.php --max-batches=20` |
 
-All five are idempotent, take an advisory lock, write one monthly log line and have a `--doctor`
-mode. A second overlapping run logs `[SKIP ]` and exits 0. The month close pays no money and has no
-kill switch: it must snapshot a month even while the repeat-purchase stream is off. It catches up on
-any month it missed, oldest first. The release job **does** have a switch
+All six are idempotent, take an advisory lock, write one monthly log line and have a `--doctor`
+mode. A second overlapping run logs `[SKIP ]` and exits 0. The unilevel month close pays no money and
+has no kill switch: it must snapshot a month even while the repeat-purchase stream is off. It catches
+up on any month it missed, oldest first. The release job **does** have a switch
 (`unilevel_release_enabled`): turning it off pauses the credits but keeps every pending award, and
 cancelling an order still cancels its pending awards — provided **Enable Cancel of Order** is on
 (it ships off; see §“Order cancellation is off by default” in the admin guide).
@@ -55,60 +56,60 @@ weekly transfer counter keeps yesterday's usage until the next Monday, and a lim
 *stricter* in the meantime, never wider. Run `php bin\reset_transfer_limits.php --week` once to clear
 it by hand.
 
-### The Royalty month close (Phase 19C) — manual until 19F schedules it
+### The monthly Royalty close drill
 
 Royalty is the other monthly stream: one award per member per **closed calendar month**, paid to the
 withdrawable e-wallet. It has its **own** job and its own tables; it never reads or writes the
-repeat-purchase ledger, and the two closes are independent (run the unilevel close first only so the
-logs read in a predictable order). **19C ships no cron entry** — 19F adds `public/cron/…`, the `.cmd`
-and the doctor. Until then the close is run by hand from `system/`:
+repeat-purchase ledger, and the two closes are independent. Phase 19F schedules it, adds the doctor
+and the operations panel. On the 1st the cron runs it unattended; `docs/cron.md` §7 is the reference.
+Run this drill once by hand, then on the first live 1st:
 
 ```powershell
-# 1. See the month without writing anything (no rows, no wallet, no audit).
-php bin\royalty_month_close.php --period=2026-10 --dry-run --json
+cd C:\laragon\www\ecowealth\system
 
-# 2. Write the award rows and the period header. NO wallet money moves yet.
-php bin\royalty_month_close.php --period=2026-10 --evaluate-only
+# 1. The unilevel close runs first, so the two logs read in order (00:15).
+php bin\unilevel_month_close.php --doctor
+php bin\unilevel_month_close.php
 
-# 3. Pay the pending awards (batched, resumable, wallet credits only here).
-php bin\royalty_month_close.php --period=2026-10 --pay-only
+# 2. The Royalty doctor must be green before any money moves (00:25-ish).
+php bin\royalty_month_close.php --doctor
 
-# Without --period: resume every evaluated month, then close every completed
-# month from the baseline through last month, oldest first, evaluate + pay.
-php bin\royalty_month_close.php --json
+# 3. See exactly what the close would write and pay. Nothing is written.
+php bin\royalty_month_close.php --dry-run --json
+
+# 4. The real run: resume evaluated months, then close every pending month.
+php bin\royalty_month_close.php --max-batches=20
+exit 0
+
+# 5. The panel says the same thing the job just did.
+#    Admin -> Commissions -> Royalty -> Operations:
+#      open month (projection only), last final month + amount,
+#      pending periods (should be none), awaiting payment (should be none),
+#      the two switches, the last close time.
+
+# 6. The books reconcile, and the first scheduled run is a no-op.
+php bin\wallet_reconcile.php
+php bin\royalty_month_close.php
+exit 0        # "nothing to close" — the month is final
 ```
 
-| Flag | What it does | Writes |
-|---|---|---|
-| `--period=YYYY-MM` | act on exactly that completed month | — |
-| `--dry-run` | compute and print the awards | **nothing** |
-| `--evaluate-only` | write `royalty_awards` + `royalty_periods` | award rows, header, audit |
-| `--pay-only` | credit the pending awards of an `evaluated` month | wallet + ledger + audit |
-| `--limit=N` | payment batch size, 1–5000 (default 500) | — |
-| `--max-batches=N` | stop after N batches (default 20) and stay `evaluated` | — |
-| `--json` / `--quiet` | machine-readable output / no stdout (the log still writes) | — |
+**Read the result.** The run prints `closed`, the months it touched, the award rows written and the
+money paid; the log line in `system/storage/logs/royalty_month_close-YYYY-MM.log` carries the same
+numbers (`closed= periods= award= paid= amount= skipped= status= paused=`). A second run exits 0 with
+`closed=0`. On the panel, `Awaiting payment` must be **None** and `Pending periods` must be **None**;
+anything else means the close did not finish, and the panel names the month and the command to finish
+it.
 
-Exit codes: **0** success / nothing to do / busy / paused, **1** a processing or validation error,
-**2** environment (database down, missing tables).
+**If a month is left `evaluated`** (a crash, or `--max-batches` reached its ceiling): the batches
+already paid are committed and the remaining rows are still `pending`. There is nothing to repair —
+run `php bin\royalty_month_close.php --pay-only --period=<P>` (the panel shows the exact command).
+The conditional `pending → paid` update and the wallet's own `(user, ref_type, ref_id, type)` anchor
+make the resume exact: a row that is already paid is skipped and no award can credit twice.
+`php bin\wallet_reconcile.php` reports the remaining liability in its **Royalty** section.
 
-**Reading the log.** One line per run in
-`system/storage/logs/royalty_month_close-YYYY-MM.log`, e.g.
-
-```
-[2026-12-01 00:30:02 +08:00] [OK   ] trigger=cli closed=1 periods=2026-11 award=7 paid=7 amount=1152000.00 skipped=0 status=paid paused=0
-```
-
-`closed` is the number of months that reached a final state in this run, `award` the rows written,
-`paid`/`amount` the money this run moved, `skipped` the rows that were judged and paid nothing, and
-`paused=1` means `royalty_pay_enabled = 0`. The same numbers are in the `--json` payload.
-
-**After a partial payment** (a crash, or `--max-batches` reached the ceiling): the month stays
-`evaluated`, the batches already paid are committed, and the remaining rows stay `pending`. There is
-nothing to repair — run `php bin\royalty_month_close.php --period=<P> --pay-only` again. The
-conditional `pending → paid` update and the wallet's own `(user, ref_type, ref_id, type)` anchor make
-the resume exact: a row that is already paid is skipped, and one award can never credit twice.
-`php bin\wallet_reconcile.php` reports the remaining liability in its **Royalty** section and exits 0
-when the books agree.
+**If the month reads `skipped`:** the stream was off when it closed. That is final — a skipped month
+can never be paid later. Turn `royalty_enabled` on **before** the close on the 1st to make that month
+the first paid one.
 
 **Never edit a closed award.** A `paid`/`skipped` month is a financial record: there is no reopen, no
 `UPDATE royalty_awards`, no recalculation, and no clawback when an order is cancelled afterwards
@@ -117,6 +118,10 @@ month was closed with the wrong ladder or the wrong volume, that is a **finance 
 the app** — record it in the period's note in the books and change the setting for the next month;
 do not rewrite the closed row. To stop future Royalty, set `royalty_enabled = 0` (earning) and/or
 `royalty_pay_enabled = 0` (payment); never drop the two tables once an award row exists.
+
+**Never run a close from a browser tab as the "official" run.** The URL entry exists for local
+testing and for a host whose cron only calls URLs; it follows the same lock, the same rules and the
+same log, but the CLI is the scheduled path and the one whose exit code your cron mail reports.
 
 ---
 

@@ -187,13 +187,13 @@ return [
     'P15 the health widget reports every invariant and passes on a clean fixture' => function (): void {
         $health = (new HealthService())->checks();
 
-        assert_same(7, $health['totals']['checks']);
+        assert_same(8, $health['totals']['checks'], '19F adds the Royalty stream check');
         assert_same(0, $health['totals']['failing'], 'the seeded fixture reconciles');
         assert_true($health['ok']);
 
         $keys = array_map(static fn (array $section): string => $section['key'], $health['sections']);
         assert_same(
-            ['wallets', 'commissions', 'awards', 'transfers', 'payouts', 'orders', 'stock'],
+            ['wallets', 'commissions', 'awards', 'royalty', 'transfers', 'payouts', 'orders', 'stock'],
             $keys
         );
 

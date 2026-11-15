@@ -4254,7 +4254,7 @@ without a filled row is not closed, whatever its code says.
 | 19C Money engine | `p19c-money` | 2026-11-15 | 1,106 / 1,106 | 232 / 232 | no schema change; `wallet_reconcile` exit 0 with the Royalty section; reset verification runs `RoyaltyService::reconcile()` | C: 12/12 | DSH (automated pass) | 7 recorded below | ☑ |
 | 19D Admin visibility | `p19d-admin` | 2026-11-15 | 1,127 / 1,127 | 239 / 239 | no schema change; bundle `--check` exit 0 | D: 8/8 | DSH (automated pass) | 9 recorded below | ☑ |
 | 19E Member visibility | `p19e-member` | 2026-11-15 | 1,142 / 1,142 | 245 / 245 | no schema change; `wallet_reconcile` exit 0 (moves no money); bundle `--check` exit 0 | E: 9/9 | DSH (automated pass) | 10 recorded below | ☑ |
-| 19F Operations | `p19f-operations` | — | — / ≥1,140 | __ / __ | no schema change | F: __/__ | — | — | ☐ |
+| 19F Operations | `p19f-operations` | 2026-11-15 | 1,158 / 1,158 | 248 / 248 | no schema change; bundle `--check` exit 0; `wallet_reconcile` exit 0 | F: 8/8 | DSH (automated pass) | 12 recorded below | ☑ |
 | 19G Release | `p19g-release` | — | — / ≥1,140 | 248 / 248 | no schema change; `APP_PHASE = 19` | G: __/__ | — | — | ☐ |
 
 **Deviation log.** Any difference between this plan and what was built, with the reason and the phase
@@ -4299,6 +4299,18 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | 19E | `P19A-T13` is rewritten again for 19E. | Its old assertion (“no member file names a Royalty class”) is exactly what 19E ships. The new form asserts the surviving invariant: the engine is the only producer, the six 19E partials exist, and no member file reads the money tables directly. | lead (19E gate) |
 | 19E | `MemberDashboardLiveTest` and `MemberEarningsLiveTest` are updated as well as extended (fragment list, region count, page test names). | The two live tests pin exact fragment lists and region counts; 19E adds the seventh region. The changes are additive assertions for regions 19E creates, not behaviour changes. | lead (19E gate) |
 | 19E | A skipped member row shows the stored reason, the GS/PS it was judged on and “no payment”, but **no** “would have been” amount (19D's admin ledger derives one). | The member copy rule is that no member surface promises money the engine will not pay, and Appendix C.3 lists no such figure. `P19E-T8` pins the reason and the volumes. | lead (19E gate) |
+| 19F | The close file doubles as a library: `ROYALTY_CLOSE_LIBRARY` suppresses the bottom dispatch so the harness can load the gate, the doctor and the dispatcher in-process. | The HTTP guard and the injected-clock doctor cannot be proved through a subprocess alone, and a test must never change the host clock or start a web server. The CLI and the URL entry still dispatch and exit exactly as 19C shipped them. | lead (19F gate) |
+| 19F | The URL entry defines `ROYALTY_CLOSE_HTTP`, so the HTTP rules apply even when that file is exercised from a shell. | This host has no second machine; `P19F-T1/T3` and QA19F-03 drive the real entry with `$_SERVER['REMOTE_ADDR']` set — the same file and the same `CronAccess::allowed()` decision the web server uses. A request that reaches `bin/` over HTTP is still treated as a web request. | lead (19F gate) |
+| 19F | `royalty_close_doctor()` takes an optional `?int $phpNow` (default `time()`), and the comparison is a pure `royalty_close_clock_state()`. | P19F-T7 must prove the 2-second rule without touching the host clock; production passes the real clock. | lead (19F gate) |
+| 19F | The operations panel is a **sixth** live region on the Royalty tab; `AdminCommissionLiveTest` and `RoyaltyAdminViewTest` exact fragment/region lists gained `commission-royalty-ops` at the front. | The panel must revalidate when a close bumps the surface, and the two 19D tests pin exact lists. The change is additive: the five 19D regions and every existing fragment keep their bytes. | lead (19F gate) |
+| 19F | `P19C-T48`'s tail is rewritten: the URL entry and the `.cmd` now exist, and the test asserts they delegate to the one implementation. | 19C deliberately asserted they did not exist yet; 19F creates them. The “no route” half is unchanged. | lead (19F gate) |
+| 19F | `HealthService` gains an eighth section (`royalty`) and `ReportViewTest` moves 7 → 8 checks. | Plan §10 asks for one Royalty check: tables, settings and a 48-hour stale-evaluation warning. The warning never turns the health card red, as specified. | lead (19F gate) |
+| 19F | `Live::touchRoyaltyAdmin()` adds `admin.reports` to the surfaces a close bumps. | The reports desk has rendered Royalty cards since 19D and was the one live surface a close did not touch; the trio now has one name. | lead (19F gate) |
+| 19F | `Live::touchRoyaltyMember()` replaces 19E's four separate member calls in `RoyaltyService::touch()`. | It bumps the same four surfaces (earnings, dashboard, wallet, membership) in one statement; the per-surface increments are unchanged. | lead (19F gate) |
+| 19F | `pay()` bumps the admin trio after **every committed batch**, not only on finalisation. | Plan §10 asks for the touch “in batches after each committed payment batch, not inside the wallet transaction”; a batch is money that just became visible. Revisions only — no money or idempotency change. | lead (19F gate) |
+| 19F | A malformed `royalty_ledger_since` is a hard doctor failure. | `RoyaltyPeriod::baseline()` falls back to “this month” conservatively, which silently blocks every past close; a doctor that stayed green would hide it. | lead (19F gate) |
+| 19F | `royalty_close_ladder_problem()` re-validates the stored ladder. | The settings form validates a save; a hand-edited row (thresholds < 1, descending quotas, a rate outside 0–100%, group + personal > 100%) must not reach a payout. | lead (19F gate) |
+| 19F | The doctor exits **0** on warnings (a paused payment switch, pending months, a stale evaluated month) and **1** only on Rule 6's hard list plus a reconcile mismatch and a malformed baseline. | Rule 6 enumerates the hard failures; a paused-but-healthy stream must not read as broken. The stale month is stated loudly (WARN line plus the health card's warning) and the plan's 19F test plan only asks that the doctor *detects* it. | lead (19F gate) |
 
 **Acceptance sign-off.**
 
@@ -4311,7 +4323,7 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | Member CSV | 3 rows, only the caller's months, the eleven Appendix C.6 columns, **0** audit rows (`P19E-T12`, `QA19E-08`) |
 | Scoping | `?user_id=` ignored on the page and the export; another member reads 0 of the caller's rows and keeps their own money (`P19E-T6`) |
 | `wallet_reconcile.php` | exit **0** (19E moves no money) |
-| `royalty_month_close.php --doctor` | — (19F's deliverable) |
+| `royalty_month_close.php --doctor` | exit **0**, green: clocks agree, Asia/Manila / +08:00, both tables, 16/16 settings with a valid ladder, the baseline, both switches, last paid, pending, lock free and the Royalty reconcile clean (`QA19F-01`, `P19F-T5`) |
 | Tester / date | DSH (automated pass) · 2026-11-15 |
 | Evidence folder | `docs/qa/evidence/phase-19/` |
 

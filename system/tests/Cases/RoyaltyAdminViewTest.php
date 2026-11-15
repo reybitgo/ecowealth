@@ -261,8 +261,9 @@ return [
         assert_contains('<h4 class="mb-1">Royalty bonus</h4>', $html);
         assert_contains('Never per order.', $html);
 
-        /* All five regions. */
+        /* All six regions: the operations panel joins in 19F. */
         foreach ([
+            'commission-royalty-ops',
             'commission-royalty-header',
             'commission-royalty-stats',
             'commission-royalty-periods',
@@ -294,6 +295,7 @@ return [
 
         assert_same(
             [
+                'commission-royalty-ops',
                 'commission-royalty-header',
                 'commission-royalty-stats',
                 'commission-royalty-periods',

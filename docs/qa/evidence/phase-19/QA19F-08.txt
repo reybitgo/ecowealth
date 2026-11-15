@@ -1,0 +1,71 @@
+Phase 19F — Operations
+Check QA19F-08 — The monthly schedule is recorded and the Windows launcher runs the job
+Prerequisite: docs/runbook.md, docs/cron.md and bin\royalty_month_close.cmd
+Executed: 2026-11-15 15:20:46 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+A. Lines matching the two monthly jobs in docs/runbook.md:
+
+  | Unilevel month close (the Active snapshot) | monthly, 00:15 on the 1st | `bin\unilevel_month_close.php` |
+  | Royalty month close (evaluates and pays the Royalty bonus) | monthly, 00:30 on the 1st | `bin\royalty_month_close.php --max-batches=20` |
+  php bin\unilevel_month_close.php --doctor
+  php bin\unilevel_month_close.php
+  php bin\royalty_month_close.php --doctor
+  php bin\royalty_month_close.php --dry-run --json
+  php bin\royalty_month_close.php --max-batches=20
+  php bin\royalty_month_close.php
+  run `php bin\royalty_month_close.php --pay-only --period=<P>` (the panel shows the exact command).
+  php bin\unilevel_month_close.php --doctor     # both clocks, the threshold, closed and pending months, lock, log
+  php bin\unilevel_month_close.php --dry-run    # what the next run would close; writes nothing
+
+B. The documented schedule in docs/cron.md §7:
+
+  30 0 1 * *  /usr/bin/php /path/system/bin/royalty_month_close
+  15 0 1 * *  /usr/bin/php .../unilevel_month_close.php
+
+C. The Windows launcher (PHP_EXE set, --doctor):
+
+  exit code: 0
+
+EcoWealth Royalty month close — doctor
+       php            8.3.16 (cli)
+       mysql          8.4.3 (session +08:00)
+       clocks         agree (0s)
+       db_now         2026-11-15 15:20:46 (session +08:00)
+       timezone       Asia/Manila · +08:00 (MySQL session +08:00)
+       tables         royalty_periods, royalty_awards present
+       settings       16/16 present; ladder valid
+       ledger since   2026-11-15 08:18:55 → first payable 2026-12
+       enabled        royalty_enabled=0 · royalty_pay_enabled=1
+       last paid      none yet
+       last final     none yet
+       pending        none (nothing to close — the ledger baseline (2026-12) is after last month (2026-10))
+       evaluated      none
+       paid awards    every paid month has no pending award
+       counts         24 member(s) · 0 award row(s) · 0 period(s)
+       lock           free · C:\laragon\www\ecowealth\system/storage\locks\royalty_month_close.lock
+       log            C:\laragon\www\ecowealth\system/storage\logs\royalty_month_close-2026-11.log (writable)
+       wallet         Royalty reconcile clean · 0 paid row(s) · ₱0.00
+       cron key       not set (loopback only)
+       storage        C:\laragon\www\ecowealth\system/storage
+
+The doctor is green.
+
+D. The test Task Scheduler task:
+
+  schtasks /Create ... exit code: 0
+  SUCCESS: The scheduled task "EcoWealth Royalty Close QA19F" has successfully been created.
+
+  schtasks /Query ... exit code: 0
+  
+Folder: \
+HostName:      LAPTOP-C0NECL10
+TaskName:      \EcoWealth Royalty Close QA19F
+Next Run Time: 01/12/2026 12:30:00 am
+Status:        Ready
+Logon Mode:    Interactive only
+
+  schtasks /Delete ... exit code: 0
+  SUCCESS: The scheduled task "EcoWealth Royalty Close QA19F" was successfully deleted.
+==============================================================================
+Asserted: the runbook and cron.md name both monthly entries (00:15 unilevel, 00:30 Royalty with --max-batches=20); the .cmd runs the same PHP job and its doctor is green; the Task Scheduler task was created, queried and deleted.
+RESULT: PASS

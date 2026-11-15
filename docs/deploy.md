@@ -813,6 +813,8 @@ The scheduled jobs are for:
   snapshots the previous month for the repeat-purchase Active rule and pays no money;
 - repeat-purchase release (`bin/unilevel_release.php`) — **hourly at :20**; it credits due `pending`
   repeat-purchase awards to the uplines' withdrawable wallets after delivery + the hold window;
+- Royalty month close (`bin/royalty_month_close.php`) — **00:30 on the first of the month**; it
+  evaluates the completed month and pays the rank-gated Royalty bonus to the withdrawable wallets;
 - optionally `bin/wallet_reconcile.php` for a manual reconciliation audit.
 
 The full guide, access rules, logs and troubleshooting are in [cron.md](cron.md).
@@ -827,6 +829,22 @@ In hPanel → **Advanced → Cron Jobs**, create a job with a command like:
 ```cron
 15,45 * * * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/shop_expire.php --limit=200 >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
 ```
+
+The two monthly jobs go in as their own entries; the 15-minute gap is operational tidiness (the two
+closes are independent, but the log files read in order):
+
+```cron
+15 0 1 * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/unilevel_month_close.php >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+30 0 1 * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/royalty_month_close.php --max-batches=20 >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+```
+
+`--max-batches=20` bounds the Royalty run's wall time; a month that needs more is left `evaluated` and
+the next monthly run finishes it. Before the first 1st, run
+`php <app>/bin/royalty_month_close.php --doctor`; it must be green. Then **enable Royalty at a month
+boundary**: with `royalty_enabled = 0` the job still runs and records a **skipped** month, which can
+never be paid later. To make the month that just ended the first paid month, switch it on **before** the
+00:30 close on the 1st; to make the new month the first, wait until after that close. See
+[cron.md](cron.md) §7 and `docs/runbook.md` §2.
 
 Adapt the absolute path to your `<app>` folder. Hostinger's hPanel may offer a PHP
 binary picker; choose the PHP 8.3 binary if so.
@@ -991,6 +1009,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-14 | Phase 18 (post-17 point release): migration `021` (the escrow columns, the `pending`/`cancelled` states, two indexes and the two settings), the fifth cron job (`bin/unilevel_release.php`), and the §Phase 18 addendum; §5B and §12 now read **31 tables / 56 settings**, §13 names **five** jobs, and `APP_PHASE` stays **17**. |
 | 2026-11-14 | Order-cancellation kill switch: migration `022` adds `shop_cancel_enabled`, **off by default**, exposed as **Settings → Shop → Enable Cancel of Order**. While it is off, no member or administrator can cancel an order, so no wallet refund and no repeat-purchase escrow reversal runs; automatic expiry keeps its own switch. §5B and §12 now read **31 tables / 57 settings**. |
 | 2026-11-15 | Phase 19A (Royalty foundation): migration `023` adds the two Royalty money tables (`royalty_periods`, `royalty_awards`), the `royalty` wallet movement and the sixteen settings, with the stream **off** by default. §5B and §12 now read **33 tables / 73 settings**; the Phase 19 addendum is written at 19G. |
+| 2026-11-15 | Phase 19F (Royalty operations): the sixth cron job (`bin/royalty_month_close.php` at 00:30 on the 1st, `--max-batches=20`), its URL entry, its Windows launcher, the `--doctor` report and the operations panel on the Royalty tab. §13 names the two monthly entries and the enable-at-a-month-boundary rule; no schema change. |
 
 ---
 
@@ -1035,8 +1054,8 @@ scripts, so a nonce-based policy is a later frontend task (documented in the cla
 
 ### Cron
 
-The five jobs and their Windows Task Scheduler registration are documented in
-[`cron.md`](cron.md) (§1–§4 and §6; the Task Scheduler block is §5). Register them once on the host;
+The six jobs and their Windows Task Scheduler registration are documented in
+[`cron.md`](cron.md) (§1–§4, §6 and §7; the Task Scheduler block is §5). Register them once on the host;
 a missed run only ever makes a limit stricter, never wider.
 
 ### Backups

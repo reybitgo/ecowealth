@@ -990,6 +990,47 @@ php bin/wallet_reconcile.php                  # exit 0 (19E moves no money)
 
 ---
 
+## 19F. Phase 19F — Operations (section F of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **sections A–F** (19G appends its own)
+
+**Prerequisites:** tag `p19e-member`; the development copy at migration `023` for the read-only checks
+and the throw-away `ecowealth_sneat_tool_a_test` schema for the money steps (the plan §16.2 A tree at
+2/2/2/2, one ₱500,000.00 paid order for `qa19f_sup`). **Expected suite count:** **≥1,140** (the Royalty
+group includes the sixteen P19F cases); smoke **248** (three new Phase 19F checks).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1158   Passed: 1158   Failed: 0
+php tests/run.php Royalty                     # 150 / 150
+php tests/run.php RoyaltyCron                 # 16 / 16
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 248   Failed: 0
+php bin/wallet_reconcile.php                  # exit 0 (19F moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19F-01 | The CLI doctor: exit 0, clocks agree, Asia/Manila, both tables, 16/16 settings with a valid ladder, the baseline, both switches, last paid/final, pending, evaluated, the paid-with-pending check, the lock, the wallet reconcile and storage | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-01.txt` |
+| QA19F-02 | The same report over HTTP from loopback (`/cron/royalty_month_close.php?doctor=1`): **200**, `text/plain`, no HTML, the same lines as the CLI | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-02.txt` |
+| QA19F-03 | The remote path: no key → **403 Forbidden** before any database access; a configured `CRON_KEY` with the right key → 200 and the doctor; a wrong key → 403 | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-03.txt` |
+| QA19F-04 | `--dry-run` on the scratch fixture: 1 award, ₱40,000.00, and identical before/after counts for periods, awards, the royalty ledger and the royalty audit rows | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-04.txt` |
+| QA19F-05 | The real close: exit 0, the `paid` header, the single ₱40,000.00 wallet credit, one log line (`closed=1 … status=paid paused=0`) and the Operations panel (last final, no pending, no awaiting payment, both switches, last close, next run) | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-05.txt` |
+| QA19F-06 | The second run: exit 0, `closed=0`, “nothing to close — … is already final”, exactly one new log line, no new rows | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-06.txt` |
+| QA19F-07 | A holder process takes the lock: `[SKIP ] busy`, exit **0**, a `[SKIP ]` log line and no change | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-07.txt` |
+| QA19F-08 | Both monthly entries in the runbook and `cron.md` §7 (00:15 unilevel, 00:30 Royalty with `--max-batches=20`), the `.cmd --doctor` run and the Task Scheduler create/query/delete transcript | ☑ Pass ☐ Fail ☐ Blocked | `QA19F-08.txt` |
+
+| Phase 19F summary | |
+|---|---|
+| Executed | **8 / 8** checks |
+| Passed / Failed / Blocked | **8 / 0 / 0** |
+| Defects | 0 (see the phase log for the recorded deviations) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1041,6 +1082,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19C | ☑ Yes ☐ No | Royalty money engine: `RoyaltyService` evaluates a completed month (rank as of the period end, GS/PS from paid line totals, all-or-nothing quota, one rounding, one award per member) and pays it in resumable batches to the withdrawable wallet; `bin/royalty_month_close.php` has `--dry-run`, `--evaluate-only`, `--pay-only`, `--json` and a lock; `wallet_reconcile` gains a Royalty section and the reset verifies it. 12 / 12 section-C checks, **1,106 / 1,106** PHP cases, **232 / 232** smoke checks (no new URL), bundle check exit 0. |
 | Phase 19D | ☑ Yes ☐ No | Royalty admin visibility: the third tab on `/admin/commissions` (period-first ledger, closed-month cards, labelled open-month preview, Appendix C.5 CSV, `royalty.export` audit), the Royalty report cards and `type=royalty` export, the read-only member panel, the all-time + this-month dashboard tile. **Read-only**: no admin page writes a period, award or wallet row; the package and repeat tabs are byte-identical. 8 / 8 section-D checks, **1,127 / 1,127** PHP cases, **239 / 239** smoke checks, bundle check exit 0. |
 | Phase 19E | ☑ Yes ☐ No | Royalty member visibility: the third pill on `/earnings` (rank card with the next-rank progress and the engine's own "if this month closed now", five counters, one row per closed month with its stored reason, Appendix C.6 CSV) and the Royalty tile on `/dashboard`. Leader is explained; the stream-off and payment-paused copies are explicit; every read is scoped to the session member and a `?user_id=` is ignored. **Read-only**: rendering, filtering and exporting write no period, award, wallet or audit row; the package and repeat tabs keep their bytes. 9 / 9 section-E checks, **1,142 / 1,142** PHP cases, **245 / 245** smoke checks, bundle check exit 0. |
+| Phase 19F | ☑ Yes ☐ No | Royalty operations: the scheduled close (`bin/royalty_month_close.php`), its guarded URL entry and Windows launcher — one implementation, three entries — with `--doctor`, the bounded `--max-batches` run, one log line, an advisory lock and the 0/1/2 exit codes; the read-only **Operations** panel on the Royalty tab (open month, last final, pending, awaiting payment, switches, last close, next run); the health check (tables, settings, a 48-hour stale-evaluation warning); and the cron/runbook documentation. `admin.reports` joins the surfaces a close bumps. **Moves no money by itself beyond the 19C engine**: 19F adds no new money rule. 8 / 8 section-F checks, **1,158 / 1,158** PHP cases (Royalty 150 / 150), **248 / 248** smoke checks, bundle check exit 0. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

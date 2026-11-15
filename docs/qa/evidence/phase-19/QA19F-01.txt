@@ -1,0 +1,39 @@
+Phase 19F — Operations
+Check QA19F-01 — The CLI doctor reports clocks, time zone, tables, settings, the pipeline, the lock and the wallet
+Prerequisite: the development copy at migration 023, the repository at the 19F tree
+Executed: 2026-11-15 15:20:42 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+Command (from system/):
+
+  php bin\royalty_month_close.php --doctor
+
+Exit code: 0
+
+Output:
+
+EcoWealth Royalty month close — doctor
+       php            8.3.16 (cli)
+       mysql          8.4.3 (session +08:00)
+       clocks         agree (0s)
+       db_now         2026-11-15 15:20:42 (session +08:00)
+       timezone       Asia/Manila · +08:00 (MySQL session +08:00)
+       tables         royalty_periods, royalty_awards present
+       settings       16/16 present; ladder valid
+       ledger since   2026-11-15 08:18:55 → first payable 2026-12
+       enabled        royalty_enabled=0 · royalty_pay_enabled=1
+       last paid      none yet
+       last final     none yet
+       pending        none (nothing to close — the ledger baseline (2026-12) is after last month (2026-10))
+       evaluated      none
+       paid awards    every paid month has no pending award
+       counts         24 member(s) · 0 award row(s) · 0 period(s)
+       lock           free · C:\laragon\www\ecowealth\system/storage\locks\royalty_month_close.lock
+       log            C:\laragon\www\ecowealth\system/storage\logs\royalty_month_close-2026-11.log (writable)
+       wallet         Royalty reconcile clean · 0 paid row(s) · ₱0.00
+       cron key       not set (loopback only)
+       storage        C:\laragon\www\ecowealth\system/storage
+
+The doctor is green.
+==============================================================================
+Asserted: the doctor exits 0 and prints clocks (agree), Asia/Manila, both tables, 16/16 settings, the baseline, both switches, last paid, pending, evaluated, the paid-with-pending check, lock, wallet, cron key and storage.
+RESULT: PASS

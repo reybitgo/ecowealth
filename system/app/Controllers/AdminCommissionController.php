@@ -231,6 +231,18 @@ final class AdminCommissionController
             error_log('[ecowealth] royalty preview unavailable: ' . $e->getMessage());
         }
 
+        /* Phase 19F: the operations panel reads one snapshot of the
+         * period pipeline (open month, last final, pending, evaluated,
+         * switches, last close). Read-only; a failure hides the card,
+         * never the ledger. */
+        $ops = null;
+
+        try {
+            $ops = RoyaltyOps::snapshot();
+        } catch (Throwable $e) {
+            error_log('[ecowealth] royalty operations snapshot unavailable: ' . $e->getMessage());
+        }
+
         $lifetimePaid = 0.0;
 
         foreach (RoyaltyPeriod::periods(120) as $row) {
@@ -266,6 +278,7 @@ final class AdminCommissionController
             'rank_breakdown' => $breakdown,
             'preview'        => $preview,
             'preview_mode'   => $previewMode,
+            'royalty_ops'    => $ops,
             'open_period'    => $open,
             'ledger_url'     => url('admin/commissions?ledger=royalty'),
             'export_url'     => url('admin/commissions/export' . self::royaltyQueryString($filters)),
@@ -811,6 +824,11 @@ final class AdminCommissionController
             'revision'  => $revision,
             'etag'      => $etag,
             'fragments' => [
+                'commission-royalty-ops' => View::capture('admin/commissions/_royalty_ops', [
+                    'ops'         => $data['royalty_ops'] ?? null,
+                    'preview'     => $data['preview'] ?? null,
+                    'open_period' => $data['open_period'] ?? '',
+                ]),
                 'commission-royalty-header' => View::capture('admin/commissions/_royalty_header', [
                     'pager'         => $pager,
                     'period'        => $data['filters']['period'],

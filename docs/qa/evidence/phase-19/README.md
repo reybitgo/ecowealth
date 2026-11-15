@@ -55,6 +55,14 @@ Index:
 | `QA19E-07.txt` | QA19E-07 | `royalty_pay_enabled = 0`: the pending `2026-09` row reads **Awaiting payment** and **Payment is paused; the award stays pending.**, with no Paid badge on it and **₱196,000.00** paid overall |
 | `QA19E-08.txt` | QA19E-08 | The member CSV: the eleven Appendix C.6 columns, three rows all belonging to the caller (`user_id` ignored), the member status words, and **0** audit rows |
 | `QA19E-09.txt` | QA19E-09 | The dashboard **Royalty** tile (rank, group vs quota, projection, paid all-time, last paid, link), the three wrapping pills and the phone rule hiding `.commission-col-gs/-ps/-quota/-rates` below 768 px |
+| `QA19F-01.txt` | QA19F-01 | `royalty_month_close.php --doctor` on the development copy: exit 0, clocks agree, Asia/Manila, both tables, 16/16 settings with a valid ladder, the baseline and first payable month, both switches, last paid/last final, pending, evaluated, the paid-with-pending check, the lock, the wallet reconcile and storage |
+| `QA19F-02.txt` | QA19F-02 | The same report over HTTP from loopback (`/cron/royalty_month_close.php?doctor=1`): **200**, `text/plain`, no HTML, the same lines as the CLI |
+| `QA19F-03.txt` | QA19F-03 | The remote path through the same entry file: no key → **403 Forbidden** and exit 1 before any database access; a configured `CRON_KEY` with the right key → HTTP 200 and the doctor; a wrong key → 403 again |
+| `QA19F-04.txt` | QA19F-04 | The scratch fixture (one Supervisor at ₱500,000) and `--period=<last> --dry-run --json`: 1 award, ₱40,000.00, and identical before/after counts for periods, awards, the royalty ledger and the royalty audit rows |
+| `QA19F-05.txt` | QA19F-05 | The real close on the scratch schema: exit 0, the `paid` header, the single ₱40,000.00 wallet credit, the one log line (`closed=1 … status=paid paused=0`) and the rendered Operations panel (last final, no pending, no awaiting payment, both switches, last close, next run) |
+| `QA19F-06.txt` | QA19F-06 | The second run: exit 0, `closed=0`, “nothing to close — … is already final”, exactly one new log line, no new rows |
+| `QA19F-07.txt` | QA19F-07 | A holder process takes `CronLock('royalty_month_close')`: the run prints `[SKIP ] busy`, exits **0**, writes a `[SKIP ]` log line and changes nothing |
+| `QA19F-08.txt` | QA19F-08 | The two monthly entries in `docs/runbook.md` and `docs/cron.md` §7 (00:15 unilevel, 00:30 Royalty with `--max-batches=20`), the `royalty_month_close.cmd --doctor` run and the Task Scheduler create/query/delete transcript |
 
 Notes for the reader:
 
@@ -91,3 +99,13 @@ Notes for the reader:
   left pending, so QA19E-07 shows the paused state rather than a rebuilt row. QA19E-05 prints one extra
   display-only skipped row (removed again inside the check) to show the below-quota copy. Nine
   transcripts, every one ending in `RESULT: PASS`; the development copy is never touched.
+- **Section F exercises the operations surface.** QA19F-01/02/03 are real commands against the running
+  app and the development copy (read-only: the doctor, an HTTP GET, a refused request and the
+  launcher's doctor); QA19F-04 … 07 run the **real** close on `ecowealth_sneat_tool_a_test` with the
+  §16.2 A tree at 2/2/2/2 and one ₱500,000.00 paid order for `qa19f_sup`, then render the Operations
+  panel from the same scratch schema. The lock check starts a second PHP process that holds
+  `CronLock('royalty_month_close')` while the job runs. QA19F-03's remote path is the URL entry
+  required with `$_SERVER['REMOTE_ADDR']` set — this host has no second machine — which is the same
+  file and the same `CronAccess::allowed()` decision the web server uses. Every file ends with
+  `RESULT: PASS`; the generator lives in the git-ignored `system/tests/tmp/`, so the transcripts — not
+  the script — are the committed evidence.

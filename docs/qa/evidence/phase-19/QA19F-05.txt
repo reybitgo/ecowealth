@@ -1,0 +1,205 @@
+Phase 19F — Operations
+Check QA19F-05 — The real close pays the month, writes one log line and the panel shows the result
+Prerequisite: the same fixture as QA19F-04, still unpaid
+Executed: 2026-11-15 15:20:45 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+Command:
+
+  php bin\royalty_month_close.php --json
+
+Exit code: 0
+
+{
+    "ok": true,
+    "trigger": "cli",
+    "dry_run": false,
+    "evaluate_only": false,
+    "pay_only": false,
+    "closed": 1,
+    "periods": [
+        "2026-10"
+    ],
+    "award": 1,
+    "paid": 1,
+    "amount": 40000,
+    "skipped": 0,
+    "status": "paid",
+    "paused": false,
+    "resume_required": false,
+    "results": [
+        {
+            "period": "2026-10",
+            "evaluated": true,
+            "evaluation": {
+                "period": "2026-10",
+                "as_of": "2026-11-01 00:00:00",
+                "enabled": true,
+                "eligible": 1,
+                "paid_members": 1,
+                "skipped": 0,
+                "award_total": 40000,
+                "paid_total": 0,
+                "pending": 1,
+                "pending_total": 40000,
+                "rank_counts": {
+                    "member": 4,
+                    "leader": 2,
+                    "supervisor": 1,
+                    "manager": 0,
+                    "director": 0
+                },
+                "awards": [
+                    {
+                        "id": 1,
+                        "period": "2026-10",
+                        "user_id": 1,
+                        "rank_level": 2,
+                        "directs": 2,
+                        "downline_rank_count": 2,
+                        "team_size": 6,
+                        "group_volume": "500000.00",
+                        "personal_volume": "500000.00",
+                        "quota": "500000.00",
+                        "group_pct": "3.000",
+                        "personal_pct": "5.000",
+                        "amount": "40000.00",
+                        "status": "pending",
+                        "reason": null,
+                        "ledger_id": null,
+                        "credited_at": null,
+                        "created_at": "2026-11-15 15:20:44",
+                        "username": "qa19f_sup",
+                        "full_name": "Qa19f_sup",
+                        "period_status": "evaluated",
+                        "period_paid_at": null
+                    }
+                ],
+                "header": {
+                    "period": "2026-10",
+                    "status": "evaluated",
+                    "enabled": 1,
+                    "evaluated_at": "2026-11-15 15:20:44",
+                    "evaluated_by": null,
+                    "paid_at": null,
+                    "paid_by": null,
+                    "as_of": "2026-11-01 00:00:00",
+                    "leader_directs": 2,
+                    "supervisor_leaders": 2,
+                    "manager_supervisors": 2,
+                    "director_managers": 2,
+                    "quota_supervisor": "500000.00",
+                    "quota_manager": "1000000.00",
+                    "quota_director": "5000000.00",
+                    "group_pct_supervisor": "3.000",
+                    "personal_pct_supervisor": "5.000",
+                    "group_pct_manager": "5.000",
+                    "personal_pct_manager": "10.000",
+                    "group_pct_director": "10.000",
+                    "personal_pct_director": "15.000",
+                    "members_count": 7,
+                    "leaders_count": 2,
+                    "supervisors_count": 1,
+                    "managers_count": 0,
+                    "directors_count": 0,
+                    "award_count": 1,
+                    "paid_count": 0,
+                    "skipped_count": 0,
+                    "award_total": "40000.00",
+                    "paid_total": "0.00",
+                    "note": null,
+                    "created_at": "2026-11-15 15:20:44"
+                },
+                "status": "evaluated"
+            },
+            "payment": {
+                "period": "2026-10",
+                "paid": 1,
+                "amount": 40000,
+                "pending_left": 0,
+                "status": "paid",
+                "paused": false,
+                "resume_required": false,
+                "batches": 1,
+                "final": true
+            },
+            "status": "paid"
+        }
+    ],
+    "duration_ms": 219,
+    "log": "C:\\Users\\reybi\\AppData\\Local\\Temp\\qa19f-logs-6ee39210\\royalty_month_close-2026-11.log",
+    "operations": {
+        "open": "2026-11",
+        "baseline": "2026-10",
+        "last_final": {
+            "period": "2026-10",
+            "status": "paid",
+            "enabled": 1,
+            "evaluated_at": "2026-11-15 15:20:44",
+            "evaluated_by": null,
+            "paid_at": "2026-11-15 15:20:44",
+            "paid_by": null,
+            "as_of": "2026-11-01 00:00:00",
+            "leader_directs": 2,
+            "supervisor_leaders": 2,
+            "manager_supervisors": 2,
+            "director_managers": 2,
+            "quota_supervisor": "500000.00",
+            "quota_manager": "1000000.00",
+            "quota_director": "5000000.00",
+            "group_pct_supervisor": "3.000",
+            "personal_pct_supervisor": "5.000",
+            "group_pct_manager": "5.000",
+            "personal_pct_manager": "10.000",
+            "group_pct_director": "10.000",
+            "personal_pct_director": "15.000",
+            "members_count": 7,
+            "leaders_count": 2,
+            "supervisors_count": 1,
+            "managers_count": 0,
+            "directors_count": 0,
+            "award_count": 1,
+            "paid_count": 1,
+            "skipped_count": 0,
+            "award_total": "40000.00",
+            "paid_total": "40000.00",
+            "note": null,
+            "created_at": "2026-11-15 15:20:44"
+        },
+        "last_paid": "2026-10",
+        "pending": [],
+        "evaluated": [],
+        "next": null,
+        "switches": {
+            "earn": true,
+            "pay": true
+        },
+        "last_close_at": "2026-11-15 15:20:44",
+        "counts": {
+            "periods": 1,
+            "awards": 1,
+            "pending_rows": 0,
+            "pending_total": 0,
+            "paid_all_time": 40000
+        }
+    },
+    "exit_code": 0
+}
+
+Log line (C:\Users\reybi\AppData\Local\Temp\qa19f-logs-6ee39210\royalty_month_close-2026-11.log):
+
+  [2026-11-15 15:20:44 +08:00] [OK   ] trigger=cli closed=1 periods=2026-10 award=1 paid=1 amount=40000.00 skipped=0 status=paid paused=0
+
+royalty_periods:
+
+  [{"period":"2026-10","status":"paid","award_count":1,"paid_count":1,"award_total":"40000.00","paid_total":"40000.00"}]
+
+ewallet_ledger (ref_type = royalty):
+
+  [{"user_id":1,"type":"credit","amount":"40000.00","ref_type":"royalty"}]
+
+Operations panel (rendered from ecowealth_sneat_tool_a_test, tags stripped):
+
+  Operations Where the monthly stream stands. Read-only — the close is the scheduled job, never this page. Up to date Open month — not closable yet November 2026 If it closed now: ₱0.00 across 0 awards, 1 skipped. Nothing is stored. Last final month Oct 2026 Paid ₱40,000.00 paid · 1 award Pending periods None Every completed month has a period. Awaiting payment None No evaluated month is waiting for its payment. Royalty earning: On Payments: On Last close: Nov 15, 2026 3:20 PM Next run: nothing to close — the next scheduled run exits without writing. Schedule: 30 0 1 * * php bin/royalty_month_close.php --max-batches=20 (after the unilevel close at 00:15). a closed month is never rewritten
+==============================================================================
+Asserted: exit 0; the month is paid with one ₱40,000.00 credit; the log line reads closed=1 periods=2026-10 award=1 paid=1 amount=40000.00 skipped=0 status=paid paused=0; the panel shows the last final month, no pending period, no awaiting payment, both switches and the last close time.
+RESULT: PASS

@@ -1,6 +1,6 @@
 # Scheduled jobs
 
-Five scheduled jobs keep the platform moving without an administrator watching it:
+Six scheduled jobs keep the platform moving without an administrator watching it:
 
 | Job | What it does | Command | Guide |
 |---|---|---|---|
@@ -9,11 +9,13 @@ Five scheduled jobs keep the platform moving without an administrator watching i
 | **Transfer-limit reset** | zeroes the daily transfer counters every midnight (and the weekly ones on Monday) | `bin/reset_transfer_limits.php` | this page, §3 |
 | **Unilevel month close** | writes the monthly Active snapshot for the repeat-purchase bonus | `bin/unilevel_month_close.php` | this page, §4 |
 | **Unilevel release** | credits due `pending` repeat-purchase awards to the uplines' withdrawable wallets after delivery + the hold window | `bin/unilevel_release.php` | this page, §6 |
+| **Royalty month close** | evaluates every completed month and pays the rank-gated Royalty bonus to the withdrawable wallets | `bin/royalty_month_close.php` | this page, §7 |
 
 All are idempotent, safe to run twice, log one line per run and share the same access rules, lock and
-log conventions. The first two and the release job have a kill switch on **Admin → Settings**; the
-reset job has nothing to switch off — it only zeroes counters a transfer would have incremented. The
-month close has none either, on purpose: it pays no money, so there is nothing to kill.
+log conventions. The first two, the release job and the Royalty close have a kill switch on
+**Admin → Settings**; the reset job has nothing to switch off — it only zeroes counters a transfer would
+have incremented. The month close (unilevel) has none either, on purpose: it pays no money, so there is
+nothing to kill.
 
 ---
 
@@ -828,3 +830,210 @@ the browser and the terminal: C1a (payment moves no money), the fulfilment step,
 release credits exactly once), E4 (cancellation before release pays nothing — turn on **Enable Cancel
 of Order** for the check, then turn it back off) and E6 (the hold actually
 holds).
+
+---
+
+# 7. Royalty month close
+
+The job that **evaluates every completed calendar month and pays the Royalty bonus**. It is the only
+place a `royalty_awards` row or a `royalty` wallet credit is written. It arrived with Phase 19F; the
+money engine itself is Phase 19C (`RoyaltyService`, see [`admin-guide.md`](admin-guide.md) §16).
+
+| Entry | Path | Use |
+|---|---|---|
+| **CLI** | `system/bin/royalty_month_close.php` | Hostinger cron, SSH, CI |
+| **Web** | `/system/cron/royalty_month_close.php` -> `system/public/cron/royalty_month_close.php` | Local testing in a browser, or a host whose cron only calls a URL |
+| **Windows** | `system/bin/royalty_month_close.cmd` | Task Scheduler, double-click, Laragon terminal |
+
+The whole implementation lives in `bin/royalty_month_close.php`; the URL entry requires that one file,
+so the three ways in cannot disagree about which months are final. A request that reaches the URL entry
+without the web server (a CLI test, for example) still follows the HTTP rules: it is the URL entry.
+
+## What it does
+
+A run works through the months **oldest first**, one period at a time:
+
+1. **Resume** every period whose header is `evaluated` (a payment paused, or a batch ceiling reached):
+   pay what is still `pending`.
+2. **Close** every completed month from the baseline (`royalty_ledger_since`, plan D-15) through last
+   month that has **no header yet**: evaluate it (write the header and one award row per
+   Supervisor/Manager/Director), then pay it.
+
+A month is evaluated at **its own period-end cutoff** and its own volume window, so a catch-up months
+later produces exactly the awards an on-time run would have produced. A failure stops the loop: the
+later months stay open and the next scheduled run resumes them. A partial payment is therefore healed
+by the next run with no operator action.
+
+| Fact | Where it comes from |
+|---|---|
+| Personal sales (PS) | the member's paid order line totals in the month (`paid_at`, cancelled orders excluded) |
+| Group sales (GS) | PS plus every member descendant's PS |
+| Rank | derived from the sponsor tree **as of the period end** (`users.created_at < end`), so a late close reproduces the same ranks |
+| Amount | `round_once(group% x GS + personal% x PS)`, in integer centavos |
+| Quota | all-or-nothing: one centavo short pays nothing, including the personal share |
+| State | `evaluated` -> `paid`; `skipped` when the stream is off. **A final month is never reopened, recalculated or voided.** |
+
+- **One transaction per payment batch**, header locked first; a crash rolls the batch back, keeps the
+  earlier batches paid and leaves the header `evaluated`.
+- **One award per member per month** (`UNIQUE (period, user_id)`), and the wallet's own
+  `(user_id, ref_type, ref_id, type)` key is the last guard against a double credit.
+- **Only Supervisor, Manager and Director get a row.** A Leader is a rank, not a royalty rank.
+- **`--evaluate-only` is the review window.** It writes the rows and pays nothing; `--pay-only` pays
+  them. The runbook (`docs/runbook.md` §2) says how long that window should be.
+
+| Setting | Default | Role |
+|---|---|---|
+| `royalty_enabled` | `0` | the earning switch: `0` closes the month as **skipped** and pays nothing |
+| `royalty_pay_enabled` | `1` | the payment switch: `0` evaluates but leaves every award `pending` |
+| `royalty_ledger_since` | install time | the baseline: months before the first payable month are never paid |
+| the four thresholds / three quotas / six rates | 10 / 10 / 10 / 10, 500k / 1M / 5M, 3/5, 5/10, 10/15 | the ladder the close snapshots onto the header and every row |
+
+> **The ladder is snapshotted.** Every period header and every award row stores the thresholds, quotas
+> and rates that were in force, so a later settings change never rewrites a closed month.
+
+## Running it locally
+
+**In a browser (no setup):**
+
+```
+http://localhost/ecowealth/system/cron/royalty_month_close.php
+```
+
+A loopback request is trusted, so no key is needed on the development machine. Any other caller needs
+`?key=` matching `CRON_KEY`; without a configured key a remote caller is refused with **403**.
+
+| URL | What it shows |
+|---|---|
+| `?doctor=1` | clocks, time zone, tables, the sixteen settings, the ladder, the baseline, both switches, the last final month, pending and evaluated months, the paid-with-pending check, the lock, the wallet reconcile |
+| `?dry-run=1` | the awards it would write and pay, per month; changes nothing |
+| `?period=2026-10&dry-run=1` | the same for one month |
+| `?evaluate-only=1&period=2026-10` | write the rows, pay nothing |
+| `?pay-only=1&period=2026-10` | pay an evaluated month |
+| `?max-batches=5` | stop after five payment batches; the month stays `evaluated` |
+| `?json=1` | the machine-readable payload (including the operations block) |
+
+**In a terminal:**
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+php bin\royalty_month_close.php --doctor
+php bin\royalty_month_close.php --dry-run
+php bin\royalty_month_close.php --period=2026-10 --dry-run --json
+php bin\royalty_month_close.php
+php bin\royalty_month_close.php --pay-only --period=2026-10
+php bin\royalty_month_close.php --max-batches=20
+
+# or through the Windows launcher (no PATH setup needed if PHP_EXE is set)
+bin\royalty_month_close.cmd --doctor
+```
+
+| Flag | Effect |
+|---|---|
+| `--period=YYYY-MM` | close (or resume/pay) exactly that **completed** month; the current and future months are refused |
+| `--dry-run` | compute and print the awards; write nothing (no rows, no wallet, no audit) |
+| `--evaluate-only` | write the award rows and the header; pay nothing |
+| `--pay-only` | pay an already-evaluated month; resumes a partial payment. An absent, `paid` or `skipped` month is an error |
+| `--limit=N` | payment batch size, 1-5000 (default 500) |
+| `--max-batches=N` | stop after N batches (default 20) and leave the month `evaluated`; the next run continues |
+| `--doctor` | environment / settings / health report |
+| `--json` | machine-readable payload |
+| `--log-dir=<dir>` | where the monthly log is written (CLI only) |
+| `--quiet` | no stdout (the log still records the run; CLI only) |
+| `--help` | usage |
+
+## Running it on a live server
+
+Once a month, at **00:30 on the first** (fifteen minutes after the unilevel close, so the two log files
+read in a predictable order; the jobs are independent):
+
+```cron
+15 0 1 * *  /usr/bin/php /path/system/bin/unilevel_month_close.php
+30 0 1 * *  /usr/bin/php /path/system/bin/royalty_month_close.php --max-batches=20 >> /path/system/storage/logs/cron.out 2>&1
+```
+
+`--max-batches=20` bounds one run's wall time. A month too large for twenty batches is left
+`evaluated` with `status=evaluated` in the log and `resume_required` in the JSON; the next scheduled run
+pays the rest. A monthly schedule is fine: once the month is final, the next run is an exit-0 no-op.
+
+URL form (same access rules and `CRON_KEY` as the other jobs):
+
+```cron
+30 0 1 * *  curl -s "https://example.com/ecowealth/system/cron/royalty_month_close.php?key=a-long-random-string" > /dev/null
+```
+
+> **Enable the stream at a month boundary.** With `royalty_enabled = 0` the job still runs and records a
+> **skipped** month, which can never be paid later. To make the month that just ended the first paid
+> month, switch Royalty on **before** the 00:30 close on the 1st; to make the new month the first, wait
+> until after the close. Either way, run `--doctor` first — it must be green.
+
+## Logs, locks and failure modes
+
+| What | Where |
+|---|---|
+| Monthly log | `system/storage/logs/royalty_month_close-YYYY-MM.log` |
+| Lock | `system/storage/locks/royalty_month_close.lock` (advisory; released automatically) |
+
+The log lives outside `public/`, so it is never web-readable. One line per run:
+
+```
+[2026-12-01 00:30:02 +08:00] [OK   ] trigger=cli closed=1 periods=2026-11 award=12 paid=10 amount=183000.00 skipped=2 status=paid paused=0
+```
+
+`closed` counts the months that reached a final status; `periods` lists every month the run touched, in
+order; `award` is the rows written; `paid`/`amount` are the wallet credits; `skipped` is the rows paid
+nothing; `status` is the last month's status; `paused=1` means the payment switch was off. A catch-up
+names every month it closed. A dry run writes its own `[INFO ]` line (`dry-run trigger=... periods=...
+award=...`); a busy run writes `[SKIP ]`. A log write failure warns on stderr and never fails the run.
+
+**Exit codes (all runs):**
+
+| Code | Meaning |
+|---|---|
+| `0` | success, nothing to do, busy, or payments paused |
+| `1` | a processing or validation error (a refused period, `--pay-only` on an absent month, a doctor failure) |
+| `2` | environment (database down, missing tables, storage not writable) |
+
+The web entry answers **HTTP 200** for exit `0` and **HTTP 500** for `1` and `2`, and carries the exit
+code in the JSON (`exit_code`, `http_status`). A refused request (missing/wrong key from a non-loopback
+address) is **403** and does no work.
+
+**The doctor** (`--doctor` / `?doctor=1`) is the first thing to run on a new server and the first thing
+to run when a month looks stuck. It exits **1** only for a hard failure and lists every line with a
+`FAIL`/`WARN` marker:
+
+| Line | What it proves |
+|---|---|
+| `php`, `mysql`, `db_now` | the versions and the database's own clock |
+| `clocks` | PHP and MySQL agree within **2 seconds** (a skew fails the doctor) |
+| `timezone` | PHP runs `Asia/Manila` and the MySQL session reads `+08:00` |
+| `tables` | `royalty_periods` and `royalty_awards` exist (a missing table is named) |
+| `settings` | all **16** keys are present and the ladder is valid (quota order, 0-100% rates) |
+| `ledger since` | the baseline and the first payable month |
+| `enabled` | both switches; a paused payment switch is a **warning** |
+| `last paid`, `last final` | the newest paid month and the newest final month |
+| `pending` | completed months with no header — the next run closes them (warning) |
+| `evaluated` | months evaluated but not paid, with their pending count and age (warning) |
+| `paid awards` | a `paid` month still holding a `pending` award — a **failure** |
+| `counts` | member, award-row and period counts |
+| `lock`, `log`, `storage` | a free lock, a writable log folder, the storage path |
+| `wallet` | `RoyaltyService::reconcile()` — a mismatch fails the doctor |
+| `cron key` | whether the URL form is keyed |
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| `[SKIP ] busy` | a second run overlapped | normal; the line is the record. Investigate only if it repeats |
+| `closed=0` with `nothing to close` | every month through last month is final | nothing to do; `--dry-run` proves it |
+| a month stays `evaluated` | the batch ceiling was reached, or payments are paused | `--doctor`, then `--pay-only --period=YYYY-MM`; a paused switch is the answer |
+| `paused=1` in the log | `royalty_pay_enabled = 0` | awards stay pending by design; turn the switch on and resume |
+| `refused: ... has not finished yet` | `--period` named the current month | only a completed month can be closed |
+| `refused: ... before the Royalty ledger baseline` | the month precedes `royalty_ledger_since` | by design (D-15); no retroactive pay |
+| a `skipped` month with `royalty stream off` | the stream was off when it closed | a skipped month is final and can never be paid later |
+| `exit 2` | the database is down or a table is missing | restore the database, then `--doctor` |
+
+## QA
+
+The Phase 19F gate (`docs/qa/phase-19-royalty.md` section F, `QA19F-01` ... `QA19F-08`) walks the doctor,
+the URL entry, a dry run, the real close, a second run, a held lock and the Task Scheduler launcher. The
+automated cases are `P19F-T1` ... `T16` in `tests/Cases/RoyaltyCronTest.php`; the operations panel is
+`P19F-T13` and the health check `P19F-T14`.

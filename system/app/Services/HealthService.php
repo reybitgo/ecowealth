@@ -26,6 +26,9 @@ final class HealthService
     /** Largest number of example rows a section lists. */
     public const DETAIL_LIMIT = 5;
 
+    /** An evaluated Royalty month older than this is reported as a warning. */
+    public const ROYALTY_STALE_HOURS = 48;
+
     /**
      * Run every check.
      *
@@ -45,6 +48,7 @@ final class HealthService
             $this->wallets(),
             $this->commissions(),
             $this->awards(),
+            $this->royalty(),
             $this->transfers(),
             $this->payouts(),
             $this->orders(),
@@ -398,6 +402,102 @@ final class HealthService
             );
         } catch (Throwable $e) {
             return $this->failed('awards', 'Award integrity', $e);
+        }
+    }
+
+    /* ----------------------------------------------------------
+     *  Royalty stream (Phase 19F)
+     * ---------------------------------------------------------- */
+
+    /**
+     * The Royalty month close's housekeeping (plan §9 Phase 19F): both
+     * tables exist, the sixteen settings are present, and no evaluated
+     * month has waited for its payment for more than 48 hours.
+     *
+     * A stale evaluated period is a **warning, not a failure**: the next
+     * scheduled run pays it, and the money engine's own reconcile (the
+     * wallet check) is the hard test. The section stays green but states
+     * the warning in its summary and details.
+     *
+     * @return array<string, mixed>
+     */
+    private function royalty(): array
+    {
+        try {
+            $tables = db()->query(
+                "SELECT TABLE_NAME FROM information_schema.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE()
+                    AND TABLE_NAME IN ('royalty_periods', 'royalty_awards')"
+            )->fetchAll(PDO::FETCH_COLUMN);
+
+            $missing = array_values(array_diff(RoyaltyOps::TABLES, array_map('strval', $tables)));
+
+            if ($missing !== []) {
+                return $this->section(
+                    'royalty',
+                    'Royalty stream',
+                    false,
+                    'The Royalty table(s) ' . implode(', ', $missing) . ' are missing',
+                    ['Apply migration 023_royalty_bonus.sql, then reload this page.'],
+                    'admin/commissions?ledger=royalty'
+                );
+            }
+
+            $present = array_map('strval', db()->query(
+                "SELECT key_name FROM settings WHERE key_name LIKE 'royalty\\_%'"
+            )->fetchAll(PDO::FETCH_COLUMN));
+
+            $absent = array_values(array_diff(RoyaltyOps::SETTING_KEYS, $present));
+
+            if ($absent !== []) {
+                return $this->section(
+                    'royalty',
+                    'Royalty stream',
+                    false,
+                    count($absent) . ' Royalty setting(s) are missing',
+                    [implode(', ', $absent)],
+                    'admin/settings#settings-commissions'
+                );
+            }
+
+            $ops     = RoyaltyOps::snapshot();
+            $details = [];
+            $stale   = 0;
+
+            foreach ($ops['evaluated'] as $row) {
+                if ($row['age_hours'] !== null && $row['age_hours'] >= self::ROYALTY_STALE_HOURS) {
+                    $stale++;
+                    $details[] = sprintf(
+                        '%s has been evaluated for %d h with %d award(s) still unpaid',
+                        $row['period'],
+                        $row['age_hours'],
+                        $row['pending']
+                    );
+                }
+            }
+
+            $summary = sprintf(
+                '%d closed month(s) · %s paid all time · %d evaluated month(s) awaiting payment',
+                (int) ($ops['counts']['periods'] ?? 0),
+                self::money($ops['counts']['paid_all_time'] ?? 0),
+                count($ops['evaluated'])
+            );
+
+            if ($stale > 0) {
+                $summary .= ' — ' . $stale . ' older than ' . self::ROYALTY_STALE_HOURS
+                    . ' h (warning: the scheduled close has not paid them)';
+            }
+
+            return $this->section(
+                'royalty',
+                'Royalty stream',
+                true,
+                $summary,
+                $details,
+                'admin/commissions?ledger=royalty'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('royalty', 'Royalty stream', $e);
         }
     }
 

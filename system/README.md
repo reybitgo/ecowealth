@@ -27,6 +27,17 @@ neither a member nor an administrator can cancel an order — and therefore no w
 repeat-purchase escrow reversal runs — until an operator opens it for a special case. Automatic
 expiry keeps its own switch and still closes unpaid orders.
 
+A third workstream is in progress: **Phase 19 — the Royalty bonus**
+(`dmp/plan-ecowealth-royalty.md`), a rank-gated monthly bonus that pays
+Supervisor/Manager/Director one award per closed calendar month. 19A added the two money tables, the
+`royalty` wallet movement and sixteen settings (**33 tables / 73 settings**, unchanged since); 19B the
+configuration card and the derived five-rank ladder; 19C the money engine (`RoyaltyService`) and its
+close job; 19D the admin ledger, report cards, member panel and dashboard tile; 19E the member
+statement and tile. **19F** makes the stream operable: the scheduled close (CLI, guarded URL entry and
+Windows launcher), its `--doctor` report, the read-only **Operations** panel on the Royalty tab, the
+health check and the runbook drill. The stream still ships **off**, `APP_PHASE` is still 17, and 19G
+owns the release label.
+
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -86,9 +97,10 @@ report indexes (`019`). Operations are documented in [`docs/runbook.md`](../docs
 The expiry job runs from the CLI **and** from a guarded URL
 (`/system/cron/shop_expire.php`); the auto-complete and transfer-limit jobs do the same at
 `/system/cron/order_autocomplete.php` and `/system/cron/reset_transfer_limits.php`, and so do the
-Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18 release at
-`/system/cron/unilevel_release.php`. All five log to
-`system/storage/`; the first two and the release have kill switches on the settings page.
+Phase 17 month close at `/system/cron/unilevel_month_close.php`, the Phase 18 release at
+`/system/cron/unilevel_release.php` and the Phase 19F Royalty close at
+`/system/cron/royalty_month_close.php`. All six log to `system/storage/`; the first two, the release
+and the Royalty close have kill switches on the settings page.
 
 | | |
 |---|---|
@@ -97,7 +109,7 @@ Phase 17 month close at `/system/cron/unilevel_month_close.php` and the Phase 18
 | Deployment | [`docs/deploy.md`](../docs/deploy.md) — beginner guide for Hostinger / shared hosting |
 | Operations | [`docs/runbook.md`](../docs/runbook.md) — daily checks, backups/restore, incidents, go-live |
 | Admin guide | [`docs/admin-guide.md`](../docs/admin-guide.md) — page-by-page quick guide for the back office |
-| Scheduled jobs | `docs/cron.md` (expiry, auto-complete, transfer-limit reset, unilevel month close, unilevel release: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
+| Scheduled jobs | `docs/cron.md` (expiry, auto-complete, transfer-limit reset, unilevel month close, unilevel release, royalty month close: CLI, URL, Windows launcher, Hostinger, Task Scheduler) |
 | Plan | `dmp/plan-ecowealth-cart-system.md` |
 | Running log | `docs/phase-log.md` |
 
@@ -453,6 +465,7 @@ system/
 │   └── layout/                app_header.php, app_footer.php, sidebar.php, nav.php, auth_*
 ├── bin/                       shop_expire.php + .cmd, order_autocomplete.php + .cmd,
 │                              reset_transfer_limits.php + .cmd, unilevel_month_close.php + .cmd,
+│                              unilevel_release.php + .cmd, royalty_month_close.php + .cmd,
 │                              wallet_reconcile.php, build_install_sql.php, db_install.php, db_reset.php
 ├── storage/                   cron logs/ and locks/ + install.lock (outside public/, ignored,
 │                              deny-all .htaccess)
@@ -463,6 +476,8 @@ system/
 │   ├── cron/order_autocomplete.php  guarded web entry for the auto-complete job
 │   ├── cron/reset_transfer_limits.php  guarded web entry for the transfer-limit reset
 │   ├── cron/unilevel_month_close.php   guarded web entry for the month close
+│   ├── cron/unilevel_release.php       guarded web entry for the release job
+│   ├── cron/royalty_month_close.php    guarded web entry for the Royalty close (19F)
 │   ├── login.php register.php logout.php   (standalone this build)
 │   ├── install.php            standalone web installer (IR-4; delete after use)
 │   ├── reset.php              standalone reset console (IR-6; development/QA only)

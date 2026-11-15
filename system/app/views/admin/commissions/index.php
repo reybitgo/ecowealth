@@ -56,6 +56,7 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $periods
  * @var array<string, mixed>|null $preview
  * @var bool   $preview_mode
+ * @var array<string, mixed>|null $royalty_ops
  * @var string $open_period
  * @var array<int, array<string, mixed>> $rank_breakdown
  */
@@ -90,6 +91,7 @@ if ($isRoyalty) {
     $periods      = $periods ?? [];
     $preview      = $preview ?? null;
     $preview_mode = (bool) ($preview_mode ?? false);
+    $royalty_ops  = $royalty_ops ?? null;
     $open_period  = (string) ($open_period ?? RoyaltyPeriod::periodOf());
     $pager        = $pager ?? new Paginator(0, Paginator::perPageFromRequest());
 
@@ -358,6 +360,12 @@ if ($isRoyalty) {
 <?= View::capture('admin/commissions/_repeat_pagination', ['pager' => $pager]) ?>
               </div>
 <?php elseif ($isRoyalty): ?>
+<?= View::capture('admin/commissions/_royalty_ops', [
+    'ops'         => $royalty_ops ?? null,
+    'preview'     => $preview,
+    'open_period' => $open_period,
+]) ?>
+
 <?= View::capture('admin/commissions/_royalty_stats', [
     'stats'        => $stats,
     'preview'      => $preview,

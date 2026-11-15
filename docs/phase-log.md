@@ -5794,3 +5794,175 @@ change).
 
 ---
 
+## Phase 19F — Operations (2026-11-15)
+
+**Status:** complete · **Tag:** `p19f-operations` · **Branch:** `feature/royalty` ·
+**Schema:** unchanged (33 tables, no migration; no new route — D-16) ·
+**Suite:** 1,142 → **1,158** cases, **1,158 / 1,158** green · **Smoke:** 245 → **248** (three new URL
+checks).
+
+Plan: `dmp/plan-ecowealth-royalty.md` §10 (Phase 19F), §14.10–§14.12, §15.4, §16.5 and Appendix D.
+19F makes the monthly stream **operable**: the close runs unattended from cron, a URL and Windows Task
+Scheduler through one implementation; a doctor reports the environment and the pipeline; a read-only
+operations panel answers “open, evaluated, paid or stuck?” in one screen; the health card and the live
+surfaces follow a close. **It adds no money rule** — the 19C engine still does all the writing — so it
+ships alone: if 19G were cancelled the stream would still be drivable and observable.
+
+### Code
+
+| File | What it is |
+|---|---|
+| `bin/royalty_month_close.php` | The one implementation, now dual-mode. `$isCli = !defined('ROYALTY_CLOSE_HTTP') && PHP_SAPI === 'cli'`; options come from `getopt` on the CLI and from `$_GET` on the web (a boolean is on unless it is `0/false/no/off`); `royalty_close_http_gate()` (loopback trusted, remote needs `CRON_KEY`, 403 otherwise) and `royalty_close_http_status()` (200 for exit 0, 500 for 1/2) are pure functions; `royalty_close_dispatch()` is the one path both entries take and returns `{exit, http}` without ever calling `exit()`. New `--doctor` (`royalty_close_doctor()`, `royalty_close_clock_state()` and `royalty_close_ladder_problem()`): php/mysql/clocks/timezone/tables/settings (16/16 + ladder)/ledger-since/enabled/last-paid/last-final/pending/evaluated/paid-with-pending/counts/lock/log/wallet/cron-key/storage, exit 1 on a hard failure and a `WARN` marker (exit 0) on a paused payment switch or a stale evaluated month. The `--json` payload gains `exit_code`, `http_status` (web) and an `operations` block on a run or dry run. The trigger (`cli`/`http`) is threaded through the log line and every payload. |
+| `public/cron/royalty_month_close.php` (new) | The web entry: defines `ROYALTY_CLOSE_HTTP`, requires the one file, never renders HTML (text/plain or JSON, `Cache-Control: no-store`, `X-Robots-Tag: noindex`, no session, no cookie). |
+| `bin/royalty_month_close.cmd` (new) | The Windows Task Scheduler wrapper: `%PHP_EXE%` (or `php`), every flag passed through, the job's exit code propagated. |
+| `app/Models/RoyaltyOps.php` (new) | The read-only operations read model: open month, last final (with its paid total), pending periods, evaluated-but-unpaid periods with their pending count and age, the next action (`pay`/`close`), the two switches, the last close time, and the counts (periods, award rows, pending liability, paid all-time). One snapshot feeds the panel, the doctor's pipeline section and the job's `--json`. It names no money table: every read goes through `RoyaltyPeriod`/`RoyaltyAward` (P19A-T13 stays sharp). |
+| `app/views/admin/commissions/_royalty_ops.php` (new) | The operations panel: a state badge (**Up to date / Close due / Payment pending / Payments paused**), the open month with its projection, the last final month, pending periods, awaiting payment with the exact `--pay-only` command, both switches, the last close, the next run and the documented schedule. No form, no button, no close trigger. |
+| `app/Controllers/AdminCommissionController.php` | `royaltyContext()` builds `royalty_ops` (guarded: a broken snapshot hides the card, never the ledger); the Royalty feed gains the `commission-royalty-ops` fragment **first** in its five-to-six fragment map. |
+| `app/views/admin/commissions/index.php` | The panel renders above the counters on the Royalty branch only. |
+| `app/Services/HealthService.php` | An eighth section, **Royalty stream**: both tables exist, the sixteen settings are present, and no evaluated month is older than **48 h** — a warning, not a failure (the section stays green and states it). |
+| `app/Services/Live.php` | `touchRoyaltyAdmin()` (one call: `admin.commissions`, `admin.dashboard`, `admin.reports`) and `touchRoyaltyMember($id)` (earnings, dashboard, wallet, membership — the same four surfaces 19E touched, in one call). |
+| `app/Services/RoyaltyService.php` | Every admin touch now includes `admin.reports`; `pay()` bumps the admin trio **after each committed batch** as well as on finalisation, never inside the wallet transaction; the private `touch()` delegates to `Live::touchRoyaltyMember()`. No money change. |
+
+**Unchanged by design:** `RoyaltyRank`, `RoyaltyPeriod`, `RoyaltyAward`, the engine's evaluate/pay
+protocol, every route, `APP_PHASE` (still 17 for 19G) and the settings ladder.
+
+### The operations surface, as shipped
+
+- **Three entry points, one file.** The CLI, `/system/cron/royalty_month_close.php` and
+  `bin\royalty_month_close.cmd` all reach `royalty_close_dispatch()`; the URL entry requires the very
+  file the CLI runs, so they cannot disagree about which months are final. The web entry is
+  loopback-trusted; any other caller needs `?key=` matching `CRON_KEY`, and a refused request is
+  **403** with no database access.
+- **The doctor is honest.** It exits 1 when a table is missing, a setting is absent or the ladder is
+  invalid, the PHP/MySQL clocks differ by more than 2 s, the PHP timezone is not `Asia/Manila`, a paid
+  month still holds a pending award, or the Royalty reconcile has a mismatch. A paused payment switch
+  and a stale evaluated month are **warnings** (exit 0) so a healthy-but-paused stream does not read as
+  broken.
+- **The log stays one line per run:**
+  `trigger=cli closed=1 periods=2026-11 award=12 paid=10 amount=183000.00 skipped=2 status=paid paused=0`,
+  under `system/storage/logs/royalty_month_close-YYYY-MM.log` (outside `public/`). A log write failure
+  warns on stderr and never fails the run. `[SKIP ]` is a busy lock; a dry run has its own `[INFO ]`
+  line.
+- **One run at a time.** `CronLock('royalty_month_close')`; the second run prints `[SKIP ] busy`, exits
+  0 and writes nothing.
+- **The operations panel is read-only.** It shows the state, the months and the runbook command; it
+  never renders a form or a button (an HTTP close would need CSRF, a long-running request and a retry
+  story).
+- **The schedule is documented:** `15 0 1 * *` unilevel, `30 0 1 * *` Royalty with
+  `--max-batches=20`; the 15-minute gap is operational tidiness and the two jobs are independent.
+
+### Tests
+
+**16 new cases: 1,142 → 1,158, all green** (the Royalty group alone is **150 / 150**).
+
+| Group | Added | What it proves |
+|---|---|---|
+| `RoyaltyCronTest` (new) | 16 | T1 (the real URL entry, remote without a key: 403, nothing written), T2 (loopback: 200 and `periods/closed/award/paid/amount/skipped/status` identical to the CLI's dry run), T3 (`CRON_KEY`: the pure gate at both ends, the right key runs the doctor with HTTP 200, a wrong key is 403), T4 (the `.cmd` exists, passes `%*`, uses `PHP_EXE`, and on Windows runs the same dry run as the CLI), T5 (the doctor clean on a fresh scratch install: every line, exit 0, no writes), T6 (a dropped `royalty_awards`: exit 1, names the table and the migration), T7 (`royalty_close_clock_state()` exact at ±2 s, and the doctor with an injected PHP clock 5 s off exits 1), T8 (`--dry-run`: no period/award/wallet/audit row, and the `operations` block), T9 (a two-month catch-up oldest first, one log line per run, a second run closed=0 with its own line), T10 (a held lock: `[SKIP ]`, exit 0, no work), T11 (`--limit=1 --max-batches=1`: one paid, header `evaluated`, `resume_required`, then `--pay-only` finishes it), T12 (a paused run's log line: periods, award=1, paid=0, amount=0.00, status=evaluated, paused=1, matching the JSON), T13 (the panel: open month, last final, pending, evaluated-unpaid with its command, both switches, last close, next run; no form, no button, no “Run close”), T14 (the health section green with the tables/settings and a warning — not a failure — on a 50-hour-old evaluated month), T15 (exit 0 success/no-op, 1 refusal/`--pay-only` absent, 2 database unreachable), T16 (`docs/cron.md` documents the job, flags, log, schedule and exit codes). |
+| `AdminCommissionLiveTest` | updated | The Royalty feed's exact fragment list gains `commission-royalty-ops` (six fragments) and the panel fragment renders. |
+| `RoyaltyAdminViewTest` | updated | The Royalty tab's region set moves five → six; the feed fragment list matches. |
+| `RoyaltyEngineTest` (`P19C-T48`) | updated | 19C's “the web entry and `.cmd` do not exist yet” tail becomes “both exist and the URL entry hands the request to the one implementation”, plus the two 19F files exist. |
+| `ReportViewTest` | updated | The health card now runs **8** checks, in order (`royalty` between `awards` and `transfers`). |
+
+Updated beyond the new cases: the two 19D test files' exact fragment/region lists, `P19C-T48`'s phase
+boundary and `ReportViewTest`'s health count. `CronTest`, `LaunchTest`, `WalletTest` and the rest of the
+suite are unchanged and green.
+
+### Docs
+
+- `docs/cron.md` — a new **§7 Royalty month close**: entries, what it does, the ladder snapshot, the two
+  switches, local and live commands (both monthly entries), flags, the log line, exit codes, the doctor
+  table, failure modes and QA. The intro now names **six** jobs.
+- `docs/runbook.md` — §2's table gains the sixth job and the Royalty subsection becomes the **monthly
+  close drill**: unilevel close → `--doctor` → `--dry-run` → the real run → the panel → `wallet_reconcile`
+  → a no-op re-run, plus the partial-payment recovery and the “never edit a closed award” rule.
+- `docs/admin-guide.md` — §16 gains **The operations panel** (every line of the card and what it means),
+  and “what this build does not do” now says the scheduled close, doctor, URL entry, launcher and panel
+  ship with 19F.
+- `docs/deploy.md` — §13 names the sixth job and the two monthly cron entries, with the
+  enable-at-a-month-boundary recommendation; the document-status table gains the 19F row.
+- `system/README.md` — the Phase 19 paragraph, the six-job sentence, the job table and the tree
+  (`bin/`, `public/cron/`).
+- `docs/qa/phase-19-royalty.md` — **section F** (`QA19F-01` … `QA19F-08`) and the sign-off row; the
+  document is appended, never rewritten.
+- `docs/qa/evidence/phase-19/QA19F-01.txt … QA19F-08.txt` — real transcripts of the eight checks
+  (the doctor twice, the remote refusal, a dry run, the real close plus the rendered panel, the no-op,
+  the held lock, the schedule and the launcher), indexed in that folder's `README.md`.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` — section F counts, the Phase 19F gate row and the
+  document-status line.
+- `tests/smoke.ps1` — three new checks (`P19F-T1`, `T2`, `T13`): 245 → 248.
+
+### Gate
+
+- [x] Schema state matches the plan — 19F changes no schema; `MigrationTest` stays green and the
+      install bundle still reports 33 / 73.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,158   Passed: 1,158   Failed: 0**, exit 0 (floor 1,140).
+- [x] `php bin/wallet_reconcile.php` exits 0 (19F adds no money rule; the Royalty section is unchanged).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 248   Failed: 0**, exit 0.
+- [x] Every P19F-T1 … T16 case exists, is named for the phase and passes.
+- [x] The web entry, the CLI and the `.cmd` produce the same result (T2/T4 compare them by key).
+- [x] The doctor detects a missing table (T6), a clock skew over 2 s (T7) and a stale evaluated period
+      (T14; the doctor's own line, and the health check's warning).
+- [x] No write in `--dry-run` (T8 compares all four counts).
+- [x] `docs/cron.md` and `docs/runbook.md` describe the schedule and the failure drill (T16 and QA19F-08).
+- [x] The manual script (plan §10, `QA19F-01` … `QA19F-08`) executed **8 / 8**, with real transcripts in
+      `docs/qa/evidence/phase-19/`. The independent-tester review remains the project lead's item, as at
+      every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section F filled; the evidence index, `docs/qa/README.md` and `docs/qa/sign-off-sheet.md`
+      carry the Phase 19F rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p19f-operations`.
+
+### Deviations
+
+1. **The close file doubles as a library.** `ROYALTY_CLOSE_LIBRARY` at the bottom lets the test harness
+   load the HTTP gate, the doctor and the dispatcher in-process without starting a run. The CLI and the
+   URL entry still dispatch and exit exactly as before; the flag is a seam, not a mode.
+2. **The URL entry names its way in.** `ROYALTY_CLOSE_HTTP` is defined by
+   `public/cron/royalty_month_close.php`, so the HTTP rules apply even when that file is exercised from
+   a shell. The harness has no second host, so `P19F-T1/T3` and QA19F-03 drive the real entry with
+   `$_SERVER['REMOTE_ADDR']` set — the same file, the same `CronAccess::allowed()` decision.
+3. **The doctor's PHP clock is injectable.** `royalty_close_doctor($lock, $log, ?int $phpNow)` defaults
+   to `time()`; a test passes a skewed value to prove the 2-second rule without touching the host clock.
+   The pure comparison lives in `royalty_close_clock_state()`.
+4. **The operations panel is a sixth live region on the Royalty tab.** The 19D tests' exact fragment and
+   region lists gained `commission-royalty-ops` at the front. The change is additive: the five 19D
+   regions and every existing fragment keep their bytes.
+5. **`P19C-T48`'s tail is rewritten for 19F.** 19C asserted the web entry and the `.cmd` did not exist
+   yet; 19F creates both. The rewrite asserts they exist and that the URL entry hands the request to the
+   one implementation, keeping the “no route” half unchanged.
+6. **`HealthService` gains an eighth section and `ReportViewTest` moves 7 → 8.** The new
+   **Royalty stream** check is a warning-only stale-evaluation test; it never turns a green card red.
+7. **`admin.reports` joins the surfaces a close bumps.** The reports desk has rendered Royalty cards
+   since 19D; it was the one live surface a close did not touch. `Live::touchRoyaltyAdmin()` names the
+   trio in one place.
+8. **`pay()` bumps the admin trio after every committed batch, not only on finalisation.** A batch is
+   money that just became visible on the ledger, dashboard and reports; the touch stays after the
+   commit, so a revision failure can never roll money back.
+9. **`Live::touchRoyaltyMember()` replaces 19E's four separate calls.** It bumps the same four surfaces
+   (earnings, dashboard, wallet, membership) in one statement; the per-surface revision increments are
+   unchanged.
+10. **A malformed `royalty_ledger_since` is a hard doctor failure.** `RoyaltyPeriod::baseline()` treats
+    it conservatively as “this month” (nothing past is payable), which is safe but silently blocks every
+    close; a doctor that stayed green would hide it.
+11. **`royalty_close_ladder_problem()` re-validates the stored ladder.** The settings form validates a
+    save; the doctor re-checks the stored values (thresholds ≥ 1, quotas ≥ 0 and ordered, rates 0–100%
+    and group + personal ≤ 100%) because a hand-edited row must not reach a payout.
+12. **The doctor's warnings do not change its exit code.** A paused payment switch, pending months and a
+    stale evaluated month print a `WARN` line and keep exit 0; only Rule 6's hard list (plus a reconcile
+    mismatch and a malformed baseline) exits 1. A paused-but-healthy stream must not read as broken, and
+    the plan's 19F test plan asks that the doctor *detects* a stale month, not that it fails on one.
+
+### Hand-off to 19G
+
+- The stream is schedulable and observable: three entry points, one implementation, a green doctor, one
+  log line per run, an advisory lock, documented exit codes and a runbook drill.
+- The operations panel is the first place an operator looks and it states the pipeline; the health card
+  carries the Royalty section.
+- `APP_PHASE` is still 17 and no release sign-off exists; 19G owns the label, the Phase 19 documentation
+  sweep and the acceptance pass.
+- All 19F cases and the three new smoke checks must stay green in the release suite; the suite floor is
+  1,140 and the phase closed at **1,158**.
+
+---
+

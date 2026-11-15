@@ -483,7 +483,7 @@ and **never paid on a cancelled order**.
 
 ---
 
-## 16. Royalty bonus: the rank ladder and the monthly ledger (Phase 19B–19E)
+## 16. Royalty bonus: the rank ladder, the monthly ledger and operations (Phase 19B–19F)
 
 The Royalty bonus is a **monthly override on group sales**, paid once per closed calendar month to
 **Supervisor, Manager and Director** only. Phase 19B ships its configuration and the derived rank
@@ -562,11 +562,12 @@ and the section `commissions`. A save writes no period, award, wallet or other m
 
 ### What this build does not do
 
-There is still no **Run close** button: closing a month is the CLI job
-(`bin/royalty_month_close.php`), never a page. The Royalty ledger, the member panel and every member
-surface are **read-only** — no screen can evaluate, pay, edit or reverse an award. The member-facing
-Royalty tab on `/earnings` and the member dashboard tile ship with **19E** (see *What members see*
-below); the scheduled close, the doctor and the operations panel arrive with **19F**.
+There is still no **Run close** button: closing a month is the scheduled job
+(`bin/royalty_month_close.php`, its URL entry or the Windows launcher), never a page — an HTTP button
+would need CSRF, a long-running request and a retry story, and a retry story for money is a bug. The
+Royalty ledger, the operations panel, the member panel and every member surface are **read-only** — no
+screen can evaluate, pay, edit or reverse an award. The scheduled close, the doctor, the URL entry,
+the Windows launcher and the operations panel ship with **19F** (see *The operations panel* below).
 
 The money is real and already visible in the member's wallet statement as a **Royalty bonus** credit
 (with its ledger id), and from 19E the member can read the month it came from on their own statement.
@@ -606,6 +607,26 @@ monthly money engine. The page reads `royalty_periods` and `royalty_awards`; it 
 - **The CSV** is the **Export CSV** button on the same page. It reuses the filters you have selected
   and downloads the columns in the next section. Every download writes one `royalty.export` row to
   **Admin → Audit**.
+
+### The operations panel (Phase 19F)
+
+The top card on **Admin → Commissions → Royalty** answers one question in one screen: **is the month
+open, evaluated, paid or stuck?**
+
+| The card shows | What it means |
+|---|---|
+| **Open month — not closable yet** | the current calendar month, with *“if it closed now”* projected totals. Nothing is stored and it never enters a period total. A month is only ever closed by the job. |
+| **Last final month** | the newest `paid`/`skipped` period with its status badge, paid total and award count. |
+| **Pending periods** | completed months with **no** period yet — normally **None**. Anything here means the close has not run for that month. |
+| **Awaiting payment** | months left `evaluated` (payments paused, or a batch ceiling reached), their unpaid rows and the exact command that finishes them, e.g. `php bin/royalty_month_close.php --pay-only --period=2026-10`. |
+| **Royalty earning** / **Payments** | the two switches (`royalty_enabled`, `royalty_pay_enabled`). *Off* means a close records a skipped month; *Paused* means awards stay pending. |
+| **Last close** | when the newest period was evaluated. |
+| **Next run** | the month the next scheduled run touches and whether it resumes a payment or closes a month. |
+| The badge | **Up to date**, **Close due**, **Payment pending** or **Payments paused** — the whole stream in one word. |
+
+The card is **read-only**: it renders no form and no button. It refreshes with the rest of the tab when
+a close bumps the surface. When a month is not where it should be, the card names the month and the
+command; `docs/runbook.md` §2 is the drill and `docs/cron.md` §7 is the job reference.
 
 ### Period states
 

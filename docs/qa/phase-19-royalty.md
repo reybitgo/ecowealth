@@ -1212,7 +1212,180 @@ Expected
 
 ---
 
-## 8. Sign-off
+## 8. Section F — Phase 19F: Operations (`QA19F-01` … `QA19F-08`)
+
+**Prerequisites.** The `p19e-member` tag, the full suite green, and the development copy at migration
+`023`. Checks 01–03, 05 (the panel) and 08 run against the running app / the development copy and
+write nothing; checks 04–07 build the plan §16.2 A tree on the throw-away
+`ecowealth_sneat_tool_a_test` schema (one Supervisor at the ₱500,000 quota, ladder 2/2/2/2, quotas
+500k/1M/5M, rates 3/5 · 5/10 · 10/15) and close the previous month for real. **Where a check moves
+money it moves test money on a scratch schema**; the development copy's royalty tables stay empty.
+Expected suite floor: **1,140** cases.
+
+### QA19F-01 — The CLI doctor
+
+| Why | Plan 19F §10 Rule 6 and §14.10: the doctor must be honest before an operator trusts a run. |
+|---|---|
+| Where | `system/` on the development copy |
+| Evidence | `QA19F-01.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Run `php bin\royalty_month_close.php --doctor`.
+2. Read every line; confirm the exit code.
+
+Expected
+
+- Exit **0**, `The doctor is green.`
+- `clocks agree (0s)`, `timezone Asia/Manila · +08:00`, `tables royalty_periods, royalty_awards present`,
+  `settings 16/16 present; ladder valid`, `ledger since … → first payable …`, both switches,
+  `last paid`, `pending`, `evaluated`, `paid awards`, `lock free`, `wallet Royalty reconcile clean`,
+  `cron key`, `storage`.
+
+### QA19F-02 — The same report from the URL entry
+
+| Why | Plan 19F Rule 1: the web entry is the same job behind the same access rules. |
+|---|---|
+| Where | `GET http://localhost/ecowealth/system/cron/royalty_month_close.php?doctor=1` |
+| Evidence | `QA19F-02.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open the URL from the machine running the app (loopback is trusted, no key).
+2. Compare it with QA19F-01.
+
+Expected
+
+- HTTP **200**, `Content-Type: text/plain; charset=utf-8`, no HTML, and the same doctor lines the CLI
+  printed. The response carries `X-Robots-Tag: noindex` and `Cache-Control: no-store`.
+
+### QA19F-03 — A remote caller without the key
+
+| Why | Plan 19F Rule 1 and Risk 1: the URL must never be a public "pay everyone" button. |
+|---|---|
+| Where | The same URL from a non-loopback address (or the same entry with the request remote address set) |
+| Evidence | `QA19F-03.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Request the URL from a non-loopback address with no `?key=`.
+2. Configure `CRON_KEY` and retry with the correct key.
+3. Retry with a wrong key.
+
+Expected
+
+- No key: **403 Forbidden**, exit 1, no database access (the guard runs first).
+- Correct key: the doctor runs, HTTP **200**, `trigger: http`.
+- Wrong key: **403** again.
+
+### QA19F-04 — The dry run writes nothing
+
+| Why | Plan 19F Rule 5 and `P19F-T8`: a preview must never write a row. |
+|---|---|
+| Where | `ecowealth_sneat_tool_a_test`, the §16.2 A tree |
+| Evidence | `QA19F-04.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Record `COUNT(*)` on `royalty_periods`, `royalty_awards`, the `royalty` ledger rows and the
+   `royalty.%` audit rows.
+2. Run `php bin\royalty_month_close.php --period=<last> --dry-run --json`.
+3. Record the four counts again.
+
+Expected
+
+- Exit **0**; the JSON lists **1** month, **1** award and **₱40,000.00**.
+- All four counts identical before and after; no period, award, wallet or audit row written.
+
+### QA19F-05 — The real close, the log line and the panel
+
+| Why | Plan 19F §10 Rules 3, 8 and 9: the money reaches the wallet, the log is one line, the panel agrees. |
+|---|---|
+| Where | The same scratch fixture; the Royalty tab's Operations panel |
+| Evidence | `QA19F-05.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Run `php bin\royalty_month_close.php`.
+2. Read the log line in `system/storage/logs/royalty_month_close-YYYY-MM.log`.
+3. Open **Admin → Commissions → Royalty** and read the Operations panel.
+
+Expected
+
+- Exit **0**; the header `paid`, one `royalty` credit of **₱40,000.00**.
+- One log line: `closed=1 periods=<last> award=1 paid=1 amount=40000.00 skipped=0 status=paid paused=0`.
+- The panel: **Last final month** = that month with its ₱40,000.00 paid, **Pending periods** None,
+  **Awaiting payment** None, both switches, a **Last close** time and the next-run sentence.
+
+### QA19F-06 — The second run is a no-op
+
+| Why | Plan 19F Rule 4: a final month is never recalculated, and the run is idempotent. |
+|---|---|
+| Where | The same scratch fixture |
+| Evidence | `QA19F-06.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Run the close again.
+2. Read the new log line and compare the line count.
+
+Expected
+
+- Exit **0**, `closed=0`, `nothing to close — <last> is already final`.
+- Exactly **one** new log line; no new award, wallet or audit row.
+
+### QA19F-07 — A held lock
+
+| Why | Plan 19F Rule 2: one run at a time; the second is a clean no-op. |
+|---|---|
+| Where | The same scratch fixture; a holder process takes `CronLock('royalty_month_close')` |
+| Evidence | `QA19F-07.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Start a second PHP process that acquires the lock and sleeps.
+2. Run the close while it holds the lock.
+
+Expected
+
+- `[SKIP ] busy — another run already holds the lock.`, exit **0**, a `[SKIP ]` log line naming the
+  lock file, and no period/award change.
+
+### QA19F-08 — The schedule and the Windows launcher
+
+| Why | Plan 19F Rule 10 and `P19F-T4`: the schedule is documented and the `.cmd` runs the same job. |
+|---|---|
+| Where | `docs/runbook.md` §2, `docs/cron.md` §7, `system/bin/royalty_month_close.cmd`, Task Scheduler |
+| Evidence | `QA19F-08.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Confirm the two monthly entries are recorded in the runbook and in `cron.md` §7.
+2. Run `bin\royalty_month_close.cmd --doctor` with `PHP_EXE` set.
+3. Create, query and delete a test Task Scheduler task whose action is that `.cmd`.
+
+Expected
+
+- `15 0 1 * *` for the unilevel close and `30 0 1 * *` for the Royalty close with
+  `--max-batches=20`, in both documents.
+- The launcher prints the same doctor report and exits **0**.
+- The Task Scheduler task is accepted (or, in a non-interactive session, the exact `schtasks` command
+  is recorded and the launcher is proven to run).
+
+**Sign-off (section F).** Tester: automated Phase 19F pass — DeepSeek Harness (DSH) · 2026-11-15 ·
+Evidence: `docs/qa/evidence/phase-19/QA19F-01.txt` … `QA19F-08.txt`.
+
+---
+
+## 9. Sign-off
 
 | Section | Checks | Passed | Failed | Blocked | Tester | Date | Evidence |
 |---|---:|---:|---:|---:|---|---|---|
@@ -1221,8 +1394,9 @@ Expected
 | C — Money engine | 12 | 12 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | D — Admin visibility | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | E — Member visibility | 9 | 9 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
+| F — Operations | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 
 **Decision:** ☑ Pass  ☐ Pass with notes  ☐ Fail
 
-Sections F–G are appended by 19F–19G before their gates; sections A–E are final.
+Section G is appended by 19G before its gate; sections A–F are final.
 

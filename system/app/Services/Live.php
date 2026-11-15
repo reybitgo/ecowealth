@@ -396,6 +396,40 @@ final class Live
     }
 
     /**
+     * Bump the three admin surfaces a Royalty close moves (Phase 19F).
+     *
+     * The ledger (19D) lists the periods and rows, the dashboard (19D)
+     * shows the paid tile and the reports desk (19D) shows the royalty
+     * summaries; one close changes all three. Called after an evaluation,
+     * after every committed payment batch and on finalisation — never
+     * inside the wallet transaction, so a revision failure can never roll
+     * money back.
+     */
+    public static function touchRoyaltyAdmin(): void
+    {
+        self::touch(['admin.commissions', 'admin.dashboard', 'admin.reports']);
+    }
+
+    /**
+     * Bump one member's Royalty surfaces (Phase 19E, called by 19F's
+     * close on payment).
+     *
+     * The statement lists the award rows, the dashboard tile shows the
+     * paid figure and the rank, the wallet statement shows the credit and
+     * the membership page shows the balance used by the e-wallet
+     * activation path.
+     */
+    public static function touchRoyaltyMember(int $userId): void
+    {
+        self::touch([
+            self::earningsSurface($userId),
+            self::memberDashboardSurface($userId),
+            self::memberWalletSurface($userId),
+            self::membershipSurface($userId),
+        ]);
+    }
+
+    /**
      * Bump one member's profile page.
      *
      * Called after a full-name save, a payout-account save and every

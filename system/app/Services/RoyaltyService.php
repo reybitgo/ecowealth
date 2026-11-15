@@ -215,7 +215,7 @@ final class RoyaltyService
 
             /* Phase 19D: the admin ledger shows skipped months too, so
              * writing the header must bump the surface `pay()` bumps. */
-            Live::touch(['admin.commissions', 'admin.dashboard']);
+            Live::touchRoyaltyAdmin();
 
             return [
                 'period'        => $period,
@@ -331,7 +331,7 @@ final class RoyaltyService
          * here as well — an `--evaluate-only` run or a paused payment
          * never reaches pay()'s per-batch touch, and the member would
          * otherwise keep reading a stale page (plan §9 Rule 8). */
-        Live::touch(['admin.commissions', 'admin.dashboard']);
+        Live::touchRoyaltyAdmin();
         $this->touch(array_map(
             static fn (array $draft): int => (int) ($draft['user_id'] ?? 0),
             $drafts
@@ -499,8 +499,11 @@ final class RoyaltyService
             $amount += (int) $batch['cents'];
 
             /* After the commit only: a live-touch failure never rolls
-             * money back (plan §14.5). */
+             * money back (plan §14.5). Phase 19F moves the admin ledger,
+             * dashboard and reports with every committed batch, because
+             * a batch is money that just became visible. */
             $this->touch($batch['members']);
+            Live::touchRoyaltyAdmin();
 
             /* One audit row per batch (plan §15.4). */
             AuditLog::record([
@@ -552,7 +555,7 @@ final class RoyaltyService
         $result['status'] = 'paid';
         $result['final']  = true;
 
-        Live::touch(['admin.commissions', 'admin.dashboard']);
+        Live::touchRoyaltyAdmin();
 
         return $result;
     }
@@ -1478,14 +1481,9 @@ final class RoyaltyService
     private function touch(array $userIds): void
     {
         foreach (array_unique(array_map('intval', $userIds)) as $userId) {
-            if ($userId <= 0) {
-                continue;
+            if ($userId > 0) {
+                Live::touchRoyaltyMember($userId);
             }
-
-            Live::touchEarnings($userId);
-            Live::touchMemberDashboard($userId);
-            Live::touchMemberWallet($userId);
-            Live::touchMembership($userId);
         }
     }
 

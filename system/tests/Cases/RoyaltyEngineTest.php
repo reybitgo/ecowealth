@@ -1321,9 +1321,21 @@ return [
             );
         }
 
-        /* The 19C CLI job exists and still has no web entry (19F). */
+        /* The 19C CLI job exists; 19F adds its two other entry points.
+         * Both delegate to the same file — one implementation, three
+         * ways in — and neither adds a route (D-16). */
         assert_true(is_file($appRoot . '/bin/royalty_month_close.php'));
-        assert_false(is_file($appRoot . '/public/cron/royalty_month_close.php'));
-        assert_false(is_file($appRoot . '/bin/royalty_month_close.cmd'));
+        assert_true(is_file($appRoot . '/public/cron/royalty_month_close.php'));
+        assert_true(is_file($appRoot . '/bin/royalty_month_close.cmd'));
+
+        assert_contains(
+            "require dirname(__DIR__, 2) . '/bin/royalty_month_close.php';",
+            (string) file_get_contents($appRoot . '/public/cron/royalty_month_close.php'),
+            'the web entry hands the request to the one implementation'
+        );
+
+        /* 19F's read-only operations model and panel. */
+        assert_true(is_file($appRoot . '/app/Models/RoyaltyOps.php'));
+        assert_true(is_file($appRoot . '/app/views/admin/commissions/_royalty_ops.php'));
     },
 ];
