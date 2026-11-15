@@ -3,13 +3,13 @@ declare(strict_types=1);
 
 /**
  * Admin settings — the compensation switches (Phase 9–11 keys, exposed
- * in Phase 15), the repeat-purchase sub-block (Phase 17B) and the
- * Royalty ladder (Phase 19B).
+ * in Phase 15), the repeat-purchase sub-block (Phase 17B), the Royalty
+ * ladder (Phase 19B) and the Team Harvest ladder (Phase 20B).
  *
- * All three blocks are one card and one form: the hidden `section`
- * field still says `commissions`, so the repeat-purchase and Royalty
- * keys save, validate and audit exactly like the referral keys beside
- * them (plan §13.5, §6 19B rule 10).
+ * All four blocks are one card and one form: the hidden `section` field
+ * still says `commissions`, so the repeat-purchase, Royalty and Team
+ * Harvest keys save, validate and audit exactly like the referral keys
+ * beside them (plan §13.5, §6 19B rule 10, §6 20B rule 11).
  *
  * @var array<string, mixed> $settings
  * @var list<array{key:string, label:string, rule:string, suffix:string, hint:string}> $commission_fields
@@ -19,6 +19,12 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $royalty_fields
  * @var array<string, array{label:string, hint:string}> $royalty_toggles
  * @var array<string, mixed> $royalty_ladder
+ * @var list<array<string, mixed>> $team_harvest_fields
+ * @var array<string, array{label:string, hint:string}> $team_harvest_toggles
+ * @var array<int, string> $team_harvest_amounts
+ * @var array<string, mixed> $team_harvest_ladder
+ * @var array<string, mixed> $team_harvest_status
+ * @var array<int, string> $team_harvest_preset
  */
 
 $settings          = $settings ?? [];
@@ -29,6 +35,12 @@ $repeatToggles     = $repeat_toggles ?? [];
 $royaltyFields     = $royalty_fields ?? [];
 $royaltyToggles    = $royalty_toggles ?? [];
 $royaltyLadder     = $royalty_ladder ?? [];
+$teamFields        = $team_harvest_fields ?? [];
+$teamToggles       = $team_harvest_toggles ?? [];
+$teamAmounts       = $team_harvest_amounts ?? [];
+$teamLadder        = $team_harvest_ladder ?? [];
+$teamStatus        = $team_harvest_status ?? [];
+$teamPreset        = $team_harvest_preset ?? [];
 
 $value = static function (string $key) use ($settings): string {
     return old($key, (string) ($settings[$key] ?? ''));
@@ -249,4 +261,14 @@ $checked = static function (string $key) use ($settings): bool {
                         month that is already closed keeps the ladder it was evaluated with.
                       </p>
 <?php endif; ?>
+
+<?= View::capture('admin/settings/_team_harvest', [
+    'settings'             => $settings,
+    'team_harvest_fields'  => $teamFields,
+    'team_harvest_toggles' => $teamToggles,
+    'team_harvest_amounts' => $teamAmounts,
+    'team_harvest_ladder'  => $teamLadder,
+    'team_harvest_status'  => $teamStatus,
+    'team_harvest_preset'  => $teamPreset,
+]) ?>
                     </div>

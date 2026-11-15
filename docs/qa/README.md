@@ -26,9 +26,9 @@ result, capture evidence and sign the phase off.
 > folder's `README.md`.
 
 > **Phase 20 is the Team Harvest bonus workstream** (`dmp/plan-ecowealth-team-harvest.md`), delivered
-> in seven gated phases **20A → 20G** and **in progress (20A)**. 20A writes section A only; every
-> later phase appends its own section before its gate. Its evidence lives in `evidence/phase-20/`,
-> indexed by that folder's `README.md`.
+> in seven gated phases **20A → 20G** and **in progress (20B)**. 20A wrote section A and 20B appended
+> section B; every later phase appends its own section before its gate. Its evidence lives in
+> `evidence/phase-20/`, indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -59,7 +59,7 @@ result, capture evidence and sign the phase off.
 | [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G, **signed** | 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) | 4–5.5 h in all (A 35–45 · B 30–40 · C 45–60 · D 30–40 · E 30–40 · F 15–20 · G 60–75 min) |
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
-| [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, **in progress (20A: section A only)** | 8 (A 8; B–G follow) | 30–40 min (A) |
+| [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, **in progress (20B: sections A–B)** | 17 (A 8 · B 9; C–G follow) | 70–95 min (A 30–40 · B 40–55) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -273,7 +273,16 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
   **36 / 77 / 10**, the transactional guard naming `harvest_queue`, and a business reset that empties
   the queue and the awards, clears the baseline and keeps the ladder. **No code path reads any of it**:
   the only visible change is one extra movement kind in the wallet statement filter. The section A
-  manual checks therefore verify counts and *absence* of UI; sections B–G are appended by their phases.
+  manual checks therefore verify counts and *absence* of UI.
+- Phase 20B proves the **configuration** on top: the Team Harvest sub-block on `/admin/settings` (the
+  switch, the gate, the depth and the ten amounts), the generated 3×10 ladder equal to Appendix A line
+  for line, the two cross-field guards (₱25,000,000.00 total, no enabled all-zero ladder), the
+  per-level ceilings and precision, the atomic save with one `team_harvest.ladder.update` audit row and
+  a `settings.update` row, the four-state status strip, the model's `amount()`/`threshold()` ranges and
+  zero-filled one-query reads, and the phase's **inertness**: three registrations after configuring
+  write no queue row, no award and no money, and changing an amount never rewrites an award. Section B
+  checks the card by eye, the audit desk, the save/refusal round-trips, JS-off saving and the 390 px
+  layout; sections C–G are appended by their phases.
 
 ---
 
@@ -568,7 +577,7 @@ docs/qa/
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
 ├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–G, 60 checks)
-├── phase-20-team-harvest.md           ← manual checks for Phase 20 (section A now; B–G follow)
+├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–B now; C–G follow)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + unilevel-escrow/)

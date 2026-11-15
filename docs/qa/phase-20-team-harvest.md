@@ -10,7 +10,9 @@ money**: it applies a migration, reads counts, opens two pages that must *not* h
 runs the install/reset tools on scratch schemas. From section C on the checks may move test money,
 and every one of those runs on a scratch schema — never on a production database.
 
-**Document status.** Section A (20A — Foundation) written 2026-11-15 with the automated gate green.
+**Document status.** Section A (20A — Foundation) written 2026-11-15 with the automated gate green;
+section B (20B — Configuration) appended 2026-11-15 with the automated gate green. Section B moves no
+money and writes no position.
 
 ---
 
@@ -58,7 +60,7 @@ The baseline was **1,162 / 1,162** PHP cases and **248 / 248** smoke checks at `
 | P20A-T13 | Deleting a member who is not queued is harmless |
 | P20A-T14 | Deleting a queued member cascades the queue, the awards and the wallet ledger, and the reconciler stays clean |
 | P20A-T15 | Only the four manifest files (`WalletService`, `helpers.php`, `DatabaseInstaller`, `DatabaseResetService`) name the new objects; no model, service, controller or route exists |
-| P20A-T16 | The phase is inert: empty tables, no producer, no reader outside the reset engine |
+| P20A-T16 | The phase is inert: empty tables, no producer and no money reader outside the reset engine (at 20A; 20B's settings card is now an allowed counter reader) |
 | P20A-T17 | The schema, the bundle and the reset tooling all report 36 tables; the queue and awards are transactional, the ladder is catalogue |
 | P20A-T18 | The three tables refuse an impossible row (directs, baseline, level, amount, threshold, status, duplicate level) |
 
@@ -312,3 +314,285 @@ each phase appends its section.
 `QA20A-05` creates three QA members and a QA sponsor. The reset in `QA20A-08` removes them with every
 other member; if the reset is skipped, delete the four `QA20A_*` accounts from **Members**. Do not
 delete anything whose name does not start with `QA`.
+
+---
+
+# Section B — Phase 20B: Configuration (`QA20B-01` … `QA20B-09`)
+
+**Prerequisites.** Tag `p20a-foundation` (or later) on `feature/team-harvest`; the development copy
+migrated through `024` (**36 tables**, the four `team_harvest_*` settings, the ten ladder rows); the app
+running (Laragon → Start All) for the page checks; a signed-in **admin** session; the audit desk
+available at `/admin/audit`. Expected suite count for this section: **1,204**.
+
+> **Notation.** As in section A: `mysql` is
+> `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe` with the app account, `php` is Laragon's PHP
+> 8.3 CLI, and every command runs from `system/`.
+>
+> **Money.** Section B moves **no money**: the card writes the ten ladder amounts and three settings and
+> nothing else. There is no queue row, no award and no wallet movement to clean up — but `QA20B-02` and
+> `QA20B-04` do change the stored ladder, so both restore the reference amounts at the end (the card's
+> own **Load reference ladder** button, then **Save settings**). A copy of the pre-check values is in
+> `QA20B-01`'s transcript for a manual restore.
+
+The automated pass, run before these checks, is:
+
+```text
+php tests\run.php                     → Cases: 1204   Passed: 1204   Failed: 0
+php tests\run.php TeamHarvestConfiguration → Cases: 24   Passed: 24   Failed: 0
+powershell -File tests/smoke.ps1      → Passed: 251   Failed: 0
+```
+
+### QA20B-01 — The card on a migrated database
+
+| Why | Rule 1 (the reference ladder), Rule 5 (gate 3, depth 10), Rule 6 (the strip never claims the stream is live) |
+|---|---|
+| Where | `/admin/settings` → **Commissions**, and `mysql` |
+| Evidence | `QA20B-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as `admin`, open **System → Settings** (`/admin/settings`), scroll to **Commissions**, then
+   below the Royalty block to **Team Harvest bonus**.
+2. Read the switch, the two numbers and the ten amount inputs.
+3. Read the status strip and the sentence under the ladder.
+4. `SELECT key_name, value FROM settings WHERE key_name LIKE 'team\_harvest\_%' ORDER BY key_name;`
+5. `SELECT level, amount FROM team_harvest_levels ORDER BY level;`
+6. `SELECT COUNT(*) FROM harvest_queue;`
+
+Expected
+
+- The **Enable the Team Harvest bonus** switch is **off**; **Direct members needed to qualify** reads
+  `3`; **Levels that pay** reads `10`.
+- The ten inputs show `1000.00, 2000.00, 4000.00, 6000.00, 12000.00, 50000.00, 120000.00, 200000.00,
+  1200000.00, 3500000.00`; the ladder table's cumulative column ends at **₱5,095,000.00**.
+- The strip says **Not seeded — no position has been assigned** and names
+  `bin/harvest_queue_seed.php`; the sentence says the full ladder pays **₱5,095,000.00 to one member**
+  who gathers **88,572** qualified teammates.
+- The four settings read `team_harvest_enabled = 0`, `team_harvest_qualify_directs = 3`,
+  `team_harvest_max_levels = 10`, `team_harvest_ledger_since = ''`.
+- Ten ladder rows with the reference amounts; `harvest_queue` is **0**.
+- If it fails: check that migration `024` ran and that the page has no console error; a 500 here
+  usually means the `team_harvest_levels` table is missing.
+
+### QA20B-02 — A real ladder change is saved and audited
+
+| Why | Rule 2 (amounts are money), Rule 9 (the card shows the new total), Rule 10 (history is not rewritten) |
+|---|---|
+| Where | `/admin/settings` → **Commissions**, `/admin/audit`, and `mysql` |
+| Evidence | `QA20B-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Change **Level 1** to `1500` and **Level 10** to `4000000`.
+2. Press **Save settings** on the Commissions card.
+3. Re-open `/admin/settings#settings-commissions` and read the two inputs and the full-ladder total.
+4. Open `/admin/audit`, filter the action `team_harvest.ladder.update`, open the newest row.
+5. `SELECT level, amount, updated_by FROM team_harvest_levels WHERE level IN (1, 10);`
+6. Restore: click **Load reference ladder**, then **Save settings**, and confirm the total returns to
+   ₱5,095,000.00.
+
+Expected
+
+- The save is accepted; the inputs persist `1500.00` and `4000000.00`.
+- The full-ladder total reads **₱5,595,500.00** and the ladder's cumulative column ends at it.
+- The audit desk shows one `team_harvest.ladder.update` row whose payload holds the ten amounts and the
+  three knobs, **before and after**, and names only `levels.1` and `levels.10` in `changes`.
+- `updated_by` is the admin's id on all ten rows.
+- Step 6 returns the total to **₱5,095,000.00**.
+- If it fails: a missing audit row usually means the save changed nothing (compare the typed values
+  with the stored ones); a total that does not move means the ten rows were not rewritten.
+
+### QA20B-03 — The total ceiling is refused
+
+| Why | Rule 3: the ten amounts may not total more than ₱25,000,000.00, refused as a `sum` error and never clamped |
+|---|---|
+| Where | `/admin/settings` → **Commissions**, and `mysql` |
+| Evidence | `QA20B-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Note the stored ladder (`SELECT SUM(amount) FROM team_harvest_levels;`).
+2. Set **Level 8**, **Level 9** and **Level 10** each to `10000000.00` (three levels at the per-level
+   ceiling, **₱30,195,000.00** in total).
+3. Press **Save settings**.
+4. `SELECT SUM(amount) FROM team_harvest_levels;`
+
+Expected
+
+- The card shows one error: *“The ten amounts total ₱30,195,000.00 — the full ladder cannot exceed
+  ₱25,000,000.00…”*, and the typed values come back in the inputs.
+- The stored ladder is **unchanged** (step 4 equals step 1): a refused save writes neither the settings
+  nor the ten rows.
+- **Note for the tester:** the plan's original step (*“set level 10 to ₱20,000,000”*) is refused by the
+  **per-level** ceiling first (Rule 2), because no single amount may exceed ₱10,000,000.00. The total
+  ceiling is exercised with three levels, as above; the deviation is recorded in `docs/phase-log.md`.
+- If it fails: if the save is accepted, the `sum` cross-field rule is not wired; if the stored ladder
+  moved, the save is not atomic.
+
+### QA20B-04 — Load reference ladder
+
+| Why | Rule 9: the preset is offered, never applied by itself |
+|---|---|
+| Where | `/admin/settings` → **Commissions** |
+| Evidence | `QA20B-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Clear three or four amounts by hand and press **Save settings** (the card accepts it).
+2. Press **Load reference ladder**.
+3. Read the ten inputs and the full-ladder total (do **not** save yet — confirm nothing was stored).
+4. Press **Save settings**, then reload the page.
+
+Expected
+
+- Step 2 fills the ten inputs with `1000.00 … 3500000.00` and the live total reads **₱5,095,000.00**.
+- Step 3 changes the form only; `SELECT SUM(amount) FROM team_harvest_levels;` still shows the cleared
+  ladder until step 4 saves.
+- Step 4 persists the reference ladder, and a reload shows the same ten values and total.
+- If it fails: a button that does nothing usually means `app-team-harvest.js` is not loaded on the
+  settings page; the server-side form still works, so this is a JavaScript-only failure.
+
+### QA20B-05 — Enabling an all-zero ladder is refused
+
+| Why | Rule 4: a stream that would pay nothing cannot be switched on |
+|---|---|
+| Where | `/admin/settings` → **Commissions**, and `mysql` |
+| Evidence | `QA20B-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Press **Clear**, then **Save settings** with the switch **off** — the cleared ladder is accepted.
+2. Tick **Enable the Team Harvest bonus** and press **Save settings**.
+3. Read the error under the switch.
+4. `SELECT value FROM settings WHERE key_name = 'team_harvest_enabled';`
+5. Untick the switch and press **Save settings**; then restore the reference ladder and leave the
+   switch off.
+
+Expected
+
+- Step 1 stores ten rows at `0.00` (blank = 0) and the card still saves.
+- Step 2 is refused with the exact message **“Turn the switch off or give at least one level an amount
+  above zero.”** on the switch, and step 4 still reads `0`.
+- Nothing else moved: the ten rows are still `0.00` after the refusal.
+- If it fails: an accepted all-zero enabled save is a Rule 4 defect — stop and report it.
+
+### QA20B-06 — The gate and the depth
+
+| Why | Rule 5: the gate and the depth are whole numbers 1–10; the depth marks the unpaid levels |
+|---|---|
+| Where | `/admin/settings` → **Commissions** |
+| Evidence | `QA20B-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set **Direct members needed to qualify** to `11` and save: refused.
+2. Set it back to `3`.
+3. Set **Levels that pay** to `3` and save.
+4. Read the ladder table's Depth column and each input's badge.
+5. Set **Levels that pay** back to `10` and save.
+
+Expected
+
+- Step 1 is a field error on the gate (*“must be at most 10”*), and the stored value stays `3`.
+- Step 3 is accepted; the saved-ladder table marks levels **4–10** *Not paid* and the inputs carry a
+  **Not paid at this depth** badge, while levels 1–3 are **Paid**.
+- The ten amounts are **kept**: level 10 still reads ₱3,500,000.00 even while it is not paid.
+- Step 5 removes the markings.
+- If it fails: an accepted `11`, or a depth that deletes amounts instead of marking them, is a Rule 5
+  defect.
+
+### QA20B-07 — Three registrations write no queue row
+
+| Why | Rule 6 / P20B-T15: 20B ships no hook; registering members after configuring still writes nothing |
+|---|---|
+| Where | `/register` (or **Members**), and `mysql` |
+| Evidence | `QA20B-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. With the reference ladder and the switch **on**, register three members under one sponsor through
+   `/register` (the pending mode needs no package or code on the development copy).
+2. `SELECT COUNT(*) FROM harvest_queue;`
+3. `SELECT COUNT(*) FROM team_harvest_awards;`
+4. `SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'team_harvest';`
+5. Open the sponsor's member page and search it for **Harvest**.
+
+Expected
+
+- All three registrations succeed and appear under the sponsor.
+- `harvest_queue` is **0**: no position was assigned (the hook is 20C).
+- `team_harvest_awards` is **0** and no `team_harvest` wallet row exists.
+- The member page shows **no** harvest panel, position or award line yet (20E).
+- If it fails: a queue row here means the 20C hook leaked into 20B — the phase is not inert.
+
+### QA20B-08 — The card saves with JavaScript disabled
+
+| Why | Rule 12: no JavaScript-only validation |
+|---|---|
+| Where | `/admin/settings` → **Commissions**, with JavaScript disabled in the browser |
+| Evidence | `QA20B-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Disable JavaScript for the site (or open the page in a browser profile with JS off).
+2. Change **Level 2** to `2500` and press **Save settings**.
+3. Re-open the page: the value persists and the cumulative column follows.
+4. Enter `1000.1234` in a level and save: refused with the field error.
+5. Restore level 2 to `2000.00` and save.
+
+Expected
+
+- The form posts and saves without JavaScript; no console error is needed for the save to work.
+- Only the **live** cumulative/total re-read is missing — the server-rendered numbers are still shown.
+- The validation is identical with JS off: the decimal error appears under the input.
+- If it fails: a save that requires the script is a Rule 12 defect.
+
+### QA20B-09 — The card at 390 px and 1440 px
+
+| Why | Rule 11 / P20B-T18: readable on a phone without a page-level horizontal scroll |
+|---|---|
+| Where | `/admin/settings#settings-commissions` at a 390 px viewport and a 1440 px viewport |
+| Evidence | `QA20B-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open the page at 1440 px wide: the two knobs and the ten amounts sit in two columns.
+2. Narrow the window (or the device emulator) to 390 px.
+3. Scroll the card: the ten inputs stack one per row; the six-column **Saved ladder** table scrolls
+   inside its own card, not the page.
+4. Check the page's own scrollbar: no horizontal scroll appears at page level.
+
+Expected
+
+- At 390 px every amount input is full-width in its own row; the saved-ladder table has its own
+  horizontal scrollbar inside the card.
+- No page-level horizontal scrollbar appears at either width.
+- The status strip, the buttons and the sentence wrap without overflow.
+- If it fails: note the offending element and its width in the evidence file; the automated case
+  (`P20B-T18`) pins the grid and table markup, so this is usually a CSS/copy overflow.
+
+---
+
+## Evidence — section B
+
+Save each check's transcript under `docs/qa/evidence/phase-20/`, named exactly as its **Evidence**
+line (`QA20B-01.txt` … `QA20B-09.txt`). A page check that shows a screen is captured as a screenshot
+only when the tester has a browser; the automated pass records the rendered markup and the counts as a
+transcript, as section A did. The folder's `README.md` indexes the new rows.
+
+## Cleanup — section B
+
+Section B writes configuration and nothing else. `QA20B-02`/`04` restore the reference ladder; if a
+manual run stopped midway, press **Load reference ladder** and **Save settings**, or run
+`php bin/build_install_sql.php --check` and restore the ladder with the SQL in `QA20B-01`'s transcript.
+`QA20B-07` creates three QA members; leave them (20B writes nothing about them) or delete the
+`QA20B_*` accounts from **Members**. Do not delete anything whose name does not start with `QA`.

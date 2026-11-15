@@ -31,6 +31,12 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $royalty_fields
  * @var array<string, array{label:string,hint:string}> $royalty_toggles
  * @var array<string, mixed> $royalty_ladder
+ * @var list<array<string, mixed>> $team_harvest_fields
+ * @var array<string, array{label:string,hint:string}> $team_harvest_toggles
+ * @var array<int, string> $team_harvest_amounts
+ * @var array<string, mixed> $team_harvest_ladder
+ * @var array<string, mixed> $team_harvest_status
+ * @var array<int, string> $team_harvest_preset
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
@@ -55,6 +61,12 @@ $repeatToggles    = $repeat_toggles ?? [];
 $royaltyFields    = $royalty_fields ?? [];
 $royaltyToggles   = $royalty_toggles ?? [];
 $royaltyLadder    = $royalty_ladder ?? [];
+$teamFields       = $team_harvest_fields ?? [];
+$teamToggles      = $team_harvest_toggles ?? [];
+$teamAmounts      = $team_harvest_amounts ?? [];
+$teamLadder       = $team_harvest_ladder ?? [];
+$teamStatus       = $team_harvest_status ?? [];
+$teamPreset       = $team_harvest_preset ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -93,8 +105,8 @@ $action = url('admin/settings');
                   <h4 class="mb-1">Settings</h4>
                   <p class="text-body-secondary mb-0">
                     Identity, where buyers send manual payments, how withdrawals are paid out, how long a buyer has to
-                    pay, whether an order may be cancelled, what appears on the printed invoice, how commissions and
-                    the Royalty bonus are earned and what transfers may move.
+                    pay, whether an order may be cancelled, what appears on the printed invoice, how commissions,
+                    the Royalty bonus and the Team Harvest bonus are earned and what transfers may move.
                     Each card saves on its own and every change is recorded in the audit log.
                     <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
                   </p>
@@ -252,9 +264,9 @@ $action = url('admin/settings');
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <div>
                         <h5 class="mb-1">Commissions</h5>
-                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase, Royalty and registration rules</p>
+                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase, Royalty, Team Harvest and registration rules</p>
                       </div>
-                      <span class="badge bg-label-secondary">Phase 15 · 19B</span>
+                      <span class="badge bg-label-secondary">Phase 15 · 19B · 20B</span>
                     </div>
 <?= View::capture('admin/settings/_commissions', [
     'settings'           => $settings,
@@ -265,6 +277,12 @@ $action = url('admin/settings');
     'royalty_fields'     => $royaltyFields,
     'royalty_toggles'    => $royaltyToggles,
     'royalty_ladder'     => $royaltyLadder,
+    'team_harvest_fields'  => $teamFields,
+    'team_harvest_toggles' => $teamToggles,
+    'team_harvest_amounts' => $teamAmounts,
+    'team_harvest_ladder'  => $teamLadder,
+    'team_harvest_status'  => $teamStatus,
+    'team_harvest_preset'  => $teamPreset,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

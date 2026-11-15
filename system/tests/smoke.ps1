@@ -230,6 +230,16 @@ function Set-SettingValue {
     Invoke-MySql "INSERT INTO settings (key_name, value) VALUES ('$Key', '$Value') ON DUPLICATE KEY UPDATE value = '$Value';" | Out-Null
 }
 
+# One Team Harvest ladder amount (Phase 20B). The ten amounts live in
+# team_harvest_levels, not in settings, so they have their own setter and
+# their own finally-block restore.
+function Set-LadderAmount {
+    param([int] $Level, [string] $Amount)
+
+    $value = if ([string]::IsNullOrWhiteSpace($Amount)) { '0.00' } else { $Amount }
+    Invoke-MySql "INSERT INTO team_harvest_levels (level, amount) VALUES ($Level, $value) ON DUPLICATE KEY UPDATE amount = $value;" | Out-Null
+}
+
 function Sign-In {
     param([string] $Session, [string] $Username, [string] $Password)
 
@@ -262,6 +272,8 @@ $memberPassword    = 'Smoke@12345'
 $maintenanceBefore = '0'
 $selfOrderId       = 0
 $settingsSnapshot  = @{}
+# Phase 20B: the ten Team Harvest amounts (a table, not settings).
+$p20bLadderBefore  = @{}
 
 # Order cancellation ships off (Settings -> Shop -> Enable Cancel of Order).
 # This run exercises the legacy member/admin cancellation and refund paths,
@@ -2983,7 +2995,9 @@ try {
 
     # Every key the Commissions card owns: a card save writes all of them,
     # so each one is snapshotted and posted back unchanged. Phase 19B adds
-    # the thirteen Royalty ladder values and its two switches.
+    # the thirteen Royalty ladder values and its two switches; Phase 20B adds
+    # the Team Harvest switch, its two knobs (its ten amounts are table rows,
+    # snapshotted from team_harvest_levels below).
     $p17bCommissionKeys = @(
         'commission_direct_enabled', 'commission_indirect_enabled', 'commission_requires_active_sponsor',
         'commission_compression', 'free_registration_enabled', 'commission_indirect_max_levels',
@@ -2996,8 +3010,30 @@ try {
         'royalty_supervisor_quota', 'royalty_manager_quota', 'royalty_director_quota',
         'royalty_supervisor_group_pct', 'royalty_supervisor_personal_pct',
         'royalty_manager_group_pct', 'royalty_manager_personal_pct',
-        'royalty_director_group_pct', 'royalty_director_personal_pct'
+        'royalty_director_group_pct', 'royalty_director_personal_pct',
+        'team_harvest_enabled', 'team_harvest_qualify_directs', 'team_harvest_max_levels'
     )
+
+    # The ten Team Harvest amounts post as `team_harvest_amounts[N]`; each one
+    # is snapshotted so every card save posts the ladder back unchanged.
+    $p20bAmountKeys = @(1..10 | ForEach-Object { "team_harvest_amounts[$_]" })
+    $p20bAmountLevel = @{}
+
+    foreach ($level in 1..10) {
+        $p20bAmountLevel["team_harvest_amounts[$level]"] = $level
+
+        if (-not $p20bLadderBefore.ContainsKey($level)) {
+            $p20bLadderBefore[$level] = '0.00'
+        }
+    }
+
+    foreach ($row in @(Invoke-MySql "SELECT CONCAT(level, '|', amount) FROM team_harvest_levels ORDER BY level;")) {
+        $parts = ([string] $row).Trim().Split('|')
+
+        if ($parts.Count -eq 2) {
+            $p20bLadderBefore[[int] $parts[0]] = $parts[1]
+        }
+    }
 
     $p17bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
     $p17bToken    = Get-Csrf $p17bSettings.Body
@@ -3147,6 +3183,7 @@ try {
 
     $p17bCommissionForm = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
     foreach ($key in $p17bCommissionKeys) { $p17bCommissionForm[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p17bCommissionForm[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
 
     $p17bBadDepth = $p17bCommissionForm.Clone()
     $p17bBadDepth['unilevel_max_levels'] = '11'
@@ -3248,6 +3285,7 @@ try {
     # writes nothing.
     $p19bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
     foreach ($key in $p17bCommissionKeys) { $p19bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p19bBadSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
     $p19bBadSave['royalty_supervisor_quota'] = '500000.00'
     $p19bBadSave['royalty_manager_quota']    = '400000.00'
 
@@ -3273,6 +3311,56 @@ try {
             -and $p19bMembers.Body -match 'ranked \(Supervisor\+\)' `
             -and $p19bMembers.Body -match 'badge bg-label-(secondary|info|primary|warning|success)">(Member|Leader|Supervisor|Manager|Director)<') `
         "the member directory renders the Rank column and the derived distribution (status=$($p19bMembers.Status))"
+
+    # ---- Phase 20B: the Team Harvest configuration ----------------------
+    # The ladder card, its sum guard and the generated 3x10 matrix. 20B moves
+    # no money and writes no position: every check here reads the card or
+    # sends a refused save, so the stored ladder is never rewritten.
+    $p20bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p20bInputs   = [regex]::Matches($p20bSettings.Body, 'name="team_harvest_amounts\[\d+\]"').Count
+
+    Assert-That 'P20B-T1' ($p20bSettings.Status -eq 200 `
+            -and $p20bSettings.Body -match 'Team Harvest bonus' `
+            -and $p20bSettings.Body -match 'name="team_harvest_enabled"' `
+            -and $p20bSettings.Body -match 'name="team_harvest_qualify_directs"' `
+            -and $p20bSettings.Body -match 'name="team_harvest_max_levels"' `
+            -and $p20bInputs -eq 10 `
+            -and $p20bSettings.Body -match 'value="1000.00"' `
+            -and $p20bSettings.Body -match 'value="3500000.00"' `
+            -and $p20bSettings.Body -match 'data-team-harvest-table' `
+            -and $p20bSettings.Body -match 'data-team-harvest-state="unseeded"' `
+            -and $p20bSettings.Body -match 'bin/harvest_queue_seed.php' `
+            -and $p20bSettings.Body -match '5,095,000.00' `
+            -and $p20bSettings.Body -notmatch 'team_harvest_ledger_since') `
+        "the Commissions card renders the Team Harvest sub-block, ten amount inputs and the unseeded strip (status=$($p20bSettings.Status), inputs=$p20bInputs)"
+
+    # The generated matrix is Appendix A: slots 3/9/27 ... 59,049, thresholds
+    # 3/12/39 ... 88,572 and PHP 5,095,000.00 in total.
+    Assert-That 'P20B-T11' ($p20bSettings.Body -match 'data-team-harvest-slots="1">3' `
+            -and $p20bSettings.Body -match 'data-team-harvest-slots="10">59,049' `
+            -and $p20bSettings.Body -match 'data-team-harvest-threshold="1">3' `
+            -and $p20bSettings.Body -match 'data-team-harvest-threshold="10">88,572' `
+            -and $p20bSettings.Body -match '5,095,000.00') `
+        'the Team Harvest ladder table renders Appendix A slots, thresholds and the cumulative total'
+
+    # Three levels at the per-level ceiling total PHP 30,195,000.00: a `sum`
+    # field error, and neither the settings nor the ten rows may move.
+    $p20bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p20bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p20bBadSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    $p20bBadSave['team_harvest_amounts[8]']  = '10000000.00'
+    $p20bBadSave['team_harvest_amounts[9]']  = '10000000.00'
+    $p20bBadSave['team_harvest_amounts[10]'] = '10000000.00'
+
+    $p20bLadderBeforeText = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM team_harvest_levels;" | Out-String).Trim()
+    $p20bBadResult        = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p20bBadSave
+    $p20bBadPage          = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p20bLadderAfterText  = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM team_harvest_levels;" | Out-String).Trim()
+
+    Assert-That 'P20B-T4' ($p20bBadResult.Status -eq 302 `
+            -and $p20bBadPage.Body -match 'cannot exceed' `
+            -and $p20bLadderAfterText -eq $p20bLadderBeforeText) `
+        "a Team Harvest ladder over the PHP 25M ceiling is refused and the stored ladder is unchanged (sum|rows=$p20bLadderAfterText)"
 
     # ---- Phase 19D: the admin Royalty ledger ----------------------------
     $p19dAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
@@ -3863,7 +3951,13 @@ try {
         'unilevel_reversal_enabled'        = '1'
         # Phase 18: the card also owns the escrow hold and the release switch.
         'unilevel_hold_days'               = '7'
-        'unilevel_release_enabled'         = '1'
+'unilevel_release_enabled'         = '1'
+        # Phase 20B: the card also owns the Team Harvest switch and its two
+        # small integers. The ten amounts are table rows and are not posted
+        # here - the controller keeps the stored ladder when they are absent.
+        'team_harvest_enabled'             = '0'
+        'team_harvest_qualify_directs'     = [string] (Get-SettingValue 'team_harvest_qualify_directs')
+        'team_harvest_max_levels'          = [string] (Get-SettingValue 'team_harvest_max_levels')
     }
     foreach ($key in $p15RoyaltyKeys) { $p15CommissionForm[$key] = [string] $p15RoyaltyValues[$key] }
 
@@ -4100,6 +4194,10 @@ try {
     try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
     foreach ($key in $settingsSnapshot.Keys) {
         try { Set-SettingValue $key ([string] $settingsSnapshot[$key]) } catch { }
+    }
+    # Phase 20B: the Team Harvest ladder (ten table rows, not settings).
+    foreach ($level in $p20bLadderBefore.Keys) {
+        try { Set-LadderAmount ([int] $level) ([string] $p20bLadderBefore[$level]) } catch { }
     }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
     try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }

@@ -23,21 +23,7 @@ $render = static function (array $overrides = []): string {
         'current_nav'       => 'admin.settings',
         'page_css'          => ['assets/css/orders.css'],
         'settings'          => setting_all(),
-        'account_groups'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('ACCOUNT_GROUPS'),
-        'general_fields'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('GENERAL_FIELDS'),
-        'payout_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('PAYOUT_FIELDS'),
-        'payout_channels'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('PAYOUT_CHANNELS'),
-        'window_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('WINDOW_FIELDS'),
-        'seller_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('SELLER_FIELDS'),
-        'fulfilment_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('FULFILMENT_FIELDS'),
-        'commission_fields' => (new ReflectionClass(AdminSettingsController::class))->getConstant('COMMISSION_FIELDS'),
-        'commission_toggles' => (new ReflectionClass(AdminSettingsController::class))->getConstant('COMMISSION_TOGGLES'),
-        'repeat_fields'     => (new ReflectionClass(AdminSettingsController::class))->getConstant('REPEAT_FIELDS'),
-        'repeat_toggles'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('REPEAT_TOGGLES'),
-        'royalty_fields'    => (new ReflectionClass(AdminSettingsController::class))->getConstant('ROYALTY_FIELDS'),
-        'royalty_toggles'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('ROYALTY_TOGGLES'),
-        'royalty_ladder'    => RoyaltyRank::ladder(),
-        'transfer_fields'   => (new ReflectionClass(AdminSettingsController::class))->getConstant('TRANSFER_FIELDS'),
+    ], (new AdminSettingsController())->settingsContext(), [
         'shop_enabled'      => true,
         'expiry_enabled'    => true,
         'autocomplete_enabled' => true,
@@ -146,6 +132,12 @@ return [
         assert_contains('name="royalty_supervisor_quota"', $commissions);
         assert_contains('Royalty bonus', $commissions);
         assert_not_contains('name="royalty_ledger_since"', $commissions);
+        assert_contains('name="team_harvest_enabled"', $commissions);
+        assert_contains('name="team_harvest_qualify_directs"', $commissions);
+        assert_contains('name="team_harvest_max_levels"', $commissions);
+        assert_contains('Team Harvest bonus', $commissions);
+        assert_contains('data-team-harvest-table', $commissions);
+        assert_not_contains('name="team_harvest_ledger_since"', $commissions);
         assert_not_contains('name="ewallet_transfer_fee"', $commissions);
         assert_not_contains('name="site_name"', $commissions);
 
@@ -359,10 +351,22 @@ return [
                 'royalty_manager_personal_pct',
                 'royalty_director_group_pct',
                 'royalty_director_personal_pct',
+                'team_harvest_qualify_directs',
+                'team_harvest_max_levels',
+                'team_harvest_amounts.1',
+                'team_harvest_amounts.2',
+                'team_harvest_amounts.3',
+                'team_harvest_amounts.4',
+                'team_harvest_amounts.5',
+                'team_harvest_amounts.6',
+                'team_harvest_amounts.7',
+                'team_harvest_amounts.8',
+                'team_harvest_amounts.9',
+                'team_harvest_amounts.10',
             ],
             $commissions,
-            'the commissions card owns the referral depth, both repeat-purchase numbers, the escrow hold '
-                . 'and the thirteen Royalty ladder values'
+            'the commissions card owns the referral depth, both repeat-purchase numbers, the escrow hold, '
+                . 'the thirteen Royalty ladder values, the two Team Harvest knobs and its ten amounts'
         );
         assert_same(
             [
@@ -445,9 +449,11 @@ return [
                 'unilevel_release_enabled',
                 'royalty_enabled',
                 'royalty_pay_enabled',
+                'team_harvest_enabled',
             ],
             $sectionMethod('sectionToggles', 'commissions'),
-            'one switch per compensation rule, including the four repeat-purchase and two Royalty switches'
+            'one switch per compensation rule, including the four repeat-purchase, two Royalty and one '
+                . 'Team Harvest switch'
         );
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 
@@ -534,6 +540,20 @@ return [
         assert_same('required|in:0,1', $commissionRules['royalty_pay_enabled'] ?? '');
         assert_false(array_key_exists('royalty_ledger_since', $commissionRules), 'the baseline is never validated');
         assert_false(array_key_exists('ewallet_transfer_fee', $commissionRules));
+
+        /* The Team Harvest block (Phase 20B): two small integers, ten money
+         * amounts and one switch; the seed's baseline is never a field. */
+        assert_same('required|integer|gte:1|lte:10', $commissionRules['team_harvest_qualify_directs'] ?? '');
+        assert_same('required|integer|gte:1|lte:10', $commissionRules['team_harvest_max_levels'] ?? '');
+        assert_same(TeamHarvestLevel::AMOUNT_RULE, $commissionRules['team_harvest_amounts.1'] ?? '');
+        assert_same(TeamHarvestLevel::AMOUNT_RULE, $commissionRules['team_harvest_amounts.10'] ?? '');
+        assert_same('required|in:0,1', $commissionRules['team_harvest_enabled'] ?? '');
+        assert_false(array_key_exists('team_harvest_ledger_since', $commissionRules));
+
+        $commissionLabels = $sectionMethod('sectionLabels', 'commissions');
+        assert_same('Level 3 amount', $commissionLabels['team_harvest_amounts.3'] ?? '');
+        assert_same('Direct members needed to qualify', $commissionLabels['team_harvest_qualify_directs'] ?? '');
+        assert_same('Enable the Team Harvest bonus', $commissionLabels['team_harvest_enabled'] ?? '');
 
         $transferRules = $sectionMethod('sectionRules', 'transfers');
         foreach (['ewallet_transfer_fee', 'ewallet_min_transfer', 'ewallet_transfer_daily_limit', 'ewallet_transfer_weekly_limit'] as $key) {

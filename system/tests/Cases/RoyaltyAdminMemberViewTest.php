@@ -258,10 +258,18 @@ return [
         $auditBefore  = (int) db()->query('SELECT COALESCE(MAX(id), 0) FROM audit_log')->fetchColumn();
 
         /* The card payload the browser posts: every stored value, then
-         * the three edits. */
-        $posted = [];
+         * the three edits. The Team Harvest amounts (Phase 20B) are ladder
+         * rows, not settings keys, and a real card always posts all ten. */
+        $posted     = [];
+        $teamAmounts = TeamHarvestLevel::forForm(TeamHarvestLevel::amounts());
 
         foreach (array_merge($sectionMethod('sectionKeys', 'commissions'), $sectionMethod('sectionToggles', 'commissions')) as $key) {
+            if (str_starts_with($key, TeamHarvestLevel::AMOUNT_FIELD . '.')) {
+                $level        = (int) substr($key, strlen(TeamHarvestLevel::AMOUNT_FIELD . '.'));
+                $posted[$key] = (string) ($teamAmounts[$level] ?? '');
+                continue;
+            }
+
             $posted[$key] = (string) setting($key, '');
         }
 

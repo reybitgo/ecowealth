@@ -830,8 +830,10 @@ member-facing page, no seed job. Registering members after this phase still writ
    reference amounts, the switch off, the gate `3`, the depth `10`, and the strip *not seeded*.
 2. `QA20B-02` — change level 1 to ₱1,500 and level 10 to ₱4,000,000, save. Re-open: the values
    persist, the total reads `5,595,500.00`, and the audit desk shows `team_harvest.ladder.update`.
-3. `QA20B-03` — set level 10 to ₱20,000,000 and save: the sum error appears, the values come back as
-   typed and the stored ladder is unchanged.
+3. `QA20B-03` — set levels 8, 9 and 10 to ₱10,000,000 each (₱30,195,000.00 in total) and save: the
+   sum error appears, the values come back as typed and the stored ladder is unchanged. *(The step
+   was drafted as “set level 10 to ₱20,000,000”; Rule 2's per-level ceiling refuses that value first.
+   See the deviation log.)*
 4. `QA20B-04` — click **Load reference ladder**: the ten inputs return to the preset and the total to
    `5,095,000.00`; save.
 5. `QA20B-05` — turn the switch on with all ten cleared: the error asks for an amount or the switch
@@ -3620,7 +3622,7 @@ without a filled row is not closed, whatever its code says.
 | Phase | Tag | Date | Suite passed/ran | Smoke passed/ran | Migration/bundle | Manual QA `QA20X-nn` | Tester | Deviations | Signed |
 |---|---|---|---:|---:|---|---|---|---|---|
 | 20A Foundation | `p20a-foundation` | 2026-11-15 | 1,180 / 1,180 | 248 / 248 | migration `024` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (64 statements) | A: 4/8 automated (04–06 need the running app) | — (pending lead) | see §20A deviations in `docs/phase-log.md` | ☐ |
-| 20B Configuration | `p20b-configuration` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | B: —/9 | — | — | ☐ |
+| 20B Configuration | `p20b-configuration` | 2026-11-15 | 1,204 / 1,204 | 251 / 251 | no schema change; bundle `--check` exit 0 (64 statements) | B: 6/9 automated (01–06; 07–09 need a browser) | — (pending lead) | see §20B deviations in `docs/phase-log.md` | ☐ |
 | 20C The Harvest queue | `p20c-queue` | — | — / — | — / — | no schema change; the seed's dry run and rebuild both exit 0 | C: —/8 | — | — | ☐ |
 | 20D Money engine | `p20d-money` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 with the Team Harvest section; catch-up doctor exit 0 | D: —/10 | — | — | ☐ |
 | 20E Admin visibility | `p20e-admin` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | E: —/8 | — | — | ☐ |
@@ -3632,7 +3634,8 @@ that owns it. An empty deviation log at the 20G gate means the plan and the buil
 
 | Phase | Deviation | Reason | Approved by |
 |---|---|---|---|
-| | | | |
+| 20B | QA20B-03's example (“level 10 at ₱20,000,000”) is refused by Rule 2's per-level ceiling before the total rule; the check now uses three levels at ₱10,000,000 (₱30,195,000.00) | The two rules are both correct; only the drafted example contradicted Rule 2. §6 QA20B-03 amended. | — (recorded in `docs/phase-log.md`) |
+| 20B | Four extra cases, P20B-T21 … T24, beyond the plan's T1–T20 | The floor is ≥ 1,202 cases (1,180 + 22); twenty cases would have left 1,200. T21 pins the ladder audit payload, T22 the card's scope, T23 the history copy, T24 the missing-amount-fields guard. No contract changed. | — (recorded in `docs/phase-log.md`) |
 
 **Acceptance sign-off.**
 

@@ -68,16 +68,27 @@ $sectionMethod = static function (string $method, string $section): array {
  * Every key the Commissions card owns, read from the stored settings —
  * the same payload the browser posts when nothing is edited.
  *
+ * Phase 20B added its two knobs and ten amounts to the same card; the
+ * amounts are ladder rows rather than settings keys, so they are read
+ * from TeamHarvestLevel (a posted card always carries all ten).
+ *
  * @return array<string, string>
  */
 $baseline = static function (): array {
     $settings = setting_all();
+    $amounts  = TeamHarvestLevel::forForm(TeamHarvestLevel::amounts());
     $posted   = [];
 
     foreach (array_merge(
         $GLOBALS['__p19bKeys'],
         $GLOBALS['__p19bToggles']
     ) as $key) {
+        if (str_starts_with($key, TeamHarvestLevel::AMOUNT_FIELD . '.')) {
+            $level        = (int) substr($key, strlen(TeamHarvestLevel::AMOUNT_FIELD . '.'));
+            $posted[$key] = (string) ($amounts[$level] ?? '');
+            continue;
+        }
+
         $posted[$key] = (string) ($settings[$key] ?? '');
     }
 

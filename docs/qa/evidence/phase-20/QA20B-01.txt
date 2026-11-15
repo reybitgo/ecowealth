@@ -1,0 +1,87 @@
+QA20B-01 — The Team Harvest card on a migrated database
+=========================================================
+
+Date: 2026-11-15 22:10:29 (Asia/Manila)
+Where: AdminSettingsController::settingsContext() + View::page('admin', 'admin/settings/index')
+       on the development copy (ecowealth_sneat), signed in as admin #1;
+       the same context the browser at http://localhost/ecowealth/system/admin/settings#settings-commissions renders.
+Evidence type: transcript of the rendered card + the stored rows (no screenshot from a CLI pass).
+
+Steps
+
+1. Render the settings page the browser renders.
+2. Read the switch, the two knobs, the ten amount inputs and the status strip.
+3. Read the four team_harvest_* settings and the ten ladder rows; count harvest_queue.
+
+Result
+
+  QA20B-01 PASS  the sub-block renders with a 3x10 matrix heading and the unseeded strip
+  QA20B-01 PASS  ten amount inputs carry the reference ladder
+  QA20B-01 PASS  the switch is off; the gate reads 3; the depth reads 10
+  QA20B-01 PASS  the full-ladder sentence names the 5,095,000.00 per-member maximum and 88,572 teammates
+  QA20B-01 PASS  four settings stored, ten ladder rows, no queue row
+
+Rendered facts
+
+  data-team-harvest-state = unseeded
+  strip text             = Not seeded — no position has been assigned.
+  next action named      = bin/harvest_queue_seed.php
+  full-ladder total      = ₱5,095,000.00
+  ceiling shown          = 25,000,000.00
+  teammates at level 10  = 88,572
+  switch input           = off (unchecked)
+  gate input             = 3
+  depth input            = 10
+
+The ten amount inputs (name=team_harvest_amounts[N])
+
+  [ 1]      1000.00
+  [ 2]      2000.00
+  [ 3]      4000.00
+  [ 4]      6000.00
+  [ 5]     12000.00
+  [ 6]     50000.00
+  [ 7]    120000.00
+  [ 8]    200000.00
+  [ 9]   1200000.00
+  [10]   3500000.00
+
+The generated ladder table (read-only)
+
+  Level 1   slots 3       needs 3        stored    ₱1,000.00  cumulative    ₱1,000.00  Paid
+  Level 2   slots 9       needs 12       stored    ₱2,000.00  cumulative    ₱3,000.00  Paid
+  Level 3   slots 27      needs 39       stored    ₱4,000.00  cumulative    ₱7,000.00  Paid
+  Level 4   slots 81      needs 120      stored    ₱6,000.00  cumulative   ₱13,000.00  Paid
+  Level 5   slots 243     needs 363      stored   ₱12,000.00  cumulative   ₱25,000.00  Paid
+  Level 6   slots 729     needs 1,092    stored   ₱50,000.00  cumulative   ₱75,000.00  Paid
+  Level 7   slots 2,187   needs 3,279    stored  ₱120,000.00  cumulative  ₱195,000.00  Paid
+  Level 8   slots 6,561   needs 9,840    stored  ₱200,000.00  cumulative  ₱395,000.00  Paid
+  Level 9   slots 19,683  needs 29,523   stored ₱1,200,000.00  cumulative ₱1,595,000.00  Paid
+  Level 10  slots 59,049  needs 88,572   stored ₱3,500,000.00  cumulative ₱5,095,000.00  Paid
+
+Stored settings
+
+  team_harvest_enabled = 0
+  team_harvest_ledger_since = ''
+  team_harvest_max_levels = 10
+  team_harvest_qualify_directs = 3
+
+Stored ladder (team_harvest_levels)
+
+  Level 1   slots 3       needs 3        stored    ₱1,000.00  cumulative    ₱1,000.00
+  Level 2   slots 9       needs 12       stored    ₱2,000.00  cumulative    ₱3,000.00
+  Level 3   slots 27      needs 39       stored    ₱4,000.00  cumulative    ₱7,000.00
+  Level 4   slots 81      needs 120      stored    ₱6,000.00  cumulative   ₱13,000.00
+  Level 5   slots 243     needs 363      stored   ₱12,000.00  cumulative   ₱25,000.00
+  Level 6   slots 729     needs 1,092    stored   ₱50,000.00  cumulative   ₱75,000.00
+  Level 7   slots 2,187   needs 3,279    stored  ₱120,000.00  cumulative  ₱195,000.00
+  Level 8   slots 6,561   needs 9,840    stored  ₱200,000.00  cumulative  ₱395,000.00
+  Level 9   slots 19,683  needs 29,523   stored ₱1,200,000.00  cumulative ₱1,595,000.00
+  Level 10  slots 59,049  needs 88,572   stored ₱3,500,000.00  cumulative ₱5,095,000.00
+
+  SUM(amount)   = ₱5,095,000.00
+  COUNT(*)      = 10
+  harvest_queue = 0
+  awards        = 0
+
+RESULT: PASS

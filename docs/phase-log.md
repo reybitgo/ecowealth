@@ -6234,3 +6234,189 @@ already fails unless seed 001 carries every migration key).
 
 ---
 
+
+## Phase 20B — Configuration (2026-11-15)
+
+**Status:** complete · **Tags:** `p20a-foundation` (start), `p20b-configuration` ·
+**Branch:** `feature/team-harvest` · **Schema:** 36 tables, 77 settings (unchanged — this phase adds
+no schema) · **Suite:** 1,180 → **1,204** cases, **1,204 / 1,204** green · **Smoke:** 248 → **251**.
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §6 (Phase 20B), §12.6, §12.10, §13.3/§13.5 and Appendix A.
+This phase ships the **Team Harvest bonus card** on `/admin/settings → Commissions`: the enable switch,
+the qualification gate, the payable depth, the ten flat amounts, a generated 3×10 ladder and a
+four-state status strip. **No money moves and no position is written:** the queue is 20C and the award
+engine is 20D, and three registrations after configuring still leave `harvest_queue` at 0.
+
+### Database
+
+None. 20A shipped every table, column, setting and ladder row this phase writes. The development copy
+was migrated from 023 to 024 before the manual/automated pass (`ecowealth_sneat`: 33 → 36 tables,
+70 → 74 settings, ten ladder rows), with a dump outside the repository first
+(`C:\laragon\www\ecowealth-backups\phase-20\ecowealth_sneat-pre-20b-<stamp>.sql`).
+
+### Code
+
+- **`app/Models/TeamHarvestLevel.php`** (new) — the ladder and the matrix arithmetic in one place:
+  `rows()`, `map()`, `amounts()`, `amount()`, `save()`, `validate()`, `referencePreset()`, `forForm()`,
+  `fromInput()`, `total()`, `cumulative()`, `threshold()`, `slots()`, `qualifyDirects()`, `maxLevels()`
+  and `enabled()`. Reads are zero-filled (a missing row is ₱0.00); `rows()`/`map()` each run **one**
+  query; `amount()` reads ₱0.00 outside 1–10 while `threshold()`/`slots()` refuse an out-of-range level
+  with `InvalidArgumentException`. **`save()` is the only write:** it rewrites all ten rows
+  (delete-then-insert) inside the caller's transaction, stamps `updated_by` with the actor, and refuses
+  a non-numeric or over-ceiling amount or a total above ₱25,000,000.00 instead of clamping.
+  `AMOUNT_RULE` (`nullable|numeric|gte:0|lte:10000000|decimal:2`) is shared by the model and the card;
+  `validate()` owns the two cross-field rules — the ₱25,000,000.00 total and the enabled-all-zero
+  refusal.
+- **`app/Controllers/AdminSettingsController.php`** — `TEAM_HARVEST_FIELDS` (the gate and the depth),
+  `TEAM_HARVEST_TOGGLES` (the switch) and `TEAM_HARVEST_AMOUNTS` (the ten amounts as dotted keys
+  `team_harvest_amounts.1…10`), merged into `sectionKeys()`, `sectionToggles()`, `fieldRules()` and
+  `fieldLabels()` on the existing `commissions` section; `TEAM_HARVEST_STATES` names the four strip
+  states in order. `settingsContext()` now passes `team_harvest_fields` (the two knobs **and** the ten
+  amount descriptors, grouped), `team_harvest_amounts`, `team_harvest_ladder` (the generated rows),
+  `team_harvest_status` (seeded?, queue size, pending levels, open liability) and `team_harvest_preset`;
+  the live feed passes them to the same held card. `applySection()` gained the phase's only structural
+  change: the Commissions card's write runs in **one transaction** (settings, the ten rows and both
+  audit rows), the ten amounts are read from the `team_harvest_amounts[N]` array through the shared
+  dotted keys, and a card that does not post the amount fields at all **keeps** the stored ladder
+  (only an explicit array clears it). It audits `team_harvest.ladder.update` with the ten amounts and
+  the three knobs, before and after, **only when something moved**, plus the existing `settings.update`
+  row for each changed key. `save()`'s flash counts settings and the ladder. The page loads
+  `assets/js/app-team-harvest.js`.
+- **`app/views/admin/settings/_team_harvest.php`** (new) — the sub-block: the four-state strip, the
+  switch, the two knobs, the ten amount inputs (one `col-12 col-md-6` cell each, so they stack on a
+  phone) with each level's slot badge, its paying/not-paid badge, its threshold and its cumulative, the
+  **generated** read-only ladder table inside `.table-responsive` (Level, Slots, Teammates needed,
+  Stored amount, Cumulative, Depth), the ceiling line, the **Load reference ladder** / **Clear**
+  buttons, the full-ladder/per-member-maximum sentence and the history note. Every derived cell comes
+  from `TeamHarvestLevel`; the view computes no matrix value and carries no matrix literal.
+- **`app/views/admin/settings/_commissions.php`** — includes the new partial after the Royalty block,
+  inside the same form and `data-live-region`. **`app/views/admin/settings/index.php`** passes the six
+  new variables and names the block in its header/intro. **`app/views/admin/settings/_commissions.php`**
+  and **`index.php`** keep their variables defaulted (`?? []`), so a harness that renders the page with
+  a partial context still works.
+- **`public/assets/js/app-team-harvest.js`** (new) — progressive enhancement only: the live cumulative
+  column, the full-ladder total in both places, the ceiling tone, and the two buttons driven by each
+  input's `data-reference` (the preset lives only in `TeamHarvestLevel`). With JavaScript off the card
+  still saves, validates and shows the stored numbers.
+
+No route, no new page and no schema change (D-14). `APP_PHASE` stays **19**.
+
+### Views and copy
+
+The card follows Appendix C.1: *Team Harvest bonus*, the matrix explanation, the switch hint, the two
+knobs, the ten amount inputs, the generated table, the ceiling, the four-state strip
+(*Not seeded — no position has been assigned. Run `bin/harvest_queue_seed.php`…* / *Seeded and switched
+off* / *Seeded, switch on* / *Seeded, switch on — levels are waiting to be evaluated* with the amount
+owed and `bin/team_harvest_catchup.php`), and **one sentence** carrying the ₱5,095,000.00 full ladder,
+the per-member maximum and the 88,572 teammates that reach it. The card says every award keeps the
+amount it was paid at, that slots/thresholds are structural, and that no award is written by this card.
+
+### Tests
+
+**24 new cases: 1,180 → 1,204, all green.** `TeamHarvestConfigurationTest` (new): T1 (the card on a
+fresh database: ten reference inputs, switch off, gate 3, depth 10, strip unseeded, seed job named,
+₱5,095,000.00 sentence), T2 (the reference ladder and the three knobs saved: four settings, ten rows,
+one `team_harvest.ladder.update` row with before/after and the actor, the tenant-wide `settings.update`
+row, an unchanged second save writes nothing), T3 (three blanks stored as 0.00 and rendered blank),
+T4 (three levels at the ceiling = ₱30,195,000.00 refused as a `sum` error; nothing written), T5
+(10,000,000.01 refused on the level; exactly 10,000,000.00 accepted; negative refused), T6
+(`1000.1234` and text refused, `1000.12`/`1000.1`/blank/0 accepted), T7 (enabling an all-zero ladder
+refused on the switch with the exact message; off is legal; one centavo is enough), T8 (gate
+0/11/2.5/-1/abc/blank refused, the stored value survives, 5 saves), T9 (depth 0/11/3.5 refused, the
+previous value survives), T10 (depth 3 saved: levels 4–10 marked *Not paid* with their amounts kept),
+T11 (the generated table equals Appendix A line for line: slots 3…59,049, thresholds 3…88,572,
+amounts and cumulative, ₱5,095,000.00 total; the view carries no matrix literal), T12 (`amount(0|11|-3)`
+= 0.00, `threshold(0|11|-1)` throws), T13 (`amounts()`/`map()` run one statement each, ten keys 1–10,
+a deleted row reads 0.00, an empty table still has ten keys), T14 (a refused card changes neither
+store; the typed values and errors re-render), T15 (three real registrations under one sponsor after
+configuring: no queue row, no award, no `team_harvest` ledger row, wallets unchanged), T16 (enabled
+with an empty baseline still says *not seeded* and names the seed job; saving still works), T17 (a
+level-3 edit with an award in place changes the ladder but never the award's snapshot), T18 (the ten
+inputs are one `col-12` grid cell each and the table sits in `.table-responsive`), T19 (every derived
+number is server-rendered; no JS-only required field or submit handler), T20 (the phase adds no schema:
+36 tables, 74 seed settings, ten ladder rows, `APP_PHASE` 19, the bundle's 36/77/10), T21 (the audit
+payload names the three knobs and ten amounts; a knobs-only save reports only `max_levels`), T22 (no
+other card can write the ladder; the amounts are not settings keys; the baseline is never a field),
+T23 (the history and structural copy), T24 (a card without the amount fields keeps the ladder; an
+explicit empty array clears it to ten zero rows).
+
+Updated for the new card: `SettingsPageTest` (the render context is the controller's real
+`settingsContext()`; the commissions key list gains the two knobs and ten amounts; the toggle list
+gains `team_harvest_enabled`; the rules/labels assertions), `AdminSettingsLiveTest` (the
+`settings-commissions` fragment carries the sub-block, the ten inputs, the table, the unseeded strip
+and the seed job), `RoyaltyConfigurationTest` and `RoyaltyAdminMemberViewTest` (their Commissions card
+payloads now also post the ten amounts, because a real card does), and `TeamHarvestFoundationTest`
+(P20A-T15's allow-list admits the 20B model, controller and three settings views, and P20A-T16 now
+finds the settings card as the second reader of the two money tables — it still finds no writer).
+`smoke.ps1` gains the three Phase 20B checks (P20B-T1 the card and the ten inputs, P20B-T11 the
+generated matrix, P20B-T4 the sum guard) and posts the ten amounts plus the three knobs from every
+Commissions-card save it makes (a new `Set-LadderAmount` helper and a `$p20bLadderBefore` snapshot,
+restored in the `finally` block); P15-T7's card payload gains the three knobs.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration; `MigrationTest` green.
+- [x] `php bin/build_install_sql.php` run; `--check` exits 0 (no bundle change).
+- [x] `php tests/run.php` → **Cases: 1,204   Passed: 1,204   Failed: 0**, exit 0 (floor 1,202).
+- [x] `php bin/wallet_reconcile.php` exits 0 (no `team_harvest` row exists).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 251   Failed: 0**, exit 0 (three new checks).
+- [x] Every P20B-Tn case exists, is named for the phase and passes; `php tests/run.php
+      TeamHarvestConfiguration` is **24 / 24**.
+- [x] The manual script (plan §6, `QA20B-01` … `QA20B-09`) is written; the automated pass captured
+      `01`–`06` as transcripts on the development copy (04 as the server-side equivalent — the button
+      is JavaScript). `07`–`09` (a signed-in `/register` browser session, JS off, 390/1440 px) and the
+      independent-tester run remain the project lead's item, as at every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section B filled; the evidence index carries the nine new rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p20b-configuration`.
+
+### Deviations
+
+1. **QA20B-03's step is amended.** The plan says *“set level 10 to ₱20,000,000 and save: the sum error
+   appears”*, but Rule 2 caps a single amount at ₱10,000,000.00, so that value is refused by the
+   **per-level** rule and no sum is evaluated. The check now exercises the total ceiling with three
+   levels at the per-level ceiling (₱30,195,000.00) and records the per-level refusal beside it. The
+   code follows Rules 2 and 3 as written; only the manual step's example changed.
+2. **Four extra cases (T21–T24).** The plan lists T1–T20 but sets the suite floor at **≥ 1,202**
+   (baseline 1,180 + 22); twenty cases would have left the count at 1,200. T21 pins the audit
+   payload, T22 the card's scope (no other section owns a Team Harvest key, the amounts are not
+   settings, the baseline is never a field), T23 the history/structural copy, T24 the
+   missing-amount-fields guard. No contract changed.
+3. **The card keeps the ladder when the amount fields are absent.** Not in the plan's rules, but a
+   partial post — an older rendered form, a script that only flips the switch, a future endpoint —
+   would otherwise clear ten amounts by omission. An explicit empty array is still a submission and
+   clears the ladder (T24 pins both halves).
+4. **The card computes its own status, including the open liability.** `TeamHarvestService::statusFor()`
+   and `openLiability()` ship with the money engine (20D, §14.12). Until then the card reads the queue
+   and the awards directly — one rule, the same thresholds — so it can tell the operator the truth
+   before any money exists. 20D may make the service the single reader when it wires the strip; the
+   card's numbers are pinned by T16 and the QA20B-01 transcript meanwhile.
+5. **The 20A guards were widened for 20B.** P20A-T15's allow-list and P20A-T16's reader list are
+   phase-scoped guards ("only the manifest and this phase's card"), so they name 20B's files now.
+   The writer list is still empty.
+6. **Two Royalty tests now post the Team Harvest amounts.** `RoyaltyConfigurationTest` and
+   `RoyaltyAdminMemberViewTest` build a full Commissions-card payload; a real card posts all ten
+   amounts, so their baselines read them from `TeamHarvestLevel` (otherwise their saves would clear the
+   ladder — the omission guard would not apply, because they post the flat dotted keys).
+7. **`docs/admin-guide.md`, `docs/deploy.md` and `system/README.md` are updated now, not at 20G.**
+   20A's deviation 5 deferred the release documents to the 20G sweep. 20B's manifest explicitly lists
+   these three, so the Team Harvest settings block, the ladder, the four keys and the Phase 20A/20B
+   deploy addendum are current; the rest of their Phase 19 narrative is still 20G's sweep.
+8. **The page checks were not executed by a second person.** As at every earlier gate, the automated
+   pass captured what it could (`01`–`06` on the development copy) and left the transcripts in
+   `docs/qa/evidence/phase-20/`; `07`–`09` need the running app, a browser with JS off and a human.
+   `docs/qa/sign-off-sheet.md` gained the Phase 20B block with the checks left open for the lead.
+
+### Hand-off to 20C
+
+- `TeamHarvestLevel::amounts()`, `amount()` and `threshold()` are the only way any later phase may
+  read a level amount or a level threshold; `qualifyDirects()`, `maxLevels()` and `enabled()` are the
+  only way to read the three knobs.
+- The ladder is validated, audited and rendered; 20C may assume a configured ladder and must work
+  when the ladder is all zeros (it then pays nothing) and when the stream is off.
+- The four settings are stored; `team_harvest_ledger_since` is still `''` — the queue is unseeded and
+  the card says so.
+- `save()` rewrites ten rows or refuses; no later phase may write `team_harvest_levels` directly.
+
+---
+

@@ -39,6 +39,15 @@ runbook drill; and **19G** the release: `APP_PHASE` **19**, the QA pack signed (
 sections A–G, 60 checks), the Appendix B acceptance run and the documentation sweep. The stream still
 ships **off**, so a fresh install pays nothing until an operator turns it on.
 
+The fourth workstream — **Phase 20, the Team Harvest bonus**
+(`dmp/plan-ecowealth-team-harvest.md`) — is **in progress**. **20A** added the three tables
+(`harvest_queue`, `team_harvest_levels`, `team_harvest_awards`), the `team_harvest` wallet movement,
+four settings and the ten reference amounts (migration `024`, **36 tables / 77 settings**); **20B** adds
+the configuration card — the switch, the qualification gate, the payable depth, the ten flat amounts,
+the generated 3×10 ladder and a four-state status strip — and writes nothing but that configuration.
+The queue and its seed job are 20C, the award engine is 20D, and the member/admin visibility follows in
+20E/F; `APP_PHASE` stays **19** until 20G.
+
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,
@@ -741,7 +750,7 @@ page is the complete settings surface — **eight independent cards**, each with
 | **Payout methods** | `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee`, `payout_<method>_enabled` |
 | **Payment windows** | `shop_payment_deadline_hours`, `shop_correction_window_hours`, `shop_max_proof_attempts`, `shop_expiry_enabled` |
 | **Fulfilment & invoices** | `seller_*`, `shop_autocomplete_days`, `shop_autocomplete_enabled` |
-| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`, plus the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled` |
+| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`; the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled`, `unilevel_hold_days`, `unilevel_release_enabled`; the **Royalty bonus** sub-block: `royalty_enabled`, `royalty_pay_enabled`, four rank thresholds, three quotas and six rates; the **Team Harvest bonus** sub-block: `team_harvest_enabled`, `team_harvest_qualify_directs`, `team_harvest_max_levels` and the ten `team_harvest_levels` amounts (table rows, not settings) |
 | **Transfers** | `ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`, `ewallet_transfer_weekly_limit` (0 = unlimited) |
 
 The controller only validates, writes and audits the submitted card's keys (`settings.update`, with
@@ -1378,6 +1387,96 @@ php bin/wallet_reconcile.php              # six sections, exit 0 when clean
 
 ---
 
+## Team Harvest bonus (Phases 20A–20B)
+
+A **flat amount per completed level** of a member's private **3×10 matrix**, paid into the withdrawable
+e-wallet when the level's block fills. It has no month, no purchase input and no rank: a member enters
+the **Harvest queue** at the configured number of direct member accounts, and every qualified member
+who joins their team **after** them fills one slot.
+
+| Level | Slots (3^L) | Completes at n ≥ (3^(L+1)−3)/2 | Reference amount | Cumulative |
+|---:|---:|---:|---:|---:|
+| 1 | 3 | 3 | ₱1,000.00 | ₱1,000.00 |
+| 2 | 9 | 12 | ₱2,000.00 | ₱3,000.00 |
+| 3 | 27 | 39 | ₱4,000.00 | ₱7,000.00 |
+| 4 | 81 | 120 | ₱6,000.00 | ₱13,000.00 |
+| 5 | 243 | 363 | ₱12,000.00 | ₱25,000.00 |
+| 6 | 729 | 1,092 | ₱50,000.00 | ₱75,000.00 |
+| 7 | 2,187 | 3,279 | ₱120,000.00 | ₱195,000.00 |
+| 8 | 6,561 | 9,840 | ₱200,000.00 | ₱395,000.00 |
+| 9 | 19,683 | 29,523 | ₱1,200,000.00 | ₱1,595,000.00 |
+| 10 | 59,049 | 88,572 | ₱3,500,000.00 | **₱5,095,000.00** |
+
+**The schema (20A, migration `024`).** `harvest_queue` (one row per qualified member; `id` **is** the
+position, `UNIQUE (user_id)`), `team_harvest_levels` (the ten amounts, natural key) and
+`team_harvest_awards` (the money ledger, `UNIQUE (user_id, level)`), plus `team_harvest` on
+`ewallet_ledger.ref_type` and four settings. **The configuration (20B)** is the only reader: the queue
+and the awards stay empty and unwritten until 20C/20D.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `team_harvest_enabled` | `0` | The one switch. Off writes no award; the queue still grows. |
+| `team_harvest_qualify_directs` | `3` | Direct **member** accounts needed to enter the queue (1–10); staff never count. |
+| `team_harvest_max_levels` | `10` | The deepest level that may pay (1–10); amounts above it are kept and marked *not paid*. |
+| `team_harvest_ledger_since` | `''` | The seed job's timestamp (D-04). Empty = unseeded; never an operator input. |
+
+### `TeamHarvestLevel` (20B)
+
+One model, one write. `rows()`, `map()`, `amounts()`, `amount(int $level)`, `total()`,
+`cumulative()`, `threshold(int $level)` and `slots(int $level)` are read-only; `save()` is the only
+write and it rewrites **all ten rows** (delete-then-insert) inside the caller's transaction, stamping
+`updated_by`, so a partial ladder cannot exist. The matrix arithmetic lives here and nowhere else:
+
+```
+slots(L)     = 3^L
+threshold(L) = (3^(L+1) − 3) / 2        3, 12, 39, 120 … 88,572
+```
+
+`amount()` reads ₱0.00 outside 1–10; `threshold()`/`slots()` refuse a level outside 1–10 with an
+`InvalidArgumentException`. `validate()` owns the two cross-field rules — a full ladder over
+**₱25,000,000.00** (a typo guard) and an enabled stream on an all-zero ladder — and both the card and
+the model read the same `AMOUNT_RULE` (`nullable|numeric|gte:0|lte:10000000|decimal:2`), so the two can
+never disagree. `qualifyDirects()`, `maxLevels()` and `enabled()` are the only way to read the three
+knobs; 20C/20D must not read the settings directly.
+
+### The settings card (20B)
+
+**Settings → Commissions → Team Harvest bonus** (below the Royalty block; one card, one form, one save
+button). It holds:
+
+- the **Enable the Team Harvest bonus** switch, the **Direct members needed to qualify** and **Levels
+  that pay** inputs (both whole numbers 1–10);
+- the **ten amount inputs**, one grid cell each (`col-12 col-md-6`, so they stack on a phone), with the
+  level's slot count, its *pays at this depth / not paid at this depth* badge, its threshold and its
+  cumulative under each input;
+- the **generated ladder table** — Level, Slots, Teammates needed, Stored amount, Cumulative, Depth —
+  every cell computed by `TeamHarvestLevel`, inside `.table-responsive` so the six columns scroll
+  inside the card at 390 px;
+- the **four-state status strip**: *Not seeded* (names `bin/harvest_queue_seed.php`), *Seeded and
+  switched off*, *Seeded, switch on*, *Seeded, switch on, waiting* (the pending level count and the
+  amount owed, naming `bin/team_harvest_catchup.php`);
+- the **full-ladder total and the per-member maximum in one sentence**, the ₱25,000,000.00 ceiling,
+  and **Load reference ladder** / **Clear** buttons.
+
+`app-team-harvest.js` is progressive enhancement only: it re-reads the cumulative column, the full
+total and the ceiling tone as the operator types and implements the two buttons from each input's
+`data-reference`. With JavaScript off the form still saves, still validates and still shows the stored
+numbers. A save is **atomic** — the switch, the two knobs and the ten rows commit together — and a
+refused save leaves both stores unchanged. Every change is audited once as
+`team_harvest.ladder.update` (the ten amounts and the three knobs, before and after) plus the standard
+`settings.update` row for each changed setting key.
+
+A posted card that does **not** carry the amount fields at all (an older form, a script that only
+flips the switch) keeps the stored ladder; an explicit empty array clears it. The card writes no
+position, no award and no wallet row.
+
+```bash
+php tests/run.php TeamHarvestConfiguration   # 24 configuration cases (20B)
+php tests/run.php TeamHarvest                # the whole stream so far (20A + 20B)
+```
+
+---
+
 ## Cron jobs
 
 Six scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
@@ -1566,6 +1665,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `021_unilevel_bonus_escrow.sql` | `unilevel_awards.hold_days` (`SMALLINT UNSIGNED`, default 0) + `credited_at`; the status enum gains `pending` (the new default) and `cancelled`; `idx_unilevel_user_status` + `idx_unilevel_order_status`; `credited_at` backfilled from `created_at` for existing `credited`/`voided` rows; the two settings `unilevel_hold_days` (7) and `unilevel_release_enabled` (1); additive and re-runnable, **no new table and no retroactive lock** |
 | `022_shop_cancel_toggle.sql` | The setting `shop_cancel_enabled` (**Enable Cancel of Order**, **0** = closed) only; additive and re-runnable, **no table, no column**, so an upgraded database gets the safe default |
 | `023_royalty_bonus.sql` | `royalty_periods` (one header per month, natural `period` key) and `royalty_awards` (one row per member per month, `UNIQUE (period, user_id)`, the money CHECKs); `ewallet_ledger.ref_type` gains `royalty`; the sixteen `royalty_*` settings (the stream off by default); additive and re-runnable |
+| `024_team_harvest.sql` | `harvest_queue` (one row per qualified member; `id` **is** the position, `UNIQUE (user_id)`), `team_harvest_levels` (the ten amounts, natural key) and `team_harvest_awards` (the money ledger, `UNIQUE (user_id, level)`, the money CHECKs); `ewallet_ledger.ref_type` gains `team_harvest`; the four `team_harvest_*` settings (off and unseeded by default) and the ten reference ladder rows; additive and re-runnable |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

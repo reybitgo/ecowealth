@@ -1468,3 +1468,103 @@ The bundle is **60 statements, 82,518 bytes**, sha256
 - [ ] `php bin/wallet_reconcile.php` exits 0 (its Royalty section reads zero on a fresh upgrade).
 - [ ] The Royalty cron entry is registered (or the URL entry is called by it) and the first run
       appears in `storage/logs/royalty_month_close-YYYY-MM.log`.
+
+---
+
+## Phase 20A/20B addendum — the Team Harvest bonus foundation and its configuration
+
+The Phase 20 workstream adds a **flat amount per completed level** of a member's private 3×10 matrix.
+Phase **20A** ships the schema, the wallet vocabulary, the four settings and the ten reference amounts
+with no reader; Phase **20B** ships the configuration card that writes them. **Nothing pays yet**: the
+queue and its seed job are 20C, the award engine is 20D. The release adds **no new hosting
+requirement**: three tables, four settings and one settings card on a route that already existed.
+
+### Migration 024 (20A)
+
+`024_team_harvest.sql` is additive and re-runnable (every `CREATE TABLE` is `IF NOT EXISTS`, the enum
+change is guarded by an `information_schema` probe, and both inserts are `ON DUPLICATE KEY UPDATE
+… = …` so a re-run never overwrites an operator's amount). It adds:
+
+| Object | What it is |
+|---|---|
+| `harvest_queue` | one row per qualified member; `id` **is** the position (20C writes it) |
+| `team_harvest_levels` | the ten configured amounts, levels 1–10 (20B writes it) |
+| `team_harvest_awards` | the money ledger, one row per (member, level) (20D writes it) |
+| `ewallet_ledger.ref_type` | gains `'team_harvest'` |
+| four settings | see the table below |
+| ten ladder rows | the reference amounts |
+
+### The four settings (20A ships them, 20B edits three)
+
+| Key | Default | What it decides |
+|---|---|---|
+| `team_harvest_enabled` | `0` | The one switch. Off writes no award; positions are still recorded. |
+| `team_harvest_qualify_directs` | `3` | Direct **member** accounts needed to enter the queue, 1–10. |
+| `team_harvest_max_levels` | `10` | The deepest level that may pay, 1–10; amounts above it are kept. |
+| `team_harvest_ledger_since` | `''` | **Not** an operator field. The seed job's timestamp; empty means the queue is unseeded (D-04), and the settings card names that state. |
+
+The ten amounts are **not** settings: they are the ten rows of `team_harvest_levels`, seeded at
+**₱1,000 / 2,000 / 4,000 / 6,000 / 12,000 / 50,000 / 120,000 / 200,000 / 1,200,000 / 3,500,000**
+(₱5,095,000.00 in total). The card validates them as a whole — 0.00–10,000,000.00 each with two
+decimals, no more than ₱25,000,000.00 in total, and never an enabled stream on an all-zero ladder.
+
+### Counts after the Phase 20A build
+
+| Tables | Settings | Ladder rows | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **36** | **77** | **10** | **19** |
+
+The bundle is **64 statements, 89,851 bytes**; a fresh import prints
+**36 / 77 / 2 / 0 / 7 / 2 / 18 / 10 / 0 / 10**. `php bin/build_install_sql.php --check` exits 0. A
+migration-built database (no `install_*` metadata rows) reads **74** settings; the three metadata rows
+a fresh install adds make 77.
+
+### What 20B adds to the server
+
+- **One card** on the existing `/admin/settings` page (*Commissions → Team Harvest bonus*): the
+  switch, the gate, the depth and the ten amounts, plus a generated ladder table and a four-state
+  status strip.
+- **One script**, `public/assets/js/app-team-harvest.js`: the live cumulative/total preview and the
+  *Load reference ladder* / *Clear* buttons. Progressive enhancement only — with JavaScript off the
+  form saves and validates exactly the same.
+- **Two audit actions**: `team_harvest.ladder.update` (the ten amounts and the three knobs, before and
+  after) and the tenant-wide `settings.update` for each changed key. Both are written inside the same
+  transaction as the rows they describe.
+- **Nothing else**: no new route, no cron entry, no queue row, no award, no wallet movement, no new PHP
+  extension.
+
+### After deploying 20A/20B
+
+1. Apply `024_team_harvest.sql` (a second run is a no-op).
+2. Open **Settings → Commissions → Team Harvest bonus**. The strip should read **Not seeded** and the
+   ladder should show the ten reference amounts. The switch is **off**.
+3. Set the amounts you actually intend to pay, then decide the gate and the depth. The card shows the
+   **full-ladder total** (the per-member maximum) and the ₱25,000,000.00 ceiling beside the inputs.
+4. Leave the switch **off** until 20C has seeded the queue and 20D can pay. The strip names the seed
+   job at every step, and turning the switch on does not pay anything by itself.
+
+### Verification after the upgrade
+
+- [ ] `SHOW TABLES LIKE 'team\_harvest%'` — three rows; `SHOW TABLES LIKE 'harvest\_queue'` — one.
+- [ ] `SELECT key_name, value FROM settings WHERE key_name LIKE 'team\_harvest\_%'` — **four** rows,
+      `team_harvest_enabled = 0`, `team_harvest_ledger_since = ''`.
+- [ ] `SELECT COUNT(*), SUM(amount) FROM team_harvest_levels` — **10 / 5095000.00**.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (no `team_harvest` row exists yet).
+- [ ] `/admin/settings` renders the Team Harvest sub-block with the strip **Not seeded** and no
+      console error; `php tests/run.php` is green and `powershell -File tests/smoke.ps1` passes.
+
+### Upgrade checklist (024 + 20B)
+
+- [ ] Back up the database.
+- [ ] Apply `024_team_harvest.sql` after `023` (a second run is a no-op).
+- [ ] The three tables exist; the enum ends `'royalty','team_harvest'`.
+- [ ] The four settings exist with their defaults; the ten ladder rows hold the reference amounts.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] The card renders, saves the ladder, refuses the two ceilings and names the seed job.
+
+### Rollback (20B)
+
+Turn **Enable the Team Harvest bonus** off and revert the code. The ladder rows and the four settings
+may stay: they are inert, nothing reads them until 20C/20D, and a later attempt can reuse them. No
+money exists to reverse.

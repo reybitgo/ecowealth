@@ -1029,14 +1029,22 @@ return [
      *  One manifest, nothing reading it (P20A-T15, P20A-T16)
      * ========================================================== */
     'P20A-T15 no application file outside the manifest names the Phase 20 objects' => function () use ($appRoot): void {
-        /* 20A ships tables with no writer on purpose; the only application
-         * files allowed to name them are the wallet vocabulary and the two
-         * tools that must know every table (plan 20A Rule 10, P20A-T15). */
+        /* 20A ships tables with no writer on purpose. The manifest is the
+         * wallet vocabulary and the two tools that must know every table
+         * (plan 20A Rule 10, P20A-T15); **20B** adds the configuration card,
+         * which reads the ladder and writes nothing but its ten amounts:
+         * `TeamHarvestLevel`, the settings controller and the three settings
+         * views. A later phase adds its own files here with its own case. */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
             '/app/Services/DatabaseInstaller.php',
             '/app/Services/DatabaseResetService.php',
+            '/app/Models/TeamHarvestLevel.php',
+            '/app/Controllers/AdminSettingsController.php',
+            '/app/views/admin/settings/index.php',
+            '/app/views/admin/settings/_commissions.php',
+            '/app/views/admin/settings/_team_harvest.php',
         ];
 
         $found = [];
@@ -1060,13 +1068,15 @@ return [
         sort($found, SORT_STRING);
         sort($allowList, SORT_STRING);
 
-        assert_same($allowList, $found, 'only the 20A manifest names the Team Harvest objects');
+        assert_same($allowList, $found, 'only the 20A manifest and the 20B card name the Team Harvest objects');
 
-        /* No ticket, no label, no controller, no view, no job exists yet. */
-        foreach (['/app/Models/HarvestQueue.php', '/app/Models/TeamHarvestLevel.php',
-                  '/app/Models/TeamHarvestAward.php', '/app/Services/TeamHarvestService.php',
-                  '/app/Controllers/TeamHarvestController.php'] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist in 20A');
+        /* 20B adds the configuration model; the queue, the money and the
+         * page of a later phase still must not exist. */
+        assert_true(is_file($appRoot . '/app/Models/TeamHarvestLevel.php'), '20B ships the ladder model');
+
+        foreach (['/app/Models/HarvestQueue.php', '/app/Models/TeamHarvestAward.php',
+                  '/app/Services/TeamHarvestService.php', '/app/Controllers/TeamHarvestController.php'] as $file) {
+            assert_false(is_file($appRoot . $file), $file . ' must not exist in 20B');
         }
 
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
@@ -1078,7 +1088,7 @@ return [
         }
     },
 
-    'P20A-T16 the phase is inert: empty tables, no producer, no reader' => function (): void {
+    'P20A-T16 the phase is inert: empty tables, no producer and no money reader' => function (): void {
         $pdo = db();
 
         /* A fresh install is empty, and no PHP file produces a Team Harvest
@@ -1118,15 +1128,17 @@ return [
         sort($writers, SORT_STRING);
         sort($readers, SORT_STRING);
 
-        assert_same([], $writers, '20A ships no Team Harvest wallet writer');
+        assert_same([], $writers, '20B ships no Team Harvest wallet writer');
 
-        /* The only reader is the business-reset engine, which must know
-         * every table it empties; no page, controller or service reads the
-         * two money tables in this phase. */
+        /* The readers are the business-reset engine, which must know every
+         * table it empties, and **20B's** settings card, which reads the
+         * queue and the awards to tell the operator the four-state truth
+         * (plan §6 Rules 6–7). No page, job or service pays anything yet. */
+
         assert_same(
-            ['/app/Services/DatabaseResetService.php'],
+            ['/app/Controllers/AdminSettingsController.php', '/app/Services/DatabaseResetService.php'],
             $readers,
-            '20A ships no Team Harvest reader outside the reset engine'
+            '20B ships no Team Harvest reader outside the settings card and the reset engine'
         );
 
         /* The wallet statement filter is the only visible change (Rule 6):

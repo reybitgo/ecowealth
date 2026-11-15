@@ -208,7 +208,7 @@ log with a before/after per key.
 | **Payout methods** | Minimum withdrawal, USDT rate, each channel's fee and switch, network fees |
 | **Payment windows** | Payment deadline, correction window, proof attempts per order, expiry kill switch |
 | **Fulfilment & invoices** | Auto-complete days and switch, seller name/TIN/phone/address on invoices |
-| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, **release delay after delivery**, **release repeat-purchase bonuses**, reversal rule; the *Royalty bonus* block: earning and payment switches, the five-rank ladder, quotas and rates (§16) |
+| **Commissions** | Direct switch, unilevel switch and depth, active-sponsor rule, free registration; the *Repeat-purchase bonus* block: global switch, upline depth, monthly personal-purchase minimum, Active rule, **release delay after delivery**, **release repeat-purchase bonuses**, reversal rule; the *Royalty bonus* block: earning and payment switches, the five-rank ladder, quotas and rates (§16); the *Team Harvest bonus* block: the enable switch, the qualification gate, the payable depth and the ten flat amounts (§17) |
 | **Transfers** | Fee, minimum, daily and weekly caps (0 = unlimited) |
 
 Rules that the page enforces: a weekly limit cannot be below the daily limit, a minimum cannot
@@ -724,3 +724,90 @@ Paid at` — the same stored snapshot values the admin ledger uses, with the mem
 rank card (is the rank Supervisor or above? is the quota met?), the status of the latest month row,
 then the stored reason. The same facts are on **Admin → Members → one member → Royalty**, so a
 support agent and the member read one definition.
+
+---
+
+## 17. Team Harvest bonus: the 3×10 matrix and its configuration (Phase 20B)
+
+The Team Harvest bonus is a **flat amount per completed level** of a member's private **3×10
+matrix**. It has no month, no purchase input and no rank: a member enters the queue the moment they
+hold the configured number of direct member accounts, and every qualified member who joins their
+team **after** them fills the matrix.
+
+**Phase 20B ships the configuration only.** No money moves and no position is written yet: the queue
+and its seed job are **20C**, and the award engine is **20D**. Until then the card is the one place an
+operator decides what the plan would commit to.
+
+### The matrix
+
+| Level | Slots | Teammates needed | Pays (reference) | Cumulative |
+|---:|---:|---:|---:|---:|
+| 1 | 3 | 3 | ₱1,000.00 | ₱1,000.00 |
+| 2 | 9 | 12 | ₱2,000.00 | ₱3,000.00 |
+| 3 | 27 | 39 | ₱4,000.00 | ₱7,000.00 |
+| 4 | 81 | 120 | ₱6,000.00 | ₱13,000.00 |
+| 5 | 243 | 363 | ₱12,000.00 | ₱25,000.00 |
+| 6 | 729 | 1,092 | ₱50,000.00 | ₱75,000.00 |
+| 7 | 2,187 | 3,279 | ₱120,000.00 | ₱195,000.00 |
+| 8 | 6,561 | 9,840 | ₱200,000.00 | ₱395,000.00 |
+| 9 | 19,683 | 29,523 | ₱1,200,000.00 | ₱1,595,000.00 |
+| 10 | 59,049 | 88,572 | ₱3,500,000.00 | **₱5,095,000.00** |
+
+**Only the amounts are configurable** — the slots and the teammates needed are the matrix and cannot
+be changed. The reference ladder totals **₱5,095,000.00 per member**; that is this stream's per-member
+ceiling, not a forecast.
+
+### Where to edit it
+
+**Admin → Settings → Commissions → Team Harvest bonus**, below the Royalty block. The card is one
+form with one save button:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Enable the Team Harvest bonus** | **off** | Off writes no award. Positions are still recorded (20C), so nothing is lost while it is off. |
+| **Direct members needed to qualify** | 3 | Whole number 1–10. A member enters the queue at this many direct **member** accounts; staff accounts never count. |
+| **Levels that pay** | 10 | Whole number 1–10. Levels above it still complete on the board and are marked *not paid*; their amounts are kept. |
+| **Level 1 … 10 amounts** | the reference ladder | Money per level, 0.00–10,000,000.00 each with two decimals. Blank and 0 are the same value. |
+
+Below the inputs the card shows the **generated ladder**: every level's slots, the teammates it needs,
+the stored amount and the cumulative sum — all computed from the matrix, never typed. With JavaScript
+on, the cumulative and the full-ladder total re-read as you type; with JavaScript off the card still
+saves and still shows the stored numbers.
+
+The card refuses, as field errors, not silent fixes:
+
+- an amount that is not money, is negative, has more than two decimals or exceeds **₱10,000,000.00**;
+- a ladder whose ten amounts total more than **₱25,000,000.00** (a typo guard: the reference ladder is
+  ₱5,095,000.00);
+- **enabling** the stream while every level is 0 — *“Turn the switch off or give at least one level an
+  amount above zero.”*;
+- a gate or a depth that is 0, 11 or a decimal.
+
+Saving is atomic: the switch, the two numbers and all ten rows commit together or not at all, and a
+refused save changes nothing.
+
+### The status strip
+
+The card states the stream's real state in one of four ways, and never claims it is paying when it is
+not:
+
+| State | What it means | Next action it names |
+|---|---|---|
+| **Not seeded** | No position has been assigned; the queue does not exist yet | Run `bin/harvest_queue_seed.php` before enabling (20C) |
+| **Seeded and switched off** | Positions are being recorded; nothing can pay | Turn the switch on when the ladder is ready |
+| **Seeded, switch on** | Every completed level has been evaluated | None |
+| **Seeded, switch on, waiting** | Levels are complete since the baseline and not paid yet, with the amount owed | Run `bin/team_harvest_catchup.php` (20D) |
+
+### What this phase does not do
+
+There is no **Run seed** button and no **Evaluate** button: both are CLI jobs (20C/20D), never a page.
+The card writes no position, no award and no wallet row, and changing an amount never rewrites an award
+that already paid — a level's amount is snapshotted onto the award when it pays, so the card's copy
+says *“every award keeps the amount it was paid at”*.
+
+**Go-live order** (the runbook's, once 20C/20D exist): deploy → seed dry run → seed → enable. The card
+is where the operator sees the state between those steps. Rollback is simply turning the switch off;
+the ladder rows are inert and may stay.
+
+**Every save is audited:** `team_harvest.ladder.update` carries the ten amounts and the three knobs,
+before and after, and the tenant-wide `settings.update` row records each changed key.

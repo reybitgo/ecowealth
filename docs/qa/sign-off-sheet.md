@@ -1114,6 +1114,49 @@ php bin/wallet_reconcile.php                  # exit 0 (20A moves no money)
 
 ---
 
+## 20B. Phase 20B — Team Harvest configuration (section B of the Phase 20 pack)
+
+Document: [phase-20-team-harvest.md](phase-20-team-harvest.md) — **sections A–B** (20C–20G append theirs)
+
+Phase 20B ships the **Team Harvest bonus card** on `/admin/settings → Commissions`: the enable switch,
+the direct-member gate, the payable depth, the ten flat amounts, a generated 3×10 ladder table and a
+four-state status strip. **No money moves and no position is written** — the queue is 20C and the
+engine is 20D; three registrations after configuring still leave `harvest_queue` at 0.
+
+**Prerequisites:** tag `p20a-foundation` (or later, `feature/team-harvest`); the development copy
+migrated through `024` (36 tables, four settings, ten ladder rows). **Expected suite count:** **1,204**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0
+php tests/run.php                             # Cases: 1204   Passed: 1204   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 251   Failed: 0 (three new 20B checks)
+php bin/wallet_reconcile.php                  # exit 0 (20B moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA20B-01 | The card on a migrated database: ten reference amounts, switch **off**, gate `3`, depth `10`, strip **Not seeded**, the seed job named, four settings and ten rows | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-01.txt` |
+| QA20B-02 | Level 1 → ₱1,500 and level 10 → ₱4,000,000 save; total **₱5,595,500.00**; one `team_harvest.ladder.update` audit row with before/after | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-02.txt` |
+| QA20B-03 | A ₱30,195,000.00 ladder is refused with the **sum** error and the stored ladder is unchanged (the plan's ₱20,000,000 step is refused by the per-level ceiling first — see the deviation) | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-03.txt` |
+| QA20B-04 | **Load reference ladder** fills the ten inputs and the total to **₱5,095,000.00**; nothing is stored until **Save settings** | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-04.txt` |
+| QA20B-05 | Clearing the ten and enabling the stream is refused on the switch; the stored switch stays `0` | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-05.txt` |
+| QA20B-06 | Gate `11` refused; depth `3` accepted and levels 4–10 marked **Not paid** with their amounts kept | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-06.txt` |
+| QA20B-07 | Three registrations after configuring leave `harvest_queue` at **0**, no award, no `team_harvest` wallet row | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-07.txt` |
+| QA20B-08 | With JavaScript disabled the card still saves and still validates; only the live totals are missing | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-08.txt` |
+| QA20B-09 | At 390 px the ten inputs stack and the six-column saved table scrolls inside the card; no page-level horizontal scroll at 390 or 1440 px | ☐ Pass ☐ Fail ☐ Blocked | `QA20B-09.txt` |
+
+| Phase 20B summary | |
+|---|---|
+| Executed | **— / 9** (filled by the manual pass; the automated pass captured the scratch transcripts where it could) |
+| Passed / Failed / Blocked | — / — / — |
+| Defects | 0 so far |
+| Decision | ☐ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | — |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1171,6 +1214,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19F | ☑ Yes ☐ No | Royalty operations: the scheduled close (`bin/royalty_month_close.php`), its guarded URL entry and Windows launcher — one implementation, three entries — with `--doctor`, the bounded `--max-batches` run, one log line, an advisory lock and the 0/1/2 exit codes; the read-only **Operations** panel on the Royalty tab (open month, last final, pending, awaiting payment, switches, last close, next run); the health check (tables, settings, a 48-hour stale-evaluation warning); and the cron/runbook documentation. `admin.reports` joins the surfaces a close bumps. **Moves no money by itself beyond the 19C engine**: 19F adds no new money rule. 8 / 8 section-F checks, **1,158 / 1,158** PHP cases (Royalty 150 / 150), **248 / 248** smoke checks, bundle check exit 0. |
 | Phase 19G | ☑ Yes ☐ No | Royalty release: `APP_PHASE` **19**; the Phase 19 QA pack complete and signed (sections A–G, **60 / 60**); the Appendix B acceptance run on a scratch database **12 / 12** (₱18,300.00; ₱515,000.00; ₱18,000.04; the two-month catch-up; the 11,111-member minimum-tree ladder); the release walk as admin and member on seven URLs with no console error or broken link; every stale count in the shared docs corrected. Three defects found by the cold read were fixed in their owning phases with regression cases (`P19G-T9`…`T12`) — the zero-quota display, the silent log-write failure and the `closed` count in `--evaluate-only`. **1,162 / 1,162** PHP cases (Royalty 154 / 154), **248 / 248** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0 and a green doctor. |
 | Phase 20A | ☐ Yes ☐ No | Team Harvest foundation: migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings, **stream off and queue unseeded**, no reader; migrated ≡ fresh, a reset empties the queue and awards and clears the baseline while keeping the ladder; fresh install **36 tables / 77 settings / 10 ladder rows**; **18** new PHP cases, **1,180 / 1,180** green and **248 / 248** smoke checks. Section A: **4 / 8** executed by the automated pass (02, 03, 07, 08); 01 and 04–06 await the lead's manual pass. |
+| Phase 20B | ☐ Yes ☐ No | Team Harvest configuration: the Commissions card's Team Harvest sub-block (switch, gate, depth, ten amounts), the generated 3×10 ladder equal to Appendix A, the ₱25,000,000.00 total guard and the all-zero enable refusal, an atomic save with `team_harvest.ladder.update` + `settings.update` audit rows, the four-state status strip, and the phase's inertness (no queue row, no award, no money). **24** new PHP cases, **1,204 / 1,204** green, **251 / 251** smoke checks (three new 20B checks), bundle check exit 0, `wallet_reconcile` exit 0. Section B: **— / 9** executed by the automated pass; the card, audit desk, JS-off and 390 px checks await the lead. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is **1,162 / 1,162** and the smoke run **248 / 248** on the
