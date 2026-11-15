@@ -5636,3 +5636,161 @@ admin page writes a period, an award or a wallet row; the only write is the expo
 - Admin surfaces are read-only; the close is still CLI-only until 19F; the member surfaces are 19E's.
 
 ---
+
+
+## Phase 19E — Member visibility (2026-11-15)
+
+**Status:** complete · **Tag:** `p19e-member` · **Branch:** `feature/royalty` ·
+**Schema:** unchanged (33 tables, no migration; no new route — D-16) ·
+**Suite:** 1,127 → **1,142** cases, **1,142 / 1,142** green · **Smoke:** 239 → **245** (six new URL
+checks on the two existing pages).
+
+Plan: `dmp/plan-ecowealth-royalty.md` §9 (Phase 19E), §12.7/§12.10, §14.11, Appendix C.3/C.4/C.6/C.7/
+C.8 and §16.1–§16.2. 19E is the **read-only member visibility layer** over the 19C money engine: a
+member can read their rank, what the next rank needs, this month's group and personal sales against
+the quota, and every Royalty award they were paid or denied — with copy that never promises money the
+engine will not pay. No member surface writes a period, an award or a wallet row; there is no audit
+row either (a member reading their own statement is the page).
+
+### Code
+
+| File | What it is |
+|---|---|
+| `app/Controllers/EarningsController.php` | `TAB_ROYALTY`, `tab()` recognises `package`/`repeat`/`royalty` (anything else falls back to package), `royaltyContext()` (the engine's `statusFor()` for the open month, the member's award rows with period/rank/status filters, the five counters, the pagination and the export URL), `export()` gains `?ledger=royalty` with `royaltyCsvHeader()`/`royaltyCsvRows()` (Appendix C.6), and the live feed gains the five `earnings-royalty-*` fragments. The package and repeat branches are untouched. |
+| `app/views/member/earnings.php` | One third pill and one third branch; the package and repeat branches keep their markup (P19E-T2/T3 compare their fragments byte-for-byte). |
+| `app/views/member/earnings/_royalty_*.php` (new) | `_royalty_header` (title and the “paid once a month, after the month closes” explanation), `_royalty_rank` (the rank card: rank, the one requirement that unlocks the next rank with its bar, the team counts, this month's PS/GS against the quota, the labelled projection, the Leader explanation, the stream-off and paused notes), `_royalty_stats` (paid all-time, this period, awaiting payment, not paid, last paid), `_royalty_rows` (one row per closed month: period, rank, GS, PS, quota, rates, amount, member status/reason, paid date), `_royalty_pagination` (its own live region). |
+| `app/Controllers/DashboardController.php` + `app/views/member/dashboard/_royalty.php` (new) | The **Royalty** tile: rank badge, this month's group sales against the quota with a progress bar, “if this month closed now”, paid all-time, last paid and the statement link. Hidden when the stream is off **and** the member has no history; otherwise it renders, with an explicit “Royalty is currently off” note when the stream is off. A seventh live region (`dashboard-royalty`). |
+| `app/Models/RoyaltyAward.php` | Two additive reads for 19E: `periodsForUser()` (the member's own closed months, for the statement's month filter) and an optional `?int $userId` on `exportRows()` so the member CSV is scoped at the model — the admin export passes nothing and keeps its bytes. |
+| `app/Services/RoyaltyService.php` | One addition: `evaluate()` now bumps each **awarded member's** surfaces (earnings, dashboard, wallet, membership) after the commit, the member-side twin of 19D's admin fix — an `--evaluate-only` run or a paused payment never reaches `pay()`'s per-batch touch (Deviation 2). No money change. |
+| `public/assets/css/commissions.css` | A `.commission-progress` bar and the `max-width: 767.98px` rule that hides the monthly GS/PS/quota/rates columns, so the statement is phone-safe at 390 px. |
+
+**Unchanged by design:** `app/Services/Live.php` (the tab rides `member.earnings:{id}`, the tile
+`member.dashboard:{id}`), `app/helpers.php` (`money()`, `status_badge()` and the existing badges),
+`RoyaltyRank`/`RoyaltyPeriod`, the admin surfaces and every route.
+
+### The member surfaces, as shipped
+
+- **`/earnings?ledger=royalty`** — the third pill. The **rank card** is `RoyaltyService::statusFor()`
+  for the **open** month: the rank and its badge, the single requirement for the next rank with its
+  progress bar and the “Reach N …” call to action, the direct and ranked team counts, this month's
+  personal and group sales against the rank's quota, the two rates and **“If this month closed now:
+  ₱X”**. The **five counters** are paid all-time, this period (the newest closed month with a row),
+  awaiting payment, not paid and last paid. The **rows** are one per closed month, newest first.
+- **Rank copy.** A Member sees “Reach N direct members to become a Leader.”; a Leader sees both the
+  progress to Supervisor **and** “Leader is a rank, not a royalty rank — the first rank that pays is
+  Supervisor”; a Director sees “Highest rank reached”. A non-paying rank never shows a quota line.
+- **Statuses are explicit.** `pending` → *Awaiting payment*, `paid` → *Paid*, `skipped` → *Not paid*
+  with the stored reason rendered against the quota it missed (`Group sales below the ₱500,000.00
+  quota`) and the GS/PS it was judged on. When `royalty_pay_enabled = 0` the row says **Payment is
+  paused; the award stays pending.** and never reads like a payment.
+- **The stream-off rule.** With `royalty_enabled = 0` the history stays (rows, counters, paid totals),
+  the rank card says **Royalty is currently off**, the projection disappears, and the dashboard tile
+  hides only when there is no history at all.
+- **The CSV** is the Appendix C.6 columns and only the caller's months; `?user_id=` is ignored on the
+  page and on the export; no audit row is written.
+- **The dashboard tile** states the rank, this month's group sales against the quota with a bar,
+  “if this month closed now”, the all-time paid figure and the last paid month, and links to the
+  statement.
+- **Phone-safe.** The three pills wrap (the Phase 17E `.commission-tabs` rule) and the monthly money
+  columns step aside below 768 px.
+
+### Tests
+
+**15 new cases: 1,127 → 1,142, all green** (the Royalty group alone is **134 / 134**).
+
+| Group | Added | What it proves |
+|---|---|---|
+| `RoyaltyMemberViewTest` (new) | 13 | T1 (the pill, rank card, counters, rows, pagination and the five fragments for a Supervisor at the 10/10 gate), T2 (the package tab's six fragments are byte-identical, filters/columns/drawer/export intact), T3 (the repeat tab's six fragments byte-identical, no Royalty region), T4 (the Supervisor card: 10/10, quota 500,000, rates, progress, the projection, **and the projection equals the amount a real close then pays**), T5 (a Leader: “not a paying rank”, 0/10 to Supervisor, no quota and no projection, ₱10,000,000 of group sales still ₱0), T6 (`?user_id=` ignored by the page and by the export; the other member keeps their money), T7 (the row fields, both months, the paid date), T8 (a skipped row: *Not paid*, the reason against the stored quota and the GS/PS judged on), T9 (a pending row: *Awaiting payment*, no paid date, no paid badge), T10 (stream off: history stays, position marked off, no projection), T11 (payments paused: the paused copy, no paid badge, no wallet money), T12 (the Appendix C.6 header and rows, only the caller's months, member labels, zero audit rows), T16 (four filtered renders + the feed + the export write no period/award/wallet/audit row) |
+| `MemberDashboardLiveTest` | +1, updated | T13 (the tile: rank, group vs quota, “quota met”, the projection, paid all-time, last paid and the link; hidden when off with no history, present with the off note when history exists). The feed's exact fragment list gains `dashboard-royalty`, and the page declares seven regions. |
+| `MemberEarningsLiveTest` | +1 | T15 (the third tab is a query parameter — `royalty` selects it, an unknown value falls back to package; a real `evaluate()` and `pay()` bump `member.earnings:{id}` and `member.dashboard:{id}`; the five fragments; the three tabs never share an ETag, and the Royalty scope carries the month, the team and the config revisions) |
+| `RoyaltyFoundationTest` | P19A-T13 rewritten | The producer invariant now permits the 19E member surfaces: the engine is still the only writer, no member file names the money tables, and the six 19E partials exist. |
+
+Updated beyond the new cases: `MemberDashboardLiveTest`'s fragment list and region count, and the
+`P19A-T13` boundary nudge 19D promised. `LaunchTest`/`ShopLiveTest` are unchanged and green (no shop
+change).
+
+### Docs
+
+- `docs/admin-guide.md` §16 — a **What members see** subsection: the two surfaces, the copy rules
+  table (team/Team chain; Royalty; the month close; Leader explained; pending/paused; the skipped
+  quota), what members never see (another member's rows or the network calendar), the member CSV
+  columns and a support reading order. §16's heading and “what this build does not do” are corrected.
+- `docs/qa/phase-19-royalty.md` — **section E** (`QA19E-01` … `QA19E-09`) and the sign-off row; the
+  document is appended, never rewritten.
+- `docs/qa/evidence/phase-19/QA19E-01.txt … QA19E-09.txt` — real transcripts of the nine checks over a
+  three-month fixture and the real close, indexed in that folder's `README.md`.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` — section E counts, the Phase 19E gate row, the
+  final-decision row and the document-status line.
+- `tests/smoke.ps1` — six new checks (`P19E-T1`, `T2`, `T3`, `T12`, `T13`, `T14`): 239 → 245.
+
+### Gate
+
+- [x] Schema state matches the plan — 19E changes no schema; `MigrationTest` stays green and the
+      install bundle still reports 33 / 73.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,142   Passed: 1,142   Failed: 0**, exit 0 (floor 1,122).
+- [x] `php bin/wallet_reconcile.php` exits 0 (19E moves no money; the Royalty section is unchanged).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 245   Failed: 0**, exit 0.
+- [x] Every P19E-T1 … T16 case exists, is named for the phase and passes.
+- [x] The member preview equals the engine's result for the same month (P19E-T4 closes the month and
+      compares; QA19E-02 does it on the evidence fixture).
+- [x] The manual script (plan §9, `QA19E-01` … `QA19E-09`) executed **9 / 9**, with real transcripts in
+      `docs/qa/evidence/phase-19/`. The independent-tester review remains the project lead's item, as at
+      every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section E filled; the evidence index, `docs/qa/README.md` and `docs/qa/sign-off-sheet.md`
+      carry the Phase 19E rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p19e-member`.
+
+### Deviations
+
+1. **The member statement's month filter lists only the member's own closed months.** `royaltyContext()`
+   reads `RoyaltyAward::periodsForUser()` rather than `RoyaltyPeriod::periods()`: a member has at most
+   one row per month, so the network calendar would only add months they cannot have (a small privacy
+   gain and a shorter list). The filter itself is unchanged in meaning.
+2. **`evaluate()` now bumps the awarded members' surfaces.** 19D did the same for the admin ledger; a
+   member's statement lists the same rows, so an `--evaluate-only` run or a paused payment (which never
+   reaches `pay()`'s per-batch touch) would otherwise leave an open tab reading stale. `P19E-T15` proves
+   the bump. No money, ledger or idempotency behaviour changes.
+3. **`RoyaltyAward::exportRows()` gained an optional `?int $userId`.** The member CSV must be scoped at
+   the model, exactly like the page, so a hand-edited URL cannot widen it. The parameter is last and
+   optional: the admin export and every 19C caller are unchanged.
+4. **The member CSV's `Status` column carries the member labels.** Appendix C.8 gives a member-facing
+   vocabulary (`skipped` → *Not paid*); the admin CSV keeps the stored value. One file cannot carry two
+   audiences' words, and this file is the member's statement.
+5. **“This period” on the stats card is the newest closed month with a row.** A member has at most one
+   row per month (D-08), so the newest history row *is* the latest period; the open month is never a
+   stored row and lives on the rank card as the clearly labelled projection.
+6. **The rank card renders the quota facts as a labelled list.** Appendix C.3's single inline line
+   (“This month: Personal ₱X · Group ₱Y · Supervisor quota ₱Z — met / not yet met”) becomes the four
+   labelled rows *Personal sales / Group sales / {Rank} quota / Your rates* plus a **Quota met** state
+   and a bar. Same facts, readable at 390 px; every label the deck names is present verbatim.
+7. **The Royalty tab's ETag scope adds the open month and the config revision.** A ladder, quota or
+   threshold change (which bumps `Live::CONFIG`) re-renders the rank card, and the month boundary moves
+   the MTD figures; the tab still rides `member.earnings:{id}`, so no new live surface exists.
+8. **`P19A-T13` is rewritten for 19E.** The phase-boundary guard used to assert that no member file names
+   a Royalty class; 19E makes that false by design. It now asserts the surviving invariant — the engine
+   is the only producer, the six 19E partials exist, and no member file reads the money tables directly.
+9. **`MemberDashboardLiveTest` and `MemberEarningsLiveTest` are updated, not only extended.** The feed's
+   exact fragment list gains `dashboard-royalty` (the region 19E creates), and the page test's region
+   count moves from six to seven. Both are additive assertions for regions 19E creates.
+10. **A skipped row does not show a “would have been” amount on the member page.** 19D's admin ledger
+    derives one; the member surface shows the stored reason, the GS/PS it was judged on and *no payment*
+    instead. The copy rule is that a member surface never promises money the engine will not pay, and
+    Appendix C.3 lists no such figure.
+
+### Hand-off to 19F and 19G
+
+- Member pages render the current and historical truth: the rank card, the monthly statement, the
+  member CSV and the dashboard tile all read the engine's own projection and the stored rows.
+- The dashboard tile and the earnings tab are the places 19F's operations panel can link to from its
+  “what members see” note; the close's `Live::touch()` calls (now including the evaluate-time member
+  bump) already reach them.
+- The copy deck (Appendix C.3/C.4/C.6/C.7/C.8) is implemented verbatim where it names strings; 19G may
+  assume the four claims hold on every member surface — monthly close, group sales = own + team, Leader
+  is not paid, and the quota is all-or-nothing.
+- Still absent: the scheduled close, the web/`.cmd` entries, the doctor and the operations panel (19F);
+  `APP_PHASE` is 17 until 19G.
+
+---
+

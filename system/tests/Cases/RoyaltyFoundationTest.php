@@ -743,14 +743,15 @@ return [
     /* ==========================================================
      *  One producer, admin readers only (P19A-T13)
      * ========================================================== */
-    'P19A-T13 only the engine produces Royalty rows and only the admin reads render them' => function () use ($appRoot): void {
+    'P19A-T13 only the engine produces Royalty rows and every reader goes through it' => function () use ($appRoot): void {
         /* 19A asserted the objects were inert; 19B asserted the rank
          * engine may read `users` but nothing the money tables; 19C
-         * shipped the engine; 19D adds the **read-only** admin ledger.
-         * The invariant is now: the engine is the ONLY producer, the
-         * money tables are named only by the engine, the reset tooling
-         * and the 19D report read model, and no member surface renders
-         * them yet (19E). */
+         * shipped the engine; 19D adds the **read-only** admin ledger;
+         * 19E adds the member statement and tile. The invariant is now:
+         * the engine is the ONLY producer, the money tables are named
+         * only by the engine, the reset tooling and the report read
+         * model, and every other reader goes through the engine's read
+         * API. */
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($appRoot . '/app', FilesystemIterator::SKIP_DOTS)
         );
@@ -819,22 +820,36 @@ return [
 
         assert_false(is_file($appRoot . '/app/Controllers/RoyaltyController.php'));
 
-        /* No **member-facing** surface renders Royalty money yet: that
-         * is 19E's deliverable. The admin surfaces are 19D's and are
-         * allowed to read the engine. */
-        $memberFiles = ['/app/Controllers/EarningsController.php', '/app/Controllers/DashboardController.php'];
+        /* Member-facing surfaces render Royalty from 19E onward: the
+         * statement and the dashboard tile exist, and every read goes
+         * through the engine's API — no member file names the money
+         * tables directly and no member file writes money. */
+        foreach ([
+            '/app/views/member/earnings/_royalty_header.php',
+            '/app/views/member/earnings/_royalty_rank.php',
+            '/app/views/member/earnings/_royalty_stats.php',
+            '/app/views/member/earnings/_royalty_rows.php',
+            '/app/views/member/earnings/_royalty_pagination.php',
+            '/app/views/member/dashboard/_royalty.php',
+        ] as $file) {
+            assert_true(is_file($appRoot . $file), $file . ' must exist after 19E');
+        }
 
-        foreach ($files as $path) {
-            $file = $relative($path);
-
-            if (!str_contains($file, '/views/member/') && !in_array($file, $memberFiles, true)) {
-                continue;
-            }
-
+        foreach ([
+            '/app/Controllers/EarningsController.php',
+            '/app/Controllers/DashboardController.php',
+            '/app/views/member/earnings.php',
+            '/app/views/member/earnings/_royalty_rows.php',
+            '/app/views/member/earnings/_royalty_stats.php',
+            '/app/views/member/dashboard/_royalty.php',
+        ] as $file) {
             assert_same(
                 0,
-                preg_match('/\bRoyalty(Service|Award|Period|Exception)\b/', (string) file_get_contents($path)),
-                $file . ' must not render a Royalty money surface before 19E'
+                preg_match(
+                    '/\b(FROM|INTO|UPDATE|JOIN)\s+`?royalty_(awards|periods)/i',
+                    (string) file_get_contents($appRoot . $file)
+                ),
+                $file . ' must read the Royalty tables through the engine, not directly'
             );
         }
 

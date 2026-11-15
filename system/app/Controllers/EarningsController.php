@@ -5,15 +5,17 @@ declare(strict_types=1);
  *  EarningsController — the member's commission statement
  *  (plan §7 Phase 10; reference MemberController::earnings and
  *  views/member/earnings.php; Phase 17E adds the repeat-purchase tab
- *  of plan §9)
+ *  of plan §9; Phase 19E adds the Royalty tab of plan §9)
  *
  *  Route (Appendix A): GET /earnings   guard `member`
  *
- *  Two ledgers, one page, one URL:
+ *  Three ledgers, one page, one URL:
  *
  *      /earnings                package referral awards (`commissions`)
  *      /earnings?ledger=repeat  repeat-purchase awards
  *                               (`unilevel_awards`)
+ *      /earnings?ledger=royalty monthly Royalty awards
+ *                               (`royalty_awards`)
  *
  *  The package tab is the Phase 10–11 statement, unchanged: three
  *  summary groups, the level breakdown, the skipped-award notice and
@@ -29,19 +31,26 @@ declare(strict_types=1);
  *  before that (plan §10.3). The reads are the model's own escrow
  *  fields, so the page and the live feed never disagree.
  *
+ *  Phase 19E adds the Royalty tab: the rank card (current rank, the
+ *  next-rank progress, this month's group and personal sales against the
+ *  quota, the "if this month closed now" projection), the five counters
+ *  and one row per closed month. The rank card reads
+ *  `RoyaltyService::statusFor()` — the engine's own projection — so the
+ *  page can never promise an amount the close would not pay (plan §14.11).
+ *
  *  Members only ever see their own rows (`WHERE user_id = ?`), the same
  *  ownership rule as orders and the wallet statement. The tab is a
- *  query parameter only (D-14); a `ledger` value other than `repeat`
- *  selects the package tab, so a hand-edited URL can never break the
- *  page.
+ *  query parameter only (D-16); a `ledger` value other than `repeat` or
+ *  `royalty` selects the package tab, so a hand-edited URL can never
+ *  break the page.
  *
  *  The page is one per-member live surface (`member.earnings:{id}`).
- *  The two tabs share it: a repeat award bumps the same revision the
- *  package tab already listens to, so an open repeat tab refreshes
- *  without a second surface (Rule 10). The repeat tab also mixes the
- *  shared genealogy revision into its ETag: its level cards list the
- *  team, so a registration, activation or status change refreshes them
- *  too, exactly like the genealogy page.
+ *  The three tabs share it: a repeat or Royalty award bumps the same
+ *  revision the package tab already listens to, so an open tab refreshes
+ *  without a second surface (Rule 10). The repeat and Royalty tabs also
+ *  mix the shared genealogy revision into their ETag: their level cards
+ *  and rank requirements list the team, so a registration, activation or
+ *  status change refreshes them too, exactly like the genealogy page.
  * ============================================================== */
 
 final class EarningsController
@@ -51,6 +60,9 @@ final class EarningsController
 
     /** Repeat-purchase (unilevel ladder) statement. */
     public const TAB_REPEAT = 'repeat';
+
+    /** Monthly Royalty statement (Phase 19E). */
+    public const TAB_ROYALTY = 'royalty';
 
     /** @param array<string, string> $params */
     public function index(array $params = []): void
@@ -91,12 +103,14 @@ final class EarningsController
         ]);
     }
 
-    /** The tab named by `?ledger=`; anything but `repeat` is the package tab. */
+    /** The tab named by `?ledger=`; anything but `repeat`/`royalty` is the package tab. */
     public static function tab(): string
     {
-        return strtolower(trim(Request::string('ledger'))) === self::TAB_REPEAT
-            ? self::TAB_REPEAT
-            : self::TAB_PACKAGE;
+        return match (strtolower(trim(Request::string('ledger')))) {
+            self::TAB_REPEAT  => self::TAB_REPEAT,
+            self::TAB_ROYALTY => self::TAB_ROYALTY,
+            default           => self::TAB_PACKAGE,
+        };
     }
 
     /**
@@ -108,7 +122,11 @@ final class EarningsController
     {
         $tab ??= self::tab();
 
-        return $tab === self::TAB_REPEAT ? $this->repeatContext($userId) : $this->earningsContext($userId);
+        return match ($tab) {
+            self::TAB_REPEAT  => $this->repeatContext($userId),
+            self::TAB_ROYALTY => $this->royaltyContext($userId),
+            default           => $this->earningsContext($userId),
+        };
     }
 
     /**
@@ -194,6 +212,89 @@ final class EarningsController
             'repeat_url'    => url('earnings?ledger=repeat'),
             'statement_url' => url('earnings?ledger=repeat'),
             'export_url'    => url('earnings/export' . self::repeatQueryString($filters)),
+        ];
+    }
+
+    /**
+     * Everything the Royalty statement renders (19E, plan §9).
+     *
+     * Every read is scoped to the session member (`$userId`), so a
+     * `?user_id=` in the URL is ignored: there is no parameter that can
+     * widen the query (Rule 1, P19E-T6).
+     *
+     * The rank card is `RoyaltyService::statusFor()`, the engine's own
+     * projection for the **open** month: rank, the next-rank progress,
+     * this month's PS/GS against the quota and the "if this month closed
+     * now" amount (plan §14.11). The rows are one per closed month; the
+     * latest of them is the stats card's "this period" figure.
+     *
+     * @return array<string, mixed>
+     */
+    public function royaltyContext(int $userId): array
+    {
+        $filters = self::royaltyFilters();
+
+        $pager     = Paginator::fromTableRequest(RoyaltyAward::countForUser($userId, $filters));
+        $statement = (new RoyaltyService())->statusFor($userId);
+        $totals    = RoyaltyAward::totalsForUser($userId);
+
+        return [
+            'tab'           => self::TAB_ROYALTY,
+            'user_id'       => $userId,
+            'royalty'       => $statement,
+            'totals'        => $totals,
+            'stats'         => $this->royaltyStats($totals, $statement),
+            'filters'       => $filters,
+            'periods'       => RoyaltyAward::periodsForUser($userId),
+            'pager'         => $pager,
+            'awards'        => RoyaltyAward::pageForUser($userId, $filters, $pager),
+            'wallet_url'    => url('wallet'),
+            'genealogy_url' => url('genealogy'),
+            'package_url'   => url('earnings'),
+            'repeat_url'    => url('earnings?ledger=repeat'),
+            'royalty_url'   => url('earnings?ledger=royalty'),
+            'statement_url' => url('earnings?ledger=royalty'),
+            'export_url'    => url('earnings/export' . self::royaltyQueryString($filters)),
+        ];
+    }
+
+    /**
+     * The five counters of the Royalty tab's stats card (plan §9,
+     * Appendix C.3).
+     *
+     * `this_period` is the newest closed month the member has a row for:
+     * a member has at most one row per month (D-08), so the newest
+     * history row *is* the latest period. It is never the open month — an
+     * open month has no stored row, which is why the projection lives on
+     * the rank card and not here.
+     *
+     * @param array{rows:int, paid_rows:int, pending_rows:int, skipped_rows:int,
+     *              paid_total:float, pending_total:float,
+     *              last_paid:?array{period:string, amount:float}} $totals
+     * @param array<string, mixed> $statement RoyaltyService::statusFor()
+     * @return array<string, mixed>
+     */
+    private function royaltyStats(array $totals, array $statement): array
+    {
+        $history = is_array($statement['history'] ?? null) ? $statement['history'] : [];
+        $latest  = $history[0] ?? null;
+
+        return [
+            'rows'             => (int) $totals['rows'],
+            'paid_all_time'    => (float) $totals['paid_total'],
+            'paid_rows'        => (int) $totals['paid_rows'],
+            'pending_total'    => (float) $totals['pending_total'],
+            'pending_rows'     => (int) $totals['pending_rows'],
+            'skipped_rows'     => (int) $totals['skipped_rows'],
+            'last_paid'        => $totals['last_paid'],
+            'this_period'      => $latest === null ? null : [
+                'period' => (string) $latest['period'],
+                'rank'   => (int) $latest['rank_level'],
+                'amount' => (float) $latest['amount'],
+                'status' => (string) $latest['status'],
+            ],
+            'enabled'          => (bool) ($statement['enabled'] ?? false),
+            'payments_enabled' => (bool) ($statement['payments_enabled'] ?? true),
         ];
     }
 
@@ -286,7 +387,9 @@ final class EarningsController
      * repeat tab (17E) writes `repeat-purchase-statement_YYYY-MM-DD.csv`
      * with the documented `UnilevelAward` columns — the same 13 columns
      * the admin ledger and the report export use, so a member, an admin
-     * and finance read one definition. Both are scoped to the caller's
+     * and finance read one definition. The Royalty tab (19E) writes
+     * `royalty-statement_YYYY-MM-DD.csv` with the Appendix C.6 columns
+     * and only the caller's rows. All three are scoped to the caller's
      * own rows.
      *
      * @param array<string, string> $params
@@ -297,6 +400,12 @@ final class EarningsController
 
         if ($user === null) {
             redirect('login');
+        }
+
+        if (self::tab() === self::TAB_ROYALTY) {
+            $this->exportRoyalty((int) $user['id']);
+
+            return;
         }
 
         if (self::tab() === self::TAB_REPEAT) {
@@ -400,6 +509,113 @@ final class EarningsController
     }
 
     /**
+     * GET /earnings/export?ledger=royalty — the member's own Royalty rows.
+     *
+     * The CSV reuses the screen's period/rank/status filters and writes
+     * the Appendix C.6 columns. `$userId` scopes it, so a hand-edited
+     * `?user_id=` cannot export another member's months (Rule 1). Like
+     * the package and repeat statements, a member reading their own
+     * statement is the page itself: no audit row (plan §15.1).
+     */
+    private function exportRoyalty(int $userId): void
+    {
+        $rows = RoyaltyAward::exportRows(self::royaltyFilters(), null, $userId);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="royalty-statement_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, self::royaltyCsvHeader());
+
+        foreach (self::royaltyCsvRows($rows) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The Royalty statement CSV header — exactly plan Appendix C.6.
+     *
+     * @return list<string>
+     */
+    public static function royaltyCsvHeader(): array
+    {
+        return [
+            'Period', 'Rank', 'Group sales', 'Personal sales', 'Quota',
+            'Group %', 'Personal %', 'Amount', 'Status', 'Reason', 'Paid at',
+        ];
+    }
+
+    /**
+     * The Royalty statement CSV rows, one per closed month.
+     *
+     * The `Status` column carries the **member** label (Appendix C.8:
+     * `skipped` reads *Not paid*), because this file is the member's own
+     * statement; the admin ledger CSV keeps the stored value. `Paid at`
+     * is the wallet credit time, empty for anything that never reached a
+     * wallet.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<list<string>>
+     */
+    public static function royaltyCsvRows(array $rows): array
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $status = (string) $row['status'];
+            $paidAt = $row['credited_at'] ?? null;
+
+            $out[] = [
+                (string) $row['period'],
+                RoyaltyRank::NAMES[(int) $row['rank_level']] ?? 'Rank ' . (int) $row['rank_level'],
+                number_format((float) $row['group_volume'], 2, '.', ''),
+                number_format((float) $row['personal_volume'], 2, '.', ''),
+                number_format((float) $row['quota'], 2, '.', ''),
+                number_format((float) $row['group_pct'], 3, '.', ''),
+                number_format((float) $row['personal_pct'], 3, '.', ''),
+                number_format((float) $row['amount'], 2, '.', ''),
+                RoyaltyAward::MEMBER_STATUS_LABELS[$status] ?? ucfirst($status),
+                trim((string) ($row['reason'] ?? '')),
+                $paidAt === null || (string) $paidAt === '' ? '' : (string) $paidAt,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The Royalty statement's validated filters (period, rank, status).
+     *
+     * There is deliberately no free-text search: every row is the
+     * session member's own, so a search box could only match their own
+     * name. `q` is forced empty so a hand-edited URL cannot turn the
+     * statement into a directory search.
+     *
+     * @return array{period:string, status:string, rank:string, q:string}
+     */
+    private static function royaltyFilters(): array
+    {
+        return RoyaltyAward::normaliseFilters([
+            'period' => Request::string('period'),
+            'status' => Request::string('status'),
+            'rank'   => Request::string('rank'),
+            'q'      => '',
+        ]);
+    }
+
+    /**
      * The current package filters as an export query string ('' when none).
      *
      * @param array{type:string, level:string, status:string, from:string, to:string, q:string} $filters
@@ -430,19 +646,41 @@ final class EarningsController
     }
 
     /**
+     * The Royalty export query string: the tab first, then the filters.
+     *
+     * @param array{period:string, status:string, rank:string, q:string} $filters
+     */
+    private static function royaltyQueryString(array $filters): string
+    {
+        $query = ['ledger' => self::TAB_ROYALTY] + array_filter(
+            $filters,
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return '?' . http_build_query($query);
+    }
+
+    /**
      * ETag scope for the statement.
      *
      * The "last award" label is relative and `this_month` counts from
      * CURDATE(), so the hour is part of the scope: a tab left open
      * revalidates without a write instead of showing a stale age.
-     * `Live::scope()` carries the query string, so the two tabs never
-     * share an ETag.
+     * `Live::scope()` carries the query string, so the tabs never share
+     * an ETag.
      *
      * The repeat tab also lists the member's team by level, so it mixes
      * in the shared `GENEALOGY_TEAM` revision: a registration, an
      * activation or a member status change moves a roster even though no
      * award row was written (the same revision the genealogy and
      * dashboard pages use).
+     *
+     * The Royalty tab (19E) reads the team twice — the rank requirements
+     * and the next-rank progress — and its MTD figures belong to one
+     * calendar month, so it mixes the team revision, the configuration
+     * revision (a ladder or quota change re-renders the card) and the
+     * open month. The award rows themselves move only with the surface
+     * revision, which the close bumps.
      */
     private function earningsScope(int $userId): string
     {
@@ -450,6 +688,12 @@ final class EarningsController
 
         if (self::tab() === self::TAB_REPEAT) {
             $scope .= '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM);
+        }
+
+        if (self::tab() === self::TAB_ROYALTY) {
+            $scope .= '|month:' . RoyaltyPeriod::periodOf()
+                . '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM)
+                . '|config:' . Live::revisionOrZero(Live::CONFIG);
         }
 
         return $scope;
@@ -500,6 +744,10 @@ final class EarningsController
     {
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_REPEAT) {
             return $this->repeatFeedPayload($revision, $etag, $data);
+        }
+
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_ROYALTY) {
+            return $this->royaltyFeedPayload($revision, $etag, $data);
         }
 
         $pager = $data['pager'];
@@ -581,6 +829,52 @@ final class EarningsController
                     'shop_url'      => $data['shop_url'],
                 ]),
                 'earnings-repeat-pagination' => View::capture('member/earnings/_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalEarningsUrl($pager),
+            ],
+        ];
+    }
+
+    /**
+     * The Royalty tab's fragments (19E): the card heading, the rank
+     * card, the five counters, the rows and the pagination. The filter
+     * form and the tab pills never travel in a fragment.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function royaltyFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::earningsSurface((int) $data['user_id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'earnings-royalty-header' => View::capture('member/earnings/_royalty_header', [
+                    'pager' => $pager,
+                ]),
+                'earnings-royalty-rank' => View::capture('member/earnings/_royalty_rank', [
+                    'royalty' => $data['royalty'],
+                ]),
+                'earnings-royalty-stats' => View::capture('member/earnings/_royalty_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'earnings-royalty-rows' => View::capture('member/earnings/_royalty_rows', [
+                    'awards'           => $data['awards'],
+                    'filters'          => $data['filters'],
+                    'payments_enabled' => (bool) ($data['royalty']['payments_enabled'] ?? true),
+                ]),
+                'earnings-royalty-pagination' => View::capture('member/earnings/_royalty_pagination', [
                     'pager' => $pager,
                 ]),
             ],

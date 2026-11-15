@@ -1,0 +1,27 @@
+QA19E-02 - The member projection equals the amount the close paid for the same month
+====================================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §14.11 and the exit gate: statusFor() must use the engine’s own map/volumes/awardCents, so the page can never promise a different amount.
+
+The engine’s own read (RoyaltyService::statusFor) for the open month,
+versus the stored rows the close wrote for the completed months:
+  open 2026-11   projection ₱98,000.00   (group ₱1,225,000.00, personal ₱1,225,000.00)
+  2026-10   paid       ₱98,000.00   (group ₱1,225,000.00, personal ₱1,225,000.00)
+  2026-08   paid       ₱98,000.00   (group ₱1,225,000.00, personal ₱1,225,000.00)
+  2026-09   pending    ₱98,000.00
+
+One rounding on group% × GS + personal% × PS:
+  0.03 × 1,225,000.00 + 0.05 × 1,225,000.00 = ₱98,000.00
+
+Comparison: projection == the paid row : yes
+
+RESULT: PASS

@@ -1,0 +1,42 @@
+QA19E-09 - The dashboard tile renders and the statement is phone-safe at 390 px
+===============================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §9 Rule 9 and Appendix C.4: three pills wrap, the monthly money columns step aside, and the tile carries rank, month and paid total.
+
+GET /dashboard  (member session qa19e_sup_ax)
+  tile:
+  present  data-live-region="dashboard-royalty"
+  present  Royalty
+  present  Supervisor
+  present  group this month
+  present  quota met
+  present  If this month closed now
+  present  Paid all-time
+  present  Last paid
+  present  earnings?ledger=royalty
+  the tile is one card of its own: present in the page
+
+GET /earnings?ledger=royalty  — the three pills
+  pills                3 (Package, Repeat-purchase, Royalty)
+  Royalty pill active  yes
+  Royalty pill href    present
+
+Phone rule (390 px): the three pills wrap and the monthly money columns
+collapse below 768 px, so the statement never scrolls sideways.
+  present  .commission-tabs
+  present  flex-wrap: wrap
+  present  .commission-col-gs
+  present  .commission-col-ps
+  present  .commission-col-quota
+  present  .commission-col-rates
+
+RESULT: PASS

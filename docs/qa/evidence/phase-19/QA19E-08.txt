@@ -1,0 +1,28 @@
+QA19E-08 - The CSV carries only the member’s own months and the Appendix C.6 columns
+======================================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §9 Rule 1 and Appendix C.6: a member export is the statement, scoped and unaudited.
+
+GET /earnings/export?ledger=royalty&user_id=17  (member session qa19e_sup_ax)
+  header: Period,Rank,Group sales,Personal sales,Quota,Group %,Personal %,Amount,Status,Reason,Paid at
+  rows:   3  (the caller’s own — the user_id is ignored)
+
+  2026-10,Supervisor,1225000.00,1225000.00,500000.00,3.000,5.000,98000.00,Paid,,2026-11-15 13:35:48
+  2026-09,Supervisor,1225000.00,1225000.00,500000.00,3.000,5.000,98000.00,Awaiting payment,,
+  2026-08,Supervisor,1225000.00,1225000.00,500000.00,3.000,5.000,98000.00,Paid,,2026-11-15 13:35:48
+
+  periods: 2026-10, 2026-09, 2026-08
+  every row belongs to the caller: yes
+  the other supervisor’s rows: 3 (no orders were placed for them)
+  audit rows written by the export: 0
+
+RESULT: PASS

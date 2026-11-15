@@ -8,7 +8,8 @@
     P15-T1 ... P15-T12; Phase 17: P17B-T1 ... P17B-T20,
     P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
     P17F-T10 / P17F-T11; Phase 19B: P19B-T1 / T6 / T23;
-    Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18).
+    Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18;
+    Phase 19E: P19E-T1, T2, T3, T12, T13, T14).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -3346,6 +3347,90 @@ try {
     Assert-That 'P19D-T18' ($p19dMember.Status -eq 403 -and $p19dMember.Body -match 'Access denied' `
             -and $p19dMemberCsv.Status -eq 403) `
         "a member is refused the Royalty ledger and its export (page=$($p19dMember.Status), csv=$($p19dMemberCsv.Status))"
+
+    # ---- Phase 19E: the member-facing Royalty surfaces -------------------
+    $p19eRan        = $true
+    $p19eAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    foreach ($key in @('royalty_enabled', 'royalty_pay_enabled')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    # P19E-T1 / QA19E-01 - the third pill, the title, the rank card, the
+    # counters, the rows and the pagination all render for a member.
+    $p19eTab = Invoke-App -Path '/earnings?ledger=royalty' -Session 'member'
+    Assert-That 'P19E-T1' ($p19eTab.Status -eq 200 `
+            -and $p19eTab.Body -match 'Your Royalty bonus' `
+            -and $p19eTab.Body -match 'Royalty is paid once a month, after the month closes' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-rank"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-stats"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-header"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-rows"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-pagination"' `
+            -and $p19eTab.Body -match 'name="ledger" value="royalty"' `
+            -and $p19eTab.Body -match 'Your rank' `
+            -and $p19eTab.Body -match 'Direct members') `
+        "GET /earnings?ledger=royalty renders the third tab, the rank card and its five regions (status=$($p19eTab.Status))"
+
+    # P19E-T2 / T3 - the two older member tabs have not moved and never
+    # render a Royalty region.
+    $p19ePackage = Invoke-App -Path '/earnings' -Session 'member'
+    $p19eRepeat  = Invoke-App -Path '/earnings?ledger=repeat' -Session 'member'
+    Assert-That 'P19E-T2' ($p19ePackage.Status -eq 200 `
+            -and $p19ePackage.Body -match 'data-live-region="earnings-stats"' `
+            -and $p19ePackage.Body -match 'data-live-region="earnings-levels"' `
+            -and $p19ePackage.Body -match 'data-live-region="earnings-rows"' `
+            -and $p19ePackage.Body -match 'id="commissionDetail"' `
+            -and $p19ePackage.Body -notmatch 'earnings-royalty-') `
+        "the package statement keeps its regions, filters and drawer and renders no Royalty region (status=$($p19ePackage.Status))"
+    Assert-That 'P19E-T3' ($p19eRepeat.Status -eq 200 `
+            -and $p19eRepeat.Body -match 'data-live-region="earnings-repeat-stats"' `
+            -and $p19eRepeat.Body -match 'data-live-region="earnings-repeat-levels"' `
+            -and $p19eRepeat.Body -match 'data-live-region="earnings-repeat-rows"' `
+            -and $p19eRepeat.Body -notmatch 'earnings-royalty-') `
+        "the repeat statement keeps its five regions and renders no Royalty region (status=$($p19eRepeat.Status))"
+
+    # P19E-T12 - the member CSV carries the Appendix C.6 columns and the
+    # member export writes no audit row (plan §15.1).
+    $p19eCsv       = Invoke-App -Path '/earnings/export?ledger=royalty' -Session 'member'
+    $p19eCsvHeader = 'Period,Rank,"Group sales","Personal sales",Quota,"Group %","Personal %",Amount,Status,Reason,"Paid at"'
+    $p19eExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE id > $p19eAuditStart AND action = 'royalty.export';" | Out-String).Trim()
+    Assert-That 'P19E-T12' ($p19eCsv.Status -eq 200 `
+            -and $p19eCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p19eCsv.Body -match [regex]::Escape($p19eCsvHeader) `
+            -and $p19eCsv.Headers['content-disposition'] -match 'royalty-statement_' `
+            -and $p19eExportAudit -eq '0') `
+        "GET /earnings/export?ledger=royalty returns the Appendix C.6 CSV and writes no audit row (status=$($p19eCsv.Status), audit=$p19eExportAudit)"
+
+    # P19E-T13 - the dashboard tile appears while the stream is on and a
+    # member has no history, and is hidden when the stream is off with no
+    # history (plan §9 Rule 5).
+    $p19eRoyaltyBefore = Get-SettingValue 'royalty_enabled'
+    Set-SettingValue 'royalty_enabled' '1'
+    $p19eTileOn  = Invoke-App -Path '/dashboard' -Session 'member'
+    Set-SettingValue 'royalty_enabled' '0'
+    $p19eTileOff = Invoke-App -Path '/dashboard' -Session 'member'
+    Set-SettingValue 'royalty_enabled' $p19eRoyaltyBefore
+    Assert-That 'P19E-T13' ($p19eTileOn.Status -eq 200 `
+            -and $p19eTileOn.Body -match 'data-live-region="dashboard-royalty"' `
+            -and $p19eTileOn.Body -match 'Paid all-time' `
+            -and $p19eTileOn.Body -match 'earnings\?ledger=royalty' `
+            -and $p19eTileOff.Status -eq 200 `
+            -and $p19eTileOff.Body -notmatch 'data-live-region="dashboard-royalty"') `
+        "the Royalty tile renders while the stream is on and hides when it is off with no history (on=$($p19eTileOn.Status), off=$($p19eTileOff.Status))"
+
+    # P19E-T14 / QA19E-09 - phone-safe: the three pills wrap (the Phase 17E
+    # rule) and the monthly money columns step aside below 768 px, so the
+    # statement never scrolls sideways at 390 px.
+    $p19eCss = Invoke-App -Path '/assets/css/commissions.css' -Session 'member'
+    Assert-That 'P19E-T14' ($p19eCss.Status -eq 200 `
+            -and $p19eCss.Body -match '\.commission-tabs\s*\{[^}]*flex-wrap:\s*wrap' `
+            -and $p19eCss.Body -match '\.commission-col-gs' `
+            -and $p19eCss.Body -match '\.commission-col-quota' `
+            -and $p19eTab.Body -match 'Package commissions' `
+            -and $p19eTab.Body -match 'Repeat-purchase bonus' `
+            -and $p19eTab.Body -match '>\s*<i class="icon-base bx bx-crown me-1"></i>\s*Royalty') `
+        "the third pill wraps with the others and the monthly columns collapse on a phone (css=$($p19eCss.Status))"
 
     # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
     $p17dRan        = $true

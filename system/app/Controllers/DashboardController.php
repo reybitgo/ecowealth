@@ -17,10 +17,11 @@ declare(strict_types=1);
  *  returns zeros until the `commissions` table arrives in Phase 10.
  *
  *  Live updates: the page is one per-member surface
- *  (`member.dashboard:{id}`) with six regions — the header status pill,
+ *  (`member.dashboard:{id}`) with seven regions — the header status pill,
  *  the KPI row, the E-wallet card, the membership card, the recent-orders
- *  card and the earnings card. The greeting, the referral card and the
- *  static explanatory copy stay outside the regions.
+ *  card, the earnings card and (Phase 19E) the Royalty tile. The
+ *  greeting, the referral card and the static explanatory copy stay
+ *  outside the regions.
  *
  *  Phase 18 adds the escrow read-out (`pending_repeat`): the repeat
  *  bonus the member has earned but that is not in the wallet yet. The
@@ -28,6 +29,12 @@ declare(strict_types=1);
  *  figure, and the earnings card splits the repeat-purchase total into
  *  credited / pending release / total (plan §10.2). The existing
  *  balance and withdrawable figures never change meaning.
+ *
+ *  Phase 19E adds the Royalty tile (`royalty`). It is a read-only
+ *  projection of the member's rank and this month's group sales, plus
+ *  the Royalty they have already been paid, and it links to the Royalty
+ *  statement. It is hidden only when the stream is off **and** the
+ *  member has no history (plan §9 Rule 5).
  * ============================================================== */
 
 final class DashboardController
@@ -124,8 +131,54 @@ final class DashboardController
              * read (plan §10.2, §18.2). The model guards a missing
              * table, so this is zero on an install without Phase 17. */
             'pending_repeat'   => UnilevelAward::pendingSummaryForUser($userId),
+            'royalty'          => $this->royaltySummary($userId),
             'referral_code'    => (string) ($member['referral_code'] ?? ''),
             'referral_link'    => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
+        ];
+    }
+
+    /**
+     * The Royalty tile's figures (19E, plan §9, Appendix C.4).
+     *
+     * The read is `RoyaltyService::statusFor()` — the same read the
+     * member's Royalty statement and the admin member panel use — so the
+     * tile can never promise an amount the close would not pay. It is
+     * wrapped because the dashboard must render even when the projection
+     * is unavailable: a broken read hides the tile, never the page.
+     *
+     * `has_history` is read from the same status call (its recent-award
+     * list), so a member who earned Royalty before the stream was
+     * switched off keeps a way to their statement (Rule 5).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function royaltySummary(int $userId): ?array
+    {
+        try {
+            $status = (new RoyaltyService())->statusFor($userId);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] royalty dashboard tile unavailable: ' . $e->getMessage());
+
+            return null;
+        }
+
+        $history = is_array($status['history'] ?? null) ? $status['history'] : [];
+
+        return [
+            'enabled'          => (bool) ($status['enabled'] ?? false),
+            'payments_enabled' => (bool) ($status['payments_enabled'] ?? true),
+            'rank'             => (int) ($status['rank'] ?? RoyaltyRank::MEMBER),
+            'rank_name'        => (string) ($status['rank_name'] ?? 'Member'),
+            'personal'         => (float) ($status['personal'] ?? 0),
+            'group'            => (float) ($status['group'] ?? 0),
+            'quota'            => (float) ($status['quota'] ?? 0),
+            'progress'         => max(0, min(100, (int) ($status['progress'] ?? 0))),
+            'projected'        => (float) ($status['projected'] ?? 0),
+            'eligible'         => (bool) ($status['eligible'] ?? false),
+            'next'             => is_array($status['next'] ?? null) ? $status['next'] : null,
+            'paid_all_time'    => (float) ($status['paid_all_time'] ?? 0),
+            'last_paid'        => is_array($status['last_paid'] ?? null) ? $status['last_paid'] : null,
+            'has_history'      => $history !== [],
         ];
     }
 
@@ -255,6 +308,9 @@ final class DashboardController
                     'team'           => $data['team'],
                     'recent_history' => $data['recent_history'],
                     'unilevel'       => $data['unilevel'] ?? null,
+                ]),
+                'dashboard-royalty' => View::capture('member/dashboard/_royalty', [
+                    'royalty' => $data['royalty'] ?? null,
                 ]),
             ],
             'meta'      => [

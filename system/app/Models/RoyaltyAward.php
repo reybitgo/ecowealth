@@ -459,6 +459,37 @@ final class RoyaltyAward
     }
 
     /**
+     * The closed months one member has a row for, newest first — the
+     * member statement's period filter (19E).
+     *
+     * Deliberately narrower than `RoyaltyPeriod::periods()`: a member
+     * only ever filters among months they were judged in, so the
+     * statement never lists the network's whole calendar.
+     *
+     * @return list<string>
+     */
+    public static function periodsForUser(int $userId, int $limit = 36, ?PDO $pdo = null): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(120, $limit));
+
+        $stmt = $pdo->prepare(
+            'SELECT DISTINCT period FROM royalty_awards WHERE user_id = ?'
+            . ' ORDER BY period DESC LIMIT ' . $limit
+        );
+        $stmt->execute([$userId]);
+
+        return array_map(
+            static fn (array $row): string => (string) $row['period'],
+            $stmt->fetchAll()
+        );
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function pageForUser(int $userId, array $filters, Paginator $pager, ?PDO $pdo = null): array
@@ -471,14 +502,21 @@ final class RoyaltyAward
      * first, capped at EXPORT_LIMIT. `$filters['period']` narrows it to
      * one month; a null/absent period exports the whole history.
      *
+     * `$userId` scopes the export to one member: 19D's admin ledger
+     * passes nothing (the whole filtered ledger), while 19E's member
+     * statement passes the session member so a hand-edited URL can never
+     * export another member's rows (plan §9 Rule 1).
+     *
      * @return list<array<string, mixed>>
      */
-    public static function exportRows(array $filters = [], ?PDO $pdo = null): array
+    public static function exportRows(array $filters = [], ?PDO $pdo = null, ?int $userId = null): array
     {
         $filters = self::normaliseFilters($filters);
         $pdo     = $pdo ?? db();
 
-        [$where, $params] = self::whereFor(null, $filters, null);
+        /* A zero user id is not "no filter": it is a member who owns no
+         * row, so the where-clause stays and the export is empty. */
+        [$where, $params] = self::whereFor(null, $filters, $userId);
         $sql = self::select()
             . ($where === '' ? '' : ' WHERE ' . $where)
             . ' ORDER BY a.period DESC, a.rank_level DESC, a.amount DESC, a.user_id ASC'

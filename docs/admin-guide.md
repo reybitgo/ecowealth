@@ -483,13 +483,14 @@ and **never paid on a cancelled order**.
 
 ---
 
-## 16. Royalty bonus: the rank ladder and the monthly ledger (Phase 19B–19D)
+## 16. Royalty bonus: the rank ladder and the monthly ledger (Phase 19B–19E)
 
 The Royalty bonus is a **monthly override on group sales**, paid once per closed calendar month to
 **Supervisor, Manager and Director** only. Phase 19B ships its configuration and the derived rank
 ladder; 19C ships the monthly evaluation and payment; 19D ships the read-only admin views — the
-ledger, the report cards, the member panel and the dashboard tile. **The stream still ships off and
-no member has a Royalty card of their own until 19E.**
+ledger, the report cards, the member panel and the dashboard tile; 19E ships the member's own
+Royalty statement and dashboard tile. **The stream still ships off**, so a fresh install pays
+nothing until an operator turns it on.
 
 ### The five ranks
 
@@ -562,13 +563,13 @@ and the section `commissions`. A save writes no period, award, wallet or other m
 ### What this build does not do
 
 There is still no **Run close** button: closing a month is the CLI job
-(`bin/royalty_month_close.php`), never a page. The Royalty ledger and the member panel are
-**read-only** — no admin screen can evaluate, pay, edit or reverse an award. The member-facing
-Royalty tab on `/earnings` and the member dashboard tile arrive with **19E**; the scheduled close, the
-doctor and the operations panel arrive with **19F**.
+(`bin/royalty_month_close.php`), never a page. The Royalty ledger, the member panel and every member
+surface are **read-only** — no screen can evaluate, pay, edit or reverse an award. The member-facing
+Royalty tab on `/earnings` and the member dashboard tile ship with **19E** (see *What members see*
+below); the scheduled close, the doctor and the operations panel arrive with **19F**.
 
 The money is real and already visible in the member's wallet statement as a **Royalty bonus** credit
-(with its ledger id), but there is no member-facing Royalty tab or card of their own until 19E.
+(with its ledger id), and from 19E the member can read the month it came from on their own statement.
 
 ### Reading a "why is nobody ranked" report
 
@@ -655,3 +656,45 @@ Status, Reason, Evaluated at, Paid at, Ledger id`
 - **Admin → Reports** has the Royalty summary (including **royalty paid ÷ paid sales**), the rank
   table and the month table, with a `Royalty` CSV export. Use the ratio to watch the plan economics:
   a rising figure means the ladder is paying more of every peso of sales.
+
+### What members see (Phase 19E)
+
+A member reads Royalty in two places, both **read-only** and both on pages that already existed — no
+new route is added:
+
+- **`/earnings?ledger=royalty`** — the third tab of the member statement. It holds the **rank card**
+  (current rank; the one requirement that unlocks the next rank with its progress bar; the direct and
+  ranked team counts; this month's personal and group sales against the rank's quota; and
+  **“If this month closed now: ₱X”**), five counters (paid all-time, this period, awaiting payment,
+  not paid, last paid) and **one row per closed month** with the rank judged at, GS, PS, quota, the
+  two rates, the amount, the status and the paid date.
+- **`/dashboard`** — a **Royalty tile**: the rank badge, this month's group sales against the quota
+  with a progress bar, the amount if the month closed now, the all-time paid figure and the last paid
+  month, with a link to the statement. It is **hidden when the stream is off and the member has no
+  history**; otherwise it stays and states *“Royalty is currently off”*.
+
+The copy rules the member surfaces follow (plan §9 Rule 7 and Appendix C.3):
+
+| Rule | Why |
+|---|---|
+| It says **team** / **Team chain**, never “downline”, “sponsor chain” or “subtree” | The sponsor vocabulary is an admin concept; the member sees their team. |
+| It says **Royalty**, never “royalty commission” | Royalty is monthly and rank-gated; a commission reads like a per-order payment. |
+| It states the **month close**, never the purchase event | Nothing is paid at checkout; the month ends and the close evaluates it. |
+| **Leader is explained, not hidden** | A Leader sees *“Leader is a rank, not a royalty rank — the first rank that pays is Supervisor”* and their progress toward Supervisor, so a good month is not mistaken for an unpaid one. |
+| A pending month says **Awaiting payment**, never “Paid” | With the payment switch off, the award stays pending and the row says *“Payment is paused; the award stays pending.”* |
+| A skipped month says **Not paid** and names the quota | *“Group sales below the ₱500,000.00 quota”*, with the GS and PS it was judged on still in the row. |
+
+**What members never see:** another member's rows, amounts or rank progress. Every read is scoped to
+the signed-in member, a `?user_id=` in the URL is ignored, and the member CSV contains only their own
+months. The member statement also never shows the network's calendar: its month filter lists only the
+months the member has a row for.
+
+**A member's CSV** is the **Export CSV** button on the Royalty tab and downloads
+`Period, Rank, Group sales, Personal sales, Quota, Group %, Personal %, Amount, Status, Reason,
+Paid at` — the same stored snapshot values the admin ledger uses, with the member-facing status words
+(`Paid`, `Awaiting payment`, `Not paid`). A member export writes no audit row; it is the page itself.
+
+**Support reading:** if a member says “my Royalty is zero”, read the statement in this order — the
+rank card (is the rank Supervisor or above? is the quota met?), the status of the latest month row,
+then the stored reason. The same facts are on **Admin → Members → one member → Royalty**, so a
+support agent and the member read one definition.

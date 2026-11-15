@@ -8,10 +8,11 @@ declare(strict_types=1);
  * wallet buckets, the referral link, recent orders and commission
  * totals (zeros until Phase 10 ships the awards).
  *
- * One live surface per member (`member.dashboard:{id}`). Five regions —
- * the KPI row, the E-wallet card, the membership card, the recent-orders
- * card and the earnings card — re-render in place; the greeting, the
- * referral card and the static copy stay put.
+ * One live surface per member (`member.dashboard:{id}`). Seven regions —
+ * the header status pill, the KPI row, the E-wallet card, the membership
+ * card, the recent-orders card, the earnings card and the Royalty tile —
+ * re-render in place; the greeting, the referral card and the static
+ * copy stay put.
  *
  * @var array<string, mixed>       $member
  * @var float                      $balance
@@ -24,6 +25,7 @@ declare(strict_types=1);
  * @var array<string, mixed>|null  $last_activation
  * @var int                        $activation_count
  * @var list<array<string, mixed>> $recent_history
+ * @var array<string, mixed>|null  $royalty   the Royalty tile's figures (Phase 19E)
  * @var string                     $referral_code
  * @var string                     $referral_link
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
@@ -127,6 +129,9 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
     'withdrawable' => $withdrawable,
     'pending_repeat' => $pending_repeat ?? null,
 ]) ?>
+
+              <!-- Royalty (Phase 19E) -->
+<?= View::capture('member/dashboard/_royalty', ['royalty' => $royalty ?? null]) ?>
 
               <div class="row g-4 mb-4">
                 <!-- Membership -->

@@ -4253,7 +4253,7 @@ without a filled row is not closed, whatever its code says.
 | 19B Configuration | `p19b-configuration` | 2026-11-15 | 1,054 / 1,054 | 232 / 232 | no schema change; bundle `--check` exit 0 | B: 9/9 | DSH (automated pass) | 6 recorded below | ☑ |
 | 19C Money engine | `p19c-money` | 2026-11-15 | 1,106 / 1,106 | 232 / 232 | no schema change; `wallet_reconcile` exit 0 with the Royalty section; reset verification runs `RoyaltyService::reconcile()` | C: 12/12 | DSH (automated pass) | 7 recorded below | ☑ |
 | 19D Admin visibility | `p19d-admin` | 2026-11-15 | 1,127 / 1,127 | 239 / 239 | no schema change; bundle `--check` exit 0 | D: 8/8 | DSH (automated pass) | 9 recorded below | ☑ |
-| 19E Member visibility | `p19e-member` | — | — / ≥1,122 | __ / __ | no schema change | E: __/__ | — | — | ☐ |
+| 19E Member visibility | `p19e-member` | 2026-11-15 | 1,142 / 1,142 | 245 / 245 | no schema change; `wallet_reconcile` exit 0 (moves no money); bundle `--check` exit 0 | E: 9/9 | DSH (automated pass) | 10 recorded below | ☑ |
 | 19F Operations | `p19f-operations` | — | — / ≥1,140 | __ / __ | no schema change | F: __/__ | — | — | ☐ |
 | 19G Release | `p19g-release` | — | — / ≥1,140 | 248 / 248 | no schema change; `APP_PHASE = 19` | G: __/__ | — | — | ☐ |
 
@@ -4289,17 +4289,28 @@ that owns it. An empty deviation log at the 19G gate means the plan and the buil
 | 19D | When the open month is selected, the `commission-royalty-stats` region renders the labelled preview panel instead of eight zero cards. | An open month has no stored totals; the five fragment names stay stable for the live feed, and the preview is still clearly labelled and excluded from every total (Rule 4). | lead (19D gate) |
 | 19D | `AdminMemberLiveTest` gains the `member-royalty` fragment and `AdminDashboardLiveTest` gains the tile fixture. | Additive assertions for regions 19D creates; no existing expectation or behaviour changes. | lead (19D gate) |
 | 19D | `docs/admin-guide.md` §16's 19B-only “what 19B does not do” paragraph is replaced by “what this build does not do”. | It still said “there is no royalty money yet”, which 19C made false; the new paragraph names the genuinely absent 19E member surfaces and 19F operations. | lead (19D gate) |
+| 19E | The statement's month filter lists only the member's own closed months (`RoyaltyAward::periodsForUser()`), not the network calendar. | A member has at most one row per month (D-08), so the network list would only offer months they cannot have; the narrower list is shorter and reveals less. The filter's meaning is unchanged. | lead (19E gate) |
+| 19E | `evaluate()` also bumps each **awarded member's** surfaces (earnings, dashboard, wallet, membership) after the commit. | The member statement lists the evaluated rows; an `--evaluate-only` run or a paused payment never reaches `pay()`'s per-batch touch, so an open tab would read stale. The member twin of 19D's admin fix; `P19E-T15` proves it, no money or idempotency change. | lead (19E gate) |
+| 19E | `RoyaltyAward::exportRows()` gains an optional last parameter `?int $userId`. | The member CSV must be scoped at the model, so a hand-edited URL cannot widen it (Rule 1). Optional, so the admin export and every 19C caller keep their bytes. | lead (19E gate) |
+| 19E | The member CSV's `Status` column carries the member labels (`Paid`, `Awaiting payment`, `Not paid`), not the stored values. | Appendix C.8 defines a member vocabulary and this file is the member's statement; the admin CSV keeps the stored value for finance. | lead (19E gate) |
+| 19E | The stats card's “this period” is the newest closed month the member has a row for. | One row per member per month (D-08) makes the newest history row the latest period; the open month is never a stored row and stays on the rank card as the labelled projection. | lead (19E gate) |
+| 19E | The rank card renders the quota facts as four labelled rows plus a **Quota met** state and a bar, instead of Appendix C.3's single inline line. | Same facts, readable at 390 px; every label the deck names (Your rank, Next rank, Direct members, Leaders/Supervisors/Managers in your team) is present verbatim. | lead (19E gate) |
+| 19E | The Royalty tab's ETag scope adds the open month and `Live::CONFIG` (the other tabs' scope is unchanged). | A ladder/quota/threshold save re-renders the rank card and a month boundary moves the MTD figures; the tab still rides `member.earnings:{id}`, so no new live surface exists (Rule 8). | lead (19E gate) |
+| 19E | `P19A-T13` is rewritten again for 19E. | Its old assertion (“no member file names a Royalty class”) is exactly what 19E ships. The new form asserts the surviving invariant: the engine is the only producer, the six 19E partials exist, and no member file reads the money tables directly. | lead (19E gate) |
+| 19E | `MemberDashboardLiveTest` and `MemberEarningsLiveTest` are updated as well as extended (fragment list, region count, page test names). | The two live tests pin exact fragment lists and region counts; 19E adds the seventh region. The changes are additive assertions for regions 19E creates, not behaviour changes. | lead (19E gate) |
+| 19E | A skipped member row shows the stored reason, the GS/PS it was judged on and “no payment”, but **no** “would have been” amount (19D's admin ledger derives one). | The member copy rule is that no member surface promises money the engine will not pay, and Appendix C.3 lists no such figure. `P19E-T8` pins the reason and the volumes. | lead (19E gate) |
 
 **Acceptance sign-off.**
 
 | Item | Value |
 |---|---|
-| Reference settings used | 2/2/2/2 thresholds · 500k/1M/5M quotas · 3/5, 5/10, 10/15 rates (the plan §16.2 A fixture) |
-| Fixture period(s) | 2026-09 (prior month, all 7 rows skipped), 2026-10 (7 awards, ₱1,152,000.00), 2026-11 (open month, preview only) |
-| Reference example B.3 observed | **515,000.00** (the Director row, `P19D-T1`, `QA19D-01`); the month total **1,152,000.00** across 7 awards |
-| Ledger CSV total | **1,152,000.00** across 7 rows, one `royalty.export` audit row (`P19D-T10/T11`, `QA19D-03`) |
-| Reports ratio | **23.0%** royalty paid ÷ paid sales over 2026-09-01 … 2026-10-31 (`P19D-T12`, `QA19D-04`) |
-| `wallet_reconcile.php` | exit **0** (19D moves no money; the Royalty section is unchanged) |
+| Reference settings used | 10/10/10/10 · 500k/1M/5M · 3/5, 5/10, 10/15 for the unit cases (the plan §16.2 B tree); 2/2/2/2 with the same quotas and rates for the QA evidence (the §16.2 A tree) |
+| Fixture period(s) | 2026-08 (closed and paid, with a ₱200,000 order cancelled before the close), 2026-09 (evaluated with payment paused, left pending), 2026-10 (closed and paid), 2026-11 (open month, projection only) |
+| Reference example A observed | **18,300.00** (`P19E-T4`: a Supervisor at GS 510,000.00 / PS 60,000.00 sees it on the rank card, and the close then stores exactly that amount) |
+| Member projection vs the close | equal to the centavo (`P19E-T4`, `QA19E-02`); the evidence fixture pays **98,000.00** for a ₱1,225,000.00 month at 3% / 5% |
+| Member CSV | 3 rows, only the caller's months, the eleven Appendix C.6 columns, **0** audit rows (`P19E-T12`, `QA19E-08`) |
+| Scoping | `?user_id=` ignored on the page and the export; another member reads 0 of the caller's rows and keeps their own money (`P19E-T6`) |
+| `wallet_reconcile.php` | exit **0** (19E moves no money) |
 | `royalty_month_close.php --doctor` | — (19F's deliverable) |
 | Tester / date | DSH (automated pass) · 2026-11-15 |
 | Evidence folder | `docs/qa/evidence/phase-19/` |

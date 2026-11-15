@@ -1,0 +1,28 @@
+QA19E-03 - A Leader sees "not a paying rank" and the progress to Supervisor
+===========================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §9 Rule 2 and Appendix C.3: a Leader earns nothing, and the page must say so instead of showing an empty quota.
+
+GET /earnings?ledger=royalty  (member session qa19e_leader_ax1)
+  rank                 Leader
+  next rank            Supervisor   0 of 2
+  quota                ₱0.00   (a Leader has none)
+  group this month     ₱0.00
+
+  present  Leader is a rank, not a royalty rank
+  present  the first rank that pays is Supervisor
+  present  Reach 2 Leaders in your team to become a Supervisor
+  present  0 / 2
+  absent   If this month closed now
+  absent   Leader quota
+
+RESULT: PASS

@@ -5,8 +5,9 @@ declare(strict_types=1);
  *  MemberDashboardLiveTest — the member's own dashboard
  *
  *  The dashboard is a per-member live surface (`member.dashboard:{id}`)
- *  with six regions: the header status pill, the KPI row, the E-wallet card,
- *  the membership card, the recent-orders card and the earnings card.
+ *  with seven regions: the header status pill, the KPI row, the E-wallet
+ *  card, the membership card, the recent-orders card, the earnings card
+ *  and (Phase 19E) the Royalty tile.
  *
  *  A wallet movement, an order write for this buyer, an activation
  *  request/decision, a status change and a new downline line must all
@@ -163,7 +164,7 @@ return [
         assert_same($before + 1, Live::revision(Live::memberDashboardSurface($id)), 'activation rejection');
     },
 
-    'the member dashboard feed renders the six regions' => function () use ($makeMember): void {
+    'the member dashboard feed renders the seven regions' => function () use ($makeMember): void {
         $member = $makeMember();
         $id     = (int) $member['id'];
 
@@ -191,9 +192,14 @@ return [
                 'dashboard-membership',
                 'dashboard-orders',
                 'dashboard-earnings',
+                'dashboard-royalty',
             ],
             array_keys($payload['fragments'])
         );
+
+        /* The Royalty tile is hidden for a member with no history while
+         * the stream is off — the region renders nothing (plan §9 Rule 5). */
+        assert_same('', $payload['fragments']['dashboard-royalty'], 'no Royalty tile for a brand-new member');
 
         $header = $payload['fragments']['dashboard-header'];
         assert_contains('data-live-region="dashboard-header"', $header);
@@ -281,7 +287,7 @@ return [
         assert_contains('Pending activation', $payload['fragments']['dashboard-kpis']);
     },
 
-    'the member dashboard page declares its surface and six regions' => function () use ($makeMember, $render): void {
+    'the member dashboard page declares its surface and seven regions' => function () use ($makeMember, $render): void {
         $member = $makeMember();
         $id     = (int) $member['id'];
 
@@ -308,6 +314,190 @@ return [
         assert_contains('Welcome back', $html);
         assert_contains('Your referral link', $html);
         assert_contains('data-copy-tooltip="Copy link"', $html);
+    },
+
+    /* ==========================================================
+     *  P19E-T13 — the Royalty tile
+     * ========================================================== */
+
+    'P19E-T13 the Royalty tile shows the rank, the month against the quota and the paid total' => function () use ($render): void {
+        /* The small 2/2 ladder: a Supervisor without a 111-member tree
+         * (RoyaltyMemberViewTest builds the reference one). */
+        foreach ([
+            'royalty_enabled'                 => '1',
+            'royalty_pay_enabled'             => '1',
+            'royalty_leader_directs'          => '2',
+            'royalty_supervisor_leaders'      => '2',
+            'royalty_manager_supervisors'     => '2',
+            'royalty_director_managers'       => '2',
+            'royalty_supervisor_quota'        => '500000',
+            'royalty_manager_quota'           => '1000000',
+            'royalty_director_quota'          => '5000000',
+            'royalty_supervisor_group_pct'    => '3.000',
+            'royalty_supervisor_personal_pct' => '5.000',
+            'royalty_manager_group_pct'       => '5.000',
+            'royalty_manager_personal_pct'    => '10.000',
+            'royalty_director_group_pct'      => '10.000',
+            'royalty_director_personal_pct'   => '15.000',
+            'royalty_ledger_since'            => '2020-01-01 00:00:00',
+        ] as $key => $value) {
+            setting_set($key, (string) $value);
+        }
+
+        setting_cache_clear();
+        setting_all();
+
+        $place = static function (string $username, ?int $sponsor): array {
+            $row = test_user($username);
+
+            if ($sponsor !== null) {
+                db()->prepare('UPDATE users SET sponsor_id = ? WHERE id = ?')
+                    ->execute([$sponsor, (int) $row['id']]);
+                $row['sponsor_id'] = $sponsor;
+            }
+
+            return $row;
+        };
+
+        /** One paid order with a real line total, inside the open month. */
+        $buy = static function (int $userId, float $amount): void {
+            $product = db()->query("SELECT id FROM products WHERE sku = 'MDJ-RTY' LIMIT 1")->fetchColumn();
+
+            if ($product === false) {
+                db()->prepare(
+                    "INSERT INTO products (sku, name, slug, price, pv, stock)
+                     VALUES ('MDJ-RTY', 'Dashboard royalty product', 'dashboard-royalty-product', 1.00, 1.00, 1000)"
+                )->execute();
+                $product = (int) db()->lastInsertId();
+            }
+
+            db()->prepare(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, subtotal, shipping_fee, total,
+                    billing_name, shipping_name, shipping_address, paid_at, terms_accepted_at)
+                 VALUES (?, ?, 'paid', 'ewallet', ?, 0.00, ?, 'Tile buyer', 'Tile buyer', 'Tile address', ?, ?)"
+            )->execute([
+                'MDJ-' . strtoupper(bin2hex(random_bytes(5))),
+                $userId,
+                number_format($amount, 2, '.', ''),
+                number_format($amount, 2, '.', ''),
+                date('Y-m-d H:i:s'),
+                date('Y-m-d H:i:s'),
+            ]);
+
+            $orderId = (int) db()->lastInsertId();
+
+            db()->prepare(
+                "INSERT INTO shop_order_items
+                   (order_id, product_id, product_name, quantity, unit_price, line_total, reservation_state)
+                 VALUES (?, ?, 'Dashboard royalty product', 1, ?, ?, 'committed')"
+            )->execute([$orderId, (int) $product, number_format($amount, 2, '.', ''), number_format($amount, 2, '.', '')]);
+        };
+
+        $sup = $place('mdj_rty_sup', null);
+        $l1  = $place('mdj_rty_l1', (int) $sup['id']);
+        $l2  = $place('mdj_rty_l2', (int) $sup['id']);
+        $m1  = $place('mdj_rty_m1', (int) $l1['id']);
+        $m2  = $place('mdj_rty_m2', (int) $l1['id']);
+        $place('mdj_rty_m3', (int) $l2['id']);
+        $place('mdj_rty_m4', (int) $l2['id']);
+
+        /* 510,000 of group sales, 60,000 of them the member's own. */
+        $buy((int) $sup['id'], 60000.0);
+        $buy((int) $m1['id'], 225000.0);
+        $buy((int) $m2['id'], 225000.0);
+
+        /* One paid month so the tile has an all-time figure and a "last
+         * paid" label. */
+        $prev        = RoyaltyPeriod::previous(RoyaltyPeriod::periodOf());
+        [$start]     = RoyaltyPeriod::bounds($prev);
+
+        db()->prepare(
+            'INSERT INTO royalty_periods
+               (period, status, enabled, evaluated_at, as_of, leader_directs, supervisor_leaders,
+                manager_supervisors, director_managers, quota_supervisor, quota_manager, quota_director,
+                group_pct_supervisor, personal_pct_supervisor, group_pct_manager, personal_pct_manager,
+                group_pct_director, personal_pct_director, award_count, paid_count, award_total, paid_total)
+             VALUES (?, \'paid\', 1, ?, ?, 2, 2, 2, 2, 500000.00, 1000000.00, 5000000.00,
+                     3.000, 5.000, 5.000, 10.000, 10.000, 15.000, 1, 1, 18300.00, 18300.00)'
+        )->execute([$prev, $start, $start]);
+
+        $awardId = RoyaltyAward::create([
+            'period'          => $prev,
+            'user_id'         => (int) $sup['id'],
+            'rank_level'      => RoyaltyRank::SUPERVISOR,
+            'directs'         => 2,
+            'downline_rank_count' => 2,
+            'team_size'       => 7,
+            'group_volume'    => 510000.0,
+            'personal_volume' => 60000.0,
+            'quota'           => 500000.0,
+            'group_pct'       => 3.0,
+            'personal_pct'    => 5.0,
+            'amount'          => 18300.0,
+            'status'          => 'pending',
+        ]);
+
+        RoyaltyAward::markPaid($awardId, 777001);
+
+        test_signed_in_as(test_user('mdj_rty_sup'));
+
+        $controller = new DashboardController();
+        $data       = $controller->dashboardContext((int) $sup['id']);
+        $royalty    = $data['royalty'];
+
+        assert_not_null($royalty);
+        assert_same(RoyaltyRank::SUPERVISOR, $royalty['rank']);
+        assert_same('Supervisor', $royalty['rank_name']);
+        assert_same(510000.0, $royalty['group']);
+        assert_same(500000.0, $royalty['quota']);
+        assert_same(18300.0, $royalty['paid_all_time']);
+        assert_same(18300.0, $royalty['projected'], 'the same month, if it closed now');
+
+        $tile = $controller->feedPayload(9, '"member.dashboard:' . (int) $sup['id'] . ':9:t13"', $data)['fragments']['dashboard-royalty'];
+
+        assert_contains('data-live-region="dashboard-royalty"', $tile);
+        assert_contains('Royalty', $tile);
+        assert_contains('Supervisor', $tile);
+        assert_contains(money(510000.0), $tile, 'this month’s group sales');
+        assert_contains(money(500000.0), $tile, 'the quota');
+        assert_contains('group this month', $tile);
+        assert_contains('quota met', $tile);
+        assert_contains('If this month closed now', $tile);
+        assert_contains(money(18300.0), $tile);
+        assert_contains('Paid all-time', $tile);
+        assert_contains(date('M Y', (int) strtotime($prev . '-01')), $tile, 'the last paid month');
+        assert_contains('href="' . url('earnings?ledger=royalty') . '"', $tile);
+
+        /* The page renders the same region, outside the KPI row. */
+        $html = $render('member', 'member/dashboard', $data + [
+            'live' => Live::meta(Live::memberDashboardSurface((int) $sup['id']), 'page'),
+        ]);
+
+        assert_contains('data-live-region="dashboard-royalty"', $html);
+        assert_contains('quota met', $html);
+
+        /* Off with no history: the tile disappears; off with history: it
+         * stays with the "off" note (plan §9 Rule 5). */
+        setting_set('royalty_enabled', '0');
+        setting_cache_clear();
+        setting_all();
+
+        $fresh = $place('mdj_rty_fresh', null);
+
+        test_signed_in_as($fresh);
+
+        $emptyPayload = $controller->feedPayload(10, '"x"', $controller->dashboardContext((int) $fresh['id']));
+
+        assert_same('', $emptyPayload['fragments']['dashboard-royalty'], 'hidden when off and no history');
+
+        $historyPayload = $controller->feedPayload(11, '"x"', $controller->dashboardContext((int) $sup['id']));
+        $historyTile    = $historyPayload['fragments']['dashboard-royalty'];
+
+        assert_contains('data-live-region="dashboard-royalty"', $historyTile);
+        assert_contains('Royalty is currently off', $historyTile);
+        assert_contains('href="' . url('earnings?ledger=royalty') . '"', $historyTile);
+        assert_not_contains('If this month closed now', $historyTile, 'no projection while the stream is off');
     },
 
     'admins keep the admin dashboard surface at /dashboard' => function (): void {

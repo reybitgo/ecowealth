@@ -264,3 +264,33 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ---------- Royalty statement (Phase 19E) ----------
+ * The rank card and the dashboard tile carry a thin progress bar for
+ * "team sales against the quota". It is a read-out, so it keeps the
+ * platform's rounded shape and never grows taller than a rule.
+ */
+.commission-progress {
+  height: 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.commission-progress .progress-bar {
+  border-radius: 0.25rem;
+}
+
+/* The third pill already wraps on a 390 px screen (the Phase 17E
+ * `.commission-tabs` rule above). The monthly row is wider than the
+ * repeat row — group sales, personal sales, the quota and two rates —
+ * so on a phone those money columns step aside and the month cell keeps
+ * the rank it was judged at, leaving month, amount, status and paid date
+ * readable without a sideways scroll (plan §9 Rule 9). */
+@media (max-width: 767.98px) {
+  .commission-table .commission-col-gs,
+  .commission-table .commission-col-ps,
+  .commission-table .commission-col-quota,
+  .commission-table .commission-col-rates,
+  .commission-table .commission-col-paid {
+    display: none;
+  }
+}

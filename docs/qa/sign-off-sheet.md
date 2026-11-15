@@ -941,6 +941,55 @@ php bin/wallet_reconcile.php                  # exit 0 (19D moves no money)
 
 ---
 
+## 19E. Phase 19E — Member visibility (section E of the Phase 19 pack)
+
+Document: [phase-19-royalty.md](phase-19-royalty.md) — **sections A, B, C, D and E** (19F–19G append theirs)
+
+19E gives the member the same monthly truth the admin ledger holds, and writes nothing: a third
+**Royalty** pill on `/earnings` (the rank card with the next-rank progress and the "if this month
+closed now" projection, the five counters, one row per closed month with its stored reason, and the
+member CSV in the Appendix C.6 columns) and a **Royalty** tile on `/dashboard`. Leader is explained,
+the projection is the engine's own `statusFor()`, a pending month says *Payment is paused*, and every
+query is scoped to the session member (`?user_id=` is ignored). The package and repeat tabs keep their
+bytes (P19E-T2/T3).
+
+**Prerequisites:** tag `p19d-admin`; a copy with at least one closed month (the evidence used the plan
+§16.2 A fixture at 2/2/2/2 and the real close on the test schema; the development copy is never
+touched). **Expected suite count:** **1,142** (Royalty group **134**); smoke **245** (six new Phase 19E
+URL checks).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1142   Passed: 1142   Failed: 0
+php tests/run.php Royalty                     # 134 / 134
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 245   Failed: 0
+php bin/wallet_reconcile.php                  # exit 0 (19E moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA19E-01 | The member statement from the closed months: Supervisor at 2/2, next rank Manager 0/2, GS/PS ₱1,225,000.00 against the ₱500,000.00 quota, **if this month closed now ₱98,000.00**, paid all-time ₱196,000.00, 3 rows and the five `earnings-royalty-*` regions | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-01.txt` |
+| QA19E-02 | The projection equals the close: open-month ₱98,000.00 against the stored paid rows of the same volume, one rounding on `0.03 × GS + 0.05 × PS` | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-02.txt` |
+| QA19E-03 | A Leader: **not a paying rank**, the first rank that pays is Supervisor, 0 of 2 Leaders toward Supervisor, no quota and no projection | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-03.txt` |
+| QA19E-04 | A Member with no directs: **Reach 2 direct members to become a Leader**, the empty state, and the dashboard tile with the same copy | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-04.txt` |
+| QA19E-05 | A ₱200,000 order cancelled before the close is absent from GS (stored GS ₱1,225,000.00), and a below-quota month renders its reason against the ₱500,000.00 quota | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-05.txt` |
+| QA19E-06 | `royalty_enabled = 0`: the history stays (3 rows, ₱196,000.00 paid), the statement and tile say **Royalty is currently off**, and no projection renders | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-06.txt` |
+| QA19E-07 | `royalty_pay_enabled = 0`: the pending month reads **Awaiting payment** and **Payment is paused; the award stays pending.**, with no Paid badge on that row and ₱196,000.00 paid | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-07.txt` |
+| QA19E-08 | The member CSV: the eleven Appendix C.6 columns, 3 rows all belonging to the caller (`user_id` ignored), member status words, and 0 audit rows | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-08.txt` |
+| QA19E-09 | The dashboard **Royalty** tile (rank, group vs quota, projection, paid all-time, last paid, link), the three wrapping pills, and the phone rule that hides the monthly money columns below 768 px | ☑ Pass ☐ Fail ☐ Blocked | `QA19E-09.txt` |
+
+| Phase 19E summary | |
+|---|---|
+| Executed | **9 / 9** checks |
+| Passed / Failed / Blocked | **9 / 0 / 0** |
+| Defects | 0 (see the phase log for the recorded deviations) |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-15 |
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -991,6 +1040,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 19B | ☑ Yes ☐ No | Royalty configuration and rank ladder: the Commissions card owns the thirteen values and two switches with full cross-field validation and an audited save; `RoyaltyRank` derives the five ranks from the sponsor tree (any depth, staff excluded, cycles excluded, cutoff-aware); `/admin/members` shows the Rank badge and distribution; **no money moves**. 9 / 9 section-B checks, **1,054 / 1,054** PHP cases and **232 / 232** smoke checks. |
 | Phase 19C | ☑ Yes ☐ No | Royalty money engine: `RoyaltyService` evaluates a completed month (rank as of the period end, GS/PS from paid line totals, all-or-nothing quota, one rounding, one award per member) and pays it in resumable batches to the withdrawable wallet; `bin/royalty_month_close.php` has `--dry-run`, `--evaluate-only`, `--pay-only`, `--json` and a lock; `wallet_reconcile` gains a Royalty section and the reset verifies it. 12 / 12 section-C checks, **1,106 / 1,106** PHP cases, **232 / 232** smoke checks (no new URL), bundle check exit 0. |
 | Phase 19D | ☑ Yes ☐ No | Royalty admin visibility: the third tab on `/admin/commissions` (period-first ledger, closed-month cards, labelled open-month preview, Appendix C.5 CSV, `royalty.export` audit), the Royalty report cards and `type=royalty` export, the read-only member panel, the all-time + this-month dashboard tile. **Read-only**: no admin page writes a period, award or wallet row; the package and repeat tabs are byte-identical. 8 / 8 section-D checks, **1,127 / 1,127** PHP cases, **239 / 239** smoke checks, bundle check exit 0. |
+| Phase 19E | ☑ Yes ☐ No | Royalty member visibility: the third pill on `/earnings` (rank card with the next-rank progress and the engine's own "if this month closed now", five counters, one row per closed month with its stored reason, Appendix C.6 CSV) and the Royalty tile on `/dashboard`. Leader is explained; the stream-off and payment-paused copies are explicit; every read is scoped to the session member and a `?user_id=` is ignored. **Read-only**: rendering, filtering and exporting write no period, award, wallet or audit row; the package and repeat tabs keep their bytes. 9 / 9 section-E checks, **1,142 / 1,142** PHP cases, **245 / 245** smoke checks, bundle check exit 0. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the release
 acceptance table is 27 / 27, the full suite is 948 / 948 and the smoke run 225 / 225 on the release

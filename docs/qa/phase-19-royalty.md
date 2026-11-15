@@ -14,7 +14,9 @@ never on a production database.
 **Document status.** Section A (19A — Foundation) written 2026-11-15 with the automated gate green.
 Section B (19B — Configuration and the rank ladder) written 2026-11-15 with the automated gate green.
 Section C (19C — Money engine) written 2026-11-15 with the automated gate green.
-**Section A: 8 checks · Section B: 9 checks · Section C: 12 checks.**
+Section D (19D — Admin visibility) written 2026-11-15 with the automated gate green.
+Section E (19E — Member visibility) written 2026-11-15 with the automated gate green.
+**Section A: 8 checks · Section B: 9 · Section C: 12 · Section D: 8 · Section E: 9.**
 
 ---
 
@@ -982,7 +984,235 @@ Expected
 
 ---
 
-## 7. Sign-off
+## 7. Section E — Phase 19E: Member visibility (`QA19E-01` … `QA19E-09`)
+
+**Prerequisites.** Tag `p19d-admin` on `feature/royalty`; the development copy at migration **023**;
+PHP 8.3 CLI. 19E adds no route and no write path (plan §9 Rule 8, D-16): every check reads the
+member surfaces the phase adds, so it can run on any copy that already has a closed month. The
+evidence in `docs/qa/evidence/phase-19/QA19E-01 … 09.txt` was produced by the application's own
+rendering (`View::page()` / `View::capture()`) on the test schema after building the plan §16.2 A
+fixture at thresholds **2/2/2/2**, closing three months with the **real** `RoyaltyService` — the same
+technique as sections A–D; see that folder's `README.md`. The development copy is never touched.
+Expected suite count: **1,142** (Royalty group **134**); smoke **245** (the six new Phase 19E URL
+checks in `tests/smoke.ps1`).
+
+> **Notation.** `php` means Laragon's PHP 8.3 CLI, run from `system/`. No browser is required for the
+> transcripts: the checks render the real pages and record what the screen shows. A manual pass may
+> repeat the same URLs in a browser; the 390 px step is a stylesheet assertion plus a browser check.
+
+> **Section E moves no money.** Every check is a read. The fixture's own close runs **before** the
+> checks; the checks then render, filter and export. If a check would change a wallet, a period or an
+> award, stop: the build is wrong.
+
+### QA19E-01 — The member statement renders from the closed months
+
+| Why | Plan §9 Rules 1–4 and Appendix C.3: the member reads the same monthly close the admin ledger reads. |
+|---|---|
+| Where | `GET /earnings?ledger=royalty` (member session) |
+| Evidence | `QA19E-01.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Sign in as the fixture Supervisor (`qa19e_sup_ax`) and open `/earnings?ledger=royalty`.
+2. Confirm the third pill **Royalty** is active, the title is **Your Royalty bonus**, the subtitle says
+   **Royalty is paid once a month, after the month closes**, and the card says **One row per closed
+   month**.
+3. Confirm the five regions: `earnings-royalty-rank`, `-stats`, `-header`, `-rows`, `-pagination`.
+4. Confirm the rank card: rank **Supervisor**, directs **2**, **2** Leaders in the team, next rank
+   **Manager 0 / 2**, this month's personal and group sales, the **₱500,000.00** quota and
+   **If this month closed now**.
+
+Expected (fixture at 2/2/2/2; each month carries a ₱1,225,000 order)
+
+- Rank **Supervisor**; directs **2**; leaders in team **2**; supervisors **0**; managers **0**;
+  next rank **Manager**, **0 of 2**.
+- This month: personal **₱1,225,000.00**, group **₱1,225,000.00**, quota **₱500,000.00**, progress
+  **100%**, eligible; **if this month closed now ₱98,000.00**.
+- Counters: paid all-time **₱196,000.00**, this period **₱98,000.00**, awaiting **₱98,000.00**,
+  not paid **0**, last paid `2026-10`.
+- **3** rows: `2026-10` paid **₱98,000.00**, `2026-09` pending **₱98,000.00**, `2026-08` paid
+  **₱98,000.00**, each with GS/PS ₱1,225,000.00, quota ₱500,000.00 and the snapshotted
+  `3.000% / 5.000%`.
+
+### QA19E-02 — The projection equals what the close paid
+
+| Why | Plan §14.11 and the exit gate: `statusFor()` must use the engine's own map, volumes and rounding. |
+|---|---|
+| Where | The rank card versus the stored row of the same month |
+| Evidence | `QA19E-02.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Compare the rank card's **if this month closed now** figure with the amount the close stored for a
+   completed month with the same volume.
+2. Recompute by hand: `0.03 × GS + 0.05 × PS`, rounded once.
+
+Expected
+
+- Open month projection **₱98,000.00**; `2026-10` paid **₱98,000.00**; `2026-08` paid
+  **₱98,000.00**; `2026-09` pending **₱98,000.00**. The two figures match to the centavo.
+
+### QA19E-03 — A Leader is explained, not hidden
+
+| Why | Plan §9 Rule 2 and Appendix C.3: Leader earns nothing, and the page must say so. |
+|---|---|
+| Where | `GET /earnings?ledger=royalty` (member session `qa19e_leader_ax1`) |
+| Evidence | `QA19E-03.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Sign in as a fixture Leader and open the Royalty tab.
+2. Confirm the **not a paying rank** copy and the progress toward Supervisor.
+
+Expected
+
+- Rank **Leader**; next rank **Supervisor**, **0 of 2**; quota **₱0.00**.
+- Present: **Leader is a rank, not a royalty rank**, **the first rank that pays is Supervisor**,
+  **Reach 2 Leaders in your team to become a Supervisor**, **0 / 2**.
+- Absent: **If this month closed now** and any **Leader quota** line.
+
+### QA19E-04 — A Member with no directs
+
+| Why | Plan §9 Rule 2 and Appendix C.3: the Member copy is the Leader progress, never a quota. |
+|---|---|
+| Where | `GET /earnings?ledger=royalty` and `/dashboard` (member session `qa19e_fresh`) |
+| Evidence | `QA19E-04.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Sign in as the fresh member and open the Royalty tab, then `/dashboard`.
+2. Confirm the copy, the empty state and the tile.
+
+Expected
+
+- Rank **Member**; directs **0**; next **Leader 0 of 2**; quota **₱0.00**; **0** rows.
+- Present: **Reach 2 direct members to become a Leader**, **No Royalty awards yet**,
+  **Royalty is paid after the month closes**.
+- The dashboard tile renders (the stream is on) with the same Leader-progress copy.
+
+### QA19E-05 — A cancellation before the close, and a skipped month
+
+| Why | Plan §14.13 and §9 Rule 4: cancelled volume is not sales; a skipped month names the quota it missed. |
+|---|---|
+| Where | The stored rows of the cancellation month and a deliberately short month |
+| Evidence | `QA19E-05.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Confirm the `2026-08` month carried a paid ₱1,225,000 order **and** a cancelled ₱200,000 order.
+2. Confirm the stored GS excludes the cancelled order and the reward is unchanged.
+3. Read a below-quota row and its reason.
+
+Expected
+
+- `2026-08`: stored GS **₱1,225,000.00** (the cancelled ₱200,000.00 is absent), PS
+  **₱1,225,000.00**, quota **₱500,000.00** met, amount **₱98,000.00**, status **paid**.
+- The short month: GS **₱410,000.00**, PS **₱60,000.00**, quota **₱500,000.00**, amount **₱0.00**,
+  status **skipped**, reason `group sales below quota`, displayed as **Group sales below the
+  ₱500,000.00 quota**.
+
+### QA19E-06 — The stream off
+
+| Why | Plan §9 Rule 5: past months stay visible; the promise surfaces change. |
+|---|---|
+| Where | `GET /earnings?ledger=royalty` and `/dashboard` with `royalty_enabled = 0` |
+| Evidence | `QA19E-06.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Set `royalty_enabled = 0` in **Admin → Settings → Commissions → Royalty bonus**.
+2. Re-open the statement and the dashboard as the fixture Supervisor.
+3. Restore the switch.
+
+Expected
+
+- The statement still shows **3** rows and **paid all-time ₱196,000.00**.
+- Present: **Royalty is currently off**, **Past months stay in your history**. Absent:
+  **If this month closed now**.
+- The dashboard tile stays (history exists), carries **Royalty is currently off**, and has no
+  projection.
+
+### QA19E-07 — Payments paused
+
+| Why | Plan §9 Rule 6: a pending award must never read like a payment. |
+|---|---|
+| Where | `GET /earnings?ledger=royalty` for the month evaluated with `royalty_pay_enabled = 0` |
+| Evidence | `QA19E-07.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Evaluate a month with **Pay Royalty awards** off (the fixture's `2026-09`).
+2. Re-open the statement; read the pending row.
+3. Confirm no money moved and the other months still read **Paid**.
+
+Expected
+
+- The `2026-09` row: **Awaiting payment**, **Payment is paused; the award stays pending.** and the
+  **payment is paused** amount note; **no** Paid badge on that row.
+- Pending in the counters **₱98,000.00**; paid total **₱196,000.00** (the pause moved nothing).
+
+### QA19E-08 — The member CSV and the scoping
+
+| Why | Plan §9 Rule 1 and Appendix C.6: the export is the statement, scoped and unaudited. |
+|---|---|
+| Where | `GET /earnings/export?ledger=royalty` (member session) |
+| Evidence | `QA19E-08.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Press **Export CSV** on the Royalty tab (or add `&user_id=<another member>` to the URL).
+2. Confirm the eleven Appendix C.6 columns and that every row is the caller's own.
+3. Confirm no audit row was written.
+
+Expected
+
+- Header: `Period, Rank, Group sales, Personal sales, Quota, Group %, Personal %, Amount, Status,
+  Reason, Paid at`.
+- **3** rows — `2026-10`, `2026-09`, `2026-08` — every one belonging to the caller; the other
+  supervisor has **0** rows.
+- `Status` reads the member labels (`Paid`, `Awaiting payment`, `Not paid`); `Paid at` is filled only
+  for the paid months.
+- **0** audit rows written by the export.
+
+### QA19E-09 — The dashboard tile and the 390 px walk
+
+| Why | Plan §9 Rule 9 and Appendix C.4: the tile, and three pills that wrap instead of scrolling sideways. |
+|---|---|
+| Where | `GET /dashboard` and `GET /earnings?ledger=royalty`, then a 390 px browser window |
+| Evidence | `QA19E-09.txt` |
+| Result | ☐ Pass ☐ Fail ☐ Blocked |
+
+Steps
+
+1. Open `/dashboard` as the fixture Supervisor; confirm the **Royalty** tile: rank badge, this
+   month's group sales against the quota and the progress bar, **If this month closed now**,
+   **Paid all-time**, **Last paid** and the statement link.
+2. Open the statement; confirm **3** pills and that the Royalty pill is active.
+3. Set the browser to 390 px; confirm the pills wrap onto their own rows, the monthly money columns
+   are hidden, and the page does not scroll sideways.
+
+Expected
+
+- The tile renders (`data-live-region="dashboard-royalty"`) with **Supervisor**, **group this month**,
+  **quota met**, **If this month closed now**, **Paid all-time**, **Last paid** and the
+  `earnings?ledger=royalty` link.
+- The tab bar has exactly **3** pills (Package, Repeat-purchase, Royalty) and the Royalty one is
+  active.
+- `.commission-tabs { flex-wrap: wrap }` and the `max-width: 767.98px` rule that hides
+  `.commission-col-gs`, `-ps`, `-quota` and `-rates` are both served in
+  `assets/css/commissions.css`.
+
+---
+
+## 8. Sign-off
 
 | Section | Checks | Passed | Failed | Blocked | Tester | Date | Evidence |
 |---|---:|---:|---:|---:|---|---|---|
@@ -990,7 +1220,9 @@ Expected
 | B — Configuration and the rank ladder | 9 | 9 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | C — Money engine | 12 | 12 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 | D — Admin visibility | 8 | 8 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
+| E — Member visibility | 9 | 9 | 0 | 0 | Automated QA pass — DeepSeek Harness (DSH) | 2026-11-15 | `docs/qa/evidence/phase-19/` |
 
 **Decision:** ☑ Pass  ☐ Pass with notes  ☐ Fail
 
-Sections E–G are appended by 19E–19G before their gates; sections A–D are final.
+Sections F–G are appended by 19F–19G before their gates; sections A–E are final.
+

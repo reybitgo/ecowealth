@@ -1,0 +1,27 @@
+QA19E-05 - A cancelled order before the close is absent from GS and the skipped month explains itself
+=====================================================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §14.13 and §9 Rule 4: volume is counted from paid, non-cancelled orders; a skipped month names the quota it missed.
+
+The 2026-08 month carried a paid order of ₱1,225,000.00 and a cancelled order of ₱200,000.00.
+  stored GS          ₱1,225,000.00   (the cancelled ₱200,000.00 is absent)
+  stored PS          ₱1,225,000.00
+  quota              ₱500,000.00   met: yes
+  amount             ₱98,000.00   status paid
+
+A deliberately short month shows the other half of the rule (a display-only
+scratch row, removed again before the section ends):
+  2026-07  GS ₱410,000.00  PS ₱60,000.00  quota ₱500,000.00  amount ₱0.00  status skipped  reason "group sales below quota"
+  the member sees "Group sales below the ₱500,000.00 quota"
+  the open month still projects: ₱98,000.00
+
+RESULT: PASS

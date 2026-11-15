@@ -1,0 +1,30 @@
+QA19E-07 - With payments paused an evaluated month reads "payment is paused", never paid
+========================================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §9 Rule 6: the award stays pending, and the row must not read like a payment.
+
+The 2026-09 month was evaluated while royalty_pay_enabled = 0 and is still pending:
+  stored row           status pending   amount ₱98,000.00
+
+royalty_pay_enabled = 0 (a paused switch), GET /earnings?ledger=royalty
+  the 2026-09 row markup:
+    present  Awaiting payment
+    present  Payment is paused; the award stays pending.
+    present  payment is paused (amount note)
+    absent  a Paid badge on the pending row
+  the 2026-10 row (a different month) still reads Paid: yes
+  pending in the counters   ₱98,000.00
+
+The 2026-10 month is final and reads Paid: ₱98,000.00
+  no money moved while the switch was off: paid total ₱196,000.00
+
+RESULT: PASS

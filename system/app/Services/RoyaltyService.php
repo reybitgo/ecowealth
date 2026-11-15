@@ -324,8 +324,18 @@ final class RoyaltyService
 
         /* Phase 19D: the admin ledger lists evaluated months and their
          * pending rows, so an evaluation must revalidate that surface
-         * even when it is not followed by a payment in this call. */
+         * even when it is not followed by a payment in this call.
+         *
+         * Phase 19E: the member statement lists the same rows (pending
+         * or skipped), so the awarded members' own surfaces are bumped
+         * here as well — an `--evaluate-only` run or a paused payment
+         * never reaches pay()'s per-batch touch, and the member would
+         * otherwise keep reading a stale page (plan §9 Rule 8). */
         Live::touch(['admin.commissions', 'admin.dashboard']);
+        $this->touch(array_map(
+            static fn (array $draft): int => (int) ($draft['user_id'] ?? 0),
+            $drafts
+        ));
 
         return [
             'period'        => $period,

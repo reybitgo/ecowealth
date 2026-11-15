@@ -21,7 +21,7 @@ result, capture evidence and sign the phase off.
 > `evidence/unilevel-product/`.
 
 > **Phase 19 is the Royalty bonus workstream** (`dmp/plan-ecowealth-royalty.md`), delivered in seven
-> gated phases **19A → 19G**. Sections A, B, C and D are created by 19A–19D; 19E–19G append their
+> gated phases **19A → 19G**. Sections A, B, C, D and E are created by 19A–19E; 19F–19G append their
 > sections before their gates. Its evidence lives in `evidence/phase-19/`, indexed by that folder's
 > `README.md`.
 
@@ -551,7 +551,7 @@ docs/qa/
 ├── phase-15-launch.md                 ← manual checks for Phase 15
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
-├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–D so far, 37 checks)
+├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–E so far, 46 checks)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + unilevel-escrow/)

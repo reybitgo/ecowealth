@@ -336,8 +336,180 @@ return [
         assert_contains('No commissions yet', $html);
     },
 
-    'the repeat tab revalidates when the member\'s team changes' => function () use ($makeMember): void {
-        $member = $makeMember();
+    /* ==========================================================
+     *  P19E-T15 — the third tab and its live revision
+     * ========================================================== */
+
+    'P19E-T15 the Royalty tab is the third member tab and a close bumps its surface' => function (): void {
+        /* The small 2/2 ladder with a Supervisor at the closed month's
+         * quota, so a real close writes this member an award row. */
+        foreach ([
+            'royalty_enabled'                 => '1',
+            'royalty_pay_enabled'             => '1',
+            'royalty_leader_directs'          => '2',
+            'royalty_supervisor_leaders'      => '2',
+            'royalty_manager_supervisors'     => '2',
+            'royalty_director_managers'       => '2',
+            'royalty_supervisor_quota'        => '500000',
+            'royalty_manager_quota'           => '1000000',
+            'royalty_director_quota'          => '5000000',
+            'royalty_supervisor_group_pct'    => '3.000',
+            'royalty_supervisor_personal_pct' => '5.000',
+            'royalty_manager_group_pct'       => '5.000',
+            'royalty_manager_personal_pct'    => '10.000',
+            'royalty_director_group_pct'      => '10.000',
+            'royalty_director_personal_pct'   => '15.000',
+            'royalty_ledger_since'            => '2020-01-01 00:00:00',
+        ] as $key => $value) {
+            setting_set($key, (string) $value);
+        }
+
+        setting_cache_clear();
+        setting_all();
+
+        /* Registered before any period, so both the live tree and the
+         * period-end cutoff see the fixture. */
+        $place = static function (string $username, ?int $sponsor): array {
+            $row = test_user($username);
+
+            db()->prepare('UPDATE users SET sponsor_id = ?, created_at = ? WHERE id = ?')
+                ->execute([$sponsor, '2020-01-02 09:00:00', (int) $row['id']]);
+
+            $row['sponsor_id'] = $sponsor;
+
+            return $row;
+        };
+
+        $buy = static function (int $userId, float $amount, string $paidAt): void {
+            $product = db()->query("SELECT id FROM products WHERE sku = 'MEL-RTY' LIMIT 1")->fetchColumn();
+
+            if ($product === false) {
+                db()->prepare(
+                    "INSERT INTO products (sku, name, slug, price, pv, stock)
+                     VALUES ('MEL-RTY', 'Earnings royalty product', 'earnings-royalty-product', 1.00, 1.00, 1000)"
+                )->execute();
+                $product = (int) db()->lastInsertId();
+            }
+
+            db()->prepare(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, subtotal, shipping_fee, total,
+                    billing_name, shipping_name, shipping_address, paid_at, terms_accepted_at)
+                 VALUES (?, ?, 'paid', 'ewallet', ?, 0.00, ?, 'Live buyer', 'Live buyer', 'Live address', ?, ?)"
+            )->execute([
+                'MEL-' . strtoupper(bin2hex(random_bytes(5))),
+                $userId,
+                number_format($amount, 2, '.', ''),
+                number_format($amount, 2, '.', ''),
+                $paidAt,
+                $paidAt,
+            ]);
+
+            $orderId = (int) db()->lastInsertId();
+
+            db()->prepare(
+                "INSERT INTO shop_order_items
+                   (order_id, product_id, product_name, quantity, unit_price, line_total, reservation_state)
+                 VALUES (?, ?, 'Earnings royalty product', 1, ?, ?, 'committed')"
+            )->execute([$orderId, (int) $product, number_format($amount, 2, '.', ''), number_format($amount, 2, '.', '')]);
+        };
+
+        $prev    = RoyaltyPeriod::previous(RoyaltyPeriod::periodOf());
+        [$start] = RoyaltyPeriod::bounds($prev);
+
+        $sup = $place('mel_rty_sup', null);
+        $l1  = $place('mel_rty_l1', (int) $sup['id']);
+        $l2  = $place('mel_rty_l2', (int) $sup['id']);
+        $m1  = $place('mel_rty_m1', (int) $l1['id']);
+        $m2  = $place('mel_rty_m2', (int) $l1['id']);
+        $place('mel_rty_m3', (int) $l2['id']);
+        $place('mel_rty_m4', (int) $l2['id']);
+
+        $buy((int) $sup['id'], 60000.0, $start);
+        $buy((int) $m1['id'], 225000.0, $start);
+        $buy((int) $m2['id'], 225000.0, $start);
+
+        /* The tab is a query parameter only: `royalty` selects it and an
+         * unknown value falls back to the package statement (D-16). */
+        $_GET = ['ledger' => 'royalty'];
+        assert_same(EarningsController::TAB_ROYALTY, EarningsController::tab());
+
+        $_GET = ['ledger' => 'something-else'];
+        assert_same(EarningsController::TAB_PACKAGE, EarningsController::tab());
+
+        $_GET = [];
+        assert_same(EarningsController::TAB_PACKAGE, EarningsController::tab());
+
+        /* The tab rides the member's existing earnings surface — no new
+         * surface is created for it (plan §9 Rule 8). */
+        $id = (int) $sup['id'];
+
+        test_signed_in_as(test_user('mel_rty_sup'));
+
+        $_GET = ['ledger' => 'royalty'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=royalty';
+
+        assert_same('member.earnings:' . $id, Live::earningsSurface($id));
+
+        $controller = new EarningsController();
+        $before     = Live::revision(Live::earningsSurface($id));
+        $pageBefore = Live::revision(Live::memberDashboardSurface($id));
+
+        /* A real close: evaluate writes the row and must revalidate the
+         * member's surfaces; pay credits it and bumps them again. */
+        $engine     = new RoyaltyService();
+        $evaluation = $engine->evaluate($prev, null);
+
+        assert_true((float) $evaluation['award_total'] > 0, 'the month evaluated an award');
+        assert_same($before + 1, Live::revision(Live::earningsSurface($id)), 'evaluate bumps the earnings tab');
+        assert_same($pageBefore + 1, Live::revision(Live::memberDashboardSurface($id)), 'evaluate bumps the dashboard');
+
+        $afterEvaluate = Live::revision(Live::earningsSurface($id));
+        $payment       = $engine->pay($prev, 500, 20, null);
+
+        assert_true((int) $payment['paid'] >= 1);
+        assert_same($afterEvaluate + 1, Live::revision(Live::earningsSurface($id)), 'pay bumps the earnings tab again');
+
+        /* The row is on the tab now. */
+        $data    = $controller->royaltyContext($id);
+        $payload = $controller->feedPayload(Live::revision(Live::earningsSurface($id)), '"x"', $data);
+
+        assert_same(
+            [
+                'earnings-royalty-header',
+                'earnings-royalty-rank',
+                'earnings-royalty-stats',
+                'earnings-royalty-rows',
+                'earnings-royalty-pagination',
+            ],
+            array_keys($payload['fragments'])
+        );
+        assert_contains('data-live-region="earnings-royalty-rank"', $payload['fragments']['earnings-royalty-rank']);
+        assert_contains(money(18300.0), $payload['fragments']['earnings-royalty-rows']);
+        assert_contains('Paid', $payload['fragments']['earnings-royalty-rows']);
+
+        /* The three tabs never share an ETag, and the Royalty scope
+         * carries the team, the ladder configuration and the month. */
+        $scope = new ReflectionMethod(EarningsController::class, 'earningsScope');
+        $scope->setAccessible(true);
+
+        $_GET = ['ledger' => 'royalty'];
+        $royaltyScope = (string) $scope->invoke($controller, $id);
+
+        $_GET = ['ledger' => 'repeat'];
+        $repeatScope = (string) $scope->invoke($controller, $id);
+
+        $_GET = [];
+        $packageScope = (string) $scope->invoke($controller, $id);
+
+        assert_contains('month:', $royaltyScope);
+        assert_contains('team:', $royaltyScope);
+        assert_contains('config:', $royaltyScope);
+        assert_not_same($royaltyScope, $repeatScope);
+        assert_not_same($royaltyScope, $packageScope);
+    },
+
+    'the repeat tab revalidates when the member\'s team changes' => function () use ($makeMember): void {        $member = $makeMember();
         $id     = (int) $member['id'];
 
         test_signed_in_as($member);

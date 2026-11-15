@@ -46,6 +46,15 @@ Index:
 | `QA19D-06.txt` | QA19D-06 | The dashboard tile: all-time **₱1,152,000.00**, the same figure this month, ₱0.00 awaiting, 2 closed months and the ledger link — never the preview |
 | `QA19D-07.txt` | QA19D-07 | The package tab keeps its four fragments and the repeat tab its five; the repeat CSV still carries its fifteen escrow columns; neither renders a `commission-royalty-*` region |
 | `QA19D-08.txt` | QA19D-08 | The audit log rows behind `/admin/audit`: the `royalty.export` row (tab, period, rows) and the two `settings.update` rows from the commissions card |
+| `QA19E-01.txt` | QA19E-01 | The member statement from three closed months: rank **Supervisor** (2 directs, 2 Leaders), next rank **Manager 0 / 2**, GS/PS **₱1,225,000.00** against the **₱500,000.00** quota, **if this month closed now ₱98,000.00**, counters (paid **₱196,000.00**, awaiting **₱98,000.00**, last paid `2026-10`), the three rows and the five `earnings-royalty-*` regions |
+| `QA19E-02.txt` | QA19E-02 | The projection equals the close: the open month's **₱98,000.00** against the paid rows of the same volume, with the one-rounding arithmetic printed |
+| `QA19E-03.txt` | QA19E-03 | A Leader: **Leader is a rank, not a royalty rank**, the first rank that pays is Supervisor, **0 / 2** toward Supervisor, quota **₱0.00**, and the projection/quota lines absent |
+| `QA19E-04.txt` | QA19E-04 | A Member with no directs: **Reach 2 direct members to become a Leader**, the **No Royalty awards yet** empty state, and the dashboard tile with the same copy |
+| `QA19E-05.txt` | QA19E-05 | The cancellation month: stored GS **₱1,225,000.00** with the cancelled **₱200,000.00** absent, and a below-quota row's stored reason rendered as **Group sales below the ₱500,000.00 quota** |
+| `QA19E-06.txt` | QA19E-06 | `royalty_enabled = 0`: the history stays (3 rows, **₱196,000.00** paid), the statement and the tile say **Royalty is currently off**, and no projection renders |
+| `QA19E-07.txt` | QA19E-07 | `royalty_pay_enabled = 0`: the pending `2026-09` row reads **Awaiting payment** and **Payment is paused; the award stays pending.**, with no Paid badge on it and **₱196,000.00** paid overall |
+| `QA19E-08.txt` | QA19E-08 | The member CSV: the eleven Appendix C.6 columns, three rows all belonging to the caller (`user_id` ignored), the member status words, and **0** audit rows |
+| `QA19E-09.txt` | QA19E-09 | The dashboard **Royalty** tile (rank, group vs quota, projection, paid all-time, last paid, link), the three wrapping pills and the phone rule hiding `.commission-col-gs/-ps/-quota/-rates` below 768 px |
 
 Notes for the reader:
 
@@ -74,3 +83,11 @@ Notes for the reader:
   screen shows. The development copy is never touched and nothing is typed by hand; every file ends
   with its `RESULT: PASS`. The generator lives in the git-ignored `system/tests/tmp/`, so the
   transcripts — not the script — are the committed evidence.
+- **Section E reads the member's own statement.** The same technique with a different frame: the
+  transient generator rebuilds the test schema, builds the §16.2 A tree at 2/2/2/2 plus one member with
+  no tree, orders **₱1,225,000** for `qa19e_sup_ax` in three completed months and the open month, adds a
+  **₱200,000** order to the oldest month and cancels it before that close, then runs the **real**
+  `close()` / `evaluate()` / `pay()`. The middle month is evaluated with `royalty_pay_enabled = 0` and
+  left pending, so QA19E-07 shows the paused state rather than a rebuilt row. QA19E-05 prints one extra
+  display-only skipped row (removed again inside the check) to show the below-quota copy. Nine
+  transcripts, every one ending in `RESULT: PASS`; the development copy is never touched.
