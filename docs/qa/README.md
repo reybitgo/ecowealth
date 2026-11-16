@@ -26,9 +26,9 @@ result, capture evidence and sign the phase off.
 > folder's `README.md`.
 
 > **Phase 20 is the Team Harvest bonus workstream** (`dmp/plan-ecowealth-team-harvest.md`), delivered
-> in seven gated phases **20A → 20G** and **in progress (20D)**. 20A wrote section A, 20B appended
-> section B, 20C section C and 20D section D; every later phase appends its own section before its
-> gate. Its evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
+> in seven gated phases **20A → 20G** and **signed at 20G**. Sections A–G are complete: 20A–20F wrote
+> A–F and 20G appended its section before its gate. **58 checks** — A 8 · B 9 · C 8 · D 10 · E 8 · F 9 ·
+> G 6. Its evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -59,7 +59,7 @@ result, capture evidence and sign the phase off.
 | [phase-17-unilevel-repeat-purchase.md](phase-17-unilevel-repeat-purchase.md) | 17 — unilevel repeat-purchase bonus, sections A–G, **signed** | 57 (A 8 · B 9 · C 10 · D 8 · E 9 · F 7 · G 6) | 4–5.5 h in all (A 35–45 · B 30–40 · C 45–60 · D 30–40 · E 30–40 · F 15–20 · G 60–75 min) |
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
-| [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, **in progress (20C: sections A–C)** | 25 (A 8 · B 9 · C 8; D–G follow) | 100–130 min (A 30–40 · B 40–55 · C 30–35) |
+| [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -92,7 +92,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 1180   Passed: 1180   Failed: 0
+Cases: 1320   Passed: 1320   Failed: 0
 All good.
 ```
 
@@ -105,7 +105,7 @@ powershell -NoProfile -File tests\smoke.ps1
 Expected last lines:
 
 ```
-Passed: 248   Failed: 0
+Passed: 263   Failed: 0
 ```
 
 > If `php` is not recognised, use Laragon's PHP explicitly:
@@ -303,6 +303,29 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
   plan's fixture A (₱25,000.00 across 13 members) and fixture B (₱13,000.00 for the root), with the
   deep levels proved on the pure `earnedFor()` function. **No page changes**: section D verifies
   through the wallet statements, the tables and SQL, and sections E/F describe the money.
+- Phase 20E proves the **admin visibility**, read-only: the fourth tab on `/admin/commissions`
+  (six tiles from the one `Report::teamHarvestTotals()` read, the ten-level distribution, the filters
+  with their silent unknown-value fallback, the rows and their wallet links, the pagination, the
+  Appendix C.5 CSV with its one `team_harvest.export` audit row), the **Harvest** column and queue card
+  on `/admin/members` with the `?harvest=` filter, the member panel on `/admin/members/{id}`, the
+  reports block and `type=team_harvest` range CSV, and the dashboard **Team Harvest (30 d)** KPI. The
+  three older tabs stay byte-identical (`P20E-T1`), no page writes a position, an award or a wallet row,
+  and the section's only write is an export audit row.
+- Phase 20F proves the **member visibility**, read-only: the fourth `/earnings` tab (position and gate
+  sentence, five counters, the whole 3×10 matrix with each level's state and amount, the progress card,
+  the paginated roster, the level rows with their wallet links, the two exclusions, the purchases
+  footnote, the FAQ and the Appendix C.6 CSV), the dashboard tile and the genealogy badge. The tab is
+  scoped to the session member (`&user_id=` ignored by both page and file), the copy rules are asserted
+  verbatim and singular, no forbidden word renders, the stream-off and above-depth copies are explicit,
+  and the page cost is constant (10 selects on page 1 and page 2 of a 500-teammate member). The other
+  three earnings tabs keep their bytes; rendering, filtering and exporting write no award, wallet or
+  audit row.
+- Phase 20G is the **release**: `APP_PHASE` 20, `HardeningTest` asserting it, the 12 new HTTP smoke
+  checks (the settings card, the fourth ledger tab and the three unchanged tabs, the directory and its
+  filter, the reports block and CSV, the unqualified and queued member statements, the dashboard tile,
+  the genealogy badge and the registration hook — a third direct queues its sponsor at the next
+  position and a fourth changes nothing), the full acceptance run, the QA pack and the seven gate
+  records. It changes no behaviour: if the phase were reverted, the feature would still be correct.
 
 ---
 
@@ -597,7 +620,7 @@ docs/qa/
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
 ├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–G, 60 checks)
-├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–D now; E–G follow)
+├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–G, signed)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + unilevel-escrow/)

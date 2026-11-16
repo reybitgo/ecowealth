@@ -1,0 +1,65 @@
+QA20A-01 - Back up the development copy and confirm it is at migration 023
+=========================================================================
+
+Date: 2026-11-16 10:34:38 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20-start (reconstruction at the 20G gate)
+Schema: ecowealth_sneat_p20start_qa (a fresh database built from the tag's bundle)
+
+Why: the standing rule is a dump outside the repository before any migration. At the 20A gate the
+development copy was at migration 023 (33 tables / 73 settings in a fresh build). The release pass
+re-proves that the pre-migration state is reproducible from the tag and that a dump of it restores
+byte-count for byte-count; the original 20A dump's path is recorded in the 20A section of the pack.
+
+Steps and output
+
+1. The tag's bundle:
+
+   git show p20-start:system/database/install.sql > system\tests\tmp\p20-start-install.sql
+   → 82,518 bytes; `Select-String harvest` → 0 matches (no Team Harvest object exists)
+
+2. A fresh schema from it:
+
+   CREATE DATABASE ecowealth_sneat_p20start_qa CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   mysql --default-character-set=utf8mb4 ecowealth_sneat_p20start_qa < p20-start-install.sql
+
+   install report:
+     tables_created 33 · settings_rows 73 · staff_rows 2 · members_rows 0
+     products 7 · packages 2 · ladder levels 18 · package contents 10 · codes 0
+
+   settings: install_channel = install.sql, install_completed_at = 2026-11-16 10:34:40,
+             install_version = 1.0.0, site_name = EcoWealth
+   staff:    admin/admin/active · superadmin/superadmin/active
+
+   `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='…'` → 33
+   `SELECT COUNT(*) FROM …settings` → 73
+   `SELECT COUNT(*) … table_name LIKE '%harvest%'` → 0
+
+3. The dump, outside the repository:
+
+   mysqldump --single-transaction --routines --databases ecowealth_sneat_p20start_qa
+     --result-file=C:\laragon\www\ecowealth-backups\phase-20\ecowealth_sneat-p20start-20261116-103438.sql
+   → 63,437 bytes, 33 CREATE TABLE statements
+
+4. The restore drill:
+
+   CREATE DATABASE ecowealth_sneat_p20start_qa (empty);
+   mysql --default-character-set=utf8mb4 ecowealth_sneat_p20start_qa < the dump
+   → 33 tables · 73 settings · 0 `harvest%` tables
+
+5. The scratch database was dropped after the drill.
+
+Checks:
+
+  the dump exists, is non-empty and lives outside the repository .. yes (63,437 bytes)
+  the pre-migration schema is 33 tables / 73 settings ............. yes
+  the bundle and the schema contain no Team Harvest object ....... yes
+  the dump restores to the same counts ........................... yes (33 / 73 / 0)
+  the development copy is at migration 023 before 024 ............ yes (the tag's bundle is the proof)
+
+Note: the 20A gate's actual backup was taken before 024 on 2026-11-15; this transcript re-establishes the
+same baseline at the release so the rollback path is executable at `p20g-release` as well. The
+development copy itself (`ecowealth_sneat`) is migration-built and currently reads 36 tables / 74
+settings (74 because it predates the bundle's three `install_*` metadata rows).
+
+RESULT: PASS

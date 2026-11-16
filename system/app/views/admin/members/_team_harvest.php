@@ -29,6 +29,17 @@ $team_harvest = $team_harvest ?? null;
 $username = (string) ($member['username'] ?? '');
 $ledgerUrl = url('admin/commissions?ledger=team_harvest&q=' . rawurlencode($username));
 
+/* The qualification sentence names the direct that opened the gate in
+ * words, the same ordinal the member's own card uses (20F). */
+$ordinal = static function (int $number): string {
+    $words = [
+        1 => 'first', 2 => 'second', 3 => 'third', 4 => 'fourth', 5 => 'fifth',
+        6 => 'sixth', 7 => 'seventh', 8 => 'eighth', 9 => 'ninth', 10 => 'tenth',
+    ];
+
+    return $words[$number] ?? $number . 'th';
+};
+
 $statusTones = [
     TeamHarvestService::LEVEL_PAID         => 'success',
     TeamHarvestService::LEVEL_BASELINE     => 'secondary',
@@ -96,7 +107,7 @@ $statusTones = [
                       <p class="mb-2">
                         <strong>Not qualified: <?= $directs ?> of <?= $gate ?> direct members.</strong>
 <?php if ($directs < $gate): ?>
-                        They enter the queue when their <?= $gate ?>-th direct member registers; from that
+                        They enter the queue when their <?= e($ordinal($gate)) ?> direct member registers; from that
                         instant their matrix fills with members who qualify after them.
 <?php endif; ?>
                       </p>
@@ -121,7 +132,7 @@ $statusTones = [
                           <span class="small text-body-secondary">
                             Qualified <?= $qualifiedAt === null ? '—' : e(format_datetime((string) $qualifiedAt)) ?>
 <?php if ((int) ($team_harvest['directs_at_qualification'] ?? 0) > 0): ?>
-                            · on their <?= (int) $team_harvest['directs_at_qualification'] ?>th direct member
+                            · on their <?= e($ordinal((int) $team_harvest['directs_at_qualification'])) ?> direct member
 <?php endif; ?>
                           </span>
                         </div>

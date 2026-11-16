@@ -772,13 +772,12 @@ return [
 
     'P20B-T20 the phase adds no schema: 36 tables, 74 seed settings, ten ladder rows' => function (): void {
         /* 20B is configuration only: the schema is exactly 20A's, and the
-         * release phase (20G) is still the one that moves APP_PHASE. The
-         * harness schema is seed-built, so it carries the 74 seed keys; the
-         * three `install_*` metadata rows a real installer adds make 77. */
+         * release phase (20G) is the one that moves APP_PHASE — this guard
+         * follows the constant so it still proves the schema, not the badge. */
         assert_same(36, count(test_table_list(test_pdo(['db' => DB_NAME]))));
         assert_same(74, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
-        assert_same(19, APP_PHASE, '20G owns the release badge');
+        assert_same(20, APP_PHASE, '20G owns the release badge');
 
         /* install.sql is untouched by this phase and still matches its
          * sources; the bundle's own count is 36 / 77 / 10. */

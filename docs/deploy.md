@@ -1,9 +1,10 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: current.** This guide covers the **Phase 19 release build**: 33 tables, 73 settings,
-> migrations `001`–`023`, six scheduled jobs and the live-update layer. The Phase 19 addendum at the
-> end is the migration/upgrade note for the Royalty bonus. Hostinger's hPanel labels can change; the
-> steps stay the same.
+> **Status: current.** This guide covers the **Phase 20 release build**: 36 tables, 77 settings,
+> migrations `001`–`024`, ten Team Harvest ladder rows, six scheduled jobs and the live-update layer.
+> The Phase 20F/20G addendum at the end is the migration/upgrade note for the Team Harvest bonus; the
+> go-live order itself lives once, in [`runbook.md`](runbook.md). Hostinger's hPanel labels can change;
+> the steps stay the same.
 >
 > Verified against the local build (PHP 8.3.16, MySQL 8.4.3). Hostinger's current
 > LiteSpeed/Apache + PHP 8.3 plans meet the same requirements.
@@ -168,11 +169,11 @@ Import **one file**, `database/install.sql`, through phpMyAdmin:
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 33 | 73 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 36 | 77 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
-The bundle creates the schema, the 73 settings, both staff accounts, the seven starter
-products and the two packages in one pass. It contains no `CREATE DATABASE` or `USE`, so
-it installs into whichever schema you selected.
+The bundle creates the schema, the 77 settings, both staff accounts, the seven starter
+products, the two packages and the ten Team Harvest ladder rows in one pass. It contains no
+`CREATE DATABASE` or `USE`, so it installs into whichever schema you selected.
 
 It is **fresh-install only**: a non-empty schema is refused by a guard
 (`ERROR 1146` naming `ecowealth_install_requires_an_empty_database`) before any table is
@@ -714,7 +715,7 @@ Open phpMyAdmin → select the database → **SQL** and run the verification pac
 `dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
 
 ```sql
--- 1. 33 tables and 73 settings on a fresh production install
+-- 1. 36 tables and 77 settings on a fresh production install
 SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
        (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
        (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
@@ -775,8 +776,8 @@ Before calling the site live:
 - [ ] Confirm no demo data leaked into production:
       `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
       and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
-- [ ] Run the verification pack (§11.6) and file its output: 33 tables, 73 settings, 2 staff,
-      0 members, 7 products, 2 packages, 18 levels, 10 contents, 0 codes.
+- [ ] Run the verification pack (§11.6) and file its output: 36 tables, 77 settings, 2 staff,
+      0 members, 7 products, 2 packages, 18 levels, 10 contents, 10 Team Harvest ladder rows, 0 codes.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
 - [ ] Remove `system/tests/`, `docs/`, `dmp/` and `backups/` from the server if they
@@ -1014,6 +1015,9 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-15 | Phase 19A (Royalty foundation): migration `023` adds the two Royalty money tables (`royalty_periods`, `royalty_awards`), the `royalty` wallet movement and the sixteen settings, with the stream **off** by default. §5B and §12 now read **33 tables / 73 settings**. |
 | 2026-11-15 | Phase 19F (Royalty operations): the sixth cron job (`bin/royalty_month_close.php` at 00:30 on the 1st, `--max-batches=20`), its URL entry, its Windows launcher, the `--doctor` report and the operations panel on the Royalty tab. §13 names the two monthly entries and the enable-at-a-month-boundary rule; no schema change. |
 | 2026-11-15 | Phase 19G (Royalty release): `APP_PHASE` **19**; the Phase 19 addendum at the end of this guide is complete (migration `023`, the counts **33 / 73 / six / 19**, the cron entries, the enablement steps and the verification pack); the document-status header is current. No schema change. |
+| 2026-11-15 | Phase 20A/20B (Team Harvest foundation and configuration): migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings (stream **off**, queue unseeded); §5B and §12 now read **36 tables / 77 settings**, and the ten ladder amounts are table rows. No route, no cron entry. |
+| 2026-11-16 | Phase 20C/20D/20E (the queue, the money engine and the admin visibility): the registration hook, the one-time seed, the on-demand catch-up/doctor, the fourth commissions tab, the member panel, the reports block and the dashboard KPI; the two jobs are **not** cron entries. No schema change. |
+| 2026-11-16 | Phase 20F/20G (the member visibility and the release): the fourth `/earnings` tab, the dashboard tile and the genealogy badge; `APP_PHASE` **20**; the QA pack is signed (A–G, 58 checks) and the smoke walk is **263** checks. Counts **36 / 77 / 10 / 20**. No schema change. |
 
 ---
 
@@ -1616,7 +1620,7 @@ The ledger is an **audit surface**: no admin page writes an award, a wallet row 
 ### After deploying 20E
 
 1. Nothing to migrate and nothing to configure: the pages read the tables 20A created.
-2. Follow the go-live order in `docs/runbook.md` — deploy → seed dry run → seed → enable — and use
+2. Follow the go-live order in `docs/runbook.md` (the one owner of the sequence) and use
    `/admin/members` (the queue card) to confirm the positions exist before the switch is turned on.
 3. The ledger tab is the operator's first screen: it names the two Go-live lines (*Seeded* / *Not seeded*,
    *Paying* / *Switched off*) and the open liability, labelled *not yet paid*.
@@ -1639,3 +1643,63 @@ Revert the seven new views, the six modified ones and the five PHP files (the tw
 `Report`, `ReportService`). The fourth tab disappears and every other page returns to its 20D shape. **No
 data is touched**: nothing in 20D or in the jobs reads anything 20E writes, and 20E writes nothing but its
 own export audit rows.
+
+---
+
+## Phase 20F/20G addendum — the member visibility and the release
+
+**No new hosting requirement and no schema change.** 20F is read-only templates and controller reads on
+the member pages that already existed; 20G changes the phase constant, the smoke walk and the documents.
+`routes.php` and `routes_inventory.php` stay untouched, and this stream adds **no cron entry** (see
+[`cron.md`](cron.md), *Streams with no scheduled job*).
+
+### What 20F adds to the server
+
+Three member surfaces, all on existing routes:
+
+| Surface | What it shows |
+|---|---|
+| `/earnings?ledger=team_harvest` | the fourth tab: position and gate sentence, the five counters, the whole 3×10 matrix with each level's state and amount, the progress card, the paginated teammate roster, the level rows with their wallet links, the two exclusions and the purchases footnote, the FAQ and the Appendix C.6 CSV |
+| `/dashboard` | the **Team Harvest** tile: the position (or the gate), the next level's progress, what has already reached the wallet and the recorded-before-go-live count; hidden only while the stream is off and the member has neither a position nor history |
+| `/genealogy` | the reader's **Harvest #N** badge, a **Harvest** column on the direct recruits and the same badge in the team-by-level card; `—` for a member who has not qualified |
+
+A member's tab is scoped to the session member: `&user_id=` is ignored by both the page and the file,
+and the CSV writes **no** audit row (Appendix C.6, plan §10 Rule 11). The matrix never promises a date
+or an amount the engine would not pay — a level above the configured depth reads *Complete — not paying
+at this depth*.
+
+### The release (20G)
+
+- `APP_PHASE` is **20**; `HardeningTest` asserts it, and no route, menu item or permission reads it for
+  Phase 20.
+- The smoke walk is **263** checks: the twelve new Phase 20 checks cover the settings card, the fourth
+  ledger tab, the three unchanged tabs, the directory and its filter, the reports block and CSV, the
+  unqualified and queued member statements, the dashboard tile, the genealogy badge and the
+  registration hook (a third direct queues its sponsor at the next position; a fourth changes nothing).
+- The QA pack is signed: `docs/qa/phase-20-team-harvest.md` sections A–G, **58 / 58** checks, evidence
+  in `docs/qa/evidence/phase-20/`.
+
+### Go-live order
+
+Do **not** copy it here: [`runbook.md`](runbook.md) §*Team Harvest go-live order* is the one owner of
+the sequence. The settings card and the queue card show the state between its steps.
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → **1,320 / 1,320**; `powershell -File tests/smoke.ps1` → **263 / 263**.
+- [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **36 tables / 77
+      settings / 10 ladder rows**, the stream **off** and the queue **unseeded**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 with the Team Harvest section; `php
+      bin/team_harvest_catchup.php --doctor` exits 0 on a seeded copy.
+- [ ] `/admin/settings` shows the Team Harvest card with the strip **Not seeded**; `/admin/members`
+      shows the Harvest column, the queue card and the `?harvest=` filter; `?ledger=team_harvest` on
+      `/admin/commissions`, `/earnings` and `/genealogy` renders the fourth tab/badge on the demo tree.
+- [ ] For a queued member, `/earnings?ledger=team_harvest` shows the position and the ten-level matrix;
+      a member with no position reads the gate and no matrix.
+
+### Rollback (20F/20G)
+
+Revert the seven new member views, the seven modified ones, `DashboardController`/`EarningsController`/
+`GenealogyController` and the two additive model filters (`Wallet::ref_id`, the `HarvestQueue` optional
+parameters); then revert `APP_PHASE` to 19. No data changes: 20F writes nothing, and 20G writes only the
+phase constant and the test/docs. The queue, the awards and the ladder stay exactly as 20D left them.

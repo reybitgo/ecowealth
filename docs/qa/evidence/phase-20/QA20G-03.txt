@@ -1,0 +1,46 @@
+QA20G-03 - The release acceptance table
+=======================================
+
+Date: 2026-11-16 10:39:20 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+
+Why: plan §11 Rule 5 — every acceptance criterion is ticked against a named phase and a named proof.
+
+| # | Acceptance criterion | Proof (phase — case or evidence) | Result |
+|---:|---|---|---|
+| 1 | A member with three direct members enters the queue at the next position, once | 20C — P20C-T1, T2; QA20C-03 | PASS |
+| 2 | A position is never renumbered, in any later registration or repair | 20C — P20C-T4, T20, T21; QA20C-05/06 | PASS |
+| 3 | Staff and the company account never qualify and never count | 20C — P20C-T5, T6 | PASS |
+| 4 | A direct's status does not change qualification | 20C — P20C-T7 | PASS |
+| 5 | The reconstructed history is deterministic and idempotent | 20C — P20C-T10–T13; QA20C-02/03/04 | PASS |
+| 6 | Every queued ancestor's counter moves by one, at any depth | 20C — P20C-T16, T17; QA20C-05 | PASS |
+| 7 | Every counter equals a from-scratch recount | 20C — P20C-T19; 20D — P20D-T29; QA20D-09 | PASS |
+| 8 | The seed is inert until the baseline exists | 20C — P20C-T9; 20D — P20D-T21; QA20A-05, QA20B-07 | PASS |
+| 9 | A completed level pays its configured amount once | 20D — P20D-T1–T8; QA20D-01/05/06 | PASS |
+| 10 | Partial blocks pay nothing | 20D — P20D-T1, T4, T5 | PASS |
+| 11 | The ladder is the reference ladder, to the peso | 20D — P20D-T2, T6, T8; 20B — P20B-T11; QA20B-01 | PASS |
+| 12 | A level already complete at the baseline is recorded, never paid | 20D — P20D-T14–T16; QA20D-08 | PASS |
+| 13 | Only levels up to `max_levels` are paid | 20D — P20D-T22, T23; QA20B-06 | PASS |
+| 14 | A ladder edit never rewrites a past award | 20D — P20D-T24 | PASS |
+| 15 | The stream off means no money and a growing queue | 20D — P20D-T19, T20; QA20D-07 | PASS |
+| 16 | A replay and a duplicate insert move no money | 20D — P20D-T11–T13; QA20D-06 | PASS |
+| 17 | No purchase input anywhere — the buyer is not a concept here | 20F — P20F-T14; the 20D suite runs with no orders | PASS |
+| 18 | `wallet_reconcile.php` exits 0 with a Team Harvest section | 20D — P20D-T27, T30; QA20D-04; QA20G-01 | PASS |
+| 19 | The reset empties the queue and the awards and keeps the ladder | 20A — P20A-T8; 20D — P20D-T31; QA20A-08 | PASS |
+| 20 | A fresh install reports 36 tables, 77 settings, 10 ladder rows | 20A — P20A-T6; QA20G-05 (install report) | PASS |
+| 21 | The migration is idempotent; migrated equals fresh | 20A — P20A-T2, T3; QA20A-02 | PASS |
+| 22 | The four admin surfaces and the three member surfaces show the fixture numbers | 20E — P20E-T2–T13; 20F — P20F-T1–T7; QA20E-*, QA20F-* | PASS |
+| 23 | The three existing commission tabs and three earnings tabs are unchanged | 20E — P20E-T1; 20F — P20F-T9; P20G-T3 | PASS |
+| 24 | The member copy states the gate, the exclusions and the purchases footnote | 20F — P20F-T12–T14; QA20F-02 | PASS |
+| 25 | No new route, no new cron entry, no new permission | 20E — P20E-T24; 20F — P20F-T22; P20G-T2/T3; QA20G-04 (menu walk) | PASS |
+| 26 | The docs are updated | 20G — this phase; QA20G-02 (cold read) | PASS |
+
+Rows: **26**. Ticked: **26**. Unticked: **0**.
+
+The three regression claims the plan names by case are present: P20E-T1 (row 23), P20F-T9 (row 23),
+P20C-T23 (the registration transaction, exercised by every 20C/20D fixture and the QA20G-05 replay).
+The route/inventory guard is `ParityTest`, green in the full suite; the smoke walk asserts the tab is a
+query parameter (`P20G-T2`) and the three older tabs stay untouched (`P20G-T3`).
+
+RESULT: PASS

@@ -1,0 +1,47 @@
+QA20A-04 - The admin UI has not changed
+=======================================
+
+Date: 2026-11-16 10:35:10 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth
+Tag under test: p19g-release → p20a-foundation
+
+Why: 20A is the inert foundation: migration 024, the three tables, the wallet movement, four settings
+and the ten reference rows. It adds **no reader and no page**; the Team Harvest block appears on
+`/admin/settings` in 20B, the ledger/queue/panel/reports in 20E and the member surfaces in 20F. This
+check proves the absence at the 20A tag rather than re-running a page that later phases legitimately
+changed.
+
+Steps and output
+
+1. Views changed between the 19G release and the 20A foundation:
+
+   git diff --stat p19g-release p20a-foundation -- system/app/views
+   → no output: every view is byte-identical at the two tags.
+
+2. Team Harvest mentions in the 20A tag's views:
+
+   git grep -c 'Team Harvest' p20a-foundation -- system/app/views
+   → no match (exit 1): the text does not exist in any template at the 20A gate.
+
+3. The two pages the check names, at the tag:
+
+   git show p20a-foundation:system/app/views/admin/settings/index.php | Select-String 'Team Harvest'
+   → 0
+
+   git show p20a-foundation:system/app/views/admin/members/show.php | Select-String 'Team Harvest'
+   → 0
+
+4. The 20A database has no reader: the only files that named the new objects were the four manifest
+   files (WalletService, helpers.php, DatabaseInstaller, DatabaseResetService), which P20A-T15 pins.
+
+Checks:
+
+  no view changed between p19g-release and p20a-foundation ....... yes (empty `git diff --stat`)
+  no Team Harvest copy in the 20A settings view .................. yes
+  no Team Harvest panel in the 20A member view ................... yes
+  no application reader outside the four manifest files .......... yes (P20A-T15)
+
+Note: the page-level "open the two pages and see no block" pass was the 20A gate's manual item; this
+transcript proves the same claim from the tag, where the absence is a fact rather than a late edit.
+
+RESULT: PASS

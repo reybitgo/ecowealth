@@ -67,7 +67,7 @@ Now there is:
 
 | Tool | Where it lives | What it does | Use it when |
 |---|---|---|---|
-| **Production bundle** | [`system/database/install.sql`](../system/database/install.sql) | One SQL file containing 33 tables, 73 settings, 2 staff accounts and the starter catalogue. Seeds no members, codes or wallet balances. | You have an **empty** database and a way to import SQL (MySQL client, phpMyAdmin, Adminer). |
+| **Production bundle** | [`system/database/install.sql`](../system/database/install.sql) | One SQL file containing 36 tables, 77 settings, 2 staff accounts, the starter catalogue and the ten Team Harvest ladder rows. Seeds no members, codes or wallet balances. | You have an **empty** database and a way to import SQL (MySQL client, phpMyAdmin, Adminer). |
 | **CLI installer** | [`system/bin/db_install.php`](../system/bin/db_install.php) | Runs preflight checks, imports the bundle, sets staff passwords **you choose**, verifies the result and writes an install lock. | You have a terminal (local machine or a host with SSH). **Recommended.** |
 | **Browser installer** | [`system/public/install.php`](../system/public/install.php) | The same install in a web page. Never creates the database; refuses a non-empty one. | Shared hosting with no SSH. |
 | **Reset engine (CLI)** | [`system/bin/db_reset.php`](../system/bin/db_reset.php) | Previews what will be deleted, resets in one transaction, optionally generates codes and reloads the catalogue/demo data, then verifies the result. | Everyday development/QA reset. **Primary reset path.** |
@@ -89,8 +89,8 @@ Every normal install path — without the optional demo data — ends at exactly
 
 What those numbers mean:
 
-- **33 tables** — the complete database structure: users, shop, carts, orders, wallet, commissions, payouts, audit, live updates, the repeat-purchase tables, the royalty tables, and so on.
-- **73 settings** — 70 seeded configuration values plus 3 rows that record the install (`install_version`, `install_channel`, `install_completed_at`). If you read a lower "seeded settings" count inside an older bundle's own header, that is the seed count at the time; the installed total is 73.
+- **36 tables** — the complete database structure: users, shop, carts, orders, wallet, commissions, payouts, audit, live updates, the repeat-purchase tables, the royalty tables, the three Team Harvest tables (`harvest_queue`, `team_harvest_levels`, `team_harvest_awards`), and so on.
+- **77 settings** — 74 seeded configuration values plus 3 rows that record the install (`install_version`, `install_channel`, `install_completed_at`). If you read a lower "seeded settings" count inside an older bundle's own header, that is the seed count at the time; the installed total is 77.
 - **2 staff accounts** — one `admin` and one `superadmin`. Both are rows in the `users` table.
 - **0 members** — real customer/member accounts are never seeded. The first member appears only when someone registers (or when you explicitly add demo data).
 - **7 products** — six catalogue products from `seeds/003_products.sql`, plus one bundled service product (`EW-COLONICS`) that belongs to Package B.
@@ -153,8 +153,8 @@ Installing:
     ├── import database/install.sql ────────────────┐
     │                                               │
     ├── php bin/db_install.php ──┐                  ├──▶  MySQL database
-    │                            ├──▶ DatabaseInstaller ──▶  33 tables
-    └── browser: install.php ────┘                  │       73 settings
+    │                            ├──▶ DatabaseInstaller ──▶  36 tables
+    └── browser: install.php ────┘                  │       77 settings
                                                     │       2 staff
                                                     │       7 products / 2 packages
                                                     │       no members, no codes
@@ -694,8 +694,8 @@ Installing
   OK    lock_file         Write the install lock
 
 Verification
-  OK    Tables                 33 of 33 tables
-  OK    Settings               73 of 73 settings
+  OK    Tables                 36 of 36 tables
+  OK    Settings               77 of 77 settings
   OK    Staff accounts         admin (admin), superadmin (superadmin)
   OK    Staff sign-in          2 passwords verified
   OK    Members                0 of 0 members
@@ -985,7 +985,7 @@ Directories `755`; files `644`. If PHP still cannot write, try `775` on the dire
 7. Read the footer. The counts must be:
 
    ```text
-   33 tables · 73 settings · 2 staff · 0 members · 7 products · 2 packages · 18 levels · 10 contents · 0 codes
+   36 tables · 77 settings · 2 staff · 0 members · 7 products · 2 packages · 18 levels · 10 contents · 10 harvest levels · 0 codes
    ```
 
 8. **Delete `database/install.sql` from the server after the import.** It is not read at runtime, and leaving it online serves no purpose.
@@ -1883,7 +1883,7 @@ A good dump:
 
 - is not 0 bytes;
 - starts with `-- MySQL dump`;
-- contains `CREATE TABLE` for all 33 tables;
+- contains `CREATE TABLE` for all 36 tables;
 - for a large database, completes with exit code `0`.
 
 Test a dump before you rely on it: restore it into a scratch database (Section 8.3) and check the counts.
@@ -2240,10 +2240,10 @@ The lock and the empty-database guard make an accidental second install hard; th
 
 | Path | What it is | Notes |
 |---|---|---|
-| [`system/database/install.sql`](../system/database/install.sql) | Generated production bundle | 33 tables, 73 settings, 2 staff, 7 products, 2 packages. No demo data. |
+| [`system/database/install.sql`](../system/database/install.sql) | Generated production bundle | 36 tables, 77 settings, 2 staff, 7 products, 2 packages, 10 Team Harvest ladder rows. No demo data. |
 | [`system/database/install/header.sql`](../system/database/install/header.sql) | Bundle header (editable) | Usage, warnings, empty-database guard. |
 | [`system/database/install/footer.sql`](../system/database/install/footer.sql) | Bundle footer (editable) | Install metadata and verification `SELECT`s. |
-| [`system/database/schema.sql`](../system/database/schema.sql) | Authoritative schema | 33 tables and indexes. |
+| [`system/database/schema.sql`](../system/database/schema.sql) | Authoritative schema | 36 tables and indexes. |
 | `system/database/seeds/001_settings.sql` | Seed | 70 settings (the install metadata rows add 3 for 73). |
 | `system/database/seeds/002_accounts.sql` | Seed | 2 staff accounts. |
 | `system/database/seeds/003_products.sql` | Seed | 6 catalogue products. |

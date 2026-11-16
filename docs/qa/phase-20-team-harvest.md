@@ -1,4 +1,4 @@
-﻿# EcoWealth — Phase 20 manual QA: Team Harvest bonus
+# EcoWealth — Phase 20 manual QA: Team Harvest bonus
 
 **Scope.** Phase 20 of the member system (`dmp/plan-ecowealth-team-harvest.md`): a private 3×10
 qualification matrix that pays a flat amount each time a member completes a level. The work is
@@ -10,10 +10,18 @@ money**: it applies a migration, reads counts, opens two pages that must *not* h
 runs the install/reset tools on scratch schemas. From section C on the checks may move test money,
 and every one of those runs on a scratch schema — never on a production database.
 
-**Document status.** Section A (20A — Foundation) written 2026-11-15 with the automated gate green;
-section B (20B — Configuration) appended 2026-11-15 with the automated gate green. Section B moves no
-money and writes no position. Section C (20C — The Harvest queue) appended 2026-11-15 with the
-automated gate green: it stores positions, writes no award and moves no money.
+**Document status.** Sections A–G are complete: 20A wrote section A (2026-11-15), 20B appended B,
+20C C and 20D D (2026-11-15/16), 20E wrote E, 20F F and 20G appended G and signed the pack
+(2026-11-16). **58 checks** — A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6. Every check has an evidence
+file under `docs/qa/evidence/phase-20/`, indexed by that folder's `README.md`; a check whose only
+output is a count, a SQL row or a rendered fragment is a text transcript, and the browser-only steps
+are recorded there as harness transcripts at the markup level (the note in the evidence index says
+which ones a real browser still has to confirm).
+
+**Capture note.** Section A (20A — Foundation) was written 2026-11-15 with the automated gate green;
+section B (20B — Configuration) was appended the same day with the automated gate green. Section B
+moves no money and writes no position. Section C (20C — The Harvest queue) was appended 2026-11-15
+with the automated gate green: it stores positions, writes no award and moves no money.
 
 ---
 
@@ -914,8 +922,9 @@ powershell -File tests/smoke.ps1           → Passed: 251   Failed: 0
 
 `QA20D-01`, `04`, `05`, `06`, `07`, `08`, `09` and `10` were executed by the automated pass on
 `ecowealth_sneat_tool_b_test` and captured as transcripts under `docs/qa/evidence/phase-20/`;
-`QA20D-02` and `QA20D-03` are wallet screenshots and need the application in a browser (their
-**Where** line says which screen). 20D adds **no smoke check**, because it adds no route and no page (20G accumulates the Phase 20
+`QA20D-02` and `QA20D-03` are the two wallet pages, rendered through the real controllers and layout
+at the 20G gate and captured as transcripts (the screen-only re-run in a browser remains the lead's
+item). 20D adds **no smoke check**, because it adds no route and no page (20G accumulates the Phase 20
 ones).
 
 ## The checks in one table
@@ -993,7 +1002,7 @@ Expected
 | Why | §12.7 Rule 6: the money is in the e-wallet the second the transaction commits |
 |---|---|
 | Where | browser as `QA20D_Top`, and `mysql` |
-| Evidence | `QA20D-02.png` |
+| Evidence | `QA20D-02.txt` |
 | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
@@ -1015,7 +1024,7 @@ Expected
 | Why | §14.13: every number on a page has a ledger row behind it |
 |---|---|
 | Where | browser as `admin`, and `mysql` |
-| Evidence | `QA20D-03.png` |
+| Evidence | `QA20D-03.txt` |
 | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
@@ -1211,7 +1220,7 @@ Expected
 
 ## Evidence — section D
 
-Save each check's transcript (or the two screenshots, `QA20D-02.png` / `QA20D-03.png`) under
+Save each check's transcript (`QA20D-02.txt` / `QA20D-03.txt` are the two wallet-page transcripts) under
 `docs/qa/evidence/phase-20/`, named exactly as its **Evidence** line. The index in that folder's
 `README.md` gains the ten rows.
 
@@ -1347,7 +1356,7 @@ Expected
 | Why | Rule 6 of §9: every row links to its member and its wallet movement |
 |---|---|
 | Where | browser as `admin` |
-| Evidence | `QA20E-03.png` |
+| Evidence | `QA20E-03.txt` |
 | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
@@ -1484,7 +1493,7 @@ Expected
 
 ## Evidence — section E
 
-Save each check's transcript (or the browser screenshot, `QA20E-03.png`) under
+Save each check's transcript (`QA20E-03.txt` is the link-walk transcript) under
 `docs/qa/evidence/phase-20/`, named exactly as its **Evidence** line. The index in that folder's
 `README.md` gains the eight rows.
 
@@ -1832,3 +1841,219 @@ If a scratch schema was used for fixture A or the 500-teammate tree, drop it
 business reset (`php bin\db_reset.php --force --confirm=ecowealth_sneat_tool_b_test`), which empties the
 queue and the awards and keeps the ladder. **Do not** build fixture A on `ecowealth_sneat`: every award is
 real money in a real wallet.
+
+# Section G — Phase 20G: Release (`QA20G-01` … `QA20G-06`)
+
+**Prerequisites.** Tag `p20f-member` (or the `p20g-release` tree) on `feature/team-harvest`; sections A–F
+reviewed; the app running (Laragon → Start All) for `QA20G-04`; a **scratch schema** for `QA20G-05`
+(`ecowealth_sneat_tool_b_test`, provisioned by the installer itself). Expected suite count at the gate:
+**1,320**; expected smoke count: **263**.
+
+> **Notation.** As in sections A–F: `mysql` is the Laragon client, `php` is Laragon's PHP 8.3 CLI, and
+> every command runs from `system/`. A command that must hit a different schema sets `ECO_DB_NAME` first
+> (`$env:ECO_DB_NAME='ecowealth_sneat_tool_b_test'`).
+
+**What section G changes in the app.** `APP_PHASE` 19 → **20** in `app/config.php`, the `HardeningTest`
+assertion (`P15 the build reports phase 20`), the twelve new Phase 20 smoke checks and the documents.
+**No route, no schema, no setting, no money rule:** the phase is the label, the proof and the paperwork.
+
+The automated pass, run before these checks:
+
+```text
+php bin\build_install_sql.php --check     → exit 0, no output
+php tests\run.php                         → Cases: 1320   Passed: 1320   Failed: 0
+powershell -File tests\smoke.ps1          → Passed: 263   Failed: 0
+php bin\wallet_reconcile.php              → exit 0, Team Harvest section clean
+php bin\team_harvest_catchup.php --doctor → exit 0 on a seeded copy
+```
+
+## The checks in one table
+
+| Check | What it proves | Where |
+|---|---|---|
+| `QA20G-01` | The documented suite and smoke counts, the bundle check and the reconcile all pass | shell |
+| `QA20G-02` | Sections A–F can be executed by a tester who has not read the plan, without a question | the pack |
+| `QA20G-03` | The release acceptance table is complete: every row cites a passing case or an evidence file | this document, plan §11 |
+| `QA20G-04` | The build reports **20**: constant, suite header, `HardeningTest`, `/dashboard` and every menu item | shell + browser |
+| `QA20G-05` | `docs/deploy.md` and the runbook's one go-live order work end to end on a scratch install | shell |
+| `QA20G-06` | One evidence file per check, the seven gate records and the phase-log entries exist | files |
+
+---
+
+### QA20G-01 — The automated release gate
+
+| Why | Plan §2.4 and §11 Rule 2: no phase is signed from a red or unmeasured baseline |
+|---|---|
+| Where | PowerShell, from `system/` |
+| Evidence | `QA20G-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\build_install_sql.php --check` — exit 0 and no output.
+2. `php tests\run.php` — the full suite; copy the last three lines.
+3. `powershell -NoProfile -File tests\smoke.ps1` — the HTTP walk; copy the summary line.
+4. `php bin\wallet_reconcile.php` — exit 0; copy the Team Harvest section.
+5. `php bin\team_harvest_catchup.php --doctor` — exit 0 on a seeded copy (the development copy may be
+   unseeded; run it against the scratch schema `QA20G-05` builds, or read its unseeded refusal as the
+   documented state).
+
+Expected
+
+- `Cases: 1320   Passed: 1320   Failed: 0` followed by `All good.`
+- `Passed: 263   Failed: 0`
+- The bundle check prints nothing and exits 0; the reconciler reports every section clean, including
+  **Team Harvest**; the doctor's nine lines are green or the unseeded state is explained.
+- If it fails: **stop**. A red suite or smoke run is not a documentation issue; fix it in the phase that
+  owns the behaviour, re-run that phase's gate and record the deviation (Rule 1). Do not sign from a
+  partial run.
+
+### QA20G-02 — The cold read
+
+| Why | Plan §11 Rule 3 and §17 risk 16: the author cannot be the tester who proves the pack is readable |
+|---|---|
+| Where | this document, the plan and the app |
+| Evidence | `QA20G-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Hand sections A–F to a tester who has not seen `dmp/plan-ecowealth-team-harvest.md` and ask them to
+   execute them. Record every question they have to ask.
+2. Separately, read plan §12 and this pack against the build and check every number, URL, action name and
+   exit code the documents state.
+3. Fix every finding in the document that owns it; a finding that needs a code change is a defect in the
+   phase that owns the behaviour (Rule 1).
+
+Expected
+
+- **Zero questions** from the cold tester; every check names its exact URL or command, the exact expected
+  number, and what to do when it fails.
+- The author's sweep finds only documentation drift, fixed here; the residual list is empty.
+- If it fails: the question or the drift is a documentation defect, not a tester error. Fix the document
+  and re-run the affected check; do not change the code to match a document (the code wins).
+
+### QA20G-03 — The release acceptance table
+
+| Why | Plan §11 Rule 5: every acceptance criterion is ticked against a named phase and a named case |
+|---|---|
+| Where | plan §11 *Release acceptance table*; the suite and the evidence folder |
+| Evidence | `QA20G-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Walk the table row by row. For each row, name the phase, the passing `P20X-Tn` case(s) or the evidence
+   file that proves it.
+2. For the two rows that are smoke/route claims, name the smoke check (`P20G-T2`, `P20G-T3`) as well.
+3. Record the completed table in the evidence file, with no row left as `—`.
+
+Expected
+
+- **Every row ticked**; no acceptance criterion rests on an unexecuted check.
+- The three regression claims (`P20E-T1`, `P20F-T9`, `P20C-T23`) are named where the table asks for them.
+- `wallet_reconcile.php` and the doctor are named on their own rows.
+- If it fails: an unticked row keeps the release unsigned. Find the missing proof or record the
+  exception in the sign-off sheet; never tick a row on intention.
+
+### QA20G-04 — The build reports 20
+
+| Why | D-15 and the exit gate: one constant, asserted in code and visible in the suite header |
+|---|---|
+| Where | `app/config.php`, `php tests\run.php`, `HardeningTest`, browser as `admin` |
+| Evidence | `QA20G-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php tests\run.php Hardening` → the `P15 the build reports phase 20` case passes, and the suite header
+   reads `phase 20`.
+2. Read `app/config.php`: `defined('APP_PHASE') || define('APP_PHASE', 20);`, with the comment naming
+   Phase 20 and the plan.
+3. As an admin, open `/dashboard` → **200**, then every shipped menu item (Shop, Packages, Cart, Wallet,
+   Orders, Earnings, Genealogy, Team, Profile, and the admin group: Dashboard, Orders, Payments,
+   Products, Packages, Members, Commissions, Payouts, Wallets, Reports, Codes, Audit, Settings, S-Login
+   for a superadmin) → **200**, no new item, no 500.
+4. As a member, open `/dashboard` → **200** and the Team Harvest tile hidden while the stream is off.
+
+Expected
+
+- The runtime constant, the suite header, the `HardeningTest` case and the pages all report **20**.
+- No menu item appears that Phase 19 did not ship; the constant only labels the build.
+- If it fails: a page that 500s is a regression, not a badge problem; `APP_PHASE` landing without its
+  `HardeningTest` assertion is a release defect (they are one deliverable in one commit).
+
+### QA20G-05 — The scratch install and the go-live order
+
+| Why | Plan §11 Rules 2 and 6: the documented commands are executed, and the go-live order is the runbook's |
+|---|---|
+| Where | a **scratch schema** (`ecowealth_sneat_tool_b_test`), the CLI and the runbook |
+| Evidence | `QA20G-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Follow [`docs/deploy.md`](../../deploy.md) §*Phase 20F/20G addendum* on the scratch schema: build the
+   bundle, install, confirm **36 tables / 77 settings / 10 ladder rows** and the stream **off** and
+   unseeded.
+2. Follow the one go-live order in [`docs/runbook.md`](../../runbook.md) §*Team Harvest go-live order*:
+   seed dry run → seed → enable. Record the exit code of every step.
+3. Grow the tree through the real registration path until one level completes after the baseline; read
+   the award row, its wallet credit and the `team_harvest` movement.
+4. `php bin\wallet_reconcile.php` → exit 0; the Team Harvest section agrees with the award.
+
+Expected
+
+- The dry run writes nothing and prints the positions, the baseline and the excluded money; the seed
+  writes contiguous positions and `team_harvest_ledger_since`; enabling pays nothing by itself.
+- The qualifying registration writes **one** award and **one** withdrawable credit, and a second run
+  writes none.
+- Every command in `deploy.md` and the runbook executed here is copy-pasteable as written; the go-live
+  order exists in one place and the other documents link to it.
+- If it fails: do not hand-edit an award or a position. The failing step names the owner (install →
+  deploy.md/20A; seed → 20C; award → 20D); fix that phase and re-run its gate.
+
+### QA20G-06 — The evidence folder and the gate records
+
+| Why | Plan §11 Rule 4 and the exit gate: a factual record, not a claim |
+|---|---|
+| Where | `docs/qa/evidence/phase-20/`, this sheet, `docs/phase-log.md`, plan Appendix H |
+| Evidence | `QA20G-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. List `docs/qa/evidence/phase-20/` and match every `QA20X-nn` check in this document to a file.
+2. Read `docs/qa/sign-off-sheet.md`: the Phase 20 section (20A–20G) and the seven gate rows.
+3. Read `docs/phase-log.md`: seven Phase 20 entries plus the release entry, with tag, counts and
+   deviations.
+4. Read plan Appendix H: the seven gate rows, the deviation log and the acceptance sign-off.
+
+Expected
+
+- **One file per check** (58 files), named exactly as the check's *Evidence* line; the folder's
+  `README.md` indexes them.
+- The sign-off sheet carries the seven Phase 20 gate records (20A … 20G), each with a decision and the
+  tester line; the phase log has the seven Phase 20 entries (20A–20G); Appendix H is filled.
+- If it fails: a missing file means that check was not executed — do not sign it. Record the exception
+  in the sign-off sheet's defect log with its phase and re-open that phase's gate.
+
+---
+
+## Evidence — section G
+
+Save each check's transcript under `docs/qa/evidence/phase-20/`, named exactly as its **Evidence** line:
+`QA20G-01.txt` … `QA20G-06.txt`. `QA20G-01` pastes the last lines of the suite and the smoke run and the
+reconciler's Team Harvest section; `QA20G-03` carries the completed acceptance table; `QA20G-05` carries
+the deploy/go-live commands with their exit codes and the one award it observed; `QA20G-06` carries the
+file inventory and the gate-record check.
+
+## Cleanup — section G
+
+`QA20G-05` is the only check that writes, and it writes on a **scratch schema**: drop it
+(`DROP DATABASE ecowealth_sneat_tool_b_test;`), or reset it
+(`php bin\db_reset.php --force --confirm=ecowealth_sneat_tool_b_test`), which keeps the ladder and empties
+the queue and awards. The automation writes nothing to the development copy except the smoke run's own
+restored setting and audit rows; `QA20G-01` and `QA20G-04` are read-only. If the scratch schema is kept
+for a demonstration, leave the stream **off** and the queue as the seed left it; it is not a production
+copy.

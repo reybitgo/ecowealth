@@ -1,0 +1,21 @@
+QA20E-08 - The other three tabs are unchanged
+=============================================
+
+Date: 2026-11-16 11:35:50 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 2 of plan section 9: adding a fourth pill must not touch the first three (P20E-T1 is the regression).
+
+The three older tabs, rendered through the same controller and layout:
+  package  commission-header commission-stats commission-rows commission-pagination — unchanged · 4 pills
+  repeat   repeat-header repeat-stats repeat-periods repeat-rows repeat-pagination — unchanged · 4 pills
+  royalty  commission-royalty-ops commission-royalty-header commission-royalty-stats commission-royalty-periods commission-royalty-rows commission-royalty-pagination — unchanged · 4 pills
+
+Checks:
+  each tab keeps its exact fragment set .. yes
+  no tab renders a team-harvest region ... yes
+  four pills on every tab ................ yes
+
+RESULT: PASS

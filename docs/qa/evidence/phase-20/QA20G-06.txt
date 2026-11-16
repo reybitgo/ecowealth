@@ -1,0 +1,68 @@
+QA20G-06 - The evidence folder and the gate records
+===================================================
+
+Date: 2026-11-16 10:40:10 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth
+Tag under test: p20g-release (working tree)
+
+Why: plan §11 Rule 4 and the exit gate — a factual record, not a claim.
+
+1. The evidence inventory
+
+   docs/qa/evidence/phase-20/ contains **58** check files, one per `QA20X-nn`:
+
+     A 8   QA20A-01 … QA20A-08
+     B 9   QA20B-01 … QA20B-09
+     C 8   QA20C-01 … QA20C-08
+     D 10  QA20D-01 … QA20D-10
+     E 8   QA20E-01 … QA20E-08
+     F 9   QA20F-01 … QA20F-09
+     G 6   QA20G-01 … QA20G-06
+
+   Every file is named exactly as the check's *Evidence* line, and the folder's README.md indexes all
+   58 with a status. The 20E transcripts were regenerated at this gate (D-20G-01); the A/B/D checks
+   that were pending at their gates now have harness transcripts (A-01/A-04 are reconstructions from
+   the tags, the rest run the real registration/settings/wallet paths). The browser-only click re-run
+   is the lead's item and is named in the sign-off sheet; no check is missing its file.
+
+2. The sign-off sheet
+
+   docs/qa/sign-off-sheet.md carries the seven Phase 20 gate records:
+     20A foundation · 20B configuration · 20C queue · 20D money engine · 20E admin visibility ·
+     20F member visibility · 20G release.
+   Each has its check table, its summary (executed / passed / failed / blocked), a decision and a
+   tester line. The Phase 20G summary reads **6 / 6** executed, **6 / 0 / 0**, Approved. The defect log
+   gains **D-20G-01** (the missing 20E transcripts and the stale shared documents) and **D-20G-02**
+   (the ordinal copy), both Closed 2026-11-16. The final-decision table carries Phase 20A–20G.
+
+3. The phase log
+
+   docs/phase-log.md carries the seven Phase 20 entries: 20A, 20B, 20C, 20D, 20E, 20F and the 20G release,
+   each with its tag, counts, gate checklist and deviations. The 20G entry records the release's
+   `APP_PHASE`, the 1,320 / 263 counts, the cold read and the acceptance replay.
+
+4. Appendix H
+
+   dmp/plan-ecowealth-team-harvest.md Appendix H has a filled row for every gate (20A … 20G):
+   tag, date, suite, smoke, migration/bundle, manual checks, tester, deviations and the signed box;
+   20G reads `p20g-release · 2026-11-16 · 1,320 / 1,320 · 263 / 263 · APP_PHASE = 20 · G 6/6 · ☑`.
+   The deviation log carries the 20G rows, and the acceptance sign-off records the 1,320 / 263 figures
+   and the tester/date.
+
+5. The tags
+
+   git tag --list 'p20*'
+     p20-start · p20a-foundation · p20b-configuration · p20c-queue · p20d-money · p20e-admin ·
+     p20f-member · p20g-release
+   and the feature tag `phase-20`.
+
+Checks:
+
+  one evidence file per check (58) ................... yes
+  the folder's README indexes them ................... yes
+  the seven gate records exist in the sign-off sheet . yes
+  the seven phase-log entries exist ................. yes
+  Appendix H is filled for 20A … 20G ................. yes
+  the release tag and the feature tag exist .......... yes
+
+RESULT: PASS

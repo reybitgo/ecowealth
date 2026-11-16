@@ -7170,3 +7170,149 @@ checks to 20G.
 - The smoke list 20G adds must not assert a load-bearing number on the member tab: the demo tree holds no
   queue rows on the development copy, so the member tab there reads the gate (or the FAQ) rather than a
   matrix — assert the region's presence, not a position.
+
+---
+
+## Phase 20G — Release (2026-11-16)
+
+**Status:** complete · **Tags:** `p20f-member` (start), `p20g-release`, `phase-20` ·
+**Branch:** `feature/team-harvest` · **Schema:** unchanged (36 tables, 77 settings, 10 ladder rows,
+migrations `001`–`024`) · **Suite:** **1,320 / 1,320** green (no new cases) · **Smoke:** 251 → **263**
+(twelve new Phase 20 checks) · **`APP_PHASE`:** 19 → **20**.
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §11 (Phase 20G), §16.6 (the QA pack) and Appendix H. 20G is
+the **release**: the label, the proof and the documentation. It changes only `APP_PHASE`, its
+`HardeningTest` assertion, the smoke walk, one admin-panel copy defect (below) and the documents —
+**no route, no schema, no setting, no money rule**. If it were reverted, the feature would still be
+correct; the phase constant is the only behavioural change.
+
+### Code
+
+| File | What it is |
+|---|---|
+| `app/config.php` | `APP_PHASE` **20**; the comment names Phase 20, the Team Harvest workstream and `dmp/plan-ecowealth-team-harvest.md` §11 (Phase 20G — Release). No route, menu item or permission reads the constant for Phase 20 (the inventory's highest phase is 15), so the bump reveals nothing unbuilt. |
+| `tests/Cases/HardeningTest.php` | The P15 case becomes **`P15 the build reports phase 20`** and asserts `assert_same(20, APP_PHASE)`; the config comment, `APP_TIMEZONE` and the single `APP_URL` assertion are unchanged. |
+| `tests/Cases/TeamHarvestConfigurationTest.php` | **`P20B-T20`** also guards the phase badge (it asserted 19); the assertion follows the release constant to 20, and the case still proves 36 tables / 74 seed settings / ten ladder rows. |
+| `app/views/admin/members/_team_harvest.php` | **Defect fix (D-20G-02):** the qualification sentence now uses the same ordinal words as the member card — "on their third direct member" and "when their third direct member registers" — instead of "3th"/"3-th". `P20E-T10` is updated to the new copy. |
+| `tests/smoke.ps1` | **Twelve Phase 20 checks (P20G-T1 … T12):** the settings card, the fourth ledger tab and the three unchanged tabs, the directory's Harvest column/queue card/filter, the reports block and its CSV, the unqualified and queued member statements, the dashboard tile and genealogy badge, and the registration hook — a seeded sponsor's third direct queues it at the next position and a fourth changes nothing. The run seeds the baseline for that one check and restores it, the queue rows and the members in its `finally` block. |
+
+**Unchanged by design:** every route, `routes.php`, the schema, the four settings, the ten ladder rows,
+the engine's evaluate/pay protocol, the two jobs and the admin/member surfaces. `ParityTest` and
+`RouterTest` stay green (the route table is untouched).
+
+### The cold read (plan §11 Rule 3)
+
+An independent read of §12, the QA pack and the admin guide against the build, plus a second pass over
+every shared document, found **two defects**, both fixed here:
+
+1. **`QA20E-01` … `QA20E-08` were indexed but not committed (D-20G-01).** The 20E entry and the evidence
+   index said the eight transcripts had been captured; the folder did not contain them. They were
+   regenerated from the final tree through the real controllers and layout
+   (`php tests/tmp/p20e_evidence.php`, the 20F harness technique): fixture A's six tiles (₱25,000.00 /
+   18 / 13), the level and baseline filters, the row→member→wallet links, the CSV and its audit row, the
+   directory and its filter, the unqualified panel, the reports block/KPI/CSV, and the three unchanged
+   tabs.
+2. **The shared documents carried the pre-20G build.** Corrected: `docs/qa/README.md` (the Phase 20 row
+   is signed at **58** checks, the suite/smoke counts are 1,320/263 and the 20E/F/G coverage is
+   described), `docs/qa/sign-off-sheet.md` (title, status, environment/tags, §1 automated evidence, the
+   Phase 20 sections 20E–20G, the 20G defect row and the final-decision rows), `system/README.md`
+   (`APP_PHASE` 20, migrations `001`–`024`, the 1,320/263 counts, the TeamHarvest test group and the
+   20E/20F surface sections), `docs/deploy.md` (Appendix C rows and the 20F/20G addendum),
+   `docs/runbook.md` (the Phase 20 scope, the install counts 36/77/10, the weekly checks and the
+   ledger-reading guide), `docs/admin-guide.md` (the 20B-only and "will use 20F" sentences, the runbook
+   link, §19 the member surfaces), `docs/cron.md` (the *Streams with no scheduled job* section), and the
+   plan itself (status, Appendix H, the acceptance sign-off and the 1,320 count).
+
+The copy defect (**D-20G-02**) was the only code finding; it is pinned by the updated `P20E-T10`.
+
+### The acceptance run (plan §11 Rules 2 and 5)
+
+- **The automated gate:** `php tests/run.php` → **Cases: 1,320   Passed: 1,320   Failed: 0** (exit 0);
+  `powershell -File tests/smoke.ps1` → **Passed: 263   Failed: 0** (exit 0);
+  `php bin/build_install_sql.php --check` → exit 0, no output; `php bin/wallet_reconcile.php` → exit 0
+  with the Team Harvest section; `php bin/team_harvest_catchup.php --doctor` → exit 0 on a seeded
+  scratch schema.
+- **The release acceptance table** (plan §11) is **26 / 26**, every row ticked against a named phase and
+  a named case or evidence file.
+- **The scratch go-live replay (QA20G-05):** the bundle installed `ecowealth_sneat_tool_b_test` at
+  **36 tables / 77 settings / 10 ladder rows**, stream **off** and queue **unseeded**; the seed's dry run
+  wrote nothing, the real seed reconstructed 3 positions with `baseline_n = 2` on the root and wrote
+  `team_harvest_ledger_since`; the switch on paid nothing by itself; three registrations that qualified a
+  new teammate moved the root from 2 to 3 and wrote **one** `credited` level-1 award of **₱1,000.00**
+  with its wallet credit and `team_harvest` movement; a second catch-up wrote none; the reconciler exited
+  0 and the doctor read the same tree.
+- **The build reports 20:** the runtime constant, the suite header (`phase 20`), the `HardeningTest`
+  case, `/dashboard` as admin and every shipped menu item **200**, and a member's `/dashboard` **200**
+  with the tile hidden while the stream is off.
+
+### Docs
+
+- `docs/qa/phase-20-team-harvest.md` — **section G** (`QA20G-01` … `QA20G-06`), the document status
+  (A–G, 58 checks) and the evidence lines; the file is appended, never rewritten.
+- `docs/qa/evidence/phase-20/` — `QA20G-01.txt` … `QA20G-06.txt`, plus the regenerated
+  `QA20E-01.txt` … `QA20E-08.txt`; the folder's `README.md` indexes them and explains the harness
+  technique.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md` — the Phase 20 row is finalised (**A–G, 58
+  checks**), the 20E/20F/20G sections and the seven gate records are added, the totals and the final
+  decision carry Phase 20, and the defect log gains D-20G-01 and D-20G-02.
+- `docs/deploy.md` — the Phase 20F/20G addendum (the member surfaces, the release counts and the
+  verification pack) and the Appendix C rows; the go-live order is a link to the runbook, not a copy.
+- `docs/runbook.md` — the Phase 20 scope, **Team Harvest weekly checks**, **How to read the Team Harvest
+  ledger**, the 36/77/10 install counts and the Phase 20 suite/smoke counts; the go-live order remains
+  the single owner.
+- `docs/admin-guide.md` — the 20B/20E sections are current and §19 describes the member surfaces and the
+  copy rules.
+- `docs/cron.md` — the *Streams with no scheduled job* section: why Team Harvest adds none, and what the
+  two on-demand jobs are for.
+- `system/README.md` — the status is Phase 20 released, `APP_PHASE` is **20**, the migration table and
+  tree carry `024`, the Team Harvest section covers the 20E/20F surfaces, the job table is unchanged (six
+  cron jobs), and the test counts are **1,320 / 263**.
+- `dmp/plan-ecowealth-team-harvest.md` — status **implemented** (`p20g-release`), Appendix H filled,
+  the 20G deviation rows and the acceptance sign-off.
+
+### Gate
+
+- [x] The universal gate (§2.4): schema state matches (no migration), bundle `--check` exit 0, full
+      suite **1,320 / 1,320** green (exit 0), `wallet_reconcile` exit 0, smoke **263 / 263** (exit 0).
+- [x] Every P20G-Tn smoke check exists and passes; the twelve new checks are named for the phase.
+- [x] `APP_PHASE = 20`; `HardeningTest` asserts it; the config comment names Phase 20 and the plan.
+- [x] The manual script (`QA20G-01` … `QA20G-06`) is executed; its evidence is under
+      `docs/qa/evidence/phase-20/`.
+- [x] The release acceptance table is complete and every row is ticked (26 / 26).
+- [x] The QA pack is signed: sections A–G, **58 / 58**, with the seven gate records in the sign-off
+      sheet.
+- [x] Appendix H is filled; the deviation log records the 20G rows.
+- [x] The go-live replay on a scratch schema is green (install → seed dry run → seed → enable →
+      registrations → one award → reconcile).
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] This entry, the plan and the sign-off sheet are current; tags `p20g-release` and `phase-20`.
+
+### Deviations
+
+1. **The Phase 20E evidence transcripts were missing and were regenerated at this gate.** The 20E entry
+   claimed six captured transcripts and the index listed all eight; the files were not in the tree.
+   `QA20E-01` … `08` are now harness transcripts produced through the real controllers and layout on
+   the test schema. No claim was weakened: the browser-only click path (`QA20E-03`) is still the lead's
+   item, and the transcript proves the two links and their targets.
+2. **The admin member panel's ordinal copy was fixed** (D-20G-02): "3th"/"3-th" became "third", the same
+   words the member card uses; `P20E-T10` was updated. No behaviour changed.
+3. **The release suite is 1,320 cases, not the plan's 1,318.** The extra two came from 20E/20F's
+   updated-file cases and their deviation cases; 20G added no case. The plan, the QA README and this
+   entry record the actual count.
+4. **The smoke run grew by 15 Phase 20 checks (three in 20B and twelve in 20G),** from **248** to
+   **263** — the plan's Appendix H estimate. No earlier check was changed.
+5. **`QA20G-04`'s menu walk is recorded from the smoke walk and a scripted HTTP status pass,** not a
+   screenshot browser session: every URL the release names is exercised by `P20G-Tn`, and the phase
+   constant is asserted in code. The screen-only re-run remains the lead's item, as at every gate.
+6. **`P20B-T20` also asserted `APP_PHASE = 19`.** The constant lives in two phase-scoped guards
+   (`HardeningTest` and the 20B configuration case); 20G updates both, and `P20B-T20` still proves the
+   36 tables / 74 seed settings / ten ladder rows. No behaviour changed.
+
+### Hand-off
+
+The workstream is **closed**. The next plan may build the deferred items in §18 — the General Harvest
+board on the shared queue, a retroactive-baseline decision, or a forward-only correction tool —
+**without reopening any of these seven gates**, because each is a new stream or a new decision with its
+own economics. The queue, the awards, the ladder and the two on-demand jobs are frozen at
+`p20g-release`; a change to any of them is a new gate.
+

@@ -4,8 +4,8 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 19 — the Royalty bonus, released in seven gates 19A → 19G
-(`dmp/plan-ecowealth-royalty.md`). `APP_PHASE` is 19** and the workstream is closed.
+**Current status: Phase 20 — the Team Harvest bonus, released in seven gates 20A → 20G
+(`dmp/plan-ecowealth-team-harvest.md`). `APP_PHASE` is 20** and the workstream is closed.
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -30,7 +30,8 @@ expiry keeps its own switch and still closes unpaid orders.
 The third workstream — **Phase 19, the Royalty bonus**
 (`dmp/plan-ecowealth-royalty.md`) — is **released**: a rank-gated monthly bonus that pays
 Supervisor/Manager/Director one award per closed calendar month. 19A added the two money tables, the
-`royalty` wallet movement and sixteen settings (**33 tables / 73 settings**, unchanged since); 19B the
+`royalty` wallet movement and sixteen settings (**33 tables / 73 settings** at 19A; the Phase 20
+migration later takes the build to 36 / 77); 19B the
 configuration card and the derived five-rank ladder; 19C the money engine (`RoyaltyService`) and its
 close job; 19D the admin ledger, report cards, member panel and dashboard tile; 19E the member
 statement and tile; **19F** the scheduled close (CLI, guarded URL entry and Windows launcher), its
@@ -40,17 +41,21 @@ sections A–G, 60 checks), the Appendix B acceptance run and the documentation 
 ships **off**, so a fresh install pays nothing until an operator turns it on.
 
 The fourth workstream — **Phase 20, the Team Harvest bonus**
-(`dmp/plan-ecowealth-team-harvest.md`) — is **in progress**. **20A** added the three tables
+(`dmp/plan-ecowealth-team-harvest.md`) — is **released**. **20A** added the three tables
 (`harvest_queue`, `team_harvest_levels`, `team_harvest_awards`), the `team_harvest` wallet movement,
-four settings and the ten reference amounts (migration `024`, **36 tables / 77 settings**); **20B** adds
-the configuration card — the switch, the qualification gate, the payable depth, the ten flat amounts,
-the generated 3×10 ladder and a four-state status strip — and writes nothing but that configuration;
-**20C** stores qualification (the registration hook, the append-only positions, the teammate counters,
-the one-time seed and the rebuild drill); and **20D** is the **money engine** — a completed level pays
-its configured amount, once, into the withdrawable e-wallet, with an immutable ledger row and a
-`team_harvest` movement, honouring the go-live baseline and proved by `wallet_reconcile.php` and the
-on-demand catch-up/doctor. The member/admin visibility follows in 20E/F; `APP_PHASE` stays **19** until
-20G.
+four settings and the ten reference amounts (migration `024`, **36 tables / 77 settings**); **20B** the
+configuration card — the switch, the qualification gate, the payable depth, the ten flat amounts, the
+generated 3×10 ladder and a four-state status strip; **20C** qualification (the registration hook, the
+append-only positions, the teammate counters, the one-time seed and the rebuild drill); **20D** the
+**money engine** — a completed level pays its configured amount, once, into the withdrawable e-wallet,
+with an immutable ledger row and a `team_harvest` movement, honouring the go-live baseline and proved
+by `wallet_reconcile.php` and the on-demand catch-up/doctor; **20E** the admin visibility (the fourth
+commissions tab, the directory's Harvest column and queue card, the member panel, the reports block
+and the dashboard KPI); **20F** the member visibility (the fourth `/earnings` tab with the matrix, the
+dashboard tile and the genealogy badge); and **20G** the release: `APP_PHASE` **20**, the QA pack
+signed (`docs/qa/phase-20-team-harvest.md`, sections A–G, 58 checks), the smoke walk (**263** checks)
+and the documentation sweep. The stream still ships **off and unseeded**, so a fresh install pays
+nothing until an operator runs the seed and turns it on.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -158,9 +163,9 @@ and the Royalty close have kill switches on the settings page.
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 33 tables, the 73 settings, both staff accounts,
-   the seven starter products and the two packages. It seeds **no** demo members, demo
-   codes or demo wallets, and it refuses to run against a non-empty schema.
+   `database/install.sql` creates the 36 tables, the 77 settings, both staff accounts,
+   the seven starter products, the two packages and the ten Team Harvest ladder rows. It seeds
+   **no** demo members, demo codes or demo wallets, and it refuses to run against a non-empty schema.
 
    Prefer phpMyAdmin? Select the schema → **Import** → choose `database/install.sql` →
    select **Stop on error** → **Go**. The footer prints the verification counts.
@@ -435,7 +440,7 @@ The full checklist, with the verification queries and the backup step, is in
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `19` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `20` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
@@ -510,13 +515,13 @@ system/
 │   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
 │   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 023_royalty_bonus
+│   ├── migrations/            001_settings_roles … 024_team_harvest
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures, the
     │                          scratch-schema and information_schema helpers
     ├── run.php                php tests/run.php [filter]
-    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5, P17B-T1 … P17F-T11, P19B … P19F)
+    ├── smoke.ps1              HTTP smoke test (P1-T1 … P15-T12, IR4-T1 … IR6-T5, P17B-T1 … P17F-T11, P19B … P19F, P20B … P20G)
     ├── Cases/                 Skeleton, Router, Parity, Settings, SettingsPage, CancelSetting, View,
     │                          Upload, Migration, Product, ProductView, Package, PackageView, Cart,
     │                          CartView, Wallet, WalletView, Order, OrderView, Payment,
@@ -527,7 +532,9 @@ system/
     │                          the member/admin live suites, the Unilevel* group (Foundation,
     │                          Configuration, Engine, Cycle, Escrow, ReleaseJob, MemberView) and the
     │                          Royalty* group (Foundation, Configuration, Rank, Engine, Reconcile,
-    │                          Report, AdminView, AdminMemberView, MemberView, CloseJob, Cron), and the
+    │                          Report, AdminView, AdminMemberView, MemberView, CloseJob, Cron), the
+    │                          TeamHarvest* group (Foundation, Configuration, Engine, Catchup,
+    │                          Reconcile, AdminView, MemberView) plus HarvestQueue, and the
     │                          install/reset groups SqlScript, DbTarget, SeedParity, InstallSql,
     │                          Install, DbReset, DbToolAccess
     └── fixtures/              legacy schema fixture for the migration test
@@ -1391,7 +1398,7 @@ php bin/wallet_reconcile.php              # six sections, exit 0 when clean
 
 ---
 
-## Team Harvest bonus (Phases 20A–20D)
+## Team Harvest bonus (Phases 20A–20F)
 
 A **flat amount per completed level** of a member's private **3×10 matrix**, paid into the withdrawable
 e-wallet when the level's block fills. It has no month, no purchase input and no rank: a member enters
@@ -1549,8 +1556,8 @@ The order is deterministic — the gate-th direct's `(created_at, id)`, or the m
 order and **what the baseline excludes**: the levels already complete at that instant, with their
 amount, because those levels are recorded as `baseline` rows and are never credited (D-07).
 
-**Go-live order** (also in `docs/runbook.md`): deploy the code → `--dry-run` → run the seed → turn the
-bonus on in **Settings → Commissions**. The seed moves no money.
+**Go-live order**: [`docs/runbook.md`](docs/runbook.md) §*Team Harvest go-live order* is the one place
+the sequence is written; this section only describes the job it uses. The seed moves no money.
 
 ### `TeamHarvestService` — the money engine (20D)
 
@@ -1666,13 +1673,46 @@ books red. The stream being off or the queue being unseeded are warnings too. Th
 repairs: a mismatch means a human looks at it, and a wrong award is a forward-only business decision
 (§18 Q3).
 
+### The admin surfaces (20E)
+
+Five read-only surfaces on pages that already existed — no route, no permission and no writer:
+
+| Surface | What it shows |
+|---|---|
+| `/admin/commissions?ledger=team_harvest` | the fourth tab: six tiles from `Report::teamHarvestTotals()` (credited, this month, awards, recipients, before go-live, open liability), the always-ten-row level card, filters (member, level, status, dates, search), the rows with their wallet links, pagination and the Appendix C.5 CSV (`team-harvest-ledger_YYYY-MM-DD.csv`, one `team_harvest.export` audit row per download) |
+| `/admin/members` | the **Harvest** column (`#N` from the joined `harvest_queue.id`, `—` when not queued), the **Team Harvest queue** card (queued, next position, deepest team, open liability, three explained empty states) and the `?harvest=yes\|no` filter |
+| `/admin/members/{id}` | the member's panel: position, qualified at, teammates, levels paid, the next level, the ten-level list, every award row, and the gate for a member who has not qualified |
+| `/admin/reports` | the **Team Harvest bonus** block for the window (credited, awards, recipients, before go-live, the queue, the ten-level ladder, by month) and the `type=team_harvest` range CSV with its `Scope` column (`Award` rows plus one `Queue` row) |
+| `/admin/dashboard` | the **Team Harvest (30 d)** KPI with the open liability it implies |
+
+Every figure is a read; the only write is the export audit row. The Package, Repeat and Royalty tabs are
+byte-identical (`P20E-T1`), and the pages stay inside their statement budgets (the ledger's whole
+context ≤ 8 selects, the directory position joined into its one page query).
+
+### The member surfaces (20F)
+
+Three read-only surfaces, scoped to the session member:
+
+| Surface | What it shows |
+|---|---|
+| `/earnings?ledger=team_harvest` | the fourth tab: position and gate sentence, five counters, the whole 3×10 matrix with each level's state and amount, the progress card, the paginated roster, the level rows with their wallet links, the two exclusions, the purchases footnote, the FAQ and the Appendix C.6 CSV (`team-harvest-statement_YYYY-MM-DD.csv`, no audit row) |
+| `/dashboard` | the **Team Harvest** tile: position (or the gate), the next level's progress, what reached the wallet, the recorded-before-go-live count, and a warning when the stream is not paying |
+| `/genealogy` | the reader's **Harvest #N** badge, a **Harvest** column on the direct recruits and the same badge in the team-by-level card; `—` for a member who has not qualified |
+
+`&user_id=` changes neither the page nor the file, and the copy rules are the plan's: the gate with the
+position, the two exclusions and the purchases footnote once, no promise of a date or a guaranteed
+income, and *Complete — not paying at this depth* above the configured depth. The tab's cost is
+constant (10 selects on page 1 and page 2 of a 500-teammate member).
+
 ```bash
 php tests/run.php TeamHarvestEngine           # 28 engine cases (20D)
 php tests/run.php TeamHarvestCatchup          #  6 job cases (20D)
 php tests/run.php TeamHarvestReconcile        #  5 reconcile/reset cases (20D)
 php tests/run.php HarvestQueue                # 30 queue cases (20C)
 php tests/run.php TeamHarvestConfiguration    # 24 configuration cases (20B)
-php tests/run.php TeamHarvest                 # the whole stream so far (20A + 20B + 20C + 20D)
+php tests/run.php TeamHarvestAdminView         # 23 admin-visibility cases (20E)
+php tests/run.php TeamHarvestMemberView        # 19 member-visibility cases (20F)
+php tests/run.php TeamHarvest                  # the whole stream (20A–20F)
 ```
 
 ---
@@ -1781,11 +1821,11 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (1,162 cases; Phase 19 is the last workstream)
+php tests/run.php                 # full suite (1,320 cases; Phase 20 is the last workstream)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
-powershell -NoProfile -File tests/smoke.ps1    # 248 HTTP checks against the running app
+powershell -NoProfile -File tests/smoke.ps1    # 263 HTTP checks against the running app
 ```
 
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
@@ -1796,7 +1836,7 @@ powershell -NoProfile -File tests/smoke.ps1    # 248 HTTP checks against the run
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–023 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–024 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -1810,7 +1850,7 @@ window, the reports performance budget, the CSV exports and their audit rows, th
 transfer throttle. The install/reset workstream adds ten more — `IR4-T1…T5` for the web installer's
 refusal states, hardening headers, GET/POST side effects and shared stylesheet, and `IR6-T1…T5` for the
 reset console's guest redirect, member 403, admin form with no secret, three refusals that change
-nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), and Phase 19 adds **19**: three on the commissions settings sub-block and the member Rank column (19B), seven on the Royalty ledger and its filters/CSV (19D), six on the member statement and tile (19E) and three on the Royalty close's URL entry and doctor (19F) — **248** HTTP checks in all.
+nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), Phase 19 adds **19** (the commissions settings sub-block and the member Rank column, the Royalty ledger and its filters/CSV, the member statement and tile, and the Royalty close's URL entry and doctor), and Phase 20 adds **15**: three on the Team Harvest settings ladder (P20B), then the release walk (P20G) — the settings card, the fourth ledger tab and the three unchanged tabs, the directory and its filter, the reports block and CSV, the unqualified and queued member statements, the dashboard tile, the genealogy badge, and the registration hook — **263** HTTP checks in all.
 
 The install/reset groups run without a browser and without the application connection:
 

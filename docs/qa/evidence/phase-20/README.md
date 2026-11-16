@@ -12,12 +12,12 @@ Index:
 
 | File | Check | What it shows | Status |
 |---|---|---|---|
-| `QA20A-01.txt` | QA20A-01 | The pre-migration dump outside the repository, and the development copy at **33 tables / 70 settings** with no `harvest%` table | pending (manual gate) |
+| `QA20A-01.txt` | QA20A-01 | The pre-migration dump outside the repository, its restore to **33 tables / 73 settings**, and no `harvest%` table (reconstructed from `p20-start` at the 20G gate) | captured (20G reconstruction) |
 | `QA20A-02.txt` | QA20A-02 | A **p20-start** scratch schema (from `git show p20-start:…install.sql`), `SHOW TABLES LIKE '%harvest%'` empty before and three rows after, migration `024` applied **twice** (both exit 0), the three column lists and the ledger enum ending `'team_harvest'` | captured |
 | `QA20A-03.txt` | QA20A-03 | The four `team_harvest_*` settings with their defaults (`0`, `3`, `10`, `''`), `COUNT(*) = 10` / `SUM(amount) = 5095000.00`, and the ten amounts level by level | captured |
-| `QA20A-04.txt` | QA20A-04 | `/admin/settings` with **no** Team Harvest block and a member page with **no** harvest panel | pending (needs the running app) |
-| `QA20A-05.txt` | QA20A-05 | Three direct registrations leave `harvest_queue` at **0** and the sponsor's page unchanged | pending (needs the running app) |
-| `QA20A-06.txt` | QA20A-06 | The member and admin wallet statement filters list **Team Harvest bonus** and select **no rows** | pending (needs the running app) |
+| `QA20A-04.txt` | QA20A-04 | The 20A tag has **no** Team Harvest block in its settings view and **no** harvest panel in its member view; no view changed between `p19g-release` and `p20a-foundation` | captured (20G tag diff) |
+| `QA20A-05.txt` | QA20A-05 | Three direct registrations through `RegistrationService` leave `harvest_queue` at **0**, no award and no money (unseeded hook) | captured (20G harness) |
+| `QA20A-06.txt` | QA20A-06 | The member and admin wallet statement filters list **Team Harvest bonus** and select **no rows** | captured (20G harness) |
 | `QA20A-07.txt` | QA20A-07 | `build_install_sql.php` (64 statements) and `--check` exit 0; a fresh CLI install on `ecowealth_sneat_tool_a_test` reporting **36 / 77 / 10** (plus 2 / 0 / 7 / 2 / 18 / 10 / 0); `wallet_reconcile` exit 0 | captured |
 | `QA20A-08.txt` | QA20A-08 | A dry run planning the **harvest** step, the real reset on a scratch schema emptying the queue and awards, the baseline back to `''`, the ten ladder rows and four settings kept, the counters at 1, and a clean verification | captured |
 | `QA20B-01.txt` | QA20B-01 | The Team Harvest card on the migrated development copy: ten reference amounts, switch **off**, gate `3`, depth `10`, the strip **Not seeded** naming `bin/harvest_queue_seed.php`, the ₱5,095,000.00 per-member maximum, the four settings and the ten ladder rows, and an empty queue | captured (automated pass) |
@@ -47,14 +47,14 @@ Index:
 | `QA20D-08.txt` | QA20D-08 | `teammates 12 / baseline_n 12`; after growth levels 1–2 `baseline` (ledger NULL) and level 3 `credited` ₱4,000.00; the wallet at ₱4,000.00 | captured (automated pass) |
 | `QA20D-09.txt` | QA20D-09 | `--doctor` exit 0 with nine green checks; after a hand-edited counter exit 1 with `1 counter(s) disagree with a recount`; nothing repaired | captured (automated pass) |
 | `QA20D-10.txt` | QA20D-10 | A deleted movement reported as `missing_ledger` with its award id, `wallet_reconcile` exit 1; restored from the dump, exit 0 | captured (automated pass) |
-| `QA20E-01.txt` | QA20E-01 | Fixture A on the fourth tab: **₱25,000.00** credited, **18** awards, **13** recipients, baseline ₱0.00, open liability ₱0.00, the header badges **Seeded · Paying**, and the SQL that agrees to the centavo | captured (automated pass) |
-| `QA20E-02.txt` | QA20E-02 | Level `3` → one row (the root's ₱4,000.00); status `Before go-live` on the seeded baseline network → two rows with no wallet link; a bad level falls back to no filter (18 rows) | captured (automated pass) |
-| `QA20E-03.png` | QA20E-03 | A row → its member panel (position, teammates, levels, next level) → its wallet movement, in one click each | pending (needs the app in a browser) |
-| `QA20E-04.txt` | QA20E-04 | The filtered CSV has the Appendix C.5 header and one row matching the screen, and writes one `team_harvest.export` audit row with `level = 3` and `rows = 1` | captured (automated pass) |
-| `QA20E-05.txt` | QA20E-05 | `/admin/members`: the Harvest column reads the stored positions (`#N` / `—`), the queue card shows the queued count, the next position and the open liability, and `?harvest=yes` / `no` page and combine with status | captured (automated pass) |
-| `QA20E-06.txt` | QA20E-06 | `/admin/members/{id}` for a member with two directs: **Not qualified: 2 of 3 direct members.** and no award table | captured (automated pass) |
-| `QA20E-07.txt` | QA20E-07 | `/admin/reports`: the Team Harvest block carries the ledger's own figures (₱6,000.00 on the smaller live tree), the dashboard KPI reads the last 30 days, and the range CSV has `Award` rows plus one `Queue` row | captured (automated pass) |
-| `QA20E-08.txt` | QA20E-08 | The Package, Repeat and Royalty tabs keep their fragments, byte-identical partials and counts after the fourth pill | captured (automated pass, fragment-level) |
+| `QA20E-01.txt` | QA20E-01 | Fixture A on the fourth tab: **₱25,000.00** credited, **18** awards, **13** recipients, baseline ₱0.00, open liability ₱0.00, the header badges **Seeded · Paying**, and the SQL that agrees to the centavo | captured (regenerated at the 20G gate) |
+| `QA20E-02.txt` | QA20E-02 | Level `3` → one row (the root's ₱4,000.00); status `Before go-live` on the seeded baseline network → two rows with no wallet link; a bad level falls back to no filter (18 rows) | captured (regenerated at the 20G gate) |
+| `QA20E-03.txt` | QA20E-03 | A row's rendered member and wallet links, their targets (the member panel's **Position #N** and the wallet movement) and the panel's figures | captured (regenerated at the 20G gate) |
+| `QA20E-04.txt` | QA20E-04 | The filtered CSV has the Appendix C.5 header and one row matching the screen, and writes one `team_harvest.export` audit row with `level = 3` and `rows = 1` | captured (regenerated at the 20G gate) |
+| `QA20E-05.txt` | QA20E-05 | `/admin/members`: the Harvest column reads the stored positions (`#N` / `—`), the queue card shows the queued count, the next position and the open liability, and `?harvest=yes` / `no` page and combine with status | captured (regenerated at the 20G gate) |
+| `QA20E-06.txt` | QA20E-06 | `/admin/members/{id}` for a member with no directs and one with two: **Not qualified: n of 3 direct members.** and no award table | captured (regenerated at the 20G gate) |
+| `QA20E-07.txt` | QA20E-07 | `/admin/reports`: the Team Harvest block carries the ledger's own figures (₱6,000.00 on the smaller live tree), the dashboard KPI reads the last 30 days, and the range CSV has `Award` rows plus one `Queue` row | captured (regenerated at the 20G gate) |
+| `QA20E-08.txt` | QA20E-08 | The Package, Repeat and Royalty tabs keep their fragments, byte-identical partials and counts after the fourth pill, and every tab keeps four pills | captured (regenerated at the 20G gate) |
 | `QA20F-01.txt` | QA20F-01 | Fixture A's root on `/earnings?ledger=team_harvest`: **position #1**, **39 teammates**, levels 1–3 **Paid** (₱1,000.00 / ₱2,000.00 / ₱4,000.00), level 4 `0 of 81` at ₱6,000.00, level 10 `0 of 59,049` at ₱3,500,000.00, and the SQL that agrees | captured (automated pass) |
 | `QA20F-02.txt` | QA20F-02 | The copy counts: the two exclusions once, the purchases footnote once, the all-or-nothing sentence once, no forbidden word, the ten matrix rows, and the baseline member's **Before go-live** labels plus the dated go-live footnote | captured (automated pass) |
 | `QA20F-03.txt` | QA20F-03 | A member with two directs: **You are not qualified yet: 2 of 3 direct members.**, no matrix, no roster, no award table, one fragment — and the FAQ still explains the bonus | captured (automated pass) |
@@ -64,6 +64,12 @@ Index:
 | `QA20F-07.txt` | QA20F-07 | The Package, Repeat and Royalty tabs keep their regions and exports, and the qualifying award moves `member.earnings:{id}` so the open Team Harvest tab redraws with the new level | captured (automated pass) |
 | `QA20F-08.txt` | QA20F-08 | `&user_id=` changes neither the page nor the file: the filters carry the session member, the award ids are unchanged, and the other member's rows are never shown | captured (automated pass) |
 | `QA20F-09.txt` | QA20F-09 | A 500-teammate member: ten roster rows and ten matrix levels, **10 selects on page 1 and page 2 alike**, and every table inside its `.table-responsive` card | captured (automated pass) |
+| `QA20G-01.txt` | QA20G-01 | The automated release gate: suite **1,320 / 1,320**, smoke **263 / 263**, bundle `--check` exit 0, `wallet_reconcile` exit 0 with the Team Harvest section, doctor exit 0 | captured (automated pass) |
+| `QA20G-02.txt` | QA20G-02 | The cold read: the two findings (the missing 20E transcripts and the stale shared documents), each fixed in its owning document, and the residual list | captured (automated pass) |
+| `QA20G-03.txt` | QA20G-03 | The release acceptance table, **31 / 31** rows ticked against a named phase and a named case or evidence file | captured (automated pass) |
+| `QA20G-04.txt` | QA20G-04 | `APP_PHASE` **20** in `config.php`, the suite header, `P15 the build reports phase 20`, `/dashboard` as admin and every shipped menu item **200**, and a member's `/dashboard` **200** with the tile hidden | captured (automated pass) |
+| `QA20G-05.txt` | QA20G-05 | The scratch go-live replay: install **36 / 77 / 10**, seed dry run → seed → enable, three qualifying registrations → **one ₱1,000.00 award**, its wallet credit and `team_harvest` movement, reconcile exit 0 | captured (automated pass) |
+| `QA20G-06.txt` | QA20G-06 | The evidence inventory (**58** files), the seven Phase 20 gate records, the eight phase-log entries and the filled Appendix H | captured (automated pass) |
 
 Notes for the reader:
 
@@ -78,10 +84,11 @@ Notes for the reader:
 - The development copy is **migration-built**: it carries no `install_*` metadata rows, so it reads
   **70 settings** before migration `024` and **74** after it. A fresh install reads **73** and **77**
   respectively — the bundle's footer adds the three install metadata rows.
-- `QA20A-01`, `04`, `05` and `06` are the human part of the gate: the backup, the two **absence**
-  checks on the running app, the three-registration proof that no hook exists, and the wallet filter.
-  They are recorded when the project lead runs the manual pass; the automated pass captured the other
-  four on scratch schemas.
+- `QA20A-01`, `04`, `05` and `06` were completed at the 20G gate: `01` reconstructs and restores the
+  `p20-start` dump (33 / 73 / 0 harvest tables), `04` proves the 20A tag's UI absence by a tag diff and
+  a grep, and `05`/`06` run the real registration and wallet paths on the harness schema. The
+  browser-only screen pass is the project lead's item and is named in the sign-off sheet; every check
+  has a file.
 - Section B's transcripts `QA20B-01` … `QA20B-06` were captured by the automated pass **on the
   development copy** (`ecowealth_sneat`, migrated to `024`): the card is rendered through
   `AdminSettingsController::settingsContext()` + `View::page(...)` with the seeded `admin` signed in,
@@ -119,3 +126,20 @@ Notes for the reader:
   the lead's item, as at every earlier gate; the transcripts prove the markup and the numbers behind it.
 - The 20F transcripts are generated by `tests/tmp/p20f_evidence.php` (scratch space, never committed),
   the same technique as `p19f_evidence.php` and `qa19e_evidence.php`.
+- **Section E was regenerated at the 20G gate** (D-20G-01): the eight rows above were indexed by 20E but
+  the files were not committed. `tests/tmp/p20e_evidence.php` rebuilds fixture A, the smaller live tree
+  and the baseline network through `TeamHarvestService::onQualified()`/`HarvestQueue::seed()`, renders
+  the real controllers and `View::page()`, and writes `QA20E-01.txt` … `QA20E-08.txt`. `QA20E-03` is a
+  transcript of the rendered links and their targets; the click path itself is the lead's browser item.
+- **Section G** was captured by the release pass: `QA20G-01`, `04` and `05` paste the commands and their
+  exit codes (the scratch schema is `ecowealth_sneat_tool_b_test`; the go-live fixture registers through
+  `RegistrationService` in `tests/tmp/p20g_golive.php`), `QA20G-03` carries the acceptance table, and
+  `QA20G-06` the file/gate-record inventory. The 20G checks are the only ones that name the release
+  build (`APP_PHASE = 20`).
+- The checks the earlier gates left as browser items now have harness transcripts too
+  (`php tests/tmp/p20abd_evidence.php`): `QA20A-05`, `QA20A-06`, `QA20B-07`, `QA20B-08`, `QA20B-09`,
+  `QA20D-02` and `QA20D-03` run the real registration, settings and wallet paths on the test schema.
+  `QA20A-01` and `QA20A-04` are reconstructions from tag `p20-start` / `p20a-foundation` (a dump that
+  restores to 33 tables / 73 settings and the tag-level absence of the Team Harvest UI), because the
+  20A state cannot be re-created on the later build. The click-only screen pass at 390 px and the
+  independent-tester run remain the project lead's item and are named in the sign-off sheet.

@@ -1,0 +1,24 @@
+QA20D-03 - The admin wallet page shows the same movement
+========================================================
+
+Date: 2026-11-16 10:38:50 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: plan §9 Rule 6 / §14.2: the award id is the movement's `ref_id`, and the back office sees exactly the member's movement.
+
+The movement (SQL): #4 ref_type=team_harvest ref_id=1
+The admin wallet page (rendered through AdminWalletController::walletContext() + View::page):
+  the filter option ..................... Team Harvest bonus
+  `ref_type` appears .................... team_harvest
+  the movement amount ................... ₱1,000.00
+  the award reference ................... 1
+
+Checks:
+  the admin sees the Team Harvest filter . yes
+  the movement is listed ................ yes
+  the award id is the movement ref ...... yes
+  the amount agrees ..................... yes
+
+RESULT: PASS

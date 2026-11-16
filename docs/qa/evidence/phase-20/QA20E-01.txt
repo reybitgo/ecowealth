@@ -1,0 +1,35 @@
+QA20E-01 - The fourth tab's tiles
+=================================
+
+Date: 2026-11-16 11:34:46 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rules 1–4 and 11 of plan section 9 and Appendix C.2: the page reads the ledger 20D writes and counts credited money only.
+
+Fixture: A (the plan's perfect 3-ary tree), grown through TeamHarvestService::onQualified().
+Queue (SQL): 40 positions; the root is #1
+Awards (SQL): 18 rows; credited 18
+Ledger total (SQL): 25000.00
+
+The six tiles (rendered team-harvest-stats):
+  Credited ₱25,000.00 18 paid levels in the wallets This month ₱25,000.00 Credited since the first of the month Awards 18 Levels paid — one row per member and level Recipients 13 Members with at least one paid level Before go-live ₱0.00 0 levels recorded, never paid Open liability ₱0.00 0 levels across 0 members — not yet paid
+
+Report::teamHarvestTotals():
+  credited_total 25,000.00   credited_rows 18   recipients 13   baseline_total 0.00   baseline_rows 0
+
+The page (GET /admin/commissions?ledger=team_harvest):
+  active pill ............ Team Harvest
+  heading ................ Team Harvest bonus
+  five regions ........... header stats levels rows pagination
+
+Checks:
+  credited 25,000.00 ..... yes
+  18 awards .............. yes
+  13 recipients .......... yes
+  baseline 0.00 .......... yes
+  open liability 0.00 .... yes
+  header badges .......... Seeded / Paying
+
+RESULT: PASS

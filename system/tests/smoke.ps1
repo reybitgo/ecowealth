@@ -11,7 +11,9 @@
     Phase 19B: P19B-T1 / T6 / T23;
     Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18;
     Phase 19E: P19E-T1, T2, T3, T12, T13, T14;
-    Phase 19F: P19F-T1, T2, T13).
+    Phase 19F: P19F-T1, T2, T13;
+    Phase 20B: P20B-T1, T4, T11;
+    Phase 20G: P20G-T1 ... P20G-T12).
 
 .DESCRIPTION
     Hits the running app through Apache (or `php -S`) and checks status
@@ -42,7 +44,9 @@
     packages named "Smoke Package …", registration codes and member
     accounts it creates, the commissions it paid and the wallet balances
     they moved, `maintenance_mode`, the payment and fulfilment settings it
-    edits, the smoke proof files and its orders.
+    edits, the smoke proof files and its orders. Phase 20 adds the Team
+    Harvest baseline setting, its one queue row and the throw-away members
+    the release walk registers; all three are restored in the same block.
 
     Wallet-funded activations (P9-T4 / P9-T9) are covered by the unit
     suite instead: they move real money between the payer and the primary
@@ -89,6 +93,11 @@ $script:Jars = @{
     p10a   = Join-Path $script:TempDir 'p10a.jar'
     p11reg = Join-Path $script:TempDir 'p11reg.jar'
     p14super = Join-Path $script:TempDir 'p14super.jar'
+    p20g   = Join-Path $script:TempDir 'p20g.jar'
+    p20g1  = Join-Path $script:TempDir 'p20g1.jar'
+    p20g2  = Join-Path $script:TempDir 'p20g2.jar'
+    p20g3  = Join-Path $script:TempDir 'p20g3.jar'
+    p20g4  = Join-Path $script:TempDir 'p20g4.jar'
 }
 
 foreach ($jar in $script:Jars.Values) {
@@ -261,7 +270,7 @@ function Sign-In {
 #  Test run
 # ---------------------------------------------------------------------------
 Write-Host ''
-Write-Host 'EcoWealth HTTP smoke test (phases 1-19)' -ForegroundColor Cyan
+Write-Host 'EcoWealth HTTP smoke test (phases 1-20)' -ForegroundColor Cyan
 Write-Host "  app:      $base"
 Write-Host "  database: $DbName"
 Write-Host ''
@@ -274,6 +283,15 @@ $selfOrderId       = 0
 $settingsSnapshot  = @{}
 # Phase 20B: the ten Team Harvest amounts (a table, not settings).
 $p20bLadderBefore  = @{}
+
+# Phase 20G: the release walk registers throw-away members and seeds the
+# queue for one check (the registration hook is inert until the baseline
+# exists). The finally block restores the baseline setting, deletes the
+# queue row and the members, and removes the audit rows the walk wrote.
+$p20gUsers          = @()
+$p20gBaselineBefore = [string] (Get-SettingValue 'team_harvest_ledger_since')
+$p20gQueueStart     = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM harvest_queue;' | Out-String).Trim())
+$p20gAuditStart     = 0
 
 # Order cancellation ships off (Settings -> Shop -> Enable Cancel of Order).
 # This run exercises the legacy member/admin cancellation and refund paths,
@@ -3362,6 +3380,213 @@ try {
             -and $p20bLadderAfterText -eq $p20bLadderBeforeText) `
         "a Team Harvest ladder over the PHP 25M ceiling is refused and the stored ladder is unchanged (sum|rows=$p20bLadderAfterText)"
 
+    # ---- Phase 20G: the release walk -------------------------------------
+    # The stream adds no route, so the walk is one pass over the pages that
+    # already existed: the settings card, the fourth ledger tab, the members
+    # directory and its filter, the reports block and CSV, the member
+    # statement, the dashboard tile and the genealogy badge. Then it proves
+    # the registration hook by registering a sponsor's third direct. The
+    # finally block restores everything this block writes.
+    $p20gAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    # P20G-T1 - the settings card still owns the ten amounts and the strip.
+    $p20gSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    Assert-That 'P20G-T1' ($p20gSettings.Status -eq 200 `
+            -and $p20gSettings.Body -match 'Team Harvest bonus' `
+            -and $p20gSettings.Body -match 'data-team-harvest-table' `
+            -and $p20gSettings.Body -match 'data-team-harvest-state="unseeded"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_enabled"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_qualify_directs"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_max_levels"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_amounts\[10\]"' `
+            -and $p20gSettings.Body -match '5,095,000.00') `
+        "GET /admin/settings renders the Team Harvest card, ten amounts and the unseeded strip (status=$($p20gSettings.Status))"
+
+    # P20G-T2 - the fourth ledger tab and its five regions. It is a query
+    # parameter on a route that already existed: /team-harvest stays a 404.
+    $p20gLedger  = Invoke-App -Path '/admin/commissions?ledger=team_harvest' -Session 'admin'
+    $p20gNoRoute = Invoke-App -Path '/team-harvest' -Session 'guest'
+    Assert-That 'P20G-T2' ($p20gLedger.Status -eq 200 `
+            -and $p20gLedger.Body -match 'Team Harvest ledger' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-header"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-stats"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-levels"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-rows"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-pagination"' `
+            -and $p20gLedger.Body -match 'No level has completed yet' `
+            -and $p20gLedger.Body -match 'name="ledger" value="team_harvest"' `
+            -and $p20gNoRoute.Status -eq 404) `
+        "the fourth ledger tab renders its five regions and /team-harvest is still 404 (status=$($p20gLedger.Status)/$($p20gNoRoute.Status))"
+
+    # P20G-T3 - the three older tabs keep their regions and render no Team
+    # Harvest region (the 20E regression, from the outside).
+    $p20gPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $p20gRepeat  = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
+    $p20gRoyalty = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'admin'
+    Assert-That 'P20G-T3' ($p20gPackage.Status -eq 200 -and $p20gRepeat.Status -eq 200 -and $p20gRoyalty.Status -eq 200 `
+            -and $p20gPackage.Body -match 'Commission ledger' `
+            -and $p20gPackage.Body -match 'data-live-region="commission-rows"' `
+            -and $p20gRepeat.Body -match 'Repeat-purchase ledger' `
+            -and $p20gRepeat.Body -match 'data-live-region="repeat-rows"' `
+            -and $p20gRoyalty.Body -match 'Royalty bonus' `
+            -and $p20gRoyalty.Body -match 'data-live-region="commission-royalty-rows"' `
+            -and $p20gPackage.Body -notmatch 'data-live-region="team-harvest-' `
+            -and $p20gRepeat.Body -notmatch 'data-live-region="team-harvest-' `
+            -and $p20gRoyalty.Body -notmatch 'data-live-region="team-harvest-') `
+        "the package, repeat and Royalty tabs keep their regions and render no Team Harvest region (status=$($p20gPackage.Status)/$($p20gRepeat.Status)/$($p20gRoyalty.Status))"
+
+    # P20G-T4 - the directory's Harvest column, queue card and filter.
+    $p20gMembers = Invoke-App -Path '/admin/members' -Session 'admin'
+    Assert-That 'P20G-T4' ($p20gMembers.Status -eq 200 `
+            -and $p20gMembers.Body -match '<th>Harvest</th>' `
+            -and $p20gMembers.Body -match 'data-live-region="member-harvest"' `
+            -and $p20gMembers.Body -match 'Team Harvest queue' `
+            -and $p20gMembers.Body -match 'name="harvest"' `
+            -and $p20gMembers.Body -match 'In the Harvest queue' `
+            -and $p20gMembers.Body -match 'Not qualified') `
+        "GET /admin/members renders the Harvest column, the queue card and the three filter states (status=$($p20gMembers.Status))"
+
+    # P20G-T5 - both filter values answer 200 and keep their selection.
+    $p20gHarvestYes = Invoke-App -Path '/admin/members?harvest=yes' -Session 'admin'
+    $p20gHarvestNo  = Invoke-App -Path '/admin/members?harvest=no' -Session 'admin'
+    Assert-That 'P20G-T5' ($p20gHarvestYes.Status -eq 200 -and $p20gHarvestNo.Status -eq 200 `
+            -and $p20gHarvestYes.Body -match 'value="yes" selected' `
+            -and $p20gHarvestNo.Body -match 'value="no" selected' `
+            -and $p20gHarvestYes.Body -match 'data-live-region="member-rows"') `
+        "?harvest=yes|no answer 200 and keep the selected state (status=$($p20gHarvestYes.Status)/$($p20gHarvestNo.Status))"
+
+    # P20G-T6 - the reports block and its export menu.
+    $p20gReports = Invoke-App -Path '/admin/reports' -Session 'admin'
+    Assert-That 'P20G-T6' ($p20gReports.Status -eq 200 `
+            -and $p20gReports.Body -match 'data-live-region="report-team-harvest"' `
+            -and $p20gReports.Body -match 'Team Harvest bonus' `
+            -and $p20gReports.Body -match 'type=team_harvest') `
+        "GET /admin/reports renders the Team Harvest block and offers its export (status=$($p20gReports.Status))"
+
+    # P20G-T7 - the reports CSV and the one audit row it writes.
+    $p20gReportCsv   = Invoke-App -Path '/admin/reports/export?type=team_harvest' -Session 'admin'
+    $p20gExportAudit = [int] ((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'report.export' AND id > $p20gAuditStart;" | Out-String).Trim())
+    Assert-That 'P20G-T7' ($p20gReportCsv.Status -eq 200 `
+            -and $p20gReportCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p20gReportCsv.Body -match 'Scope,"Award id","Credited at",Member,Position,Level,"Teammates \(n\)",Threshold,Amount,Status,"Wallet reference"' `
+            -and $p20gExportAudit -eq 1) `
+        "the Team Harvest report CSV carries the scoped header and writes one audit row (status=$($p20gReportCsv.Status), audit=$p20gExportAudit)"
+
+    # P20G-T8 - a member who is not qualified reads the gate, not a matrix.
+    $p20gMemberTab = Invoke-App -Path '/earnings?ledger=team_harvest' -Session 'member'
+    Assert-That 'P20G-T8' ($p20gMemberTab.Status -eq 200 `
+            -and $p20gMemberTab.Body -match 'Your Team Harvest bonus' `
+            -and $p20gMemberTab.Body -match 'You are not qualified yet: 0 of 3 direct members\.' `
+            -and $p20gMemberTab.Body -match 'data-live-region="earnings-team-progress"' `
+            -and $p20gMemberTab.Body -notmatch 'data-live-region="earnings-team-matrix"') `
+        "GET /earnings?ledger=team_harvest shows an unqualified member the gate and no matrix (status=$($p20gMemberTab.Status))"
+
+    # P20G-T9 - the registration hook: a sponsor with no directs is created,
+    # then three direct member registrations queue them at the next position.
+    $p20gSponsor = 'smoke_harvest_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p20gUsers  += $p20gSponsor
+    $p20gRegPage  = Invoke-App -Path '/register' -Session 'p20g'
+    $p20gRegToken = Get-Csrf $p20gRegPage.Body
+    $p20gSponsorPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p20g' -Form @{
+        '_csrf'            = $p20gRegToken
+        'mode'             = 'standard'
+        'sponsor'          = ''
+        'username'         = $p20gSponsor
+        'email'            = "$p20gSponsor@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $p20gSponsorId = [int] ((Invoke-MySql "SELECT id FROM users WHERE username = '$p20gSponsor';" | Out-String).Trim())
+
+    # Seed the baseline for this check only: without it the hook is inert by
+    # design (20C Rule 2), and with it a third direct must queue the sponsor.
+    Invoke-MySql "UPDATE settings SET value = NOW() WHERE key_name = 'team_harvest_ledger_since';" | Out-Null
+
+    $p20gDirectPosts = @()
+    foreach ($p20gIndex in 1..3) {
+        $p20gDirect = $p20gSponsor + '_d' + $p20gIndex
+        $p20gUsers += $p20gDirect
+        $p20gDirectPage  = Invoke-App -Path '/register' -Session ('p20g' + $p20gIndex)
+        $p20gDirectToken = Get-Csrf $p20gDirectPage.Body
+        $p20gDirectPosts += Invoke-App -Method 'POST' -Path '/register' -Session ('p20g' + $p20gIndex) -Form @{
+            '_csrf'            = $p20gDirectToken
+            'mode'             = 'standard'
+            'sponsor'          = $p20gSponsor
+            'username'         = $p20gDirect
+            'email'            = "$p20gDirect@example.com"
+            'password'         = $memberPassword
+            'password_confirm' = $memberPassword
+            'terms'            = '1'
+        }
+    }
+
+    $p20gQueueRow = (Invoke-MySql "SELECT CONCAT(id, '|', user_id, '|', directs_at_qualification, '|', baseline_n, '|', teammates, '|', source) FROM harvest_queue WHERE user_id = $p20gSponsorId;" | Out-String).Trim()
+    $p20gParts    = $p20gQueueRow.Split('|')
+    $p20gPosition = 0
+    if ($p20gParts.Count -ge 6) { $p20gPosition = [int] $p20gParts[0] }
+    $p20gQueueOk = $p20gPosition -gt $p20gQueueStart `
+        -and $p20gParts.Count -ge 6 `
+        -and $p20gParts[1] -eq [string] $p20gSponsorId `
+        -and $p20gParts[2] -eq '3' `
+        -and $p20gParts[3] -eq '0' `
+        -and $p20gParts[4] -eq '0' `
+        -and $p20gParts[5] -eq 'registration'
+    Assert-That 'P20G-T9' ($p20gSponsorPost.Status -eq 302 `
+            -and $p20gDirectPosts.Count -eq 3 `
+            -and $p20gDirectPosts[2].Status -eq 302 `
+            -and $p20gQueueOk) `
+        "three direct registrations queue the sponsor at the next position (sponsor=$p20gSponsorId, position=$p20gPosition, row=$p20gQueueRow)"
+
+    # P20G-T10 - a fourth direct changes nothing: one row, one position.
+    $p20gFourth = $p20gSponsor + '_d4'
+    $p20gUsers += $p20gFourth
+    $p20gFourthPage  = Invoke-App -Path '/register' -Session 'p20g4'
+    $p20gFourthToken = Get-Csrf $p20gFourthPage.Body
+    $p20gFourthPost  = Invoke-App -Method 'POST' -Path '/register' -Session 'p20g4' -Form @{
+        '_csrf'            = $p20gFourthToken
+        'mode'             = 'standard'
+        'sponsor'          = $p20gSponsor
+        'username'         = $p20gFourth
+        'email'            = "$p20gFourth@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $p20gQueueRowAfter = (Invoke-MySql "SELECT CONCAT(id, '|', user_id, '|', directs_at_qualification, '|', baseline_n, '|', teammates, '|', source) FROM harvest_queue WHERE user_id = $p20gSponsorId;" | Out-String).Trim()
+    $p20gQueueCount    = [int] ((Invoke-MySql "SELECT COUNT(*) FROM harvest_queue WHERE user_id = $p20gSponsorId;" | Out-String).Trim())
+    Assert-That 'P20G-T10' ($p20gFourthPost.Status -eq 302 `
+            -and $p20gQueueCount -eq 1 `
+            -and $p20gQueueRowAfter -eq $p20gQueueRow) `
+        "a fourth direct leaves one queue row at the same position (rows=$p20gQueueCount, row=$p20gQueueRowAfter)"
+
+    # P20G-T11 - the admin surfaces read the stored position: the directory
+    # row and the member panel.
+    $p20gAdminQueue  = Invoke-App -Path ('/admin/members?harvest=yes&q=' + $p20gSponsor) -Session 'admin'
+    $p20gAdminMember = Invoke-App -Path ('/admin/members/' + $p20gSponsorId) -Session 'admin'
+    Assert-That 'P20G-T11' ($p20gAdminQueue.Status -eq 200 -and $p20gAdminMember.Status -eq 200 `
+            -and $p20gPosition -gt 0 `
+            -and $p20gAdminQueue.Body -match ('#' + $p20gPosition + '</a>') `
+            -and $p20gAdminMember.Body -match ('Position #' + $p20gPosition) `
+            -and $p20gAdminMember.Body -match 'Teammates' `
+            -and $p20gAdminMember.Body -match 'Levels paid') `
+        "the directory and the member panel read the stored position #$p20gPosition (status=$($p20gAdminQueue.Status)/$($p20gAdminMember.Status))"
+
+    # P20G-T12 - the member surfaces: the statement's position and matrix,
+    # the dashboard tile and the genealogy badge.
+    $p20gStatement = Invoke-App -Path '/earnings?ledger=team_harvest' -Session 'p20g'
+    $p20gDashboard = Invoke-App -Path '/dashboard' -Session 'p20g'
+    $p20gGenealogy = Invoke-App -Path '/genealogy' -Session 'p20g'
+    Assert-That 'P20G-T12' ($p20gStatement.Status -eq 200 -and $p20gDashboard.Status -eq 200 -and $p20gGenealogy.Status -eq 200 `
+            -and $p20gStatement.Body -match ('Harvest position #' + $p20gPosition) `
+            -and $p20gStatement.Body -match 'data-live-region="earnings-team-matrix"' `
+            -and $p20gStatement.Body -match 'data-level="10"' `
+            -and $p20gDashboard.Body -match 'data-live-region="dashboard-team-harvest"' `
+            -and $p20gDashboard.Body -match 'not currently paying' `
+            -and $p20gGenealogy.Body -match ('Harvest #' + $p20gPosition) `
+            -and $p20gGenealogy.Body -match '<th>Harvest</th>') `
+        "the member statement, dashboard tile and genealogy badge show position #$p20gPosition (status=$($p20gStatement.Status)/$($p20gDashboard.Status)/$($p20gGenealogy.Status))"
+
     # ---- Phase 19D: the admin Royalty ledger ----------------------------
     $p19dAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
 
@@ -4199,6 +4424,18 @@ try {
     foreach ($level in $p20bLadderBefore.Keys) {
         try { Set-LadderAmount ([int] $level) ([string] $p20bLadderBefore[$level]) } catch { }
     }
+    # Phase 20G: the release walk put the baseline back, deleted its queue
+    # row, its throw-away members and the audit rows it wrote.
+    try { Set-SettingValue 'team_harvest_ledger_since' $p20gBaselineBefore } catch { }
+    foreach ($p20gName in $p20gUsers) {
+        try { Invoke-MySql "DELETE FROM users WHERE username = '$p20gName';" | Out-Null } catch { }
+    }
+    try {
+        Invoke-MySql "DELETE FROM harvest_queue WHERE id > $p20gQueueStart;" | Out-Null
+        if ($p20gAuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p20gAuditStart AND action IN ('report.export', 'member.register', 'team_harvest.export');" | Out-Null
+        }
+    } catch { }
     try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
     try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }
     try {

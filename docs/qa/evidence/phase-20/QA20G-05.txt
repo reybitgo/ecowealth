@@ -1,0 +1,107 @@
+QA20G-05 - The scratch install and the go-live order
+====================================================
+
+Date: 2026-11-16 10:35:43 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_tool_b_test (a scratch schema, dropped and reinstalled for this replay)
+
+Why: plan §11 Rules 2 and 6 — the documented commands are executed, and the go-live order is the one
+in docs/runbook.md (deploy → seed dry run → seed → enable → registrations → award).
+
+1. The deploy (docs/deploy.md, Phase 20F/20G addendum)
+
+   The install lock of the running development install was held aside for the replay; nothing else
+   on the dev copy was touched.
+
+   php bin\db_install.php --database=ecowealth_sneat_tool_b_test --create-database --force
+     → Preflight OK (PHP 8.3.16, pdo_mysql, MySQL 8.4.3, install.sql 64 statements / 89,851 bytes)
+     → Install: install → seed → verify → lock_file
+     → Verification
+         Tables              36 of 36
+         Settings            77 of 77
+         Staff accounts      admin (admin), superadmin (superadmin)
+         Catalogue           7 products / 2 packages / 18 levels / 10 contents / 10 harvest levels
+         No transactional rows
+     → counts: tables 36 · settings 77 · staff 2 · members 0 · products 7 · packages 2 · levels 18 · contents 10 · codes 0
+     → Installed and verified, exit 0
+
+   The stream is off and the queue is unseeded after the install:
+     team_harvest_enabled = 0 · team_harvest_ledger_since = '' · queue rows 0
+
+2. The pre-seed tree (12 accounts, through RegistrationService — the web form's path)
+
+   php tests\tmp\p20g_golive.php tree
+     → tree: 12 accounts · root has 5 directs · queue 0 · switch 0 · baseline ''
+     → exit 0
+
+   The root qualifies on its 3rd direct (a placeholder); child_1 and child_2 qualify later, so at the
+   seed the root holds two qualified teammates below it.
+
+3. The seed
+
+   php bin\harvest_queue_seed.php --dry-run
+     → gate: 3 · order: qualified_at · members: 3 · would add: 3 position(s)
+     → #1 @golive_root directs 5 · #2 @golive_child_1 directs 3 · #3 @golive_child_2 directs 3
+     → excludes: 0 levels already complete at the baseline · ₱0.00 (D-07)
+     → Nothing was written. exit 0
+
+   php bin\harvest_queue_seed.php
+     → inserted: 3 position(s)
+     → baseline: 2026-11-16 10:35:53 (team_harvest_ledger_since)
+     → The registration hook is now live. The stream is still switched off. exit 0
+
+4. Enable, then grow through the registration path
+
+   php tests\tmp\p20g_golive.php enable
+     → switch: 1
+
+   php tests\tmp\p20g_golive.php grow      (child_3 + its three directs: three registrations)
+     → grow: queue 4 · root position 1 · teammates 3 · awards 1 · credited 1000.00 · withdrawable 1000.00
+
+   php tests\tmp\p20g_golive.php report
+     → queue #1 golive_root n=3 baseline=2 directs=3 source=seed
+              #2 golive_child_1 n=0 baseline=0 directs=3 source=seed
+              #3 golive_child_2 n=0 baseline=0 directs=3 source=seed
+              #4 golive_child_3 n=0 baseline=0 directs=3 source=registration
+     → awards #1 golive_root L1 n=3/3 PHP 1000.00 credited ledger=1
+     → team_harvest ledger #1 golive_root credit PHP 1000.00 ref=1
+
+   The stream paid nothing until a level completed: the seed wrote no award, enabling wrote no award,
+   and the qualification that moved the root from 2 to 3 wrote exactly one level-1 award of ₱1,000.00
+   with its withdrawable credit and its `team_harvest` movement.
+
+5. The books and the doctor
+
+   php bin\team_harvest_catchup.php --doctor
+     → [OK] clock · tables · settings · seed · baseline · queue (4 positions, next #5, deepest n 3)
+     → [OK] awards (1 row, ₱1,000.00 credited, 0 baseline) · drift (0) · reconcile
+     → The doctor is green. exit 0
+
+   php bin\team_harvest_catchup.php
+     → evaluated: 4 · paid: 0 level(s) · ₱0.00 · baseline: 0
+     → Nothing to do: every completed level already has its award row. exit 0
+
+   php bin\wallet_reconcile.php
+     → Team Harvest: queued positions 4 · credited awards 1 (1,000.00) · baseline 0 (0.00)
+       team_harvest ledger 1,000.00 · counter drift 0 · 0 below the baseline
+       OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+     → All good — … and team-harvest awards reconcile. exit 0
+
+Checks:
+
+  the install reports 36 tables / 77 settings / 10 ladder rows .. yes
+  the stream is off and the queue unseeded after deploy ......... yes
+  the seed dry run writes nothing .............................. yes
+  the seed reconstructs the positions and the baseline .......... yes (3 positions, baseline_n = 2 on the root)
+  enabling pays nothing by itself .............................. yes (no award until a level completed)
+  a qualifying registration writes one award and one credit ..... yes (₱1,000.00, level 1)
+  a second catch-up writes none ................................ yes (paid 0)
+  the reconciler and the doctor are green ...................... yes (both exit 0)
+  every command in deploy.md and the runbook executed as written  yes
+
+The scratch schema was kept for the doctor/reconcile steps and can be dropped
+(`DROP DATABASE ecowealth_sneat_tool_b_test`) — it is not a production copy and its stream is off.
+The development copy was never enabled, seeded or written to by this replay.
+
+RESULT: PASS

@@ -1,0 +1,26 @@
+QA20B-09 - The card at 390 px and 1440 px
+=========================================
+
+Date: 2026-11-16 10:38:36 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: plan §6 Rule 7: the ten amount inputs stack on a phone and the six-column saved table scrolls inside its card, never the page.
+
+The rendered card (the real layout):
+  `.table-responsive` wrappers ......... 2
+  `col-12 col-md-6` amount cells ....... 12
+  the saved ladder table ............... "Level, Slots, Teammates needed, Stored amount, Cumulative, Depth"
+
+At 390 px the Bootstrap grid puts each `col-12` input on its own row (single column); at 1440 px
+`col-md-6` makes two columns. The saved table is inside `.table-responsive`, so its six columns
+scroll inside the card and the page itself never scrolls horizontally. The markup is the contract
+`P20B-T18` pins; the screenshot pass in a real browser remains the lead's item.
+
+Checks:
+  every wide table is wrapped .......... yes
+  the ten cells stack by breakpoint .... no
+  no fixed-width page container ....... yes (the layout is the shared fluid one)
+
+RESULT: PASS

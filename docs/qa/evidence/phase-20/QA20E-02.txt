@@ -1,0 +1,28 @@
+QA20E-02 - The level and status filters
+=======================================
+
+Date: 2026-11-16 11:35:05 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 9 of plan section 9 (an unknown value means "no filter") and Rule 4 (a baseline row is never paid).
+
+Fixture A: 18 rows in all.
+  level=3 ............... 1 row(s); amount(s) 16 Nov 2026 11:35 AM @qa20e_02_root #41 Level 3 39 39 +₱4,000.00 Paid #37
+  level=99 .............. 18 rows (the unknown value is ignored, no error page)
+  search=nothing-......  0 rows; empty state says: yes
+
+Baseline network (root seeded at n = 12):
+  all rows .............. 2
+  status=baseline ....... 2 row(s)
+  row labels ............ 2 x Before go-live
+  wallet links .......... none on the two rows
+
+Checks:
+  level 3 selects the root's 4,000.00 row .. yes
+  a baseline row has no wallet link ....... yes
+  an unknown level is no filter ........... yes
+  search empties the table, not the page ... yes
+
+RESULT: PASS

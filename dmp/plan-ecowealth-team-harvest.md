@@ -1,12 +1,12 @@
 # Plan — Team Harvest Bonus (private 3×10 qualification matrix)
 
-**Phase 20** of the EcoWealth member system · **Status: planned** — no code written; the plan is the
-gate record until 20A opens.
+**Phase 20** of the EcoWealth member system · **Status: implemented** (`p20g-release`) — the release
+gate record is complete; see §11 and Appendix H.
 **Delivery model:** **seven gated phases, 20A → 20G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`
 **Branch:** `feature/team-harvest`, cut from `feature/royalty` at `p19g-release` · **Tag at start:**
-`p20-start`
+`p20-start` · **Tag at release:** `p20g-release` (`phase-20`)
 
 | | |
 |---|---|
@@ -269,7 +269,7 @@ The named anti-patterns this forbids:
 | **20D** | Money engine: level awards, baseline, wallet, reconcile, catch-up | 20C | 3.5 d | ≥ 1,268 |
 | **20E** | Admin visibility: ledger tab, queue card, member panel, reports | 20D | 1.5 d | ≥ 1,292 |
 | **20F** | Member visibility: earnings tab, matrix card, tile, genealogy | 20D | 1.5 d | ≥ 1,314 |
-| **20G** | Release: docs, QA pack, phase badge, acceptance | all | 1.5 d | 1,318 |
+| **20G** | Release: docs, QA pack, phase badge, acceptance | all | 1.5 d | 1,320 |
 
 **Total: ~14.5 ideal days**, plus roughly one day of gate overhead spread across the seven phases.
 The suite column is a floor, not a target: it counts the cases the phase's gate requires; the
@@ -1605,8 +1605,8 @@ green acceptance run, and a signed gate record.
 **Ships alone because.** It ships last by definition; what it must *not* do is change behaviour. If a
 documentation claim and the code disagree during this phase, the code wins and the plan is amended.
 
-**Effort.** 1.5 ideal days. **Suite.** 1,318 cases (no new cases unless a documentation claim exposes a
-missing test).
+**Effort.** 1.5 ideal days. **Suite.** 1,320 cases as delivered (the 20E/20F deviation cases; no new
+cases in this phase unless a documentation claim exposes a missing test).
 
 **Reference.** §2.4 (the universal gate), §17 (risks), Appendix H.
 
@@ -3621,13 +3621,13 @@ without a filled row is not closed, whatever its code says.
 
 | Phase | Tag | Date | Suite passed/ran | Smoke passed/ran | Migration/bundle | Manual QA `QA20X-nn` | Tester | Deviations | Signed |
 |---|---|---|---:|---:|---|---|---|---|---|
-| 20A Foundation | `p20a-foundation` | 2026-11-15 | 1,180 / 1,180 | 248 / 248 | migration `024` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (64 statements) | A: 4/8 automated (04–06 need the running app) | — (pending lead) | see §20A deviations in `docs/phase-log.md` | ☐ |
-| 20B Configuration | `p20b-configuration` | 2026-11-15 | 1,204 / 1,204 | 251 / 251 | no schema change; bundle `--check` exit 0 (64 statements) | B: 6/9 automated (01–06; 07–09 need a browser) | — (pending lead) | see §20B deviations in `docs/phase-log.md` | ☐ |
-| 20C The Harvest queue | `p20c-queue` | 2026-11-15 | 1,234 / 1,234 | 251 / 251 | no schema change; the seed's dry run and rebuild both exit 0; a refused second seed exits 1 | C: 8/8 automated on a scratch schema (01/05's browser session pending the lead) | — (pending lead) | see §20C deviations in `docs/phase-log.md` | ☐ |
-| 20D Money engine | `p20d-money` | 2026-11-16 | 1,275 / 1,275 | 251 / 251 | no schema change; `wallet_reconcile` exit 0 with the Team Harvest section; catch-up doctor exit 0 | D: 10/10 automated on a scratch schema (02/03's wallet screenshots pending the lead) | — (pending lead) | see §20D deviations in `docs/phase-log.md` | ☐ |
-| 20E Admin visibility | `p20e-admin` | 2026-11-16 | 1,298 / 1,298 | 251 / 251 | no schema change; bundle `--check` exit 0 (64 statements) | E: 6/8 automated on the fixtures (03 and 08 need a browser) | — (pending lead) | see §20E deviations in `docs/phase-log.md` | ☐ |
-| 20F Member visibility | `p20f-member` | 2026-11-16 | 1,320 / 1,320 | 251 / 251 | no schema change; `wallet_reconcile` exit 0 (moves no money); bundle `--check` exit 0 (64 statements) | F: 9/9 captured as harness transcripts (a browser re-run of 03/05/06/09 pending the lead) | — (pending lead) | see §20F deviations in `docs/phase-log.md` | ☐ |
-| 20G Release | `p20g-release` | — | — / — | — / — | no schema change; bundle `--check` exit 0; `wallet_reconcile` exit 0; doctor exit 0; **`APP_PHASE = 20`** | G: —/6 | — | — | ☐ |
+| 20A Foundation | `p20a-foundation` | 2026-11-15 | 1,180 / 1,180 | 248 / 248 | migration `024` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 (64 statements) | A: 8/8 (01/04 reconstructed from the tags, 05/06 harness transcripts at the 20G gate) | Automated QA pass — DSH | see §20A deviations in `docs/phase-log.md` | ☑ |
+| 20B Configuration | `p20b-configuration` | 2026-11-15 | 1,204 / 1,204 | 251 / 251 | no schema change; bundle `--check` exit 0 (64 statements) | B: 9/9 (07–09 harness transcripts at the 20G gate) | Automated QA pass — DSH | see §20B deviations in `docs/phase-log.md` | ☑ |
+| 20C The Harvest queue | `p20c-queue` | 2026-11-15 | 1,234 / 1,234 | 251 / 251 | no schema change; the seed's dry run and rebuild both exit 0; a refused second seed exits 1 | C: 8/8 on a scratch schema | Automated QA pass — DSH | see §20C deviations in `docs/phase-log.md` | ☑ |
+| 20D Money engine | `p20d-money` | 2026-11-16 | 1,275 / 1,275 | 251 / 251 | no schema change; `wallet_reconcile` exit 0 with the Team Harvest section; catch-up doctor exit 0 | D: 10/10 (02/03 wallet-page transcripts at the 20G gate) | Automated QA pass — DSH | see §20D deviations in `docs/phase-log.md` | ☑ |
+| 20E Admin visibility | `p20e-admin` | 2026-11-16 | 1,298 / 1,298 | 251 / 251 | no schema change; bundle `--check` exit 0 (64 statements) | E: 8/8 harness transcripts (regenerated at the 20G gate) | Automated QA pass — DSH | see §20E deviations in `docs/phase-log.md` | ☑ |
+| 20F Member visibility | `p20f-member` | 2026-11-16 | 1,320 / 1,320 | 251 / 251 | no schema change; `wallet_reconcile` exit 0 (moves no money); bundle `--check` exit 0 (64 statements) | F: 9/9 harness transcripts (browser re-run remains the lead's item) | Automated QA pass — DSH | see §20F deviations in `docs/phase-log.md` | ☑ |
+| 20G Release | `p20g-release` | 2026-11-16 | 1,320 / 1,320 | 263 / 263 | no schema change; bundle `--check` exit 0; `wallet_reconcile` exit 0; doctor exit 0; **`APP_PHASE = 20`** | G: 6/6 | Automated QA pass — DeepSeek Harness (DSH) | D-20G-01 (the 20E evidence transcripts regenerated and the stale shared documents corrected), D-20G-02 (the admin panel's ordinal copy) | ☑ |
 
 **Deviation log.** Any difference between this plan and what was built, with the reason and the phase
 that owns it. An empty deviation log at the 20G gate means the plan and the build agreed.
@@ -3657,6 +3657,10 @@ that owns it. An empty deviation log at the 20G gate means the plan and the buil
 | 20F | An unqualified member's feed carries **one** fragment (`earnings-team-progress`), not six | T6 requires the gate and "no matrix … no awards table"; the other five regions would have no element on that page to patch until the member qualifies. | — (recorded in `docs/phase-log.md`) |
 | 20F | `HarvestQueue::matrix()` and `teamRoster()`/`teammatePositions()` gain optional parameters (a pre-read queue row, a known position) | Every existing caller passes nothing and is unchanged; the tab reads the member's queue row once instead of three times, which is what keeps P20F-T19 at 10. | — (recorded in `docs/phase-log.md`) |
 | 20F | The member copy lives in `TeamHarvestService` constants, although §10 puts it in the views | "Verbatim, once" is a testable contract (T13/T14 count occurrences); one constant is how two views and their tests agree on the exact string. The service already ships `LEVEL_MEMBER_LABELS` for the same reason. | — (recorded in `docs/phase-log.md`) |
+| 20G | The Phase 20E evidence transcripts (`QA20E-01` … `QA20E-08`) were indexed in the pack but never committed; the 20G gate regenerated them from the final tree through the real controllers and layout (`php tests/tmp/p20e_evidence.php`, the same harness technique as 20F) | A gate record needs its evidence, and the release is the last place it can be produced. The transcripts prove the markup and the numbers; the browser-only re-run (`QA20E-03`'s click path) remains the lead's item, as at every earlier gate. | — (recorded in `docs/phase-log.md`, D-20G-01) |
+| 20G | The admin member panel's qualification sentence read "on their 3th direct member" and "their 3-th direct member"; it now uses the same ordinal words as the member card ("third"), with `P20E-T10` updated | A visible copy defect in the phase that owns the panel (20E); fixed here under §11 Rule 1 and pinned by the updated case. No behaviour changed. | — (recorded in `docs/phase-log.md`, D-20G-02) |
+| 20G | The release suite is **1,320** cases, not the 1,318 the phase header anticipated | The extra two are 20E/20F's updated-file cases and their deviation cases (floor ≥ 1,314 at 20F); no phase added a case in 20G. The acceptance sign-off and this appendix record the actual count. | — (recorded in `docs/phase-log.md`) |
+| 20G | Two phase-scoped test guards asserted `APP_PHASE = 19`: `HardeningTest` (the plan's named update) and `P20B-T20`'s schema guard | The constant lives in both files, so 20G updates both in one commit; `P20B-T20` still proves the 36 tables / 74 seed settings / ten ladder rows, only its badge expectation follows the release. No behaviour changed. | — (recorded in `docs/phase-log.md`) |
 
 **Acceptance sign-off.**
 
@@ -3670,8 +3674,8 @@ that owns it. An empty deviation log at the 20G gate means the plan and the buil
 | Baseline | recorded, never credited; the wallet holds only the post-baseline levels |
 | `wallet_reconcile.php` | exit **0**, Team Harvest section clean |
 | `team_harvest_catchup.php --doctor` | exit **0**: clocks, tables, settings, seed state, baseline, queue, drift, reconcile |
-| Release gate (20G) | suite **1,318 / 1,318**, smoke **≈ 263 / 263**, bundle `--check` exit 0, `APP_PHASE = 20` |
-| Tester / date | — |
+| Release gate (20G) | suite **1,320 / 1,320**, smoke **263 / 263**, bundle `--check` exit 0, `APP_PHASE = 20` |
+| Tester / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
 | Evidence folder | `docs/qa/evidence/phase-20/` (sections A–G) |
 
 ---

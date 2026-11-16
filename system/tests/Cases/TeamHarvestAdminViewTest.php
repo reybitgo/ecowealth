@@ -839,7 +839,7 @@ return [
         assert_not_contains('Levels paid', $html);
 
         /* The panel still says where the gate is. */
-        assert_contains('enter the queue when their 3-th direct member registers', $html);
+        assert_contains('enter the queue when their third direct member registers', $html);
     },
 
     /* ==========================================================

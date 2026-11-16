@@ -1049,3 +1049,22 @@ The Phase 19F gate (`docs/qa/phase-19-royalty.md` section F, `QA19F-01` ... `QA1
 the URL entry, a dry run, the real close, a second run, a held lock and the Task Scheduler launcher. The
 automated cases are `P19F-T1` ... `T16` in `tests/Cases/RoyaltyCronTest.php`; the operations panel is
 `P19F-T13` and the health check `P19F-T14`.
+
+---
+
+## Streams with no scheduled job
+
+**Team Harvest (Phase 20) adds no cron entry, deliberately.** It has no month, no period, no quota and
+no purchase input, so there is nothing to close and nothing to evaluate on a schedule: a level is decided
+by the registration that completes it, and a completed level pays at that event (plan §12.7, D-08). The
+stream's two jobs are **on demand** and neither is in the table above:
+
+| Job | When | Why it is not scheduled |
+|---|---|---|
+| `bin/harvest_queue_seed.php` | **once**, at go-live, before the switch is turned on | it reconstructs history; running it again would refuse (positions are facts) |
+| `bin/team_harvest_catchup.php` | after enabling the switch, after a repair, after a counter-drift alarm, after a deploy that fixed a bug | the engine is state-based; a schedule would evaluate a population that has not changed |
+
+Both take their own lock, write one log line per run and audit their writes; neither has a guarded URL
+entry, because a browser cannot be trusted with a money run. The go-live order and the incident drills
+live in [`runbook.md`](runbook.md) §*Team Harvest go-live order* and §*Team Harvest award and reconcile
+drill*. The reconciliation (`wallet_reconcile.php`) is the weekly check, not a job to schedule.

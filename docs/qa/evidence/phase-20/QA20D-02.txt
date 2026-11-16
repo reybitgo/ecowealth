@@ -1,0 +1,23 @@
+QA20D-02 - The member sees the credit in /wallet
+================================================
+
+Date: 2026-11-16 10:38:50 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: plan §12.7 and §14.2: the award is a withdrawable wallet credit with `ref_type = team_harvest`, visible in the member's own statement.
+
+The movement (SQL): #4 credit PHP 1000.00 ref_type=team_harvest ref_id=1
+The member wallet page (rendered through WalletController::walletContext() + View::page):
+  filter option ......................... Team Harvest bonus
+  the statement renders the filter ...... yes
+  the credit amount ..................... ₱1,000.00
+  the Team Harvest movement is listed ... yes
+
+Checks:
+  the statement filter names the stream . yes
+  the credit is on the page ............. yes
+  the two buckets agree with the award .. yes
+
+RESULT: PASS

@@ -1,0 +1,28 @@
+QA20E-03 - From a row to the member and to the movement
+=======================================================
+
+Date: 2026-11-16 11:35:20 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 6 of plan section 9: every row links to its member and its wallet movement.
+
+Award row (SQL): id 39 · member qa20e_03_root (300) · amount 1000.00 · ledger 40
+Rendered row: 16 Nov 2026 11:35 AM @qa20e_03_root #94 Level 1 3 3 +₱1,000.00 Paid #40
+
+The two links the row renders:
+  member link ............ /ecowealth/system/admin/members/300
+  wallet link ............ /ecowealth/system/admin/wallets/300
+
+The member panel (rendered member-team-harvest):
+  Team Harvest A private 3×10 matrix. A level pays its amount once, when its block of qualified teammates is full — no purchases, no rank, no month. Open the ledger Position #94 Qualified Nov 16, 2026 11:35 AM · on their third direct member 3 directs · levels that pay: 10 Teammates 39 Levels paid 3 Paid ₱7,000.00 Before go-live 0 · ₱0.00 This member qualified after go-live, so no level of theirs was complete before the plan started paying. Next level Level 4 — 0 of 81 slots, 81 teammates remaining, ₱6,000.00 when the block is full (120 teammates) Level Teammates Block Amount State Level 1 3 / 3 3 needed 100% ₱1,000.00 Paid Level 2 9 / 9 12 needed 100% ₱2,000.00 Paid Level 3 27 / 27 39 needed 100% ₱4,000.00 Paid Level 4 0 / 81 120 needed 0% ₱6,000.00 In progress Level 5 0 / 243 363 needed 0% ₱12,000.00 In progress Level 6 0 / 729 1,092 needed 0% ₱50,000.00 In progress Level 7 0 / 2187 3,279 needed 0% ₱120,000.00 In progress Level 8 0 / 6561 9,840 needed 0% ₱200,000.00 In progress Level 9 0 / 19683 29,523 needed 0% ₱1,200,000.00 In progress Level 10 0 / 59049 88,572 needed 0% ₱3,500,000.00 In progress Awards Level Teammates at award Threshold Amount Status Wallet Nov 16, 2026 11:35 AM Level 1 3 3 ₱1,000.00 Paid Nov 16, 2026 11:35 AM Level 2 12 12 ₱2,000.00 Paid Nov 16, 2026 11:35 AM Level 3 39 39 ₱4,000.00 Paid Read-only. A level pays once, ever; a level complete before go-live is recorded and never credited. Changing the ladder affects levels that have not paid yet — every award keeps the amount it was paid at.
+
+Checks:
+  the member link names member 300 ... yes
+  the wallet link names the user ....... yes
+  the panel shows position #94 ....... yes
+  the panel shows the teammate count ... yes
+  the panel shows the award rows ....... yes
+
+RESULT: PASS

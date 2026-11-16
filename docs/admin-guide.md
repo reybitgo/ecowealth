@@ -734,9 +734,10 @@ matrix**. It has no month, no purchase input and no rank: a member enters the qu
 hold the configured number of direct member accounts, and every qualified member who joins their
 team **after** them fills the matrix.
 
-**Phase 20B ships the configuration only.** No money moves and no position is written yet: the queue
-and its seed job are **20C**, and the award engine is **20D**. Until then the card is the one place an
-operator decides what the plan would commit to.
+**Phase 20B shipped the configuration; 20C–20F built the queue, the money and the visibility.** This
+section is the card. §18 is the admin visibility (the ledger, the queue card, the member panel, the
+reports and the KPI); the member's own view is the **Team Harvest** tab on `/earnings`, the dashboard
+tile and the genealogy badge, which read the same numbers §18 shows you.
 
 ### The matrix
 
@@ -805,9 +806,9 @@ The card writes no position, no award and no wallet row, and changing an amount 
 that already paid — a level's amount is snapshotted onto the award when it pays, so the card's copy
 says *“every award keeps the amount it was paid at”*.
 
-**Go-live order** (the runbook's, once 20C/20D exist): deploy → seed dry run → seed → enable. The card
-is where the operator sees the state between those steps. Rollback is simply turning the switch off;
-the ladder rows are inert and may stay.
+**Go-live order**: [`runbook.md`](runbook.md) §*Team Harvest go-live order* is the one place the sequence
+is written, and it is not repeated here; the card is where the operator sees the state between its
+steps. Rollback is simply turning the switch off; the ladder rows are inert and may stay.
 
 **Every save is audited:** `team_harvest.ladder.update` carries the ten amounts and the three knobs,
 before and after, and the tenant-wide `settings.update` row records each changed key.
@@ -890,7 +891,7 @@ it will pay, the ten-level list with each level's state, and every award row the
 For a member who has not qualified it says **Not qualified: n of 3 direct members** and shows no matrix
 and no award table — the gate is the answer, not an empty board.
 
-The panel reads `TeamHarvestService::statusFor()`, the same read the member's own earnings tab will use
+The panel reads `TeamHarvestService::statusFor()`, the same read the member's own earnings tab uses
 (20F), so the back office and the member can never be promised different numbers.
 
 ### The reports block and the CSV
@@ -917,4 +918,24 @@ including a download with no rows (a header-only file and its audit row).
 
 It writes no position, no award and no wallet movement; it adds no route, no button that pays and no
 setting. It **cannot** pay a backlog: only `bin/team_harvest_catchup.php` writes money, and only
-`bin/harvest_queue_seed.php` assigns a position. The member-facing matrix and statement are 20F.
+`bin/harvest_queue_seed.php` assigns a position.
+
+---
+
+## 19. What the member sees (Phase 20F)
+
+The member reads the same facts you do, on three surfaces that already existed — no new route, no new
+permission, no new menu item:
+
+| Surface | What the member sees | What to check when a member calls |
+|---|---|---|
+| **Earnings → Team Harvest** (`/earnings?ledger=team_harvest`) | their position and the gate sentence that explains it, the five counters (teammates, levels paid, earned, before go-live, next level), the whole 3×10 matrix with each level's state and amount, the progress card, the teammate roster and the level rows with a link to the wallet movement | the page is scoped to the signed-in member: `&user_id=` does nothing. *Before go-live* rows are history, not a missing payment |
+| **Dashboard** (`/dashboard`) | the **Team Harvest** tile: position, the next level's progress, what has reached the wallet, the recorded-before-go-live count, and a warning when the stream is not paying | a member with no position and the stream off sees no tile at all; that is the shipped default |
+| **Genealogy** (`/genealogy`) | the **Harvest #N** badge in the heading, a **Harvest** column on the direct recruits and the badge in the team-by-level card (`—` when not qualified) | the badge is the stored position, never a rank and never a count |
+
+The copy rules the member sees are the plan's: the gate is stated with the position, the two exclusions
+("only members who qualify after you count" and "outside your sponsor team does not count") and the
+purchases footnote appear once, no page promises a date or a guaranteed income, and a level above the
+configured depth reads *Complete — not paying at this depth* rather than a silent zero. `P20F-T12`…
+`P20F-T14` pin the exact sentences; if a member disputes a figure, compare the tab with the member panel
+in §18 — both call `TeamHarvestService::statusFor()` and cannot legitimately disagree.

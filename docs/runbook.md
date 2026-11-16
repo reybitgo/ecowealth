@@ -5,9 +5,9 @@ admin and the developer on call. It is the day-to-day companion to
 [`deploy.md`](deploy.md) (first install and upgrades), [`cron.md`](cron.md) (job detail) and
 [`live-updates.md`](live-updates.md) (the no-refresh protocol).
 
-**Scope:** the Phase 19 build — shop, orders, payments, fulfilment, registration and codes, the
+**Scope:** the Phase 20 build — shop, orders, payments, fulfilment, registration and codes, the
 dual-balance e-wallet, commissions, transfers, payouts, super-login, the reports/audit desk, the
-repeat-purchase bonus (earn, escrow and release) and the monthly Royalty bonus.
+repeat-purchase bonus (earn, escrow and release), the monthly Royalty bonus and the Team Harvest bonus.
 
 ---
 
@@ -16,7 +16,7 @@ repeat-purchase bonus (earn, escrow and release) and the monthly Royalty bonus.
 | # | Check | Where | Healthy looks like |
 |---|---|---|---|
 | 1 | Finance health | **Admin → Reports → Finance health** | Green **All clear**, 8 checks, one line per invariant |
-| 2 | Reconciliation | `php bin\wallet_reconcile.php` | exit **0**, "All good — wallets, commissions, transfers, payouts, repeat-purchase and royalty awards reconcile" |
+| 2 | Reconciliation | `php bin\wallet_reconcile.php` | exit **0**, "All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty and team-harvest awards reconcile" |
 | 3 | Orders that need action | **Admin → Dashboard → Orders needing action** | the number you expect for the day; nothing stuck in `payment_review` |
 | 4 | Payout hold | **Admin → Dashboard → Held for payout** / **Payouts** | every open request has a reason to wait; none older than a day |
 | 5 | Audit desk | **Admin → Audit log** | today's settings changes, exports and S-Login exits are the ones you made |
@@ -258,6 +258,44 @@ application, so stop and restore the backup rather than lowering the counter.
 correction tool in v1 (D-12): a wrong award is a forward-only business decision recorded in the phase
 log (§18 Q3). The reconciler *detects* a hand edit — it never repairs one.
 
+### Team Harvest weekly checks
+
+The stream has no schedule, so the weekly pass is the only regular look at it. Do this once a week
+(after the reconciliation) and before any payout run:
+
+| # | Check | Where | Healthy looks like |
+|---|---|---|---|
+| 1 | The books | `php bin\wallet_reconcile.php` | exit **0**, the **Team Harvest** section clean: credited awards equal their wallet credits, no baseline row has a ledger, no award above the ten-level ladder, and `counter drift` is **0** |
+| 2 | The doctor | `php bin\team_harvest_catchup.php --doctor` | exit **0**, nine green lines: clock, tables, settings, seed state, baseline, queue, awards, drift, reconcile |
+| 3 | The queue | **Admin → Members → Team Harvest queue** | the queued count, the next position (`MAX(id) + 1`) and the deepest team are the numbers you expect for the week; the card names its next action when it is empty |
+| 4 | The liability | **Admin → Reports → Team Harvest bonus** | the **open liability**, labelled *not yet paid*, compared with the month's registration revenue; a jump is a conversation, not a bug |
+| 5 | The ledger | **Admin → Commissions → Team Harvest** | new rows since last week are *Paid* with a wallet reference; *Before go-live* rows are history, never a missing payment |
+| 6 | Growth | **Admin → Reports → Team Harvest bonus** (accounts per qualified) | the queue's growth is explained by registrations; a burst of fresh accounts around one member is the ring pattern §15.3 warns about |
+
+A failed check 1 or 2 is an **incident**: stop, dump the database, and follow the drill above. Never
+"fix" a position or an award by hand.
+
+### How to read the Team Harvest ledger
+
+**Admin → Commissions → Team Harvest** lists one row per **level a member completed** — not per payment
+attempt and not per month. Read it left to right:
+
+| Column | What it means |
+|---|---|
+| the instant | when the level was decided (`credited_at`), the moment a qualification completed the block |
+| **Member** / **Position** | who earned it and their stored queue position (`#N`, never a derived count) |
+| **Level** | which block of the 3×10 matrix completed |
+| **Teammates (n)** / **Threshold** | the counter at the decision and the number the level needed; `n` is always ≥ the threshold |
+| **Amount** | the ladder amount **snapshotted** when it was paid; a later ladder edit does not rewrite it |
+| **Status** | **Paid** = credited to the withdrawable wallet; **Before go-live** = complete at the seed, recorded and never paid |
+| **Wallet reference** | the `ewallet_ledger` id of the credit; *Before go-live* rows have none, because nothing moved |
+
+The six tiles above the rows describe the **whole ledger**, not the filtered page: *Credited* counts
+`Paid` rows only, *Before go-live* has its own tile, *Open liability* is what the current counters
+would still pay, and the ten-level distribution is always ten rows. Every figure is traceable to a
+wallet movement — if a *Paid* row's reference does not resolve, stop: the reconciler should already be
+red.
+
 ---
 
 ## 3. Backups, install, reset and restore
@@ -329,10 +367,11 @@ also needs `config.local.php`, the uploads folder and the `system/storage` folde
 
 ### Install a fresh database
 
-Every install path ends at the same state: **33 tables, 73 settings, 2 staff accounts, 7
-products, 2 packages, 18 ladder levels, 10 package contents, 0 members, 0 codes**. None of
-them may be run against a schema that already holds data — `install.sql` is fresh-install only,
-and an existing database is upgraded with `database/migrations/NNN_*.sql` ([§5](#5-deploying-an-update)).
+Every install path ends at the same state: **36 tables, 77 settings, 2 staff accounts, 7
+products, 2 packages, 18 ladder levels, 10 package contents, 10 Team Harvest ladder rows, 0 members,
+0 codes**. None of them may be run against a schema that already holds data — `install.sql` is
+fresh-install only, and an existing database is upgraded with `database/migrations/NNN_*.sql`
+([§5](#5-deploying-an-update)).
 
 **Local (Laragon) through the MySQL client** — fastest and exact:
 
@@ -877,8 +916,8 @@ Cron access, lock and log conventions are shared; see [`cron.md`](cron.md).
 
 1. Bundle: `php bin\build_install_sql.php --check` — exit 0 (the committed `install.sql` matches
    `schema.sql` + seeds 001–004; rebuild with `php bin\build_install_sql.php` after editing a source).
-2. Full suite: `php tests\run.php` — must be green (1,162 cases at the Phase 19 release).
-3. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green (248 checks).
+2. Full suite: `php tests\run.php` — must be green (1,320 cases at the Phase 20 release).
+3. Smoke: `powershell -NoProfile -File tests\smoke.ps1` — must be green (263 checks).
 4. Reconciliation: `php bin\wallet_reconcile.php` — exit 0.
 5. Phase gate checklist in `docs\phase-log.md` signed; QA doc updated.
 6. Commit with the phase summary; tag `phase-15` for the build and `v1.0-complete` at launch.
