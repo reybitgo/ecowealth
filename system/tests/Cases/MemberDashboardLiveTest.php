@@ -5,15 +5,18 @@ declare(strict_types=1);
  *  MemberDashboardLiveTest — the member's own dashboard
  *
  *  The dashboard is a per-member live surface (`member.dashboard:{id}`)
- *  with seven regions: the header status pill, the KPI row, the E-wallet
+ *  with eight regions: the header status pill, the KPI row, the E-wallet
  *  card, the membership card, the recent-orders card, the earnings card
- *  and (Phase 19E) the Royalty tile.
+ *  and (Phase 19E) the Royalty tile, plus (Phase 20F) the Team Harvest
+ *  tile.
  *
  *  A wallet movement, an order write for this buyer, an activation
  *  request/decision, a status change and a new downline line must all
  *  reach an open dashboard without a reload. Admins at /dashboard keep
  *  the admin.dashboard surface.
  * ============================================================== */
+
+$harvest = require __DIR__ . '/../fixtures/harvest_money.php';
 
 $makeMember = static function (string $username = ''): array {
     return test_user($username !== '' ? $username : 'md_' . bin2hex(random_bytes(4)));
@@ -164,7 +167,7 @@ return [
         assert_same($before + 1, Live::revision(Live::memberDashboardSurface($id)), 'activation rejection');
     },
 
-    'the member dashboard feed renders the seven regions' => function () use ($makeMember): void {
+    'the member dashboard feed renders the eight regions' => function () use ($makeMember): void {
         $member = $makeMember();
         $id     = (int) $member['id'];
 
@@ -193,6 +196,7 @@ return [
                 'dashboard-orders',
                 'dashboard-earnings',
                 'dashboard-royalty',
+                'dashboard-team-harvest',
             ],
             array_keys($payload['fragments'])
         );
@@ -200,6 +204,10 @@ return [
         /* The Royalty tile is hidden for a member with no history while
          * the stream is off — the region renders nothing (plan §9 Rule 5). */
         assert_same('', $payload['fragments']['dashboard-royalty'], 'no Royalty tile for a brand-new member');
+
+        /* The Team Harvest tile follows the same rule: off, not queued and
+         * no history means nothing to say yet (20F's tile rule). */
+        assert_same('', $payload['fragments']['dashboard-team-harvest'], 'no Team Harvest tile for a brand-new member');
 
         $header = $payload['fragments']['dashboard-header'];
         assert_contains('data-live-region="dashboard-header"', $header);
@@ -287,7 +295,7 @@ return [
         assert_contains('Pending activation', $payload['fragments']['dashboard-kpis']);
     },
 
-    'the member dashboard page declares its surface and seven regions' => function () use ($makeMember, $render): void {
+    'the member dashboard page declares its surface and regions' => function () use ($makeMember, $render): void {
         $member = $makeMember();
         $id     = (int) $member['id'];
 
@@ -498,6 +506,78 @@ return [
         assert_contains('Royalty is currently off', $historyTile);
         assert_contains('href="' . url('earnings?ledger=royalty') . '"', $historyTile);
         assert_not_contains('If this month closed now', $historyTile, 'no projection while the stream is off');
+    },
+
+    /* ==========================================================
+     *  P20F-T10 — the Team Harvest tile
+     * ========================================================== */
+
+    'P20F-T10 the Team Harvest tile shows the paid total and the next level without a form' => function () use ($harvest, $render): void {
+        $clean   = $harvest['clean'];
+        $arm     = $harvest['arm'];
+        $grow    = $harvest['grow'];
+        $enable  = $harvest['enable'];
+        $account = $harvest['account'];
+
+        $clean();
+        $arm();
+
+        $tree = $grow(3, 'mdj_p20f', new TeamHarvestService());
+        $root = $tree['root'];
+
+        test_signed_in_as(test_user('mdj_p20f_root'));
+
+        $controller = new DashboardController();
+        $data       = $controller->dashboardContext($root);
+
+        assert_not_null($data['team_harvest']);
+        assert_same(true, $data['team_harvest']['queued']);
+        assert_same(39, (int) $data['team_harvest']['teammates']);
+        assert_same(7000.0, (float) $data['team_harvest']['paid_amount']);
+        assert_same(4, (int) $data['team_harvest']['next']['level']);
+        assert_same(0, (int) $data['team_harvest']['next']['filled']);
+        assert_same(81, (int) $data['team_harvest']['next']['slots']);
+
+        $tile = $controller->feedPayload(
+            10,
+            '"member.dashboard:' . $root . ':10:t10"',
+            $data
+        )['fragments']['dashboard-team-harvest'];
+
+        assert_contains('data-live-region="dashboard-team-harvest"', $tile);
+        assert_contains('Team Harvest', $tile);
+        assert_contains('Harvest position #' . (int) $data['team_harvest']['position'], $tile);
+        assert_contains('Earned', $tile);
+        assert_contains(money(7000.0), $tile, 'the paid total');
+        assert_contains('Level 4', $tile, 'the next level');
+        assert_contains('0 of 81', $tile, 'its progress');
+        assert_contains(money(6000.0), $tile, 'its amount');
+        assert_contains('href="' . url('earnings?ledger=team_harvest') . '"', $tile);
+
+        /* A read-out: no form, no CSRF field, no button that posts. */
+        assert_not_contains('<form', $tile);
+        assert_not_contains('name="_csrf"', $tile);
+        assert_not_contains('method="POST"', $tile);
+
+        /* The page renders the same region. */
+        $html = $render('member', 'member/dashboard', $data + [
+            'live' => Live::meta(Live::memberDashboardSurface($root), 'page'),
+        ]);
+
+        assert_contains('data-live-region="dashboard-team-harvest"', $html);
+        assert_contains(money(7000.0), $html);
+
+        /* With the stream off and no position or history, the tile is
+         * gone entirely (the Royalty tile's rule). */
+        $enable(false);
+
+        $fresh = $account('mdj_p20f_fresh');
+
+        test_signed_in_as(test_user('mdj_p20f_fresh'));
+
+        $empty = $controller->feedPayload(11, '"x"', $controller->dashboardContext($fresh));
+
+        assert_same('', $empty['fragments']['dashboard-team-harvest'], 'hidden when off with no position');
     },
 
     'admins keep the admin dashboard surface at /dashboard' => function (): void {

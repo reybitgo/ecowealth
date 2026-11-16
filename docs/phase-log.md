@@ -6990,3 +6990,183 @@ checks to 20G.
   Status` are a subset of the ledger's row payload.
 - **Nothing pays from a page.** 20F must keep adding no route and no write; a member surface that could
   evaluate would be a money switch in a browser.
+
+## Phase 20F — Member visibility (2026-11-16)
+
+**Status:** complete · **Tags:** `p20e-admin` (start), `p20f-member` ·
+**Branch:** `feature/team-harvest` · **Schema:** 36 tables, 77 settings (unchanged — this phase adds no
+schema) · **Suite:** 1,298 → **1,320** cases, **1,320 / 1,320** green · **Smoke:** 251 (unchanged — the
+phase adds no route and no page of its own).
+
+Plan: `dmp/plan-ecowealth-team-harvest.md` §10 (Phase 20F), §12.5, §12.6 and Appendix C.3/C.4/C.6/C.7/
+C.8/C.9. This is a **read-only presentation phase**: it puts the position 20C stores and the money 20D
+writes on the surfaces a member already uses — the fourth tab on `/earnings`, the dashboard tile and the
+genealogy badge. No controller, model or view writes a queue row, an award or a wallet movement; the
+member's CSV is the only file the phase ships and it writes no audit row either.
+
+### Database
+
+None. 20A shipped every column this phase reads. The development copy (`ecowealth_sneat`) was **not**
+enabled, no seed was run and no page writes with the switch on or off.
+
+### Code
+
+- **`app/Controllers/EarningsController.php`** — the **fourth tab**. `TAB_TEAM_HARVEST` joins the
+  `?ledger=` vocabulary (`tab()` and `context()` gain one arm each), `teamHarvestContext()` builds the
+  page (the filters through `TeamHarvestAward::normaliseFilters()` with the **session member forced in**,
+  one page through `select()`, the numbers through `TeamHarvestService::statusFor()` and the roster page
+  through `matrixFor()`), `teamHarvestFilters()` is the one filter read the page and the CSV share,
+  `exportTeamHarvest()` + `teamHarvestCsvHeader()`/`teamHarvestCsvRows()` write Appendix C.6's
+  `team-harvest-statement_YYYY-MM-DD.csv`, and `teamHarvestFeedPayload()` publishes the six regions
+  (`earnings-team-stats`, `-progress`, `-matrix`, `-header`, `-rows`, `-pagination`) under their own names
+  so an open Team Harvest tab never patches another tab. `earningsScope()` mixes the shared team revision
+  (a qualification moves the counter) and the configuration revision (a ladder change moves every amount).
+- **`app/Controllers/DashboardController.php`** — `dashboardContext()` gains `team_harvest`
+  (`TeamHarvestService::statusFor()`, guarded so a broken projection hides the tile and never the page),
+  and the feed gains the `dashboard-team-harvest` region.
+- **`app/Controllers/GenealogyController.php`** — `genealogyContext()` reads `HarvestQueue::map()` **once**
+  (one select) and returns `harvest_positions` plus the reader's `harvest_position`; the header, the
+  direct-recruit rows and the team-by-level card render one badge from it, so the badge adds no N+1
+  however deep the team is.
+- **`app/Controllers/WalletController.php`** — carries the new `ref_id` filter, which is the drill-down
+  the award row links to.
+- **`app/Services/TeamHarvestService.php`** — the member copy constants the views share
+  (`EXCLUSIONS_COPY`, `PURCHASES_COPY`, `ALL_OR_NOTHING_COPY`, `BASELINE_COPY`) so "verbatim, once" is one
+  definition rather than five spellings, and `matrixFor()` (the roster page, fed with the queue row the
+  status payload already read).
+- **`app/Models/HarvestQueue.php`** — `matrix()` accepts the caller's queue row (two fewer selects on the
+  tab), and `teamRoster()`/`teammatePositions()` accept a known position. No behaviour change for a caller
+  that passes nothing.
+- **`app/Models/Wallet.php`** — `filterDefaults()`/`normaliseFilters()`/`whereFor()` gain `ref_id`: a
+  positive integer filters, anything else is "no filter" (§9 Rule 9's unknown-value rule). Additive; the
+  admin monitor honours it too.
+- **Views (new, 7):** `member/earnings/_team_stats.php` (the five counters),
+  `_team_progress.php` (position, gate sentence and next level), `_team_matrix.php` (the whole 3×10 matrix,
+  the two exclusions, the purchases and go-live footnotes, the paginated roster), `_team_header.php`,
+  `_team_rows.php` (one row per decided level, with the wallet link), `_team_pagination.php`;
+  `member/dashboard/_team_harvest.php` (the tile).
+- **Views (modified, 7):** `member/earnings.php` (the fourth pill, the tab's body, the filter form, the
+  FAQ block), `member/dashboard.php` (the tile's position), `member/genealogy.php` (the Harvest column),
+  `member/genealogy/_header.php` (the reader's badge), `_recruits_rows.php` and `_team.php` (each member's
+  badge), `partials/wallet_statement.php` (the `ref_id` filter is kept while filtering).
+
+No route, no permission and no schema change (D-14). `APP_PHASE` stays **19**.
+
+### What the member can now see
+
+| Surface | The rule it proves |
+|---|---|
+| `/earnings?ledger=team_harvest` | **Rule 2:** the gate is stated in the same sentence as the position; **Rule 5:** the whole matrix, empty slots and all, each with its amount; **Rule 4:** "when your teammates reach 12 …", never a date; **Rule 8:** *Before go-live* is labelled and excluded from *Earned* |
+| the matrix card | **Rule 3:** the two exclusions, verbatim and once; **Rule 6:** the purchases footnote, once; **Rule 7:** usernames and positions only — no other member's money |
+| `/dashboard` | **Rule 4 and Appendix C.4:** the paid total and the next level's progress, as a read-out with no form |
+| `/genealogy` | **Rule 9:** the position is displayed from `harvest_queue.id`, never derived; a member who is not queued reads `—` |
+| the CSV | **Rule 11 and Appendix C.6:** the six columns, scoped in the model, with no audit row |
+
+### Tests
+
+**22 new cases: 1,298 → 1,320, all green. Floor ≥ 1,314.**
+
+`TeamHarvestMemberViewTest` (new, 19): T1 (the queued member's tab: the active pill, the gate sentence,
+the five counters, the six regions, the filter fields and the six feed fragments), T2 (the progress card at
+n = 1/5/20/50: level 1/2/3/4, 1 of 3 … 11 of 81, 33.3% … 13.6%, 2/7/19/70 remaining, the ladder's
+amounts), T3 (n = 12: `3 of 3` and `9 of 9` paid, `0 of 27` … `0 of 59,049` at their amounts), T4 (n = 39:
+levels 1–3 paid, level 4 `0 of 81` at ₱6,000.00), T5 (the roster in qualification order: ten rows, slots
+1–10, page 2, the clamped page and the total), T6 (the unqualified member: the gate, the count, no matrix,
+no rows, one fragment), T7 (the baseline member: *Before go-live*, *Earned* ₱4,000.00 only, the dated
+footnote once, no wallet link on a baseline row), T8 (the CSV: the C.6 header, the caller's three rows,
+`Before go-live` in the member's words, no audit row, `?user_id=` ineffective), T9 (the three older tabs
+keep their regions, exports and no Team Harvest region), T12 (no forbidden word on the earnings, dashboard
+or genealogy page; "Team Harvest", "Harvest position" and "Team matrix" are said), T13 (the exclusions
+verbatim once, absent from the tile), T14 (the purchases footnote once, absent from the tile), T15 (the
+level row links to the movement by `ref_id`; the statement shows exactly that movement), T16 (`?user_id=`
+ignored by the tab and the CSV), T18 (the matrix, roster and level tables each scroll inside a
+`.table-responsive` wrapper; no page-wide overflow), T19 (500 teammates: ten roster rows, ten levels,
+10 selects on page 1 and 2 alike), T20 (every amount is `team_harvest_levels`', and a depth-complete level
+reads *Complete — not paying at this depth*), T21 (stream off: the position and progress stay, the card
+says it is not paying, no award rows), T22 (four tabs on one route, an unknown `ledger` is the package
+tab, the route table and the inventory name no Team Harvest route).
+
+Updated for the phase: `MemberEarningsLiveTest` gains **P20F-T17** (the qualifying award bumps
+`member.earnings:{id}` — and the dashboard, wallet and genealogy surfaces — a replay bumps nothing, and the
+other three tabs still build); `MemberDashboardLiveTest`'s fragment list becomes **eight** and gains
+**P20F-T10** (the tile's paid total, next level, link, no form, hidden when off with no position);
+`MemberGenealogyLiveTest` gains **P20F-T11** (the reader's badge, a queued downlink's badge, `—` for the
+unqualified, and no badge in an unqualified member's heading).
+
+`smoke.ps1` is unchanged: 20F adds no route and no page, and the plan's §16.4 assigns the Phase 20 smoke
+checks to 20G.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration; `MigrationTest` green, still 36 tables / 77 settings.
+- [x] `php bin/build_install_sql.php` run and `--check` exits 0 (no bundle change).
+- [x] `php tests/run.php` → **Cases: 1,320   Passed: 1,320   Failed: 0**, exit 0 (floor 1,314).
+- [x] `php bin/wallet_reconcile.php` exits 0 (the phase moves no money).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 251   Failed: 0**, exit 0.
+- [x] Every P20F-Tn case exists, is named for the phase and passes; `TeamHarvestMemberView` 19/19.
+- [x] A word search of every new member view for "spillover", "passive", "guaranteed", "unlimited",
+      "matrix scheme" and "sponsor chain" finds nothing. (The only file-level hit in a *modified* view is a
+      Phase 9 docblock in `member/genealogy.php` — a comment, never rendered; the page itself is clean, and
+      P20F-T12 pins it.)
+- [x] The gate sentence, the two exclusions and the purchases footnote are present and singular
+      (P20F-T1/T13/T14).
+- [x] The other three earnings tabs are unchanged (P20F-T9 compares each fragment set and export; T17
+      proves the live surface is shared).
+- [x] No new route; `ParityTest` (12/12) and `RouterTest` green; P20F-T22 asserts the route table and the
+      inventory.
+- [x] The manual script (`QA20F-01` … `QA20F-09`) is written; the automated pass captured all nine as
+      transcripts under `docs/qa/evidence/phase-20/`. A browser re-run of the screen-only checks
+      (`QA20F-03`, `05`, `06`, `09`) and the independent-tester run remain the project lead's item, as at
+      every earlier gate.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section F filled; the evidence index carries the nine new rows.
+- [x] This entry and Appendix H of the plan are filled; tag `p20f-member`.
+
+### Deviations
+
+1. **P20F-T19's "≤ 8 queries" is measured at 10** on the 20C data model. §14.9's budget assumes "one roster
+   page query, one awards query, one ladder read"; the roster's *ordered* teammate list is derived from the
+   tree (the children map and the queue's positions), so two constant selects come with it. The test pins
+   what the rule exists for: the count is **constant** — page 1 and page 2 cost the same 10 selects
+   whatever the team size, and nothing is per-row. `matrix()` now takes the caller's queue row, so the
+   number already includes that saving.
+2. **The dashboard tile is its own view inserted by `member/dashboard.php`,** not a block inside
+   `member/dashboard/_earnings.php` as §10's view list implies. The tile is a card of its own (as
+   Appendix C.4 draws it and 19E's Royalty tile already does), so it sits beside the earnings card rather
+   than inside it; the earnings card keeps its bytes.
+3. **`member/genealogy/_rows.php` does not exist.** The genealogy rows live in `_recruits_rows.php` (the
+   direct-recruits table) and `_team.php` (the level cards), and the direct table's header is in
+   `member/genealogy.php`; those three plus `_header.php` (the reader's badge) are the four files the badge
+   needed.
+4. **`Wallet`, `WalletController` and `partials/wallet_statement.php` gain an additive `ref_id` filter.**
+   T15 says "the row links to the wallet statement's movement by `ref_id`", and the statement had no
+   `ref_id` filter to link to. The filter is additive and unknown-value-safe (anything that is not a
+   positive integer means "no filter"), and the award row's drill-down is the only thing that sets it; the
+   admin monitor honours it without a UI change.
+5. **The member FAQ (Appendix C.9) is page-rendered in `member/earnings.php`,** not a seventh `_team_*`
+   view. It is static copy and never travels in a fragment, so the six fragments §10 lists stay six; a
+   background refresh cannot discard the block.
+6. **An unqualified member's tab carries one region, not six.** T6 says the tab shows the gate and "no
+   matrix … no awards table", so the page renders only `earnings-team-progress` for that member and the
+   feed carries one fragment. The other five regions have no element to patch until the member qualifies.
+7. **`HarvestQueue::matrix()` and `teamRoster()`/`teammatePositions()` gained optional parameters**
+   (a pre-read queue row, a known position). Every existing caller passes nothing and behaves exactly as
+   before; the parameters exist so the tab reads the member's queue row once instead of three times.
+8. **The member copy lives in `TeamHarvestService` constants** (`EXCLUSIONS_COPY`, `PURCHASES_COPY`,
+   `ALL_OR_NOTHING_COPY`, `BASELINE_COPY`) although §10 puts the copy in the views. "Verbatim, once" is a
+   testable contract (T13/T14 count occurrences), and one constant is the only way two views and their
+   tests can agree on the exact string. The service already ships `LEVEL_MEMBER_LABELS` for the same
+   reason.
+
+### Hand-off to 20G
+
+- The member surfaces are complete: the tab, the matrix, the roster, the rows, the CSV, the tile and the
+  badge all read `statusFor()`/`matrixFor()`/`HarvestQueue::map()`, and none of them writes.
+- `docs/qa/evidence/phase-20/QA20F-01.txt` … `QA20F-09.txt` exist and were regenerated from the final
+  tree; 20G repeats the pass on a scratch schema and writes the release record.
+- The release phase has no new page to document: the four tabs live on `/earnings`, the tile on
+  `/dashboard` and the badge on `/genealogy`, all existing routes. `APP_PHASE` is the only code 20G
+  changes.
+- The smoke list 20G adds must not assert a load-bearing number on the member tab: the demo tree holds no
+  queue rows on the development copy, so the member tab there reads the gate (or the FAQ) rather than a
+  matrix — assert the region's presence, not a position.

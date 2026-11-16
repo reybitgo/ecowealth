@@ -5,17 +5,20 @@ declare(strict_types=1);
  *  EarningsController — the member's commission statement
  *  (plan §7 Phase 10; reference MemberController::earnings and
  *  views/member/earnings.php; Phase 17E adds the repeat-purchase tab
- *  of plan §9; Phase 19E adds the Royalty tab of plan §9)
+ *  of plan §9; Phase 19E adds the Royalty tab of plan §9; Phase 20F
+ *  adds the Team Harvest tab of plan §10)
  *
  *  Route (Appendix A): GET /earnings   guard `member`
  *
- *  Three ledgers, one page, one URL:
+ *  Four ledgers, one page, one URL:
  *
- *      /earnings                package referral awards (`commissions`)
- *      /earnings?ledger=repeat  repeat-purchase awards
- *                               (`unilevel_awards`)
- *      /earnings?ledger=royalty monthly Royalty awards
- *                               (`royalty_awards`)
+ *      /earnings                     package referral awards (`commissions`)
+ *      /earnings?ledger=repeat       repeat-purchase awards
+ *                                    (`unilevel_awards`)
+ *      /earnings?ledger=royalty      monthly Royalty awards
+ *                                    (`royalty_awards`)
+ *      /earnings?ledger=team_harvest Team Harvest levels
+ *                                    (`team_harvest_awards`)
  *
  *  The package tab is the Phase 10–11 statement, unchanged: three
  *  summary groups, the level breakdown, the skipped-award notice and
@@ -38,19 +41,32 @@ declare(strict_types=1);
  *  `RoyaltyService::statusFor()` — the engine's own projection — so the
  *  page can never promise an amount the close would not pay (plan §14.11).
  *
+ *  Phase 20F adds the Team Harvest tab: the position and the instant the
+ *  gate opened, the next level's progress, the whole 3×10 matrix with
+ *  every empty slot and its amount, the paginated roster of qualified
+ *  teammates, and one row per level the member has been paid (or had
+ *  recorded before go-live). Every number is `TeamHarvestService`'s —
+ *  `statusFor()` for the position, the levels, the amounts and the
+ *  progress, `matrixFor()` for the roster — so the page formats and never
+ *  computes (plan §10 Rule 9). A member who has not qualified reads the
+ *  gate, not an empty matrix (Appendix C.8).
+ *
  *  Members only ever see their own rows (`WHERE user_id = ?`), the same
  *  ownership rule as orders and the wallet statement. The tab is a
- *  query parameter only (D-16); a `ledger` value other than `repeat` or
- *  `royalty` selects the package tab, so a hand-edited URL can never
- *  break the page.
+ *  query parameter only (D-16); a `ledger` value other than `repeat`,
+ *  `royalty` or `team_harvest` selects the package tab, so a hand-edited
+ *  URL can never break the page. The Team Harvest filters are applied
+ *  with the session member's id forced in, so `?user_id=` cannot widen
+ *  the statement or its CSV (Rule 11).
  *
  *  The page is one per-member live surface (`member.earnings:{id}`).
- *  The three tabs share it: a repeat or Royalty award bumps the same
- *  revision the package tab already listens to, so an open tab refreshes
- *  without a second surface (Rule 10). The repeat and Royalty tabs also
- *  mix the shared genealogy revision into their ETag: their level cards
- *  and rank requirements list the team, so a registration, activation or
- *  status change refreshes them too, exactly like the genealogy page.
+ *  The four tabs share it: a repeat, Royalty or Team Harvest award bumps
+ *  the same revision the package tab already listens to, so an open tab
+ *  refreshes without a second surface (Rule 10). The repeat, Royalty and
+ *  Team Harvest tabs also mix the shared genealogy revision into their
+ *  ETag: their level cards, rank requirements and matrix roster list the
+ *  team, so a registration, activation or status change refreshes them
+ *  too, exactly like the genealogy page.
  * ============================================================== */
 
 final class EarningsController
@@ -63,6 +79,9 @@ final class EarningsController
 
     /** Monthly Royalty statement (Phase 19E). */
     public const TAB_ROYALTY = 'royalty';
+
+    /** Team Harvest levels and matrix (Phase 20F). */
+    public const TAB_TEAM_HARVEST = 'team_harvest';
 
     /** @param array<string, string> $params */
     public function index(array $params = []): void
@@ -103,13 +122,14 @@ final class EarningsController
         ]);
     }
 
-    /** The tab named by `?ledger=`; anything but `repeat`/`royalty` is the package tab. */
+    /** The tab named by `?ledger=`; anything but the three names is the package tab. */
     public static function tab(): string
     {
         return match (strtolower(trim(Request::string('ledger')))) {
-            self::TAB_REPEAT  => self::TAB_REPEAT,
-            self::TAB_ROYALTY => self::TAB_ROYALTY,
-            default           => self::TAB_PACKAGE,
+            self::TAB_REPEAT       => self::TAB_REPEAT,
+            self::TAB_ROYALTY      => self::TAB_ROYALTY,
+            self::TAB_TEAM_HARVEST => self::TAB_TEAM_HARVEST,
+            default                => self::TAB_PACKAGE,
         };
     }
 
@@ -123,9 +143,10 @@ final class EarningsController
         $tab ??= self::tab();
 
         return match ($tab) {
-            self::TAB_REPEAT  => $this->repeatContext($userId),
-            self::TAB_ROYALTY => $this->royaltyContext($userId),
-            default           => $this->earningsContext($userId),
+            self::TAB_REPEAT       => $this->repeatContext($userId),
+            self::TAB_ROYALTY      => $this->royaltyContext($userId),
+            self::TAB_TEAM_HARVEST => $this->teamHarvestContext($userId),
+            default                => $this->earningsContext($userId),
         };
     }
 
@@ -259,6 +280,101 @@ final class EarningsController
     }
 
     /**
+     * Everything the Team Harvest statement renders (20F, plan §10).
+     *
+     * Every read is scoped to the session member: the award filters carry
+     * `user_id` from `$userId` and never from the request, and the CSV is
+     * scoped in the model, so a hand-edited `?user_id=` can widen neither
+     * (Rule 11, P20F-T8/T16).
+     *
+     * The card's numbers are `TeamHarvestService::statusFor()` — the same
+     * read the admin member panel calls — and the roster page is
+     * `matrixFor()` (`HarvestQueue::matrix()`), so the view formats what
+     * the engine and the queue model computed and nothing else (Rule 9).
+     *
+     * The roster has its own pager (`roster_page` / `roster_per_page`), so
+     * moving the awards table never moves the matrix's roster and a member
+     * with 500 teammates still reads ten levels and one page of names
+     * (P20F-T5/T19).
+     *
+     * @return array<string, mixed>
+     */
+    public function teamHarvestContext(int $userId): array
+    {
+        $filters = self::teamHarvestFilters($userId);
+        $service = new TeamHarvestService();
+
+        $pager  = Paginator::fromTableRequest(TeamHarvestAward::count($filters));
+        $awards = $pager->total === 0 ? [] : TeamHarvestAward::select($filters, $pager);
+
+        $status = $service->statusFor($userId);
+
+        /* Clamped by the Paginator, so an out-of-range `roster_page` reads
+         * the last real page instead of an empty card. */
+        $rosterPager = Paginator::fromTableRequest(
+            (int) ($status['teammates'] ?? 0),
+            'roster_page',
+            'roster_per_page'
+        );
+
+        $roster = (bool) ($status['queued'] ?? false)
+            ? $service->matrixFor(
+                $userId,
+                $rosterPager->offset,
+                $rosterPager->perPage,
+                (int) ($status['teammates'] ?? 0),
+                (int) ($status['position'] ?? 0)
+            )
+            : [];
+
+        return [
+            'tab'           => self::TAB_TEAM_HARVEST,
+            'user_id'       => $userId,
+            'team_harvest'  => $status,
+            'filters'       => $filters,
+            'pager'         => $pager,
+            'awards'        => $awards,
+            'roster'        => $roster,
+            'roster_pager'  => $rosterPager,
+            'wallet_url'    => url('wallet'),
+            'genealogy_url' => url('genealogy'),
+            'package_url'   => url('earnings'),
+            'repeat_url'    => url('earnings?ledger=repeat'),
+            'royalty_url'   => url('earnings?ledger=royalty'),
+            'team_harvest_url' => url('earnings?ledger=team_harvest'),
+            'statement_url' => url('earnings?ledger=team_harvest'),
+            'export_url'    => url('earnings/export' . self::teamHarvestQueryString($filters)),
+        ];
+    }
+
+    /**
+     * The Team Harvest statement's validated filters, with the session
+     * member's id **forced** in (20F Rule 11).
+     *
+     * The level, status and date range narrow the member's own rows
+     * (QA20F-04); `q` is forced empty, because a search over one member's
+     * own rows could only match their own name, and a hand-edited URL must
+     * not turn the statement into a directory search.
+     *
+     * @return array{user_id:int, level:string, status:string, from:string, to:string, q:string}
+     */
+    private static function teamHarvestFilters(int $userId): array
+    {
+        $filters = TeamHarvestAward::normaliseFilters([
+            'user_id' => '',
+            'level'   => Request::string('level'),
+            'status'  => Request::string('status'),
+            'from'    => Request::string('from'),
+            'to'      => Request::string('to'),
+            'q'       => '',
+        ]);
+
+        $filters['user_id'] = max(0, $userId);
+
+        return $filters;
+    }
+
+    /**
      * The five counters of the Royalty tab's stats card (plan §9,
      * Appendix C.3).
      *
@@ -389,8 +505,11 @@ final class EarningsController
      * the admin ledger and the report export use, so a member, an admin
      * and finance read one definition. The Royalty tab (19E) writes
      * `royalty-statement_YYYY-MM-DD.csv` with the Appendix C.6 columns
-     * and only the caller's rows. All three are scoped to the caller's
-     * own rows.
+     * and only the caller's rows. The Team Harvest tab (20F) writes
+     * `team-harvest-statement_YYYY-MM-DD.csv` with plan Appendix C.6's
+     * six columns, scoped in the **model** (`exportRows(..., $userId)`) so
+     * a hand-edited URL cannot widen it, and writing no audit row — a
+     * member reading their own statement is the page itself (plan §15.1).
      *
      * @param array<string, string> $params
      */
@@ -400,6 +519,12 @@ final class EarningsController
 
         if ($user === null) {
             redirect('login');
+        }
+
+        if (self::tab() === self::TAB_TEAM_HARVEST) {
+            $this->exportTeamHarvest((int) $user['id']);
+
+            return;
         }
 
         if (self::tab() === self::TAB_ROYALTY) {
@@ -545,6 +670,84 @@ final class EarningsController
     }
 
     /**
+     * GET /earnings/export?ledger=team_harvest — the member's own levels.
+     *
+     * The screen's level/status/date filters narrow the file too (QA20F-04),
+     * and the member is forced in at the model (`exportRows()` sets
+     * `user_id` from `$userId`), so an appended `&user_id=` changes
+     * nothing (Rule 11, P20F-T8/T16). No audit row: the package, repeat
+     * and Royalty statements have never written one either (plan §15.1).
+     */
+    private function exportTeamHarvest(int $userId): void
+    {
+        $rows = TeamHarvestAward::exportRows(self::teamHarvestFilters($userId), null, $userId);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="team-harvest-statement_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, self::teamHarvestCsvHeader());
+
+        foreach (self::teamHarvestCsvRows($rows) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The Team Harvest statement CSV header — exactly plan Appendix C.6.
+     *
+     * @return list<string>
+     */
+    public static function teamHarvestCsvHeader(): array
+    {
+        return ['Date', 'Level', 'Teammates at award', 'Threshold', 'Amount', 'Status'];
+    }
+
+    /**
+     * The Team Harvest statement CSV rows, one per level.
+     *
+     * The `Status` column carries the **member** label (Appendix C.7:
+     * `baseline` reads *Before go-live*), because this file is the
+     * member's own statement; the admin ledger CSV keeps the stored
+     * value. `Date` is the decision instant — the credit time for a paid
+     * level, the go-live instant for a level recorded before it.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<list<string>>
+     */
+    public static function teamHarvestCsvRows(array $rows): array
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $status = (string) $row['status'];
+
+            $out[] = [
+                (string) ($row['credited_at'] ?? ''),
+                (string) (int) $row['level'],
+                (string) (int) $row['n_at_award'],
+                (string) (int) $row['threshold_n'],
+                number_format((float) $row['amount'], 2, '.', ''),
+                TeamHarvestAward::MEMBER_STATUS_LABELS[$status] ?? ucfirst($status),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * The Royalty statement CSV header — exactly plan Appendix C.6.
      *
      * @return list<string>
@@ -646,6 +849,27 @@ final class EarningsController
     }
 
     /**
+     * The Team Harvest export query string: the tab first, then the
+     * filters. `user_id` never travels: the model forces it (Rule 11).
+     *
+     * @param array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function teamHarvestQueryString(array $filters): string
+    {
+        $query = ['ledger' => self::TAB_TEAM_HARVEST] + array_filter(
+            [
+                'level'  => (string) $filters['level'],
+                'status' => (string) $filters['status'],
+                'from'   => (string) $filters['from'],
+                'to'     => (string) $filters['to'],
+            ],
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return '?' . http_build_query($query);
+    }
+
+    /**
      * The Royalty export query string: the tab first, then the filters.
      *
      * @param array{period:string, status:string, rank:string, q:string} $filters
@@ -681,6 +905,13 @@ final class EarningsController
      * revision (a ladder or quota change re-renders the card) and the
      * open month. The award rows themselves move only with the surface
      * revision, which the close bumps.
+     *
+     * The Team Harvest tab (20F) lists the member's qualified teammates,
+     * so the shared team revision is part of its scope: another member's
+     * qualification moves a counter and a roster without writing an award.
+     * The configuration revision is in it too, because a ladder change
+     * re-renders every amount on the matrix (§12.6 Rule 5). An award
+     * itself bumps the surface, which is what P20F-T17 watches.
      */
     private function earningsScope(int $userId): string
     {
@@ -693,6 +924,11 @@ final class EarningsController
         if (self::tab() === self::TAB_ROYALTY) {
             $scope .= '|month:' . RoyaltyPeriod::periodOf()
                 . '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM)
+                . '|config:' . Live::revisionOrZero(Live::CONFIG);
+        }
+
+        if (self::tab() === self::TAB_TEAM_HARVEST) {
+            $scope .= '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM)
                 . '|config:' . Live::revisionOrZero(Live::CONFIG);
         }
 
@@ -742,6 +978,10 @@ final class EarningsController
      */
     public function feedPayload(int $revision, string $etag, array $data): array
     {
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_TEAM_HARVEST) {
+            return $this->teamHarvestFeedPayload($revision, $etag, $data);
+        }
+
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_REPEAT) {
             return $this->repeatFeedPayload($revision, $etag, $data);
         }
@@ -875,6 +1115,92 @@ final class EarningsController
                     'payments_enabled' => (bool) ($data['royalty']['payments_enabled'] ?? true),
                 ]),
                 'earnings-royalty-pagination' => View::capture('member/earnings/_royalty_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalEarningsUrl($pager),
+            ],
+        ];
+    }
+
+    /**
+     * The Team Harvest tab's fragments (20F): the five counters, the
+     * position/progress card, the 3×10 matrix with its roster, the awards
+     * card heading, the award rows and the pagination. The filter form,
+     * the tab pills and the FAQ block never travel in a fragment, so a
+     * background refresh never discards an unsubmitted filter.
+     *
+     * The roster pager travels with the matrix fragment: a member moving
+     * the roster page is a server round trip, and the fragment carries
+     * the new page's rows and its pager together.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function teamHarvestFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager  = $data['pager'];
+        $status = $data['team_harvest'];
+        $queued = (bool) ($status['queued'] ?? false);
+
+        /* A member who has not qualified reads the gate and nothing else
+         * (T6): the page renders one region, so the feed carries one
+         * fragment. The regions that appear once they qualify would have
+         * no element on this page to patch. */
+        if (!$queued) {
+            return [
+                'ok'        => true,
+                'surface'   => Live::earningsSurface((int) $data['user_id']),
+                'revision'  => $revision,
+                'etag'      => $etag,
+                'fragments' => [
+                    'earnings-team-progress' => View::capture('member/earnings/_team_progress', [
+                        'team_harvest' => $status,
+                    ]),
+                ],
+                'meta'      => [
+                    'page'      => $pager->page,
+                    'pages'     => $pager->pages,
+                    'total'     => $pager->total,
+                    'per_page'  => $pager->perPage,
+                    'canonical' => $this->canonicalEarningsUrl($pager),
+                ],
+            ];
+        }
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::earningsSurface((int) $data['user_id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'earnings-team-stats' => View::capture('member/earnings/_team_stats', [
+                    'team_harvest' => $status,
+                ]),
+                'earnings-team-progress' => View::capture('member/earnings/_team_progress', [
+                    'team_harvest' => $status,
+                ]),
+                'earnings-team-matrix' => View::capture('member/earnings/_team_matrix', [
+                    'team_harvest' => $status,
+                    'roster'       => $data['roster'],
+                    'roster_pager' => $data['roster_pager'],
+                    'user_id'      => (int) $data['user_id'],
+                ]),
+                'earnings-team-header' => View::capture('member/earnings/_team_header', [
+                    'team_harvest' => $status,
+                    'pager'        => $pager,
+                ]),
+                'earnings-team-rows' => View::capture('member/earnings/_team_rows', [
+                    'awards'     => $data['awards'],
+                    'filters'    => $data['filters'],
+                    'wallet_url' => $data['wallet_url'],
+                ]),
+                'earnings-team-pagination' => View::capture('member/earnings/_team_pagination', [
                     'pager' => $pager,
                 ]),
             ],

@@ -90,6 +90,36 @@ final class TeamHarvestService
         self::LEVEL_IN_PROGRESS  => 'In progress',
     ];
 
+    /**
+     * The two exclusions every member matrix card states, verbatim and in
+     * one place (20F Rule 3, Appendix C.3). The admin panel explains the
+     * rules in its own words; this sentence belongs to the member card.
+     */
+    public const EXCLUSIONS_COPY = 'Only members who qualify after you count. '
+        . 'Direct members who are not qualified do not count.';
+
+    /**
+     * The purchases footnote, said once on the matrix card and nowhere
+     * else (20F Rule 6, Appendix C.3). It is the question every member
+     * asks first, so it is answered plainly and not repeated.
+     */
+    public const PURCHASES_COPY = 'This bonus does not depend on any purchase — yours or your teammates\'.';
+
+    /**
+     * The all-or-nothing sentence (20F Rule 5, §12.5 Rule 4): a progress
+     * bar is information, never a pro-rata promise.
+     */
+    public const ALL_OR_NOTHING_COPY = 'A level pays its amount once, when its block is full — '
+        . 'a partial block pays nothing.';
+
+    /**
+     * The go-live footnote a member with a pre-go-live level reads
+     * (20F Rule 8). `%s` is the start date, `%s` again the start date is
+     * not repeated: one sentence, one date.
+     */
+    public const BASELINE_COPY = 'The plan started paying on %s. A level that was already complete then '
+        . 'is recorded as Before go-live and is not paid.';
+
     /** How many roster rows statusFor() embeds when a caller asks for them. */
     public const STATUS_ROSTER_LIMIT = 100;
 
@@ -425,6 +455,49 @@ final class TeamHarvestService
                 'roster_page' => $roster,
             ],
         ];
+    }
+
+    /* ----------------------------------------------------------
+     *  The matrix roster (plan §12.5, 20F's card)
+     * ---------------------------------------------------------- */
+
+    /**
+     * One page of the member's private 3×10 matrix: the teammates who
+     * occupy the slots, with each slot's level and the member it is
+     * placed under (§12.5).
+     *
+     * The 20F card formats this and never computes it (Rule 9): the
+     * arithmetic — `floor(log3(2r+3))` for the level, `r / 3 - 1` for the
+     * placement — lives in `HarvestQueue::matrix()`, the one place the
+     * plan names.
+     *
+     * A member who is not queued has no matrix and reads an empty page;
+     * the card shows the gate instead (T6).
+     *
+     * `$teammates` and `$position` are `statusFor()`'s own values when the
+     * caller already has them: passing them saves the two selects the
+     * queue model would otherwise repeat for the same row (§14.9).
+     *
+     * @return list<array{slot:int, level:int, start:int, slots:int, position:int,
+     *                    user_id:int, username:string, qualified_at:string,
+     *                    placed_under:array{user_id:int, username:string, position:int}}>
+     */
+    public function matrixFor(
+        int $userId,
+        int $offset = 0,
+        int $limit = 100,
+        ?int $teammates = null,
+        ?int $position = null
+    ): array {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $row = $teammates === null || $position === null
+            ? null
+            : ['teammates' => max(0, $teammates), 'position' => max(0, $position)];
+
+        return $this->queue->matrix($userId, max(0, $offset), $limit, $row);
     }
 
     /* ----------------------------------------------------------

@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Shared by the member statement (`/wallet`) and the admin wallet page,
  * so both roles read exactly the same rows and totals.
  *
- * @var array{type:string, ref_type:string, from:string, to:string, q:string} $filters
+ * @var array{type:string, ref_type:string, ref_id:int, from:string, to:string, q:string} $filters
  * @var list<array<string, mixed>> $ledger
  * @var Paginator                  $pager
  * @var array{rows:int, credits:float, debits:float, net:float} $totals
@@ -36,6 +36,7 @@ $live_hold      = (bool) ($live_hold ?? false);
 
 $hasFilters = ($filters['type'] ?? '') !== ''
     || ($filters['ref_type'] ?? '') !== ''
+    || (int) ($filters['ref_id'] ?? 0) > 0
     || ($filters['from'] ?? '') !== ''
     || ($filters['to'] ?? '') !== ''
     || ($filters['q'] ?? '') !== '';
@@ -64,6 +65,9 @@ $columns = $show_member ? 6 : 5;
                 <div class="card-body border-bottom">
                   <form method="GET" action="<?= e($statement_url) ?>" class="d-flex flex-wrap align-items-end gap-3 wallet-filters">
                     <?= per_page_hidden() ?>
+<?php if ((int) ($filters['ref_id'] ?? 0) > 0): ?>
+                    <input type="hidden" name="ref_id" value="<?= (int) $filters['ref_id'] ?>" />
+<?php endif; ?>
 <?php foreach ($hidden_params as $paramName => $paramValue): ?>
                     <input type="hidden" name="<?= e((string) $paramName) ?>" value="<?= e((string) $paramValue) ?>" />
 <?php endforeach; ?>

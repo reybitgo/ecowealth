@@ -1,0 +1,27 @@
+QA20F-08 - &user_id= cannot widen the statement
+===============================================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Rule 11 of plan section 10: every read is scoped to the session member, and the CSV is scoped in the model.
+
+The session member is #689; the other member is #690.
+  /earnings?ledger=team_harvest           rows 3, award ids 109, 97, 94
+  ...&user_id=690                         rows 3, award ids 109, 97, 94
+  the filters carry user_id = 689 (not 690)
+  member #690 holds 2 award row(s) in the ledger, none shown.
+  the export holds 3 row(s), all the caller's.
+
+Checks:
+  the page is unchanged ............... yes
+  the filter is the session member .... yes
+  the export is the caller's .......... yes
+
+RESULT: PASS

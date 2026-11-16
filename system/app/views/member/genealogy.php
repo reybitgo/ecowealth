@@ -23,6 +23,8 @@ declare(strict_types=1);
  * @var array<int, Paginator>      $level_pagers one pager per team-level card
  * @var int                        $team_count
  * @var int                        $levels_used
+ * @var int|null                   $harvest_position  the reader's own Harvest position (Phase 20F)
+ * @var array<int, int>            $harvest_positions user_id => position, for the rows' badges
  * @var string                     $referral_code
  * @var string                     $referral_link
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
@@ -33,15 +35,17 @@ $display_name = $display_name ?? (
         ? (string) $member['full_name']
         : (string) $member['username']
 );
-$team_levels    = $team_levels ?? [];
-$direct         = $direct ?? [];
-$deeper         = $deeper ?? [];
-$level_pagers   = $level_pagers ?? [];
-$team_count     = $team_count ?? 0;
-$levels_used    = $levels_used ?? 0;
-$referral_code  = $referral_code ?? '';
-$referral_link  = $referral_link ?? '';
-$recruits_pager = $recruits_pager ?? Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE);
+$team_levels       = $team_levels ?? [];
+$direct            = $direct ?? [];
+$deeper            = $deeper ?? [];
+$level_pagers      = $level_pagers ?? [];
+$team_count        = $team_count ?? 0;
+$levels_used       = $levels_used ?? 0;
+$harvest_position  = $harvest_position ?? null;
+$harvest_positions = $harvest_positions ?? [];
+$referral_code     = $referral_code ?? '';
+$referral_link     = $referral_link ?? '';
+$recruits_pager    = $recruits_pager ?? Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE);
 
 $live = $live ?? [
     'surface'  => Live::genealogySurface((int) ($member['id'] ?? 0)),
@@ -71,8 +75,9 @@ $live = $live ?? [
                   </p>
                 </div>
 <?= View::capture('member/genealogy/_header', [
-    'team_count'  => $team_count,
-    'levels_used' => $levels_used,
+    'team_count'       => $team_count,
+    'levels_used'      => $levels_used,
+    'harvest_position' => $harvest_position ?? null,
 ]) ?>
               </div>
 
@@ -139,10 +144,14 @@ $live = $live ?? [
                               <th>Member</th>
                               <th>Package</th>
                               <th>Status</th>
+                              <th>Harvest</th>
                               <th>Joined</th>
                             </tr>
                           </thead>
-<?= View::capture('member/genealogy/_recruits_rows', ['direct' => $direct]) ?>
+<?= View::capture('member/genealogy/_recruits_rows', [
+    'direct'            => $direct,
+    'harvest_positions' => $harvest_positions ?? [],
+]) ?>
                         </table>
                       </div>
                     </div>
@@ -159,8 +168,9 @@ $live = $live ?? [
                 </div>
                 <div class="card-body">
 <?= View::capture('member/genealogy/_team', [
-    'deeper'       => $deeper,
-    'level_pagers' => $level_pagers,
+    'deeper'            => $deeper,
+    'level_pagers'      => $level_pagers,
+    'harvest_positions' => $harvest_positions ?? [],
 ]) ?>
                 </div>
               </div>

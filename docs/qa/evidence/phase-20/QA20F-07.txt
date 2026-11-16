@@ -1,0 +1,31 @@
+QA20F-07 - The other three tabs, and the live refresh
+=====================================================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Rule 10 of plan section 10: one live surface refreshes all four tabs, and adding the fourth changes none of the first three.
+
+The three tabs keep their regions and their exports:
+  package  earnings-header, earnings-stats, earnings-levels, earnings-skipped, earnings-rows, earnings-pagination
+           export /ecowealth/system/earnings/export
+  repeat   earnings-repeat-header, earnings-repeat-stats, earnings-repeat-status, earnings-repeat-levels, earnings-repeat-rows, earnings-repeat-pagination
+           export /ecowealth/system/earnings/export?ledger=repeat
+  royalty  earnings-royalty-header, earnings-royalty-rank, earnings-royalty-stats, earnings-royalty-rows, earnings-royalty-pagination
+           export /ecowealth/system/earnings/export?ledger=royalty
+
+The live refresh: member.earnings:673 revision 0 -> 1
+  the open tab now holds 1 row(s) and 3 teammate(s).
+
+Checks:
+  the three tabs unchanged ............ yes
+  the award bumps the surface ......... yes
+  the tab shows the new level ......... yes
+
+RESULT: PASS

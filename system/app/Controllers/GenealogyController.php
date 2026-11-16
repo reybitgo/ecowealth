@@ -22,10 +22,18 @@ declare(strict_types=1);
  *  and the team-by-level card are regions; the referral block stays
  *  static so a background refresh never disturbs the copy control.
  *
+ *  Phase 20F adds the **Harvest position badge**: the reader's own
+ *  position in the header and each downline member's stored position
+ *  beside their name (`—` when they are not in the queue). One
+ *  `HarvestQueue::map()` read serves the whole page, so the badge adds one
+ *  select and no N+1 however deep the team is; a position is displayed,
+ *  never derived (plan §10 Rule 9).
+ *
  *  Every genealogy page also includes the shared `member.genealogy`
  *  revision in its ETag: a team change moves the ancestors' counters and
  *  lists and the descendants' upline chain, so one shared bump keeps the
- *  whole tree correct.
+ *  whole tree correct — and a qualification appends a queue row inside
+ *  the same registration that bumps it.
  * ============================================================== */
 
 final class GenealogyController
@@ -128,6 +136,10 @@ final class GenealogyController
             ? (string) $member['full_name']
             : (string) $member['username'];
 
+        /* One read for every badge on the page (20F): the reader's own
+         * position and each downline member's, keyed by user id. */
+        $positions = (new HarvestQueue())->map();
+
         return [
             'member'         => $member,
             'display_name'   => $displayName,
@@ -138,6 +150,8 @@ final class GenealogyController
             'level_pagers'   => $levelPagers,
             'team_count'     => count($team),
             'levels_used'    => $byLevel === [] ? 0 : max(array_keys($byLevel)),
+            'harvest_positions' => $positions,
+            'harvest_position'  => $positions[$userId] ?? null,
             'referral_code'  => (string) ($member['referral_code'] ?? ''),
             'referral_link'  => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
         ];
@@ -211,8 +225,9 @@ final class GenealogyController
             'etag'      => $etag,
             'fragments' => [
                 'genealogy-header' => View::capture('member/genealogy/_header', [
-                    'team_count'  => $data['team_count'],
-                    'levels_used' => $data['levels_used'],
+                    'team_count'       => $data['team_count'],
+                    'levels_used'      => $data['levels_used'],
+                    'harvest_position' => $data['harvest_position'] ?? null,
                 ]),
                 'genealogy-team-chain' => View::capture('member/genealogy/_team_chain', [
                     'member'       => $member,
@@ -223,14 +238,16 @@ final class GenealogyController
                     'recruits_pager' => $pager,
                 ]),
                 'genealogy-recruits-rows' => View::capture('member/genealogy/_recruits_rows', [
-                    'direct' => $data['direct'],
+                    'direct'            => $data['direct'],
+                    'harvest_positions' => $data['harvest_positions'] ?? [],
                 ]),
                 'genealogy-recruits-pagination' => View::capture('member/genealogy/_recruits_pagination', [
                     'recruits_pager' => $pager,
                 ]),
                 'genealogy-team' => View::capture('member/genealogy/_team', [
-                    'deeper'       => $data['deeper'],
-                    'level_pagers' => $data['level_pagers'],
+                    'deeper'            => $data['deeper'],
+                    'level_pagers'      => $data['level_pagers'],
+                    'harvest_positions' => $data['harvest_positions'] ?? [],
                 ]),
             ],
             'meta'      => [

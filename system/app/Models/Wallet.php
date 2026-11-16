@@ -13,6 +13,8 @@ declare(strict_types=1);
  *
  *      type      credit | debit
  *      ref_type  one of WalletService::REF_TYPES
+ *      ref_id    one movement's reference id (Phase 20F: a Team Harvest
+ *                award links straight to the movement that paid it)
  *      from/to   YYYY-MM-DD (inclusive, Asia/Manila)
  *      q         note search (admin: also username / full name)
  * ============================================================== */
@@ -59,10 +61,10 @@ final class Wallet
         return $row === false ? null : $row;
     }
 
-    /** @return array{type:string, ref_type:string, from:string, to:string, q:string} */
+    /** @return array{type:string, ref_type:string, ref_id:int, from:string, to:string, q:string} */
     public static function filterDefaults(): array
     {
-        return ['type' => '', 'ref_type' => '', 'from' => '', 'to' => '', 'q' => ''];
+        return ['type' => '', 'ref_type' => '', 'ref_id' => 0, 'from' => '', 'to' => '', 'q' => ''];
     }
 
     /**
@@ -71,7 +73,7 @@ final class Wallet
      * string can never break the page or leak SQL.
      *
      * @param array<string, mixed> $raw
-     * @return array{type:string, ref_type:string, from:string, to:string, q:string}
+     * @return array{type:string, ref_type:string, ref_id:int, from:string, to:string, q:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -86,6 +88,10 @@ final class Wallet
         if (in_array($refType, WalletService::REF_TYPES, true)) {
             $filters['ref_type'] = $refType;
         }
+
+        /* One movement's reference: a positive integer is a filter, and
+         * anything else is "no filter" (§9 Rule 9's unknown-value rule). */
+        $filters['ref_id'] = max(0, (int) ($raw['ref_id'] ?? 0));
 
         $from = self::date((string) ($raw['from'] ?? ''));
         if ($from !== '') {
@@ -118,7 +124,7 @@ final class Wallet
     /**
      * WHERE clause shared by count, rows and totals.
      *
-     * @param array{type:string, ref_type:string, from:string, to:string, q:string} $filters
+     * @param array{type:string, ref_type:string, ref_id:int, from:string, to:string, q:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(?int $userId, array $filters): array
@@ -139,6 +145,11 @@ final class Wallet
         if (($filters['ref_type'] ?? '') !== '') {
             $where[] = 'l.ref_type = ?';
             $params[] = $filters['ref_type'];
+        }
+
+        if ((int) ($filters['ref_id'] ?? 0) > 0) {
+            $where[] = 'l.ref_id = ?';
+            $params[] = (int) $filters['ref_id'];
         }
 
         if (($filters['from'] ?? '') !== '') {

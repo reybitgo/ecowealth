@@ -294,12 +294,16 @@ final class HarvestQueue
      * `$limit`/`$offset` slice the roster **after** it is ordered, so a
      * page of it costs the same walk and one query.
      *
+     * `$position` lets a caller that already read the member's queue row
+     * skip one select (20F's matrix card reads it once for the whole
+     * card); null reads it here.
+     *
      * @return list<array{position:int, user_id:int, username:string, qualified_at:string,
      *                    teammates:int, member_status:string}>
      */
-    public function teamRoster(int $userId, int $limit = 0, int $offset = 0): array
+    public function teamRoster(int $userId, int $limit = 0, int $offset = 0, ?int $position = null): array
     {
-        $members = $this->teammatePositions($userId);
+        $members = $this->teammatePositions($userId, $position);
 
         if ($members === []) {
             return [];
@@ -425,15 +429,20 @@ final class HarvestQueue
      * Rows returned = `min(n − $offset, $limit)`: the matrix has exactly
      * `n` filled slots, so a partial block ends the list (§12.5 Rule 4).
      *
+     * `$row` is the member's queue row when the caller already read it
+     * (20F's card reads it once for the position, the count and the
+     * matrix); null reads it here.
+     *
+     * @param array{position:int, teammates:int}|null $row
      * @return list<array{slot:int, level:int, start:int, slots:int, position:int,
      *                    user_id:int, username:string, qualified_at:string,
      *                    placed_under:array{user_id:int, username:string, position:int}}>
      */
-    public function matrix(int $userId, int $offset = 0, int $limit = 100): array
+    public function matrix(int $userId, int $offset = 0, int $limit = 100, ?array $row = null): array
     {
         $offset = max(0, $offset);
         $limit  = max(1, min(1000, $limit));
-        $row    = $this->row($userId);
+        $row    = $row ?? $this->row($userId);
 
         if ($row === null) {
             return [];
@@ -450,7 +459,7 @@ final class HarvestQueue
         /* The roster is only needed as far as the last slot this page
          * shows: the occupant of slot r is roster[r], and every
          * `placed_under` index is smaller than r. */
-        $roster = $this->teamRoster($userId, min($n, $offset + $limit));
+        $roster = $this->teamRoster($userId, min($n, $offset + $limit), 0, (int) $row['position']);
         $member = $this->accountRow($userId);
         $self   = [
             'user_id'  => $userId,
@@ -1342,11 +1351,13 @@ final class HarvestQueue
      * A member's teammates as `position => user_id`, in position order, or
      * an empty list when they are not queued.
      *
+     * `$position` skips one select when the caller already read it.
+     *
      * @return array<int, int> position => user_id, ordered ascending
      */
-    private function teammatePositions(int $userId): array
+    private function teammatePositions(int $userId, ?int $position = null): array
     {
-        $position = $this->positionOf($userId);
+        $position ??= $this->positionOf($userId);
 
         if ($position === null) {
             return [];

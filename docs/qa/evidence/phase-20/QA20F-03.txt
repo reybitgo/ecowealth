@@ -1,0 +1,41 @@
+QA20F-03 - A member who has not qualified
+=========================================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Appendix C.8 and Rule 2: the tab explains the gate instead of showing an empty matrix.
+
+The member's queue row: none · directs 2 of 3
+
+The gate card:
+  You are not qualified yet: 2 of 3 direct members.
+When your third direct member registers, you enter the queue and your matrix starts filling with members who qualify after you.
+Direct members
+2 / 3
+The Team Harvest bonus depends only on who qualified, and when. Nothing on this card is a
+promis
+
+Absences:
+  "Your Team matrix" .................. absent
+  "Teammates, in qualification order" . absent
+  "Your levels" ....................... absent
+  the matrix region ................... absent
+  the rows region ..................... absent
+
+The FAQ still explains the bonus: yes
+Live fragments: earnings-team-progress
+
+Checks:
+  the gate and the count .............. yes
+  no matrix ........................... yes
+  no award table ...................... yes
+  one fragment ........................ yes
+
+RESULT: PASS

@@ -4,9 +4,10 @@ declare(strict_types=1);
 /**
  * Member earnings statement (plan §6, §7 Phase 10; reference
  * views/member/earnings.php; Phase 17E adds the repeat-purchase tab of
- * plan §9; Phase 19E adds the Royalty tab).
+ * plan §9; Phase 19E adds the Royalty tab; Phase 20F adds the Team
+ * Harvest tab).
  *
- * Three tabs, one URL:
+ * Four tabs, one URL:
  *
  *   Package commissions      every activation award, credited or
  *                            skipped, with its level breakdown.
@@ -20,6 +21,12 @@ declare(strict_types=1);
  *                            "if this month closed now" projection),
  *                            the five counters and one row per closed
  *                            month.
+ *   Team Harvest             the position and the gate that opened it,
+ *                            the next level's progress, the whole 3×10
+ *                            matrix with its empty slots and their
+ *                            amounts, the roster of qualified teammates
+ *                            and one row per level paid (or recorded
+ *                            before go-live).
  *
  * The package tab is the Phase 10–11 statement, unchanged below the
  * new tab pills. The repeat tab is Team chain directed (plan §9): the
@@ -27,20 +34,23 @@ declare(strict_types=1);
  * for the income their Team chain's purchases produce. The Royalty tab
  * is monthly and team-wide: group sales are the member's own purchases
  * plus every member below them, paid once per closed month (plan §12).
+ * The Team Harvest tab is structural: it pays on qualification, never on
+ * a purchase, and each level pays once, ever (plan §10).
  *
  * One live surface per member (`member.earnings:{id}`). The summary
- * cards, the rank card, the status panel, the breakdown, the card
- * heading, the rows and the pagination are regions; the filter form and
- * the tab pills stay outside them, so a background refresh never
- * discards an unsubmitted filter and never rewrites the tab the member
- * is on.
+ * cards, the rank card, the Team Harvest cards, the status panel, the
+ * breakdown, the card headings, the rows and the pagination are regions;
+ * the filter forms and the tab pills stay outside them, so a background
+ * refresh never discards an unsubmitted filter and never rewrites the tab
+ * the member is on.
  *
- * @var string $tab 'package' (default), 'repeat' or 'royalty'
+ * @var string $tab 'package' (default), 'repeat', 'royalty' or 'team_harvest'
  * @var string $wallet_url
  * @var string $genealogy_url
  * @var string $package_url
  * @var string $repeat_url
  * @var string $royalty_url
+ * @var string $team_harvest_url
  * @var string $statement_url  this tab's URL
  * @var string $export_url     this tab's CSV export URL
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
@@ -77,6 +87,13 @@ declare(strict_types=1);
  * @var array{period:string, status:string, rank:string, q:string} $filters
  * @var list<string>               $periods  the member's own closed months
  * @var list<array<string, mixed>> $awards
+ *
+ * Team Harvest tab (Phase 20F):
+ * @var array<string, mixed>       $team_harvest TeamHarvestService::statusFor()
+ * @var array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+ * @var list<array<string, mixed>> $awards       one row per decided level
+ * @var list<array<string, mixed>> $roster       a page of HarvestQueue::matrix()
+ * @var Paginator                  $roster_pager
  */
 
 $live = $live ?? [
@@ -87,20 +104,47 @@ $live = $live ?? [
     'interval' => 30000,
 ];
 
-$tab          = in_array($tab ?? 'package', ['repeat', 'royalty'], true) ? (string) $tab : 'package';
+$tab          = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest'], true) ? (string) $tab : 'package';
 $isRepeat     = $tab === 'repeat';
 $isRoyalty    = $tab === 'royalty';
+$isTeam       = $tab === 'team_harvest';
 $package_url  = $package_url ?? url('earnings');
 $repeat_url   = $repeat_url ?? url('earnings?ledger=repeat');
 $royalty_url  = $royalty_url ?? url('earnings?ledger=royalty');
+$team_harvest_url = $team_harvest_url ?? url('earnings?ledger=team_harvest');
 $statement_url = $statement_url ?? match ($tab) {
-    'repeat'  => $repeat_url,
-    'royalty' => $royalty_url,
-    default   => $package_url,
+    'repeat'       => $repeat_url,
+    'royalty'      => $royalty_url,
+    'team_harvest' => $team_harvest_url,
+    default        => $package_url,
 };
 $export_url   = $export_url ?? url('earnings/export');
 
-if ($isRoyalty) {
+if ($isTeam) {
+    $team_harvest = $team_harvest ?? (new TeamHarvestService())->statusFor((int) ($user_id ?? 0));
+    $filters      = $filters ?? TeamHarvestAward::filterDefaults();
+    $awards       = $awards ?? [];
+    $roster       = $roster ?? [];
+    $pager        = $pager ?? Paginator::fromTableRequest(count($awards));
+    $roster_pager = $roster_pager ?? Paginator::make(count($roster));
+
+    $hasFilters = (string) $filters['level'] !== ''
+        || (string) $filters['status'] !== ''
+        || (string) $filters['from'] !== ''
+        || (string) $filters['to'] !== '';
+
+    $levelOptions = [['value' => '', 'label' => 'All levels']];
+    for ($level = TeamHarvestLevel::LEVEL_MIN; $level <= TeamHarvestLevel::LEVEL_MAX; $level++) {
+        $levelOptions[] = ['value' => (string) $level, 'label' => 'Level ' . $level];
+    }
+
+    /* Member-facing status labels (Appendix C.7): the two stored states
+     * are the only ones a row can carry. */
+    $statusOptions = ['' => 'All statuses'];
+    foreach (TeamHarvestAward::STATUSES as $statusKey) {
+        $statusOptions[$statusKey] = TeamHarvestAward::MEMBER_STATUS_LABELS[$statusKey] ?? ucfirst($statusKey);
+    }
+} elseif ($isRoyalty) {
     $royalty  = $royalty ?? (new RoyaltyService())->statusFor((int) ($user_id ?? 0));
     $filters  = $filters ?? RoyaltyAward::filterDefaults();
     $awards   = $awards ?? [];
@@ -190,7 +234,7 @@ if ($isRoyalty) {
               data-live-revision="<?= (int) $live['revision'] ?>"
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
-<?php if ($isRepeat || $isRoyalty): ?>
+<?php if ($isRepeat || $isRoyalty || $isTeam): ?>
               data-live-config="<?= e(Live::GENEALOGY_TEAM) ?>"
 <?php endif; ?>
             >
@@ -198,7 +242,14 @@ if ($isRoyalty) {
 
               <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
                 <div>
-<?php if ($isRoyalty): ?>
+<?php if ($isTeam): ?>
+                  <h4 class="mb-1">Your Team Harvest bonus</h4>
+                  <p class="text-body-secondary mb-0">
+                    A private 3×10 matrix: levels fill with qualified teammates and each level pays once,
+                    when its block is full.
+                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
+                  </p>
+<?php elseif ($isRoyalty): ?>
                   <h4 class="mb-1">Your Royalty bonus</h4>
                   <p class="text-body-secondary mb-0">
                     Royalty is paid once a month, after the month closes, when your rank and your team's
@@ -223,7 +274,7 @@ if ($isRoyalty) {
                   <a href="<?= e($export_url) ?>" class="btn btn-label-secondary">
                     <i class="icon-base bx bx-download me-1"></i> Export CSV
                   </a>
-<?php if ($isRepeat || $isRoyalty): ?>
+<?php if ($isRepeat || $isRoyalty || $isTeam): ?>
                   <a href="<?= e($genealogy_url ?? url('genealogy')) ?>" class="btn btn-label-secondary">
                     <i class="icon-base bx bx-git-branch me-1"></i> Genealogy
                   </a>
@@ -262,9 +313,150 @@ if ($isRoyalty) {
                     <i class="icon-base bx bx-crown me-1"></i> Royalty
                   </a>
                 </li>
+                <li class="nav-item" role="listitem">
+                  <a
+                    href="<?= e($team_harvest_url) ?>"
+                    class="nav-link<?= $isTeam ? ' active' : '' ?>"
+<?= $isTeam ? ' aria-current="page"' : '' ?>
+                  >
+                    <i class="icon-base bx bx-trophy me-1"></i> Team Harvest
+                  </a>
+                </li>
               </ul>
 
-<?php if ($isRoyalty): ?>
+<?php if ($isTeam): ?>
+<?php $teamQueued = (bool) ($team_harvest['queued'] ?? false); ?>
+<?php if (!$teamQueued): ?>
+<?= View::capture('member/earnings/_team_progress', ['team_harvest' => $team_harvest]) ?>
+<?php else: ?>
+<?= View::capture('member/earnings/_team_stats', ['team_harvest' => $team_harvest]) ?>
+
+<?= View::capture('member/earnings/_team_progress', ['team_harvest' => $team_harvest]) ?>
+
+<?= View::capture('member/earnings/_team_matrix', [
+    'team_harvest' => $team_harvest,
+    'roster'       => $roster,
+    'roster_pager' => $roster_pager,
+    'user_id'      => (int) ($user_id ?? 0),
+]) ?>
+
+              <div class="card">
+<?= View::capture('member/earnings/_team_header', [
+    'team_harvest' => $team_harvest,
+    'pager'        => $pager,
+]) ?>
+
+                <div class="card-body border-bottom">
+                  <form method="GET" action="<?= e($statement_url) ?>" class="d-flex flex-wrap align-items-end gap-3 commission-filters">
+                    <?= per_page_hidden() ?>
+                    <input type="hidden" name="ledger" value="team_harvest" />
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="team-filter-level">Level</label>
+                      <select name="level" id="team-filter-level" class="form-select">
+<?php foreach ($levelOptions as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $filters['level'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="team-filter-status">Status</label>
+                      <select name="status" id="team-filter-status" class="form-select">
+<?php foreach ($statusOptions as $value => $label): ?>
+                        <option value="<?= e($value) ?>" <?= $filters['status'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="team-filter-from">From</label>
+                      <input type="date" name="from" id="team-filter-from" class="form-control" value="<?= e((string) $filters['from']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="team-filter-to">To</label>
+                      <input type="date" name="to" id="team-filter-to" class="form-control" value="<?= e((string) $filters['to']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
+<?php if ($hasFilters): ?>
+                      <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
+                        <i class="icon-base bx bx-x me-1"></i> Clear
+                      </a>
+<?php endif; ?>
+                    </div>
+                  </form>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle commission-table mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="commission-col-date">Date</th>
+                        <th scope="col">Level</th>
+                        <th scope="col" class="text-end">Teammates at award</th>
+                        <th scope="col" class="text-end commission-col-quota">Threshold</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Wallet</th>
+                      </tr>
+                    </thead>
+<?= View::capture('member/earnings/_team_rows', [
+    'awards'     => $awards,
+    'filters'    => $filters,
+    'wallet_url' => $wallet_url,
+]) ?>
+                  </table>
+                </div>
+
+<?= View::capture('member/earnings/_team_pagination', ['pager' => $pager]) ?>
+              </div>
+<?php endif; ?>
+
+              <!-- Member FAQ (plan Appendix C.9): the six questions every member asks. -->
+              <div class="card mt-4">
+                <div class="card-header">
+                  <h5 class="card-title mb-0">Team Harvest questions</h5>
+                </div>
+                <div class="card-body">
+                  <div class="row g-4 small">
+                    <div class="col-md-6">
+                      <p class="mb-3">
+                        <strong class="d-block">How do I qualify?</strong>
+                        <?= (int) ($team_harvest['gate'] ?? TeamHarvestLevel::qualifyDirects()) ?> members register
+                        with you as their sponsor. That is all.
+                      </p>
+                      <p class="mb-3">
+                        <strong class="d-block">Who counts as my teammate?</strong>
+                        A member below you, in any generation, who qualified <strong>after</strong> you.
+                      </p>
+                      <p class="mb-0">
+                        <strong class="d-block">Does buying anything help?</strong>
+                        No. Purchases play no part in this bonus.
+                      </p>
+                    </div>
+                    <div class="col-md-6">
+                      <p class="mb-3">
+                        <strong class="d-block">When am I paid?</strong>
+                        The moment a level fills — the money is in your e-wallet immediately.
+                      </p>
+                      <p class="mb-3">
+                        <strong class="d-block">Why is somebody in my team not in my matrix?</strong>
+                        They qualified before you did.
+                      </p>
+                      <p class="mb-0">
+                        <strong class="d-block">Why did my level not pay?</strong>
+                        Either the level is not full (see the count above), the amount for it is zero, or it
+                        was already complete before the plan started paying (marked <strong>Before
+                        go-live</strong>).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+<?php elseif ($isRoyalty): ?>
 <?= View::capture('member/earnings/_royalty_rank', ['royalty' => $royalty]) ?>
 
 <?= View::capture('member/earnings/_royalty_stats', ['stats' => $stats]) ?>

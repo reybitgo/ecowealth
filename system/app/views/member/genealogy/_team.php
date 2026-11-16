@@ -8,14 +8,21 @@ declare(strict_types=1);
  * the whole level grid is replaced while the card header stays static.
  *
  * Each level card paginates on its own (ten rows by default), so one
- * crowded level never pushes the others off the page and the query keys
+ * crowded level never pushes the others off the screen and the query keys
  * stay namespaced: ?level3_page=2&level3_per_page=5.
+ *
+ * Phase 20F adds each member's stored **Harvest position** as a quiet
+ * badge beside the name (`—` when they have not qualified). The
+ * positions arrive from one `HarvestQueue::map()` pass, so a level card
+ * costs the same one select whatever its size.
  *
  * @var array<int, list<array<string, mixed>>> $deeper       rows for the current page
  * @var array<int, Paginator>                 $level_pagers one pager per level
+ * @var array<int, int>                       $harvest_positions user_id => position
  */
 
-$level_pagers = $level_pagers ?? [];
+$level_pagers      = $level_pagers ?? [];
+$harvest_positions = $harvest_positions ?? [];
 ?>
               <div data-live-region="genealogy-team">
 <?php if ($deeper === []): ?>
@@ -43,10 +50,16 @@ $level_pagers = $level_pagers ?? [];
      * rather than "-->" so it renders as one sentence, and a hidden
      * "sponsored by" gives screen readers the relationship in words. */
     $sponsorUsername = $row['sponsor_username'] ?? null;
+    $harvestPosition = $harvest_positions[(int) $row['id']] ?? null;
 ?>
                         <li class="d-flex align-items-center justify-content-between gap-2 py-1">
                           <span class="text-truncate">
                             <span class="fw-medium">@<?= e((string) $row['username']) ?></span>
+<?php if ($harvestPosition === null): ?>
+                            <span class="badge bg-label-secondary ms-1" title="Not qualified for Team Harvest">—</span>
+<?php else: ?>
+                            <span class="badge bg-label-success ms-1" title="Team Harvest position">#<?= (int) $harvestPosition ?></span>
+<?php endif; ?>
 <?php if ($sponsorUsername !== null): ?>
                             <span class="team-sponsor-arrow" aria-hidden="true">→</span>
                             <span class="visually-hidden">sponsored by</span>

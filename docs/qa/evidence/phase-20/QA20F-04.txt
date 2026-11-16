@@ -1,0 +1,32 @@
+QA20F-04 - The filters and the statement CSV
+============================================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Plan section 10's test plan: the rows filter by level and status, and the file carries the same six columns.
+
+The unfiltered statement: 3 row(s)
+The level = 3 filter:     1 row(s) — level 3, ₱4,000.00, credited
+
+The CSV (Appendix C.6): Date, Level, Teammates at award, Threshold, Amount, Status
+  rows: 3
+    2026-11-16 09:17:47 | 3 | 39 | 39 | 4000.00 | Paid
+    2026-11-16 09:17:41 | 2 | 12 | 12 | 2000.00 | Paid
+    2026-11-16 09:17:39 | 1 | 3 | 3 | 1000.00 | Paid
+
+Audit rows with action team_harvest.export%: 0 (before the export: 1, after: 1)
+
+Checks:
+  the level filter narrows to one ..... yes
+  the file has the C.6 header ......... yes
+  the file has three rows ............. yes
+  no audit row written ................ yes
+
+RESULT: PASS

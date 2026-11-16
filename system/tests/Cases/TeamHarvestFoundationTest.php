@@ -1038,7 +1038,10 @@ return [
          * ledger model, the service and its exception); **20E** adds the
          * admin visibility: the fourth ledger tab, the member directory's
          * queue card and column, the member panel, the reports block and the
-         * dashboard KPI — all reads, no route and no page of its own. */
+         * dashboard KPI — all reads, no route and no page of its own;
+         * **20F** adds the member visibility: the fourth earnings tab, its
+         * six cards, the dashboard tile and the genealogy badge — again all
+         * reads. */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
@@ -1071,6 +1074,19 @@ return [
             '/app/views/admin/reports/index.php',
             '/app/views/admin/reports/_team_harvest.php',
             '/app/views/admin/dashboard/_commerce.php',
+            /* 20F — the member surfaces that read the queue and the ledger. */
+            '/app/Controllers/DashboardController.php',
+            '/app/Controllers/EarningsController.php',
+            '/app/views/member/dashboard.php',
+            '/app/views/member/dashboard/_team_harvest.php',
+            '/app/views/member/earnings.php',
+            '/app/views/member/earnings/_team_header.php',
+            '/app/views/member/earnings/_team_matrix.php',
+            '/app/views/member/earnings/_team_pagination.php',
+            '/app/views/member/earnings/_team_progress.php',
+            '/app/views/member/earnings/_team_rows.php',
+            '/app/views/member/earnings/_team_stats.php',
+            '/app/views/member/genealogy/_header.php',
         ];
 
         $found = [];
@@ -1097,8 +1113,8 @@ return [
         assert_same(
             $allowList,
             $found,
-            'only the 20A manifest, the 20B card, the 20C queue, the 20D engine and the 20E admin surfaces'
-                . ' name the Team Harvest objects'
+            'only the 20A manifest, the 20B card, the 20C queue, the 20D engine, the 20E admin surfaces'
+                . ' and the 20F member surfaces name the Team Harvest objects'
         );
 
         /* 20B adds the configuration model, 20C the queue and 20D the

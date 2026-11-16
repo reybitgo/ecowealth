@@ -1,0 +1,30 @@
+QA20F-05 - The dashboard tile
+=============================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Rule 4 and Appendix C.4: the tile states what was paid and what comes next, and promises no date.
+
+The tile (dashboard-team-harvest):
+  Team Harvest Harvest position #134 View your matrix 39 qualified teammates count toward your matrix. Level 4 is 0 of 81 slots full and pays ₱6,000.00 when the block completes at 120 teammates. Level 4 progress 0.0% Earned ₱7,000.00 Levels paid 3 Teammates 39 Next level Level 4 A private 3×10 matrix, paid level by level the moment a block is full. The Team Harvest bonus depends only on who qualified, and when.
+
+The numbers behind it:
+  position 134 · teammates 39 · levels paid 3 · earned ₱7,000.00 · next level 4
+
+Checks:
+  paid total on the tile .............. yes
+  the next level and its block ........ yes
+  the link to the matrix .............. yes
+  no form on the tile ................. yes
+  no exclusions or footnote ........... yes
+  hidden when off with no position .... yes
+  the page renders the region ......... yes
+
+RESULT: PASS

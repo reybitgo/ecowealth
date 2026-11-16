@@ -17,11 +17,11 @@ declare(strict_types=1);
  *  returns zeros until the `commissions` table arrives in Phase 10.
  *
  *  Live updates: the page is one per-member surface
- *  (`member.dashboard:{id}`) with seven regions — the header status pill,
+ *  (`member.dashboard:{id}`) with eight regions — the header status pill,
  *  the KPI row, the E-wallet card, the membership card, the recent-orders
- *  card, the earnings card and (Phase 19E) the Royalty tile. The
- *  greeting, the referral card and the static explanatory copy stay
- *  outside the regions.
+ *  card, the earnings card, the Royalty tile and (Phase 20F) the Team
+ *  Harvest tile. The greeting, the referral card and the static
+ *  explanatory copy stay outside the regions.
  *
  *  Phase 18 adds the escrow read-out (`pending_repeat`): the repeat
  *  bonus the member has earned but that is not in the wallet yet. The
@@ -35,6 +35,14 @@ declare(strict_types=1);
  *  the Royalty they have already been paid, and it links to the Royalty
  *  statement. It is hidden only when the stream is off **and** the
  *  member has no history (plan §9 Rule 5).
+ *
+ *  Phase 20F adds the Team Harvest tile (`team_harvest`): the paid total,
+ *  the harvest position, and the next level's progress against its
+ *  amount. It reads the same `TeamHarvestService::statusFor()` the
+ *  member's /earnings tab and the admin panel use, so the tile can never
+ *  promise a level the engine would not pay (plan §10 Rule 9). It is a
+ *  read-out with no form, and it is hidden only when the stream is off
+ *  and the member holds neither a position nor history.
  * ============================================================== */
 
 final class DashboardController
@@ -132,9 +140,36 @@ final class DashboardController
              * table, so this is zero on an install without Phase 17. */
             'pending_repeat'   => UnilevelAward::pendingSummaryForUser($userId),
             'royalty'          => $this->royaltySummary($userId),
+            'team_harvest'     => $this->teamHarvestSummary($userId),
             'referral_code'    => (string) ($member['referral_code'] ?? ''),
             'referral_link'    => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
         ];
+    }
+
+    /**
+     * The Team Harvest tile's figures (20F, plan §10, Appendix C.4).
+     *
+     * The read is `TeamHarvestService::statusFor()` — the same read the
+     * member's Team Harvest statement and the admin member panel use — so
+     * the tile can never show a level, an amount or a progress the engine
+     * would not pay (Rule 9). It is wrapped because the dashboard must
+     * render even when the projection is unavailable: a broken read hides
+     * the tile, never the page.
+     *
+     * The tile is a read-out: it carries no form and no action beyond the
+     * link to the statement (P20F-T10).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function teamHarvestSummary(int $userId): ?array
+    {
+        try {
+            return (new TeamHarvestService())->statusFor($userId);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] team harvest dashboard tile unavailable: ' . $e->getMessage());
+
+            return null;
+        }
     }
 
     /**
@@ -311,6 +346,9 @@ final class DashboardController
                 ]),
                 'dashboard-royalty' => View::capture('member/dashboard/_royalty', [
                     'royalty' => $data['royalty'] ?? null,
+                ]),
+                'dashboard-team-harvest' => View::capture('member/dashboard/_team_harvest', [
+                    'team_harvest' => $data['team_harvest'] ?? null,
                 ]),
             ],
             'meta'      => [

@@ -91,6 +91,7 @@ final class WalletController
         $filters = Wallet::normaliseFilters([
             'type'     => Request::string('type'),
             'ref_type' => Request::string('ref_type'),
+            'ref_id'   => Request::string('ref_id'),
             'from'     => Request::string('from'),
             'to'       => Request::string('to'),
             'q'        => Request::string('q'),

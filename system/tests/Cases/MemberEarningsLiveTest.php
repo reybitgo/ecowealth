@@ -14,8 +14,12 @@ declare(strict_types=1);
  *      payload, escapes source names and clamps an out-of-range page;
  *    · a skipped award appears live and never claims money;
  *    · the repeat tab revalidates when the member's team changes;
- *    · the page declares its live surface and regions.
+ *    · the page declares its live surface and regions;
+ *    · (Phase 20F) the Team Harvest tab rides the same surface, and the
+ *      award that opens a member's first level bumps it (P20F-T17).
  * ============================================================== */
+
+$harvest = require __DIR__ . '/../fixtures/harvest_money.php';
 
 $makeMember = static function (string $username = ''): array {
     return test_user($username !== '' ? $username : 'mel_' . bin2hex(random_bytes(4)));
@@ -565,5 +569,128 @@ return [
 
         assert_contains('data-live-region="earnings-repeat-levels"', $levels);
         assert_contains('@' . (string) $recruit['username'], $levels);
+    },
+
+    /* ==========================================================
+     *  P20F-T17 — the fourth tab and its live revision
+     * ========================================================== */
+
+    'P20F-T17 an award bumps member.earnings and the Team Harvest tab refreshes' => function () use ($harvest): void {
+        $clean   = $harvest['clean'];
+        $arm     = $harvest['arm'];
+        $account = $harvest['account'];
+
+        $clean();
+        $arm();
+
+        /* The member qualifies on their third direct and holds no
+         * teammates yet. */
+        $root    = $account('mel_p20f_root');
+        $directs = [];
+
+        for ($i = 1; $i <= 3; $i++) {
+            $directs[$i] = $account('mel_p20f_d' . $i, $root);
+        }
+
+        (new TeamHarvestService())->onQualified($root);
+
+        /* Two qualified teammates: n = 2, so level 1 is still open. */
+        $qualify = static function (string $prefix, int $sponsor) use ($account): void {
+            $member = $account($prefix, $sponsor);
+
+            for ($j = 1; $j <= 3; $j++) {
+                $account($prefix . '_d' . $j, $member);
+            }
+
+            (new TeamHarvestService())->onQualified($member);
+        };
+
+        $qualify('mel_p20f_m1', $directs[1]);
+        $qualify('mel_p20f_m2', $directs[1]);
+
+        $service = new TeamHarvestService();
+        $status  = $service->statusFor($root);
+
+        assert_same(2, (int) $status['teammates']);
+        assert_same(0, (int) $status['credited_levels'], 'no level has paid yet');
+
+        test_signed_in_as(test_user('mel_p20f_root'));
+
+        $_GET = ['ledger' => 'team_harvest'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=team_harvest';
+
+        $controller = new EarningsController();
+        $before     = [
+            'earnings'  => Live::revision(Live::earningsSurface($root)),
+            'dashboard' => Live::revision(Live::memberDashboardSurface($root)),
+            'wallet'    => Live::revision(Live::memberWalletSurface($root)),
+            'genealogy' => Live::revision(Live::genealogySurface($root)),
+        ];
+
+        $otherBefore = Live::revision(Live::earningsSurface($directs[2]));
+
+        /* The third qualified teammate fills level 1: the engine credits
+         * the wallet and bumps every Team Harvest surface of the member. */
+        $qualify('mel_p20f_m3', $directs[1]);
+
+        assert_same($before['earnings'] + 1, Live::revision(Live::earningsSurface($root)), 'the earnings tab refreshes');
+        assert_same($before['genealogy'] + 1, Live::revision(Live::genealogySurface($root)), 'the genealogy badge refreshes');
+
+        /* The wallet credit bumps the dashboard and the statement too (the
+         * wallet's own touch), so those two move at least once — the
+         * Team Harvest touch would bump them on its own as well. */
+        assert_true(
+            Live::revision(Live::memberDashboardSurface($root)) > $before['dashboard'],
+            'the dashboard tile refreshes'
+        );
+        assert_true(
+            Live::revision(Live::memberWalletSurface($root)) > $before['wallet'],
+            'the wallet statement refreshes'
+        );
+        assert_same($otherBefore, Live::revision(Live::earningsSurface($directs[2])), 'another member is untouched');
+
+        /* The open tab redraws with the paid level. */
+        $data    = $controller->teamHarvestContext($root);
+        $payload = $controller->feedPayload(Live::revision(Live::earningsSurface($root)), '"x"', $data);
+
+        assert_same(1, $data['pager']->total, 'one level paid');
+        assert_same(1000.0, (float) $data['awards'][0]['amount'], 'level 1 is ₱1,000.00');
+
+        assert_same(
+            [
+                'earnings-team-stats',
+                'earnings-team-progress',
+                'earnings-team-matrix',
+                'earnings-team-header',
+                'earnings-team-rows',
+                'earnings-team-pagination',
+            ],
+            array_keys($payload['fragments'])
+        );
+        assert_contains('data-live-region="earnings-team-matrix"', $payload['fragments']['earnings-team-matrix']);
+        assert_contains(money(1000.0), $payload['fragments']['earnings-team-rows']);
+        assert_contains('Paid', $payload['fragments']['earnings-team-rows']);
+        assert_contains('3 of 3', $payload['fragments']['earnings-team-matrix']);
+
+        /* A replay writes nothing and bumps nothing. */
+        $beforeReplay = Live::revision(Live::earningsSurface($root));
+        (new TeamHarvestService())->onQualified($root);
+
+        assert_same($beforeReplay, Live::revision(Live::earningsSurface($root)), 'a replay moves no revision');
+
+        /* The other three tabs are still built by the same controller and
+         * still carry their own regions — the fourth tab added a branch,
+         * not a second page. */
+        $_GET = [];
+        $package = $controller->earningsContext($root);
+
+        assert_same(EarningsController::TAB_PACKAGE, $package['tab']);
+        assert_same(url('earnings/export'), $package['export_url']);
+
+        $_GET = ['ledger' => 'repeat'];
+        assert_same(EarningsController::TAB_REPEAT, $controller->repeatContext($root)['tab']);
+
+        $_GET = ['ledger' => 'royalty'];
+        assert_same(EarningsController::TAB_ROYALTY, $controller->royaltyContext($root)['tab']);
     },
 ];

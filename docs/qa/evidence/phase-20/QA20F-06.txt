@@ -1,0 +1,36 @@
+QA20F-06 - The genealogy badge
+==============================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Rule 9 and plan section 10's test plan: the position is displayed from the queue, never derived.
+
+harvest_queue (position, user):
+  position 174   qa20f06_root  (the reader, its own badge)
+  position 175   qa20f06_d1    (a queued downline member)
+  position —     qa20f06_d2, qa20f06_d3 (not in the queue)
+
+The heading badges: 6 in team 2 levels Harvest #174
+
+The direct-recruit rows:
+  @qa20f06_d1 Qa20f06 d1 — Active #175 Nov 16, 2026 9:17 AM
+  @qa20f06_d2 Qa20f06 d2 — Active — Nov 16, 2026 9:17 AM
+  @qa20f06_d3 Qa20f06 d3 — Active — Nov 16, 2026 9:17 AM
+
+The team-by-level card:
+  Level 2 3 members @qa20f06_d1_1 — → sponsored by @qa20f06_d1 Active @qa20f06_d1_2 — → sponsored by @qa20f06_d1 Active @qa20f06_d1_3 — → sponsored by @qa20f06_d1 Active Rows per page 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 Apply Showing 1–3 of 3
+
+Checks:
+  the reader's own badge .............. yes
+  a queued downline member's badge .... yes
+  an unqualified member reads — ....... yes
+  the page renders the badge .......... yes
+
+RESULT: PASS

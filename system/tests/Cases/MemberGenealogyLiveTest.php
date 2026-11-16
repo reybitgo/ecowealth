@@ -14,8 +14,12 @@ declare(strict_types=1);
  *      count/rows/pagination and the team-by-level card;
  *    · an out-of-range recruits page is clamped and the empty team-chain /
  *      team states render inside their regions;
- *    · the page declares its live surface and regions.
+ *    · the page declares its live surface and regions;
+ *    · (Phase 20F) the Team Harvest badge shows the reader's position and
+ *      each queued downline member's, and `—` for everyone else.
  * ============================================================== */
+
+$harvest = require __DIR__ . '/../fixtures/harvest_money.php';
 
 $makeMember = static function (string $username = '', string $role = 'member'): array {
     return test_user(
@@ -360,6 +364,93 @@ return [
 
         assert_contains('Showing 1–10 of 12', $team);
         assert_contains('<option value="10" selected>10</option>', $team);
+    },
+
+    /* ==========================================================
+     *  P20F-T11 — the Harvest position badge
+     * ========================================================== */
+
+    'P20F-T11 the badge shows the reader and every queued downline member, and — for the rest' => function () use ($harvest): void {
+        $clean   = $harvest['clean'];
+        $arm     = $harvest['arm'];
+        $account = $harvest['account'];
+
+        $clean();
+        $arm();
+
+        $root = $account('mgl_p20f_root');
+
+        $directs = [];
+
+        for ($i = 1; $i <= 3; $i++) {
+            $directs[$i] = $account('mgl_p20f_d' . $i, $root);
+        }
+
+        (new TeamHarvestService())->onQualified($root);
+
+        /* The first direct qualifies too: three directs of their own. */
+        for ($i = 1; $i <= 3; $i++) {
+            $account('mgl_p20f_d1_' . $i, $directs[1]);
+        }
+
+        (new TeamHarvestService())->onQualified($directs[1]);
+
+        $rootPosition  = (new HarvestQueue())->positionOf($root);
+        $childPosition = (new HarvestQueue())->positionOf($directs[1]);
+
+        assert_not_null($rootPosition);
+        assert_not_null($childPosition);
+
+        test_signed_in_as(test_user('mgl_p20f_root'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/genealogy';
+
+        $controller = new GenealogyController();
+        $data       = $controller->genealogyContext(Member::find($root));
+        $payload    = $controller->feedPayload(3, '"member.genealogy:' . $root . ':3:x"', $data);
+
+        assert_same($rootPosition, (int) $data['harvest_position'], 'the reader’s own position');
+        assert_same($childPosition, (int) ($data['harvest_positions'][$directs[1]] ?? 0), 'the qualified child’s position');
+        assert_same(false, isset($data['harvest_positions'][$directs[2]]), 'an unqualified direct has no position');
+
+        $header = $payload['fragments']['genealogy-header'];
+        $rows   = $payload['fragments']['genealogy-recruits-rows'];
+
+        assert_contains('Harvest #' . $rootPosition, $header, 'the reader’s badge');
+
+        $qualifiedRow = static function (int $id) use ($rows): string {
+            $pattern = '/<tr data-live-key="' . $id . '"(?:(?!<\/tr>).)*?<\/tr>/s';
+
+            return preg_match($pattern, $rows, $m) === 1 ? $m[0] : '';
+        };
+
+        assert_contains('#' . $childPosition, $qualifiedRow($directs[1]), 'the queued downline member carries a badge');
+        assert_contains('—', $qualifiedRow($directs[2]), 'an unqualified direct reads a dash');
+        assert_not_contains('#', $qualifiedRow($directs[2]), 'an unqualified direct carries no position');
+
+        /* The team-by-level card repeats the same badge on every row. */
+        $team = $payload['fragments']['genealogy-team'];
+
+        assert_contains('data-live-region="genealogy-team"', $team);
+        assert_contains('—', $team, 'the three unqualified level-2 members read a dash');
+        assert_not_contains('Team Harvest position', $team, 'none of them is queued');
+
+        /* A member who has not qualified keeps no badge in the heading. */
+        test_signed_in_as(test_user('mgl_p20f_d2'));
+
+        $unqualified = $controller->genealogyContext(Member::find($directs[2]));
+
+        assert_same(null, $unqualified['harvest_position']);
+        assert_same(false, isset($unqualified['harvest_positions'][$directs[2]]));
+
+        $unqualifiedPayload = $controller->feedPayload(
+            4,
+            '"member.genealogy:' . $directs[2] . ':4:x"',
+            $unqualified
+        );
+
+        assert_not_contains('Harvest #', $unqualifiedPayload['fragments']['genealogy-header']);
     },
 
     'the genealogy page declares its live surface and regions' => function (): void {

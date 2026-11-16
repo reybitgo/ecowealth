@@ -8,11 +8,11 @@ declare(strict_types=1);
  * wallet buckets, the referral link, recent orders and commission
  * totals (zeros until Phase 10 ships the awards).
  *
- * One live surface per member (`member.dashboard:{id}`). Seven regions —
+ * One live surface per member (`member.dashboard:{id}`). Eight regions —
  * the header status pill, the KPI row, the E-wallet card, the membership
- * card, the recent-orders card, the earnings card and the Royalty tile —
- * re-render in place; the greeting, the referral card and the static
- * copy stay put.
+ * card, the recent-orders card, the earnings card, the Royalty tile and
+ * (Phase 20F) the Team Harvest tile — re-render in place; the greeting,
+ * the referral card and the static copy stay put.
  *
  * @var array<string, mixed>       $member
  * @var float                      $balance
@@ -25,7 +25,8 @@ declare(strict_types=1);
  * @var array<string, mixed>|null  $last_activation
  * @var int                        $activation_count
  * @var list<array<string, mixed>> $recent_history
- * @var array<string, mixed>|null  $royalty   the Royalty tile's figures (Phase 19E)
+ * @var array<string, mixed>|null  $royalty       the Royalty tile's figures (Phase 19E)
+ * @var array<string, mixed>|null  $team_harvest  the Team Harvest tile's figures (Phase 20F)
  * @var string                     $referral_code
  * @var string                     $referral_link
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
@@ -132,6 +133,9 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
 
               <!-- Royalty (Phase 19E) -->
 <?= View::capture('member/dashboard/_royalty', ['royalty' => $royalty ?? null]) ?>
+
+              <!-- Team Harvest (Phase 20F) -->
+<?= View::capture('member/dashboard/_team_harvest', ['team_harvest' => $team_harvest ?? null]) ?>
 
               <div class="row g-4 mb-4">
                 <!-- Membership -->
