@@ -7442,3 +7442,154 @@ unchanged by design — it already fails unless seed 001 carries every migration
   the ladder and the two settings.
 - **Nothing reads any of it.** 21B may assume the tables exist, are empty (ten ladder rows and one
   board row excepted) and are inert.
+
+---
+
+## Phase 21B — Configuration and the board arithmetic (2026-11-16)
+
+**Status:** complete · **Tag:** `p21b-configuration` · **Branch:** `feature/general-harvest` ·
+**Schema:** unchanged at **39 tables / 79 settings** (the phase adds no schema) · **Suite:**
+1,336 → 1,371 cases, **1,371 / 1,371** green · **Smoke:** 263 → **268 / 268**.
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §6 (Phase 21B), §12.2–§12.4, §12.9, §13.3/§13.5,
+Appendix A and Appendix F. This phase makes the General Harvest bonus **configurable and computable**:
+an administrator can set the ten level amounts and the two knobs, see what the ladder pays and at which
+queue size, and the application can derive — from the queue alone — the board's blocks, thresholds,
+per-level completion and whole-board totals. **No money moves and no ledger row exists**: 21B arms
+nothing, settles nothing and writes no award, and every board number it prints is a function of `N` and
+the ladder, pinned by the suite to the reference document's own tables.
+
+### Code
+
+| File | Change |
+|---|---|
+| `app/Models/GeneralHarvestLevel.php` (new) | The ladder and **all** the board arithmetic: `rows()`, `map()`, `amounts()`, `amount()`, `save()`, `validate()`, `referencePreset()`, `forForm()`, `fromInput()`, `total()`, `cumulative()`, `slots()`, `blockStart()`, `blockEnd()`, `blockFrom()`, `blockTo()`, `threshold()`, `apexThreshold()`, `complete()`, `filled()`, `levelsFor()`, `paid()`, `qFor()`, `earnedBy()`, `nextN()`, `nextCompletion()`, `awardCount()`, `boardTotal()`, `maxLevels()`, `enabled()` and `armedMessage()`. Zero-filled on read (a missing row is `0.00`); `save()` rewrites all ten rows (delete-then-insert in the caller's transaction), stamps `updated_by`, and **refuses an amount change while the board is armed** (D-23), reading the board inside the same transaction. Every formula in §12.2–§12.6 lives here and nowhere else. |
+| `app/Models/GeneralHarvestBoard.php` (new) | The board's state and the queue-side reads, read-only in this phase: `state()` (a missing singleton reads as unarmed), `queueN()` (`{n, max_id, gapless}`), `gapless()`, `positionOf()`, `ownerOf()`, `frontier()` (one grouped aggregate plus the closed forms: `rows`/`complete`/`missing`/`next_n`/`amount` per level), `backlog()` (`N − settled_n` and the closed-form difference it is worth), `status()` (the four strip states) and `blocks()`/`blockRange()` for one node and a page of the board. `STATES` is the contract the view renders. |
+| `app/Controllers/AdminSettingsController.php` | `GENERAL_HARVEST_FIELDS`, `GENERAL_HARVEST_TOGGLES`, `GENERAL_HARVEST_AMOUNTS` and `GENERAL_HARVEST_STATES`, merged into `sectionKeys()`, `sectionToggles()`, `sectionRules()`, `sectionLabels()` and `sectionCrossFieldErrors()`; `settingsContext()` passes `general_harvest_fields`, `_toggles`, `_amounts`, `_ladder`, `_positions`, `_board` and `_preset`; the save path writes the switch, the depth and the ten rows in **one transaction** and audits `general_harvest.ladder.update` (before/after) only when something changed; each ladder is preserved independently when a post omits it; `app-general-harvest.js` joins the page's scripts. |
+| `app/views/admin/settings/_general_harvest.php` (new) | The card: the switch, the depth, the ten amount inputs with their badges and live cumulative, the two generated tables (ladder and positions #1–#6 × levels 1–4), the four-state strip, the calculator and the full-ladder sentence. Every cell comes from the controller's computed context; the view computes no threshold. With the board armed the amount inputs render disabled and the preset is not offered. |
+| `app/views/admin/settings/_commissions.php`, `index.php` | The sub-block is included after the Team Harvest card; `index.php` passes the seven new keys (it names every card's variables explicitly) and its Commissions header now names the fifth sub-block. |
+| `public/assets/js/app-general-harvest.js` (new) | Progressive enhancement only: the live cumulative column, the full-ladder total and its badge tone, the per-depth total and the "if the queue reaches N" calculator, from the plan's closed form in centavos. The preset and clear buttons read their values from the inputs, so the reference ladder lives in exactly one place. |
+
+### Tests
+
+**35 new cases: 1,336 → 1,371, all green** (`GeneralHarvestConfigurationTest`), plus the guards this
+phase legitimately moved.
+
+| Case | What it proves |
+|---|---|
+| P21B-T1, T23, T24 | The card renders every control and every generated number on a fresh database; it is complete with JavaScript off; the ten inputs stack and both tables scroll inside the card at 390 px |
+| P21B-T2, T3, T4, T5, T6, T26, T28, T29, T34, T35 | The save path: ten rows and one audit row, blanks as `0.00`, the ₱25,000,000.00 sum guard, the ₱10,000,000.00 per-level ceiling, two decimals, the frozen ladder on an armed board, the per-ladder preservation of an omitted post (the depth included, while an empty depth is still refused), and a refused save leaving both stores and the typed input untouched |
+| P21B-T7, T8, T9, T10 | The rules: enabling or raising the depth requires every payable level to be positive (naming the level), the depth is a whole number 1–10, and a depth of 3 marks levels 4–10 *not paying* while keeping their amounts |
+| P21B-T11 … T20 | The arithmetic: the apex staircase 4 … 88,573, positions #2–#6, the blocks 2–4 / 5–13 / 14–40 …, `qFor` and the prefix property, `boardTotal` 2,000 / 12,000 / … / 190,208,000, `awardCount`, the per-node ceiling, `nextCompletion` and a sweep of every `N` to 1,210 |
+| P21B-T21, T25, T33 | The phase is inert and adds no schema or route: three registrations write no award, no position and no money; 39 / 76 / 10 / 1 with `APP_PHASE` 20; only the Commissions card owns a General Harvest key |
+| P21B-T22, T27, T30, T31, T32 | The generated tables equal Appendix A and the reference's §4.5 table line for line; the strip renders exactly one of the four states; the board reads `N`, the frontier, the backlog, one node's ten blocks and a page of the board; the model's ranges, zero-filled reads and one query per bulk read |
+
+Updated for this phase: `GeneralHarvestFoundationTest` P21A-T15 (the manifest now names the two models,
+the controller and the three settings views, and still no award model, service, route or job) and
+P21A-T16 (only the settings card's three files render the feature; no route); `SettingsPageTest` P7-T4
+(the Commissions key list gains the depth and the ten amounts, the toggle list gains
+`general_harvest_enabled`, and the card carries the sub-block) and `AdminSettingsLiveTest` (the live
+fragment carries the same sub-block).
+
+### Smoke
+
+**Five new checks: 263 → 268** — P21B-T1 (the card, ten inputs, both tables and the unarmed strip on
+`/admin/settings`), P21B-T22 (the generated ladder's slots/apex and the position table's first and last
+cell), P21B-T4 (a ladder over the ₱25,000,000.00 ceiling is refused and the stored ladder is unchanged)
+and P21B-T9 (a depth of 11 is refused and the stored depth survives), plus P21B-T21 (the card writes no
+award, no wallet row and no board state — compared before and after, so a later armed database still
+passes). The walk snapshots and restores the two settings, the ten ladder rows and every board field.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration in this phase; migrated ≡ fresh still green.
+- [x] `php bin/build_install_sql.php` run and `--check` exits 0 (the bundle is byte-identical: no schema change).
+- [x] `php tests/run.php` → **Cases: 1,371   Passed: 1,371   Failed: 0**, exit 0 (floor 1,362).
+- [x] `php bin/wallet_reconcile.php` exits 0 (no money moved; no `general_harvest` row exists).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 268   Failed: 0**, exit 0.
+- [x] Every P21B-Tn case exists, is named for the phase and passes; `php tests/run.php
+      GeneralHarvestConfiguration` is **35 / 35**.
+- [x] The manual script (`QA21B-01` … `QA21B-09`) is executed; its evidence is under
+      `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section B filled; `docs/qa/README.md` and the Phase 21 evidence index carry the row.
+- [x] This entry and Appendix H of the plan are filled; tag `p21b-configuration`.
+- [x] The generated ladder table equals Appendix A line for line (`P21B-T22`).
+- [x] The position table equals the reference's §4.5 table line for line (`P21B-T22`).
+- [x] Every board total in P21B-T15/T16 is pinned by a case, to the peso.
+- [x] Registering three members writes no board row and no award (`P21B-T21`, P21B-T21 in the smoke walk).
+
+### Deviations
+
+1. **`admin/settings/index.php` had to change too.** The plan's view list names `_general_harvest.php`
+   and `_commissions.php` only, but `index.php` passes every card's variables explicitly; without the
+   seven `general_harvest_*` keys the sub-block renders empty. One include and one header line, no
+   behaviour outside the card.
+2. **`QA21B-02`'s illustrative total is ₱7,381,500.00, not the plan's ₱8,882,500.00.** The plan's
+   manual step is arithmetically wrong: ₱8,381,000.00 − ₱2,000.00 + ₱2,500.00 − ₱5,000,000.00 +
+   ₱4,000,000.00 = **₱7,381,500.00**. The card, the suite (`P21B-T2`) and the QA pack state the correct
+   number; the plan's own P21B-T2 case and the model agree.
+3. **The two knobs are the switch and the depth**, exactly as the plan's §13.5 reads: the depth is a
+   field and the switch a toggle, matching `TEAM_HARVEST_FIELDS` + `TEAM_HARVEST_TOGGLES`.
+4. **`GENERAL_HARVEST_STATES` references the model's constant.** The four states live on
+   `GeneralHarvestBoard` (where 21E/21F will read them) and the controller's constant aliases the list,
+   so the two can never drift; the plan's Rule 9 ordering is asserted.
+5. **`P21A-T15` and `P21A-T16` were rewritten, not deleted.** They are 21A's manifest guards; 21B
+   extends the manifest and adds the card, so the guards now describe the 21A/21B boundary and still
+   prove that no award model, service, route or job exists. Same churn as 20B's manifest in Phase 20.
+6. **Five smoke checks, not none.** The plan gives 21B no URL of its own (D-15 holds — `/admin/settings`
+   already existed), but the phase's card, its generated tables, its two refusal rules and its
+   inertness are exactly what a smoke walk is for, so the five checks above were added. 21G's release
+   row counts them.
+7. **The queue-position fixtures write explicit ids.** A rolled-back `INSERT` still advances
+   `AUTO_INCREMENT` in MySQL (the harness fact `HarvestQueueTest` documents), and the board arithmetic
+   is defined over positions `1 … N`; the four cases that need the first 40 positions write the ids
+   themselves so a suite run cannot leave `N = 3` beside `MAX(id) = 44`. The rows live inside the case's
+   transaction.
+8. **The freeze is read inside `save()`'s transaction**, not before it, so an arm landing between the
+   validation and the write cannot slip past D-23. The rule and the message are the plan's.
+9. **The page checks were executed as harness renders, not by a second person.** As at every earlier
+   gate, the automated pass rendered the real controller and `View::page()` and left the transcripts;
+   the click-only browser pass (the 390 px layout, the real JavaScript-off save) is the project lead's
+   item and is named in the sign-off sheet.
+10. **Two Royalty cases post the Commissions card's payload from `sectionKeys()`.** Phase 21B adds ten
+    `general_harvest_amounts.*` keys to that list, and those two payloads filled every unrecognised key
+    with `setting($key, '')` — i.e. ten blanks, which clears (and audits) the ladder. They now fill the
+    General Harvest amounts from `GeneralHarvestLevel::forForm()` exactly as they already did for the
+    Team Harvest ones. Found by the full-suite gate, not by this phase's own group.
+11. **`P20A-T15`/`P20A-T16` admit `GeneralHarvestBoard.php`.** The Phase 20 manifest guards allow-list
+    every file that names the Team Harvest objects. The shared board's read model derives `N` from
+    `harvest_queue` — the queue's own table (§12.3) — so it joins the list. Both guards still prove
+    that no award writer, service, route or job exists.
+12. **The smoke script's two currency patterns are ASCII, and its card check is data-driven.**
+    `smoke.ps1` is UTF-8 without a BOM and Windows PowerShell 5.1 decodes it as ANSI, so a literal `₱`
+    inside a regex is a parse error that stopped the whole walk; the checks match the amount instead of
+    the glyph. `P21B-T1` also compares the two stored cells with the ladder snapshot instead of
+    hard-coding Appendix A — a development copy whose amounts an operator has cleared (the state the
+    21A QA left this one in) must still render and pass.
+13. **The phase's case count was corrected.** `GeneralHarvestConfigurationTest` holds **35** cases
+    (`P21B-T1 … T35`, including the depth-preservation and null-placeholder cases added after the
+    smoke walk); earlier drafts counted 33 or 34 and so printed 1,369 or 1,370 for the suite. The full
+    run is **1,371**.
+14. **`save()` no longer turns an absent field into a null placeholder.** It read every key
+    `sectionKeys()` names, so a card that posted neither ladder handed `applySection()` ten nulls;
+    `generalHarvestAmountsSubmitted()` counted a null as a submission and the save cleared (and
+    audited) the operator's ten rows. Absent fields now stay absent and a null is read as absence
+    (P21B-T35). The Team Harvest ladder had the same latent defect from 20B and is fixed with it. The
+    smoke walk found this: its Royalty/Team Harvest card saves post neither ladder, and
+    `P21B-T1` read a cleared card. Phase 21B's own group could not see it because it calls
+    `applySection()` directly, the way a browser never does.
+15. **The shared release documents were updated by this phase, not deferred to 21G.**
+    `system/README.md`, `docs/admin-guide.md` and `docs/deploy.md` name the new card, the two settings
+    and the ten ladder rows now, because a deployed 21B whose documents still say 36 / 77 / migration
+    024 would be actively misleading. `docs/install-reset.md` and `docs/runbook.md` remain 21G's sweep
+    (as they were at 20G).
+
+### Hand-off to 21C
+
+- `GeneralHarvestLevel` is the only way any later phase may read an amount, a threshold, a block range
+  or a board total (§6 Hand-off).
+- `GeneralHarvestBoard::state()`, `queueN()`, `frontier()`, `backlog()` and `status()` are the only way
+  to read the board's condition; `blocks()` and `blockRange()` are the node-side reads.
+- The ladder is validated, audited, frozen-from-the-arm and rendered; 21C may assume a configured
+  ladder, an unarmed board and a queue that may be empty (`N = 0`).

@@ -4,8 +4,9 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 20 — the Team Harvest bonus, released in seven gates 20A → 20G
-(`dmp/plan-ecowealth-team-harvest.md`). `APP_PHASE` is 20** and the workstream is closed.
+**Current status: Phase 21 — the General Harvest bonus, in progress 21A → 21G
+(`dmp/plan-ecowealth-general-harvest.md`). 21A (foundation) and 21B (configuration and the board
+arithmetic) have landed; `APP_PHASE` is still 20 until 21G.**
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -56,6 +57,21 @@ dashboard tile and the genealogy badge); and **20G** the release: `APP_PHASE` **
 signed (`docs/qa/phase-20-team-harvest.md`, sections A–G, 58 checks), the smoke walk (**263** checks)
 and the documentation sweep. The stream still ships **off and unseeded**, so a fresh install pays
 nothing until an operator runs the seed and turns it on.
+
+The fifth workstream — **Phase 21, the General Harvest bonus**
+(`dmp/plan-ecowealth-general-harvest.md`) — is **in progress**. It is one **shared 3-ary board** over
+the Harvest queue: every qualified member holds a node (`seq = harvest_queue.id − 1`), a node's
+level-`L` block is the `3^L` queue positions after it, and a level pays its flat amount once when that
+block is full — whoever filled it. The money therefore depends on the whole network's queue length,
+never on the member's own team. **21A** added the three tables (`general_harvest_levels`,
+`general_harvest_board`, `general_harvest_awards`), the `general_harvest` wallet movement, two settings
+and the ten reference amounts (migration `025`, **39 tables / 79 settings**), with no reader;
+**21B** added the configuration card and the whole board arithmetic — the switch, the payable depth,
+the ten amounts, the generated ladder and position tables, the four-state strip, the "if the queue
+reaches N" calculator and `GeneralHarvestLevel` / `GeneralHarvestBoard`, which are the only way any
+later phase may read an amount, a threshold, a block or a board total. 21C arms the board (the
+baseline), 21D pays it, 21E/21F add the admin and member surfaces and 21G releases it. The stream
+ships **off and unarmed**, so nothing pays until an operator configures, arms and enables it.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -163,9 +179,10 @@ and the Royalty close have kill switches on the settings page.
    mysql -u root ecowealth_sneat < database/install.sql
    ```
 
-   `database/install.sql` creates the 36 tables, the 77 settings, both staff accounts,
-   the seven starter products, the two packages and the ten Team Harvest ladder rows. It seeds
-   **no** demo members, demo codes or demo wallets, and it refuses to run against a non-empty schema.
+   `database/install.sql` creates the 39 tables, the 79 settings, both staff accounts,
+   the seven starter products, the two packages, the ten Team Harvest ladder rows, the ten General
+   Harvest ladder rows and the unarmed General Harvest board row. It seeds **no** demo members, demo
+   codes or demo wallets, and it refuses to run against a non-empty schema.
 
    Prefer phpMyAdmin? Select the schema → **Import** → choose `database/install.sql` →
    select **Stop on error** → **Go**. The footer prints the verification counts.
@@ -515,7 +532,7 @@ system/
 │   ├── install.sql            generated production bundle (schema + seeds 001–004 + footer)
 │   ├── install/               header.sql + footer.sql used by bin/build_install_sql.php
 │   ├── schema.sql             fresh-install DDL (no database name hard-coded)
-│   ├── migrations/            001_settings_roles … 024_team_harvest
+│   ├── migrations/            001_settings_roles … 025_general_harvest
 │   └── seeds/                 settings, accounts, demo catalogue, demo packages, demo tree
 └── tests/
     ├── bootstrap.php          rebuilds ecowealth_sneat_test, assertions, fixtures, the
@@ -761,7 +778,7 @@ page is the complete settings surface — **eight independent cards**, each with
 | **Payout methods** | `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee`, `payout_<method>_enabled` |
 | **Payment windows** | `shop_payment_deadline_hours`, `shop_correction_window_hours`, `shop_max_proof_attempts`, `shop_expiry_enabled` |
 | **Fulfilment & invoices** | `seller_*`, `shop_autocomplete_days`, `shop_autocomplete_enabled` |
-| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`; the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled`, `unilevel_hold_days`, `unilevel_release_enabled`; the **Royalty bonus** sub-block: `royalty_enabled`, `royalty_pay_enabled`, four rank thresholds, three quotas and six rates; the **Team Harvest bonus** sub-block: `team_harvest_enabled`, `team_harvest_qualify_directs`, `team_harvest_max_levels` and the ten `team_harvest_levels` amounts (table rows, not settings) |
+| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`; the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled`, `unilevel_hold_days`, `unilevel_release_enabled`; the **Royalty bonus** sub-block: `royalty_enabled`, `royalty_pay_enabled`, four rank thresholds, three quotas and six rates; the **Team Harvest bonus** sub-block: `team_harvest_enabled`, `team_harvest_qualify_directs`, `team_harvest_max_levels` and the ten `team_harvest_levels` amounts (table rows, not settings); the **General Harvest bonus** sub-block: `general_harvest_enabled`, `general_harvest_max_levels` and the ten `general_harvest_levels` amounts (table rows, not settings) |
 | **Transfers** | `ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`, `ewallet_transfer_weekly_limit` (0 = unlimited) |
 
 The controller only validates, writes and audits the submitted card's keys (`settings.update`, with
@@ -1717,6 +1734,130 @@ php tests/run.php TeamHarvest                  # the whole stream (20A–20F)
 
 ---
 
+## General Harvest bonus (Phases 21A–21B)
+
+One **shared 3-ary board** over the Harvest queue Phase 20 built
+(`dmp/plan-ecowealth-general-harvest.md`, reference `docs/comp-plan_addons.md` §4). Every
+Harvest-qualified member holds exactly one **node**: their queue position minus one
+(`seq = harvest_queue.id − 1`). The node's level-`L` block is the `3^L` positions that follow it —
+
+```
+slots(L)     = 3^L                          3, 9, 27, 81 … 59,049
+start(q,L)   = 3^L·q + (3^L − 1)/2          0-based first slot
+block(q,L)   = positions [start+1 … start+3^L]
+filled(q,L)  = clamp(N − start, 0, 3^L)
+complete     ⇔ N ≥ 3^L·q + (3^(L+1) − 1)/2   the threshold N_min(q, L)
+```
+
+— and a level pays its flat amount **once, when the block is full**, all or nothing. The block is
+filled by whoever took those queue positions, so the money crosses team lines: a registration at
+position #9,001 can complete a stranger's block. `N` (the queue length) is the only input; no
+purchase, rank, month, package or sponsor enters any formula.
+
+| Level | Slots | Apex needs `N` | Reference amount | Cumulative |
+|---:|---:|---:|---:|---:|
+| 1 | 3 | 4 | ₱2,000.00 | ₱2,000.00 |
+| 2 | 9 | 13 | ₱4,000.00 | ₱6,000.00 |
+| 3 | 27 | 40 | ₱8,000.00 | ₱14,000.00 |
+| 4 | 81 | 121 | ₱12,000.00 | ₱26,000.00 |
+| 5 | 243 | 364 | ₱25,000.00 | ₱51,000.00 |
+| 6 | 729 | 1,093 | ₱100,000.00 | ₱151,000.00 |
+| 7 | 2,187 | 3,280 | ₱250,000.00 | ₱401,000.00 |
+| 8 | 6,561 | 9,841 | ₱480,000.00 | ₱881,000.00 |
+| 9 | 19,683 | 29,524 | ₱2,500,000.00 | ₱3,381,000.00 |
+| 10 | 59,049 | 88,573 | ₱5,000,000.00 | ₱8,381,000.00 |
+| **Total** | **88,572** | | **₱8,381,000.00** | |
+
+Node `q` needs `3^L·q` more than the apex at every level (position #2 reaches the full ladder at
+147,622, #3 at 206,671, #4 at 265,720). The whole board's liability at queue size `N` is a closed
+form — **₱2,000 at N = 4, ₱176,000 at N = 121, ₱190,208,000 at N = 88,573** — which is what every
+report, reconcile check and test compares an observed ledger with.
+
+**The schema (21A, migration `025`).** `general_harvest_levels` (the ten amounts, natural key),
+`general_harvest_board` (the singleton: `baseline_n`, `armed_at`, `armed_by`, `settled_n`) and
+`general_harvest_awards` (the money ledger, `UNIQUE (seq, level)`), plus `general_harvest` on
+`ewallet_ledger.ref_type`. The three tables exist from 21A; **21B** reads the ladder and the queue,
+**21C** records the baseline and **21D** pays.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `general_harvest_enabled` | `0` | The one switch. Off writes no award; the queue keeps growing. |
+| `general_harvest_max_levels` | `10` | The deepest level that may pay (1–10). Levels above it complete on the board and are marked *not paying at this depth*; their amounts are kept. |
+
+There is deliberately **no baseline key**: the go-live queue length is money-critical state and lives
+on the board row, under the same lock as `settled_n` (§13.2).
+
+### `GeneralHarvestLevel` (21B)
+
+The one place that turns the ladder into money and the one place that derives the board's structure.
+**Every formula in §12.2–§12.6 lives here**, so a view, a job or a report never types a threshold:
+
+| Method | What it answers |
+|---|---|
+| `rows()`, `map()`, `amounts()`, `amount($level)` | the configured ladder, zero-filled (a missing row is `0.00`) |
+| `total()`, `cumulative()`, `referencePreset()`, `forForm()` | the full ladder, the running total, the Appendix A preset |
+| `slots($level)`, `blockStart()`, `blockEnd()`, `blockFrom()`, `blockTo()`, `threshold()`, `apexThreshold()` | the block arithmetic (`2–4`, `5–13`, … and `4, 13, 40 … 88,573`) |
+| `filled()`, `complete()`, `levelsFor()`, `earnedBy()` | one node at queue length `N` |
+| `paid($level, $n)`, `qFor()`, `boardTotal()`, `awardCount()` | the whole board's closed form |
+| `nextN()`, `nextCompletion()` | the queue length each level's next block needs |
+| `maxLevels()`, `enabled()` | the two knobs |
+| `validate()`, `save()` | the rules and the one write (ten rows, delete-then-insert, in one transaction) |
+
+The rules: amounts are money (`nullable\|numeric\|gte:0\|lte:10000000\|decimal:2`), the ten may total
+at most **₱25,000,000.00** (a typo guard, refused as a `sum` error and never clamped), **every level
+inside the payable depth must be positive** to enable the stream or raise the depth (D-17), and the ten
+amounts are **frozen while the board is armed** (D-23) — a change is refused with an `armed` error
+naming the arm instant, because a shared board's whole liability is a closed form over one ladder.
+
+### `GeneralHarvestBoard` (21B)
+
+The board's state and the queue-side reads — read-only in this phase:
+
+| Method | What it answers |
+|---|---|
+| `state()` | the singleton row (a missing row reads as unarmed) |
+| `queueN()`, `gapless()` | `{n, max_id, gapless}` — `COUNT(*) = MAX(id)`, the D-03 invariant |
+| `frontier()` | per level `{rows, complete, missing, next_n, amount}` from one grouped aggregate and the closed forms |
+| `backlog()` | `N − settled_n` and the open liability it is worth |
+| `status()` | one of the four strip states: `unarmed`, `armed_off`, `armed_on`, `unsettled` |
+| `positionOf()`, `ownerOf()` | the member ↔ node bridge |
+| `blocks($seq, $n)` | a node's ten blocks: slots, `#from–#to`, threshold, filled, percent, complete, amount, earned, paying |
+| `blockRange($level, $offset, $limit)` | a page of the nodes whose block at that level is full |
+
+### The settings card (21B)
+
+**Settings → Commissions → General Harvest bonus** (below the Team Harvest block; one card, one form,
+one save — the hidden `section=commissions` field). It renders:
+
+- the switch, the payable depth and the ten amount inputs, each with its live cumulative and its
+  *Pays at this depth* / *Not paying at this depth* badge;
+- the **generated ladder table** — slots `3^L`, the apex threshold, the stored amount, the cumulative
+  sum and the depth marking, every cell from `GeneralHarvestLevel` (the view computes none of them);
+- the **generated position table** — positions #1–#6 × levels 1–4, the reference's §4.5 table on
+  screen;
+- the **four-state strip**, which names the single next action (*not armed* → run
+  `bin/general_harvest_arm.php`; *armed and off*; *armed and on*; *armed with N − settled_n positions
+  waiting* → run `bin/general_harvest_catchup.php`) and never claims money is owed;
+- the **"If the queue reaches N" calculator** (`1000` → **₱1,601,000.00** in **493** awards), labelled
+  as an illustration;
+- the full-ladder total and the position dependence in one sentence (node #1 ₱8,381,000.00 at 88,573;
+  node #2 at 147,622; node #3 at 206,671).
+
+The save writes the switch, the depth and the ten rows **in one transaction** and audits
+`general_harvest.ladder.update` (before/after) only when something changed; the tenant-wide
+`settings.update` row still records the keys that moved. `app-general-harvest.js` re-renders the
+cumulative column, the totals and the calculator as the operator types — progressive enhancement only:
+with JavaScript off the form saves, validates and prints the same server-rendered numbers. **Arming is
+not reachable from the page**: there is no field and no button for it, and while the board is armed the
+ten inputs render disabled with the reason.
+
+```bash
+php tests/run.php GeneralHarvestConfiguration  # 35 configuration + arithmetic cases (21B)
+php tests/run.php GeneralHarvest               # the whole stream (21A–21B)
+```
+
+---
+
 ## Cron jobs
 
 Six scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows launcher.
@@ -1821,11 +1962,11 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (1,320 cases; Phase 20 is the last workstream)
+php tests/run.php                 # full suite (1,371 cases; Phase 21 is in progress through 21B)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
-powershell -NoProfile -File tests/smoke.ps1    # 263 HTTP checks against the running app
+powershell -NoProfile -File tests/smoke.ps1    # 268 HTTP checks against the running app
 ```
 
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
@@ -1836,7 +1977,7 @@ powershell -NoProfile -File tests/smoke.ps1    # 263 HTTP checks against the run
 - Uploads are written to a scratch folder (`UPLOAD_ROOT`) and cron logs/locks to another
   (`STORAGE_PATH`) under the system temp directory.
 - The migration test builds `ecowealth_sneat_migration_test` from
-  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–024 in order and
+  `tests/fixtures/legacy_phase0_schema.sql`, applies migrations 001–025 in order and
   compares the result with `schema.sql`.
 
 The smoke script needs the app running and MySQL access for temporary changes (a throw-away
@@ -1850,7 +1991,7 @@ window, the reports performance budget, the CSV exports and their audit rows, th
 transfer throttle. The install/reset workstream adds ten more — `IR4-T1…T5` for the web installer's
 refusal states, hardening headers, GET/POST side effects and shared stylesheet, and `IR6-T1…T5` for the
 reset console's guest redirect, member 403, admin form with no secret, three refusals that change
-nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), Phase 19 adds **19** (the commissions settings sub-block and the member Rank column, the Royalty ledger and its filters/CSV, the member statement and tile, and the Royalty close's URL entry and doctor), and Phase 20 adds **15**: three on the Team Harvest settings ladder (P20B), then the release walk (P20G) — the settings card, the fourth ledger tab and the three unchanged tabs, the directory and its filter, the reports block and CSV, the unqualified and queued member statements, the dashboard tile, the genealogy badge, and the registration hook — **263** HTTP checks in all.
+nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), Phase 19 adds **19** (the commissions settings sub-block and the member Rank column, the Royalty ledger and its filters/CSV, the member statement and tile, and the Royalty close's URL entry and doctor), and Phase 20 adds **15**: three on the Team Harvest settings ladder (P20B), then the release walk (P20G) — the settings card, the fourth ledger tab and the three unchanged tabs, the directory and its filter, the reports block and CSV, the unqualified and queued member statements, the dashboard tile, the genealogy badge, and the registration hook. Phase 21B adds **5** more: the General Harvest card and its ten inputs, the generated ladder and position table, the ₱25,000,000.00 sum refusal, the depth-11 refusal and the card's inertness — **268** HTTP checks in all.
 
 The install/reset groups run without a browser and without the application connection:
 
@@ -1912,6 +2053,7 @@ powershell -NoProfile -File tests/smoke.ps1 -DbUser root -DbPass ''
 | `022_shop_cancel_toggle.sql` | The setting `shop_cancel_enabled` (**Enable Cancel of Order**, **0** = closed) only; additive and re-runnable, **no table, no column**, so an upgraded database gets the safe default |
 | `023_royalty_bonus.sql` | `royalty_periods` (one header per month, natural `period` key) and `royalty_awards` (one row per member per month, `UNIQUE (period, user_id)`, the money CHECKs); `ewallet_ledger.ref_type` gains `royalty`; the sixteen `royalty_*` settings (the stream off by default); additive and re-runnable |
 | `024_team_harvest.sql` | `harvest_queue` (one row per qualified member; `id` **is** the position, `UNIQUE (user_id)`), `team_harvest_levels` (the ten amounts, natural key) and `team_harvest_awards` (the money ledger, `UNIQUE (user_id, level)`, the money CHECKs); `ewallet_ledger.ref_type` gains `team_harvest`; the four `team_harvest_*` settings (off and unseeded by default) and the ten reference ladder rows; additive and re-runnable |
+| `025_general_harvest.sql` | `general_harvest_levels` (the ten amounts, natural key), `general_harvest_board` (the singleton `id = 1`: `baseline_n`, `armed_at`, `armed_by`, `settled_n`) and `general_harvest_awards` (the money ledger, `UNIQUE (seq, level)`, the money CHECKs; `ledger_id` is deliberately not an FK); `ewallet_ledger.ref_type` gains `general_harvest`; the two `general_harvest_*` settings (off and unarmed by default), the ten reference ladder rows and the unarmed board row; additive and re-runnable, and a re-run never overwrites an operator's amount or re-arms a board |
 
 The wallet tables are read and written only by `WalletService`; `bin/wallet_reconcile.php` is the
 supported way to prove the buckets still match the ledger after a migration or a data import.

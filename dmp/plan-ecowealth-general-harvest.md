@@ -1,7 +1,7 @@
 # Plan — General Harvest Bonus (the shared 3-ary Harvest board)
 
 **Phase 21** of the EcoWealth member system · **Status: in progress** — 21A (Foundation) landed
-2026-11-16; 21B–21G planned.
+2026-11-16, 21B (Configuration and the board arithmetic) landed 2026-11-16; 21C–21G planned.
 **Delivery model:** **seven gated phases, 21A → 21G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`
@@ -3984,7 +3984,7 @@ without a filled row is not closed, whatever its code says.
 | Phase | Tag | Date | Suite passed/ran | Smoke passed/ran | Migration/bundle | Manual QA `QA21X-nn` | Tester | Deviations | Signed |
 |---|---|---|---|---:|---:|---|---|---|---|
 | 21A Foundation | `p21a-foundation` | 2026-11-16 | **1,336 / 1,336** | **263 / 263** | migration `025` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 | A: **8/8** | Automated QA pass — DSH | 1 (`install/header.sql` also updated; see the phase log) | ☑ |
-| 21B Configuration | `p21b-configuration` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | B: —/9 | — | — | ☐ |
+| 21B Configuration | `p21b-configuration` | 2026-11-16 | **1,371 / 1,371** | **268 / 268** | no schema change; bundle `--check` exit 0 (byte-identical) | B: **9/9** | Automated QA pass — DSH | 15 (the `index.php` include, QA21B-02's arithmetic, the manifest guards, the two Royalty payloads, the smoke checks and their ASCII currency patterns, the explicit queue ids, the case-count correction, the absent-field fix and the shared release documents; see the phase log) | ☑ |
 | 21C Baseline | `p21c-baseline` | — | — / — | — / — | no schema change; the arm dry run and the real run both exit 0 | C: —/8 | — | — | ☐ |
 | 21D Money engine | `p21d-money` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 with the General Harvest section; catch-up doctor exit 0 | D: —/10 | — | — | ☐ |
 | 21E Admin visibility | `p21e-admin` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | E: —/8 | — | — | ☐ |
@@ -3997,6 +3997,11 @@ that owns it. An empty deviation log at the 21G gate means the plan and the buil
 | Phase | Deviation | Reason | Approved by |
 |---|---|---|---|
 | 21A | `database/install/header.sql` is updated although the §5 manifest names `footer.sql` only | The header prints the same fresh-install counts (39 tables · 79 settings · the two ladders · the unarmed board row) and `RoyaltyFoundationTest`, `TeamHarvestFoundationTest` and `P21A-T5` assert them; a bundle whose first page contradicts its footer is a worse defect than one extra documentation line. The 20A gate made the same call | the 21A gate (recorded in `docs/phase-log.md`) |
+| 21B | `admin/settings/index.php` is updated although the §6 manifest names `_general_harvest.php` and `_commissions.php` only | `index.php` passes every card's variables to its partial explicitly; without the seven `general_harvest_*` keys the sub-block renders empty. One include and one header line, no behaviour outside the card | the 21B gate (recorded in `docs/phase-log.md`) |
+| 21B | `QA21B-02`'s illustrative total is **₱7,381,500.00**, not the plan's ₱8,882,500.00 | The manual step is arithmetically wrong: ₱8,381,000.00 − ₱2,000.00 + ₱2,500.00 − ₱5,000,000.00 + ₱4,000,000.00 = ₱7,381,500.00. The card, `P21B-T2` and the QA pack state the correct number; the plan's own case and the model agree with it | the 21B gate |
+| 21B | `P21A-T15` and `P21A-T16` are rewritten to describe the 21A/21B boundary | They are the 21A manifest guards and 21B legitimately extends the manifest and adds the card; they still prove that no award model, service, route or job exists. Same churn as 20B's manifest in Phase 20 | the 21B gate |
+| 21B | `P20A-T15`/`P20A-T16`, `P19B-T11` and `P19B-T25` are updated | The Phase 20 manifest guards must admit `GeneralHarvestBoard` (its whole arithmetic starts from `harvest_queue`), and the two Royalty payloads must post the ten new amounts or a Royalty edit clears — and audits — the General Harvest ladder. Both found by the full-suite gate, not by 21B's own group | the 21B gate |
+| 21B | Five smoke checks are added although the phase adds no route | D-15 holds — `/admin/settings` already existed — but the card, its two generated tables, its two refusal rules and its inertness are exactly what a smoke walk covers; the checks only read the page or send a refused save | the 21B gate |
 
 **Acceptance sign-off.**
 

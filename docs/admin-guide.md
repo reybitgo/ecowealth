@@ -939,3 +939,124 @@ purchases footnote appear once, no page promises a date or a guaranteed income, 
 configured depth reads *Complete — not paying at this depth* rather than a silent zero. `P20F-T12`…
 `P20F-T14` pin the exact sentences; if a member disputes a figure, compare the tab with the member panel
 in §18 — both call `TeamHarvestService::statusFor()` and cannot legitimately disagree.
+
+---
+
+## 20. General Harvest bonus: the shared board and its configuration (Phase 21B)
+
+The General Harvest bonus is the **second, shared board**. It is not a member's private matrix: there
+is **one board for the whole network**, every Harvest-qualified member holds exactly one **node** — their
+position in the Harvest queue minus one — and a node's level-`L` block is the next `3^L` positions in
+that same queue.
+
+| Level | Slots in the block | The apex (position #1) needs `N ≥` | Pays (reference) | Cumulative |
+|---:|---:|---:|---:|---:|
+| 1 | 3 | 4 | ₱2,000.00 | ₱2,000.00 |
+| 2 | 9 | 13 | ₱4,000.00 | ₱6,000.00 |
+| 3 | 27 | 40 | ₱8,000.00 | ₱14,000.00 |
+| 4 | 81 | 121 | ₱12,000.00 | ₱26,000.00 |
+| 5 | 243 | 364 | ₱25,000.00 | ₱51,000.00 |
+| 6 | 729 | 1,093 | ₱100,000.00 | ₱151,000.00 |
+| 7 | 2,187 | 3,280 | ₱250,000.00 | ₱401,000.00 |
+| 8 | 6,561 | 9,841 | ₱480,000.00 | ₱881,000.00 |
+| 9 | 19,683 | 29,524 | ₱2,500,000.00 | ₱3,381,000.00 |
+| 10 | 59,049 | 88,573 | ₱5,000,000.00 | **₱8,381,000.00** |
+
+Three things an operator has to hold on to:
+
+1. **`N` is the whole network's qualified count**, not the member's team. A block is filled by whoever
+   took those queue positions, so a registration anywhere can complete a block for a member anywhere —
+   including a complete stranger. This is intended, not a bug.
+2. **A level pays all or nothing.** 26 of 27 positions pays ₱0.00 and the 27th pays the level's amount,
+   once. There is no part-payment and no second payment.
+3. **Every position moves the staircase right.** Node `q` needs `3^L·q` more than the apex at every
+   level: position #2 reaches the full ladder at 147,622 qualified members, #3 at 206,671, #4 at 265,720.
+
+The whole board's liability at queue size `N` is a closed form you can check without reading a row:
+**₱2,000 at N = 4**, **₱176,000 at N = 121**, **₱190,208,000 at N = 88,573**.
+
+> **Phase 21B shipped the configuration and the arithmetic; 21C–21F build the baseline, the money and
+> the visibility.** Nothing can pay yet: there is no arm job, no settlement and no page that writes an
+> award. This section is the card and the numbers it shows. The member's own view arrives with 21F.
+
+### Where to edit it
+
+**Admin → Settings → Commissions → General Harvest bonus**, below the Team Harvest block. The card is
+one form with one save button:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Enable the General Harvest bonus** | **off** | Off writes no award. The queue is still recorded, so nothing is lost while it is off — and nothing pays until the board is **armed** (21C). |
+| **Levels that pay** | 10 | Whole number 1–10. Levels above it still complete on the board and are marked *not paying at this depth*; their amounts are kept, and raising the depth pays them from the current queue. |
+| **Level 1 … 10 amounts** | the reference ladder | Money per level, 0.00–10,000,000.00 each with two decimals. Blank and 0 are the same value. |
+
+Below the inputs the card shows two **generated** tables, and neither is typed:
+
+- the **ladder**: every level's slots, the apex threshold, the stored amount, the cumulative sum and
+  whether the configured depth pays it;
+- the **position table**: positions #1–#6 against levels 1–4 — the reference's own table
+  (`4 13 40 121` / `7 22 67 202` / `10 31 94 283` / `13 40 121 364` / …) — computed from the block
+  formula.
+
+With JavaScript on, the cumulative column, the full-ladder total, the per-depth total and the
+calculator re-read as you type; with JavaScript off the card still saves, still validates and still
+shows the same stored numbers.
+
+The card refuses, as field errors, not silent fixes:
+
+- an amount that is not money, is negative, has more than two decimals or exceeds **₱10,000,000.00**;
+- a ladder whose ten amounts total more than **₱25,000,000.00** (a typo guard: the reference ladder is
+  ₱8,381,000.00 — five times smaller);
+- **enabling** the stream, or **raising the depth**, while any level inside the depth is 0. The error
+  names the level: *“Level 4 has no amount. …”* (decision D-17 — a zero level below the depth could
+  never be paid, and the ledger's per-level frontier would no longer be a contiguous prefix);
+- a depth that is 0, 11 or a decimal.
+
+Saving is atomic: the switch, the depth and all ten rows commit together or not at all, and a refused
+save changes nothing. Every moved ladder is audited as `general_harvest.ladder.update` with the
+switch, the depth and the ten amounts before and after.
+
+### The one irreversible rule: the amounts freeze at the arm
+
+Once the board has been **armed** (21C — it records the go-live queue length), the ten amounts are
+**frozen**: a save that changes one is refused with *“The board was armed on … so the ten amounts are
+frozen …”*. The depth may still change, and the amounts it exposes are the frozen ones.
+
+That is not an inconvenience, it is the only way the arithmetic stays true: the board's whole liability
+is one closed form over one ladder, and a mid-stream amount change would make two nodes receive
+different amounts for the same level and turn the reconciliation into a sample. The only way back is a
+**business reset**, which empties the award ledger — safe before anything has been paid, unacceptable
+after. While the board is unarmed, edit freely: nothing has been paid.
+
+### The four-state strip
+
+The card states the board's real condition in one of four ways, and never claims it is paying when it
+is not:
+
+| State | What it means | Next action it names |
+|---|---|---|
+| **Not armed** | no baseline has been recorded; nothing can pay | run `bin/general_harvest_arm.php` (21C) before enabling |
+| **Armed and switched off** | positions are being recorded; nothing is paying | turn the switch on when the ladder is ready |
+| **Armed, switch on — nothing waiting** | the board is settled to the queue | none |
+| **Armed, switch on — positions waiting** | the queue has grown past `settled_n`; the positions are worth the closed-form difference | run `bin/general_harvest_catchup.php` (21D) |
+
+A queue that is **not gapless** (a hole in the positions) is called out separately in red: the board's
+arithmetic is defined over consecutive indices and the settlement will refuse to run until the hole is
+repaired.
+
+### The calculator is an illustration
+
+The **If the queue reaches N** box answers "what would the whole board have paid at that queue size?"
+— `1000` reads **₱1,601,000.00** across **493** awards. It is labelled an illustration for a reason:
+it is the closed form over the stored ladder, not a liability, not a forecast and not a promise. No
+award exists until the board is armed and settled.
+
+### What this phase does not do
+
+There is **no** button that arms the board and **no** button that settles it — both are deliberate,
+separate acts (21C and 21D, CLI). Arming is not reachable from any page. The card writes no award, no
+wallet movement, no queue row and no board state; it reads the queue and the ladder only.
+
+**Go-live order**: the sequence is deploy → configure (this card) → arm (21C) → enable → catch up →
+reconcile. Rollback is turning the switch off; the ladder rows and the two settings are inert and may
+stay.

@@ -156,6 +156,18 @@ return [
         assert_contains('₱5,095,000.00', $commissions);
         assert_not_contains('name="team_harvest_ledger_since"', $commissions);
 
+        /* Phase 21B: the General Harvest sub-block lives in the same card. */
+        assert_contains('General Harvest bonus', $commissions);
+        assert_contains('name="general_harvest_enabled"', $commissions);
+        assert_contains('name="general_harvest_max_levels"', $commissions);
+        assert_contains('name="general_harvest_amounts[1]"', $commissions);
+        assert_contains('name="general_harvest_amounts[10]"', $commissions);
+        assert_contains('data-general-harvest-table', $commissions);
+        assert_contains('data-general-harvest-positions', $commissions);
+        assert_contains('data-general-harvest-state="unarmed"', $commissions);
+        assert_contains('bin/general_harvest_arm.php', $commissions);
+        assert_contains('₱8,381,000.00', $commissions);
+
         assert_contains('data-live-region="settings-transfers"', $transfers);
         assert_contains('data-live-hold="dirty"', $transfers);
         assert_contains('name="ewallet_transfer_fee"', $transfers);

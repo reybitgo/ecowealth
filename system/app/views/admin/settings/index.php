@@ -37,6 +37,13 @@ declare(strict_types=1);
  * @var array<string, mixed> $team_harvest_ladder
  * @var array<string, mixed> $team_harvest_status
  * @var array<int, string> $team_harvest_preset
+ * @var list<array<string, mixed>> $general_harvest_fields
+ * @var array<string, array{label:string,hint:string}> $general_harvest_toggles
+ * @var array<int, string> $general_harvest_amounts
+ * @var array<string, mixed> $general_harvest_ladder
+ * @var array<string, mixed> $general_harvest_positions
+ * @var array<string, mixed> $general_harvest_board
+ * @var array<int, string> $general_harvest_preset
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
@@ -67,6 +74,13 @@ $teamAmounts      = $team_harvest_amounts ?? [];
 $teamLadder       = $team_harvest_ladder ?? [];
 $teamStatus       = $team_harvest_status ?? [];
 $teamPreset       = $team_harvest_preset ?? [];
+$ghFields         = $general_harvest_fields ?? [];
+$ghToggles        = $general_harvest_toggles ?? [];
+$ghAmounts        = $general_harvest_amounts ?? [];
+$ghLadder         = $general_harvest_ladder ?? [];
+$ghPositions      = $general_harvest_positions ?? [];
+$ghBoard          = $general_harvest_board ?? [];
+$ghPreset         = $general_harvest_preset ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -264,9 +278,9 @@ $action = url('admin/settings');
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <div>
                         <h5 class="mb-1">Commissions</h5>
-                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase, Royalty, Team Harvest and registration rules</p>
+                        <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase, Royalty, Team Harvest, General Harvest and registration rules</p>
                       </div>
-                      <span class="badge bg-label-secondary">Phase 15 · 19B · 20B</span>
+                      <span class="badge bg-label-secondary">Phase 15 · 19B · 20B · 21B</span>
                     </div>
 <?= View::capture('admin/settings/_commissions', [
     'settings'           => $settings,
@@ -283,6 +297,13 @@ $action = url('admin/settings');
     'team_harvest_ladder'  => $teamLadder,
     'team_harvest_status'  => $teamStatus,
     'team_harvest_preset'  => $teamPreset,
+    'general_harvest_fields'    => $ghFields,
+    'general_harvest_toggles'   => $ghToggles,
+    'general_harvest_amounts'   => $ghAmounts,
+    'general_harvest_ladder'    => $ghLadder,
+    'general_harvest_positions' => $ghPositions,
+    'general_harvest_board'     => $ghBoard,
+    'general_harvest_preset'    => $ghPreset,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

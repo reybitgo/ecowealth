@@ -1,0 +1,38 @@
+QA21B-06 - The payable depth marks the levels above it
+======================================================
+
+Date: 2026-11-16 18:09:12 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 5 and §12.4 Rule 4 — the depth caps payment, never the board; levels above it are marked
+and their amounts are kept.
+
+A depth of 3 with levels 4–10 cleared was saved through the real save path, then re-rendered:
+
+  save errors ........................ []
+  stored depth ....................... 3 (read before the restore below)
+  GeneralHarvestLevel::maxLevels() ... 3
+  ladder rows ........................ 10
+  rows marked not paying ............. 7
+  stored level 4 (cleared, so 0.00) .. 0.00
+  ladder rows in the table ........... 10
+
+Raising the depth to 5 with level 5 still blank:
+  errors ............................. {"general_harvest_max_levels":"Level 4 has no amount, so the depth cannot rise to 5: give levels 4\u20135 an amount, or keep the depth at 3."}
+  stored depth after the refusal ..... 3
+  stored depth after the 11 refusal .. 3
+  (the script restores the reference ladder and the depth 10 afterwards)
+
+A depth of 11:
+  errors ............................. {"general_harvest_max_levels":"Level 4 has no amount, so the depth cannot rise to 11: give levels 4\u201311 an amount, or keep the depth at 3."}
+
+Checks:
+  a depth of 3 with the levels above it cleared saves ... yes
+  levels 4–10 are marked, the ten rows are kept ........ yes
+  raising to a blank level 5 is refused on the depth ... yes
+  a depth of 11 is a field error ....................... yes
+  the stored depth survives every refusal .............. yes
+
+RESULT: PASS

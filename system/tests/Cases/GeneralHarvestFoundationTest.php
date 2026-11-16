@@ -1104,17 +1104,24 @@ return [
      *  One manifest, nothing reading it (P21A-T15, P21A-T16)
      * ========================================================== */
     'P21A-T15 no application file outside the manifest names the Phase 21 objects' => function () use ($appRoot): void {
-        /* 21A ships tables with no writer on purpose. The manifest is the
-         * wallet vocabulary and the two tools that must know every table
-         * (plan 21A Rule 10, P21A-T15); **21B** adds the configuration card
-         * and the pure arithmetic, **21C** the arm job, **21D** the money
-         * engine, **21E** the admin surfaces and **21F** the member
-         * surfaces. None of them exists yet. */
+        /* 21A ships tables with no writer on purpose, and each later phase
+         * adds to the manifest (plan 21A Rule 10, P21A-T15). 21B adds the
+         * configuration card and the pure arithmetic: two models, the
+         * settings controller and the three settings views. **21C** adds the
+         * arm job, **21D** the money engine, **21E** the admin surfaces and
+         * **21F** the member surfaces. None of those exists yet. */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
             '/app/Services/DatabaseInstaller.php',
             '/app/Services/DatabaseResetService.php',
+            /* 21B — the configuration card and the board arithmetic. */
+            '/app/Models/GeneralHarvestLevel.php',
+            '/app/Models/GeneralHarvestBoard.php',
+            '/app/Controllers/AdminSettingsController.php',
+            '/app/views/admin/settings/_general_harvest.php',
+            '/app/views/admin/settings/_commissions.php',
+            '/app/views/admin/settings/index.php',
         ];
 
         $found = [];
@@ -1141,28 +1148,27 @@ return [
         assert_same(
             $allowList,
             $found,
-            'only the 21A manifest names the General Harvest objects'
+            'only the 21A/21B manifest names the General Harvest objects'
         );
 
         /* The later phases' files do not exist yet. */
         foreach ([
-            '/app/Models/GeneralHarvestLevel.php',
-            '/app/Models/GeneralHarvestBoard.php',
             '/app/Models/GeneralHarvestAward.php',
             '/app/Services/GeneralHarvestService.php',
             '/app/Controllers/GeneralHarvestController.php',
         ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' must not exist in 21A');
+            assert_false(is_file($appRoot . $file), $file . ' is not part of 21B');
         }
 
         assert_false(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
         assert_false(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
     },
 
-    'P21A-T16 the phase adds no route and no page: ParityTest and RouterTest stay green' => function () use ($appRoot): void {
+    'P21A-T16 the phase adds no route and no page of its own: ParityTest and RouterTest stay green' => function () use ($appRoot): void {
         /* D-15: this stream adds no route. The route files and the route
-         * inventory must not mention the feature, and the settings page
-         * must not render a card the plan gives to 21B. */
+         * inventory must not mention the feature, and after 21B the only
+         * screens that render it are the settings card's three files: no
+         * member page, no other admin page (§21E/21F own those). */
         foreach (['/app/routes.php', '/app/routes_inventory.php'] as $file) {
             assert_same(
                 0,
@@ -1171,7 +1177,8 @@ return [
             );
         }
 
-        $views = new RecursiveIteratorIterator(
+        $naming = [];
+        $views  = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($appRoot . '/app/views', FilesystemIterator::SKIP_DOTS)
         );
 
@@ -1180,12 +1187,22 @@ return [
                 continue;
             }
 
-            assert_same(
-                0,
-                preg_match('/general_harvest/i', (string) file_get_contents($file->getPathname())),
-                str_replace('\\', '/', $file->getPathname()) . ' must not render the feature in 21A'
-            );
+            if (preg_match('/general_harvest/i', (string) file_get_contents($file->getPathname())) === 1) {
+                $naming[] = str_replace('\\', '/', substr($file->getPathname(), strlen($appRoot)));
+            }
         }
+
+        sort($naming, SORT_STRING);
+
+        assert_same(
+            [
+                '/app/views/admin/settings/_commissions.php',
+                '/app/views/admin/settings/_general_harvest.php',
+                '/app/views/admin/settings/index.php',
+            ],
+            $naming,
+            'only the settings card renders the feature in 21B'
+        );
 
         /* The phase is inert: a fresh install carries no award, no position
          * and no General Harvest wallet movement, and the stream is off. */

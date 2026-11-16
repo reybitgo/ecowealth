@@ -6,8 +6,8 @@ still open in each phase of `docs/phase-log.md`.
 
 **Status of this pass (2026-11-16):** Phases 1–14 are recorded as **passed** — **200 / 200**
 manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 669** PHP cases and
-**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **1,336 / 1,336** PHP
-cases and **263 / 263** smoke checks after the Phase 21A foundation gate). The Phase 13 queue was rechecked after the
+**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **1,371 / 1,371** PHP
+cases and **268 / 268** smoke checks after the Phase 21B configuration gate). The Phase 13 queue was rechecked after the
 approval / rejection confirmation-modal change: both decisions ask first, and a rejection reason is
 typed in the modal. Phase 14 adds the super-login contract: a URL-token member session, its banner,
 Exit/TTL and the impersonation audit. Phase 15 adds the reports desk, the eight settings cards, the
@@ -1438,6 +1438,56 @@ re-run of `QA21A-04`/`06` and the independent-tester pass remain the project lea
 
 ---
 
+## 21B. Phase 21B — General Harvest configuration and board arithmetic (section B of the Phase 21 pack)
+
+Document: [phase-21-general-harvest.md](phase-21-general-harvest.md) — **sections A–B** (21C–21G append
+theirs)
+
+Phase 21B makes the shared board **configurable and computable**: the *General Harvest bonus* sub-block
+on `/admin/settings` → Commissions (the switch, the payable depth and the ten amounts), the generated
+ladder and position tables, the four-state strip, the "if the queue reaches N" calculator, and the two
+models (`GeneralHarvestLevel`, `GeneralHarvestBoard`) that own every formula in plan §12.2–§12.6.
+**No money moves**: the phase arms nothing, settles nothing and writes no award.
+
+**Prerequisites:** 21A landed (migration `025` on the development copy: **39 tables**, ten ladder rows,
+the unarmed board row). **Expected suite count:** **1,371**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: 1371   Passed: 1371   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 268   Failed: 0 (five new checks)
+php bin/wallet_reconcile.php                  # exit 0 (21B moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA21B-01 | `/admin/settings` → Commissions renders the **General Harvest bonus** card: the reference amounts, the switch **off**, the depth **10**, the generated ladder (`3 … 59,049` / `4 … 88,573` / cumulatives to **₱8,381,000.00**), the position table (`4 13 40 121` … `19 58 175 526`), the strip **Not armed** naming `bin/general_harvest_arm.php`, the node-#1/#2/#3 sentence and the calculator — and **no** arm control | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-01.txt` |
+| QA21B-02 | A changed ladder persists (level 1 ₱2,500.00, level 10 ₱4,000,000.00), the badge reads **₱7,381,500.00**, one `general_harvest.ladder.update` audit row carries the switch, depth and ten amounts before/after plus `changes`, and an unchanged save writes nothing | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-02.txt` |
+| QA21B-03 | Three levels at ₱10,000,000.00 are refused with the **sum** error naming ₱30,401,000.00; the typed values come back, and the stored ladder and the audit log are unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-03.txt` |
+| QA21B-04 | **Load reference ladder** restores the ten preset values and the ₱8,381,000.00 total before any save; the save stores them; the card re-reads the reference ladder afterwards | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-04.txt` |
+| QA21B-05 | Enabling the bonus with an all-zero ladder is refused on the switch naming **level 1**; nothing is written and the switch stays off | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-05.txt` |
+| QA21B-06 | A depth of **3** with levels 4–10 cleared is accepted and the table marks levels 4–10 *not paying at this depth* with their amounts kept; raising it to a blank level 5 is refused on the depth; `11` is refused | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-06.txt` |
+| QA21B-07 | Three `RegistrationService` registrations after configuring write **no** award, **no** `general_harvest` wallet row, **no** board state and no wallet movement (Phase 20's hook still queues the sponsor); the QA members are deleted again | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-07.txt` |
+| QA21B-08 | The calculator reads **₱1,601,000.00** in **493** awards at `N = 1000` and calls itself an illustration; with JavaScript off the card still renders every server number and still saves | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-08.txt` |
+| QA21B-09 | The card at 390 px stacks its ten inputs and scrolls both tables inside the card with no page-level horizontal scroll; at 1440 px the inputs form two columns and both tables fit | ☑ Pass ☐ Fail ☐ Blocked | `QA21B-09.txt` |
+
+| Phase 21B summary | |
+|---|---|
+| Executed | **9 / 9** checks |
+| Passed / Failed / Blocked | **9 / 0 / 0** |
+| Defects | 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
+
+Section B is final for this phase: **9 checks, 9 passed, 0 failed, 0 blocked.** The click-only browser
+items (`QA21B-08`'s real JavaScript-off save and `QA21B-09`'s 390 px/1440 px screens) were captured as
+markup-level transcripts, as at every earlier gate; their visual confirmation and the
+independent-tester pass remain the project lead's item.
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1504,6 +1554,7 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 20F | ☑ Yes ☐ No | Team Harvest member visibility: the fourth `/earnings` tab (position and gate sentence, five counters, the whole 3×10 matrix, the progress card, the paginated roster, the level rows with their wallet links, the two exclusions, the purchases footnote, the FAQ and the Appendix C.6 CSV), the dashboard tile and the genealogy badge and column. **Read-only**, scoped to the session member (`&user_id=` ignored by page and file), the copy rules asserted verbatim and singular, the above-depth and stream-off states explicit, and the page cost constant (10 selects on page 1 and page 2 of a 500-teammate member). **22** new PHP cases, **1,320 / 1,320** green, **251 / 251** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section F: **9 / 9** captured as harness transcripts (the browser re-run is the lead's item). |
 | Phase 20G | ☑ Yes ☐ No | Team Harvest release: `APP_PHASE` **20**; the Phase 20 QA pack complete and signed (sections A–G, **58 / 58**); the twelve Phase 20 smoke checks added, including the registration that queues its sponsor at the next position (a fourth direct changes nothing) — **263 / 263**; the scratch-install go-live replay (install **36 / 77 / 10**, seed dry run → seed → enable, one award and its credit, reconcile exit 0); the release acceptance table **26 / 26**; the cold read fixed one major evidence gap and the stale shared documents (D-20G-01). **1,320 / 1,320** PHP cases, bundle check exit 0, `wallet_reconcile` exit 0, doctor exit 0. |
 | Phase 21A | ☑ Yes ☐ No | General Harvest foundation: migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement and two settings, **stream off and board unarmed**, no reader; migrated ≡ fresh, a reset empties the award ledger and returns the board to `(NULL, NULL, NULL, 0)` while keeping the ladder; fresh install **39 tables / 79 settings / 10 ladder rows / 1 board row**; **16** new PHP cases, **1,336 / 1,336** green and **263 / 263** smoke checks. Section A: **8 / 8** (01/02/03/07/08 from the real commands; 04/05/06 harness renders). |
+| Phase 21B | ☑ Yes ☐ No | General Harvest configuration and board arithmetic: the Commissions card's **General Harvest bonus** sub-block (switch, payable depth, ten amounts), the generated ladder equal to Appendix A, the position table equal to the reference's §4.5 table, the four-state strip, the "if the queue reaches N" calculator, the ₱25,000,000.00 sum guard, the payable-level rule (D-17), the frozen ladder once armed (D-23) and the phase's inertness (three registrations write nothing). Every reference total pinned to the peso (₱2,000 at `N = 4` … ₱190,208,000 at `N = 88,573`). **35** new PHP cases, **1,371 / 1,371** green, **268 / 268** smoke checks (five new 21B checks), bundle check exit 0, `wallet_reconcile` exit 0. Section B: **9 / 9** (01–06 harness renders at the 21B gate, 07 the real registration harness; 08/09 carry the browser items). |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the Phase 17 release
 acceptance table is 27 / 27, and Phases 18, 19, 20 and 21A are recorded above with their own totals. The

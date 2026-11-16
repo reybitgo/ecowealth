@@ -4,12 +4,14 @@ declare(strict_types=1);
 /**
  * Admin settings — the compensation switches (Phase 9–11 keys, exposed
  * in Phase 15), the repeat-purchase sub-block (Phase 17B), the Royalty
- * ladder (Phase 19B) and the Team Harvest ladder (Phase 20B).
+ * ladder (Phase 19B), the Team Harvest ladder (Phase 20B) and the
+ * General Harvest board (Phase 21B).
  *
- * All four blocks are one card and one form: the hidden `section` field
- * still says `commissions`, so the repeat-purchase, Royalty and Team
- * Harvest keys save, validate and audit exactly like the referral keys
- * beside them (plan §13.5, §6 19B rule 10, §6 20B rule 11).
+ * All five blocks are one card and one form: the hidden `section` field
+ * still says `commissions`, so the repeat-purchase, Royalty, Team Harvest
+ * and General Harvest keys save, validate and audit exactly like the
+ * referral keys beside them (plan §13.5, §6 19B rule 10, §6 20B rule 11,
+ * §6 21B rule 12).
  *
  * @var array<string, mixed> $settings
  * @var list<array{key:string, label:string, rule:string, suffix:string, hint:string}> $commission_fields
@@ -25,6 +27,13 @@ declare(strict_types=1);
  * @var array<string, mixed> $team_harvest_ladder
  * @var array<string, mixed> $team_harvest_status
  * @var array<int, string> $team_harvest_preset
+ * @var list<array<string, mixed>> $general_harvest_fields
+ * @var array<string, array{label:string, hint:string}> $general_harvest_toggles
+ * @var array<int, string> $general_harvest_amounts
+ * @var array<string, mixed> $general_harvest_ladder
+ * @var array<string, mixed> $general_harvest_positions
+ * @var array<string, mixed> $general_harvest_board
+ * @var array<int, string> $general_harvest_preset
  */
 
 $settings          = $settings ?? [];
@@ -41,6 +50,13 @@ $teamAmounts       = $team_harvest_amounts ?? [];
 $teamLadder        = $team_harvest_ladder ?? [];
 $teamStatus        = $team_harvest_status ?? [];
 $teamPreset        = $team_harvest_preset ?? [];
+$generalFields     = $general_harvest_fields ?? [];
+$generalToggles    = $general_harvest_toggles ?? [];
+$generalAmounts    = $general_harvest_amounts ?? [];
+$generalLadder     = $general_harvest_ladder ?? [];
+$generalPositions  = $general_harvest_positions ?? [];
+$generalBoard      = $general_harvest_board ?? [];
+$generalPreset     = $general_harvest_preset ?? [];
 
 $value = static function (string $key) use ($settings): string {
     return old($key, (string) ($settings[$key] ?? ''));
@@ -270,5 +286,16 @@ $checked = static function (string $key) use ($settings): bool {
     'team_harvest_ladder'  => $teamLadder,
     'team_harvest_status'  => $teamStatus,
     'team_harvest_preset'  => $teamPreset,
+]) ?>
+
+<?= View::capture('admin/settings/_general_harvest', [
+    'settings'                  => $settings,
+    'general_harvest_fields'    => $generalFields,
+    'general_harvest_toggles'   => $generalToggles,
+    'general_harvest_amounts'   => $generalAmounts,
+    'general_harvest_ladder'    => $generalLadder,
+    'general_harvest_positions' => $generalPositions,
+    'general_harvest_board'     => $generalBoard,
+    'general_harvest_preset'    => $generalPreset,
 ]) ?>
                     </div>

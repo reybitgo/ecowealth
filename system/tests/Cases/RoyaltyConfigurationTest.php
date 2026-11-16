@@ -68,16 +68,19 @@ $sectionMethod = static function (string $method, string $section): array {
  * Every key the Commissions card owns, read from the stored settings —
  * the same payload the browser posts when nothing is edited.
  *
- * Phase 20B added its two knobs and ten amounts to the same card; the
- * amounts are ladder rows rather than settings keys, so they are read
- * from TeamHarvestLevel (a posted card always carries all ten).
+ * Phases 20B and 21B added their knobs and ten amounts to the same card;
+ * each ladder is a set of table rows rather than settings keys, so the two
+ * are read from their own models (a posted card always carries all ten of
+ * each). Posting blanks for either ladder would clear it — and audit it —
+ * which is not what a Royalty edit does.
  *
  * @return array<string, string>
  */
 $baseline = static function (): array {
-    $settings = setting_all();
-    $amounts  = TeamHarvestLevel::forForm(TeamHarvestLevel::amounts());
-    $posted   = [];
+    $settings   = setting_all();
+    $amounts    = TeamHarvestLevel::forForm(TeamHarvestLevel::amounts());
+    $ghAmounts  = GeneralHarvestLevel::forForm(GeneralHarvestLevel::amounts());
+    $posted     = [];
 
     foreach (array_merge(
         $GLOBALS['__p19bKeys'],
@@ -86,6 +89,12 @@ $baseline = static function (): array {
         if (str_starts_with($key, TeamHarvestLevel::AMOUNT_FIELD . '.')) {
             $level        = (int) substr($key, strlen(TeamHarvestLevel::AMOUNT_FIELD . '.'));
             $posted[$key] = (string) ($amounts[$level] ?? '');
+            continue;
+        }
+
+        if (str_starts_with($key, GeneralHarvestLevel::AMOUNT_FIELD . '.')) {
+            $level        = (int) substr($key, strlen(GeneralHarvestLevel::AMOUNT_FIELD . '.'));
+            $posted[$key] = (string) ($ghAmounts[$level] ?? '');
             continue;
         }
 

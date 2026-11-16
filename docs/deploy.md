@@ -1,10 +1,11 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: current.** This guide covers the **Phase 20 release build**: 36 tables, 77 settings,
-> migrations `001`–`024`, ten Team Harvest ladder rows, six scheduled jobs and the live-update layer.
-> The Phase 20F/20G addendum at the end is the migration/upgrade note for the Team Harvest bonus; the
-> go-live order itself lives once, in [`runbook.md`](runbook.md). Hostinger's hPanel labels can change;
-> the steps stay the same.
+> **Status: current.** This guide covers the **Phase 21 build in progress (21A–21B)**: 39 tables,
+> 79 settings, migrations `001`–`025`, ten Team Harvest and ten General Harvest ladder rows (plus the
+> unarmed General Harvest board row), six scheduled jobs and the live-update layer. The Phase 20F/20G
+> addendum at the end is the migration/upgrade note for the Team Harvest bonus, and the Phase 21
+> addendum is the one for the General Harvest bonus; the go-live order itself lives once, in
+> [`runbook.md`](runbook.md). Hostinger's hPanel labels can change; the steps stay the same.
 >
 > Verified against the local build (PHP 8.3.16, MySQL 8.4.3). Hostinger's current
 > LiteSpeed/Apache + PHP 8.3 plans meet the same requirements.
@@ -169,10 +170,11 @@ Import **one file**, `database/install.sql`, through phpMyAdmin:
 
    | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
    |---:|---:|---:|---:|---:|---:|---:|---:|---:|
-   | 36 | 77 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+   | 39 | 79 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
 
-The bundle creates the schema, the 77 settings, both staff accounts, the seven starter
-products, the two packages and the ten Team Harvest ladder rows in one pass. It contains no
+The bundle creates the schema, the 79 settings, both staff accounts, the seven starter
+products, the two packages, the ten Team Harvest ladder rows, the ten General Harvest ladder rows
+and the unarmed General Harvest board row in one pass. It contains no
 `CREATE DATABASE` or `USE`, so it installs into whichever schema you selected.
 
 It is **fresh-install only**: a non-empty schema is refused by a guard
@@ -715,7 +717,7 @@ Open phpMyAdmin → select the database → **SQL** and run the verification pac
 `dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
 
 ```sql
--- 1. 36 tables and 77 settings on a fresh production install
+-- 1. 39 tables and 79 settings on a fresh production install
 SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
        (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
        (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
@@ -738,9 +740,14 @@ SELECT key_name, value FROM settings
  ORDER BY key_name;
 SELECT COUNT(*) AS surfaces FROM live_revisions;
 SHOW TABLES LIKE 'live_revisions';
+
+-- 4. The two Harvest ladders and the unarmed General Harvest board
+SELECT COUNT(*), SUM(amount) FROM team_harvest_levels;      -- 10, 5095000.00
+SELECT COUNT(*), SUM(amount) FROM general_harvest_levels;   -- 10, 8381000.00
+SELECT * FROM general_harvest_board;                        -- 1, NULL, NULL, NULL, 0
 ```
 
-A fresh production install prints **33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
+A fresh production install prints **39 / 79 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
 is empty after a static `install.sql` import; it may hold a row for `admin.products` after the
 first product change, and a reset leaves 18 standard surfaces. Record the output with the
 go-live evidence (§12).
@@ -776,8 +783,9 @@ Before calling the site live:
 - [ ] Confirm no demo data leaked into production:
       `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
       and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
-- [ ] Run the verification pack (§11.6) and file its output: 36 tables, 77 settings, 2 staff,
-      0 members, 7 products, 2 packages, 18 levels, 10 contents, 10 Team Harvest ladder rows, 0 codes.
+- [ ] Run the verification pack (§11.6) and file its output: 39 tables, 79 settings, 2 staff,
+      0 members, 7 products, 2 packages, 18 levels, 10 contents, 10 Team Harvest ladder rows,
+      10 General Harvest ladder rows, 1 unarmed General Harvest board row, 0 codes.
 - [ ] Replace demo products/packages with real catalogue data.
 - [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
 - [ ] Remove `system/tests/`, `docs/`, `dmp/` and `backups/` from the server if they
@@ -1018,6 +1026,8 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-15 | Phase 20A/20B (Team Harvest foundation and configuration): migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings (stream **off**, queue unseeded); §5B and §12 now read **36 tables / 77 settings**, and the ten ladder amounts are table rows. No route, no cron entry. |
 | 2026-11-16 | Phase 20C/20D/20E (the queue, the money engine and the admin visibility): the registration hook, the one-time seed, the on-demand catch-up/doctor, the fourth commissions tab, the member panel, the reports block and the dashboard KPI; the two jobs are **not** cron entries. No schema change. |
 | 2026-11-16 | Phase 20F/20G (the member visibility and the release): the fourth `/earnings` tab, the dashboard tile and the genealogy badge; `APP_PHASE` **20**; the QA pack is signed (A–G, 58 checks) and the smoke walk is **263** checks. Counts **36 / 77 / 10 / 20**. No schema change. |
+| 2026-11-16 | Phase 21A (General Harvest foundation): migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement, two settings (stream **off**) and the ten ladder rows plus the unarmed board row; §5B and §11.6 now read **39 tables / 79 settings**. No route, no cron entry. |
+| 2026-11-16 | Phase 21B (General Harvest configuration and arithmetic): the *General Harvest bonus* sub-block on `/admin/settings` → Commissions, the generated ladder and position tables, the four-state strip, the calculator, the two models (`GeneralHarvestLevel`, `GeneralHarvestBoard`) and the `general_harvest.ladder.update` audit row. No schema change, no route, no cron entry. |
 
 ---
 
@@ -1058,7 +1068,7 @@ scripts, so a nonce-based policy is a later frontend task (documented in the cla
 | `/admin/reports` | every report + the **Finance health** card; CSV export menu |
 | `/admin/reports/export?type=sales` | `text/csv` download |
 | `/admin/audit` | the append-only audit list with filters |
-| `/admin/settings` | eight independently saving cards (General, Shop, Accounts, Payouts, Windows, Fulfilment, Commissions, Transfers) |
+| `/admin/settings` | eight independently saving cards (General, Shop, Accounts, Payouts, Windows, Fulfilment, Commissions, Transfers); the Commissions card carries the **General Harvest bonus** sub-block |
 
 ### Cron
 
@@ -1703,3 +1713,74 @@ Revert the seven new member views, the seven modified ones, `DashboardController
 `GenealogyController` and the two additive model filters (`Wallet::ref_id`, the `HarvestQueue` optional
 parameters); then revert `APP_PHASE` to 19. No data changes: 20F writes nothing, and 20G writes only the
 phase constant and the test/docs. The queue, the awards and the ladder stay exactly as 20D left them.
+
+---
+
+## Phase 21 addendum — the General Harvest bonus (21A → 21B so far)
+
+**No new hosting requirement.** Phase 21 adds one more bonus on the Harvest queue Phase 20 built: one
+**shared 3-ary board** for the whole network, where a member's node is their queue position minus one
+and a node's level-`L` block is the next `3^L` positions in that same queue. Three things follow that an
+operator must know before deploying it:
+
+1. **The trigger is the whole network's qualified count (`N`), not the member's team.** A block is
+   filled by whoever took those queue positions, so a registration anywhere can complete a block for a
+   member anywhere — including a complete stranger. That is the plan, not a defect.
+2. **The board's liability is a closed form** — `Σ_L amount(L) · floor((N − (3^L − 1)/2) / 3^L)` —
+   which is why every report and reconcile check has an exact independent expectation.
+3. **Arming is a separate, irreversible act** (21C) and **is not reachable from any page**. The stream
+   ships **off and unarmed**, so a fresh install pays nothing.
+
+### Migration `025` (21A)
+
+Apply `database/migrations/025_general_harvest.sql` after `024` on an existing site, or import the
+regenerated `install.sql` on a fresh one. It adds:
+
+- `general_harvest_levels` — the ten amounts (a **catalogue** table: kept by a business reset);
+- `general_harvest_board` — the singleton `id = 1`: `baseline_n`, `armed_at`, `armed_by`, `settled_n`;
+- `general_harvest_awards` — the money ledger, `UNIQUE (seq, level)`, `ledger_id` deliberately not an FK;
+- `general_harvest` on `ewallet_ledger.ref_type` (13 movement kinds now);
+- two settings, `general_harvest_enabled = '0'` and `general_harvest_max_levels = '10'`;
+- the ten reference ladder rows (₱2,000 … ₱5,000,000, **₱8,381,000.00** in total) and the **unarmed**
+  board row `(1, NULL, NULL, NULL, 0)`.
+
+It is additive and re-runnable: a second run never overwrites an operator's amount, never re-inserts a
+setting and **never re-arms a board**. There is no backfill — the baseline is recorded by 21C's arm job,
+on demand, with a dry run.
+
+### The card (21B)
+
+**Settings → Commissions → General Harvest bonus**, below the Team Harvest block. One form, one save:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Enable the General Harvest bonus** | **off** | Off writes no award. Nothing pays until the board is armed (21C). |
+| **Levels that pay** | 10 | 1–10. Levels above it complete on the board and are marked *not paying at this depth*; their amounts are kept. |
+| **Level 1 … 10 amounts** | ₱2,000 … ₱5,000,000 | Money, two decimals, at most ₱10,000,000 each and ₱25,000,000 in total. Blank and 0 are the same value. |
+
+The card also renders two **generated** tables (the ladder and positions #1–#6 × levels 1–4), a
+four-state strip and an "if the queue reaches N" calculator. It writes no award, no wallet row, no queue
+row and no board state. It **freezes the ten amounts** once the board is armed; only a business reset
+can change them afterwards.
+
+Every moved ladder writes one `general_harvest.ladder.update` audit row (switch, depth and the ten
+amounts, before and after) plus the tenant-wide `settings.update` row for the keys that moved.
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → **1,371 / 1,371**; `powershell -File tests/smoke.ps1` → **268 / 268**.
+- [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **39 tables / 79
+      settings / 10 Team Harvest ladder rows / 10 General Harvest ladder rows / 1 unarmed board row**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 — the General Harvest section is not part of the
+      reconciler until 21D, and no `general_harvest` ledger row exists yet.
+- [ ] `/admin/settings` → Commissions shows the **General Harvest bonus** card: the reference amounts,
+      the switch off, the depth 10, both generated tables and the strip **Not armed** naming
+      `bin/general_harvest_arm.php`.
+- [ ] `SELECT * FROM general_harvest_board;` → one row `(1, NULL, NULL, NULL, 0)`.
+
+### Rollback (21A/21B)
+
+Turn the switch off and revert the code. The ladder rows, the board row and the two settings may stay:
+they are inert and a later attempt can reuse them. No money exists to reverse: delete the three tables
+only with a matching `down` decision — dropping `general_harvest_awards` would erase the record of every
+node and award the moment 21D starts writing them.

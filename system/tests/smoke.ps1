@@ -249,6 +249,16 @@ function Set-LadderAmount {
     Invoke-MySql "INSERT INTO team_harvest_levels (level, amount) VALUES ($Level, $value) ON DUPLICATE KEY UPDATE amount = $value;" | Out-Null
 }
 
+# One General Harvest ladder amount (Phase 21B). Same idea, its own table:
+# general_harvest_levels is a ten-row catalogue, and an operator's amount is
+# never overwritten by a deploy or by this script.
+function Set-GhLadderAmount {
+    param([int] $Level, [string] $Amount)
+
+    $value = if ([string]::IsNullOrWhiteSpace($Amount)) { '0.00' } else { $Amount }
+    Invoke-MySql "INSERT INTO general_harvest_levels (level, amount) VALUES ($Level, $value) ON DUPLICATE KEY UPDATE amount = $value;" | Out-Null
+}
+
 function Sign-In {
     param([string] $Session, [string] $Username, [string] $Password)
 
@@ -283,6 +293,11 @@ $selfOrderId       = 0
 $settingsSnapshot  = @{}
 # Phase 20B: the ten Team Harvest amounts (a table, not settings).
 $p20bLadderBefore  = @{}
+
+# Phase 21B: the ten General Harvest amounts and the board row (the board is
+# state, not a setting: a smoke run must leave it exactly as it found it).
+$p21bLadderBefore  = @{}
+$p21bBoardBefore   = @{}
 
 # Phase 20G: the release walk registers throw-away members and seeds the
 # queue for one check (the registration hook is inert until the baseline
@@ -1688,7 +1703,7 @@ try {
             -and $shopOff.Status -eq 302 -and $shopOffValue -eq '0' `
             -and $cancelAfterShopOff -eq '1' `
             -and $shopOn.Status -eq 302 -and $shopOnValue -eq '1') `
-        "each settings card has its own form + Save settings (forms=$sectionForms, buttons=$saveButtons, accounts=$gcashSaved, seller=$sellerSaved, deadline=$settingsSaved)"
+        "each settings card has its own form + Save settings (forms=$sectionForms, buttons=$saveButtons, accounts=$gcashSaved, seller=$sellerSaved, deadline=$settingsSaved, days=$daysSaved, auto=$autoSaved, attempts=$attemptsSaved, expiry=$expirySaved, shopOff=$shopOffValue, cancel=$cancelAfterShopOff, shopOn=$shopOnValue, statuses=$($saveAccounts.Status)/$($saveFulfilment.Status)/$($saveWindows.Status)/$($shopOff.Status)/$($shopOn.Status))"
 
     Assert-That 'P7-T4' ($gcashAfterFulfilment -eq '0917 123 4567' `
             -and $sellerAfterWindows -eq 'EcoWealth Smoke Trading' `
@@ -3029,7 +3044,8 @@ try {
         'royalty_supervisor_group_pct', 'royalty_supervisor_personal_pct',
         'royalty_manager_group_pct', 'royalty_manager_personal_pct',
         'royalty_director_group_pct', 'royalty_director_personal_pct',
-        'team_harvest_enabled', 'team_harvest_qualify_directs', 'team_harvest_max_levels'
+        'team_harvest_enabled', 'team_harvest_qualify_directs', 'team_harvest_max_levels',
+        'general_harvest_enabled', 'general_harvest_max_levels'
     )
 
     # The ten Team Harvest amounts post as `team_harvest_amounts[N]`; each one
@@ -3050,6 +3066,29 @@ try {
 
         if ($parts.Count -eq 2) {
             $p20bLadderBefore[[int] $parts[0]] = $parts[1]
+        }
+    }
+
+    # Phase 21B: the General Harvest ladder and the board row. The checks below
+    # only read the card and send refused saves, but the snapshot is taken so a
+    # failure halfway can never leave an operator's ladder or an armed board
+    # changed by this script.
+    foreach ($row in @(Invoke-MySql "SELECT CONCAT(level, '|', amount) FROM general_harvest_levels ORDER BY level;")) {
+        $parts = ([string] $row).Trim().Split('|')
+
+        if ($parts.Count -eq 2) {
+            $p21bLadderBefore[[int] $parts[0]] = $parts[1]
+        }
+    }
+
+    foreach ($row in @(Invoke-MySql "SELECT CONCAT_WS('|', COALESCE(baseline_n, ''), COALESCE(armed_at, ''), COALESCE(armed_by, ''), settled_n) FROM general_harvest_board WHERE id = 1;")) {
+        $parts = ([string] $row).Trim().Split('|')
+
+        if ($parts.Count -eq 4) {
+            $p21bBoardBefore['baseline_n'] = $parts[0]
+            $p21bBoardBefore['armed_at']   = $parts[1]
+            $p21bBoardBefore['armed_by']   = $parts[2]
+            $p21bBoardBefore['settled_n']  = $parts[3]
         }
     }
 
@@ -3379,6 +3418,104 @@ try {
             -and $p20bBadPage.Body -match 'cannot exceed' `
             -and $p20bLadderAfterText -eq $p20bLadderBeforeText) `
         "a Team Harvest ladder over the PHP 25M ceiling is refused and the stored ladder is unchanged (sum|rows=$p20bLadderAfterText)"
+
+    # ---- Phase 21B: the General Harvest configuration --------------------
+    # The shared-board card, its generated ladder and position table, the
+    # four-state strip and the sum guard. 21B moves no money and writes no
+    # award: every check here reads the card or sends a refused save, so the
+    # stored ladder and the board row are never rewritten.
+    $p21bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p21bInputs   = [regex]::Matches($p21bSettings.Body, 'name="general_harvest_amounts\[\d+\]"').Count
+    $p21bAwardsBefore = (Invoke-MySql 'SELECT COUNT(*) FROM general_harvest_awards;' | Out-String).Trim()
+    $p21bLedgerBefore = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';" | Out-String).Trim()
+    $p21bBoardBeforeText = (Invoke-MySql "SELECT CONCAT_WS('|', COALESCE(baseline_n, 'none'), COALESCE(armed_at, 'none'), settled_n) FROM general_harvest_board WHERE id = 1;" | Out-String).Trim()
+
+    # The card prints the stored ladder, whatever it is: a development database
+    # whose amounts an operator has cleared must still pass, so the two stored
+    # cells are compared with the snapshot rather than with Appendix A.
+    $p21bAmount1  = if ($p21bLadderBefore.ContainsKey(1)) { [double] $p21bLadderBefore[1] } else { 0 }
+    $p21bAmount10 = if ($p21bLadderBefore.ContainsKey(10)) { [double] $p21bLadderBefore[10] } else { 0 }
+    $p21bStored1  = '{0:N2}' -f $p21bAmount1
+    $p21bStored10 = '{0:N2}' -f $p21bAmount10
+
+    Assert-That 'P21B-T1' ($p21bSettings.Status -eq 200 `
+            -and $p21bSettings.Body -match 'General Harvest bonus' `
+            -and $p21bSettings.Body -match 'name="general_harvest_enabled"' `
+            -and $p21bSettings.Body -match 'name="general_harvest_max_levels"' `
+            -and $p21bInputs -eq 10 `
+            -and $p21bSettings.Body -match ('data-general-harvest-stored="1">[^<]*' + [regex]::Escape($p21bStored1)) `
+            -and $p21bSettings.Body -match ('data-general-harvest-stored="10">[^<]*' + [regex]::Escape($p21bStored10)) `
+            -and $p21bSettings.Body -match 'data-general-harvest-table' `
+            -and $p21bSettings.Body -match 'data-general-harvest-positions' `
+            -and $p21bSettings.Body -match 'data-general-harvest-state="unarmed"' `
+            -and $p21bSettings.Body -match 'bin/general_harvest_arm.php' `
+            -and $p21bSettings.Body -match '8,381,000.00' `
+            -and $p21bSettings.Body -match '25,000,000.00' `
+            -and $p21bSettings.Body -notmatch 'name="general_harvest_arm') `
+        "the Commissions card renders the General Harvest sub-block, ten amount inputs, both generated tables and the unarmed strip (status=$($p21bSettings.Status), inputs=$p21bInputs)"
+
+    # The generated ladder is Appendix A: slots 3 / 59,049, apex thresholds
+    # 4 / 88,573 and the position table's first and last cell (§4.5).
+    Assert-That 'P21B-T22' ($p21bSettings.Body -match 'data-general-harvest-slots="1">3' `
+            -and $p21bSettings.Body -match 'data-general-harvest-slots="10">59,049' `
+            -and $p21bSettings.Body -match 'data-general-harvest-apex="1">4</td>' `
+            -and $p21bSettings.Body -match 'data-general-harvest-apex="10">88,573</td>' `
+            -and $p21bSettings.Body -match 'data-general-harvest-position-cell="1:1">4</td>' `
+            -and $p21bSettings.Body -match 'data-general-harvest-position-cell="6:4">526</td>' `
+            -and $p21bSettings.Body -match '8,381,000.00') `
+        'the General Harvest ladder table renders Appendix A slots, thresholds and the position table matches the reference'
+
+    # Three levels at the per-level ceiling total PHP 30,401,000.00: a `sum`
+    # field error, and neither the settings, the two ladders nor the board may
+    # move.
+    $p21bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p21bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p21bBadSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    foreach ($level in $p21bLadderBefore.Keys) { $p21bBadSave["general_harvest_amounts[$level]"] = [string] $p21bLadderBefore[$level] }
+    $p21bBadSave['general_harvest_amounts[8]']  = '10000000.00'
+    $p21bBadSave['general_harvest_amounts[9]']  = '10000000.00'
+    $p21bBadSave['general_harvest_amounts[10]'] = '10000000.00'
+
+    $p21bLadderBeforeText = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM general_harvest_levels;" | Out-String).Trim()
+    $p21bBadResult        = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p21bBadSave
+    $p21bBadPage          = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p21bLadderAfterText  = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM general_harvest_levels;" | Out-String).Trim()
+
+    Assert-That 'P21B-T4' ($p21bBadResult.Status -eq 302 `
+            -and $p21bBadPage.Body -match 'cannot exceed' `
+            -and $p21bBadPage.Body -match 'Level 1 amount|general_harvest_amounts' `
+            -and $p21bLadderAfterText -eq $p21bLadderBeforeText) `
+        "a General Harvest ladder over the PHP 25M ceiling is refused and the stored ladder is unchanged (sum|rows=$p21bLadderAfterText)"
+
+    # The depth is one small integer: 11 is a field error and the stored value
+    # survives (P21B-T9's refusal, from the outside).
+    $p21bDepthSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p21bDepthSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p21bDepthSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    foreach ($level in $p21bLadderBefore.Keys) { $p21bDepthSave["general_harvest_amounts[$level]"] = [string] $p21bLadderBefore[$level] }
+    $p21bDepthSave['general_harvest_max_levels'] = '11'
+
+    $p21bDepthResult = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p21bDepthSave
+    $p21bDepthAfter  = (Invoke-MySql "SELECT value FROM settings WHERE key_name = 'general_harvest_max_levels';" | Out-String).Trim()
+    $p21bDepthPage   = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+
+    Assert-That 'P21B-T9' ($p21bDepthResult.Status -eq 302 `
+            -and $p21bDepthPage.Body -match 'must be at most 10' `
+            -and $p21bDepthAfter -eq [string] $settingsSnapshot['general_harvest_max_levels']) `
+        "a General Harvest depth of 11 is refused and the stored depth survives (depth=$p21bDepthAfter)"
+
+    # No award, no queue movement and no General Harvest wallet row: 21B has no
+    # writer (P21B-T21's inert state, from the outside). The block compares
+    # before and after rather than against zero, so a database that a later
+    # phase has already armed still passes.
+    $p21bAwards   = (Invoke-MySql 'SELECT COUNT(*) FROM general_harvest_awards;' | Out-String).Trim()
+    $p21bLedger   = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';" | Out-String).Trim()
+    $p21bBoardRow = (Invoke-MySql "SELECT CONCAT_WS('|', COALESCE(baseline_n, 'none'), COALESCE(armed_at, 'none'), settled_n) FROM general_harvest_board WHERE id = 1;" | Out-String).Trim()
+
+    Assert-That 'P21B-T21' ($p21bAwards -eq $p21bAwardsBefore `
+            -and $p21bLedger -eq $p21bLedgerBefore `
+            -and $p21bBoardRow -eq $p21bBoardBeforeText) `
+        "the General Harvest card writes no award, no wallet row and no board state (awards=$p21bAwards, ledger=$p21bLedger, board=$p21bBoardRow)"
 
     # ---- Phase 20G: the release walk -------------------------------------
     # The stream adds no route, so the walk is one pass over the pages that
@@ -4183,6 +4320,12 @@ try {
         'team_harvest_enabled'             = '0'
         'team_harvest_qualify_directs'     = [string] (Get-SettingValue 'team_harvest_qualify_directs')
         'team_harvest_max_levels'          = [string] (Get-SettingValue 'team_harvest_max_levels')
+        # Phase 21B: the card also owns the General Harvest switch and its
+        # payable depth. The ten amounts are table rows; like the Team Harvest
+        # ones they are not posted here, and the controller keeps the stored
+        # ladder when they are absent.
+        'general_harvest_enabled'          = [string] (Get-SettingValue 'general_harvest_enabled')
+        'general_harvest_max_levels'       = [string] (Get-SettingValue 'general_harvest_max_levels')
     }
     foreach ($key in $p15RoyaltyKeys) { $p15CommissionForm[$key] = [string] $p15RoyaltyValues[$key] }
 
@@ -4423,6 +4566,19 @@ try {
     # Phase 20B: the Team Harvest ladder (ten table rows, not settings).
     foreach ($level in $p20bLadderBefore.Keys) {
         try { Set-LadderAmount ([int] $level) ([string] $p20bLadderBefore[$level]) } catch { }
+    }
+    # Phase 21B: the General Harvest ladder and the board singleton (the board
+    # is never deleted — it is reset to exactly the row this run found).
+    foreach ($level in $p21bLadderBefore.Keys) {
+        try { Set-GhLadderAmount ([int] $level) ([string] $p21bLadderBefore[$level]) } catch { }
+    }
+    if ($p21bBoardBefore.ContainsKey('settled_n')) {
+        try {
+            $baseline = if ([string]::IsNullOrWhiteSpace([string] $p21bBoardBefore['baseline_n'])) { 'NULL' } else { [string] $p21bBoardBefore['baseline_n'] }
+            $armedAt  = if ([string]::IsNullOrWhiteSpace([string] $p21bBoardBefore['armed_at'])) { 'NULL' } else { "'" + [string] $p21bBoardBefore['armed_at'] + "'" }
+            $armedBy  = if ([string]::IsNullOrWhiteSpace([string] $p21bBoardBefore['armed_by'])) { 'NULL' } else { [string] $p21bBoardBefore['armed_by'] }
+            Invoke-MySql "UPDATE general_harvest_board SET baseline_n = $baseline, armed_at = $armedAt, armed_by = $armedBy, settled_n = $([int] $p21bBoardBefore['settled_n']) WHERE id = 1;" | Out-Null
+        } catch { }
     }
     # Phase 20G: the release walk put the baseline back, deleted its queue
     # row, its throw-away members and the audit rows it wrote.

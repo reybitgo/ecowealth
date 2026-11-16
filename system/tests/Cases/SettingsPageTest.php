@@ -138,6 +138,12 @@ return [
         assert_contains('Team Harvest bonus', $commissions);
         assert_contains('data-team-harvest-table', $commissions);
         assert_not_contains('name="team_harvest_ledger_since"', $commissions);
+        assert_contains('name="general_harvest_enabled"', $commissions);
+        assert_contains('name="general_harvest_max_levels"', $commissions);
+        assert_contains('General Harvest bonus', $commissions);
+        assert_contains('data-general-harvest-table', $commissions);
+        assert_contains('data-general-harvest-state="unarmed"', $commissions);
+        assert_not_contains('name="general_harvest_arm', $commissions);
         assert_not_contains('name="ewallet_transfer_fee"', $commissions);
         assert_not_contains('name="site_name"', $commissions);
 
@@ -363,10 +369,22 @@ return [
                 'team_harvest_amounts.8',
                 'team_harvest_amounts.9',
                 'team_harvest_amounts.10',
+                'general_harvest_max_levels',
+                'general_harvest_amounts.1',
+                'general_harvest_amounts.2',
+                'general_harvest_amounts.3',
+                'general_harvest_amounts.4',
+                'general_harvest_amounts.5',
+                'general_harvest_amounts.6',
+                'general_harvest_amounts.7',
+                'general_harvest_amounts.8',
+                'general_harvest_amounts.9',
+                'general_harvest_amounts.10',
             ],
             $commissions,
             'the commissions card owns the referral depth, both repeat-purchase numbers, the escrow hold, '
-                . 'the thirteen Royalty ladder values, the two Team Harvest knobs and its ten amounts'
+                . 'the thirteen Royalty ladder values, the two Team Harvest knobs and its ten amounts, '
+                . 'and the General Harvest depth with its ten amounts'
         );
         assert_same(
             [
@@ -450,10 +468,11 @@ return [
                 'royalty_enabled',
                 'royalty_pay_enabled',
                 'team_harvest_enabled',
+                'general_harvest_enabled',
             ],
             $sectionMethod('sectionToggles', 'commissions'),
-            'one switch per compensation rule, including the four repeat-purchase, two Royalty and one '
-                . 'Team Harvest switch'
+            'one switch per compensation rule, including the four repeat-purchase, two Royalty, one '
+                . 'Team Harvest and one General Harvest switch'
         );
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 

@@ -1053,7 +1053,8 @@ return [
          * dashboard KPI — all reads, no route and no page of its own;
          * **20F** adds the member visibility: the fourth earnings tab, its
          * six cards, the dashboard tile and the genealogy badge — again all
-         * reads. */
+         * reads; **21B** adds the shared board's read model, which reads the
+         * same queue as the source of `N` (plan §12.3). */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
@@ -1062,6 +1063,7 @@ return [
             '/app/Models/TeamHarvestLevel.php',
             '/app/Models/HarvestQueue.php',
             '/app/Models/TeamHarvestAward.php',
+            '/app/Models/GeneralHarvestBoard.php',
             '/app/Services/TeamHarvestService.php',
             '/app/Services/TeamHarvestException.php',
             '/app/Controllers/AdminSettingsController.php',
@@ -1214,6 +1216,7 @@ return [
         assert_same(
             [
                 '/app/Controllers/AdminSettingsController.php',
+                '/app/Models/GeneralHarvestBoard.php',
                 '/app/Models/HarvestQueue.php',
                 '/app/Models/Member.php',
                 '/app/Models/Report.php',

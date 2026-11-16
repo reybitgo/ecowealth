@@ -586,6 +586,70 @@ final class AdminSettingsController
     public const TEAM_HARVEST_STATES = ['unseeded', 'seeded_off', 'seeded_on', 'backlog'];
 
     /**
+     * The General Harvest knobs (Phase 21B, plan §6, §12.4 Rule 4, §13.5).
+     *
+     * Two settings and nothing else: the switch is a toggle below and the
+     * payable depth is the one field here. The ten amounts are **not**
+     * settings — they are the ten rows of `general_harvest_levels` that 21A
+     * shipped — so `GENERAL_HARVEST_AMOUNTS` describes them and
+     * `GeneralHarvestLevel` owns their arithmetic and their write.
+     */
+    private const GENERAL_HARVEST_FIELDS = [
+        [
+            'key'    => GeneralHarvestLevel::DEPTH_KEY,
+            'group'  => 'knobs',
+            'label'  => 'Levels that pay',
+            'rule'   => 'required|integer|gte:1|lte:10',
+            'suffix' => 'levels',
+            'hint'   => 'The deepest level that may pay. Levels above it still complete on the board and are marked not paying at this depth; their amounts are kept, and raising the depth pays them from the current queue. A level inside the depth must have an amount.',
+            'min'    => 1,
+            'max'    => 10,
+            'step'   => '1',
+        ],
+    ];
+
+    /** The General Harvest switch, in display order (plan §6 Rule 9, D-10). */
+    private const GENERAL_HARVEST_TOGGLES = [
+        GeneralHarvestLevel::ENABLED_KEY => [
+            'label' => 'Enable the General Harvest bonus',
+            'hint'  => 'Off means no award is written and no money moves. The queue is still recorded, so nothing is lost while it is off — and nothing can pay until the board has been armed.',
+        ],
+    ];
+
+    /** The one hint every General Harvest amount input carries. */
+    private const GENERAL_HARVEST_AMOUNT_HINT = 'What this level pays when its block of 3^L positions is full. Blank and 0 are the same: the level still completes but pays nothing, and it must be given an amount before it can sit inside the payable depth.';
+
+    /**
+     * The ten amount fields, keyed by the same dotted names the validator,
+     * the error bag and `invalid_class()` use (`general_harvest_amounts.3`).
+     *
+     * The card posts the natural `general_harvest_amounts[3]` array; the
+     * rule is the model's own constant, so the card and
+     * `GeneralHarvestLevel::validate()` can never disagree about the ceiling
+     * or the precision.
+     */
+    private const GENERAL_HARVEST_AMOUNTS = [
+        ['key' => 'general_harvest_amounts.1',  'level' => 1,  'group' => 'amounts', 'label' => 'Level 1 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.2',  'level' => 2,  'group' => 'amounts', 'label' => 'Level 2 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.3',  'level' => 3,  'group' => 'amounts', 'label' => 'Level 3 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.4',  'level' => 4,  'group' => 'amounts', 'label' => 'Level 4 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.5',  'level' => 5,  'group' => 'amounts', 'label' => 'Level 5 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.6',  'level' => 6,  'group' => 'amounts', 'label' => 'Level 6 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.7',  'level' => 7,  'group' => 'amounts', 'label' => 'Level 7 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.8',  'level' => 8,  'group' => 'amounts', 'label' => 'Level 8 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.9',  'level' => 9,  'group' => 'amounts', 'label' => 'Level 9 amount',  'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+        ['key' => 'general_harvest_amounts.10', 'level' => 10, 'group' => 'amounts', 'label' => 'Level 10 amount', 'rule' => GeneralHarvestLevel::AMOUNT_RULE, 'suffix' => CURRENCY_SYMBOL, 'hint' => self::GENERAL_HARVEST_AMOUNT_HINT],
+    ];
+
+    /**
+     * The General Harvest card's four status states, in plan §6 Rule 9
+     * order — the board model owns the list, the view renders one of them.
+     *
+     * @var list<string>
+     */
+    public const GENERAL_HARVEST_STATES = GeneralHarvestBoard::STATES;
+
+    /**
      * The independently saveable cards on /admin/settings. Every card
      * has its own form and its own **Save settings** button, and only
      * the submitted section is validated, written and audited — so a
@@ -616,7 +680,7 @@ final class AdminSettingsController
             'page_title'  => 'Settings',
             'current_nav' => 'admin.settings',
             'page_css'    => ['assets/css/orders.css'],
-            'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js', 'assets/js/app-team-harvest.js'],
+            'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js', 'assets/js/app-team-harvest.js', 'assets/js/app-general-harvest.js'],
             'live'        => Live::meta('admin.settings', Live::scope($_GET, (int) (auth_user()['id'] ?? 0))),
         ]);
     }
@@ -656,6 +720,18 @@ final class AdminSettingsController
             'team_harvest_ladder'  => $this->teamHarvestLadder(),
             'team_harvest_status'  => $this->teamHarvestStatus(),
             'team_harvest_preset'  => TeamHarvestLevel::forForm(TeamHarvestLevel::referencePreset()),
+            /* The General Harvest card (Phase 21B, plan §6): the switch, the
+             * payable depth, the ten amounts as the form shows them, the
+             * generated ladder, the generated position table, the four-state
+             * strip and the calculator's defaults. Nothing here moves money:
+             * the board is unarmed and no award exists until 21C/21D. */
+            'general_harvest_fields'    => array_merge(self::GENERAL_HARVEST_FIELDS, self::GENERAL_HARVEST_AMOUNTS),
+            'general_harvest_toggles'   => self::GENERAL_HARVEST_TOGGLES,
+            'general_harvest_amounts'   => GeneralHarvestLevel::forForm(GeneralHarvestLevel::amounts()),
+            'general_harvest_ladder'    => $this->generalHarvestLadder(),
+            'general_harvest_positions' => $this->generalHarvestPositions(),
+            'general_harvest_board'     => $this->generalHarvestBoard(),
+            'general_harvest_preset'    => GeneralHarvestLevel::forForm(GeneralHarvestLevel::referencePreset()),
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'cancel_enabled'    => Order::cancelEnabled(),
@@ -756,6 +832,13 @@ final class AdminSettingsController
                     'team_harvest_ladder'  => $data['team_harvest_ladder'],
                     'team_harvest_status'  => $data['team_harvest_status'],
                     'team_harvest_preset'  => $data['team_harvest_preset'],
+                    'general_harvest_fields'    => $data['general_harvest_fields'],
+                    'general_harvest_toggles'   => $data['general_harvest_toggles'],
+                    'general_harvest_amounts'   => $data['general_harvest_amounts'],
+                    'general_harvest_ladder'    => $data['general_harvest_ladder'],
+                    'general_harvest_positions' => $data['general_harvest_positions'],
+                    'general_harvest_board'     => $data['general_harvest_board'],
+                    'general_harvest_preset'    => $data['general_harvest_preset'],
                 ]),
                 'settings-transfers' => View::capture('admin/settings/_transfers', [
                     'settings'        => $data['settings'],
@@ -789,21 +872,42 @@ final class AdminSettingsController
         $back   = 'admin/settings#settings-' . $section;
         $posted = [];
 
+        /* Only fields the request actually carried: an absent key must stay
+         * absent. `sectionKeys()` names the two ladders' dotted amount keys,
+         * and a null placeholder for one of them would read as a submission
+         * of a blank amount — which clears that ladder (D-11) instead of
+         * leaving the operator's rows alone. */
         foreach (self::sectionKeys($section) as $key) {
-            $posted[$key] = Request::input($key);
+            $value = Request::input($key);
+
+            if ($value !== null) {
+                $posted[$key] = $value;
+            }
         }
 
-        /* The ten Team Harvest amounts post as `team_harvest_amounts[1..10]`.
-         * Keep the whole array so applySection() can resolve the dotted keys
-         * it shares with the validator, the error bag and invalid_class().
-         * A post that carries no such array at all (an older form, a script
-         * that only flips a switch) leaves the ladder alone rather than
-         * clearing it: only an explicit empty/filled array is a submission. */
+        /* The ten Team Harvest amounts post as `team_harvest_amounts[1..10]`
+         * and the ten General Harvest amounts as
+         * `general_harvest_amounts[1..10]`. Keep the whole arrays so
+         * applySection() can resolve the dotted keys it shares with the
+         * validator, the error bag and invalid_class(). A post that carries
+         * no such array at all (an older form, a script that only flips a
+         * switch) leaves that ladder alone rather than clearing it: only an
+         * explicit empty/filled array is a submission. */
         if ($section === 'commissions') {
-            $amounts = Request::post(TeamHarvestLevel::AMOUNT_FIELD);
+            foreach ([TeamHarvestLevel::AMOUNT_FIELD, GeneralHarvestLevel::AMOUNT_FIELD] as $ladder) {
+                $amounts = Request::post($ladder);
 
-            if (is_array($amounts)) {
-                $posted[TeamHarvestLevel::AMOUNT_FIELD] = $amounts;
+                if (is_array($amounts)) {
+                    $posted[$ladder] = $amounts;
+                }
+            }
+
+            /* The General Harvest depth is preserved when a card save does
+             * not carry it at all — an older rendered form, or a script that
+             * only flips a switch. A field that is *present and empty* is a
+             * submission and still fails `required`. */
+            if (Request::input(GeneralHarvestLevel::DEPTH_KEY) === null) {
+                unset($posted[GeneralHarvestLevel::DEPTH_KEY]);
             }
         }
 
@@ -822,10 +926,11 @@ final class AdminSettingsController
             redirect($back);
         }
 
-        $saved       = count($result['changes']);
-        $ladderSaved = (bool) ($result['ladder']['changed'] ?? false);
+        $saved             = count($result['changes']);
+        $ladderSaved       = (bool) ($result['ladder']['changed'] ?? false);
+        $generalLadderSaved = (bool) ($result['general_ladder']['changed'] ?? false);
 
-        if ($saved === 0 && !$ladderSaved) {
+        if ($saved === 0 && !$ladderSaved && !$generalLadderSaved) {
             flash_set('info', 'No changes to save.');
         } else {
             $parts = [];
@@ -836,6 +941,10 @@ final class AdminSettingsController
 
             if ($ladderSaved) {
                 $parts[] = 'the Team Harvest ladder';
+            }
+
+            if ($generalLadderSaved) {
+                $parts[] = 'the General Harvest ladder';
             }
 
             flash_set('success', sprintf(
@@ -863,18 +972,19 @@ final class AdminSettingsController
      * that decides whether the card is valid and what it writes lives
      * here.
      *
-     * The Commissions card adds one wrinkle: its Team Harvest amounts are
-     * not settings rows but the ten rows of `team_harvest_levels`, so the
-     * write happens in **one transaction** — the knobs, the ten amounts and
-     * both audit rows commit together or not at all (plan §6 Rule 3/4,
-     * §15.1, P20B-T14).
+     * The Commissions card adds one wrinkle: its two Harvest ladders are
+     * not settings rows but the ten rows of `team_harvest_levels` and
+     * `general_harvest_levels`, so the write happens in **one transaction**
+     * — the knobs, the twenty amounts and every audit row commit together
+     * or not at all (plan §6 Rule 3/4, §15.1, P20B-T14, P21B-T2/T4).
      *
      * @param array<string, mixed> $posted the card's raw request fields
      * @return array{
      *     errors: array<string, string>,
      *     input: array<string, string>,
      *     changes: array<string, array{from: string, to: string}>,
-     *     ladder?: array{changed: bool, before: array<string, mixed>, after: array<string, mixed>, changes: array<string, array{from: mixed, to: mixed}>}|null
+     *     ladder?: array{changed: bool, before: array<string, mixed>, after: array<string, mixed>, changes: array<string, array{from: mixed, to: mixed}>}|null,
+     *     general_ladder?: array{changed: bool, before: array<string, mixed>, after: array<string, mixed>, changes: array<string, array{from: mixed, to: mixed}>}|null
      * }
      */
     public function applySection(string $section, array $posted): array
@@ -892,12 +1002,29 @@ final class AdminSettingsController
             $input[$key] = (string) ($posted[$key] ?? '') === '1' ? '1' : '0';
         }
 
-        /* A post that does not carry the ten amount fields at all — an older
-         * form, a script that only flips a switch — keeps the stored ladder,
-         * so a partial save can never clear an operator's configuration. */
-        if ($section === 'commissions' && !self::teamHarvestAmountsSubmitted($posted)) {
-            foreach (TeamHarvestLevel::forForm(TeamHarvestLevel::amounts()) as $level => $stored) {
-                $input[TeamHarvestLevel::AMOUNT_FIELD . '.' . $level] = $stored;
+        /* A post that does not carry a ladder's amount fields at all — an
+         * older form, a script that only flips a switch — keeps that stored
+         * ladder, so a partial save can never clear an operator's
+         * configuration. Each ladder is preserved independently. */
+        if ($section === 'commissions') {
+            if (!self::teamHarvestAmountsSubmitted($posted)) {
+                foreach (TeamHarvestLevel::forForm(TeamHarvestLevel::amounts()) as $level => $stored) {
+                    $input[TeamHarvestLevel::AMOUNT_FIELD . '.' . $level] = $stored;
+                }
+            }
+
+            if (!self::generalHarvestAmountsSubmitted($posted)) {
+                foreach (GeneralHarvestLevel::forForm(GeneralHarvestLevel::amounts()) as $level => $stored) {
+                    $input[GeneralHarvestLevel::AMOUNT_FIELD . '.' . $level] = $stored;
+                }
+            }
+
+            /* Same rule for the depth: a card save that does not carry the
+             * field at all keeps the stored value, so an older form never
+             * fails validation and never silently costs an operator a knob.
+             * A field present but empty is still a `required` error. */
+            if (!array_key_exists(GeneralHarvestLevel::DEPTH_KEY, $posted)) {
+                $input[GeneralHarvestLevel::DEPTH_KEY] = (string) GeneralHarvestLevel::maxLevels();
             }
         }
 
@@ -906,19 +1033,20 @@ final class AdminSettingsController
 
         if ($errors !== []) {
             return [
-                'errors'  => $errors,
-                'input'   => $input,
-                'changes' => [],
-                'ladder'  => null,
+                'errors'         => $errors,
+                'input'          => $input,
+                'changes'        => [],
+                'ladder'         => null,
+                'general_ladder' => null,
             ];
         }
 
         $changes = [];
 
         foreach ($input as $key => $value) {
-            /* The ten amounts are the ladder's rows, not settings keys:
-             * they are written by TeamHarvestLevel::save() below. */
-            if (self::isTeamHarvestAmountKey($key)) {
+            /* The twenty amounts are the ladders' rows, not settings keys:
+             * they are written by the two models below. */
+            if (self::isTeamHarvestAmountKey($key) || self::isGeneralHarvestAmountKey($key)) {
                 continue;
             }
 
@@ -931,8 +1059,9 @@ final class AdminSettingsController
             $changes[$key] = ['from' => $before, 'to' => $value];
         }
 
-        $admin  = auth_user();
-        $ladder = null;
+        $admin         = auth_user();
+        $ladder        = null;
+        $generalLadder = null;
 
         $pdo             = db();
         $ownsTransaction = !$pdo->inTransaction();
@@ -942,8 +1071,8 @@ final class AdminSettingsController
         }
 
         try {
-            /* The ladder's before/after includes the three knobs (§15.4),
-             * so it is read before the settings writes land. */
+            /* Each ladder's before/after includes its own knobs (§15.4), so
+             * they are read before the settings writes land. */
             if ($section === 'commissions') {
                 $teamBefore = self::teamHarvestStored();
                 $teamAfter  = self::teamHarvestPosted($input);
@@ -954,6 +1083,17 @@ final class AdminSettingsController
                     'before'  => $teamBefore,
                     'after'   => $teamAfter,
                     'changes' => $teamDiff,
+                ];
+
+                $ghBefore = self::generalHarvestStored();
+                $ghAfter  = self::generalHarvestPosted($input);
+                $ghDiff   = self::generalHarvestDiff($ghBefore, $ghAfter);
+
+                $generalLadder = [
+                    'changed' => $ghDiff !== [],
+                    'before'  => $ghBefore,
+                    'after'   => $ghAfter,
+                    'changes' => $ghDiff,
                 ];
             }
 
@@ -978,6 +1118,26 @@ final class AdminSettingsController
                         'before'  => $ladder['before'],
                         'after'   => $ladder['after'],
                         'changes' => $ladder['changes'],
+                    ],
+                ]);
+            }
+
+            /* The General Harvest ladder is audited under its own action
+             * (plan §6 Phase 21B): the two streams never share a ledger, a
+             * baseline or a trail (D-22). */
+            if ($generalLadder !== null && $generalLadder['changed']) {
+                GeneralHarvestLevel::save(self::generalHarvestFloats($input), $admin);
+
+                AuditLog::record([
+                    'action'       => 'general_harvest.ladder.update',
+                    'actor_id'     => $admin === null ? null : (int) $admin['id'],
+                    'actor_role'   => $admin === null ? null : (string) $admin['role'],
+                    'subject_type' => 'settings',
+                    'subject_id'   => null,
+                    'meta'         => [
+                        'before'  => $generalLadder['before'],
+                        'after'   => $generalLadder['after'],
+                        'changes' => $generalLadder['changes'],
                     ],
                 ]);
             }
@@ -1031,14 +1191,20 @@ final class AdminSettingsController
             Live::publish(['admin.settings', Live::CONFIG]);
         }
 
-        return ['errors' => [], 'input' => $input, 'changes' => $changes, 'ladder' => $ladder];
+        return [
+            'errors'         => [],
+            'input'          => $input,
+            'changes'        => $changes,
+            'ladder'         => $ladder,
+            'general_ladder' => $generalLadder,
+        ];
     }
 
     /**
-     * One posted field, resolving the Team Harvest amounts' dotted keys
-     * (`team_harvest_amounts.3`) through the posted array form
-     * (`team_harvest_amounts[3]`), exactly like ProductUnilevel's
-     * `unilevel_levels.3` / `unilevel_levels[3]` pair.
+     * One posted field, resolving a ladder's dotted keys
+     * (`team_harvest_amounts.3`, `general_harvest_amounts.3`) through the
+     * posted array form (`team_harvest_amounts[3]`), exactly like
+     * ProductUnilevel's `unilevel_levels.3` / `unilevel_levels[3]` pair.
      *
      * A flat dotted key still wins when it is present, so a caller (a test
      * or a future JSON endpoint) may post either shape.
@@ -1061,10 +1227,16 @@ final class AdminSettingsController
         return $posted[$key] ?? '';
     }
 
-    /** Does this field key belong to the ten ladder amounts? */
+    /** Does this field key belong to the Team Harvest ladder's amounts? */
     private static function isTeamHarvestAmountKey(string $key): bool
     {
         return str_starts_with($key, TeamHarvestLevel::AMOUNT_FIELD . '.');
+    }
+
+    /** Does this field key belong to the General Harvest ladder's amounts? */
+    private static function isGeneralHarvestAmountKey(string $key): bool
+    {
+        return str_starts_with($key, GeneralHarvestLevel::AMOUNT_FIELD . '.');
     }
 
     /**
@@ -1079,14 +1251,37 @@ final class AdminSettingsController
      */
     private static function teamHarvestAmountsSubmitted(array $posted): bool
     {
-        $bag = $posted[TeamHarvestLevel::AMOUNT_FIELD] ?? null;
+        return self::ladderAmountsSubmitted($posted, TeamHarvestLevel::AMOUNT_FIELD);
+    }
 
-        if (is_array($bag)) {
+    /**
+     * The same question for the General Harvest ladder, which is preserved
+     * independently of the Team Harvest one: a card that posts neither keeps
+     * both, and a card that posts one keeps the other.
+     *
+     * @param array<string, mixed> $posted
+     */
+    private static function generalHarvestAmountsSubmitted(array $posted): bool
+    {
+        return self::ladderAmountsSubmitted($posted, GeneralHarvestLevel::AMOUNT_FIELD);
+    }
+
+    /**
+     * Is one ladder's post present — as an array (`field[1]`) or as flat
+     * dotted keys (`field.1`)?
+     *
+     * @param array<string, mixed> $posted
+     */
+    private static function ladderAmountsSubmitted(array $posted, string $field): bool
+    {
+        if (is_array($posted[$field] ?? null)) {
             return true;
         }
 
-        foreach (array_keys($posted) as $key) {
-            if (self::isTeamHarvestAmountKey((string) $key)) {
+        /* A dotted key counts only when it carries a value: a null is the
+         * absence of the field, not a blank amount (Rule 1 / D-11). */
+        foreach ($posted as $key => $value) {
+            if ($value !== null && str_starts_with((string) $key, $field . '.')) {
                 return true;
             }
         }
@@ -1181,6 +1376,17 @@ final class AdminSettingsController
             foreach (self::TEAM_HARVEST_AMOUNTS as $field) {
                 $keys[] = (string) $field['key'];
             }
+
+            /* The General Harvest block (plan §6 Phase 21B): the payable
+             * depth and the ten amounts. The switch is a toggle and the two
+             * board numbers are state, never fields (§13.2, §13.5). */
+            foreach (self::GENERAL_HARVEST_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
+
+            foreach (self::GENERAL_HARVEST_AMOUNTS as $field) {
+                $keys[] = (string) $field['key'];
+            }
         }
 
         if ($section === 'transfers') {
@@ -1208,7 +1414,8 @@ final class AdminSettingsController
                 array_keys(self::COMMISSION_TOGGLES),
                 array_keys(self::REPEAT_TOGGLES),
                 array_keys(self::ROYALTY_TOGGLES),
-                array_keys(self::TEAM_HARVEST_TOGGLES)
+                array_keys(self::TEAM_HARVEST_TOGGLES),
+                array_keys(self::GENERAL_HARVEST_TOGGLES)
             ),
             default      => [],
         };
@@ -1247,7 +1454,8 @@ final class AdminSettingsController
         if ($section === 'commissions') {
             return array_merge(
                 self::royaltyCrossFieldErrors($input),
-                self::teamHarvestCrossFieldErrors($input)
+                self::teamHarvestCrossFieldErrors($input),
+                self::generalHarvestCrossFieldErrors($input)
             );
         }
 
@@ -1688,6 +1896,264 @@ final class AdminSettingsController
         ];
     }
 
+    /* ----------------------------------------------------------
+     *  General Harvest configuration (plan §6 Phase 21B, §12.4,
+     *  §12.9, D-17/D-18/D-23)
+     * ---------------------------------------------------------- */
+
+    /**
+     * The ten amounts from the submitted card, keyed 1 … 10 as typed.
+     *
+     * @param array<string, string> $input
+     * @return array<int, string>
+     */
+    private static function generalHarvestAmounts(array $input): array
+    {
+        $amounts = [];
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            $amounts[$level] = (string) ($input[GeneralHarvestLevel::AMOUNT_FIELD . '.' . $level] ?? '');
+        }
+
+        return $amounts;
+    }
+
+    /**
+     * The ten amounts as pesos, for the model's write. The card has already
+     * validated them, so a blank is 0 and a missing key cannot appear.
+     *
+     * @param array<string, string> $input
+     * @return array<int, float>
+     */
+    private static function generalHarvestFloats(array $input): array
+    {
+        $amounts = [];
+
+        foreach (self::generalHarvestAmounts($input) as $level => $value) {
+            $amounts[$level] = round((float) $value, 2);
+        }
+
+        return $amounts;
+    }
+
+    /**
+     * The General Harvest rules that compare fields — all of them on the
+     * model, delegated so the card and `GeneralHarvestLevel::validate()`
+     * can never disagree: the ₱25,000,000.00 full-ladder ceiling (Rule 3),
+     * the "a payable level must be positive" rule on the switch and the
+     * depth (Rule 4, D-17), and the frozen ladder after the arm (Rule 14,
+     * D-23).
+     *
+     * The per-level errors are also returned; they are byte-identical to the
+     * card's own `AMOUNT_RULE` messages because both read that constant.
+     *
+     * @param array<string, string> $input
+     * @return array<string, string>
+     */
+    private static function generalHarvestCrossFieldErrors(array $input): array
+    {
+        return GeneralHarvestLevel::validate(
+            self::generalHarvestAmounts($input),
+            (int) ($input[GeneralHarvestLevel::DEPTH_KEY] ?? GeneralHarvestLevel::DEPTH_DEFAULT),
+            (string) ($input[GeneralHarvestLevel::ENABLED_KEY] ?? '0') === '1'
+        );
+    }
+
+    /**
+     * The stored General Harvest configuration, as the audit's `before`
+     * reads it: the switch, the depth and the ten amounts as money strings.
+     * JSON-safe scalars only, so the audit row is exact.
+     *
+     * @return array{enabled: bool, max_levels: int, levels: array<int, string>}
+     */
+    private static function generalHarvestStored(): array
+    {
+        $levels = [];
+
+        foreach (GeneralHarvestLevel::amounts() as $level => $amount) {
+            $levels[$level] = number_format($amount, 2, '.', '');
+        }
+
+        return [
+            'enabled'    => GeneralHarvestLevel::enabled(),
+            'max_levels' => GeneralHarvestLevel::maxLevels(),
+            'levels'     => $levels,
+        ];
+    }
+
+    /**
+     * The configuration the submitted card would store.
+     *
+     * @param array<string, string> $input
+     * @return array{enabled: bool, max_levels: int, levels: array<int, string>}
+     */
+    private static function generalHarvestPosted(array $input): array
+    {
+        $levels = [];
+
+        foreach (self::generalHarvestFloats($input) as $level => $amount) {
+            $levels[$level] = number_format($amount, 2, '.', '');
+        }
+
+        return [
+            'enabled'    => (string) ($input[GeneralHarvestLevel::ENABLED_KEY] ?? '0') === '1',
+            'max_levels' => (int) ($input[GeneralHarvestLevel::DEPTH_KEY] ?? GeneralHarvestLevel::DEPTH_DEFAULT),
+            'levels'     => $levels,
+        ];
+    }
+
+    /**
+     * What moved between two General Harvest configurations, keyed
+     * `enabled`, `max_levels` and `levels.N` — the payload the audit row
+     * carries (§15.4). An empty array means the whole sub-block is untouched
+     * and nothing is written or audited.
+     *
+     * @param array{enabled: bool, max_levels: int, levels: array<int, string>} $before
+     * @param array{enabled: bool, max_levels: int, levels: array<int, string>} $after
+     * @return array<string, array{from: mixed, to: mixed}>
+     */
+    private static function generalHarvestDiff(array $before, array $after): array
+    {
+        $changes = [];
+
+        foreach (['enabled', 'max_levels'] as $key) {
+            if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
+                $changes[$key] = ['from' => $before[$key] ?? null, 'to' => $after[$key] ?? null];
+            }
+        }
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            $from = (string) ($before['levels'][$level] ?? '0.00');
+            $to   = (string) ($after['levels'][$level] ?? '0.00');
+
+            if ($from !== $to) {
+                $changes['levels.' . $level] = ['from' => $from, 'to' => $to];
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * The generated ladder table (plan §6 Rules 7–8): every cell comes from
+     * `GeneralHarvestLevel`, never from the view. Rows 1 … 10 carry their
+     * slots, the apex's threshold, the stored amount, the cumulative sum and
+     * whether the configured depth pays them.
+     *
+     * `apex_n`, `node2_n` and `node3_n` are the Rule 10 sentence's three
+     * numbers; `depth_total` is what the ladder pays at the configured depth.
+     *
+     * @return array{
+     *     rows: array<int, array{level:int, slots:int, apex:int, amount:float, cumulative:float, paying:bool, has_amount:bool}>,
+     *     total: float,
+     *     cumulative: array<int, float>,
+     *     max_levels: int,
+     *     apex_n: int,
+     *     node2_n: int,
+     *     node3_n: int,
+     *     depth_total: float,
+     *     top_amount: float,
+     *     enabled: bool,
+     *     reference_total: float
+     * }
+     */
+    private function generalHarvestLadder(): array
+    {
+        $amounts    = GeneralHarvestLevel::amounts();
+        $cumulative = GeneralHarvestLevel::cumulative($amounts);
+        $maxLevels  = GeneralHarvestLevel::maxLevels();
+        $rows       = [];
+        $depthTotal = 0.0;
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            $rows[$level] = [
+                'level'      => $level,
+                'slots'      => GeneralHarvestLevel::slots($level),
+                'apex'       => GeneralHarvestLevel::apexThreshold($level),
+                'amount'     => $amounts[$level],
+                'cumulative' => $cumulative[$level],
+                'paying'     => $level <= $maxLevels,
+                'has_amount' => $amounts[$level] > 0,
+            ];
+
+            if ($level <= $maxLevels) {
+                $depthTotal += $amounts[$level];
+            }
+        }
+
+        return [
+            'rows'            => $rows,
+            'total'           => GeneralHarvestLevel::total($amounts),
+            'cumulative'      => $cumulative,
+            'max_levels'      => $maxLevels,
+            'apex_n'          => GeneralHarvestLevel::apexThreshold(GeneralHarvestLevel::LEVEL_MAX),
+            'node2_n'         => GeneralHarvestLevel::threshold(1, GeneralHarvestLevel::LEVEL_MAX),
+            'node3_n'         => GeneralHarvestLevel::threshold(2, GeneralHarvestLevel::LEVEL_MAX),
+            'depth_total'     => round($depthTotal, 2),
+            'top_amount'      => $amounts[GeneralHarvestLevel::LEVEL_MAX],
+            'enabled'         => GeneralHarvestLevel::enabled(),
+            'reference_total' => GeneralHarvestLevel::total(GeneralHarvestLevel::referencePreset()),
+        ];
+    }
+
+    /**
+     * The generated position table (plan §6 Rule 8): positions #1–#6 ×
+     * levels 1–4, each cell `3^L·(p−1) + (3^(L+1) − 1)/2` straight from
+     * `GeneralHarvestLevel::threshold()`.
+     *
+     * The reference's §4.5 table is the first four rows and four columns of
+     * this one, which is why the card prints six.
+     *
+     * @return array{levels: list<int>, rows: list<array{position:int, seq:int, cells: array<int, int>}>}
+     */
+    private function generalHarvestPositions(): array
+    {
+        $levels = [1, 2, 3, 4];
+        $rows   = [];
+
+        for ($position = 1; $position <= 6; $position++) {
+            $seq   = $position - 1;
+            $cells = [];
+
+            foreach ($levels as $level) {
+                $cells[$level] = GeneralHarvestLevel::threshold($seq, $level);
+            }
+
+            $rows[] = ['position' => $position, 'seq' => $seq, 'cells' => $cells];
+        }
+
+        return ['levels' => $levels, 'rows' => $rows];
+    }
+
+    /**
+     * The board's condition for the card (plan §6 Rule 6, Rule 9, Rule 11):
+     * the four-state strip, the queue length, the backlog and the
+     * calculator's defaults.
+     *
+     * This is a **read**. 21B arms nothing and writes no award; the numbers
+     * exist so the operator can see what the plan would owe before any
+     * money exists, and the card says so in one line.
+     *
+     * @return array<string, mixed>
+     */
+    private function generalHarvestBoard(): array
+    {
+        $status  = GeneralHarvestBoard::status();
+        $queue   = GeneralHarvestBoard::queueN();
+        $amounts = $status['amounts'];
+
+        return [
+            'status'     => $status,
+            'queue'      => $queue,
+            'backlog'    => GeneralHarvestBoard::backlog(),
+            'calculator' => [
+                'n'      => $queue['n'],
+                'total'  => GeneralHarvestLevel::boardTotal($queue['n'], $amounts),
+                'awards' => GeneralHarvestLevel::awardCount($queue['n']),
+            ],
+        ];
+    }
+
     /** @return array<string, string> */
     private static function fieldRules(): array
     {
@@ -1746,6 +2212,22 @@ final class AdminSettingsController
         }
 
         foreach (array_keys(self::TEAM_HARVEST_TOGGLES) as $key) {
+            $rules[(string) $key] = 'required|in:0,1';
+        }
+
+        /* The General Harvest block: the depth is a small integer and the ten
+         * amounts are money with the column's two decimals (plan §6 Rules 2
+         * and 5, §12.9). The rule strings come from the catalogue, so the
+         * card's messages and the model's agree. */
+        foreach (self::GENERAL_HARVEST_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (self::GENERAL_HARVEST_AMOUNTS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (array_keys(self::GENERAL_HARVEST_TOGGLES) as $key) {
             $rules[(string) $key] = 'required|in:0,1';
         }
 
@@ -1840,6 +2322,18 @@ final class AdminSettingsController
         }
 
         foreach (self::TEAM_HARVEST_TOGGLES as $key => $toggle) {
+            $labels[(string) $key] = (string) $toggle['label'];
+        }
+
+        foreach (self::GENERAL_HARVEST_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::GENERAL_HARVEST_AMOUNTS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::GENERAL_HARVEST_TOGGLES as $key => $toggle) {
             $labels[(string) $key] = (string) $toggle['label'];
         }
 
