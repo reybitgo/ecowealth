@@ -216,7 +216,9 @@ SQL);
 
         $expected = [
             'activations', 'addresses', 'audit_log', 'cart_items', 'carts', 'commissions',
-            'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers', 'harvest_queue',
+            'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers',
+            'general_harvest_awards', 'general_harvest_board', 'general_harvest_levels',
+            'harvest_queue',
             'impersonation_log',
             'live_revisions', 'package_levels', 'package_products', 'packages', 'payout_requests',
             'product_unilevel_levels', 'products', 'reg_codes', 'remember_tokens',

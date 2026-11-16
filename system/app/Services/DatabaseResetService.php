@@ -83,6 +83,12 @@ final class DatabaseResetService
      * is catalogue (the ten configured amounts are kept by a business
      * reset, like `package_levels`); the queue and the awards are money
      * and are emptied (plan §13.3, §13.4).
+     *
+     * Phase 21 adds the three General Harvest tables. `general_harvest_levels`
+     * is catalogue (kept, like `team_harvest_levels`);
+     * `general_harvest_awards` is money and is emptied;
+     * `general_harvest_board` is the singleton state row, which is
+     * **reset to unarmed, never deleted** (plan 21A Rule 8, §13.8 I-12).
      */
     public const ALL_TABLES = [
         'addresses',
@@ -94,6 +100,9 @@ final class DatabaseResetService
         'ewallet_admin_topups',
         'ewallet_ledger',
         'ewallet_transfers',
+        'general_harvest_awards',
+        'general_harvest_board',
+        'general_harvest_levels',
         'harvest_queue',
         'impersonation_log',
         'live_revisions',
@@ -139,6 +148,7 @@ final class DatabaseResetService
         'ewallet_admin_topups',
         'ewallet_ledger',
         'ewallet_transfers',
+        'general_harvest_awards',
         'harvest_queue',
         'impersonation_log',
         'payout_requests',
@@ -178,6 +188,10 @@ final class DatabaseResetService
      * Phase 20 adds the two Team Harvest tables with a counter:
      * `harvest_queue` (the position sequence) and `team_harvest_awards`.
      * `team_harvest_levels` has a natural primary key and is catalogue.
+     *
+     * Phase 21 adds `general_harvest_awards`: its id is the wallet
+     * `ref_id`. `general_harvest_levels` and `general_harvest_board` have
+     * natural primary keys (`level`, `id`), so an ALTER on them would fail.
      */
     public const AUTO_INCREMENT_TABLES = [
         'shop_orders',
@@ -199,6 +213,7 @@ final class DatabaseResetService
         'royalty_awards',
         'harvest_queue',
         'team_harvest_awards',
+        'general_harvest_awards',
         'activations',
         'reg_codes',
         'impersonation_log',
@@ -289,6 +304,19 @@ final class DatabaseResetService
             'sql'   => [
                 'DELETE FROM royalty_awards',
                 'DELETE FROM royalty_periods',
+            ],
+        ],
+        [
+            /* General Harvest (Phase 21). The award ledger references
+             * `users` (the node holder) and the queue's node order, so it
+             * is emptied here, before the members group. The board
+             * singleton is RESET to unarmed right after the delete groups,
+             * not deleted: the app reads it without a write, and deleting
+             * it would leave every read without a row (21A Rule 8). */
+            'key'   => 'general_harvest',
+            'label' => 'General Harvest award ledger',
+            'sql'   => [
+                'DELETE FROM general_harvest_awards',
             ],
         ],
         [
@@ -1049,6 +1077,29 @@ final class DatabaseResetService
 
             $this->recordStep($group['key'], $group['label'], 'ok', $total, self::ms($t), null, true);
         }
+
+        /* 12b: the General Harvest board returns to unarmed (Phase 21). */
+        /* A new network has no queue, so it has no go-live baseline and
+         * nothing settled. The singleton row is UPDATED, never deleted:
+         * the arm job is 21C's and this phase ships the state reset only
+         * (21A Rule 8, plan §13.8 I-12). The ten ladder rows and the two
+         * settings are catalogue and are kept. */
+        $this->beginStep('general_harvest_board', 'Return the General Harvest board to unarmed');
+        $t = microtime(true);
+
+        $boardReset = $this->exec(
+            'UPDATE general_harvest_board
+                SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0
+              WHERE id = 1'
+        );
+
+        $this->recordStep(
+            'general_harvest_board',
+            'Return the General Harvest board to unarmed',
+            'ok',
+            $boardReset,
+            self::ms($t)
+        );
 
         /* 13: members only — staff rows survive. */
         $this->beginStep('members', 'Member accounts');
@@ -2112,6 +2163,13 @@ final class DatabaseResetService
                 'statements' => count($group['sql']),
             ];
         }
+
+        /* Phase 21: the General Harvest board is reset, never deleted. */
+        $plan[] = [
+            'key'        => 'general_harvest_board',
+            'label'      => 'Return the General Harvest board to unarmed',
+            'statements' => 1,
+        ];
 
         $plan[] = ['key' => 'members', 'label' => 'Delete the member accounts', 'statements' => 1];
         $plan[] = ['key' => 'staff', 'label' => 'Reset the staff accounts', 'statements' => 1];

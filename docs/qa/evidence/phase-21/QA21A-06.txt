@@ -1,0 +1,33 @@
+QA21A-06 - The wallet statement filter names General Harvest
+============================================================
+
+Date: 2026-11-16 12:52:35 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (working tree, 21A)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: 21A adds the movement kind and its label but no producer (Rule 6/7): the filter must offer
+it, and a clean wallet must select no rows.
+
+The member statement (rendered through WalletController::walletContext() + View::page()):
+  the filter option "General Harvest bonus" ... present
+  `value="general_harvest"` in the form ....... present
+
+The admin monitor (rendered through AdminWalletController::monitorContext('ledger') + View::page()):
+  the filter option "General Harvest bonus" ... present
+  `value="general_harvest"` in the form ....... present
+
+Rows the filter can match (the whole database):
+  general_harvest ledger rows ................. 0
+
+The icon and label resolve through wallet_ref_label()/wallet_ref_icon():
+  label ....................................... General Harvest bonus
+  icon ........................................ bx bx-grid-alt
+
+Checks:
+  both filters list the new movement kind ...... yes
+  both forms carry the enum value .............. yes
+  selecting it returns no rows ................. yes
+  no award, no wallet credit, no balance ....... yes (0 movements)
+
+RESULT: PASS

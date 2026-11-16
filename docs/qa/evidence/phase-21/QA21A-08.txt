@@ -1,0 +1,176 @@
+QA21A-08 - A business reset empties the ledger and returns the board to unarmed
+===============================================================================
+
+Date: 2026-11-16 12:51:55 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (working tree, 21A)
+Schema: ecowealth_sneat_tool_b_test (scratch; migration 025 applied twice)
+Command: php bin/db_reset.php with ECO_DB_NAME=ecowealth_sneat_tool_b_test
+
+Step 1 - arrange the pre-reset state (two awards, an armed board, an edited amount):
+  awards ............................... 2
++----+------------+---------------------+----------+-----------+
+| id | baseline_n | armed_at            | armed_by | settled_n |
++----+------------+---------------------+----------+-----------+
+|  1 |         40 | 2026-11-16 10:00:00 |        1 |       121 |
++----+------------+---------------------+----------+-----------+
++-------+---------+
+| level | amount  |
++-------+---------+
+|     1 | 2500.00 |
++-------+---------+
+
+Step 2 - the dry run plans the two new steps and writes nothing:
+  exit 0
+
+EcoWealth database reset
+  target : ecowealth_sneat_tool_b_test at 127.0.0.1:3306 (8.4.3)
+  mode   : dry run — no writes
+  rows   : 1 members · 2 staff · 0 orders · 0 ledger · 0 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (1 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: 2026-11-16 12:51:42 by cli
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Plan (60 statement(s), 0 writes)
+  lock                  Acquire the advisory lock                            1
+  preflight             Preflight check (read-only)                          0
+  counts                Snapshot the row counts (read-only)                  0
+  impersonation         S-Login sessions                                     1
+  unilevel              Repeat-purchase bonus awards and month snapshots     3
+  royalty               Royalty bonus awards and month headers               2
+  general_harvest       General Harvest award ledger                         1
+  harvest               Team Harvest queue positions and level awards        2
+  orders                Shop orders, payments, invoices and fulfilment       7
+  carts                 Carts and cart lines                                 2
+  addresses             Address book                                         1
+  wallet                Wallet ledger, transfers and admin top-ups           3
+  payouts               Payout requests                                      1
+  commissions           Commissions and activations                          2
+  codes                 Registration codes                                   1
+  sessions              Remember-me sessions (all users)                     1
+  general_harvest_board  Return the General Harvest board to unarmed          1
+  members               Delete the member accounts                           1
+  staff                 Reset the staff accounts                             1
+  catalogue             Keep the existing catalogue                          0
+  audit_clear           Keep the audit log                                   0
+  live                  Bump the live revisions                              2
+  settings              Write the reset metadata                             2
+  audit                 Append the reset audit row                           1
+  auto_increment        Reset the AUTO_INCREMENT counters (after commit)     24
+  uploads               Delete the orphaned upload files (after commit)      0
+  demo                  Do not install the demo tree                         0
+  codes_generate        Generate registration codes (after commit)           0
+  verify                Verify the reset (read-only)                         0
+
+Dry run complete — nothing was written.
+
+Step 3 - the real reset:
+  $ php bin/db_reset.php --force --confirm=ecowealth_sneat_tool_b_test
+  exit 0
+
+EcoWealth database reset
+  target : ecowealth_sneat_tool_b_test at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 1 members · 2 staff · 0 orders · 0 ledger · 0 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (1 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: 2026-11-16 12:51:42 by cli
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Reset
+   OK   lock                   Advisory lock acquired                             0 rows (1 ms)
+   OK   preflight              Preflight check                                    2 rows (5 ms)
+   OK   counts                 Snapshot the row counts                            0 rows (70 ms)
+   OK   impersonation          S-Login sessions                                   0 deleted (1 ms)
+   OK   unilevel               Repeat-purchase bonus awards and month snapshots     0 deleted (1 ms)
+   OK   royalty                Royalty bonus awards and month headers             0 deleted (2 ms)
+   OK   general_harvest        General Harvest award ledger                       2 deleted (1 ms)
+   OK   harvest                Team Harvest queue positions and level awards      0 deleted (2 ms)
+   OK   orders                 Shop orders, payments, invoices and fulfilment     0 deleted (5 ms)
+   OK   carts                  Carts and cart lines                               0 deleted (2 ms)
+   OK   addresses              Address book                                       0 deleted (1 ms)
+   OK   wallet                 Wallet ledger, transfers and admin top-ups         0 deleted (3 ms)
+   OK   payouts                Payout requests                                    0 deleted (1 ms)
+   OK   commissions            Commissions and activations                        0 deleted (2 ms)
+   OK   codes                  Registration codes                                 0 deleted (1 ms)
+   OK   sessions               Remember-me sessions (all users)                   0 deleted (1 ms)
+   OK   general_harvest_board  Return the General Harvest board to unarmed        1 rows (1 ms)
+   OK   members                Member accounts                                    1 deleted (3 ms)
+   OK   staff                  Reset the staff accounts                           2 rows (2 ms)
+  SKIP  catalogue              Keep the existing catalogue                        0 rows (0 ms)
+  SKIP  audit_clear            Keep the audit log                                 0 rows (0 ms)
+   OK   live                   Bump live revisions                               18 rows (3 ms)
+   OK   settings               Write the reset metadata                           2 rows (3 ms)
+   OK   audit                  Append the reset audit row                         1 rows (84 ms)
+   OK   auto_increment         Reset AUTO_INCREMENT counters                     24 rows (606 ms)
+   OK   uploads                Delete orphaned upload files                       0 rows (2 ms)
+  SKIP  demo                   Install the demo tree                              0 rows (0 ms)
+  SKIP  codes_generate         Generate registration codes                        0 rows (6 ms)
+   OK   verify                 Verify the reset                                  15 rows (283 ms)
+
+Verification
+   OK   Member accounts               0 member row(s) (expected 0)
+   OK   Business rows                 0 rows across 27 tables (all zero)
+   OK   Staff accounts                2 staff, balances zero, package/sponsor null, active
+   OK   Catalogue                     7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)
+   OK   Registration codes            0 code row(s) (expected 0)
+   OK   Audit trail                   2 system.db_reset row(s) (expected 2)
+   OK   Wallet reconciliation         WalletService::reconcile clean
+   OK   Commission reconciliation     CommissionService::reconcile clean
+   OK   Transfer reconciliation       TransferService::reconcile clean
+   OK   Payout reconciliation         PayoutService::reconcile clean
+   OK   Repeat-purchase reconciliation  UnilevelService::reconcile clean
+   OK   Royalty reconciliation        RoyaltyService::reconcile clean
+   OK   Team Harvest reconciliation   TeamHarvestService::reconcile clean
+   OK   Live revisions                18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters       24 counter(s) at 1
+
+  deleted: 3 rows · members 1 → 0 · orders 0 → 0 · ledger 0 → 0 · codes 0 → 0
+  catalogue: 7 products / 2 packages · audit 2 rows · live 18 surfaces · counters reset 24
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+
+Step 4 - the state after the reset:
++--------+
+| awards |
++--------+
+|      0 |
++--------+
++----+------------+----------+----------+-----------+
+| id | baseline_n | armed_at | armed_by | settled_n |
++----+------------+----------+----------+-----------+
+|  1 |       NULL | NULL     |     NULL |         0 |
++----+------------+----------+----------+-----------+
++-------------+--------------+
+| ladder_rows | ladder_total |
++-------------+--------------+
+|          10 |   8381500.00 |
++-------------+--------------+
++-------+---------+
+| level | amount  |
++-------+---------+
+|     1 | 2500.00 |
++-------+---------+
++-------------+
+| gh_settings |
++-------------+
+|           2 |
++-------------+
+
+Checks:
+  the dry run plans general_harvest (1 statement) ........ yes
+  the dry run plans general_harvest_board (1 statement) .. yes
+  the dry run writes nothing ............................. yes
+  the reset verifies ..................................... exit 0
+  the award ledger is emptied ............................ 0
+  the board row is RESET, not deleted .................... (1, NULL, NULL, NULL, 0)
+  the ten ladder rows survive ............................ 10
+  the operator amount is not overwritten ................. 2500.00
+  the two settings survive ............................... 2
+  no member row is left .................................. 0
+
+RESULT: PASS

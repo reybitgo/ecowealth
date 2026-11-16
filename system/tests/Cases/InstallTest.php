@@ -10,7 +10,7 @@ declare(strict_types=1);
  *  touches ecowealth_sneat, ecowealth_sneat_test or their grants.
  *
  *      preflight    the check table, a missing schema, --create-database
- *      install      36 tables, 77 settings, 2 staff, 7/2/18/10, the lock
+ *      install      39 tables, 79 settings, 2 staff, 7/2/18/10, the lock
  *      credentials  the §6.8 policy, enforced before any SQL
  *      refusals     locked / not_empty, with the lock never overwritten
  *      guard        a table appearing mid-import is translated, not raw
@@ -103,7 +103,7 @@ return [
         assert_true($checks['database_exists']['ok'], 'the scratch schema exists');
         assert_true($checks['database_empty']['ok'], 'the scratch schema starts empty');
         assert_true($checks['install_sql']['ok'], 'database/install.sql parses');
-        assert_contains('64 statements', $checks['install_sql']['detail']);
+        assert_contains('70 statements', $checks['install_sql']['detail']);
         assert_true($checks['install_lock']['ok'], 'no lock is present');
         assert_true($preflight['ok'], 'the whole preflight passes');
         assert_false(DatabaseInstaller::isLocked(), 'preflight writes no lock');
@@ -144,7 +144,7 @@ return [
         assert_false($target->exists($missing), 'even --check --create-database creates nothing');
     },
 
-    'a fresh install produces 36/77/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
+    'a fresh install produces 39/79/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
         $clearLock();
 
         [$pdo, $database] = test_scratch_database('tool_a');
@@ -159,8 +159,8 @@ return [
             assert_same($database, $report['database']);
             assert_same('cli', $report['channel']);
 
-            assert_same(36, $report['counts']['tables_created']);
-            assert_same(77, $report['counts']['settings_rows']);
+            assert_same(39, $report['counts']['tables_created']);
+            assert_same(79, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -168,12 +168,30 @@ return [
             assert_same(18, $report['counts']['levels_rows']);
             assert_same(10, $report['counts']['contents_rows']);
             assert_same(10, $report['counts']['team_harvest_levels_rows']);
+            assert_same(10, $report['counts']['general_harvest_levels_rows']);
+            assert_same(1, $report['counts']['general_harvest_board_rows']);
             assert_same(0, $report['counts']['codes_rows']);
 
             /* The database itself, not just the report. */
-            assert_count(36, test_table_list($pdo, $database));
-            assert_same(77, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(39, test_table_list($pdo, $database));
+            assert_same(79, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
+
+            /* Phase 21: the board ships unarmed (21A Rule 4). */
+            $board = $pdo->query('SELECT baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board')
+                ->fetch(PDO::FETCH_ASSOC);
+            assert_true($board !== false, 'the board singleton exists after a fresh install');
+            assert_null($board['baseline_n'], 'a fresh install has no go-live baseline');
+            assert_null($board['armed_at']);
+            assert_null($board['armed_by']);
+            assert_same(0, (int) $board['settled_n']);
+            assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
+            assert_same(
+                '8381000.00',
+                number_format((float) $pdo->query('SELECT SUM(amount) FROM general_harvest_levels')->fetchColumn(), 2, '.', ''),
+                'the full General Harvest ladder is ₱8,381,000.00'
+            );
+            assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_awards')->fetchColumn());
 
             /* Both operator passwords really authenticate. */
             foreach ([
@@ -343,7 +361,7 @@ return [
             assert_same(5, $report['counts']['members_rows']);
             assert_same(3, $report['counts']['codes_rows']);
             assert_same(3, $report['counts']['ledger_rows']);
-            assert_same(36, $report['counts']['tables_created']);
+            assert_same(39, $report['counts']['tables_created']);
 
             /* The database itself, not just the report. */
             $usernames = $pdo->query(
@@ -552,12 +570,12 @@ return [
             assert_same(DatabaseToolException::KIND_NOT_EMPTY, $error->kind);
             assert_contains('is not empty', $error->getMessage());
             assert_same($database, $error->context['database']);
-            assert_same(36, (int) $error->context['tables']);
+            assert_same(39, (int) $error->context['tables']);
             assert_false(DatabaseInstaller::isLocked(), 'a refused install writes no lock');
 
             /* Nothing was deleted or added: the import is untouched. */
-            assert_count(36, test_table_list($pdo, $database));
-            assert_same(77, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(39, test_table_list($pdo, $database));
+            assert_same(79, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         } finally {
             $clearLock();
         }

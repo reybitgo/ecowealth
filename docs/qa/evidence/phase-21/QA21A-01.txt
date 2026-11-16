@@ -1,0 +1,37 @@
+QA21A-01 - Back up the development copy and confirm it is at migration 024
+=========================================================================
+
+Date: 2026-11-16 12:50:46 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (p20g-release + this tree)
+Schema: ecowealth_sneat (the development copy)
+
+Step 1 - mysqldump outside the repository:
+  mysqldump --single-transaction --routines --databases ecowealth_sneat > C:\laragon\www\ecowealth-backups\phase-21\ecowealth_sneat-pre-21a-<stamp>.sql
+  file .............. C:\laragon\www\ecowealth-backups\phase-21\ecowealth_sneat-pre-21a-20261116-125034.sql
+  bytes ............. 2450330
+  CREATE TABLE ...... 36
+  INSERT INTO ....... 29
+  note: mysqldump prints "Access denied ... PROCESS privilege ... dumping tablespaces" because the
+        application account has no PROCESS grant. That only skips tablespace metadata; the dump
+        carries every table and every row, which is what a rollback needs.
+
+Step 2-3 - the pre-migration shape:
++----------------+---------------+
+| tables_created | settings_rows |
++----------------+---------------+
+|             36 |            74 |
++----------------+---------------+
+
+Step 4 - SHOW TABLES LIKE 'general%':
+  rows returned ..... (none)
+
+The Phase 20 tables are present and the Phase 21 tables are not:
+  harvest% tables ... harvest_queue, team_harvest_awards, team_harvest_levels
+
+Checks:
+  the dump exists, is non-empty and lives outside the repository ... yes
+  36 tables / 74 settings (migration-built, no install_* rows) ..... yes
+  no general% table .............................................. yes
+
+RESULT: PASS

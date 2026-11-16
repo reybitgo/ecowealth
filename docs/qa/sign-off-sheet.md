@@ -1,4 +1,4 @@
-# EcoWealth — QA sign-off sheet (Phases 1–20)
+# EcoWealth — QA sign-off sheet (Phases 1–21)
 
 Fill this sheet while working through the phase documents. Hand the completed sheet plus the
 `evidence/` folder to the project lead. This is the record that closes the “visual sign-off” item
@@ -6,8 +6,8 @@ still open in each phase of `docs/phase-log.md`.
 
 **Status of this pass (2026-11-16):** Phases 1–14 are recorded as **passed** — **200 / 200**
 manual checks, **0 failed, 0 blocked** — with green automated gates (**560 → 669** PHP cases and
-**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **1,320 / 1,320** PHP
-cases and **263 / 263** smoke checks after the Phase 20 release). The Phase 13 queue was rechecked after the
+**143 → 173** smoke checks as Phases 11–14 landed; the current full suite is **1,336 / 1,336** PHP
+cases and **263 / 263** smoke checks after the Phase 21A foundation gate). The Phase 13 queue was rechecked after the
 approval / rejection confirmation-modal change: both decisions ask first, and a rejection reason is
 typed in the modal. Phase 14 adds the super-login contract: a URL-token member session, its banner,
 Exit/TTL and the impersonation audit. Phase 15 adds the reports desk, the eight settings cards, the
@@ -35,10 +35,10 @@ folder.
 |---|---|
 | Tester name | Automated QA pass — DeepSeek Harness (DSH) |
 | Date(s) of testing | 2026-11-07 … 2026-11-16 |
-| Repository / branch | `feature/shop`, later `feature/team-harvest` |
-| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14`, `phase-15`, `ir-0` … `ir-8`, `p17a` … `p17g`, `p19-start`, `p19a-foundation` … `p19f-operations`, `p19g-release`, `p20-start`, `p20a-foundation` … `p20f-member`, `p20g-release`, `phase-20` |
+| Repository / branch | `feature/shop`, later `feature/team-harvest`, then `feature/general-harvest` |
+| Tags under test | `phase-1` … `phase-9` (+ profile payout-account follow-up), `phase-10`, `phase-11`, `phase-12`, `phase-13`, `phase-14`, `phase-15`, `ir-0` … `ir-8`, `p17a` … `p17g`, `p19-start`, `p19a-foundation` … `p19f-operations`, `p19g-release`, `p20-start`, `p20a-foundation` … `p20f-member`, `p20g-release`, `phase-20`, `p21-start`, `p21a-foundation` |
 | App URL | `http://localhost/ecowealth/system/` |
-| Database | `ecowealth_sneat` (Phases 1–15, 17, 19 and 20 page checks) · scratch `*_test` / `*_manual` schemas (Phase 16) · scratch `ecowealth_sneat_qa17a` / `_qa17g` schemas (Phase 17) · `ecowealth_sneat_test` (the Phase 20 harness transcripts) and `ecowealth_sneat_tool_b_test` (the Phase 20 money and go-live drills) |
+| Database | `ecowealth_sneat` (Phases 1–15, 17, 19, 20 and 21A page checks) · scratch `*_test` / `*_manual` schemas (Phase 16) · scratch `ecowealth_sneat_qa17a` / `_qa17g` schemas (Phase 17) · `ecowealth_sneat_test` (the Phase 20 and 21A harness transcripts) and `ecowealth_sneat_tool_a_test` / `_tool_b_test` (the Phase 20 money, go-live and Phase 21A migration/install/reset drills) |
 | Operating system | Windows 11 Home Single Language 10.0.26200 (build 26200) |
 | Browser + version | Google Chrome 156.0.8078.80 |
 | Screen size(s) | 1440 × 900 · 390 × 844 (mobile emulation) |
@@ -51,7 +51,7 @@ folder.
 | Command | Expected | Actual | Result |
 |---|---|---|---|
 | `php bin\build_install_sql.php --check` | exit 0, no output | exit 0, no output | ☑ Pass ☐ Fail |
-| `php tests\run.php` | `Cases: 1320   Passed: 1320   Failed: 0` / `All good.` | `Cases: 1320   Passed: 1320   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
+| `php tests\run.php` | `Cases: 1336   Passed: 1336   Failed: 0` / `All good.` | `Cases: 1336   Passed: 1336   Failed: 0` / `All good.` | ☑ Pass ☐ Fail |
 | `powershell -NoProfile -File tests\smoke.ps1` | `Passed: 263   Failed: 0` | `Passed: 263   Failed: 0` | ☑ Pass ☐ Fail |
 
 Paste the final lines of each command here:
@@ -1391,6 +1391,53 @@ Sections A–G are final: **58 checks, 58 passed, 0 failed, 0 blocked.**
 
 ---
 
+## 21A. Phase 21A — General Harvest foundation (section A of the Phase 21 pack)
+
+Document: [phase-21-general-harvest.md](phase-21-general-harvest.md) — **section A only** (21B–21G append theirs)
+
+Phase 21 is the **General Harvest bonus** workstream: one shared 3-ary board over the Harvest queue
+Phase 20 built, where a completed level pays the node's holder a flat amount, once ever, to the
+withdrawable wallet. 21A ships the **inert** foundation: three tables (the ten-row ladder, the
+singleton board and the money ledger), the `general_harvest` wallet movement, its label and icon, two
+settings (the stream is **off**) and the board **unarmed** (`baseline_n` NULL, `settled_n` 0). **No
+application code reads any of it** until 21B–21D.
+
+**Prerequisites:** tag `p21-start` (`feature/general-harvest`, cut at `p20g-release`); the development
+copy at migration `024` (**36 tables / 74 settings**). **Expected suite count:** **1,336**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0
+php tests/run.php                             # Cases: 1336   Passed: 1336   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 263   Failed: 0 (no new route)
+php bin/wallet_reconcile.php                  # exit 0 (21A moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA21A-01 | A pre-migration dump of the development copy outside the repo (2,450,330 bytes, 36 tables / 29 inserts); the copy reads **36 tables / 74 settings** and `SHOW TABLES LIKE 'general%'` returns no row | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-01.txt` |
+| QA21A-02 | Migration `025` applied **twice** to a **p21-start** schema built from `p20g-release`, both exit 0; **three** tables, **39 tables / 79 settings**, the two documented column lists and the enum ending `'general_harvest'` | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-02.txt` |
+| QA21A-03 | The two `general_harvest_*` settings (`0`, `10`); **10** ladder rows totalling **8,381,000.00**; one unarmed board row | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-03.txt` |
+| QA21A-04 | `/admin/settings` and the member pages render **0** occurrences of *General Harvest*, with the Team Harvest panel still present as the positive control | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-04.txt` |
+| QA21A-05 | Three `RegistrationService` registrations write **no** award and **no** money: unseeded (the hook is inert) and seeded (the sponsor lands at position #3) | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-05.txt` |
+| QA21A-06 | The member and admin wallet filters list **General Harvest bonus** and select **no rows**; the label and icon resolve | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-06.txt` |
+| QA21A-07 | `build_install_sql` rebuilds **70 statements / 97,710 bytes**, `--check` exits 0, a fresh CLI install reports **39 / 79 / 10 / 1** with the board check reading *unarmed*, and `wallet_reconcile` exits 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-07.txt` |
+| QA21A-08 | A dry run plans the **general_harvest** and **general_harvest_board** steps; the real reset empties the ledger, returns the board to `(NULL, NULL, NULL, 0)`, keeps the ten ladder rows (the operator's ₱2,500.00 intact) and the two settings, and verifies clean | ☑ Pass ☐ Fail ☐ Blocked | `QA21A-08.txt` |
+
+| Phase 21A summary | |
+|---|---|
+| Executed | **8 / 8** checks |
+| Passed / Failed / Blocked | **8 / 0 / 0** |
+| Defects | 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
+
+Section A is final for this phase: **8 checks, 8 passed, 0 failed, 0 blocked.** The click-only browser
+re-run of `QA21A-04`/`06` and the independent-tester pass remain the project lead's item.
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1456,16 +1503,19 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 20E | ☑ Yes ☐ No | Team Harvest admin visibility: the fourth tab on `/admin/commissions` (six tiles from the one `Report::teamHarvestTotals()` read, the ten-level distribution, the filters, the rows with their wallet links, the pagination and the Appendix C.5 CSV with its audit row), the **Harvest** column and queue card with the `?harvest=` filter on `/admin/members`, the member panel, the reports block and `type=team_harvest` range CSV, and the dashboard **Team Harvest (30 d)** KPI. **Read-only**: no page writes an award, a wallet row or a queue row, and the three older tabs stay byte-identical. **23** new PHP cases, **1,298 / 1,298** green, **251 / 251** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section E: **8 / 8** executed as harness transcripts (regenerated at the 20G gate, D-20G-01). |
 | Phase 20F | ☑ Yes ☐ No | Team Harvest member visibility: the fourth `/earnings` tab (position and gate sentence, five counters, the whole 3×10 matrix, the progress card, the paginated roster, the level rows with their wallet links, the two exclusions, the purchases footnote, the FAQ and the Appendix C.6 CSV), the dashboard tile and the genealogy badge and column. **Read-only**, scoped to the session member (`&user_id=` ignored by page and file), the copy rules asserted verbatim and singular, the above-depth and stream-off states explicit, and the page cost constant (10 selects on page 1 and page 2 of a 500-teammate member). **22** new PHP cases, **1,320 / 1,320** green, **251 / 251** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section F: **9 / 9** captured as harness transcripts (the browser re-run is the lead's item). |
 | Phase 20G | ☑ Yes ☐ No | Team Harvest release: `APP_PHASE` **20**; the Phase 20 QA pack complete and signed (sections A–G, **58 / 58**); the twelve Phase 20 smoke checks added, including the registration that queues its sponsor at the next position (a fourth direct changes nothing) — **263 / 263**; the scratch-install go-live replay (install **36 / 77 / 10**, seed dry run → seed → enable, one award and its credit, reconcile exit 0); the release acceptance table **26 / 26**; the cold read fixed one major evidence gap and the stale shared documents (D-20G-01). **1,320 / 1,320** PHP cases, bundle check exit 0, `wallet_reconcile` exit 0, doctor exit 0. |
+| Phase 21A | ☑ Yes ☐ No | General Harvest foundation: migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement and two settings, **stream off and board unarmed**, no reader; migrated ≡ fresh, a reset empties the award ledger and returns the board to `(NULL, NULL, NULL, 0)` while keeping the ladder; fresh install **39 tables / 79 settings / 10 ladder rows / 1 board row**; **16** new PHP cases, **1,336 / 1,336** green and **263 / 263** smoke checks. Section A: **8 / 8** (01/02/03/07/08 from the real commands; 04/05/06 harness renders). |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the Phase 17 release
-acceptance table is 27 / 27, and Phases 18, 19 and 20 are recorded above with their own totals. The
-current build is the **Phase 20 release**: the full suite is **1,320 / 1,320**, the smoke run
-**263 / 263**, the business reset keeps the Team Harvest ladder and clears the queue, and every
-`QA20X-nn` check has an evidence file. Three defect passes are recorded (D-17G-01, the nine stale
+acceptance table is 27 / 27, and Phases 18, 19, 20 and 21A are recorded above with their own totals. The
+current build is the **Phase 21A foundation** (Phase 20 release plus migration `025`): the full suite is
+**1,336 / 1,336**, the smoke run
+**263 / 263**, the business reset keeps the Team Harvest ladder and clears the queue, and keeps the
+General Harvest ladder while returning its board to unarmed, and every
+`QA20X-nn`/`QA21A-nn` check has an evidence file. Three defect passes are recorded (D-17G-01, the nine stale
 documents; the Phase 19 trio D-19G-01 … D-19G-03; and the Phase 20 pair D-20G-01/D-20G-02) and all are
 **Closed**; the only open item at every gate is the independent-tester review, which the project lead
 signs below — the automated pass executed every section and left its transcripts in
-`evidence/phase-17/`, `evidence/phase-19/` and `evidence/phase-20/`.
+`evidence/phase-17/`, `evidence/phase-19/`, `evidence/phase-20/` and `evidence/phase-21/`.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

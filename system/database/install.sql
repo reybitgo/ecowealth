@@ -23,9 +23,10 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      36 tables · 77 settings · 2 staff accounts · 7 products
+--      39 tables · 79 settings · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
---      10 Team Harvest level amounts
+--      10 Team Harvest level amounts · 10 General Harvest level amounts
+--      1 unarmed General Harvest board row
 --
 --  It seeds NO demo members, NO demo registration codes and NO demo wallet
 --  balances. Demo fixtures are a separate, explicit import:
@@ -107,7 +108,7 @@ SET time_zone = '+08:00';
 
 -- ===========================================================================
 --  SECTION 1/7 — SCHEMA
---  source: database/schema.sql sha256=bebf74fc30cd20629a634dd2d741855c614019810a7e66c375e78f66481af524
+--  source: database/schema.sql sha256=dd3325619c1f3edf3aee9d824d7f6ee32c34df85386aa4026ba6c36f298ca85d
 -- ===========================================================================
 
 -- =============================================================
@@ -156,6 +157,9 @@ SET time_zone = '+08:00';
 --  Phase 20 owns: harvest_queue, team_harvest_levels,
 --                team_harvest_awards and the 'team_harvest' ledger
 --                ref type (the stream is off and unseeded).
+--  Phase 21 owns: general_harvest_levels, general_harvest_board,
+--                general_harvest_awards and the 'general_harvest'
+--                ledger ref type (the stream is off and unarmed).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -450,6 +454,9 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      award credit); ref_id = royalty_awards.id.
 --                      Phase 20 appends 'team_harvest' last (a Team
 --                      Harvest level credit); ref_id = team_harvest_awards.id.
+--                      Phase 21 appends 'general_harvest' last (a
+--                      General Harvest block credit);
+--                      ref_id = general_harvest_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -465,7 +472,8 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
-                         'unilevel_reversal','royalty','team_harvest') NOT NULL,
+                         'unilevel_reversal','royalty','team_harvest',
+                         'general_harvest') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1178,7 +1186,9 @@ CREATE TABLE IF NOT EXISTS royalty_awards (
 --  never renumbered, never reused, gaps allowed (D-03). Every Team
 --  Harvest award is computed from the difference between positions,
 --  and the later General Harvest stream reads the same order (D-16),
---  so the queue is shared infrastructure.
+--  so the queue is shared infrastructure. Phase 21's board numbers
+--  these rows: a node's `seq` is `id − 1`, and the money is attached
+--  to that node (general_harvest_awards).
 --
 --  `qualified_at`      the Nth direct's created_at (seed) or the new
 --                      member's created_at (live hook, 20C)
@@ -1272,6 +1282,105 @@ CREATE TABLE IF NOT EXISTS team_harvest_awards (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
+-- General Harvest levels — the ten amounts (Phase 21, plan §13.3)
+--
+--  Catalogue, not money: kept by a business reset, like
+--  package_levels, product_unilevel_levels and team_harvest_levels.
+--  The slot counts and thresholds are structural and fixed (D-18);
+--  only these amounts are configurable, and only while the board is
+--  unarmed (D-23). Ten rows always exist after a fresh install or a
+--  migration, seeded at the reference ladder
+--  (₱2,000 … ₱5,000,000; ₱8,381,000 per node).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS general_harvest_levels (
+  level      TINYINT UNSIGNED NOT NULL,
+  amount     DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  updated_at TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP,
+  updated_by INT UNSIGNED     NULL,
+  PRIMARY KEY (level),
+  CONSTRAINT chk_ghl_level  CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_ghl_amount CHECK (amount >= 0)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- General Harvest board — the singleton state row (Phase 21, §13.2)
+--
+--  Exactly one row, id = 1. It holds the two numbers the board
+--  cannot derive and must remember:
+--
+--    baseline_n  N₀, the queue length at arm; NULL = unarmed (D-06)
+--    settled_n   the settled queue length; >= baseline_n, <= N
+--
+--  `armed_at` and `armed_by` record when and by whom the baseline was
+--  taken; `armed_by` is NULL when the CLI armed it without a session.
+--  The row is created by the migration and the install seed, RESET
+--  (never deleted) by a business reset, and locked FOR UPDATE by every
+--  settlement: it is the stream's serialisation point (D-05).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS general_harvest_board (
+  id          TINYINT UNSIGNED NOT NULL,
+  baseline_n  INT UNSIGNED     NULL,
+  armed_at    DATETIME         NULL,
+  armed_by    INT UNSIGNED     NULL,
+  settled_n   INT UNSIGNED     NOT NULL DEFAULT 0,
+  updated_at  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                               ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_ghb_armed_by FOREIGN KEY (armed_by) REFERENCES users (id)
+    ON DELETE SET NULL,
+  CONSTRAINT chk_ghb_singleton CHECK (id = 1),
+  CONSTRAINT chk_ghb_armed CHECK (
+    (baseline_n IS NULL AND armed_at IS NULL)
+    OR (baseline_n IS NOT NULL AND armed_at IS NOT NULL)),
+  CONSTRAINT chk_ghb_settled CHECK (baseline_n IS NULL OR settled_n >= baseline_n)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- General Harvest awards — the money ledger (Phase 21, plan §13.4)
+--
+--  One row per (node, level); `UNIQUE (seq, level)` is the money
+--  anchor (D-04), so a replayed settlement can never pay twice. There
+--  is no type column, no period, no order, no product and no rate:
+--  the node and the level are the whole story. `seq` IS the node index
+--  (the queue's `id − 1`), because the money is attached to a
+--  structural place on the board, not to an account.
+--
+--  `status = 'baseline'` records a block that was already full when
+--  the board was armed: it is kept for the audit, carries
+--  `ledger_id IS NULL`, and is never credited (D-06). A `credited`
+--  row always names its wallet movement. There is no `voided` status
+--  in v1 (D-13): a row is written once and never edited.
+--  `ledger_id` is deliberately NOT a foreign key: the wallet ledger is
+--  append-only and outlives a correction (same as royalty_awards).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS general_harvest_awards (
+  id           INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  seq          INT UNSIGNED     NOT NULL,
+  user_id      INT UNSIGNED     NOT NULL,
+  level        TINYINT UNSIGNED NOT NULL,
+  threshold_n  INT UNSIGNED     NOT NULL,
+  n_at_award   INT UNSIGNED     NOT NULL,
+  amount       DECIMAL(12,2)    NOT NULL,
+  status       ENUM('credited','baseline') NOT NULL DEFAULT 'credited',
+  ledger_id    INT UNSIGNED     NULL,
+  credited_at  DATETIME         NOT NULL,
+  created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_gha_seq_level (seq, level),
+  KEY idx_gha_user (user_id, level),
+  KEY idx_gha_level (level, seq),
+  KEY idx_gha_credited (credited_at),
+  KEY idx_gha_status (status),
+  KEY idx_gha_ledger (ledger_id),
+  CONSTRAINT fk_gha_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_gha_level    CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_gha_amount   CHECK (amount >= 0),
+  CONSTRAINT chk_gha_n        CHECK (n_at_award >= threshold_n),
+  CONSTRAINT chk_gha_baseline CHECK (status <> 'baseline' OR ledger_id IS NULL)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
 -- Impersonation log — super-login sessions (plan §4.2, §4.4,
 -- §7 Phase 14)
 --
@@ -1323,7 +1432,7 @@ CREATE TABLE IF NOT EXISTS live_revisions (
 
 -- ===========================================================================
 --  SECTION 2/7 — SETTINGS
---  source: database/seeds/001_settings.sql sha256=35de8b4c3d80c1765236b5ab01d0bd5c0d133632fe8c334ec6d34d2a94c419fb
+--  source: database/seeds/001_settings.sql sha256=665f58e50fbe1f2fd8c1b0cac81d1cbc82888840d550223c47d0e92c0fc9908f
 -- ===========================================================================
 
 -- =============================================================
@@ -1448,6 +1557,17 @@ INSERT INTO settings (key_name, value) VALUES
   ('team_harvest_max_levels',          '10'),
   ('team_harvest_ledger_since',        ''),
 
+  -- General Harvest bonus (Phase 21). One shared 3-ary board over the
+  -- Harvest queue: every qualified member holds a node, and a completed
+  -- level pays a flat amount to the node's holder. The stream ships OFF
+  -- (`general_harvest_enabled = 0`) and the board ships UNARMED (its
+  -- singleton row has `baseline_n NULL`): enabling and arming are two
+  -- separate, deliberate acts (D-07, D-10). There is deliberately no
+  -- baseline key — `baseline_n` lives on the board row, where it is read
+  -- and written under the same lock as `settled_n` (§13.5).
+  ('general_harvest_enabled',          '0'),
+  ('general_harvest_max_levels',       '10'),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),
@@ -1484,6 +1604,31 @@ INSERT INTO team_harvest_levels (level, amount) VALUES
   (9, 1200000.00),
   (10, 3500000.00)
 ON DUPLICATE KEY UPDATE level = level;
+
+-- General Harvest reference ladder (Phase 21, plan §12.4, Appendix A).
+-- Ten rows, the same amounts migration 025 inserts; ON DUPLICATE keeps an
+-- operator's edited amount when this file is re-run. The full ladder pays
+-- ₱8,381,000.00 per node.
+INSERT INTO general_harvest_levels (level, amount) VALUES
+  (1,   2000.00),
+  (2,   4000.00),
+  (3,   8000.00),
+  (4,  12000.00),
+  (5,  25000.00),
+  (6, 100000.00),
+  (7, 250000.00),
+  (8, 480000.00),
+  (9, 2500000.00),
+  (10, 5000000.00)
+ON DUPLICATE KEY UPDATE level = level;
+
+-- General Harvest board singleton (Phase 21, plan §13.2). Unarmed:
+-- no baseline, no arm instant, nothing settled. Every read must find the
+-- row without a write, and the installer verifies it, so the seed creates
+-- it; ON DUPLICATE never disturbs an armed board.
+INSERT INTO general_harvest_board (id, baseline_n, armed_at, armed_by, settled_n)
+VALUES (1, NULL, NULL, NULL, 0)
+ON DUPLICATE KEY UPDATE id = id;
 
 -- ===========================================================================
 --  SECTION 3/7 — STAFF ACCOUNTS
@@ -1729,7 +1874,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=af7c850ff9faa164c8684ec22e1f206036b7b68f96375ff1198d2e1169d5fa8d
+--  source: database/install/footer.sql sha256=299dbcd1ab9ff6b83ab72f583b8db9c71e501d6afe0e6f3b562837e9267db532
 -- ===========================================================================
 
 -- ===========================================================================
@@ -1757,17 +1902,18 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=af7c850ff9faa164c8684ec22e1f206036b7b68f96375ff1198d2e1169d5fa8d
+--  source: database/install/footer.sql sha256=299dbcd1ab9ff6b83ab72f583b8db9c71e501d6afe0e6f3b562837e9267db532
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 36    settings_rows = 77    staff_rows    = 2
+--      tables_created = 39    settings_rows = 79    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --      team_harvest_levels_rows = 10
+--      general_harvest_levels_rows = 10   general_harvest_board_rows = 1
 --
 --  A reset is expected to add audit_log rows, live_revisions rows and the
 --  generated registration codes; a fresh install has none of them.
@@ -1784,6 +1930,8 @@ SELECT
   (SELECT COUNT(*) FROM package_levels)                    AS levels_rows,
   (SELECT COUNT(*) FROM package_products)                  AS contents_rows,
   (SELECT COUNT(*) FROM team_harvest_levels)                AS team_harvest_levels_rows,
+  (SELECT COUNT(*) FROM general_harvest_levels)             AS general_harvest_levels_rows,
+  (SELECT COUNT(*) FROM general_harvest_board)              AS general_harvest_board_rows,
   (SELECT COUNT(*) FROM reg_codes)                         AS codes_rows;
 
 SELECT key_name, value FROM settings
@@ -1792,3 +1940,8 @@ SELECT key_name, value FROM settings
 
 SELECT username, role, member_status, is_active
   FROM users WHERE role IN ('admin','superadmin') ORDER BY id;
+
+-- The General Harvest board ships unarmed: no baseline, no arm instant,
+-- nothing settled. A fresh install must never pretend to have a go-live
+-- baseline (plan 21A Rule 4).
+SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board;

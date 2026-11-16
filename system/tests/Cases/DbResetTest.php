@@ -72,7 +72,7 @@ $service = static function (PDO $pdo, string $database, array $options = [], ?ca
     );
 };
 
-/** The 36 table names the counts helper reads. */
+/** The 39 table names the counts helper reads. */
 $allTables = [
     'users', 'remember_tokens', 'settings', 'audit_log', 'products', 'packages',
     'package_levels', 'package_products', 'carts', 'cart_items', 'ewallet_ledger',
@@ -83,6 +83,7 @@ $allTables = [
     'product_unilevel_levels', 'unilevel_awards', 'unilevel_activity', 'unilevel_periods',
     'royalty_awards', 'royalty_periods',
     'harvest_queue', 'team_harvest_levels', 'team_harvest_awards',
+    'general_harvest_levels', 'general_harvest_board', 'general_harvest_awards',
 ];
 
 /** @return array<string,int> */
@@ -537,6 +538,7 @@ return [
 
         foreach ([
             'lock', 'preflight', 'counts', 'orders', 'wallet', 'members', 'staff',
+            'general_harvest', 'general_harvest_board',
             'catalogue', 'audit', 'live', 'settings', 'auto_increment', 'uploads',
             'codes_generate', 'verify',
         ] as $key) {
@@ -544,7 +546,9 @@ return [
         }
 
         assert_same(7, $plan['orders']['statements']);
-        assert_same(23, $plan['auto_increment']['statements']);
+        assert_same(24, $plan['auto_increment']['statements']);
+        assert_same(1, $plan['general_harvest']['statements'], 'the award ledger is emptied');
+        assert_same(1, $plan['general_harvest_board']['statements'], 'the board is reset, never deleted');
         assert_same(0, $plan['catalogue']['statements'], 'the catalogue is kept by default');
     },
 
@@ -560,6 +564,24 @@ return [
             "INSERT INTO product_unilevel_levels (product_id, level, percent)
              SELECT id, 1, 5.000 FROM products ORDER BY sku LIMIT 1"
         );
+
+        /* Phase 21: an armed board, one award and an edited amount must all
+         * go back to the unarmed install state, except the amount — the
+         * ladder is catalogue and survives (21A Rule 8). */
+        $pdo->exec(
+            "INSERT INTO general_harvest_awards
+               (seq, user_id, level, threshold_n, n_at_award, amount, status, credited_at)
+             SELECT 0, id, 1, 4, 4, 2000.00, 'credited', '2026-11-15 09:00:00'
+               FROM users WHERE username = 'juan' LIMIT 1"
+        );
+        $pdo->exec(
+            "UPDATE general_harvest_board
+                SET baseline_n = 3, armed_at = '2026-11-15 09:00:00',
+                    armed_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1),
+                    settled_n = 4
+              WHERE id = 1"
+        );
+        $pdo->exec("UPDATE general_harvest_levels SET amount = '2500.00' WHERE level = 1");
 
         $settingsBefore = $pdo->query('SELECT key_name, value FROM settings ORDER BY key_name')
             ->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -629,6 +651,35 @@ return [
             'the Team Harvest ladder survives a business reset'
         );
 
+        /* Phase 21: the General Harvest ledger is emptied and the board
+         * returns to unarmed; the ten ladder rows and the two settings stay
+         * catalogue (21A Rule 8, plan §13.8 I-12). */
+        assert_same(0, $after['general_harvest_awards'], 'the General Harvest ledger is emptied');
+        $board = $pdo->query('SELECT baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board')
+            ->fetch(PDO::FETCH_ASSOC);
+
+        assert_true($board !== false, 'the board row must survive a reset (it is reset, not deleted)');
+        assert_null($board['baseline_n'], 'the baseline is cleared');
+        assert_null($board['armed_at'], 'the arm instant is cleared');
+        assert_null($board['armed_by'], 'the arm actor is cleared');
+        assert_same(0, (int) $board['settled_n'], 'nothing is settled after a reset');
+        assert_same(1, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_board')->fetchColumn());
+        assert_same(
+            10,
+            (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn(),
+            'the General Harvest ladder survives a business reset'
+        );
+        assert_same(
+            '2500.00',
+            number_format((float) $pdo->query('SELECT amount FROM general_harvest_levels WHERE level = 1')->fetchColumn(), 2, '.', ''),
+            'an operator amount is never overwritten by a reset'
+        );
+        assert_same(
+            2,
+            (int) $pdo->query("SELECT COUNT(*) FROM settings WHERE key_name LIKE 'general\\_harvest\\_%'")->fetchColumn(),
+            'the two General Harvest settings survive a business reset'
+        );
+
         assert_same($productsBefore, $after['products'], 'the catalogue is kept by default');
         assert_same(1, $after['audit_log'], 'the reset row is the only audit row');
         assert_same(18, $after['live_revisions']);
@@ -657,6 +708,9 @@ return [
         assert_same(3, $steps['codes']['deleted']);
         assert_same('skip', $steps['catalogue']['status']);
         assert_same('skip', $steps['codes_generate']['status']);
+        assert_true(isset($steps['general_harvest']), 'the reset reports a General Harvest step');
+        assert_same(1, (int) $steps['general_harvest']['deleted'], 'the award ledger was emptied');
+        assert_same('ok', (string) $steps['general_harvest_board']['status'], 'the board was reset');
     },
 
     /* ==========================================================
@@ -1157,7 +1211,7 @@ return [
 
         $report = $service($pdo, $database)->run();
         assert_true($report['ok']);
-        assert_same(23, $report['auto_increment']['reset']);
+        assert_same(24, $report['auto_increment']['reset']);
         assert_same(0, $report['auto_increment']['failed']);
 
         foreach (['shop_orders', 'ewallet_ledger', 'reg_codes', 'activations', 'commissions'] as $table) {

@@ -16,7 +16,7 @@ declare(strict_types=1);
  *      bundle      install.sql matches its sources and mirrors the
  *                  migration's objects
  *      tools       DatabaseInstaller / DatabaseResetService agree with
- *                  the schema (36 tables, 77 settings, 3 money tables)
+ *                  the schema (39 tables, 79 settings, 3 money tables)
  *      vocabulary  WalletService::REF_TYPES, the labels and the icons
  *      defaults    a migrated and a fresh database agree; everything off
  *      guards      the cascades, the unique keys and the CHECKs
@@ -294,7 +294,7 @@ return [
             }
         }
 
-        assert_same(36, $creates, 'the bundle creates 36 tables (Phase 19 adds two royalty, Phase 20 three harvest tables)');
+        assert_same(39, $creates, 'the bundle creates 39 tables (Phase 19 adds two royalty, Phase 20 three harvest, Phase 21 three General Harvest tables)');
 
         foreach (['product_unilevel_levels', 'unilevel_awards', 'unilevel_activity', 'unilevel_periods'] as $table) {
             assert_true(in_array($table, $created, true), 'the bundle creates ' . $table);
@@ -305,8 +305,8 @@ return [
      *  The install/reset tools (P17A-T6)
      * ========================================================== */
     'P17A-T6 the installer and reset expectations match the schema' => function (): void {
-        assert_same(36, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(77, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(39, DatabaseInstaller::EXPECTED['tables_created']);
+        assert_same(79, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['packages_rows']);
@@ -369,7 +369,7 @@ return [
 
         $php = WalletService::REF_TYPES;
 
-        assert_count(12, $php, 'twelve movement kinds after Phase 20 (Phase 17 added two, Phase 19 one, Phase 20 one)');
+        assert_count(13, $php, 'thirteen movement kinds after Phase 21 (17A two, 19A one, 20A one, 21A one)');
         assert_same($php, array_values(array_unique($php)), 'no duplicate movement kind');
 
         foreach (['unilevel', 'unilevel_reversal'] as $refType) {

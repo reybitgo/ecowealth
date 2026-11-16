@@ -89,6 +89,13 @@ final class DatabaseInstaller
      * Phase 20 adds the two transactional Team Harvest tables: a fresh
      * install must fail verification if a position or an award already
      * exists. `team_harvest_levels` is catalogue, like `package_levels`.
+     *
+     * Phase 21 adds `general_harvest_awards`, the General Harvest money
+     * ledger: a fresh install must fail verification if an award already
+     * exists. `general_harvest_levels` (the ten amounts) and
+     * `general_harvest_board` (the singleton state row) are catalogue and
+     * state, not money, so they are not in this list — the board is
+     * asserted to be **unarmed** by its own check instead.
      */
     public const TRANSACTIONAL_TABLES = [
         'addresses',
@@ -100,6 +107,7 @@ final class DatabaseInstaller
         'ewallet_admin_topups',
         'ewallet_ledger',
         'ewallet_transfers',
+        'general_harvest_awards',
         'harvest_queue',
         'impersonation_log',
         'live_revisions',
@@ -124,8 +132,8 @@ final class DatabaseInstaller
 
     /** The expected production counts — the numbers the footer prints (plan §6.5). */
     public const EXPECTED = [
-        'tables_created' => 36,
-        'settings_rows'  => 77,
+        'tables_created' => 39,
+        'settings_rows'  => 79,
         'staff_rows'     => 2,
         'members_rows'   => 0,
         'products_rows'  => 7,
@@ -133,7 +141,9 @@ final class DatabaseInstaller
         'levels_rows'    => 18,
         'contents_rows'  => 10,
         'codes_rows'     => 0,
-        'team_harvest_levels_rows' => 10,
+        'team_harvest_levels_rows'    => 10,
+        'general_harvest_levels_rows' => 10,
+        'general_harvest_board_rows'  => 1,
     ];
 
     /** Demo counts (plan §6.2): five members, three codes, three ledger rows. */
@@ -909,6 +919,8 @@ final class DatabaseInstaller
             $counts['levels_rows']   = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM package_levels');
             $counts['contents_rows'] = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM package_products');
             $counts['team_harvest_levels_rows'] = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM team_harvest_levels');
+            $counts['general_harvest_levels_rows'] = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM general_harvest_levels');
+            $counts['general_harvest_board_rows']  = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM general_harvest_board');
             $counts['codes_rows']    = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM reg_codes');
             $counts['ledger_rows']   = (int) self::scalar($pdo, 'SELECT COUNT(*) FROM ewallet_ledger');
         } catch (PDOException $e) {
@@ -953,7 +965,7 @@ final class DatabaseInstaller
             'Settings',
             $counts['settings_rows'] === $expected['settings_rows'],
             $counts['settings_rows'] . ' of ' . $expected['settings_rows'] . ' settings',
-            'The bundle seeds 74 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
+            'The bundle seeds 76 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
         );
 
         /* ---- Staff rows: exactly one per role, active ---------------- */
@@ -1043,6 +1055,37 @@ final class DatabaseInstaller
                 . $expected['levels_rows'] . ' / ' . $expected['contents_rows'] . ' / '
                 . $expected['team_harvest_levels_rows'] . '; rebuild the bundle from seeds 003–004 and '
                 . 'the Team Harvest ladder.'
+        );
+
+        /* ---- The General Harvest board ships unarmed ---------------- */
+        /* The board is state, not catalogue and not money: exactly one row,
+         * ten configured amounts, and no baseline. A fresh install must
+         * never pretend to have a go-live baseline (21A Rule 4, D-06). */
+        $boardRow = self::row(
+            $pdo,
+            'SELECT baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board WHERE id = 1'
+        );
+
+        $ladderOk  = $counts['general_harvest_levels_rows'] === $expected['general_harvest_levels_rows'];
+        $boardOk   = $counts['general_harvest_board_rows'] === $expected['general_harvest_board_rows']
+            && $boardRow !== false
+            && $boardRow['baseline_n'] === null
+            && $boardRow['armed_at'] === null
+            && $boardRow['armed_by'] === null
+            && (int) $boardRow['settled_n'] === 0;
+
+        $checks[] = self::check(
+            'general_harvest',
+            'General Harvest board',
+            $ladderOk && $boardOk,
+            $counts['general_harvest_levels_rows'] . ' of ' . $expected['general_harvest_levels_rows']
+                . ' ladder rows / ' . $counts['general_harvest_board_rows'] . ' of '
+                . $expected['general_harvest_board_rows'] . ' board row'
+                . ($boardOk ? ' (unarmed)' : ' — the board is not unarmed'),
+            $boardOk
+                ? 'The board must ship unarmed: baseline_n, armed_at and armed_by NULL and settled_n 0.'
+                : 'A fresh install carries one unarmed board row (baseline_n NULL) and ten ladder rows. '
+                    . 'Drop the schema and re-import the bundle; arming is a deliberate CLI job, never a seed.'
         );
 
         $codesOk = $counts['codes_rows'] === $expected['codes_rows'];

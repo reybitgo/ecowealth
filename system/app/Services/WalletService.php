@@ -62,6 +62,12 @@ final class WalletService
      * (ref_id = team_harvest_awards.id), LAST for the same reason. It
      * ships with the column in 20A because P5-T8 compares the list and
      * the enum in both directions (plan 20A Rule 7).
+     *
+     * Phase 21 appends `general_harvest`, the General Harvest block credit
+     * (ref_id = general_harvest_awards.id), LAST for the same reason. The
+     * column and this constant land in the same phase (plan 21A Rule 7):
+     * a database that accepts a value PHP rejects is worse than no value
+     * at all, and P5-T8 would catch the split.
      */
     public const REF_TYPES = [
         'commission',
@@ -76,6 +82,7 @@ final class WalletService
         'unilevel_reversal',
         'royalty',
         'team_harvest',
+        'general_harvest',
     ];
 
     /** DECIMAL(12,2) upper bound. */

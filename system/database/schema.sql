@@ -44,6 +44,9 @@
 --  Phase 20 owns: harvest_queue, team_harvest_levels,
 --                team_harvest_awards and the 'team_harvest' ledger
 --                ref type (the stream is off and unseeded).
+--  Phase 21 owns: general_harvest_levels, general_harvest_board,
+--                general_harvest_awards and the 'general_harvest'
+--                ledger ref type (the stream is off and unarmed).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -338,6 +341,9 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      award credit); ref_id = royalty_awards.id.
 --                      Phase 20 appends 'team_harvest' last (a Team
 --                      Harvest level credit); ref_id = team_harvest_awards.id.
+--                      Phase 21 appends 'general_harvest' last (a
+--                      General Harvest block credit);
+--                      ref_id = general_harvest_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -353,7 +359,8 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   withdrawable_after DECIMAL(14,2) NOT NULL,
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
-                         'unilevel_reversal','royalty','team_harvest') NOT NULL,
+                         'unilevel_reversal','royalty','team_harvest',
+                         'general_harvest') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1066,7 +1073,9 @@ CREATE TABLE IF NOT EXISTS royalty_awards (
 --  never renumbered, never reused, gaps allowed (D-03). Every Team
 --  Harvest award is computed from the difference between positions,
 --  and the later General Harvest stream reads the same order (D-16),
---  so the queue is shared infrastructure.
+--  so the queue is shared infrastructure. Phase 21's board numbers
+--  these rows: a node's `seq` is `id − 1`, and the money is attached
+--  to that node (general_harvest_awards).
 --
 --  `qualified_at`      the Nth direct's created_at (seed) or the new
 --                      member's created_at (live hook, 20C)
@@ -1157,6 +1166,105 @@ CREATE TABLE IF NOT EXISTS team_harvest_awards (
   CONSTRAINT chk_tha_level  CHECK (level BETWEEN 1 AND 10),
   CONSTRAINT chk_tha_amount CHECK (amount >= 0),
   CONSTRAINT chk_tha_n      CHECK (n_at_award >= threshold_n)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- General Harvest levels — the ten amounts (Phase 21, plan §13.3)
+--
+--  Catalogue, not money: kept by a business reset, like
+--  package_levels, product_unilevel_levels and team_harvest_levels.
+--  The slot counts and thresholds are structural and fixed (D-18);
+--  only these amounts are configurable, and only while the board is
+--  unarmed (D-23). Ten rows always exist after a fresh install or a
+--  migration, seeded at the reference ladder
+--  (₱2,000 … ₱5,000,000; ₱8,381,000 per node).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS general_harvest_levels (
+  level      TINYINT UNSIGNED NOT NULL,
+  amount     DECIMAL(12,2)    NOT NULL DEFAULT 0.00,
+  updated_at TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                              ON UPDATE CURRENT_TIMESTAMP,
+  updated_by INT UNSIGNED     NULL,
+  PRIMARY KEY (level),
+  CONSTRAINT chk_ghl_level  CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_ghl_amount CHECK (amount >= 0)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- General Harvest board — the singleton state row (Phase 21, §13.2)
+--
+--  Exactly one row, id = 1. It holds the two numbers the board
+--  cannot derive and must remember:
+--
+--    baseline_n  N₀, the queue length at arm; NULL = unarmed (D-06)
+--    settled_n   the settled queue length; >= baseline_n, <= N
+--
+--  `armed_at` and `armed_by` record when and by whom the baseline was
+--  taken; `armed_by` is NULL when the CLI armed it without a session.
+--  The row is created by the migration and the install seed, RESET
+--  (never deleted) by a business reset, and locked FOR UPDATE by every
+--  settlement: it is the stream's serialisation point (D-05).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS general_harvest_board (
+  id          TINYINT UNSIGNED NOT NULL,
+  baseline_n  INT UNSIGNED     NULL,
+  armed_at    DATETIME         NULL,
+  armed_by    INT UNSIGNED     NULL,
+  settled_n   INT UNSIGNED     NOT NULL DEFAULT 0,
+  updated_at  TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                               ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_ghb_armed_by FOREIGN KEY (armed_by) REFERENCES users (id)
+    ON DELETE SET NULL,
+  CONSTRAINT chk_ghb_singleton CHECK (id = 1),
+  CONSTRAINT chk_ghb_armed CHECK (
+    (baseline_n IS NULL AND armed_at IS NULL)
+    OR (baseline_n IS NOT NULL AND armed_at IS NOT NULL)),
+  CONSTRAINT chk_ghb_settled CHECK (baseline_n IS NULL OR settled_n >= baseline_n)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- General Harvest awards — the money ledger (Phase 21, plan §13.4)
+--
+--  One row per (node, level); `UNIQUE (seq, level)` is the money
+--  anchor (D-04), so a replayed settlement can never pay twice. There
+--  is no type column, no period, no order, no product and no rate:
+--  the node and the level are the whole story. `seq` IS the node index
+--  (the queue's `id − 1`), because the money is attached to a
+--  structural place on the board, not to an account.
+--
+--  `status = 'baseline'` records a block that was already full when
+--  the board was armed: it is kept for the audit, carries
+--  `ledger_id IS NULL`, and is never credited (D-06). A `credited`
+--  row always names its wallet movement. There is no `voided` status
+--  in v1 (D-13): a row is written once and never edited.
+--  `ledger_id` is deliberately NOT a foreign key: the wallet ledger is
+--  append-only and outlives a correction (same as royalty_awards).
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS general_harvest_awards (
+  id           INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  seq          INT UNSIGNED     NOT NULL,
+  user_id      INT UNSIGNED     NOT NULL,
+  level        TINYINT UNSIGNED NOT NULL,
+  threshold_n  INT UNSIGNED     NOT NULL,
+  n_at_award   INT UNSIGNED     NOT NULL,
+  amount       DECIMAL(12,2)    NOT NULL,
+  status       ENUM('credited','baseline') NOT NULL DEFAULT 'credited',
+  ledger_id    INT UNSIGNED     NULL,
+  credited_at  DATETIME         NOT NULL,
+  created_at   TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_gha_seq_level (seq, level),
+  KEY idx_gha_user (user_id, level),
+  KEY idx_gha_level (level, seq),
+  KEY idx_gha_credited (credited_at),
+  KEY idx_gha_status (status),
+  KEY idx_gha_ledger (ledger_id),
+  CONSTRAINT fk_gha_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT chk_gha_level    CHECK (level BETWEEN 1 AND 10),
+  CONSTRAINT chk_gha_amount   CHECK (amount >= 0),
+  CONSTRAINT chk_gha_n        CHECK (n_at_award >= threshold_n),
+  CONSTRAINT chk_gha_baseline CHECK (status <> 'baseline' OR ledger_id IS NULL)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

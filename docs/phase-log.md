@@ -7316,3 +7316,129 @@ board on the shared queue, a retroactive-baseline decision, or a forward-only co
 own economics. The queue, the awards, the ladder and the two on-demand jobs are frozen at
 `p20g-release`; a change to any of them is a new gate.
 
+
+## Phase 21A — Foundation (2026-11-16)
+
+**Status:** complete · **Tags:** `p21-start` (baseline, on `p20g-release`), `p21a-foundation` ·
+**Branch:** `feature/general-harvest`, cut from `feature/team-harvest` at `p20g-release` ·
+**Schema:** 36 → 39 tables, 77 → 79 settings · **Suite:** 1,320 → 1,336 cases, **1,336 / 1,336** green ·
+**Smoke:** 263 / 263.
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §5 (Phase 21A), §13 in full and §12.4/§12.7. This phase
+ships the General Harvest schema, the wallet vocabulary, the two settings, the ten reference amounts
+and the board singleton, plus the install/reset knowledge that 21B–21G build on. **No code path reads
+any of it:** the award ledger is empty, no model, service, controller, view, route or job exists,
+`general_harvest_enabled` is `0`, and the board is **unarmed** (`baseline_n` NULL, `settled_n` 0,
+D-06/D-10).
+
+### Database
+
+| Object | Change |
+|---|---|
+| `database/migrations/025_general_harvest.sql` (new) | Three tables (`general_harvest_levels`, the ten-row catalogue with a natural key; `general_harvest_board`, the singleton `id = 1` with the `baseline_n`/`armed_at` pair, `settled_n` and `fk_ghb_armed_by … ON DELETE SET NULL`; `general_harvest_awards`, the money ledger with `UNIQUE (seq, level)` as its anchor and `ledger_id` deliberately not a foreign key), the extended `ewallet_ledger.ref_type` enum (`general_harvest` appended last), the two settings, the ten reference amounts and the unarmed board row. Every `CREATE TABLE` is `IF NOT EXISTS`; the ENUM change is guarded by an `information_schema.COLUMNS` probe on `COLUMN_TYPE` and a `PREPARE`/`EXECUTE` pair; the settings insert is `ON DUPLICATE KEY UPDATE key_name = key_name`; the ladder insert is `ON DUPLICATE KEY UPDATE level = level`; the board insert is `ON DUPLICATE KEY UPDATE id = id` (a re-run never overwrites an operator's amount or re-arms a board). No backfill, no `DATE_FORMAT(NOW())`. Applied twice on a scratch schema (a no-op), both exit 0. |
+| `database/schema.sql` | The fresh-install mirror, block for block: the three tables sit after `team_harvest_awards` and before `impersonation_log`; `ewallet_ledger.ref_type` gains `general_harvest` (and its comment); the `harvest_queue` comment names the board (`seq = id − 1`); the header names Phase 21 and its three tables. |
+| `database/seeds/001_settings.sql` | The two keys **and** a separate `INSERT INTO general_harvest_levels` with the ten reference amounts **and** the unarmed board row, in the migration's order and with the same defaults. |
+| `database/install/header.sql` | Doc comment: **39 tables · 79 settings · 10 General Harvest level amounts · 1 unarmed board row**. |
+| `database/install/footer.sql` | Expected counts: **39 tables, 79 settings, 10 ladder rows, 1 board row**; the verification pack gains `general_harvest_levels_rows` and `general_harvest_board_rows` and prints the board row, which must be unarmed. |
+| `database/install.sql` | Regenerated only (`php bin/build_install_sql.php`): 70 statements, 97,710 bytes, sha256 `0fe10b8b14b5e585b27e744e9e3ab47d4d3a917370c7d10eb229bd9c6bddbd07`; `--check` exits 0. |
+
+### Code
+
+- **`WalletService::REF_TYPES`** — `general_harvest` appended last (13 values). The column and the
+  constant ship together because `P5-T8` compares them in both directions.
+- **`helpers.php`** — `wallet_ref_label('general_harvest')` = *General Harvest bonus*;
+  `wallet_ref_icon('general_harvest')` = `bx-grid-alt` (`bx bx-grid-alt`). Rule 6: the label exists
+  before the money.
+- **`DatabaseInstaller`** — `EXPECTED` 36/77 → **39/79**, plus `general_harvest_levels_rows => 10` and
+  `general_harvest_board_rows => 1`; the settings hint now says “76 keys plus the three `install_*`
+  metadata rows”; a new **General Harvest board** check asserts the ten ladder rows and that the
+  singleton is unarmed (`baseline_n`/`armed_at`/`armed_by` NULL, `settled_n` 0);
+  `TRANSACTIONAL_TABLES` gains **`general_harvest_awards`** so a fresh install fails verification if an
+  award exists. `general_harvest_levels` and `general_harvest_board` are catalogue/state and are not in
+  that list. `DEMO_TABLES` is unchanged.
+- **`DatabaseResetService`** — `ALL_TABLES` 36 → **39**; `ZERO_TABLES` gains `general_harvest_awards`;
+  `AUTO_INCREMENT_TABLES` gains `general_harvest_awards` (it is the only new table with a counter); a
+  new **General Harvest award ledger** delete group before the Team Harvest and member groups; and a
+  **“Return the General Harvest board to unarmed”** step that `UPDATE`s the singleton (`baseline_n`,
+  `armed_at`, `armed_by` NULL, `settled_n` 0) instead of deleting it — the platform reads the row
+  without a write, and a missing row would leave every read without state (I-12). The dry-run plan
+  carries both steps.
+
+No model, service, controller, view, route or job is added. The only visible change is the wallet
+statement's movement filter, which gains one option that matches nothing yet (accepted in plan §5
+Rule 6).
+
+### Tests
+
+**16 new cases: 1,320 → 1,336, all green.**
+
+| Group | Added | What it proves |
+|---|---:|---|
+| `GeneralHarvestFoundationTest` (new) | 15 | P21A-T1 (structure, anchors, foreign keys, CHECKs including the `id = 1` singleton, the exact column lists, no backfill), T2 (a re-run is a no-op, keeps an operator's amount/setting, recreates a lost table and never re-arms a board), T4 (seed parity: two keys, ten amounts, the unarmed board row), T5 (bundle parity and 39/79 in header, footer and bundle; 39 CREATEs; the two seed inserts and the board query), T6 (a real fresh install reports `39 / 79 / 2 / 0 / 7 / 2 / 18 / 10 / 0 / 10 / 1`, with the board check reading *unarmed*), T7 (the transactional guard fails with `general_harvest_awards=1` and an **armed** board fails its own check; the ladder and an unarmed board stay non-transactional), T8 (a reset empties the ledger, returns the board to `(NULL, NULL, NULL, 0)`, keeps the ten rows and the two settings, restarts the counter and reports both steps), T9 (enum ↔ `REF_TYPES` both directions, 13 values, no reversal stub, unknown value refused), T10 (label/icon for every movement, no row yet), T11 (the two defaults on both sides, off and unarmed, no `DATE_FORMAT(NOW())`, no `FROM users`, no `UPDATE` statement), T12 (the ten amounts and the ₱8,381,000.00 total; an operator edit survives), T13 (a second board row refused by the PK and by `chk_ghb_singleton`; the armed/settled invariants; `armed_by` cleared on staff deletion), T14 (the award cascade and the anchor's reuse), T15 (only the four manifest files name the objects; no class, route or job), T16 (no route, no view mentions it, inert on a fresh install, the migration/schema/reset counts agree at 39) |
+| `MigrationTest` | 1 | P21A-T3: `025` is in the ordered list and last, the three tables and the enum exist, the settings/ladder/board defaults are exact, the structures equal a fresh install and a re-run disturbs neither an edited amount nor an armed board |
+
+Updated for the new counts: `InstallTest` (**39 / 79 / 10 / 1**, 70 statements), `InstallSqlTest`
+(**39 / 79**, `76 seed keys + 3 install metadata keys`), `DbResetTest` (the 36-name helper becomes 39,
+24 auto-increment counters, the plan's two new steps, an armed board and an award cleared by a reset,
+the ladder kept), `DbTargetTest` (39 tables), `SqlScriptTest` (the 39-name expected list),
+`WalletTest` (P5-T8 carries `general_harvest` and asserts thirteen), `RoyaltyFoundationTest` and
+`TeamHarvestFoundationTest` (their migration chains now also apply 025 so migrated ≡ fresh; 39/79; the
+enum assertions read `general_harvest` last; `P20A-T3` no longer claims 024 is the newest migration),
+`UnilevelFoundationTest` (the bundle/EXPECTED counts and the vocabulary count) and
+`TeamHarvestConfigurationTest` (39 tables, 76 seed settings, 39/79 in the bundle). `SeedParityTest` is
+unchanged by design — it already fails unless seed 001 carries every migration key.
+
+### Gate
+
+- [x] Schema state matches the plan — `MigrationTest` applies 025 and migrated ≡ fresh is green.
+- [x] `php bin/build_install_sql.php` run; `--check` exits 0.
+- [x] `php tests/run.php` → **Cases: 1,336   Passed: 1,336   Failed: 0**, exit 0 (floor 1,336).
+- [x] `php bin/wallet_reconcile.php` exits 0 on the development copy (no `general_harvest` row exists;
+      the General Harvest section is 21D's).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 263   Failed: 0**, exit 0 (no new route).
+- [x] Every P21A-Tn case exists, is named for the phase and passes; `php tests/run.php
+      GeneralHarvestFoundation` is **15 / 15** and `MigrationTest` is **32 / 32**.
+- [x] The manual script (`QA21A-01` … `QA21A-08`) is executed; its evidence is under
+      `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section A filled; `docs/qa/README.md` and the Phase 21 evidence index carry the row.
+- [x] This entry and Appendix H of the plan are filled; tag `p21a-foundation`.
+
+### Deviations
+
+1. **`install/header.sql` was updated too.** The plan's database list names `footer.sql` only, but the
+   header prints the same fresh-install counts and several tests assert it. Leaving it at 36/77 would
+   have shipped a bundle whose first page contradicts its footer. Same deviation as 20A's #2.
+2. **The 20A "last migration" assertion had to move.** `P20A-T3` asserted `024_team_harvest.sql` was the
+   newest migration; 21A appends 025, so the case now asserts 024 is present and precedes it. The
+   Phase 20 contract is unchanged.
+3. **The pre-reset ladder edit in `QA21A-08` is a smaller drill than 20A's.** The plan's script says
+   “run the development reset console once”; the reset deletes every member, so the transcript runs it
+   on `ecowealth_sneat_tool_b_test` (as 20A's `QA20A-08` did) and leaves the development copy's members
+   alone. The state the check asserts is identical.
+4. **`QA21A-05`'s expected `harvest_queue = 1` requires a seeded queue.** The shipped queue is unseeded
+   (20C Rule 2), so the transcript records both stages: unseeded (nothing happens) and seeded (the
+   sponsor lands at position #3, still no award and no money). The phase's contract — *no board
+   writer* — is what the check proves, and it holds in both stages.
+5. **The page checks were executed as harness renders, not by a second person.** As at every earlier
+   gate, the automated pass rendered the real controllers and `View::page()` and left the transcripts;
+   the click-only browser pass is the project lead's item and is named in the sign-off sheet.
+6. **`docs/qa/sign-off-sheet.md` gained a Phase 21A block.** The plan's 21A manifest lists the Phase 21
+   QA pack, the QA index and the evidence index only; the pack's own sign-off flow says one block per
+   phase, so the sheet gains the 21A section and a Phase 21A row in the final table.
+7. **The shared release documents still describe the Phase 20 build.** `docs/install-reset.md`
+   (36 / 77, migrations `001`–`024`), `docs/deploy.md`, `docs/runbook.md`, `docs/admin-guide.md` and
+   `system/README.md` are release documentation, not part of the 21A manifest; they are updated by 21G's
+   documentation sweep (as they were at 20G). The 21A-only documents — this entry, the QA pack, the QA
+   index and the evidence index — are current. Recorded here so the 21G cold read does not miss them.
+
+### Hand-off to 21B
+
+- A migrated database with the three tables, the `general_harvest` wallet movement, the label and the
+  icon, the two settings (off), ten ladder rows at the reference amounts and one unarmed board row; a
+  fresh-install bundle that produces the same database (**39 tables · 79 settings · 10 ladder rows ·
+  1 board row**).
+- A reset engine that empties the award ledger, returns the board to `(NULL, NULL, NULL, 0)` and keeps
+  the ladder and the two settings.
+- **Nothing reads any of it.** 21B may assume the tables exist, are empty (ten ladder rows and one
+  board row excepted) and are inert.

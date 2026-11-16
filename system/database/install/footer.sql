@@ -26,10 +26,11 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 36    settings_rows = 77    staff_rows    = 2
+--      tables_created = 39    settings_rows = 79    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --      team_harvest_levels_rows = 10
+--      general_harvest_levels_rows = 10   general_harvest_board_rows = 1
 --
 --  A reset is expected to add audit_log rows, live_revisions rows and the
 --  generated registration codes; a fresh install has none of them.
@@ -46,6 +47,8 @@ SELECT
   (SELECT COUNT(*) FROM package_levels)                    AS levels_rows,
   (SELECT COUNT(*) FROM package_products)                  AS contents_rows,
   (SELECT COUNT(*) FROM team_harvest_levels)                AS team_harvest_levels_rows,
+  (SELECT COUNT(*) FROM general_harvest_levels)             AS general_harvest_levels_rows,
+  (SELECT COUNT(*) FROM general_harvest_board)              AS general_harvest_board_rows,
   (SELECT COUNT(*) FROM reg_codes)                         AS codes_rows;
 
 SELECT key_name, value FROM settings
@@ -54,3 +57,8 @@ SELECT key_name, value FROM settings
 
 SELECT username, role, member_status, is_active
   FROM users WHERE role IN ('admin','superadmin') ORDER BY id;
+
+-- The General Harvest board ships unarmed: no baseline, no arm instant,
+-- nothing settled. A fresh install must never pretend to have a go-live
+-- baseline (plan 21A Rule 4).
+SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board;

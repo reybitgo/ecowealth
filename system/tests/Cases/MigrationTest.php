@@ -37,6 +37,7 @@ $migrations    = [
     $migrationDir . '022_shop_cancel_toggle.sql',
     $migrationDir . '023_royalty_bonus.sql',
     $migrationDir . '024_team_harvest.sql',
+    $migrationDir . '025_general_harvest.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -302,12 +303,24 @@ return [
             );
         }
 
+        /* Phase 21 (P21A-T3): the three General Harvest tables, exactly like
+         * a fresh install. GeneralHarvestFoundationTest proves the indexes,
+         * foreign keys and CHECK constraints. */
+        foreach (['general_harvest_levels', 'general_harvest_board', 'general_harvest_awards'] as $table) {
+            assert_same(
+                $columnList($fresh, $table),
+                $columnList($migrated, $table),
+                $table . ' columns differ from schema.sql'
+            );
+        }
+
         $refType = static fn (PDO $pdo): string
             => (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
 
         assert_same($refType($fresh), $refType($migrated), 'the migrated enum must equal the fresh-install enum');
         assert_contains("'royalty'", $refType($migrated), 'migration 023 appends the royalty movement');
         assert_contains("'team_harvest'", $refType($migrated), 'migration 024 appends the team_harvest movement');
+        assert_contains("'general_harvest'", $refType($migrated), 'migration 025 appends the general_harvest movement');
         assert_contains("'unilevel_reversal'", $refType($migrated), 'the Phase 17 movements survive');
     },
 
@@ -1293,5 +1306,106 @@ return [
         );
 
         assert_same('member', $pdo->query("SELECT role FROM users WHERE username = 'probe_member'")->fetchColumn());
+    },
+
+    /* ==========================================================
+     *  P21A-T3 — migration 025 (Phase 21 foundation)
+     * ========================================================== */
+    'P21A-T3 migration 025 adds the General Harvest objects, appends the enum value and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
+        $pdo = $buildMigrated();
+
+        /* The ordered list really carries 025, last. */
+        $list = array_map('basename', glob($migrationDir . '*.sql') ?: []);
+        sort($list, SORT_STRING);
+
+        assert_true(in_array('025_general_harvest.sql', $list, true), 'migration 025 is part of the ordered list');
+        assert_same('025_general_harvest.sql', end($list), '025 is the last migration of Phase 21');
+
+        /* The three tables exist and are empty except the ladder and the
+         * single unarmed board row (plan 21A Rule 4). */
+        $tables = test_table_list($pdo);
+
+        foreach (['general_harvest_levels', 'general_harvest_board', 'general_harvest_awards'] as $table) {
+            assert_true(in_array($table, $tables, true), 'migration 025 creates ' . $table);
+        }
+
+        assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
+        assert_same(
+            '8381000.00',
+            number_format((float) $pdo->query('SELECT SUM(amount) FROM general_harvest_levels')->fetchColumn(), 2, '.', ''),
+            'the reference ladder totals ₱8,381,000.00'
+        );
+        assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_awards')->fetchColumn(), 'no backfill');
+
+        $board = $pdo->query('SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board')->fetchAll();
+        assert_count(1, $board, 'the board is one singleton row');
+        assert_same(1, (int) $board[0]['id']);
+        assert_null($board[0]['baseline_n']);
+        assert_null($board[0]['armed_at']);
+        assert_null($board[0]['armed_by']);
+        assert_same(0, (int) $board[0]['settled_n']);
+
+        /* The two settings ship off / at depth 10. */
+        $settings = $pdo->query(
+            "SELECT key_name, value FROM settings WHERE key_name LIKE 'general\\_harvest\\_%' ORDER BY key_name"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        assert_same(['general_harvest_enabled' => '0', 'general_harvest_max_levels' => '10'], $settings);
+
+        /* The enum appends the new movement last (21A Rule 7). */
+        $refType = (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
+        assert_contains("'general_harvest'", $refType);
+        assert_same(
+            "'general_harvest')",
+            substr(rtrim($refType), -strlen("'general_harvest')")),
+            'general_harvest is the last enum value'
+        );
+
+        /* Structures equal a fresh install, table by table. */
+        $fresh = test_pdo(['db' => DB_NAME]);
+
+        foreach (['general_harvest_levels', 'general_harvest_board', 'general_harvest_awards'] as $table) {
+            assert_same(test_column_list($fresh, DB_NAME)[$table], test_column_list($pdo)[$table], $table . ' columns');
+            assert_same(test_index_list($fresh, DB_NAME)[$table], test_index_list($pdo)[$table], $table . ' indexes');
+            assert_same(test_foreign_key_list($fresh, DB_NAME)[$table], test_foreign_key_list($pdo)[$table], $table . ' foreign keys');
+        }
+
+        /* A re-run is a no-op and never overwrites an operator's amount or
+         * an armed board (21A Rules 1 and 9). */
+        $pdo->exec("UPDATE general_harvest_levels SET amount = '99000.00' WHERE level = 1");
+        $pdo->exec("UPDATE settings SET value = '1' WHERE key_name = 'general_harvest_enabled'");
+        $pdo->exec(
+            "UPDATE general_harvest_board
+                SET baseline_n = 3, armed_at = '2026-11-16 09:00:00', settled_n = 3
+              WHERE id = 1"
+        );
+
+        test_run_sql_file($pdo, $migrationDir . '025_general_harvest.sql');
+
+        assert_same(
+            '99000.00',
+            (string) $pdo->query('SELECT amount FROM general_harvest_levels WHERE level = 1')->fetchColumn(),
+            'a re-run never overwrites an operator amount'
+        );
+        assert_same(
+            '1',
+            (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'general_harvest_enabled'")->fetchColumn(),
+            'a re-run never overwrites an operator setting'
+        );
+
+        $armed = $pdo->query('SELECT baseline_n, settled_n FROM general_harvest_board')->fetch();
+        assert_same(3, (int) $armed['baseline_n'], 'a re-run never disturbs an armed board');
+        assert_same(3, (int) $armed['settled_n']);
+        assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn(), 'still ten rows');
+        assert_same(1, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_board')->fetchColumn(), 'still one row');
+
+        /* Put the shared fixture back to the documented defaults. */
+        $pdo->exec("UPDATE general_harvest_levels SET amount = '2000.00' WHERE level = 1");
+        $pdo->exec("UPDATE settings SET value = '0' WHERE key_name = 'general_harvest_enabled'");
+        $pdo->exec(
+            'UPDATE general_harvest_board
+                SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0
+              WHERE id = 1'
+        );
     },
 ];

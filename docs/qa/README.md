@@ -1,7 +1,7 @@
-# EcoWealth — Manual QA pack (Phases 1–20)
+# EcoWealth — Manual QA pack (Phases 1–21)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 and 20. The automated suites are already green; these documents
+7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 and 21. The automated suites are already green; these documents
 let a tester who has never seen the project walk through every screen, compare it with the expected
 result, capture evidence and sign the phase off.
 
@@ -29,6 +29,11 @@ result, capture evidence and sign the phase off.
 > in seven gated phases **20A → 20G** and **signed at 20G**. Sections A–G are complete: 20A–20F wrote
 > A–F and 20G appended its section before its gate. **58 checks** — A 8 · B 9 · C 8 · D 10 · E 8 · F 9 ·
 > G 6. Its evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
+
+> **Phase 21 is the General Harvest bonus workstream** (`dmp/plan-ecowealth-general-harvest.md`),
+> delivered in seven gated phases **21A → 21G** and **in progress (21A)**. Section A is written; sections
+> B–G are appended by their phases before their gates. Its evidence lives in `evidence/phase-21/`,
+> indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -60,7 +65,8 @@ result, capture evidence and sign the phase off.
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
-| [sign-off-sheet.md](sign-off-sheet.md) | all twenty | — | 10 min to complete |
+| [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, **in progress (21A)**: section A written | 8 so far (A 8; B–G appended by their phases) | 20–30 min (A) |
+| [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
@@ -73,7 +79,8 @@ its screenshots and terminal transcripts in `evidence/install-reset/`, indexed b
 `evidence/phase-17/`, indexed by that folder's `README.md`. Phase 18's escrow checks use
 `evidence/unilevel-escrow/`; the Phase 17 product walkthrough's images stay in
 `evidence/unilevel-product/`. Phase 20 keeps its transcripts in `evidence/phase-20/`, indexed by
-that folder's `README.md`.
+that folder's `README.md`; Phase 21 keeps its section A transcripts in `evidence/phase-21/`, indexed by
+that folder's `README.md` (sections B–G are appended there as they land).
 
 ---
 
@@ -92,7 +99,7 @@ php tests\run.php
 Expected last lines:
 
 ```
-Cases: 1320   Passed: 1320   Failed: 0
+Cases: 1336   Passed: 1336   Failed: 0
 All good.
 ```
 
@@ -326,6 +333,18 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
   the genealogy badge and the registration hook — a third direct queues its sponsor at the next
   position and a fourth changes nothing), the full acceptance run, the QA pack and the seven gate
   records. It changes no behaviour: if the phase were reverted, the feature would still be correct.
+- Phase 21 (General Harvest bonus workstream, 21A → 21G): 21A proves the **foundation only** —
+  migration `025` applied twice (idempotent, never re-arming a board), the three tables, their money
+  anchor `(seq, level)`, foreign keys and CHECKs including the `id = 1` singleton, the extended wallet
+  enum (**13** movement kinds), the two settings with the stream **off**, the board **unarmed**
+  (`baseline_n` NULL, `settled_n` 0), the ten reference amounts totalling **₱8,381,000.00** per node,
+  migrated ≡ fresh (`MigrationTest`), seed/migration parity (`SeedParityTest`), the bundle's
+  **39 tables / 79 settings** counts, a fresh install reporting **39 / 79 / 10 / 10 / 1**, the
+  transactional guard naming `general_harvest_awards` (and an armed board failing its own check), and a
+  business reset that empties the award ledger, returns the board to `(NULL, NULL, NULL, 0)` and keeps
+  the ten ladder rows and the two settings. **No code path reads any of it**: the only visible change
+  is one extra movement kind in the wallet statement filter. The section A manual checks therefore
+  verify counts and *absence* of UI.
 
 ---
 
@@ -619,10 +638,11 @@ docs/qa/
 ├── phase-15-launch.md                 ← manual checks for Phase 15
 ├── phase-16-install-reset.md          ← manual checks for Phase 16 (install/reset tools)
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
-├── phase-19-royalty.md                ← manual checks for Phase 19 (sections A–G, 60 checks)
+├── phase-19-royalty.md                 ← manual checks for Phase 19 (sections A–G, 60 checks)
 ├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–G, signed)
+├── phase-21-general-harvest.md        ← manual checks for Phase 21 (section A so far; B–G appended by their phases)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + unilevel-escrow/)
+├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + phase-21/ + unilevel-escrow/)
 ```
 

@@ -1,7 +1,7 @@
 # Plan — General Harvest Bonus (the shared 3-ary Harvest board)
 
-**Phase 21** of the EcoWealth member system · **Status: planned** — no code written; the plan is the gate
-record until 21A opens.
+**Phase 21** of the EcoWealth member system · **Status: in progress** — 21A (Foundation) landed
+2026-11-16; 21B–21G planned.
 **Delivery model:** **seven gated phases, 21A → 21G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`
@@ -3983,7 +3983,7 @@ without a filled row is not closed, whatever its code says.
 
 | Phase | Tag | Date | Suite passed/ran | Smoke passed/ran | Migration/bundle | Manual QA `QA21X-nn` | Tester | Deviations | Signed |
 |---|---|---|---|---:|---:|---|---|---|---|
-| 21A Foundation | `p21a-foundation` | — | — / — | — / — | migration `025` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 | A: —/8 | — | — | ☐ |
+| 21A Foundation | `p21a-foundation` | 2026-11-16 | **1,336 / 1,336** | **263 / 263** | migration `025` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 | A: **8/8** | Automated QA pass — DSH | 1 (`install/header.sql` also updated; see the phase log) | ☑ |
 | 21B Configuration | `p21b-configuration` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | B: —/9 | — | — | ☐ |
 | 21C Baseline | `p21c-baseline` | — | — / — | — / — | no schema change; the arm dry run and the real run both exit 0 | C: —/8 | — | — | ☐ |
 | 21D Money engine | `p21d-money` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 with the General Harvest section; catch-up doctor exit 0 | D: —/10 | — | — | ☐ |
@@ -3996,7 +3996,7 @@ that owns it. An empty deviation log at the 21G gate means the plan and the buil
 
 | Phase | Deviation | Reason | Approved by |
 |---|---|---|---|
-| | | | |
+| 21A | `database/install/header.sql` is updated although the §5 manifest names `footer.sql` only | The header prints the same fresh-install counts (39 tables · 79 settings · the two ladders · the unarmed board row) and `RoyaltyFoundationTest`, `TeamHarvestFoundationTest` and `P21A-T5` assert them; a bundle whose first page contradicts its footer is a worse defect than one extra documentation line. The 20A gate made the same call | the 21A gate (recorded in `docs/phase-log.md`) |
 
 **Acceptance sign-off.**
 

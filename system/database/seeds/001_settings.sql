@@ -120,6 +120,17 @@ INSERT INTO settings (key_name, value) VALUES
   ('team_harvest_max_levels',          '10'),
   ('team_harvest_ledger_since',        ''),
 
+  -- General Harvest bonus (Phase 21). One shared 3-ary board over the
+  -- Harvest queue: every qualified member holds a node, and a completed
+  -- level pays a flat amount to the node's holder. The stream ships OFF
+  -- (`general_harvest_enabled = 0`) and the board ships UNARMED (its
+  -- singleton row has `baseline_n NULL`): enabling and arming are two
+  -- separate, deliberate acts (D-07, D-10). There is deliberately no
+  -- baseline key — `baseline_n` lives on the board row, where it is read
+  -- and written under the same lock as `settled_n` (§13.5).
+  ('general_harvest_enabled',          '0'),
+  ('general_harvest_max_levels',       '10'),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),
@@ -156,3 +167,28 @@ INSERT INTO team_harvest_levels (level, amount) VALUES
   (9, 1200000.00),
   (10, 3500000.00)
 ON DUPLICATE KEY UPDATE level = level;
+
+-- General Harvest reference ladder (Phase 21, plan §12.4, Appendix A).
+-- Ten rows, the same amounts migration 025 inserts; ON DUPLICATE keeps an
+-- operator's edited amount when this file is re-run. The full ladder pays
+-- ₱8,381,000.00 per node.
+INSERT INTO general_harvest_levels (level, amount) VALUES
+  (1,   2000.00),
+  (2,   4000.00),
+  (3,   8000.00),
+  (4,  12000.00),
+  (5,  25000.00),
+  (6, 100000.00),
+  (7, 250000.00),
+  (8, 480000.00),
+  (9, 2500000.00),
+  (10, 5000000.00)
+ON DUPLICATE KEY UPDATE level = level;
+
+-- General Harvest board singleton (Phase 21, plan §13.2). Unarmed:
+-- no baseline, no arm instant, nothing settled. Every read must find the
+-- row without a write, and the installer verifies it, so the seed creates
+-- it; ON DUPLICATE never disturbs an armed board.
+INSERT INTO general_harvest_board (id, baseline_n, armed_at, armed_by, settled_n)
+VALUES (1, NULL, NULL, NULL, 0)
+ON DUPLICATE KEY UPDATE id = id;
