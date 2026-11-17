@@ -19,7 +19,8 @@ declare(strict_types=1);
 $hasFilters = (string) $filters['q'] !== ''
     || (string) $filters['status'] !== ''
     || (string) $filters['package'] !== ''
-    || (string) $filters['harvest'] !== '';
+    || (string) $filters['harvest'] !== ''
+    || (string) ($filters['board'] ?? '') !== '';
 ?>
                     <tbody data-live-region="member-rows">
 <?php if ($members === []): ?>
@@ -49,6 +50,7 @@ $hasFilters = (string) $filters['q'] !== ''
     $rankTone    = $rankLevel === null ? '' : (RoyaltyRank::LABELS[(int) $rankLevel]['tone'] ?? 'secondary');
     $position    = $row['harvest_position'] ?? null;
     $teammates   = (int) ($row['harvest_teammates'] ?? 0);
+    $ghLevels    = (int) ($row['gh_credited_levels'] ?? 0);
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td>
@@ -95,6 +97,15 @@ $hasFilters = (string) $filters['q'] !== ''
                             class="badge bg-label-primary text-decoration-none"
                             title="<?= $teammates ?> qualified teammate<?= $teammates === 1 ? '' : 's' ?>"
                           >#<?= (int) $position ?></a>
+                          <?php endif; ?>
+                        </td>
+                        <td class="text-nowrap">
+                          <?php if ($ghLevels === 0): ?>
+                          <span class="text-body-secondary">—</span>
+                          <?php else: ?>
+                          <span class="badge bg-label-success">
+                            <?= $ghLevels ?> / 10
+                          </span>
                           <?php endif; ?>
                         </td>
                         <td class="text-end member-wallet-cell">

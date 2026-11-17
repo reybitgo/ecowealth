@@ -241,6 +241,8 @@ return [
                 'member-royalty',
                 /* Phase 20E: the Team Harvest panel is its own region. */
                 'member-team-harvest',
+                /* Phase 21E: the General Harvest panel is its own region. */
+                'member-general-harvest',
                 'member-activations',
                 'member-upline',
                 'member-audit',

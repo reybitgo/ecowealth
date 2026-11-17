@@ -26,6 +26,7 @@ declare(strict_types=1);
  * @var array{count:int, credited:float, this_month:float, last_at:?string} $commissions
  * @var array<string, mixed>|null $royalty  the read-only Royalty panel data (19D)
  * @var array<string, mixed>|null $team_harvest  the read-only Team Harvest panel data (20E)
+ * @var array<string, mixed>|null $general_harvest  the read-only General Harvest panel data (21E)
  * @var array{direct:int, team:int, levels:int} $team
  * @var list<array<string, mixed>> $upline
  * @var list<array<string, mixed>> $audits
@@ -135,6 +136,11 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
 <?= View::capture('admin/members/_team_harvest', [
     'member'       => $member,
     'team_harvest' => $team_harvest ?? null,
+]) ?>
+
+<?= View::capture('admin/members/_general_harvest', [
+    'member'            => $member,
+    'general_harvest'   => $general_harvest ?? null,
 ]) ?>
                 </div>
               </div>

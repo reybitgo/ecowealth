@@ -74,6 +74,7 @@ final class AdminMemberController
             'status'  => Request::string('status'),
             'package' => Request::string('package'),
             'harvest' => Request::string('harvest'),
+            'board'   => Request::string('board'),
         ]);
 
         $pager = Paginator::fromTableRequest(Member::countAdmin($filters));
@@ -99,6 +100,7 @@ final class AdminMemberController
             'members'      => $members,
             'packages'     => Member::packageBreakdown(),
             'harvest'      => $this->harvestQueueCard(),
+            'general_harvest' => $this->generalHarvestBoardCard(),
         ];
     }
 
@@ -124,6 +126,35 @@ final class AdminMemberController
             return $queue;
         } catch (Throwable $e) {
             error_log('[ecowealth] team harvest queue card unavailable: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * The General Harvest board card's data (Phase 21E, plan §9 Rules 7–9).
+     *
+     * Read-only over the board's state and the closed-form liability. The
+     * frontier names what is about to pay and the open liability is the
+     * amount a settlement would write now — a number, never a warning.
+     *
+     * A failure hides the card, never the directory.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function generalHarvestBoardCard(): ?array
+    {
+        try {
+            $service = new GeneralHarvestService();
+
+            return [
+                'state'   => $service->state(),
+                'frontier'=> array_values(GeneralHarvestBoard::frontier()),
+                'backlog' => $service->backlog(),
+                'open'    => $service->openLiability(),
+            ];
+        } catch (Throwable $e) {
+            error_log('[ecowealth] general harvest board card unavailable: ' . $e->getMessage());
 
             return null;
         }
@@ -339,6 +370,10 @@ final class AdminMemberController
              * qualified at, teammates, the ten levels, the next level and
              * every stored award row. */
             'team_harvest'      => $this->teamHarvestPanel($userId),
+            /* Phase 21E: the read-only General Harvest panel — position,
+             * node, qualified at, the ten-cell grid, the next level and the
+             * award rows. */
+            'general_harvest'   => $this->generalHarvestPanel($userId),
             'team'              => (new SponsorService())->teamStats($userId),
             'upline'            => (new SponsorService())->chain($userId, SponsorService::MAX_LEVELS),
             'audits'            => AuditLog::forSubject('user', $userId, 8),
@@ -391,6 +426,34 @@ final class AdminMemberController
             return $status + ['awards' => TeamHarvestAward::forMember($userId)];
         } catch (Throwable $e) {
             error_log('[ecowealth] member team harvest panel unavailable: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * The member's General Harvest panel data (Phase 21E, plan §9 Rules 2,
+     * 5, 9–12).
+     *
+     * `GeneralHarvestService::statusFor()` is the same read 21F's member
+     * card uses — position, node, the ten levels with block ranges and fill,
+     * paid levels, next level and the open amount — so the admin panel and
+     * the member's own page can never promise different numbers. The stored
+     * award rows come from `GeneralHarvestAward::forMember()`, the ledger
+     * the panel lists.
+     *
+     * Read-only: nothing here writes an award, a wallet row or the board row.
+     * A failure hides the panel, never the member page.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function generalHarvestPanel(int $userId): ?array
+    {
+        try {
+            return (new GeneralHarvestService())->statusFor($userId)
+                + ['awards' => GeneralHarvestAward::forMember($userId)];
+        } catch (Throwable $e) {
+            error_log('[ecowealth] member general harvest panel unavailable: ' . $e->getMessage());
 
             return null;
         }
@@ -486,6 +549,10 @@ final class AdminMemberController
                 'member-team-harvest' => View::capture('admin/members/_team_harvest', [
                     'member'       => $member,
                     'team_harvest' => $data['team_harvest'] ?? null,
+                ]),
+                'member-general-harvest' => View::capture('admin/members/_general_harvest', [
+                    'member'            => $member,
+                    'general_harvest'   => $data['general_harvest'] ?? null,
                 ]),
                 'member-activations' => View::capture('admin/members/_activations', [
                     'activations'       => $data['activations'],

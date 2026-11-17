@@ -170,10 +170,10 @@ final class Member
      *  Admin directory
      * ---------------------------------------------------------- */
 
-    /** @return array{q:string, status:string, package:string, harvest:string} */
+    /** @return array{q:string, status:string, package:string, harvest:string, board:string} */
     public static function filterDefaults(): array
     {
-        return ['q' => '', 'status' => '', 'package' => '', 'harvest' => ''];
+        return ['q' => '', 'status' => '', 'package' => '', 'harvest' => '', 'board' => ''];
     }
 
     /**
@@ -182,8 +182,12 @@ final class Member
      * means "no filter", exactly like an unknown status or package
      * (Phase 20E Rule 9).
      *
+     * `board` is `paid` (only members holding a credited General Harvest
+     * level) or `none` (only members with no credited level); anything else
+     * means "no filter" (Phase 21E Rule 9).
+     *
      * @param array<string, mixed> $raw
-     * @return array{q:string, status:string, package:string, harvest:string}
+     * @return array{q:string, status:string, package:string, harvest:string, board:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -203,11 +207,18 @@ final class Member
             $filters['package'] = (string) (int) $package;
         }
 
-        /* Phase 20E: the Team Harvest queue filter. The position is a fact
-         * in `harvest_queue`; the filter never recomputes one (Rule 5). */
+        /* Phase 20E: the Team Harvest queue filter. */
         $harvest = strtolower(trim((string) ($raw['harvest'] ?? '')));
         if (in_array($harvest, ['yes', 'no'], true)) {
             $filters['harvest'] = $harvest;
+        }
+
+        /* Phase 21E: the General Harvest board filter. `paid` keeps members
+         * holding at least one credited level; `none` keeps members holding
+         * none. Every other value is "no filter". */
+        $board = strtolower(trim((string) ($raw['board'] ?? '')));
+        if (in_array($board, ['paid', 'none'], true)) {
+            $filters['board'] = $board;
         }
 
         return $filters;
@@ -216,7 +227,7 @@ final class Member
     /**
      * WHERE clause shared by the count and the page.
      *
-     * @param array{q:string, status:string, package:string, harvest:string} $filters
+     * @param array{q:string, status:string, package:string, harvest:string, board:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(array $filters): array
@@ -256,6 +267,17 @@ final class Member
             $where[] = 'NOT EXISTS (SELECT 1 FROM harvest_queue hq WHERE hq.user_id = u.id)';
         }
 
+        /* Phase 21E: a member "has a board" when they hold at least one
+         * credited General Harvest level. The award row anchors on the node,
+         * so a member's credited levels are exactly their paid levels. */
+        if ($filters['board'] === 'paid') {
+            $where[] = 'EXISTS (SELECT 1 FROM general_harvest_awards gha
+                        WHERE gha.user_id = u.id AND gha.status = "credited")';
+        } elseif ($filters['board'] === 'none') {
+            $where[] = 'NOT EXISTS (SELECT 1 FROM general_harvest_awards gha
+                        WHERE gha.user_id = u.id AND gha.status = "credited")';
+        }
+
         return [implode(' AND ', $where), $params];
     }
 
@@ -280,7 +302,11 @@ final class Member
      * same query, left-joined, so the list never asks once per row for a
      * fact the page already renders (Phase 20E Rule 5, P20E-T18).
      *
-     * @param array{q:string, status:string, package:string, harvest:string} $filters
+     * Phase 21E adds `gh_credited_levels`: how many General Harvest levels
+     * the member has been credited for. It comes from the award table in the
+     * same query, so no row costs a second query (P21E-T19).
+     *
+     * @param array{q:string, status:string, package:string, harvest:string, board:string} $filters
      * @return list<array<string, mixed>>
      */
     public static function adminList(array $filters, Paginator $pager, ?PDO $pdo = null): array
@@ -295,7 +321,9 @@ final class Member
                        sp.username AS sponsor_username,
                        hq.id AS harvest_position,
                        hq.teammates AS harvest_teammates,
-                       hq.qualified_at AS harvest_qualified_at
+                       hq.qualified_at AS harvest_qualified_at,
+                       (SELECT COUNT(*) FROM general_harvest_awards gha
+                        WHERE gha.user_id = u.id AND gha.status = "credited") AS gh_credited_levels
                   FROM users u
                   LEFT JOIN packages p ON p.id = u.package_id
                   LEFT JOIN users sp ON sp.id = u.sponsor_id

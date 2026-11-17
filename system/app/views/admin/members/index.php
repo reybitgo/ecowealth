@@ -16,11 +16,12 @@ declare(strict_types=1);
  *
  * @var array{total:int, active:int, pending:int, suspended:int, with_package:int, new_week:int} $stats
  * @var array{member:int, leader:int, supervisor:int, manager:int, director:int, ranked:int, total:int} $rank_counts
- * @var array{q:string, status:string, package:string, harvest:string} $filters
+ * @var array{q:string, status:string, package:string, harvest:string, board:string} $filters
  * @var Paginator                  $pager
  * @var list<array<string, mixed>> $members
  * @var list<array{id:int, name:string, members:int}> $packages
  * @var array<string, mixed>|null $harvest  the Team Harvest queue card's data (20E)
+ * @var array<string, mixed>|null $general_harvest  the General Harvest board card's data (21E)
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  */
 
@@ -34,6 +35,7 @@ $live = $live ?? [
 
 $rankCounts = $rank_counts ?? [];
 $harvest    = $harvest ?? null;
+$generalHarvest = $general_harvest ?? null;
 ?>
             <div
               class="container-xxl flex-grow-1 container-p-y member-directory"
@@ -68,6 +70,8 @@ $harvest    = $harvest ?? null;
 
 <?= View::capture('admin/members/_harvest', ['harvest' => $harvest]) ?>
 
+<?= View::capture('admin/members/_general_harvest_board_card', ['board' => $generalHarvest]) ?>
+
               <div class="card">
                 <div class="card-header">
                   <h5 class="card-title mb-0">Member directory</h5>
@@ -88,6 +92,7 @@ $harvest    = $harvest ?? null;
                         <th>Status</th>
                         <th>Rank</th>
                         <th>Harvest</th>
+                        <th class="text-nowrap">GH</th>
                         <th class="text-end">Wallet</th>
                         <th>Joined</th>
                         <th class="text-end">Actions</th>

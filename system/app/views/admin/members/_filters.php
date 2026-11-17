@@ -22,7 +22,8 @@ $query      = (string) $filters['q'];
 $status     = (string) $filters['status'];
 $package    = (string) $filters['package'];
 $harvest    = (string) ($filters['harvest'] ?? '');
-$hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !== '';
+$board      = (string) ($filters['board'] ?? '');
+$hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !== '' || $board !== '';
 ?>
                 <div
                   class="card-body py-3 border-top"
@@ -58,6 +59,11 @@ $hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !==
                       <option value="">Team Harvest: all</option>
                       <option value="yes" <?= $harvest === 'yes' ? 'selected' : '' ?>>In the Harvest queue</option>
                       <option value="no" <?= $harvest === 'no' ? 'selected' : '' ?>>Not qualified</option>
+                    </select>
+                    <select class="form-select" name="board" aria-label="Filter by General Harvest board">
+                      <option value="">General Harvest: all</option>
+                      <option value="paid" <?= $board === 'paid' ? 'selected' : '' ?>>Has a paid level</option>
+                      <option value="none" <?= $board === 'none' ? 'selected' : '' ?>>No paid level</option>
                     </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($hasFilters): ?>
