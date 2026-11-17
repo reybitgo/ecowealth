@@ -69,6 +69,9 @@ final class AdminCommissionController
     /** The Team Harvest ledger (Phase 20E). */
     public const TAB_TEAM_HARVEST = 'team_harvest';
 
+    /** The General Harvest bonus ledger (Phase 21E). */
+    public const TAB_GENERAL_HARVEST = 'general_harvest';
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -95,6 +98,7 @@ final class AdminCommissionController
             self::TAB_REPEAT       => self::TAB_REPEAT,
             self::TAB_ROYALTY      => self::TAB_ROYALTY,
             self::TAB_TEAM_HARVEST => self::TAB_TEAM_HARVEST,
+            self::TAB_GENERAL_HARVEST => self::TAB_GENERAL_HARVEST,
             default                => self::TAB_PACKAGE,
         };
     }
@@ -110,6 +114,7 @@ final class AdminCommissionController
             self::TAB_REPEAT       => $this->repeatContext(),
             self::TAB_ROYALTY      => $this->royaltyContext(),
             self::TAB_TEAM_HARVEST => $this->teamHarvestContext(),
+            self::TAB_GENERAL_HARVEST => $this->generalHarvestContext(),
             default                => $this->listContext(),
         };
     }
@@ -373,6 +378,76 @@ final class AdminCommissionController
             'package_url' => url('admin/commissions'),
             'repeat_url'  => url('admin/commissions?ledger=repeat'),
             'royalty_url' => url('admin/commissions?ledger=royalty'),
+            'general_harvest_url' => url('admin/commissions?ledger=general_harvest'),
+        ];
+    }
+
+    /**
+     * Everything the General Harvest tab renders, built once for the page
+     * and its feed (plan §9 Phase 21E-S1, Appendix C.2).
+     *
+     * Read-only over the rows 21D writes. The filters go through
+     * `GeneralHarvestAward::normaliseFilters()`, so an unknown level,
+     * status, date or search falls back to "no filter" exactly like the
+     * other four tabs (Rule 10).
+     *
+     * Read-only (Rule 1): nothing here writes an award, a wallet row or
+     * the board row. The `credited` total counts `status = 'credited'`
+     * only; baseline rows appear in their own tile and never inside a paid
+     * total (Rule 4).
+     *
+     * @return array<string, mixed>
+     */
+    public function generalHarvestContext(): array
+    {
+        $filters = GeneralHarvestAward::normaliseFilters([
+            'user_id' => Request::string('user_id'),
+            'level'   => Request::string('level'),
+            'status'  => Request::string('status'),
+            'from'    => Request::string('from'),
+            'to'      => Request::string('to'),
+            'q'       => Request::string('q'),
+        ]);
+
+        $pager  = Paginator::fromTableRequest(GeneralHarvestAward::count($filters));
+        $totals = GeneralHarvestAward::totals($filters);
+        $open   = (new GeneralHarvestService())->openLiability();
+        $board  = GeneralHarvestBoard::state();
+        $frontier = GeneralHarvestBoard::frontier();
+
+        $stats = [
+            'credited_total' => $totals['credited_total'],
+            'credited_rows'  => $totals['credited_rows'],
+            'recipients'     => $totals['recipients'],
+            'baseline_total' => $totals['baseline_total'],
+            'baseline_rows'  => $totals['baseline_rows'],
+            'awards'         => $totals['rows'],
+            'open_amount'    => $open['amount'],
+            'open_levels'    => count($open['pairs']),
+            'settled_n'      => (int) $board['settled_n'],
+            'queue_n'        => GeneralHarvestBoard::queueN()['n'],
+            'armed'          => (bool) $board['armed'],
+            'enabled'        => (new GeneralHarvestService())->enabled(),
+        ];
+
+        return [
+            'tab'         => self::TAB_GENERAL_HARVEST,
+            'ledger'      => self::TAB_GENERAL_HARVEST,
+            'stats'       => $stats,
+            'filters'     => $filters,
+            'pager'       => $pager,
+            'awards'      => GeneralHarvestAward::select($filters, $pager),
+            'levels'      => GeneralHarvestAward::byLevel(),
+            'max_levels'  => GeneralHarvestLevel::maxLevels(),
+            'frontier'    => array_values($frontier),
+            'ledger_url'  => url('admin/commissions?ledger=general_harvest'),
+            'export_url'  => url('admin/commissions/export' . self::generalHarvestQueryString($filters)),
+            'wallet_url'  => url('admin/wallets'),
+            'package_url' => url('admin/commissions'),
+            'repeat_url'  => url('admin/commissions?ledger=repeat'),
+            'royalty_url' => url('admin/commissions?ledger=royalty'),
+            'team_harvest_url' => url('admin/commissions?ledger=team_harvest'),
+            'general_harvest_url' => url('admin/commissions?ledger=general_harvest'),
         ];
     }
 
@@ -460,6 +535,11 @@ final class AdminCommissionController
 
         if (self::tab() === self::TAB_TEAM_HARVEST) {
             $this->exportTeamHarvest();
+            return;
+        }
+
+        if (self::tab() === self::TAB_GENERAL_HARVEST) {
+            $this->exportGeneralHarvest();
             return;
         }
 
@@ -846,6 +926,144 @@ final class AdminCommissionController
     }
 
     /**
+     * GET /admin/commissions/export?ledger=general_harvest — the filtered
+     * General Harvest ledger as CSV.
+     *
+     * Same columns as the screen plus the wallet reference (plan Appendix
+     * C.5). The download reuses the tab's filters and writes one
+     * `general_harvest.export` audit row with them.
+     */
+    private function exportGeneralHarvest(): void
+    {
+        $export = $this->generalHarvestExportPayload();
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="general-harvest-ledger_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, self::generalHarvestCsvHeader());
+
+        foreach ($export['rows'] as $row) {
+            fputcsv($out, self::generalHarvestCsvRow($row));
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The filtered General Harvest export rows and the one audit row they
+     * write.
+     *
+     * Public so the gate can assert the `general_harvest.export` row and
+     * the exact CSV payload without streaming a file out of the harness;
+     * the routed `export()` still exits after the CSV (P21E-T12).
+     *
+     * @return array{filters:array<string, string|int>, rows:list<array<string, mixed>>}
+     */
+    public function generalHarvestExportPayload(): array
+    {
+        $filters = GeneralHarvestAward::normaliseFilters([
+            'user_id' => Request::string('user_id'),
+            'level'   => Request::string('level'),
+            'status'  => Request::string('status'),
+            'from'    => Request::string('from'),
+            'to'      => Request::string('to'),
+            'q'       => Request::string('q'),
+        ]);
+
+        $rows  = array_map(
+            [self::class, 'generalHarvestCsvRow'],
+            GeneralHarvestAward::exportRows($filters)
+        );
+        $admin = auth_user();
+
+        AuditLog::record([
+            'action'       => 'general_harvest.export',
+            'actor_id'     => $admin === null ? null : (int) $admin['id'],
+            'actor_role'   => $admin === null ? null : (string) $admin['role'],
+            'subject_type' => 'general_harvest_award',
+            'subject_id'   => null,
+            'meta'         => [
+                'tab'     => self::TAB_GENERAL_HARVEST,
+                'filters' => $filters,
+                'rows'    => count($rows),
+            ],
+        ]);
+
+        return ['filters' => $filters, 'rows' => $rows];
+    }
+
+    /**
+     * The General Harvest export query string: the tab first, then the
+     * present filters.
+     *
+     * @param array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function generalHarvestQueryString(array $filters): string
+    {
+        $present = array_filter(
+            $filters,
+            static fn (string|int $value): bool => $value !== '' && $value !== 0
+        );
+
+        return '?' . http_build_query(['ledger' => self::TAB_GENERAL_HARVEST] + $present);
+    }
+
+    /**
+     * The General Harvest ledger CSV header — exactly plan Appendix C.5.
+     *
+     * @return list<string>
+     */
+    public static function generalHarvestCsvHeader(): array
+    {
+        return [
+            'Award ID', 'Credited at', 'Member', 'Position', 'Node (seq)', 'Level',
+            'Block', 'Queue (N)', 'Threshold', 'Amount', 'Status', 'Wallet reference',
+        ];
+    }
+
+    /**
+     * One General Harvest ledger CSV row.
+     *
+     * @param array<string, mixed> $row
+     * @return list<string>
+     */
+    public static function generalHarvestCsvRow(array $row): array
+    {
+        $level = (int) $row['level'];
+        $seq   = (int) $row['seq'];
+        $slots = GeneralHarvestLevel::slots($level);
+        $block = (int) intdiv($seq, $slots);
+        $from  = $block * $slots + 1;
+        $to    = $from + $slots - 1;
+
+        return [
+            (string) $row['id'],
+            (string) $row['credited_at'],
+            (string) $row['username'],
+            $row['position'] === null ? '' : (string) (int) $row['position'],
+            (string) $seq,
+            (string) $level,
+            '#' . (string) $from . '–#' . (string) $to,
+            (string) (int) $row['n_at_award'],
+            (string) (int) $row['threshold_n'],
+            number_format((float) $row['amount'], 2, '.', ''),
+            (string) $row['status'],
+            $row['ledger_id'] === null ? '' : (string) (int) $row['ledger_id'],
+        ];
+    }
+
+    /**
      * ETag scope for the ledger.
      *
      * `this_month` counts from the first of the month, so the day is part
@@ -921,6 +1139,10 @@ final class AdminCommissionController
             return $this->teamHarvestFeedPayload($revision, $etag, $data);
         }
 
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_GENERAL_HARVEST) {
+            return $this->generalHarvestFeedPayload($revision, $etag, $data);
+        }
+
         $pager = $data['pager'];
 
         return [
@@ -984,6 +1206,57 @@ final class AdminCommissionController
                     'filters' => $data['filters'],
                 ]),
                 'repeat-pagination' => View::capture('admin/commissions/_repeat_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalListUrl($pager),
+            ],
+        ];
+    }
+
+    /**
+     * The General Harvest tab's fragments: the heading, counters, the ten
+     * levels, rows and pagination, under their own
+     * `general-harvest-*` names so an open General Harvest tab never
+     * patch a package, repeat, Royalty or Team Harvest region. The filter
+     * form never travels in a fragment.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function generalHarvestFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.commissions',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'general-harvest-header' => View::capture('admin/commissions/_general_harvest_header', [
+                    'stats'   => $data['stats'],
+                    'pager'   => $pager,
+                    'armed'   => $data['armed'],
+                    'enabled' => $data['enabled'],
+                ]),
+                'general-harvest-stats' => View::capture('admin/commissions/_general_harvest_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'general-harvest-levels' => View::capture('admin/commissions/_general_harvest_levels', [
+                    'levels'     => $data['levels'],
+                    'max_levels' => $data['max_levels'],
+                ]),
+                'general-harvest-rows' => View::capture('admin/commissions/_general_harvest_rows', [
+                    'awards'  => $data['awards'],
+                    'filters' => $data['filters'],
+                ]),
+                'general-harvest-pagination' => View::capture('admin/commissions/_general_harvest_pagination', [
                     'pager' => $pager,
                 ]),
             ],
