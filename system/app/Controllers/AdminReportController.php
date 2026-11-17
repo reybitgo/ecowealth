@@ -257,6 +257,14 @@ final class AdminReportController
                 'report-unilevel-periods' => View::capture('admin/reports/_unilevel_periods', [
                     'unilevel_periods' => $data['unilevel_periods'],
                 ]),
+                'report-general-harvest' => View::capture('admin/reports/_general_harvest', [
+                    'general_harvest'        => $data['general_harvest'],
+                    'general_harvest_levels' => $data['general_harvest_levels'],
+                    'general_harvest_months' => $data['general_harvest_months'],
+                    'general_harvest_bands'  => $data['general_harvest_bands'],
+                    'general_harvest_board'  => $data['general_harvest_board'],
+                    'range'                  => $data['range'],
+                ]),
             ],
             'data'      => [
                 'sales' => [

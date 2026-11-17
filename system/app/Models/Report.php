@@ -932,6 +932,323 @@ final class Report
     }
 
     /**
+     * General Harvest bonus (Phase 21E, plan §9).
+     *
+     * General Harvest has no month and no order (D-08): a window is read on
+     * `general_harvest_awards.credited_at` — the instant a block was decided.
+     * The ledger tab filters on the same key, so
+     * `/admin/reports?from=…&to=…` and
+     * `/admin/commissions?ledger=general_harvest&from=…` always agree.
+     *
+     * `credited` is money in a wallet and `baseline` is money recorded at
+     * go-live and never paid (D-06); the two are reported apart in every
+     * method here (Rule 4 of §12.7).
+     * ---------------------------------------------------------- */
+
+    /**
+     * General Harvest counters for a window of award decisions.
+     *
+     * `all_time` and `this_month` are independent of the window: the
+     * dashboard tile and the ledger header read them.
+     *
+     * @return array{
+     *   credited:float, count:int, recipients:int, baseline:float,
+     *   baseline_rows:int, awards:int, average:float,
+     *   all_time:float, this_month:float
+     * }
+     */
+    public static function generalHarvestSummary(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_rows,
+                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline_rows,
+                    COUNT(*) AS awards
+               FROM general_harvest_awards
+              WHERE credited_at >= ? AND credited_at < ?"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $row = $stmt->fetch() ?: [];
+
+        $totals = $pdo->query(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS all_time,
+                        COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND credited_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month
+               FROM general_harvest_awards"
+        )->fetch() ?: [];
+
+        $creditedRows = (int) ($row['credited_rows'] ?? 0);
+        $credited     = round((float) ($row['credited'] ?? 0), 2);
+
+        return [
+            'credited'      => $credited,
+            'count'         => $creditedRows,
+            'recipients'    => (int) ($row['recipients'] ?? 0),
+            'baseline'      => round((float) ($row['baseline'] ?? 0), 2),
+            'baseline_rows' => (int) ($row['baseline_rows'] ?? 0),
+            'awards'        => (int) ($row['awards'] ?? 0),
+            'average'       => $creditedRows === 0 ? 0.0 : round($credited / $creditedRows, 2),
+            'all_time'      => round((float) ($totals['all_time'] ?? 0), 2),
+            'this_month'    => round((float) ($totals['this_month'] ?? 0), 2),
+        ];
+    }
+
+    /**
+     * General Harvest headline counters in one query: everything the
+     * `/admin/commissions?ledger=general_harvest` tiles need — credited
+     * money and rows, recipients, the go-live baseline (recorded, never
+     * paid) and the money credited in the current calendar month.
+     *
+     * @return array{credited_total:float, credited_rows:int, recipients:int,
+     *               baseline_total:float, baseline_rows:int, awards:int, this_month:float}
+     */
+    public static function generalHarvestTotals(?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $row = $pdo->query(
+            "SELECT COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited_rows,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(DISTINCT CASE WHEN status = 'credited' THEN user_id END) AS recipients,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline_rows,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total,
+                    COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND credited_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month,
+                    COUNT(*) AS awards
+               FROM general_harvest_awards"
+        )->fetch() ?: [];
+
+        return [
+            'credited_total' => round((float) ($row['credited_total'] ?? 0), 2),
+            'credited_rows'  => (int) ($row['credited_rows'] ?? 0),
+            'recipients'     => (int) ($row['recipients'] ?? 0),
+            'baseline_total' => round((float) ($row['baseline_total'] ?? 0), 2),
+            'baseline_rows'  => (int) ($row['baseline_rows'] ?? 0),
+            'awards'         => (int) ($row['awards'] ?? 0),
+            'this_month'     => round((float) ($row['this_month'] ?? 0), 2),
+        ];
+    }
+
+    /**
+     * The ladder's ten levels with their windowed decisions.
+     *
+     * Every level is listed, zero-filled, with the configured amount and
+     * structural threshold beside the counts: a level nobody completed is
+     * the shape of the plan, not missing data (Rule 11 of §9).
+     *
+     * @return list<array{
+     *   level:int, amount:float, threshold:int, slots:int,
+     *   credited:int, credited_total:float, baseline:int, baseline_total:float
+     * }>
+     */
+    public static function generalHarvestByLevel(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT level,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total
+               FROM general_harvest_awards
+              WHERE credited_at >= ? AND credited_at < ?
+              GROUP BY level"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $found = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $found[(int) $row['level']] = $row;
+        }
+
+        $amounts = GeneralHarvestLevel::amounts($pdo);
+        $rows    = [];
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            $row = $found[$level] ?? [];
+
+            $rows[] = [
+                'level'          => $level,
+                'amount'         => round((float) ($amounts[$level] ?? 0), 2),
+                'threshold'      => GeneralHarvestLevel::threshold(0, $level),
+                'slots'          => GeneralHarvestLevel::slots($level),
+                'credited'       => (int) ($row['credited'] ?? 0),
+                'credited_total' => round((float) ($row['credited_total'] ?? 0), 2),
+                'baseline'       => (int) ($row['baseline'] ?? 0),
+                'baseline_total' => round((float) ($row['baseline_total'] ?? 0), 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * General Harvest decisions by calendar month of the decision, newest
+     * first — the report card's history strip.
+     *
+     * @return list<array{month:string, awards:int, credited:int, credited_total:float,
+     *                    baseline:int, baseline_total:float}>
+     */
+    public static function generalHarvestByMonth(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT DATE_FORMAT(credited_at, '%Y-%m') AS month,
+                    COUNT(*) AS awards,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS credited_total,
+                    COUNT(CASE WHEN status = 'baseline' THEN 1 END) AS baseline,
+                    COALESCE(SUM(CASE WHEN status = 'baseline' THEN amount ELSE 0 END), 0) AS baseline_total
+               FROM general_harvest_awards
+              WHERE credited_at >= ? AND credited_at < ?
+              GROUP BY month
+              ORDER BY month DESC"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $rows = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $rows[] = [
+                'month'          => (string) $row['month'],
+                'awards'         => (int) $row['awards'],
+                'credited'       => (int) $row['credited'],
+                'credited_total' => round((float) $row['credited_total'], 2),
+                'baseline'       => (int) $row['baseline'],
+                'baseline_total' => round((float) $row['baseline_total'], 2),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * General Harvest money per pay band — how much the stream pays to
+     * each slice of the queue. The bands are the closed form's natural
+     * breaks: 1–3, 4–12, 13–39, 40–120, 121–363, 364–1092, 1093–3279,
+     * 3280–9840, 9841–29523, 29524–88572 and 88573+.
+     *
+     * @return list<array{
+     *   band:string, from:int, to:int, nodes:int, paid:float,
+     *   credited:int, baseline:int
+     * }>
+     */
+    public static function generalHarvestBands(?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+        $n   = GeneralHarvestBoard::queueN($pdo)['n'];
+
+        /* Band boundaries: (start of band, end of band, label). */
+        $bands = [
+            [1, 3,     'Positions #1–#3'],
+            [4, 12,    'Positions #4–#12'],
+            [13, 39,   'Positions #13–#39'],
+            [40, 120,  'Positions #40–#120'],
+            [121, 363, 'Positions #121–#363'],
+            [364, 1092, 'Positions #364–#1,092'],
+            [1093, 3279, 'Positions #1,093–#3,279'],
+            [3280, 9840, 'Positions #3,280–#9,840'],
+            [9841, 29523, 'Positions #9,841–#29,523'],
+            [29524, 88572, 'Positions #29,524–#88,572'],
+            [88573, null, 'Position #88,573 and beyond'],
+        ];
+
+        $amounts = GeneralHarvestLevel::amounts($pdo);
+        $rows    = [];
+
+        foreach ($bands as $band) {
+            [$bandFrom, $bandTo, $label] = $band;
+            $bandTo = $bandTo === null ? $n : min($bandTo, $n);
+
+            if ($bandFrom > $n) {
+                $rows[] = [
+                    'band'   => $label,
+                    'from'   => $bandFrom,
+                    'to'     => $bandTo,
+                    'nodes'  => 0,
+                    'paid'   => 0.0,
+                    'credited' => 0,
+                    'baseline' => 0,
+                ];
+                continue;
+            }
+
+            $paid   = 0.0;
+            $credited = 0;
+            $baseline = 0;
+
+            for ($q = $bandFrom - 1; $q < $bandTo; $q++) {
+                $owner = GeneralHarvestBoard::ownerOf($q, $pdo);
+                if ($owner === null) {
+                    continue;
+                }
+
+                $paidLevels = GeneralHarvestAward::paidLevels($owner['user_id'], $pdo);
+                $levelTotal = 0.0;
+
+                foreach ($paidLevels as $level) {
+                    $row = GeneralHarvestAward::findBySeqLevel($q, $level, $pdo);
+                    if ($row === null) {
+                        continue;
+                    }
+
+                    $levelTotal += (float) $row['amount'];
+                    if ($row['status'] === GeneralHarvestAward::STATUS_CREDITED) {
+                        $credited++;
+                    } else {
+                        $baseline++;
+                    }
+                }
+
+                $paid += $levelTotal;
+            }
+
+            $rows[] = [
+                'band'      => $label,
+                'from'      => $bandFrom,
+                'to'        => $bandTo,
+                'nodes'     => $bandTo - $bandFrom + 1,
+                'paid'      => round($paid, 2),
+                'credited'  => $credited,
+                'baseline'  => $baseline,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The General Harvest board's own block — what the reports desk needs
+     * beside the sales and commissions cards: the state strip, the
+     * frontier, the backlog and the open liability.
+     *
+     * @return array{
+     *   state:array<string, mixed>, frontier:list<array<string, mixed>>,
+     *   backlog:array<string, mixed>, open:array<string, mixed>
+     * }
+     */
+    public static function generalHarvestBoard(?PDO $pdo = null): array
+    {
+        $service = new GeneralHarvestService($pdo ?? db());
+
+        return [
+            'state'    => $service->state(),
+            'frontier' => array_values(GeneralHarvestBoard::frontier($pdo)),
+            'backlog'  => $service->backlog(),
+            'open'     => $service->openLiability(),
+        ];
+    }
+
+    /**
      * The queue's shape and its first positions — the queue card on
      * `/admin/members` and the queue block of the reports desk.
      *

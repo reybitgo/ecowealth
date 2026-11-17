@@ -33,6 +33,7 @@ final class ReportService
         'unilevel'     => 'Repeat-purchase bonus',
         'royalty'      => 'Royalty',
         'team_harvest' => 'Team Harvest bonus',
+        'general_harvest' => 'General Harvest bonus',
         'wallet'       => 'Wallet statement',
         'payouts'      => 'Payout register',
         'codes'        => 'Registration codes',
@@ -107,6 +108,7 @@ final class ReportService
             'unilevel'         => Report::unilevelSummary($last30['from'], $last30['to']),
             'royalty'          => $this->royaltyDashboard(),
             'team_harvest'     => $this->teamHarvestDashboard(),
+            'general_harvest'  => $this->generalHarvestDashboard(),
             'wallet'           => Report::walletFloat(),
             'payouts'          => Report::payoutSummary($last30['from'], $last30['to']),
             'members'          => Report::memberCounts(),
@@ -144,6 +146,39 @@ final class ReportService
             'open_levels' => $open['levels'],
             'queued'      => $queue['queued'],
             'seeded'      => $queue['seeded'],
+        ];
+    }
+
+    /**
+     * The General Harvest dashboard tile figures (Phase 21E).
+     *
+     * The KPI is the **last 30 days** of award decisions, the same window
+     * every other dashboard tile uses; `open` is what the engine would
+     * still pay, derived on read and never stored.
+     *
+     * @return array{credited:float, count:int, recipients:int, this_month:float,
+     *               open:float, open_levels:int, queued:int, armed:bool, enabled:bool}
+     */
+    private function generalHarvestDashboard(): array
+    {
+        $last30 = Report::generalHarvestSummary(
+            date('Y-m-d', strtotime('-29 days')),
+            date('Y-m-d')
+        );
+
+        $open = (new GeneralHarvestService())->openLiability();
+        $queue = GeneralHarvestBoard::queueN();
+
+        return [
+            'credited'    => $last30['credited'],
+            'count'       => $last30['count'],
+            'recipients'  => $last30['recipients'],
+            'this_month'  => $last30['this_month'],
+            'open'        => $open['amount'],
+            'open_levels' => count($open['pairs']),
+            'queued'      => (int) $queue['n'],
+            'armed'       => GeneralHarvestBoard::state()['armed'],
+            'enabled'     => (new GeneralHarvestService())->enabled(),
         ];
     }
 
@@ -210,6 +245,12 @@ final class ReportService
             'team_harvest_queue'    => Report::teamHarvestQueue(5),
             'team_harvest_open'     => (new TeamHarvestService())->openLiability(),
             'team_harvest_max'      => TeamHarvestLevel::maxLevels(),
+            'general_harvest'          => Report::generalHarvestSummary($range['from'], $range['to']),
+            'general_harvest_levels'   => Report::generalHarvestByLevel($range['from'], $range['to']),
+            'general_harvest_months'   => Report::generalHarvestByMonth($range['from'], $range['to']),
+            'general_harvest_bands'    => Report::generalHarvestBands(),
+            'general_harvest_board'    => Report::generalHarvestBoard(),
+            'general_harvest_totals'   => Report::generalHarvestTotals(),
             'wallet'        => Report::walletFloat(),
             'payouts'       => Report::payoutSummary($range['from'], $range['to']),
             'codes'         => Report::codeRevenue(),
@@ -236,6 +277,7 @@ final class ReportService
             'unilevel'     => $this->unilevelExport($from, $to),
             'royalty'      => $this->royaltyExport($from, $to),
             'team_harvest' => $this->teamHarvestExport($from, $to),
+            'general_harvest' => $this->generalHarvestExport($from, $to),
             'wallet'       => $this->walletExport($from, $to),
             'payouts'      => $this->payoutExport($from, $to),
             'codes'        => $this->codesExport($from, $to),
@@ -477,6 +519,106 @@ final class ReportService
             (string) (int) ($row['threshold_n'] ?? 0),
             self::decimal($row['amount'] ?? 0),
             TeamHarvestAward::STATUS_LABELS[$status] ?? ucfirst($status),
+            ($row['ledger_id'] ?? null) === null ? '' : (string) (int) $row['ledger_id'],
+        ];
+    }
+
+    /**
+     * The General Harvest report CSV: the window's award rows and the board's
+     * summary block in one file, told apart by a `Scope` column — `Award`
+     * for a row of the ledger, `Board` for the summary block — so finance
+     * can read both dimensions at once (plan Appendix C.5, P21E-T14).
+     *
+     * The award columns are the plan's Appendix C.5 columns verbatim, so
+     * this file and the ledger export carry the same names; the board row
+     * fills the columns that mean something for a board (the go-live
+     * instant, the settled length, the open liability and whether the
+     * stream is armed and enabled).
+     *
+     * @return array{filename:string, header:list<string>, rows:list<list<string>>}
+     */
+    private function generalHarvestExport(string $from, string $to): array
+    {
+        $filters = GeneralHarvestAward::normaliseFilters(['from' => $from, 'to' => $to]);
+        $rows    = GeneralHarvestAward::exportRows($filters);
+        $board   = Report::generalHarvestBoard();
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            $out[] = array_merge(['Award'], self::generalHarvestColumns($row));
+        }
+
+        /* The board block: one row that carries the state, the settled
+         * length, the open liability and whether the stream is armed. */
+        $state = $board['state'];
+        $open  = $board['open'];
+
+        $out[] = [
+            'Board',
+            '',
+            $state['armed'] ? 'Armed' : 'Not armed',
+            $state['enabled'] ? 'Paying' : 'Switched off',
+            '',
+            '',
+            '',
+            (string) ($state['settled_n'] ?? 0),
+            '',
+            self::decimal($open['amount']),
+            $state['armed'] ? 'Yes' : 'No',
+            '',
+            '',
+        ];
+
+        return [
+            'filename' => self::filename('general_harvest', ['from' => $from, 'to' => $to]),
+            'header'   => array_merge(['Scope'], self::generalHarvestCsvHeader()),
+            'rows'     => $out,
+        ];
+    }
+
+    /**
+     * The General Harvest ledger CSV header — exactly plan Appendix C.5.
+     *
+     * @return list<string>
+     */
+    public static function generalHarvestCsvHeader(): array
+    {
+        return [
+            'Award ID', 'Credited at', 'Member', 'Position', 'Node (seq)', 'Level',
+            'Block', 'Queue (N)', 'Threshold', 'Amount', 'Status', 'Wallet reference',
+        ];
+    }
+
+    /**
+     * One General Harvest award as the CSV columns above. `$scope` is not
+     * prepended here: the caller owns the discriminator (the ledger export
+     * emits the twelve columns alone; the report export prepends `Scope`).
+     *
+     * @param array<string, mixed> $row
+     * @return list<string>
+     */
+    public static function generalHarvestColumns(array $row): array
+    {
+        $status = (string) ($row['status'] ?? '');
+        $seq    = (int) ($row['seq'] ?? 0);
+        $slots  = GeneralHarvestLevel::slots((int) $row['level']);
+        $block  = (int) intdiv($seq, $slots);
+        $from   = $block * $slots + 1;
+        $to     = $from + $slots - 1;
+
+        return [
+            (string) (int) ($row['id'] ?? 0),
+            (string) ($row['credited_at'] ?? ''),
+            (string) ($row['username'] ?? ''),
+            ($row['position'] ?? null) === null ? '' : (string) (int) $row['position'],
+            (string) $seq,
+            (string) (int) ($row['level'] ?? 0),
+            '#' . (string) $from . '–#' . (string) $to,
+            (string) (int) ($row['n_at_award'] ?? 0),
+            (string) (int) ($row['threshold_n'] ?? 0),
+            self::decimal($row['amount'] ?? 0),
+            GeneralHarvestAward::STATUS_LABELS[$status] ?? ucfirst($status),
             ($row['ledger_id'] ?? null) === null ? '' : (string) (int) $row['ledger_id'],
         ];
     }

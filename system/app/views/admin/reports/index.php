@@ -35,6 +35,11 @@ declare(strict_types=1);
  * @var array<string, mixed> $team_harvest_queue
  * @var array{levels:int, members:int, amount:float, by_level:array<int, array<string, mixed>>} $team_harvest_open
  * @var int $team_harvest_max
+ * @var array{credited:float, count:int, recipients:int, baseline:float, baseline_rows:int, awards:int, average:float, all_time:float, this_month:float} $general_harvest
+ * @var list<array{level:int, amount:float, threshold:int, slots:int, credited:int, credited_total:float, baseline:int, baseline_total:float}> $general_harvest_levels
+ * @var list<array{month:string, awards:int, credited:int, credited_total:float, baseline:int, baseline_total:float}> $general_harvest_months
+ * @var list<array{band:string, from:int, to:int, nodes:int, paid:float, credited:int, baseline:int}> $general_harvest_bands
+ * @var array{state:array<string, mixed>, frontier:list<array<string, mixed>>, backlog:array<string, mixed>, open:array<string, mixed>} $general_harvest_board
  * @var array{accounts:int, float:float, withdrawable:float, credited_today:float, debited_today:float, movements_today:int} $wallet
  * @var array{by_status:list<array{status:string,count:int,amount:float,fees:float}>, by_method:list<array{method:string,count:int,amount:float}>, held:float, held_requests:int, completed_amount:float, completed_fees:float} $payouts
  * @var list<array<string, mixed>> $codes
@@ -239,6 +244,19 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
     'team_harvest_open'   => $team_harvest_open,
     'team_harvest_max'    => $team_harvest_max,
     'range'               => $range,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12">
+<?= View::capture('admin/reports/_general_harvest', [
+    'general_harvest'        => $general_harvest,
+    'general_harvest_levels' => $general_harvest_levels,
+    'general_harvest_months' => $general_harvest_months,
+    'general_harvest_bands'  => $general_harvest_bands,
+    'general_harvest_board'  => $general_harvest_board,
+    'range'                  => $range,
 ]) ?>
                 </div>
               </div>
