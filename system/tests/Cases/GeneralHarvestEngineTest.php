@@ -1036,7 +1036,7 @@ return [
         $result = (new GeneralHarvestService())->settleAll();
 
         assert_same('off', (string) $result['state'], 'settle returns off');
-        assert_same(0, (int) $result['written'] ?? 0, 'no award written');
+        assert_same(0, (int) ($result['written'] ?? 0), 'no award written');
         assert_same(0, (int) GeneralHarvestAward::count(['status' => 'credited']), 'no credited row anywhere');
     },
 
@@ -1631,6 +1631,276 @@ return [
         assert_same(0, (int) $second['written'], 'nothing written the second time');
         assert_same(1, (int) GeneralHarvestAward::count(['status' => 'credited']), 'one set of rows');
         assert_same([1], GeneralHarvestAward::paidLevels((int) $tree), 'node 0 paid level 1');
+    },
+
+    /* ==========================================================
+     *  P21D-T31 — a queue hole fails closed
+     * ========================================================== */
+
+    'P21D-T31 a queue hole makes settle throw not gapless' => function () use (
+        $clean,
+        $seed,
+        $switch,
+        $arm,
+        $account,
+        $queue
+    ): void {
+        $clean();
+
+        $seed();
+        $arm();
+        $switch(true);
+
+        $tree = $account('p21d_t31_root', null);
+
+        $users = [$tree];
+        $parents = [$tree];
+
+        for ($d = 1; $d <= 2; $d++) {
+            $next = [];
+
+            foreach ($parents as $parent) {
+                for ($i = 1; $i <= 3; $i++) {
+                    $child = $account('p21d_t31_d' . $d . '_p' . $parent . '_' . $i, $parent);
+                    $users[] = $child;
+                    $next[] = $child;
+                }
+            }
+
+            $parents = $next;
+        }
+
+        $n13 = $queue($users);
+        assert_same(13, $n13, 'N = 13 before the hole');
+
+        /* Delete a middle queue row directly to create a hole. */
+        db()->prepare('DELETE FROM harvest_queue WHERE id = ?')->execute([7]);
+
+        assert_false((bool) GeneralHarvestBoard::queueN()['gapless'], 'the queue is not gapless');
+
+        $exception = assert_throws(
+            static fn () => (new GeneralHarvestService())->settleAll(),
+            GeneralHarvestException::class,
+            'settling a gapped queue throws not gapless'
+        );
+
+        assert_same('not_gapless', $exception->reason, 'the anomaly is not gapless');
+        assert_same(0, (int) GeneralHarvestAward::count(['status' => 'credited']), 'nothing was credited');
+    },
+
+    /* ==========================================================
+     *  P21D-T32 — a hand-edited settled_n ahead of the ledger
+     * ========================================================== */
+
+    'P21D-T32 a hand-edited settled_n ahead of the ledger throws ledger behind settled_n' => function () use (
+        $clean,
+        $seed,
+        $switch,
+        $arm,
+        $account,
+        $queue,
+        $append
+    ): void {
+        $clean();
+
+        $seed();
+        $arm();
+        $switch(true);
+
+        $tree = $account('p21d_t32_root', null);
+
+        $users = [$tree];
+        $parents = [$tree];
+
+        for ($d = 1; $d <= 2; $d++) {
+            $next = [];
+
+            foreach ($parents as $parent) {
+                for ($i = 1; $i <= 3; $i++) {
+                    $child = $account('p21d_t32_d' . $d . '_p' . $parent . '_' . $i, $parent);
+                    $users[] = $child;
+                    $next[] = $child;
+                }
+            }
+
+            $parents = $next;
+        }
+
+        $n13 = $queue($users);
+        assert_same(13, $n13, 'N = 13 before settling');
+        (new GeneralHarvestService())->settleAll(); /* settled_n = 13, 5 awards */
+        assert_same(13, (int) (new GeneralHarvestService())->settledN(), 'settled_n is 13');
+
+        /* Grow the queue to N = 40 without settling, so the ledger still
+         * only has the 5 rows from settled_n = 13. */
+        for ($i = 13; $i < 40; $i++) {
+            $users[] = $account('p21d_t32_extra_' . $i, $tree);
+            $append((int) $users[array_key_last($users)]);
+        }
+
+        assert_same(40, (int) GeneralHarvestBoard::queueN()['n'], 'N = 40 after growth');
+
+        /* Hand-edit settled_n to 20 — ahead of what the 5 ledger rows support
+         * (level 1 needs 7 rows at N = 20 but only 4 exist), but still below
+         * N so the queue-shrank check does not fire first. */
+        db()->prepare(
+            'UPDATE general_harvest_board SET settled_n = 20 WHERE id = 1'
+        )->execute();
+
+        $exception = assert_throws(
+            static fn () => (new GeneralHarvestService())->settleAll(),
+            GeneralHarvestException::class,
+            'settling with settled_n ahead of the ledger throws ledger behind settled_n'
+        );
+
+        assert_same('ledger behind settled_n', $exception->reason, 'the anomaly is ledger behind settled_n');
+        assert_same(5, (int) GeneralHarvestAward::count(['status' => 'credited']), 'no new award was written');
+    },
+
+    /* ==========================================================
+     *  P21D-T33 — a failure inside the registration transaction rolls back
+     * ========================================================== */
+
+    'P21D-T33 a forced failure inside the registration transaction rolls everything back' => function () use (
+        $clean,
+        $seed,
+        $switch,
+        $arm,
+        $account,
+        $queue,
+        $append
+    ): void {
+        $clean();
+
+        $seed();
+        $arm();
+        $switch(true);
+
+        $tree = $account('p21d_t33_root', null);
+
+        $users = [$tree];
+        $parents = [$tree];
+
+        for ($d = 1; $d <= 2; $d++) {
+            $next = [];
+
+            foreach ($parents as $parent) {
+                for ($i = 1; $i <= 3; $i++) {
+                    $child = $account('p21d_t33_d' . $d . '_p' . $parent . '_' . $i, $parent);
+                    $users[] = $child;
+                    $next[] = $child;
+                }
+            }
+
+            $parents = $next;
+        }
+
+        $n13 = $queue($users);
+        assert_same(13, $n13, 'N = 13 before settling');
+        (new GeneralHarvestService())->settleAll(); /* settled_n = 13 */
+
+        /* Append a 4th generation member: position 14 completes node 0's L2 block. */
+        $late = $account('p21d_t33_late', $tree);
+        $append($late);
+        while ((int) GeneralHarvestBoard::queueN()['n'] < 22) {
+            $append($account('p21d_t33_filler_' . uniqid(), $tree));
+        }
+
+        assert_same(22, (int) GeneralHarvestBoard::queueN()['n'], 'N = 22 after growth');
+
+        /* Wrap the settlement in a savepoint and force a failure after the
+         * award and credit are written but before the commit. Both must roll
+         * back together. The harness already holds a transaction, so a
+         * savepoint is the nested-transaction primitive. */
+        $pdo = db();
+        $before = (int) GeneralHarvestAward::count(['status' => 'credited']);
+        $savepoint = 'p21d_t33_sp_' . bin2hex(random_bytes(4));
+        $pdo->exec('SAVEPOINT ' . $savepoint);
+
+        try {
+            $result = (new GeneralHarvestService($pdo))->settle(1);
+            assert_same('settled', (string) $result['state'], 'the settlement wrote rows');
+
+            /* Force a failure: the savepoint must roll back everything. */
+            throw new RuntimeException('forced wallet failure');
+        } catch (Throwable) {
+            $pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+        }
+
+        /* Nothing from the settlement may persist. */
+        assert_same($before, (int) GeneralHarvestAward::count(['status' => 'credited']), 'no new credited award persisted');
+        assert_same($before, (int) db()->query(
+            "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest'"
+        )->fetchColumn(), 'no new wallet credit persisted');
+        assert_same(13, (int) (new GeneralHarvestService())->settledN(), 'settled_n did not advance');
+    },
+
+    /* ==========================================================
+     *  P21D-T34 — N shrank below settled_n: the hook catches the anomaly
+     * ========================================================== */
+
+    'P21D-T34 a shrank queue throws queue shrank but registration still succeeds' => function () use (
+        $clean,
+        $seed,
+        $switch,
+        $arm,
+        $account,
+        $queue
+    ): void {
+        $clean();
+
+        $seed();
+        $arm();
+        $switch(true);
+
+        $tree = $account('p21d_t34_root', null);
+
+        $users = [$tree];
+        $parents = [$tree];
+
+        for ($d = 1; $d <= 2; $d++) {
+            $next = [];
+
+            foreach ($parents as $parent) {
+                for ($i = 1; $i <= 3; $i++) {
+                    $child = $account('p21d_t34_d' . $d . '_p' . $parent . '_' . $i, $parent);
+                    $users[] = $child;
+                    $next[] = $child;
+                }
+            }
+
+            $parents = $next;
+        }
+
+        $n13 = $queue($users);
+        assert_same(13, $n13, 'N = 13 before settling');
+        (new GeneralHarvestService())->settleAll(); /* settled_n = 13 */
+
+        /* Delete the last queue row: N = 12, settled_n = 13. */
+        db()->prepare('DELETE FROM harvest_queue ORDER BY id DESC LIMIT 1')->execute();
+
+        assert_same(12, (int) GeneralHarvestBoard::queueN()['n'], 'N shrank to 12');
+        assert_true((bool) GeneralHarvestBoard::queueN()['gapless'], 'still gapless after deleting the last row');
+
+        /* settle() itself throws queue shrank. */
+        $exception = assert_throws(
+            static fn () => (new GeneralHarvestService())->settleAll(),
+            GeneralHarvestException::class,
+            'settling a shrank queue throws queue shrank'
+        );
+
+        assert_same('queue shrank', $exception->reason, 'the anomaly is queue shrank');
+        $before = (int) GeneralHarvestAward::count(['status' => 'credited']);
+        assert_same(5, $before, '5 awards from the first settlement');
+
+        /* onQueueChanged() catches the anomaly and returns it instead of
+         * throwing, so a registration whose hook hits it still succeeds. */
+        $newMember = $account('p21d_t34_new', $tree);
+        $service = new GeneralHarvestService();
+        $hook = $service->onQueueChanged();
+
+        assert_same('anomaly', (string) ($hook['state'] ?? ''), 'the hook reports an anomaly');
+        assert_same($before, (int) GeneralHarvestAward::count(['status' => 'credited']), 'still no new award');
     },
 
 ];

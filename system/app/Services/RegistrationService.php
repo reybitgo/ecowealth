@@ -222,6 +222,12 @@ final class RegistrationService
                  * money failures propagate and roll the registration back. */
                 (new GeneralHarvestService($this->pdo))->onQueueChanged();
 
+                /* Bump the live surfaces that render General Harvest money
+                 * after a position settles. Never inside the wallet credit:
+                 * a revision failure here must never roll money back. */
+                Live::touchGeneralHarvestAdmin();
+                Live::touchGeneralHarvestMember($userId);
+
                 AuditLog::record([
                     'action'       => 'member.register',
                     'actor_id'     => $registrarId,

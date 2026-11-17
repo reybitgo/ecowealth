@@ -316,14 +316,44 @@ final class GeneralHarvestService
             $settledN  = (int) $board['settled_n'];
             $baselineN = $board['baseline_n'] ?? null;
 
+            $amounts  = GeneralHarvestLevel::amounts($this->pdo);
+            $depth    = GeneralHarvestLevel::maxLevels();
+
             if ($n < $settledN) {
                 throw GeneralHarvestException::queueShrank($n, $settledN);
             }
 
             $target = min($n, $settledN + $maxNewPositions);
 
-            $amounts  = GeneralHarvestLevel::amounts($this->pdo);
-            $depth    = GeneralHarvestLevel::maxLevels();
+            /* When settling new positions, the ledger's prefix must already
+             * cover every priced block up to settled_n. A hand-edited
+             * settled_n that runs ahead of the rows is corruption, not an
+             * interrupted settlement (§14.12). When target === settled_n
+             * (a replay or a depth change), the replay block below handles
+             * missing rows instead of throwing. */
+            if ($target > $settledN) {
+                $counts = [];
+
+                foreach ($this->pdo->query(
+                    'SELECT level, COUNT(*) AS written FROM general_harvest_awards GROUP BY level'
+                )->fetchAll() as $row) {
+                    $counts[(int) $row['level']] = (int) $row['written'];
+                }
+
+                for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= $depth; $level++) {
+                    $qFor = GeneralHarvestLevel::qFor($level, $settledN);
+
+                    if ($qFor < 0) {
+                        continue;
+                    }
+
+                    $have = $counts[$level] ?? 0;
+
+                    if ($have < $qFor + 1 && (float) ($amounts[$level] ?? 0.0) > 0) {
+                        throw GeneralHarvestException::ledgerBehindSettled($level, $have, $qFor + 1);
+                    }
+                }
+            }
 
             /* No new positions: only a depth change (or an interrupted
              * settlement) can leave work behind. If every priced level
@@ -366,16 +396,6 @@ final class GeneralHarvestService
                     return ['state' => 'replayed', 'target' => $settledN, 'written' => 0, 'amount' => 0.0];
                 }
             }
-            $counts   = [];
-
-            /* The prefix read is the truth (§14.4): rows written per level,
-             * not derived from settled_n. */
-            foreach ($this->pdo->query(
-                'SELECT level, COUNT(*) AS written FROM general_harvest_awards GROUP BY level'
-            )->fetchAll() as $row) {
-                $counts[(int) $row['level']] = (int) $row['written'];
-            }
-
             $rows    = [];
             $unpriced = [];
 
@@ -559,7 +579,7 @@ final class GeneralHarvestService
                     'subject_type' => GeneralHarvestService::SUBJECT,
                     'subject_id'   => GeneralHarvestBoard::SINGLETON_ID,
                     'meta'         => [
-                        'reason'  => $e->getReason() ?? 'state',
+                        'reason'  => $e->reason ?? 'state',
                         'message' => $e->getMessage(),
                     ],
                 ], $this->pdo);
@@ -567,7 +587,7 @@ final class GeneralHarvestService
                 /* The audit trail must never break a registration. */
             }
 
-            return ['state' => 'anomaly', 'reason' => $e->getReason() ?? 'state', 'message' => $e->getMessage()];
+            return ['state' => 'anomaly', 'reason' => $e->reason ?? 'state', 'message' => $e->getMessage()];
         }
     }
 
