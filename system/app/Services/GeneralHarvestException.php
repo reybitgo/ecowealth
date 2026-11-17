@@ -128,4 +128,61 @@ final class GeneralHarvestException extends RuntimeException
     {
         return new self($message, 'state');
     }
+
+    /** `N < settled_n`: a position vanished since the last settlement (§14.12). */
+    public static function queueShrank(int $n, int $settled): self
+    {
+        return new self(
+            sprintf(
+                'The Harvest queue shrank: N = %d but settled_n = %d. Positions were deleted under the board.'
+                    . ' Restore from a backup before settling again (plan §14.12).',
+                $n,
+                $settled
+            ),
+            'queue shrank'
+        );
+    }
+
+    /** A level's rows exceed `qFor(L, target) + 1` (§14.12). */
+    public static function ledgerAheadOfQueue(int $level, int $rows, int $expected): self
+    {
+        return new self(
+            sprintf(
+                'The General Harvest ledger is ahead of the queue at level %d: %d rows but the queue fills %d blocks.'
+                    . ' A row was written for a block that does not exist yet (plan §14.12).',
+                $level,
+                $rows,
+                $expected
+            ),
+            'ledger ahead of the queue'
+        );
+    }
+
+    /** A priced level's rows are fewer than `qFor(L, settled_n) + 1` (§14.12). */
+    public static function ledgerBehindSettled(int $level, int $rows, int $expected): self
+    {
+        return new self(
+            sprintf(
+                'The General Harvest ledger is behind settled_n at level %d: %d rows but %d blocks are complete.'
+                    . ' An interrupted settlement left the prefix incomplete (plan §14.12).',
+                $level,
+                $rows,
+                $expected
+            ),
+            'ledger behind settled_n'
+        );
+    }
+
+    /** A settlement was asked to pay a node whose account is not a member (§14.12). */
+    public static function notAMember(int $userId): self
+    {
+        return new self(
+            sprintf(
+                'General Harvest would pay node holder user %d, but that account is not a member.'
+                    . ' The engine pays only role = member rows (plan §14.12).',
+                $userId
+            ),
+            'not a member'
+        );
+    }
 }

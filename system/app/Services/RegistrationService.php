@@ -214,6 +214,14 @@ final class RegistrationService
                  * (P20C-T23, §14.7). */
                 (new TeamHarvestService($this->pdo))->onQualified((int) $sponsor['id']);
 
+                /* Phase 21D — General Harvest settlement (§14.1): one
+                 * position settles inside this transaction, after Phase 20's
+                 * qualification call. The stream is off and the board is
+                 * unarmed until the arm job runs, so nothing pays until
+                 * go-live. Configuration anomalies are caught by the hook;
+                 * money failures propagate and roll the registration back. */
+                (new GeneralHarvestService($this->pdo))->onQueueChanged();
+
                 AuditLog::record([
                     'action'       => 'member.register',
                     'actor_id'     => $registrarId,

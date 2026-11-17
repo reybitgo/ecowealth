@@ -119,6 +119,26 @@ final class GeneralHarvestAward
     }
 
     /**
+     * The decided row for one `(seq, level)`, shaped, or null (§14.12).
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function findBySeqLevel(int $seq, int $level, ?PDO $pdo = null): ?array
+    {
+        if ($seq < 0 || $level < self::LEVEL_MIN || $level > self::LEVEL_MAX) {
+            return null;
+        }
+
+        $pdo  = $pdo ?? db();
+        $stmt = $pdo->prepare(self::selectSql() . ' WHERE a.seq = ? AND a.level = ? LIMIT 1');
+        $stmt->execute([$seq, $level]);
+
+        $row = $stmt->fetch();
+
+        return $row === false ? null : self::shape($row);
+    }
+
+    /**
      * Every decided level of one node holder, level order — the member's
      * statement and the admin member panel (§14.2).
      *

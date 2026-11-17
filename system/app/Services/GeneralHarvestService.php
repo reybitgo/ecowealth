@@ -188,6 +188,853 @@ final class GeneralHarvestService
         ];
     }
 
+    /**
+     * The length the board has been settled to — a position count, not a
+     * money count (§12.6 Rule 9). Always `≥ baseline_n` and `≤ N`.
+     */
+    public function settledN(): int
+    {
+        return (int) GeneralHarvestBoard::state($this->pdo)['settled_n'];
+    }
+
+    /**
+     * What the queue has done since the last settlement: `N − settled_n`
+     * positions and what they are worth as the closed-form difference.
+     * Delegates to the board model's `backlog()` (§12.1, §12.7).
+     *
+     * @return array{n:int, settled_n:int, positions:int, amount:float, armed:bool}
+     */
+    public function backlog(): array
+    {
+        return GeneralHarvestBoard::backlog($this->pdo);
+    }
+
+    /**
+     * The open liability the engine would pay if settled right now:
+     * `boardTotal(N) − boardTotal(settled_n)`, plus the per-level pair
+     * counts the doctor prints (§12.8, §14.11).
+     *
+     * @return array{positions:int, pairs:array<int, array{level:int, missing:int, amount:float}>, amount:float}
+     */
+    public function openLiability(): array
+    {
+        $board = GeneralHarvestBoard::state($this->pdo);
+        $n     = GeneralHarvestBoard::queueN($this->pdo)['n'];
+
+        if (!$board['armed']) {
+            return ['positions' => 0, 'pairs' => [], 'amount' => 0.0];
+        }
+
+        $positions = max(0, $n - (int) $board['settled_n']);
+        $amounts   = GeneralHarvestLevel::amounts($this->pdo);
+        $depth     = GeneralHarvestLevel::maxLevels();
+        $pairs     = [];
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            $complete = GeneralHarvestLevel::paid($level, $n);
+            $rows     = (int) ($this->countByLevel($level) ?? 0);
+            $missing  = max(0, $complete - $rows);
+
+            if ($level > $depth || $missing === 0) {
+                continue;
+            }
+
+            $pairs[$level] = [
+                'level'   => $level,
+                'missing' => $missing,
+                'amount'  => (float) ($amounts[$level] ?? 0.0),
+            ];
+        }
+
+        $total = 0.0;
+
+        foreach ($pairs as $pair) {
+            $total += $pair['missing'] * $pair['amount'];
+        }
+
+        return [
+            'positions' => $positions,
+            'pairs'     => array_values($pairs),
+            'amount'    => round(
+                max(
+                    0.0,
+                    GeneralHarvestLevel::boardTotal($n, $amounts, $this->pdo)
+                        - GeneralHarvestLevel::boardTotal((int) $board['settled_n'], $amounts, $this->pdo)
+                ),
+                2
+            ),
+        ];
+    }
+
+    /**
+     * State-based settlement (§14.4). Compares the queue length with the
+     * board's `settled_n` and writes every newly-complete block, one
+     * position at a time up to `$maxNewPositions`.
+     *
+     * Returns `{state: 'off'}` / `{state: 'unarmed'}` / `{state: 'replayed'}`
+     * / `{state: 'settled', target, written, amount, unpriced, per_level}`.
+     * Configuration states return, never throw (§14.7 Rule 4).
+     *
+     * @param int $maxNewPositions how many positions this call may settle (1 inline)
+     * @param array<string, mixed>|null $actor the actor, when a test passes one
+     * @return array<string, mixed>
+     * @throws GeneralHarvestException::state for structural anomalies
+     */
+    public function settle(int $maxNewPositions = 1, ?array $actor = null): array
+    {
+        if (!$this->enabled()) {
+            return ['state' => 'off'];
+        }
+
+        if (!$this->armed()) {
+            return ['state' => 'unarmed'];
+        }
+
+        $maxNewPositions = max(1, (int) $maxNewPositions);
+
+        $owns = !$this->pdo->inTransaction();
+
+        if ($owns) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            /* The board row is the mutex: two settlements cannot compute
+             * overlapping targets (§14.8). */
+            $this->pdo->prepare(
+                'SELECT id, baseline_n, settled_n FROM general_harvest_board WHERE id = ' . GeneralHarvestBoard::SINGLETON_ID . ' FOR UPDATE'
+            )->execute();
+
+            $board = GeneralHarvestBoard::state($this->pdo);
+            $queue = GeneralHarvestBoard::queueN($this->pdo);
+
+            if (!$queue['gapless']) {
+                throw GeneralHarvestException::notGapless($queue['n'], $queue['max_id']);
+            }
+
+            $n         = (int) $queue['n'];
+            $settledN  = (int) $board['settled_n'];
+            $baselineN = $board['baseline_n'] ?? null;
+
+            if ($n < $settledN) {
+                throw GeneralHarvestException::queueShrank($n, $settledN);
+            }
+
+            $target = min($n, $settledN + $maxNewPositions);
+
+            $amounts  = GeneralHarvestLevel::amounts($this->pdo);
+            $depth    = GeneralHarvestLevel::maxLevels();
+
+            /* No new positions: only a depth change (or an interrupted
+             * settlement) can leave work behind. If every priced level
+             * ≤ depth is already a complete prefix at settled_n, this is
+             * a pure replay (§14.6 layer 1). Otherwise settle the missing
+             * rows at the current settled_n (P21D-T16). */
+            $isReplay = $target === $settledN;
+
+            if ($isReplay) {
+                $counts = [];
+
+                foreach ($this->pdo->query(
+                    'SELECT level, COUNT(*) AS written FROM general_harvest_awards GROUP BY level'
+                )->fetchAll() as $row) {
+                    $counts[(int) $row['level']] = (int) $row['written'];
+                }
+
+                $missing = false;
+
+                for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= $depth; $level++) {
+                    $qFor = GeneralHarvestLevel::qFor($level, $settledN);
+
+                    if ($qFor < 0) {
+                        continue;
+                    }
+
+                    $have = $counts[$level] ?? 0;
+
+                    if ($have < $qFor + 1 && (float) ($amounts[$level] ?? 0.0) > 0) {
+                        $missing = true;
+                        break;
+                    }
+                }
+
+                if (!$missing) {
+                    if ($owns) {
+                        $this->pdo->commit();
+                    }
+
+                    return ['state' => 'replayed', 'target' => $settledN, 'written' => 0, 'amount' => 0.0];
+                }
+            }
+            $counts   = [];
+
+            /* The prefix read is the truth (§14.4): rows written per level,
+             * not derived from settled_n. */
+            foreach ($this->pdo->query(
+                'SELECT level, COUNT(*) AS written FROM general_harvest_awards GROUP BY level'
+            )->fetchAll() as $row) {
+                $counts[(int) $row['level']] = (int) $row['written'];
+            }
+
+            $rows    = [];
+            $unpriced = [];
+
+            for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+                $qFor = GeneralHarvestLevel::qFor($level, $target);
+
+                if ($qFor < 0) {
+                    continue;
+                }
+
+                $have = $counts[$level] ?? 0;
+
+                if ($have > $qFor + 1) {
+                    throw GeneralHarvestException::ledgerAheadOfQueue($level, $have, $qFor + 1);
+                }
+
+                /* Levels above the configured depth are complete but not
+                 * paid — baseline rows already cover the prefix (§14.4). */
+                if ($level > $depth) {
+                    continue;
+                }
+
+                $amount = (float) ($amounts[$level] ?? 0.0);
+
+                for ($qq = $have; $qq <= $qFor; $qq++) {
+                    /* Defensive: the arm wrote baseline rows for every
+                     * seq ≤ qFor(L, baseline_n), so a healthy board never
+                     * reaches here; the branch keeps a missing baseline
+                     * row from being credited instead. */
+                    if ($baselineN !== null && $qq <= GeneralHarvestLevel::qFor($level, $baselineN)) {
+                        $rows[] = [
+                            'seq'          => $qq,
+                            'level'        => $level,
+                            'status'       => GeneralHarvestAward::STATUS_BASELINE,
+                            'amount'       => $amount,
+                            'ledger_id'    => null,
+                        ];
+                        continue;
+                    }
+
+                    if ($amount <= 0) {
+                        $unpriced[] = $level;
+                        break; /* other levels still pay (§14.4 note) */
+                    }
+
+                    $owner = GeneralHarvestBoard::ownerOf($qq, $this->pdo);
+
+                    if ($owner === null || (string) ($owner['role'] ?? '') !== 'member') {
+                        throw GeneralHarvestException::notAMember((int) ($owner['user_id'] ?? 0));
+                    }
+
+                    $rows[] = [
+                        'seq'          => $qq,
+                        'user_id'      => (int) $owner['user_id'],
+                        'level'        => $level,
+                        'status'       => GeneralHarvestAward::STATUS_CREDITED,
+                        'amount'       => $amount,
+                        'threshold_n'  => GeneralHarvestLevel::threshold($qq, $level),
+                        'n_at_award'   => $target,
+                        'ledger_id'    => null,
+                        'credited_at'  => date('Y-m-d H:i:s'),
+                    ];
+                }
+            }
+
+            /* Sort before writing so two batches sharing a node holder take
+             * their wallet locks in the same order (§14.8). */
+            usort($rows, static function (array $a, array $b): int {
+                if (($a['user_id'] ?? 0) !== ($b['user_id'] ?? 0)) {
+                    return ($a['user_id'] ?? 0) <=> ($b['user_id'] ?? 0);
+                }
+
+                if ($a['level'] !== $b['level']) {
+                    return ($a['level']) <=> ($b['level']);
+                }
+
+                return ($a['seq']) <=> ($b['seq']);
+            });
+
+            $written    = 0;
+            $amountTotal = 0.0;
+
+            foreach ($rows as $row) {
+                $awardId = GeneralHarvestAward::create((int) $row['seq'], [
+                    'user_id'     => (int) $row['user_id'],
+                    'level'       => (int) $row['level'],
+                    'threshold_n' => (int) $row['threshold_n'],
+                    'n_at_award'  => (int) $row['n_at_award'],
+                    'amount'      => $row['amount'],
+                    'credited_at' => $row['credited_at'],
+                ], $this->pdo);
+
+                if ($row['status'] === GeneralHarvestAward::STATUS_CREDITED) {
+                    $movement = (new WalletService($this->pdo))->credit(
+                        (int) $row['user_id'],
+                        $row['amount'],
+                        GeneralHarvestAward::REF_TYPE,
+                        $awardId,
+                        'General Harvest level ' . (int) $row['level'] . ' bonus',
+                        true
+                    );
+
+                    $ledgerId = (int) ($movement['ledger_id'] ?? 0);
+
+                    if ($ledgerId <= 0 || !GeneralHarvestAward::linkLedger($awardId, $ledgerId, $this->pdo)) {
+                        throw new InvalidArgumentException(sprintf(
+                            'Award #%d for node %d level %d could not be linked to its wallet movement.',
+                            $awardId,
+                            (int) $row['seq'],
+                            (int) $row['level']
+                        ));
+                    }
+
+                    $written++;
+                    $amountTotal += $row['amount'];
+                }
+            }
+
+            $this->pdo->prepare(
+                'UPDATE general_harvest_board SET settled_n = ? WHERE id = ' . GeneralHarvestBoard::SINGLETON_ID
+            )->execute([$target]);
+
+            if ($owns) {
+                $this->pdo->commit();
+            }
+
+            return [
+                'state'      => 'settled',
+                'target'     => $target,
+                'written'    => $written,
+                'amount'     => round($amountTotal, 2),
+                'unpriced'   => $unpriced,
+                'per_level'  => $counts,
+                'settled_n'  => $target,
+            ];
+        } catch (Throwable $e) {
+            if ($owns && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        } finally {
+            if ($owns && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        }
+    }
+
+    /**
+     * Settlement for one batch: `settle()` inside its own transaction,
+     * committed whole (§14.7). Used by the catch-up job and by suite
+     * cases that call `settleAll()` directly.
+     */
+    public function settleAll(int $batch = 500): array
+    {
+        return $this->settle(max(1, (int) $batch));
+    }
+
+    /**
+     * The registration hook (§14.1): settle exactly one position inside
+     * the caller's transaction, after Phase 20's qualification call.
+     *
+     * Structural anomalies (`not gapless`, `queue shrank`, `ledger ahead`)
+     * are caught, logged as `general_harvest.anomaly` and returned as
+     * `state`, so the registration succeeds and no money moves
+     * (§14.7 Rule 5). Money failures propagate and roll the registration
+     * back (§14.7 Rule 2).
+     *
+     * @return array<string, mixed> the settle result, or `{state: 'anomaly', ...}`
+     */
+    public function onQueueChanged(): array
+    {
+        try {
+            return $this->settle(1);
+        } catch (GeneralHarvestException $e) {
+            try {
+                AuditLog::record([
+                    'action'       => 'general_harvest.anomaly',
+                    'actor_id'     => null,
+                    'actor_role'   => 'system',
+                    'subject_type' => GeneralHarvestService::SUBJECT,
+                    'subject_id'   => GeneralHarvestBoard::SINGLETON_ID,
+                    'meta'         => [
+                        'reason'  => $e->getReason() ?? 'state',
+                        'message' => $e->getMessage(),
+                    ],
+                ], $this->pdo);
+            } catch (Throwable) {
+                /* The audit trail must never break a registration. */
+            }
+
+            return ['state' => 'anomaly', 'reason' => $e->getReason() ?? 'state', 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * One level's award-row count (§14.4's prefix read).
+     */
+    private function countByLevel(int $level): int
+    {
+        $row = $this->pdo->prepare(
+            'SELECT COUNT(*) AS written FROM general_harvest_awards WHERE level = ?'
+        );
+        $row->execute([$level]);
+
+        return (int) $row->fetchColumn();
+    }
+
+    /**
+     * The card's whole payload (§14.12): position, node, settled state,
+     * the ten levels with block ranges and fill, paid levels, next level,
+     * remaining, baseline state, paid total and the open amount for one
+     * node.
+     *
+     * @return array<string, mixed>
+     */
+    public function statusFor(int $userId): array
+    {
+        $queue = GeneralHarvestBoard::queueN($this->pdo);
+        $board = GeneralHarvestBoard::state($this->pdo);
+        $depth = GeneralHarvestLevel::maxLevels();
+
+        $position = GeneralHarvestBoard::positionOf($userId, $this->pdo);
+        $seq      = $position === null ? null : (int) $position - 1;
+
+        $armed      = (bool) $board['armed'];
+        $enabled    = $this->enabled();
+        $baselineN  = $board['baseline_n'];
+        $settledN   = (int) $board['settled_n'];
+        $queueN     = (int) $queue['n'];
+        $backlog    = max(0, $queueN - $settledN);
+
+        $amounts = GeneralHarvestLevel::amounts($this->pdo);
+        $paid    = GeneralHarvestAward::paidLevels($userId, $this->pdo);
+        $paidSet = array_flip($paid);
+
+        $levels = [];
+        $paidTotal = 0.0;
+        $baselineTotal = 0.0;
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            $complete = $seq !== null && GeneralHarvestLevel::complete($seq, $level, $queueN);
+            $filled   = GeneralHarvestLevel::filled($seq, $level, $queueN);
+            $slots    = GeneralHarvestLevel::slots($level);
+            $amount   = (float) ($amounts[$level] ?? 0.0);
+            $threshold = GeneralHarvestLevel::threshold($seq, $level);
+            $paidLevel = isset($paidSet[$level]);
+            $rowStatus = GeneralHarvestAward::has($seq, $level, $this->pdo)
+                ? GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo)['status']
+                : '';
+
+            $paidAt = null;
+
+            if ($paidLevel) {
+                $row = GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo);
+                $paidAt = $row['credited_at'] ?? null;
+            }
+
+            if ($paidLevel) {
+                $status = GeneralHarvestAward::STATUS_CREDITED;
+                $paidTotal += $amount;
+            } elseif ($rowStatus === GeneralHarvestAward::STATUS_BASELINE) {
+                $status = GeneralHarvestAward::STATUS_BASELINE;
+                $baselineTotal += $amount;
+            } elseif ($seq === null) {
+                $status = 'waiting';
+            } elseif (!$complete) {
+                $status = 'progress';
+            } elseif ($level > $depth) {
+                $status = 'complete-beyond-depth';
+            } elseif ($amount <= 0) {
+                $status = 'unpriced';
+            } else {
+                $status = 'complete';
+            }
+
+            $levels[$level] = [
+                'level'         => $level,
+                'slots'         => $slots,
+                'from'          => GeneralHarvestLevel::blockFrom($seq, $level),
+                'to'            => GeneralHarvestLevel::blockTo($seq, $level),
+                'filled'        => $filled,
+                'complete'      => $complete,
+                'status'        => $status,
+                'amount'        => $amount,
+                'threshold_n'   => $threshold,
+                'next_n'        => $threshold,
+                'progress'      => $slots > 0 ? round(100 * $filled / $slots, 1) : 0.0,
+                'paid_at'       => $paidAt,
+            ];
+        }
+
+        /* The next level the queue is waiting for (§14.12): the shallowest
+         * incomplete level at this node. */
+        $next = null;
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
+            if (!isset($levels[$level]['complete']) || $levels[$level]['complete']) {
+                continue;
+            }
+
+            $filled   = $levels[$level]['filled'];
+            $slots    = $levels[$level]['slots'];
+            $from     = $levels[$level]['from'];
+            $to       = $levels[$level]['to'];
+            $amount   = $levels[$level]['amount'];
+
+            $next = [
+                'level'   => $level,
+                'from'    => $from,
+                'to'      => $to,
+                'filled'  => $filled,
+                'slots'   => $slots,
+                'remaining' => $slots - $filled,
+                'percent' => $slots > 0 ? round(100 * $filled / $slots, 1) : 0.0,
+                'amount'  => $amount,
+                'needs_n' => $levels[$level]['next_n'],
+            ];
+
+            break;
+        }
+
+        /* What the engine would pay for this node if settled now — its
+         * complete, priced, unpaid levels up to the depth. */
+        $open = 0.0;
+
+        if ($seq !== null && $armed && $enabled) {
+            for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= $depth; $level++) {
+                if (isset($paidSet[$level])) {
+                    continue;
+                }
+
+                $row = GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo);
+
+                if ($row !== null && $row['status'] === GeneralHarvestAward::STATUS_BASELINE) {
+                    continue;
+                }
+
+                if ($seq !== null && GeneralHarvestLevel::complete($seq, $level, $queueN)
+                    && (float) ($amounts[$level] ?? 0.0) > 0) {
+                    $open += (float) ($amounts[$level] ?? 0.0);
+                }
+            }
+        }
+
+        $reachable = false;
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= $depth; $level++) {
+            if (GeneralHarvestLevel::paid($level, $queueN) > 0) {
+                $reachable = true;
+                break;
+            }
+        }
+
+        $earned = 0.0;
+
+        if ($seq !== null) {
+            $earned = GeneralHarvestLevel::earnedBy($seq, $queueN, $amounts, $depth, $this->pdo);
+        }
+
+        return [
+            'queued'         => $position !== null,
+            'position'       => $position,
+            'seq'            => $seq,
+            'queue_n'        => $queueN,
+            'armed'          => $armed,
+            'enabled'        => $enabled,
+            'baseline_n'     => $baselineN,
+            'settled_n'      => $settledN,
+            'backlog'        => $backlog,
+            'max_levels'     => $depth,
+            'total'          => number_format(GeneralHarvestLevel::total($amounts, $this->pdo), 2, '.', ''),
+            'earned'         => number_format($earned, 2, '.', ''),
+            'baseline_earned'=> number_format($baselineTotal, 2, '.', ''),
+            'levels'         => array_values($levels),
+            'next'           => $next,
+            'reachable'      => $reachable,
+            'paid_levels'    => count($paid),
+            'baseline_levels'=> count(array_filter($levels, static fn (array $l): bool => $l['status'] === GeneralHarvestAward::STATUS_BASELINE)),
+            'credited_amount'=> number_format($paidTotal, 2, '.', ''),
+            'roster'         => null,
+            'open'           => number_format($open, 2, '.', ''),
+        ];
+    }
+
+    /**
+     * Prove the ledger, the wallet and the closed form agree (§14.13).
+     * Returns `ok` plus the checks it ran. Never repairs.
+     *
+     * @return array<string, mixed>
+     */
+    public function reconcile(): array
+    {
+        $checks = [];
+        $ok     = true;
+
+        $fail = static function (string $key, string $detail) use (&$checks, &$ok): void {
+            $checks[$key] = ['ok' => false, 'detail' => $detail];
+            $ok = false;
+        };
+
+        $pass = static function (string $key, string $detail) use (&$checks): void {
+            $checks[$key] = ['ok' => true, 'detail' => $detail];
+        };
+
+        $board   = GeneralHarvestBoard::state($this->pdo);
+        $queue   = GeneralHarvestBoard::queueN($this->pdo);
+        $amounts = GeneralHarvestLevel::amounts($this->pdo);
+        $depth   = GeneralHarvestLevel::maxLevels();
+
+        $settledN = (int) $board['settled_n'];
+        $baselineN = $board['baseline_n'] ?? null;
+        $queueN   = (int) $queue['n'];
+
+        /* Σ credited = Σ general_harvest ledger credits */
+        $awardedCents   = (int) round((float) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM general_harvest_awards WHERE status = 'credited'"
+        )->fetchColumn() * 100);
+        $ledgeredCents  = (int) round((float) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM ewallet_ledger WHERE ref_type = 'general_harvest' AND type = 'credit'"
+        )->fetchColumn() * 100);
+
+        if ($awardedCents !== $ledgeredCents) {
+            $fail('ledger_vs_wallet', sprintf(
+                'credited awards total %s but general_harvest wallet credits total %s',
+                money($awardedCents / 100),
+                money($ledgeredCents / 100)
+            ));
+        } else {
+            $pass('ledger_vs_wallet', sprintf(
+                'credited awards and wallet credits both total %s',
+                money($awardedCents / 100)
+            ));
+        }
+
+        /* Σ credited = boardTotal(settled_n) − boardTotal(baseline_n) */
+        $expected = max(
+            0.0,
+            GeneralHarvestLevel::boardTotal($settledN, $amounts, $this->pdo)
+                - ($baselineN === null ? 0.0 : GeneralHarvestLevel::boardTotal($baselineN, $amounts, $this->pdo))
+        );
+
+        if ((int) round($expected * 100) !== $awardedCents) {
+            $fail('ledger_vs_closed_form', sprintf(
+                'credited awards total %s but the closed form expects %s',
+                money($awardedCents / 100),
+                money($expected)
+            ));
+        } else {
+            $pass('ledger_vs_closed_form', sprintf(
+                'credited awards total %s equals boardTotal(settled_n) − boardTotal(baseline_n)',
+                money($expected)
+            ));
+        }
+
+        /* Σ baseline = boardTotal(baseline_n) and every baseline row has ledger_id IS NULL */
+        $baselineRows = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM general_harvest_awards WHERE status = 'baseline'"
+        )->fetchColumn();
+        $baselineCents = (int) round((float) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM general_harvest_awards WHERE status = 'baseline'"
+        )->fetchColumn() * 100);
+        $baselineLedgerId = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM general_harvest_awards WHERE status = 'baseline' AND ledger_id IS NOT NULL"
+        )->fetchColumn();
+
+        $expectedBaseline = $baselineN === null
+            ? 0.0
+            : GeneralHarvestLevel::boardTotal($baselineN, $amounts, $this->pdo);
+
+        if ($baselineN !== null && (int) round($expectedBaseline * 100) !== $baselineCents) {
+            $fail('baseline_vs_closed_form', sprintf(
+                'baseline rows total %s but boardTotal(baseline_n) expects %s',
+                money($baselineCents / 100),
+                money($expectedBaseline)
+            ));
+        } else {
+            $pass('baseline_vs_closed_form', sprintf(
+                'baseline rows total %s equals boardTotal(baseline_n)',
+                money($baselineCents / 100)
+            ));
+        }
+
+        if ($baselineLedgerId > 0) {
+            $fail('baseline_no_ledger_id', "$baselineLedgerId baseline row(s) carry a ledger_id; baseline rows are never paid");
+        } else {
+            $pass('baseline_no_ledger_id', 'every baseline row has ledger_id NULL');
+        }
+
+        /* Every credited award has a ledger_id that exists and credits the same user */
+        $dangling = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM general_harvest_awards a
+               LEFT JOIN ewallet_ledger l ON l.id = a.ledger_id AND l.ref_type = 'general_harvest' AND l.ref_id = a.id
+              WHERE a.status = 'credited' AND (a.ledger_id IS NULL OR l.id IS NULL)"
+        )->fetchColumn();
+
+        if ($dangling > 0) {
+            $fail('credit_link', "$dangling credited award(s) lack a matching wallet movement");
+        } else {
+            $pass('credit_link', 'every credited award carries its wallet movement');
+        }
+
+        /* Every general_harvest ledger row has an award (ref_id) */
+        $orphans = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM ewallet_ledger l
+               LEFT JOIN general_harvest_awards a ON a.id = l.ref_id
+              WHERE l.ref_type = 'general_harvest' AND a.id IS NULL"
+        )->fetchColumn();
+
+        if ($orphans > 0) {
+            $fail('orphan_credit', "$orphans general_harvest credit(s) have no award row");
+        } else {
+            $pass('orphan_credit', 'every general_harvest credit names an award');
+        }
+
+        /* Per level: contiguous prefix, and for a priced level ≤ depth equal qFor(L, settled_n)+1 */
+        $prefixOk = true;
+
+        foreach ($this->pdo->query(
+            'SELECT level, COUNT(*) AS written, MIN(seq) AS min_seq, MAX(seq) AS max_seq
+               FROM general_harvest_awards
+              GROUP BY level'
+        )->fetchAll() as $row) {
+            $level = (int) $row['level'];
+            $rows  = (int) $row['written'];
+            $min   = $row['min_seq'] === null ? null : (int) $row['min_seq'];
+            $max   = $row['max_seq'] === null ? null : (int) $row['max_seq'];
+
+            if ($min !== 0 || $max !== $rows - 1) {
+                $prefixOk = false;
+                $fail("prefix_level_$level", sprintf(
+                    'level %d rows are not a contiguous prefix: rows = %d, min seq = %s, max seq = %s',
+                    $level,
+                    $rows,
+                    $min === null ? 'NULL' : (string) $min,
+                    $max === null ? 'NULL' : (string) $max
+                ));
+                continue;
+            }
+
+            if ($level <= $depth && (float) ($amounts[$level] ?? 0.0) > 0) {
+                $expectedRows = GeneralHarvestLevel::qFor($level, $settledN) + 1;
+
+                if ($rows !== $expectedRows) {
+                    $prefixOk = false;
+                    $fail("prefix_level_$level", sprintf(
+                        'level %d has %d rows but qFor(L, settled_n) + 1 = %d',
+                        $level,
+                        $rows,
+                        $expectedRows
+                    ));
+                }
+            }
+        }
+
+        if ($prefixOk) {
+            $pass('per_level_prefix', 'every level is a contiguous prefix matching settled_n');
+        }
+
+        /* COUNT(*) = MAX(id) on the queue */
+        if (!$queue['gapless']) {
+            $fail('queue_gapless', sprintf(
+                'the queue is not gapless: COUNT(*) = %d, MAX(id) = %d',
+                $queue['n'],
+                $queue['max_id']
+            ));
+        } else {
+            $pass('queue_gapless', 'the queue is gapless');
+        }
+
+        /* baseline_n ≤ settled_n ≤ N */
+        if ($baselineN !== null && ($settledN < $baselineN || $settledN > $queueN)) {
+            $fail('board_bounds', sprintf(
+                'board bounds broken: baseline_n = %d, settled_n = %d, N = %d',
+                $baselineN,
+                $settledN,
+                $queueN
+            ));
+        } else {
+            $pass('board_bounds', 'baseline_n ≤ settled_n ≤ N');
+        }
+
+        /* Ladder: ten rows, each ≥ 0, every level ≤ max_levels > 0, not changed since arm */
+        $ladderRows = (int) $this->pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn();
+        $zeroLevels = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM general_harvest_levels WHERE amount <= 0"
+        )->fetchColumn();
+        $unpricedBelowDepth = 0;
+
+        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= $depth; $level++) {
+            if ((float) ($amounts[$level] ?? 0.0) <= 0) {
+                $unpricedBelowDepth++;
+            }
+        }
+
+        $ladderChanged = false;
+
+        if ($board['armed_at'] !== null) {
+            $changed = (int) $this->pdo->query(
+                "SELECT COUNT(*) FROM general_harvest_levels
+                  WHERE updated_at > (SELECT armed_at FROM general_harvest_board WHERE id = " . GeneralHarvestBoard::SINGLETON_ID . ")"
+            )->fetchColumn();
+            $ladderChanged = $changed > 0;
+        }
+
+        if ($ladderRows !== GeneralHarvestLevel::LEVEL_MAX) {
+            $fail('ladder_rows', "the ladder has $ladderRows rows, not " . GeneralHarvestLevel::LEVEL_MAX);
+        } elseif ($zeroLevels > 0) {
+            $fail('ladder_zero', "$zeroLevels ladder level(s) are priced at zero");
+        } elseif ($unpricedBelowDepth > 0) {
+            $fail('ladder_unpriced', "$unpricedBelowDepth level(s) at or below max_levels are unpriced");
+        } elseif ($ladderChanged) {
+            $fail('ladder_frozen', 'a ladder level changed after the board was armed (D-23)');
+        } else {
+            $pass('ladder_ok', 'the ladder has ten priced rows and has not changed since the arm');
+        }
+
+        return [
+            'ok'     => $ok,
+            'checks' => $checks,
+        ];
+    }
+
+    /**
+     * The doctor's health report (§14.11): clock, tables, settings, armed
+     * state, gapless, queue count, settled, backlog, per-level frontier,
+     * paid, baseline, open and the reconcile verdict.
+     *
+     * @return array<string, mixed>
+     */
+    public function doctor(): array
+    {
+        $board   = GeneralHarvestBoard::state($this->pdo);
+        $queue   = GeneralHarvestBoard::queueN($this->pdo);
+        $frontier = GeneralHarvestBoard::frontier($this->pdo);
+        $backlog  = $this->backlog();
+        $open     = $this->openLiability();
+        $reconcile = $this->reconcile();
+
+        return [
+            'queue_n'     => (int) $queue['n'],
+            'max_id'      => (int) $queue['max_id'],
+            'gapless'     => (bool) $queue['gapless'],
+            'armed'       => (bool) $board['armed'],
+            'baseline_n'  => $board['baseline_n'],
+            'armed_at'    => $board['armed_at'],
+            'settled_n'   => (int) $board['settled_n'],
+            'enabled'     => $this->enabled(),
+            'max_levels'  => GeneralHarvestLevel::maxLevels(),
+            'backlog'     => $backlog,
+            'open'        => $open,
+            'frontier'    => array_values($frontier),
+            'paid'        => GeneralHarvestAward::countByStatus($this->pdo),
+            'baseline'    => $this->excluded(),
+            'reconcile'   => $reconcile,
+            'ok'          => $reconcile['ok'] && $queue['gapless'] && $backlog['armed'],
+        ];
+    }
+
     /* ----------------------------------------------------------
      *  Arm — the one-time baseline (§14.3)
      * ---------------------------------------------------------- */
