@@ -48,6 +48,12 @@ final class GeneralHarvestAward
         self::STATUS_BASELINE => 'Before go-live',
     ];
 
+    /** Member labels — identical for the two stored states. */
+    public const MEMBER_STATUS_LABELS = [
+        self::STATUS_CREDITED => 'Paid',
+        self::STATUS_BASELINE => 'Before go-live',
+    ];
+
     public const STATUS_BADGES = [
         self::STATUS_CREDITED => ['Paid', 'success'],
         self::STATUS_BASELINE => ['Before go-live', 'secondary'],

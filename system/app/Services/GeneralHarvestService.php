@@ -641,12 +641,12 @@ final class GeneralHarvestService
 
         for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= GeneralHarvestLevel::LEVEL_MAX; $level++) {
             $complete = $seq !== null && GeneralHarvestLevel::complete($seq, $level, $queueN);
-            $filled   = GeneralHarvestLevel::filled($seq, $level, $queueN);
+            $filled   = $seq !== null ? GeneralHarvestLevel::filled($seq, $level, $queueN) : 0;
             $slots    = GeneralHarvestLevel::slots($level);
             $amount   = (float) ($amounts[$level] ?? 0.0);
-            $threshold = GeneralHarvestLevel::threshold($seq, $level);
+            $threshold = $seq !== null ? GeneralHarvestLevel::threshold($seq, $level) : 0;
             $paidLevel = isset($paidSet[$level]);
-            $rowStatus = GeneralHarvestAward::has($seq, $level, $this->pdo)
+            $rowStatus = $seq !== null && GeneralHarvestAward::has($seq, $level, $this->pdo)
                 ? GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo)['status']
                 : '';
 
@@ -678,8 +678,8 @@ final class GeneralHarvestService
             $levels[$level] = [
                 'level'         => $level,
                 'slots'         => $slots,
-                'from'          => GeneralHarvestLevel::blockFrom($seq, $level),
-                'to'            => GeneralHarvestLevel::blockTo($seq, $level),
+                'from'          => $seq !== null ? GeneralHarvestLevel::blockFrom($seq, $level) : 0,
+                'to'            => $seq !== null ? GeneralHarvestLevel::blockTo($seq, $level) : 0,
                 'filled'        => $filled,
                 'complete'      => $complete,
                 'status'        => $status,

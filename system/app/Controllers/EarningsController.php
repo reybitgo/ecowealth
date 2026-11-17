@@ -83,6 +83,9 @@ final class EarningsController
     /** Team Harvest levels and matrix (Phase 20F). */
     public const TAB_TEAM_HARVEST = 'team_harvest';
 
+    /** General Harvest bonus levels and blocks (Phase 21F). */
+    public const TAB_GENERAL_HARVEST = 'general_harvest';
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -129,6 +132,7 @@ final class EarningsController
             self::TAB_REPEAT       => self::TAB_REPEAT,
             self::TAB_ROYALTY      => self::TAB_ROYALTY,
             self::TAB_TEAM_HARVEST => self::TAB_TEAM_HARVEST,
+            self::TAB_GENERAL_HARVEST => self::TAB_GENERAL_HARVEST,
             default                => self::TAB_PACKAGE,
         };
     }
@@ -146,6 +150,7 @@ final class EarningsController
             self::TAB_REPEAT       => $this->repeatContext($userId),
             self::TAB_ROYALTY      => $this->royaltyContext($userId),
             self::TAB_TEAM_HARVEST => $this->teamHarvestContext($userId),
+            self::TAB_GENERAL_HARVEST => $this->generalHarvestContext($userId),
             default                => $this->earningsContext($userId),
         };
     }
@@ -348,6 +353,80 @@ final class EarningsController
     }
 
     /**
+     * Everything the General Harvest statement renders (21F, plan §10).
+     *
+     * Every read is scoped to the session member (`$userId`): the award
+     * filters carry `user_id` from `$userId` and never from the request,
+     * and the CSV is scoped in the model, so a hand-edited `?user_id=`
+     * can widen neither (Rule 12).
+     *
+     * The board card is `GeneralHarvestService::statusFor()` — the same
+     * read the admin member panel and the dashboard tile use — so the
+     * page never promises an amount the engine would not pay (Rule 9).
+     * The award rows are `GeneralHarvestAward::select()` with `user_id`
+     * forced in, paginated like every other tab, and each row links to
+     * its wallet movement by `ref_id` (= the award id).
+     *
+     * @return array<string, mixed>
+     */
+    public function generalHarvestContext(int $userId): array
+    {
+        $filters = self::generalHarvestFilters($userId);
+        $service = new GeneralHarvestService();
+
+        $pager  = Paginator::fromTableRequest(GeneralHarvestAward::count($filters));
+        $awards = $pager->total === 0 ? [] : GeneralHarvestAward::select($filters, $pager);
+        $status = $service->statusFor($userId);
+
+        return [
+            'tab'           => self::TAB_GENERAL_HARVEST,
+            'user_id'       => $userId,
+            'general_harvest'  => $status,
+            'filters'       => $filters,
+            'pager'         => $pager,
+            'awards'        => $awards,
+            'wallet_url'    => url('wallet'),
+            'genealogy_url' => url('genealogy'),
+            'package_url'   => url('earnings'),
+            'repeat_url'    => url('earnings?ledger=repeat'),
+            'royalty_url'   => url('earnings?ledger=royalty'),
+            'team_harvest_url' => url('earnings?ledger=team_harvest'),
+            'general_harvest_url' => url('earnings?ledger=general_harvest'),
+            'statement_url' => url('earnings?ledger=general_harvest'),
+            'export_url'    => url('earnings/export' . self::generalHarvestQueryString($filters)),
+        ];
+    }
+
+    /**
+     * The General Harvest statement's validated filters, with the session
+     * member's id **forced** in (21F Rule 12).
+     *
+     * The level and status filters narrow the member's own rows;
+     * `q`, `from` and `to` are kept for parity with the admin tab but a
+     * member's search can only ever match their own rows, so they carry
+     * no disclosure risk. `q` is not forced empty here because the
+     * statement lists the member's own levels and a member may want to
+     * find a level by its number — but it can never widen past their id.
+     *
+     * @return array{user_id:int, level:string, status:string, from:string, to:string, q:string}
+     */
+    private static function generalHarvestFilters(int $userId): array
+    {
+        $filters = GeneralHarvestAward::normaliseFilters([
+            'user_id' => '',
+            'level'   => Request::string('level'),
+            'status'  => Request::string('status'),
+            'from'    => Request::string('from'),
+            'to'      => Request::string('to'),
+            'q'       => '',
+        ]);
+
+        $filters['user_id'] = max(0, $userId);
+
+        return $filters;
+    }
+
+    /**
      * The Team Harvest statement's validated filters, with the session
      * member's id **forced** in (20F Rule 11).
      *
@@ -523,6 +602,12 @@ final class EarningsController
 
         if (self::tab() === self::TAB_TEAM_HARVEST) {
             $this->exportTeamHarvest((int) $user['id']);
+
+            return;
+        }
+
+        if (self::tab() === self::TAB_GENERAL_HARVEST) {
+            $this->exportGeneralHarvest((int) $user['id']);
 
             return;
         }
@@ -706,6 +791,82 @@ final class EarningsController
     }
 
     /**
+     * GET /earnings/export?ledger=general_harvest — the member's own
+     * General Harvest award rows.
+     *
+     * The columns are exactly plan Appendix C.6. The member is forced in
+     * at the model (`exportRows(..., $userId)`), so a hand-edited
+     * `?user_id=` cannot widen it (Rule 12). No audit row: the package,
+     * repeat and Royalty statements have never written one either
+     * (plan §15.1).
+     */
+    private function exportGeneralHarvest(int $userId): void
+    {
+        $rows = GeneralHarvestAward::exportRows(self::generalHarvestFilters($userId), null, $userId);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="general-harvest-statement_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, self::generalHarvestCsvHeader());
+
+        foreach (self::generalHarvestCsvRows($rows) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * The General Harvest statement CSV header — exactly plan Appendix C.6.
+     *
+     * @return list<string>
+     */
+    public static function generalHarvestCsvHeader(): array
+    {
+        return ['Date', 'Level', 'Block', 'Queue at award', 'Threshold', 'Amount', 'Status'];
+    }
+
+    /**
+     * The General Harvest statement CSV rows, one per decided level.
+     *
+     * The `Status` column carries the **member** label (Appendix C.7:
+     * `baseline` reads *Before go-live*). `Date` is the decision instant.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<list<string>>
+     */
+    public static function generalHarvestCsvRows(array $rows): array
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $status = (string) $row['status'];
+
+            $out[] = [
+                (string) ($row['credited_at'] ?? ''),
+                (string) (int) $row['level'],
+                (string) (int) $row['n_at_award'],
+                (string) (int) $row['threshold_n'],
+                number_format((float) $row['amount'], 2, '.', ''),
+                GeneralHarvestAward::MEMBER_STATUS_LABELS[$status] ?? ucfirst($status),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * The Team Harvest statement CSV header — exactly plan Appendix C.6.
      *
      * @return list<string>
@@ -870,6 +1031,27 @@ final class EarningsController
     }
 
     /**
+     * The General Harvest export query string: the tab first, then the
+     * filters. `user_id` never travels: the model forces it (Rule 12).
+     *
+     * @param array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function generalHarvestQueryString(array $filters): string
+    {
+        $query = ['ledger' => self::TAB_GENERAL_HARVEST] + array_filter(
+            [
+                'level'  => (string) $filters['level'],
+                'status' => (string) $filters['status'],
+                'from'   => (string) $filters['from'],
+                'to'     => (string) $filters['to'],
+            ],
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return '?' . http_build_query($query);
+    }
+
+    /**
      * The Royalty export query string: the tab first, then the filters.
      *
      * @param array{period:string, status:string, rank:string, q:string} $filters
@@ -980,6 +1162,10 @@ final class EarningsController
     {
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_TEAM_HARVEST) {
             return $this->teamHarvestFeedPayload($revision, $etag, $data);
+        }
+
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_GENERAL_HARVEST) {
+            return $this->generalHarvestFeedPayload($revision, $etag, $data);
         }
 
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_REPEAT) {
@@ -1201,6 +1387,84 @@ final class EarningsController
                     'wallet_url' => $data['wallet_url'],
                 ]),
                 'earnings-team-pagination' => View::capture('member/earnings/_team_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalEarningsUrl($pager),
+            ],
+        ];
+    }
+
+    /**
+     * The General Harvest tab's fragments (21F): the block card header,
+     * the stats card, the ten-block grid, the next-block progress, the
+     * award rows and the pagination. The filter form and the tab pills
+     * never travel in a fragment, so a background refresh never discards
+     * an unsubmitted filter.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function generalHarvestFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager      = $data['pager'];
+        $status     = $data['general_harvest'];
+        $queued     = (bool) ($status['queued'] ?? false);
+
+        /* A member who has not qualified reads the gate and nothing else
+         * (P21F-T6): the page renders one region, so the feed carries one
+         * fragment. The regions that appear once they qualify would have
+         * no element on this page to patch. */
+        if (!$queued) {
+            return [
+                'ok'        => true,
+                'surface'   => Live::earningsSurface((int) $data['user_id']),
+                'revision'  => $revision,
+                'etag'      => $etag,
+                'fragments' => [
+                    'earnings-general-progress' => View::capture('member/earnings/_general_progress', [
+                        'general_harvest' => $status,
+                    ]),
+                ],
+                'meta'      => [
+                    'page'      => $pager->page,
+                    'pages'     => $pager->pages,
+                    'total'     => $pager->total,
+                    'per_page'  => $pager->perPage,
+                    'canonical' => $this->canonicalEarningsUrl($pager),
+                ],
+            ];
+        }
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::earningsSurface((int) $data['user_id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'earnings-general-header' => View::capture('member/earnings/_general_header', [
+                    'general_harvest' => $status,
+                ]),
+                'earnings-general-stats' => View::capture('member/earnings/_general_stats', [
+                    'general_harvest' => $status,
+                ]),
+                'earnings-general-blocks' => View::capture('member/earnings/_general_blocks', [
+                    'general_harvest' => $status,
+                ]),
+                'earnings-general-progress' => View::capture('member/earnings/_general_progress', [
+                    'general_harvest' => $status,
+                ]),
+                'earnings-general-rows' => View::capture('member/earnings/_general_rows', [
+                    'awards'     => $data['awards'],
+                    'filters'    => $data['filters'],
+                    'wallet_url' => $data['wallet_url'],
+                ]),
+                'earnings-general-pagination' => View::capture('member/earnings/_general_pagination', [
                     'pager' => $pager,
                 ]),
             ],

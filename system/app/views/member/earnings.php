@@ -27,6 +27,11 @@ declare(strict_types=1);
  *                            amounts, the roster of qualified teammates
  *                            and one row per level paid (or recorded
  *                            before go-live).
+ *   General Harvest          the member's position on the shared board,
+ *                            the ten blocks with filled/slots and the
+ *                            amount each level pays, the next block's
+ *                            progress and how far the queue still has to
+ *                            grow, the paginated award rows and the CSV.
  *
  * The package tab is the Phase 10–11 statement, unchanged below the
  * new tab pills. The repeat tab is Team chain directed (plan §9): the
@@ -94,6 +99,12 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $awards       one row per decided level
  * @var list<array<string, mixed>> $roster       a page of HarvestQueue::matrix()
  * @var Paginator                  $roster_pager
+ *
+ * General Harvest tab (Phase 21F):
+ * @var array<string, mixed>       $general_harvest GeneralHarvestService::statusFor()
+ * @var array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+ * @var list<array<string, mixed>> $awards       one row per decided level
+ * @var Paginator                  $pager
  */
 
 $live = $live ?? [
@@ -104,21 +115,31 @@ $live = $live ?? [
     'interval' => 30000,
 ];
 
-$tab          = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest'], true) ? (string) $tab : 'package';
+$tab          = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest', 'general_harvest'], true) ? (string) $tab : 'package';
 $isRepeat     = $tab === 'repeat';
 $isRoyalty    = $tab === 'royalty';
 $isTeam       = $tab === 'team_harvest';
+$isGeneral    = $tab === 'general_harvest';
 $package_url  = $package_url ?? url('earnings');
 $repeat_url   = $repeat_url ?? url('earnings?ledger=repeat');
 $royalty_url  = $royalty_url ?? url('earnings?ledger=royalty');
 $team_harvest_url = $team_harvest_url ?? url('earnings?ledger=team_harvest');
+$general_harvest_url = $general_harvest_url ?? url('earnings?ledger=general_harvest');
 $statement_url = $statement_url ?? match ($tab) {
     'repeat'       => $repeat_url,
     'royalty'      => $royalty_url,
     'team_harvest' => $team_harvest_url,
+    'general_harvest' => $general_harvest_url,
     default        => $package_url,
 };
 $export_url   = $export_url ?? url('earnings/export');
+
+if ($isGeneral) {
+    $general_harvest = $general_harvest ?? (new GeneralHarvestService())->statusFor((int) ($user_id ?? 0));
+    $filters         = $filters ?? GeneralHarvestAward::filterDefaults();
+    $awards          = $awards ?? [];
+    $pager           = $pager ?? Paginator::fromTableRequest(count($awards));
+}
 
 if ($isTeam) {
     $team_harvest = $team_harvest ?? (new TeamHarvestService())->statusFor((int) ($user_id ?? 0));
@@ -320,6 +341,15 @@ if ($isTeam) {
 <?= $isTeam ? ' aria-current="page"' : '' ?>
                   >
                     <i class="icon-base bx bx-trophy me-1"></i> Team Harvest
+                  </a>
+                </li>
+                <li class="nav-item" role="listitem">
+                  <a
+                    href="<?= e($general_harvest_url) ?>"
+                    class="nav-link<?= $isGeneral ? ' active' : '' ?>"
+<?= $isGeneral ? ' aria-current="page"' : '' ?>
+                  >
+                    <i class="icon-base bx bx-grid-alt me-1"></i> General Harvest bonus
                   </a>
                 </li>
               </ul>
@@ -634,6 +664,86 @@ if ($isTeam) {
 
 <?= View::capture('member/earnings/_repeat_pagination', ['pager' => $pager]) ?>
               </div>
+<?php elseif ($isGeneral): ?>
+<?php $generalQueued = (bool) ($general_harvest['queued'] ?? false); ?>
+<?php if (!$generalQueued): ?>
+<?= View::capture('member/earnings/_general_progress', ['general_harvest' => $general_harvest]) ?>
+<?php else: ?>
+              <div class="card">
+<?= View::capture('member/earnings/_general_header', [
+    'general_harvest' => $general_harvest,
+]) ?>
+
+                <div class="card-body border-bottom">
+                  <form method="GET" action="<?= e($statement_url) ?>" class="d-flex flex-wrap align-items-end gap-3 commission-filters">
+                    <?= per_page_hidden() ?>
+                    <input type="hidden" name="ledger" value="general_harvest" />
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="general-filter-level">Level</label>
+                      <select name="level" id="general-filter-level" class="form-select">
+                        <option value="">All levels</option>
+<?php for ($level = 1; $level <= 10; $level++): ?>
+                          <option value="<?= $level ?>" <?= $filters['level'] === (string) $level ? 'selected' : '' ?>>Level <?= $level ?></option>
+<?php endfor; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="general-filter-status">Status</label>
+                      <select name="status" id="general-filter-status" class="form-select">
+                        <option value="">All statuses</option>
+                        <option value="credited" <?= $filters['status'] === 'credited' ? 'selected' : '' ?>>Paid</option>
+                        <option value="baseline" <?= $filters['status'] === 'baseline' ? 'selected' : '' ?>>Before go-live</option>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="general-filter-from">From</label>
+                      <input type="date" name="from" id="general-filter-from" class="form-control" value="<?= e((string) $filters['from']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="general-filter-to">To</label>
+                      <input type="date" name="to" id="general-filter-to" class="form-control" value="<?= e((string) $filters['to']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
+<?php $hasFilters = (string) $filters['level'] !== '' || (string) $filters['status'] !== '' || (string) $filters['from'] !== '' || (string) $filters['to'] !== ''; ?>
+<?php if ($hasFilters): ?>
+                      <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
+                        <i class="icon-base bx bx-x me-1"></i> Clear
+                      </a>
+<?php endif; ?>
+                    </div>
+                  </form>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle commission-table mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="commission-col-date">Date</th>
+                        <th scope="col">Level</th>
+                        <th scope="col" class="text-end">Queue at award</th>
+                        <th scope="col" class="text-end commission-col-quota">Threshold</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Wallet</th>
+                      </tr>
+                    </thead>
+<?= View::capture('member/earnings/_general_rows', [
+    'awards'     => $awards,
+    'filters'    => $filters,
+    'wallet_url' => $wallet_url,
+]) ?>
+                  </table>
+                </div>
+
+<?= View::capture('member/earnings/_general_pagination', ['pager' => $pager]) ?>
+              </div>
+<?php endif; ?>
 <?php else: ?>
 <?= View::capture('member/earnings/_stats', ['totals' => $totals]) ?>
 
