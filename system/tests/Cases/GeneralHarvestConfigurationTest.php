@@ -1596,7 +1596,7 @@ return [
          * catch-up (21D) and every page above the card (21E/21F) do not
          * exist yet, and this phase still changes no schema. */
         assert_true(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
-        assert_false(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
+        assert_true(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
         assert_false(is_file($appRoot . '/app/Controllers/GeneralHarvestController.php'), 'the pages are 21E/21F');
     },
 

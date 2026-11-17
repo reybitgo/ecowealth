@@ -1165,7 +1165,7 @@ return [
         }
 
         assert_true(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
-        assert_false(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
+        assert_true(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
     },
 
     'P21A-T16 the phase adds no route and no page of its own: ParityTest and RouterTest stay green' => function () use ($appRoot): void {

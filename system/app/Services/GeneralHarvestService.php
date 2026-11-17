@@ -50,6 +50,9 @@ final class GeneralHarvestService
     /** The audit action the arm writes, once (§15.4). */
     public const AUDIT_ARM = 'general_harvest.arm';
 
+    /** The audit action every catch-up run writes (§15.4). */
+    public const AUDIT_CATCHUP = 'general_harvest.catchup';
+
     /** The advisory lock that serialises two arm runs (§14.3). */
     public const ARM_LOCK = 'general_harvest_arm';
 

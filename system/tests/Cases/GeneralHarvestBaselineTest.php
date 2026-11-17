@@ -777,7 +777,7 @@ return [
             assert_true(is_file($appRoot . $file), $file . ' ships with 21C');
         }
 
-        assert_false(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
+        assert_true(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
 
         $fixtureC();
 
