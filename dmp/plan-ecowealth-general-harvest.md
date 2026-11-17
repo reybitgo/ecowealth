@@ -1,7 +1,8 @@
 # Plan — General Harvest Bonus (the shared 3-ary Harvest board)
 
 **Phase 21** of the EcoWealth member system · **Status: in progress** — 21A (Foundation) landed
-2026-11-16, 21B (Configuration and the board arithmetic) landed 2026-11-16; 21C–21G planned.
+2026-11-16, 21B (Configuration and the board arithmetic) landed 2026-11-16, 21C (The baseline) landed
+2026-11-16; 21D–21G planned.
 **Delivery model:** **seven gated phases, 21A → 21G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`
@@ -3985,7 +3986,7 @@ without a filled row is not closed, whatever its code says.
 |---|---|---|---|---:|---:|---|---|---|---|
 | 21A Foundation | `p21a-foundation` | 2026-11-16 | **1,336 / 1,336** | **263 / 263** | migration `025` applied twice, idempotent; fresh = migrated; bundle `--check` exit 0 | A: **8/8** | Automated QA pass — DSH | 1 (`install/header.sql` also updated; see the phase log) | ☑ |
 | 21B Configuration | `p21b-configuration` | 2026-11-16 | **1,371 / 1,371** | **268 / 268** | no schema change; bundle `--check` exit 0 (byte-identical) | B: **9/9** | Automated QA pass — DSH | 15 (the `index.php` include, QA21B-02's arithmetic, the manifest guards, the two Royalty payloads, the smoke checks and their ASCII currency patterns, the explicit queue ids, the case-count correction, the absent-field fix and the shared release documents; see the phase log) | ☑ |
-| 21C Baseline | `p21c-baseline` | — | — / — | — / — | no schema change; the arm dry run and the real run both exit 0 | C: —/8 | — | — | ☐ |
+| 21C Baseline | `p21c-baseline` | 2026-11-16 | **1,392 / 1,392** | 268 / 268 (not re-run — the phase adds no page) | no schema change; the arm dry run and the real run both exit 0; `wallet_reconcile` exit 0 | C: **8/8** (automated scratch-copy pass) | Automated scratch-copy pass | 8 (the bulk baseline writer, the service's own setting read, no cron wrapper, the reset's seed marker, the 21A/21B manifest guards, the two Phase 20 manifest guards, the refusal JSON shape and the explicit queue ids; see the phase log) | ☑ |
 | 21D Money engine | `p21d-money` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 with the General Harvest section; catch-up doctor exit 0 | D: —/10 | — | — | ☐ |
 | 21E Admin visibility | `p21e-admin` | — | — / — | — / — | no schema change; bundle `--check` exit 0 | E: —/8 | — | — | ☐ |
 | 21F Member visibility | `p21f-member` | — | — / — | — / — | no schema change; `wallet_reconcile` exit 0 (moves no money) | F: —/9 | — | — | ☐ |
@@ -4002,6 +4003,14 @@ that owns it. An empty deviation log at the 21G gate means the plan and the buil
 | 21B | `P21A-T15` and `P21A-T16` are rewritten to describe the 21A/21B boundary | They are the 21A manifest guards and 21B legitimately extends the manifest and adds the card; they still prove that no award model, service, route or job exists. Same churn as 20B's manifest in Phase 20 | the 21B gate |
 | 21B | `P20A-T15`/`P20A-T16`, `P19B-T11` and `P19B-T25` are updated | The Phase 20 manifest guards must admit `GeneralHarvestBoard` (its whole arithmetic starts from `harvest_queue`), and the two Royalty payloads must post the ten new amounts or a Royalty edit clears — and audits — the General Harvest ladder. Both found by the full-suite gate, not by 21B's own group | the 21B gate |
 | 21B | Five smoke checks are added although the phase adds no route | D-15 holds — `/admin/settings` already existed — but the card, its two generated tables, its two refusal rules and its inertness are exactly what a smoke walk covers; the checks only read the page or send a refused save | the 21B gate |
+| 21C | `GeneralHarvestAward` ships `writeBaselineLevel()` beside `writeBaseline()` | §14.3 requires one multi-row `INSERT` per level (at most ten statements) while §14.2 lists only the single-row writer; the bulk method is the arm's and the unit method stays public for the later phases and the tests | the 21C phase log |
+| 21C | `GeneralHarvestService` reads the switch and the seed marker through its own PDO | A service handed a connection must read that database's settings, not the request's global cache; `GeneralHarvestLevel::enabled()` stays the view's read and both normalise identically | the 21C phase log |
+| 21C | The arm job takes no `CronLock`/`CronLog` | §14.10 specifies `GET_LOCK` and one transaction, not the cron wrappers; the job follows `harvest_queue_seed.php`, the other one-time go-live job, and a second run refuses (`armed`) rather than reporting "busy" | the 21C phase log |
+| 21C | `P21A-T15` and `P21B-T25` are rewritten to describe the 21C boundary | They are the 21A/21B manifest guards; 21C extends the manifest and ships the job, and the guards still prove that the catch-up and every page above the card do not exist | the 21C phase log |
+| 21C | A business reset returns `team_harvest_ledger_since` to `''` | The reset restores the shipped settings seed, so after a reset the arm refuses `unseeded` until Phase 20's queue is seeded again on the new network — the correct go-live order, and what `P21C-T17` proves (the plan's case only says the second arm uses the new `N`) | the 21C phase log |
+| 21C | `--json` refusals use the shared `{ok:false, error, reason}` document | The six documented keys (`armed`, `n`, `rows`, `excluded`, `per_level`, `dry_run`) are the summary; a refusal is not a summary, and every other job in this build reports its refusals the same way. `P21C-T20` asserts the six-key document exactly on the success path | the 21C phase log |
+| 21C | `P20A-T15` and `P20A-T16` now admit the 21C files | They are Phase 20's manifest guards; 21C's service reads the queue for the baseline and its exception names `team_harvest_ledger_since`, so both lists grow by one or two entries. Found by the full-suite gate, not by 21C's own group | the 21C phase log |
+| 21C | The baseline test fixture writes the queue with explicit ids | A rolled-back `INSERT` still advances `AUTO_INCREMENT`, and the board is defined over `1 … N` with `COUNT(*) = MAX(id)` as its gapless check; the fixture writes the ids the case means, inside the case's transaction, exactly as 20C's and 21B's fixtures do | the 21C phase log |
 
 **Acceptance sign-off.**
 

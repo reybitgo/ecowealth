@@ -29,6 +29,14 @@ Index:
 | `QA21B-07.txt` | QA21B-07 | Four `RegistrationService::register()` calls with the queue seeded and the switch on: the sponsor reaches its position, **no** award, **no** `general_harvest` wallet row, **no** board change and no wallet movement; the QA members are deleted again | captured (harness) |
 | `QA21B-08.txt` | QA21B-08 | The calculator's closed form at `N = 1000` — **₱1,601,000.00** in **493** awards — its server-rendered default at the current queue size, every number present without JavaScript, and an unchanged card still validating and saving | captured (harness render + save) |
 | `QA21B-09.txt` | QA21B-09 | The layout facts: **10** stacking cells (`col-12 col-md-6`), **2** generated tables inside `.table-responsive`, no fixed `min-width` and no `overflow-x: hidden` in the block; the visual 390 px/1440 px confirmation is noted as the lead's item | captured (harness render) |
+| `QA21C-01.txt` | QA21C-01 | An unarmed **40-position** copy (39 tables, 121 members, gapless queue, marker `2026-11-01 00:00:00`): `--dry-run` exits 0 and reports **N0 = 40**, **18 rows across 3 levels**, **₱50,000.00 excluded**, the ten levels with `no complete block at this N0` from level 4, the first 18 positions, **0** award rows and a board still `(NULL, NULL, NULL, 0)` | captured |
+| `QA21C-02.txt` | QA21C-02 | The real arm: the same report, exit 0, then **18 rows / ₱50,000.00** in `general_harvest_awards`, the board `(40, 2026-11-17 01:29:30, NULL, 40)` (armed and settled at N0) and one `general_harvest.arm` audit row whose `meta_json` carries `n`, `rows`, `excluded`, `per_level`, `trigger: cli` | captured |
+| `QA21C-03.txt` | QA21C-03 | The prefix invariant level by level: **13 / 4 / 1** rows, `MIN(seq) = 0`, `MAX(seq) = 12 / 3 / 0`, `COUNT(*) = COUNT(DISTINCT seq) = MAX(seq) + 1` | captured |
+| `QA21C-04.txt` | QA21C-04 | A second arm and a second dry run both refused `armed` (exit 1, the message naming the first arm and the business reset), with the **18 / ₱50,000.00** rows and the board unchanged | captured |
+| `QA21C-05.txt` | QA21C-05 | A **second unarmed copy** with `general_harvest_enabled = 1`: `--dry-run` and the real run both refused `enabled` (exit 1) with **0** awards and an unarmed board; switching the stream off arms it, and `--json` prints exactly `armed, n, rows, excluded, per_level, dry_run` (**40 / 18 / 50000 / 13,4,1,0…**) | captured |
+| `QA21C-06.txt` | QA21C-06 | **18** rows, all `baseline`, **0** `general_harvest` wallet rows, **0** rows with a `ledger_id`, and `bin/wallet_reconcile.php` exit 0 with its Team Harvest section unchanged (credits 0, ledger 0.00) | captured |
+| `QA21C-07.txt` | QA21C-07 | Member `qa21c_m1` (queue #1 = node 0): balances **0.00 / 0.00**, the three baseline rows it holds at `seq = 0`, and **0** statement rows in `ewallet_ledger` — the wallet lists no General Harvest movement | captured (SQL; the `/wallet` walk is the lead's item) |
+| `QA21C-08.txt` | QA21C-08 | `bin/db_reset.php --force --confirm=…` on the armed copy: the reset's own steps delete **18** General Harvest rows and **40** queue positions, return the board to unarmed, keep the catalogue, and its verification returns **15 of 15 OK** (including Team Harvest, wallets and `live 18 of 18`); **0** awards, board back to `(NULL, NULL, NULL, 0)`, the **10-row / ₱8,381,000.00** ladder kept; the arm then refuses `unseeded`, and after the queue is seeded the same command arms a new network at **40 / 18 / ₱50,000.00** | captured |
 
 Notes for the reader:
 
@@ -65,3 +73,17 @@ Notes for the reader:
 - `QA21B-08` and `QA21B-09` carry one browser-only item each (the real JavaScript-off save, and the
   390 px/1440 px screen). The transcripts prove the markup and the numbers behind them; the visual
   pass is the project lead's item and is named in the sign-off sheet.
+- Section C's eight transcripts drive the real CLI (`bin/general_harvest_arm.php`) against the
+  `ecowealth_sneat_tool_b_test` / `ecowealth_sneat_tool_a_test` scratch copies, selected with
+  `ECO_DB_NAME`; the development copy is not touched. The `$` command lines are the real shell
+  commands. The `mysql>` lines are the transcript's label for the SQL the temporary builders
+  (`storage/p21c_qa.php` and `storage/p21c_queue.php`, deleted after the pass) ran through the
+  application's own PDO connection — the same account and the same statements, printed with their
+  result rows; the `mysql` client shell of section A was not used. `QA21C-08` uses the real
+  `bin/db_reset.php` for the reset itself.
+- `QA21C-08` builds its copy from the full seed set, because the reset refuses a schema with no staff
+  account; the arm is unchanged and runs on the same **121 members / 40 positions** shape.
+- `QA21C-07` is the section's one browser item: the transcript proves the data behind the statement
+  (zero `ewallet_ledger` rows for the member holding three baseline rows), but the signed-in walk of
+  `/wallet` and the earnings filter is still the project lead's item and is named in the sign-off
+  sheet — the filter returns no rows because the ledger has none.

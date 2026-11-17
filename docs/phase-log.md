@@ -7593,3 +7593,120 @@ passes). The walk snapshots and restores the two settings, the ten ladder rows a
   to read the board's condition; `blocks()` and `blockRange()` are the node-side reads.
 - The ladder is validated, audited, frozen-from-the-arm and rendered; 21C may assume a configured
   ladder, an unarmed board and a queue that may be empty (`N = 0`).
+
+## Phase 21C — The baseline (2026-11-16)
+
+**Status:** complete · **Tag:** `p21c-baseline` · **Branch:**
+`feature/general-harvest` · **Schema:** unchanged at **39 tables / 79 settings** (the phase adds no
+schema) · **Suite:** 1,371 → **1,392** cases, **1,392 / 1,392** green · **Smoke:** unchanged at **268**
+(the phase adds no page).
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §6 (Phase 21C), §12.6, §13.2/§13.4/§13.8, §14.3, §14.10
+and §14.12. This phase records the stream's **go-live baseline**: one queue length `N₀`, one `baseline`
+row for every block that was already full at that instant (at all ten levels, including levels above the
+configured depth), one board row and one audit row. **No money moves** — not one credited row exists
+after this phase, and the wallet is untouched — which is the phase's whole gate (`P21C-T9`, `P21C-T21`).
+
+### Code
+
+| File | Change |
+|---|---|
+| `app/Models/GeneralHarvestAward.php` (new) | The ledger, read + baseline only in this phase: `find()`, `has()`, `forMember()`, `recent()`, `countByLevel()`, `countByStatus()`, `minMaxByLevel()`, the filter/page/total API (`filterDefaults()`, `normaliseFilters()`, `count()`, `select()`, `totals()`, `byLevel()`, `byMonth()`, `exportRows()`) and the two baseline writers (`writeBaseline()` for one row, `writeBaselineLevel()` for one level's whole prefix in a **single multi-row INSERT**). `status` is always `baseline` and `ledger_id` always NULL on this path: there is no parameter that could turn the write into a credit. The model never opens a transaction — it runs inside the arm's. |
+| `app/Services/GeneralHarvestService.php` (new, shared with 21D) | `enabled()`, `armed()`, `baseline()`, `state()` (the board's `status()` plus the backlog's money value and the depth), `excluded()` (the baseline's rows and amount per level, beside `boardTotal(baseline_n)`), `assertArmable()` and `arm($dryRun, $actor)`. The refusals fire **before** the transaction opens and in the plan's order: `enabled` → `armed` → `unseeded` → `invalid_ladder` → `not_gapless`. One transaction writes the rows, the board row (`baseline_n = armed_at's N = settled_n`) and `general_harvest.arm`. `GET_LOCK('general_harvest_arm', 5)` serialises two runs; `PHP_SAPI === 'cli'` refuses a web caller. The two settings are read through the service's **own** connection, so a job handed a database cannot consult another one. |
+| `app/Services/GeneralHarvestException.php` (new) | `enabled()`, `armed()`, `unseeded()`, `notGapless()`, `invalidLadder()`, `state()` — the same shape as `TeamHarvestException`/`RoyaltyException`, with a machine-readable `reason`. There is no repair path: a refusal is always "nothing was written; fix the cause and run it again". |
+| `bin/general_harvest_arm.php` (new) | The one-time, on-demand job: `--dry-run`, `--json`, `--quiet`, `--help`; a four-table probe (exit 2), the human report (`N0`, the row count, the excluded amount, every level's amount and row range, the first 18/20 positions, the board line and the audit id) and the six-key JSON document. Exit 0 success/clean dry run, 1 refused, 2 environment. No `CronLock`/`CronLog`: it follows `harvest_queue_seed.php`, the other one-time go-live job, and takes its lock from the database. |
+| `bin/general_harvest_arm.cmd` (new) | The Windows launcher, like the other `.cmd` files (`PHP_EXE` overridable, the job's exit code preserved). |
+
+### Tests
+
+**21 new cases: 1,371 → 1,392, all green** (`GeneralHarvestBaselineTest`), plus the two manifest guards
+this phase legitimately moved.
+
+| Case | What it proves |
+|---|---|
+| P21C-T1, T7, T10, T11, T19 | The row set and its money: fixture B = 5 rows / **₱12,000.00**; fixture C = 18 rows / **₱50,000.00** (13 / 4 / 1); `h = 4` at depth 3 = 58 rows / **₱176,000.00** with level 4 written above the depth; every row `baseline`, `ledger_id NULL`, `n_at_award = N₀`, the closed-form threshold and the configured amount; per level exactly `0 … qFor` |
+| P21C-T2, T3, T4, T5, T12, T14 | The refusals: `armed` (no `--force`), `enabled` (switch it off first), `unseeded` (empty or malformed marker), `invalid_ladder` (naming level 9 *and* level 1), `not_gapless` (naming `COUNT(*) = 12` and `MAX(id) = 13`) and the advisory lock (a second connection holds it, then the winner writes one set) — each writing nothing |
+| P21C-T6, T8 | An empty queue arms at `N₀ = 0` with no row; two dry runs on fixture C are identical (`n`, `rows`, `excluded`, `per_level`, preview) and write nothing |
+| P21C-T9, T21 | The phase's gate: a live registration after the arm still queues and pays nothing; **0** credited rows, **0** `general_harvest` wallet rows, every wallet balance unchanged, `excluded()` equal to the closed form |
+| P21C-T13, T15, T18 | The audit row (n, rows, excluded, per-level split, actor), the singleton and its three CHECKs, and `state()` after arming (`baseline_n = settled_n = N₀`, `backlog = N − N₀`, the closed-form backlog amount, the depth) with the ladder frozen (D-23) |
+| P21C-T16, T17, T20 | The CLI: a fresh install refuses `unseeded` (exit 1, dry run included); a business reset empties the ledger and unarms the board, the arm then refuses until the new network is seeded, and the next arm uses the new `N`; the human dry run prints `N0 = 40`, 18 rows, ₱50,000.00 and all 18 positions, `--json` emits exactly the six documented keys, and a second real run exits 1 `armed` |
+
+Updated for this phase: `GeneralHarvestFoundationTest` P21A-T15 (the manifest now names the ledger
+model, the service and the exception, the arm job ships, and the catch-up job does not) and
+`GeneralHarvestConfigurationTest` P21B-T25 (the arm job exists; the catch-up and every page above the
+card do not; the schema is still 21A's).
+
+### Docs
+
+`docs/qa/phase-21-general-harvest.md` gains **section C** (`QA21C-01` … `QA21C-08`) and the 21C
+automation table; `docs/qa/README.md` and the evidence index carry the section's rows. `docs/runbook.md`
+gains the **go-live order, part 1** (deploy → configure → arm dry run → arm → enable) and the *arm
+refused* drill with its five refusals. `system/README.md` gains `GeneralHarvestAward`, the service, the
+board row and the job.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration in this phase; `MigrationTest` green.
+- [x] `php tests/run.php` → **Cases: 1,392   Passed: 1,392   Failed: 0**, exit 0 (floor 1,384).
+- [x] `php bin/wallet_reconcile.php` exits 0 (no money moved; no `general_harvest` row exists).
+- [x] Every P21C-Tn case exists, is named for the phase and passes; `php tests/run.php
+      GeneralHarvestBaseline` is **21 / 21**.
+- [x] The arm is deterministic (two dry runs identical, `P21C-T8`) and one-time (a second real run
+      writes nothing, `P21C-T2`/`P21C-T20`).
+- [x] The baseline row count and the excluded amount equal the closed forms, level by level (`P21C-T1`,
+      `T7`, `T11`, `T19`).
+- [x] No credited row and no wallet movement exists anywhere in the phase's tests (`P21C-T9`, `T21`).
+- [x] QA pack section C filled; its evidence is under `docs/qa/evidence/phase-21/`, indexed there.
+- [ ] `powershell -File tests/smoke.ps1` — **not re-run**: the phase adds no route, no page and no
+      smoke check, so the walk is 21B's 268. The 21G release row re-runs it.
+- [ ] The manual script executed **by someone who did not write it** — open; the transcripts in
+      `docs/qa/evidence/phase-21/` are an automated scratch-copy pass (as at 21A/21B), and the
+      second-person walk remains the project lead's item.
+- [x] Tag `p21c-baseline` — cut on this phase's commit.
+
+### Deviations
+
+1. **`GeneralHarvestAward` ships a second writer, `writeBaselineLevel()`.** §14.3 specifies one
+   multi-row `INSERT` per level (at most ten statements), while §14.2 lists `writeBaseline($seq,
+   $snapshot)` only. The bulk method is the arm's; the single-row `writeBaseline()` remains the public
+   unit writer the later phases and the tests use.
+2. **The service reads the switch and the seed marker through its own PDO, not `setting()`.** A service
+   handed a connection (a job, a scratch-copy test, 21D's settlement) must read *that* database's
+   settings; the global helper reads the request's. `GeneralHarvestLevel::enabled()` stays the view's
+   read, and both normalise the value identically.
+3. **The arm job has no `CronLock`/`CronLog`.** §14.10 names a `GET_LOCK` and one transaction, not the
+   cron wrappers; the job follows `harvest_queue_seed.php`, the other one-time go-live job. A second
+   run refuses (`armed`) rather than reporting "busy", which is the plan's contract.
+4. **A business reset returns `team_harvest_ledger_since` to `''`.** The reset restores the shipped
+   settings seed, so after a reset the arm refuses `unseeded` until Phase 20's queue is seeded again on
+   the new network — the correct go-live order, and what `P21C-T17` proves (the plan's case only says
+   "the second arm uses the new `N`").
+5. **`P21A-T15` and `P21B-T25` were rewritten, not deleted.** They are the 21A/21B manifest guards;
+   21C extends the manifest and ships the job, so they now describe the 21C boundary and still prove
+   that the catch-up job and every page above the card do not exist. Same churn as 20B's and 21B's
+   manifests.
+6. **`--json` refusals use the shared `{ok:false, error, reason}` document.** The six documented keys
+   (`armed`, `n`, `rows`, `excluded`, `per_level`, `dry_run`) are the **summary**; a refusal is not a
+   summary, and every other job in this build reports its refusals the same way. `P21C-T20` asserts the
+   six-key document exactly on the success path.
+7. **The baseline test fixture writes the queue with explicit ids.** A rolled-back `INSERT` still
+   advances `AUTO_INCREMENT`, and the board is defined over the positions `1 … N` with `COUNT(*) =
+   MAX(id)` as its gapless check; the fixture writes the ids the case means, inside the case's
+   transaction, exactly as 20C's and 21B's fixtures do.
+8. **`P20A-T15` and `P20A-T16` now admit the 21C files.** They are Phase 20's manifest guards: one
+   names every application file that mentions `harvest_queue`/`team_harvest*`, the other every file
+   that queries the queue. 21C's service reads the queue for the baseline (and its exception names
+   `team_harvest_ledger_since` in the `unseeded` message), so both guards now list
+   `GeneralHarvestService` (and `GeneralHarvestException` in the first). Found by the full-suite gate,
+   not by 21C's own group — the same churn 21B recorded for `GeneralHarvestBoard`.
+
+### Hand-off to 21D
+
+- `armed()`, `baseline()` and `state()` are the only way the settlement may learn the board's standing;
+  the settlement never reads `harvest_queue`'s size without comparing it with `settled_n`.
+- Every block full at `N₀` has a `baseline` row, for all ten levels, with its amount and no ledger id;
+  `excluded()` is the read that proves it, level by level, beside `boardTotal(baseline_n)`.
+- The board row's `settled_n = N₀`, so the settlement's target is always `settled_n + k`.
+- The ten amounts are frozen from `armed_at` (D-23); a ladder save is refused until a business reset
+  unarms the board.
+- **Nothing pays.** 21D may assume the board is armed and must work with `N = 0`.

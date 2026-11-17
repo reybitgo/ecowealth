@@ -1108,8 +1108,9 @@ return [
          * adds to the manifest (plan 21A Rule 10, P21A-T15). 21B adds the
          * configuration card and the pure arithmetic: two models, the
          * settings controller and the three settings views. **21C** adds the
-         * arm job, **21D** the money engine, **21E** the admin surfaces and
-         * **21F** the member surfaces. None of those exists yet. */
+         * ledger model, the service and the exception; **21D** the money
+         * engine, **21E** the admin surfaces and **21F** the member
+         * surfaces. Only the CLI job is outside /app. */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
@@ -1122,6 +1123,11 @@ return [
             '/app/views/admin/settings/_general_harvest.php',
             '/app/views/admin/settings/_commissions.php',
             '/app/views/admin/settings/index.php',
+            /* 21C — the ledger (read + baseline only), the service and
+             * the refusal type the arm job throws. */
+            '/app/Models/GeneralHarvestAward.php',
+            '/app/Services/GeneralHarvestService.php',
+            '/app/Services/GeneralHarvestException.php',
         ];
 
         $found = [];
@@ -1153,14 +1159,12 @@ return [
 
         /* The later phases' files do not exist yet. */
         foreach ([
-            '/app/Models/GeneralHarvestAward.php',
-            '/app/Services/GeneralHarvestService.php',
             '/app/Controllers/GeneralHarvestController.php',
         ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' is not part of 21B');
+            assert_false(is_file($appRoot . $file), $file . ' is not part of 21C');
         }
 
-        assert_false(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
+        assert_true(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
         assert_false(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
     },
 

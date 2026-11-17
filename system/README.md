@@ -5,8 +5,8 @@ framework and no Composer. This folder is the backend application; the public ma
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
 **Current status: Phase 21 — the General Harvest bonus, in progress 21A → 21G
-(`dmp/plan-ecowealth-general-harvest.md`). 21A (foundation) and 21B (configuration and the board
-arithmetic) have landed; `APP_PHASE` is still 20 until 21G.**
+(`dmp/plan-ecowealth-general-harvest.md`). 21A (foundation), 21B (configuration and the board
+arithmetic) and 21C (the baseline) have landed; `APP_PHASE` is still 20 until 21G.**
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -69,9 +69,12 @@ and the ten reference amounts (migration `025`, **39 tables / 79 settings**), wi
 **21B** added the configuration card and the whole board arithmetic — the switch, the payable depth,
 the ten amounts, the generated ladder and position tables, the four-state strip, the "if the queue
 reaches N" calculator and `GeneralHarvestLevel` / `GeneralHarvestBoard`, which are the only way any
-later phase may read an amount, a threshold, a block or a board total. 21C arms the board (the
-baseline), 21D pays it, 21E/21F add the admin and member surfaces and 21G releases it. The stream
-ships **off and unarmed**, so nothing pays until an operator configures, arms and enables it.
+later phase may read an amount, a threshold, a block or a board total; **21C** added the go-live arm —
+the one-time CLI job and `GeneralHarvestService` record `N₀` and one `baseline` row for every block
+already full at all ten levels, and `GeneralHarvestAward` is the ledger (read plus the baseline write
+only), so no money moves. 21D pays the armed board, 21E/21F add the admin and member surfaces and 21G
+releases it. The stream ships **off and unarmed**, so nothing pays until an operator configures, arms
+and enables it.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -1734,7 +1737,7 @@ php tests/run.php TeamHarvest                  # the whole stream (20A–20F)
 
 ---
 
-## General Harvest bonus (Phases 21A–21B)
+## General Harvest bonus (Phases 21A–21C)
 
 One **shared 3-ary board** over the Harvest queue Phase 20 built
 (`dmp/plan-ecowealth-general-harvest.md`, reference `docs/comp-plan_addons.md` §4). Every
@@ -1851,9 +1854,58 @@ with JavaScript off the form saves, validates and prints the same server-rendere
 not reachable from the page**: there is no field and no button for it, and while the board is armed the
 ten inputs render disabled with the reason.
 
+### `GeneralHarvestAward` (21C)
+
+The ledger: one row per `(node, level)` decision, `UNIQUE (seq, level)` as the money anchor. 21C ships
+the read API and the **baseline write only** — `writeBaseline()` and `writeBaselineLevel()` always
+store `status = 'baseline'` and `ledger_id = NULL`, so the phase cannot write money even by mistake.
+The credited path (`create()` / `linkLedger()`) is 21D's.
+
+| Method | What it answers |
+|---|---|
+| `has($seq, $level)` | has this block been decided (credited or baselined)? |
+| `find()`, `forMember()`, `recent()` | one row, one member's rows, the newest decisions |
+| `countByLevel()`, `countByStatus()`, `minMaxByLevel()` | the frontier evidence: rows, `MIN`/`MAX` seq per level, both statuses |
+| `select()`, `count()`, `totals()`, `byLevel()`, `byMonth()`, `exportRows()` | the filters, pages, totals, ten-row distribution, monthly split and CSV rows 21E/21F render |
+| `writeBaseline()`, `writeBaselineLevel()` | the arm's only writes (one row, or one level's prefix in one statement) |
+
+The model never opens a transaction: it runs inside its caller's, so the ledger and the board row
+commit together or not at all.
+
+### `GeneralHarvestService` and the arm (21C)
+
+The go-live baseline. 21C owns **arm** and **state**; 21D adds the settlement.
+
+| Method | What it answers |
+|---|---|
+| `enabled()`, `armed()`, `baseline()` | the switch, whether a baseline exists, and `N₀` |
+| `state()` | the board's condition — `GeneralHarvestBoard::status()` plus the backlog's money value and the depth |
+| `excluded()` | the baseline's rows and amount, level by level, beside `boardTotal(baseline_n)` |
+| `assertArmable()`, `arm($dryRun)` | the refusals, and the one-time write |
+
+The arm refuses (`GeneralHarvestException`) when the stream is on, the board is already armed, Phase
+20's queue is unseeded, a level is priced at zero, or the queue is not gapless — and it refuses
+**before** the transaction opens, so a refused arm writes nothing. A dry run prints the same `N₀`, row
+count and excluded amount and writes nothing: it is the decision surface. `GET_LOCK`
+(`general_harvest_arm`) serialises two runs; `armed_at` is the flag that makes the act one-time, with no
+`--force`. It writes only `baseline` rows: `settled_n` is set to `N₀` because every block up to the
+baseline is **recorded**, not paid.
+
+```bash
+php bin/general_harvest_arm.php --dry-run    # N0, rows, excluded amount, first positions
+php bin/general_harvest_arm.php              # record the baseline (one transaction, one audit row)
+php bin/general_harvest_arm.cmd --dry-run    # the Windows launcher
+```
+
+Exit codes: `0` success (or a clean dry run), `1` refused, `2` database unreachable or a table
+missing. `--json` prints exactly `armed`, `n`, `rows`, `excluded`, `per_level` and `dry_run`. There is
+no web entry and no settings-page button: arming is a CLI act, so there is no URL to authenticate. The
+order — and every refusal — is in `docs/runbook.md` → *General Harvest go-live order, part 1*.
+
 ```bash
 php tests/run.php GeneralHarvestConfiguration  # 35 configuration + arithmetic cases (21B)
-php tests/run.php GeneralHarvest               # the whole stream (21A–21B)
+php tests/run.php GeneralHarvestBaseline       # 21 baseline + arm cases (21C)
+php tests/run.php GeneralHarvest              # the whole stream (21A–21C)
 ```
 
 ---
@@ -1962,7 +2014,7 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (1,371 cases; Phase 21 is in progress through 21B)
+php tests/run.php                 # full suite (1,392 cases; Phase 21 is in progress through 21C)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

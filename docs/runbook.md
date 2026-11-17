@@ -296,6 +296,75 @@ would still pay, and the ten-level distribution is always ten rows. Every figure
 wallet movement — if a *Paid* row's reference does not resolve, stop: the reconciler should already be
 red.
 
+### General Harvest go-live order, part 1 (once, Phase 21C)
+
+General Harvest is a **shared board**: the money is a closed form over the queue length `N`, not a
+per-member counter. Go-live therefore has one **irreversible** decision — the **arm**, which records
+`N₀` (the queue length at that instant) and one `baseline` row for every block that was already full,
+at all ten levels. Those blocks are recorded for ever and never paid (D-06). The job's refusals enforce
+the only working order: **deploy → configure → arm (dry run) → arm → enable**. This section stops at the
+armed board; switching the stream on is 21D's step 2.
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+# 1. Deploy 21A-21C. The stream ships off (general_harvest_enabled = 0) and the
+#    board unarmed: nothing can pay, and no settlement exists yet.
+
+# 2. Confirm Phase 20's queue is live. The arm refuses an empty marker.
+#    SELECT value FROM settings WHERE key_name = 'team_harvest_ledger_since';
+
+# 3. Configure the ladder. Settings -> Commissions -> General Harvest bonus:
+#    all TEN amounts and the payable depth, with the switch still off. The arm
+#    freezes the ten amounts (D-23), so price them now; a zero level is refused.
+
+# 4. The decision surface. This writes nothing and prints N0, the row count, the
+#    excluded amount and the first positions, level by level.
+php bin\general_harvest_arm.php --dry-run
+
+# 5. Read it. Then record the baseline: one transaction, one audit row.
+php bin\general_harvest_arm.php
+exit 0
+
+# 6. Prove it.
+#    SELECT level, COUNT(*), MIN(seq), MAX(seq) FROM general_harvest_awards GROUP BY level;
+#    SELECT * FROM general_harvest_board;
+php bin\wallet_reconcile.php
+exit 0
+```
+
+**Read the result.** Step 4 and step 5 print the same `N0`, the same row count and the same excluded
+amount — that number is `boardTotal(N₀)`, exactly what the network had already earned. The board then
+reads `baseline_n = settled_n = N₀` with `armed_at` set. Every row is `baseline` with no wallet
+reference: `wallet_reconcile.php` is untouched, because the arm moves no money. `settled_n` is a
+**position** count, not a money count — it says "every block up to `N₀` has been recorded", and the
+settlement (21D) starts at `settled_n + 1`.
+
+**If the arm is refused.** It writes nothing at all, so the fix is always "read the message, fix the
+cause, run it again":
+
+| Refusal | Meaning | What to do |
+|---|---|---|
+| `enabled` | The stream is switched on | Turn it off on the card; the order is configure → arm → enable |
+| `armed` | A baseline already exists | Nothing to do — this is a one-time act. `--dry-run` still prints the numbers. A re-arm needs a business reset, which is safe only while nothing has been paid |
+| `unseeded` | `team_harvest_ledger_since` is empty or malformed | Run `bin\harvest_queue_seed.php` (Phase 20) first: without a seeded queue `N₀` is a number about nothing |
+| `invalid_ladder` | A level is priced at `0.00` | Price **all ten** levels on the card. The arm freezes them: a zero level could never be paid, even if the depth were raised later (D-23) |
+| `not_gapless` | `COUNT(*) <> MAX(id)` on `harvest_queue` | A queue hole is out-of-band corruption; restore the queue from a backup. Never delete or renumber a position to "fix" it |
+
+**If the arm is run twice:** the second run refuses `armed`, exits `1` and writes nothing — not a row,
+not a board field, not an audit entry. That is not an error. Do not look for a `--force`: there is
+none, and the baseline never moves.
+
+**If the dry run's `N0` is not what you expected** (a deploy queued members, a seed ran late): stop.
+The arm records whatever the queue holds at that instant, and the dry run is the only chance to see it
+before it is frozen. Fix the queue first — never arm "and fix it after".
+
+**Never edit `general_harvest_awards` or the board row by hand.** The baseline is the stream's
+auditable record of what was owed before it existed; a manual `UPDATE baseline_n` makes every later
+settlement a fiction. To abandon the stream entirely, the plan's rollback is `UPDATE
+general_harvest_board SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0` plus
+`TRUNCATE general_harvest_awards` — no money exists to reverse at this point.
+
 ---
 
 ## 3. Backups, install, reset and restore

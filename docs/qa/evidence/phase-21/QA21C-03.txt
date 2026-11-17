@@ -1,0 +1,16 @@
+QA21C-03 — Every level is a contiguous prefix from node 0
+Date: 2026-11-17 01:29:53 +0800 · schema ecowealth_sneat_tool_b_test
+
+$ SELECT level, COUNT(*) AS rows_, MIN(seq) AS min_seq, MAX(seq) AS max_seq FROM general_harvest_awards GROUP BY level ORDER BY level;
+mysql> SELECT level, COUNT(*) AS rows_, MIN(seq) AS min_seq, MAX(seq) AS max_seq FROM general_harvest_awards GROUP BY level ORDER BY level
+| level | rows_ | min_seq | max_seq |
+| 1     | 13    | 0       | 12      |
+| 2     | 4     | 0       | 3       |
+| 3     | 1     | 0       | 0       |
+
+$ SELECT level, COUNT(*) AS rows_, COUNT(DISTINCT seq) AS distinct_seq, MAX(seq) + 1 AS prefix_end FROM general_harvest_awards GROUP BY level ORDER BY level;
+mysql> SELECT level, COUNT(*) AS rows_, COUNT(DISTINCT seq) AS distinct_seq, MAX(seq) + 1 AS prefix_end FROM general_harvest_awards GROUP BY level ORDER BY level
+| level | rows_ | distinct_seq | prefix_end |
+| 1     | 13    | 13           | 13         |
+| 2     | 4     | 4            | 4          |
+| 3     | 1     | 1            | 1          |

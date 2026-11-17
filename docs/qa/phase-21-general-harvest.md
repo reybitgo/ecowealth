@@ -13,9 +13,10 @@ money**: it applies a migration, reads counts, opens two pages that must *not* h
 the install/reset tools on scratch schemas. From section C on the checks may arm a board and move test
 money, and every one of those runs on a scratch schema — never on a production database.
 
-**Document status.** Section A was written by 21A (2026-11-16) with the automated gate green, and
-section B by 21B (2026-11-16) with its own. Sections C–G are appended by their phases. **17 checks**:
-8 in section A and 9 in section B. Every check has an evidence file under
+**Document status.** Section A was written by 21A (2026-11-16) with the automated gate green, section
+B by 21B (2026-11-16) with its own, and section C by 21C (2026-11-16). Sections D–G are appended by
+their phases. **25 checks**: 8 in section A, 9 in section B and 8 in section C. Every check has an
+evidence file under
 `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`; a check whose only output is a
 count, a SQL row or a rendered fragment is a text transcript, and the browser-only steps are recorded
 there as harness transcripts at the markup level (the note in the evidence index says which ones a real
@@ -56,10 +57,22 @@ All good.
 Passed: 268   Failed: 0
 ```
 
+Expected final lines at `p21c-baseline`:
+
+```text
+Cases: 1392   Passed: 1392   Failed: 0
+All good.
+```
+
+```text
+Passed: 268   Failed: 0
+```
+
 The baseline was **1,320 / 1,320** PHP cases and **263 / 263** smoke checks at `p21-start` (the Phase 20
 release gate); 21A adds **16** cases and **no** smoke check, because it adds no route and no page. 21B
 adds **35** cases and **5** smoke checks, all of them on `/admin/settings` — the phase adds no route
-either.
+either. 21C adds **21** cases and **no** smoke check: it ships one CLI job and no page, so the smoke
+count is 21B's.
 
 21B's share of the PHP suite (`GeneralHarvestConfigurationTest`, 35 cases):
 
@@ -126,6 +139,32 @@ row and board field it touches.
 | P21A-T14 | Deleting a member who holds an award cascades the ledger; the `(seq, level)` anchor still accepts a new holder |
 | P21A-T15 | The 21A/21B manifest — `WalletService`, `helpers.php`, the two install/reset tools, the two board models, the settings controller and the three settings views — names the objects and nothing else does; no award model, no service, no route, no job |
 | P21A-T16 | The phase adds no route and no page of its own: the route files are free of the feature, only the settings card's three files render it, the stream is off, and the schema/reset/bundle counts all agree at 39 |
+
+21C's share of the PHP suite (`GeneralHarvestBaselineTest`, 21 cases):
+
+| Case | What it proves |
+|---|---|
+| P21C-T1 | Fixture B (40 accounts, `N = 13`): five baseline rows — level 1 nodes 0–3 at ₱2,000 and level 2 node 0 at ₱4,000 — **₱12,000.00**, board `baseline_n = settled_n = 13`, `armed_at` set, `armed_by` NULL |
+| P21C-T2 | A second arm is refused `armed` ("already armed", "no --force"), writes no row and leaves the board untouched |
+| P21C-T3 | The stream on: refused `enabled`, the message says to switch it off first, nothing is written |
+| P21C-T4 | An empty seed marker: refused `unseeded`; an unparseable one is refused the same way; nothing is written |
+| P21C-T5 | Level 9 at `0.00` (above a depth of 3): refused `invalid_ladder` and **names level 9**; level 1 at `0.00` names level 1 |
+| P21C-T6 | An empty queue: 0 rows, the board armed at `baseline_n = settled_n = 0`, `excluded()` all zero |
+| P21C-T7 | Fixture C (121 accounts, `N = 40`): 18 rows, **₱50,000.00**, per level 13 / 4 / 1, equal to `boardTotal(40)` |
+| P21C-T8 | Two dry runs on fixture C are identical (`n`, `rows`, `excluded`, `per_level`, preview), print all 18 positions, and write nothing |
+| P21C-T9 | The whole fixture, plus a registration after the arm (the queue reaches 41): **0** credited rows, **0** `general_harvest` wallet rows, every wallet balance unchanged |
+| P21C-T10 | Every row: `baseline`, `ledger_id NULL`, `n_at_award = 13`, the closed-form threshold, the configured amount, `(seq, level)` taken |
+| P21C-T11 | Per level the rows are exactly `0 … qFor`, contiguous, with no duplicate node |
+| P21C-T12 | A queue with a hole: refused `not_gapless`, naming `COUNT(*) = 12` and `MAX(id) = 13` |
+| P21C-T13 | The `general_harvest.arm` audit row carries `n`, `rows`, `excluded`, the per-level split and the actor, and `armed_by` names the actor |
+| P21C-T14 | A second connection holds the advisory lock: the arm is refused, writes nothing, and the winner then writes exactly one baseline set |
+| P21C-T15 | A second board row is refused; `baseline_n` without `armed_at` and `settled_n < baseline_n` are refused; a real arm sets the pair together |
+| P21C-T16 | A fresh install's board is unarmed and the CLI refuses `unseeded` (exit 1), dry run included |
+| P21C-T17 | A business reset empties the ledger, unarms the board and returns the seed marker to `''` (the arm refuses until the new network is seeded); the second arm uses the new `N` and writes a fresh baseline |
+| P21C-T18 | `state()` reads `armed`, `baseline_n = settled_n = 13`, `backlog = N − N₀`, the closed-form backlog amount and the depth; a ladder change is refused (D-23) |
+| P21C-T19 | Fixture `h = 4` (364 accounts, `N = 121`) at depth 3: 58 rows, **₱176,000.00**, and level 4 — above the depth — still has its baseline row |
+| P21C-T20 | The CLI: the human dry run prints `N0 = 40`, 18 rows, ₱50,000.00, the first 18 positions and every level; `--json` emits exactly the six documented keys; a second run exits 1 `armed` |
+| P21C-T21 | The phase's manifest exists, `excluded()` equals the closed form, `countByStatus()` is `0 / 18`, and the whole phase moves no money |
 
 No automated case in this phase writes an award row, a queue row or a `general_harvest` wallet row on
 the development database. The HTTP walk uses the development copy and restores every setting it
@@ -626,13 +665,222 @@ Expected
 
 ---
 
-## 5. Evidence
+## 5. Section C — Phase 21C: The baseline (`QA21C-01` … `QA21C-08`)
+
+Section C is the stream's **irreversible** decision. The arm records `N₀` — the queue length at that
+instant — and one `baseline` row for every block that was already full, at **all ten levels**; from
+that instant the ten amounts are frozen (D-23) and no pre-go-live block can ever be paid. It moves
+**no money**: every row is `baseline` with `ledger_id NULL`, and the wallet is untouched.
+
+**Every check runs on a scratch copy**, never on the development or production database. A second arm
+is refused and there is no `--force`; undoing one takes a business reset. Build the copy once:
+
+```powershell
+# A scratch schema at the current schema + seeds (the harness's own recipe):
+#   database/schema.sql, seeds/001_settings.sql … 005_demo_tree.sql
+# on ecowealth_sneat_tool_b_test.
+
+# The copy needs the shape of fixture C: 121 member accounts, 40 of them qualified
+# (root -> 3 directs -> 9 -> 27 leaves), queued at positions 1 … 40.
+# tests/fixtures/general_harvest.php builds exactly that; the transcript in
+# QA21C-01.txt records the counts the copy was built with.
+
+# Phase 20's queue must be live: team_harvest_ledger_since is a datetime. The real
+# seed job writes it on a production copy; on the scratch copy it is set to any
+# datetime, because the arm only checks that the marker parses.
+
+# The reference ladder is the migration's own seed; leave it in place.
+```
+
+> `QA21C-02` … `QA21C-06` continue on that same armed copy, in order. `QA21C-08` runs the business
+> reset, which destroys the copy's ledger — do it last.
+
+### QA21C-01 — The dry run is the decision surface
+
+| Why | §12.6 Rule 4: the excluded amount is printed before anything is written, and the dry run writes **nothing**. |
+|---|---|
+| Where | `php bin\general_harvest_arm.php --dry-run` on the scratch copy |
+| Evidence | `QA21C-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\general_harvest_arm.php --dry-run`.
+2. Read `N0`, the row count, the excluded amount, the per-level table and the first positions.
+3. `SELECT COUNT(*) FROM general_harvest_awards;` and `SELECT * FROM general_harvest_board;`.
+
+Expected
+
+- Step 1–2: `N0 = 40`, **18** rows, **₱50,000.00** excluded, levels 1–3 carrying 13 / 4 / 1 rows (and
+  levels 4–10 named as *no complete block at this N0*, with their amounts still printed), then the
+  first 18 positions with their member, level, threshold and amount.
+- Step 3: the award table is still **empty** and the board is still `(1, NULL, NULL, NULL, 0)` —
+  unarmed. The dry run wrote nothing at all.
+
+### QA21C-02 — The real arm commits exactly those numbers
+
+| Why | §12.6 Rules 1, 6 and 9: one transaction, one baseline set, `settled_n = N₀`. |
+|---|---|
+| Where | `php bin\general_harvest_arm.php` on the scratch copy |
+| Evidence | `QA21C-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\general_harvest_arm.php`.
+2. `SELECT COUNT(*), SUM(amount) FROM general_harvest_awards;`
+3. `SELECT * FROM general_harvest_board;`
+
+Expected
+
+- Step 1: the same `N0`, the same 18 rows and the same ₱50,000.00 as the dry run, then the board line
+  (`armed <instant> · baseline_n = 40 · settled_n = 40`) and the audit id.
+- Step 2: **18** and **50000.00**.
+- Step 3: one row, `baseline_n = 40`, `armed_at` set, `armed_by` NULL (the CLI has no session),
+  `settled_n = 40`.
+
+### QA21C-03 — Every level is a contiguous prefix from node 0
+
+| Why | I-03/I-04: the ledger is a prefix, so no later settlement can find a gap. |
+|---|---|
+| Where | SQL on the scratch copy |
+| Evidence | `QA21C-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+```sql
+SELECT level, COUNT(*), MIN(seq), MAX(seq)
+  FROM general_harvest_awards
+ GROUP BY level
+ ORDER BY level;
+```
+
+Expected
+
+- `1 / 13 / 0 / 12`, `2 / 4 / 0 / 3`, `3 / 1 / 0 / 0`, and no row for levels 4–10.
+- `COUNT(*) = MAX(seq) + 1` at every level that has rows.
+
+### QA21C-04 — A second arm is refused, and nothing moves
+
+| Why | §12.6 Rule 1: arm is a one-time act; `armed_at` is the flag and there is no `--force`. |
+|---|---|
+| Where | `php bin\general_harvest_arm.php` again, on the armed copy |
+| Evidence | `QA21C-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run the job again (with and without `--dry-run`).
+2. `SELECT COUNT(*) FROM general_harvest_awards;` and `SELECT * FROM general_harvest_board;`
+
+Expected
+
+- Step 1: `REFUSED (armed)` and the message says the board was already armed on the recorded instant
+  and that there is no `--force`; exit code **1**.
+- Step 2: 18 rows and the same board row — a refused arm writes nothing, not even an audit entry.
+
+### QA21C-05 — The arm refuses while the stream is on
+
+| Why | §14.3 Rule 3: the only working order is configure → arm → enable. |
+|---|---|
+| Where | `/admin/settings` → Commissions, then the job, on a second **unarmed** copy of the same shape |
+| Evidence | `QA21C-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+> The refusal is about the switch, so it needs an unarmed board: this check runs on its own copy
+> (`ecowealth_sneat_tool_a_test`, built like the first), because `QA21C-02` already armed the section's
+> main copy and a second arm would be refused for the other reason.
+
+Steps
+
+1. Set `general_harvest_enabled = 1` (the card, or `UPDATE settings SET value = '1' WHERE key_name =
+   'general_harvest_enabled'`).
+2. Run the arm job (`--dry-run` and the real run).
+3. Read the exit code and the message; check the ledger and the board.
+
+Expected
+
+- Step 2–3: `REFUSED (enabled)` — *"The General Harvest stream is switched on … switch the stream off
+  before arming"* — exit **1**, no row written, the board still unarmed.
+- Turn the switch back off before the next check.
+
+### QA21C-06 — Nothing is credited and nothing reaches the wallet
+
+| Why | The phase's gate: there is not one credited row after 21C (P21C-T9). |
+|---|---|
+| Where | SQL on the scratch copy |
+| Evidence | `QA21C-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+```sql
+SELECT status, COUNT(*) FROM general_harvest_awards GROUP BY status;
+SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';
+SELECT COUNT(*) FROM general_harvest_awards WHERE ledger_id IS NOT NULL;
+```
+
+Expected
+
+- One status only: `baseline / 18`.
+- **0** wallet movements and **0** rows with a ledger reference.
+- `php bin\wallet_reconcile.php` exits **0**, exactly as it did before the arm.
+
+### QA21C-07 — The member's wallet shows no General Harvest movement
+
+| Why | The money does not exist yet; the statement must not imply it does (Rule 7). |
+|---|---|
+| Where | `/wallet` (member) on the scratch copy, as a member who holds a baseline row |
+| Evidence | `QA21C-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as one of the first 13 members of the scratch copy's queue (any node whose baseline row
+   exists at level 1).
+2. Open `/wallet` and the earnings tab; filter the statement by **General Harvest bonus**.
+3. `SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = <id> AND ref_type = 'general_harvest';`
+
+Expected
+
+- Step 2: no General Harvest movement appears under any filter; the filter returns **no rows**.
+- Step 3: **0**.
+- The baseline is visible only as the ledger's own record (`baseline`, no wallet reference) — not on
+  the member's statement.
+
+### QA21C-08 — A business reset unarms the board and a new network can be armed
+
+| Why | §12.6 Rule 6 / I-12: the reset returns the board to unarmed, keeps the ladder, and a later arm starts a new history. |
+|---|---|
+| Where | `php bin\db_reset.php` on the scratch copy, then the seed job and the arm |
+| Evidence | `QA21C-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run the business reset on the scratch copy.
+2. `SELECT COUNT(*) FROM general_harvest_awards;` and `SELECT * FROM general_harvest_board;` and
+   `SELECT COUNT(*) FROM general_harvest_levels;`
+3. Run the arm job again without re-seeding Phase 20's queue: it must refuse `unseeded`.
+4. Re-seed the new network's queue, then run the arm: it must succeed with the new `N`.
+
+Expected
+
+- Step 2: the ledger is empty, the board is `(1, NULL, NULL, NULL, 0)`, the ten ladder rows survive.
+- Step 3: `REFUSED (unseeded)` — the go-live order starts from the queue, not the board.
+- Step 4: a fresh baseline at the new `N`, and the new rows carry the ladder's amounts.
+
+---
+
+## 6. Evidence
 
 Save each check's transcript under `docs/qa/evidence/phase-21/`, named exactly as its **Evidence**
-line (`QA21A-01.txt` … `QA21A-08.txt`, `QA21B-01.txt` … `QA21B-09.txt`). The folder's `README.md` is the
-index and stays current as each phase appends its section.
+line (`QA21A-01.txt` … `QA21A-08.txt`, `QA21B-01.txt` … `QA21B-09.txt`, `QA21C-01.txt` …
+`QA21C-08.txt`). The folder's `README.md` is the index and stays current as each phase appends its
+section.
 
-## 6. Cleanup
+## 7. Cleanup
 
 Section A creates **no** General Harvest row on the development copy and no QA member: `QA21A-05` runs
 on a scratch schema. The only lasting traces of the section are (a) migration `025` on the development
@@ -647,3 +895,8 @@ restore the reference ladder (`Load reference ladder` → save) and leave the sw
 row is never written: no step arms it. `QA21B-07` is the only step that creates member accounts, and it
 deletes them; if the walk is abandoned halfway, delete the members it lists in its evidence file and
 restore the ladder from `QA21B-01`'s transcript.
+
+Section C writes **only** on its scratch copy. Its last step resets that copy, so it ends the walk in
+the state it started from (an unarmed board and an empty ledger); the ladder survives the reset. Do not
+run any of section C on the development copy: an arm there is irreversible without a business reset, and
+the lock it takes is real.

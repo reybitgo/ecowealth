@@ -31,8 +31,8 @@ result, capture evidence and sign the phase off.
 > G 6. Its evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
 
 > **Phase 21 is the General Harvest bonus workstream** (`dmp/plan-ecowealth-general-harvest.md`),
-> delivered in seven gated phases **21A → 21G** and **in progress (21B)**. Sections A–B are written;
-> sections C–G are appended by their phases before their gates. Its evidence lives in
+> delivered in seven gated phases **21A → 21G** and **in progress (21C)**. Sections A–C are written;
+> sections D–G are appended by their phases before their gates. Its evidence lives in
 > `evidence/phase-21/`, indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
@@ -65,7 +65,7 @@ result, capture evidence and sign the phase off.
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
-| [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, **in progress (21B)**: sections A–B written | 17 so far (A 8 · B 9; C–G appended by their phases) | 20–30 min (A) · 30–40 min (B) |
+| [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, **in progress (21C)**: sections A–C written | 25 so far (A 8 · B 9 · C 8; D–G appended by their phases) | 20–30 min (A) · 30–40 min (B) · 40–50 min (C, scratch copy) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -79,8 +79,8 @@ its screenshots and terminal transcripts in `evidence/install-reset/`, indexed b
 `evidence/phase-17/`, indexed by that folder's `README.md`. Phase 18's escrow checks use
 `evidence/unilevel-escrow/`; the Phase 17 product walkthrough's images stay in
 `evidence/unilevel-product/`. Phase 20 keeps its transcripts in `evidence/phase-20/`, indexed by
-that folder's `README.md`; Phase 21 keeps its section A–B transcripts in `evidence/phase-21/`, indexed by
-that folder's `README.md` (sections B–G are appended there as they land).
+that folder's `README.md`; Phase 21 keeps its section A–C transcripts in `evidence/phase-21/`, indexed by
+that folder's `README.md` (sections D–G are appended there as they land).
 
 ---
 
@@ -353,7 +353,13 @@ and does the flow feel right when clicked by a human** — the visual sign-off.
   award count the reference publishes (pinned to the peso: ₱2,000 at `N = 4` … ₱190,208,000 at
   `N = 88,573`), the ₱25,000,000.00 sum guard, the "a payable level must be positive" rule (D-17), the
   frozen ladder once the board is armed (D-23) and the inert state (three registrations write no award,
-  no position and no money). Sections C–G are appended by their phases.
+  no position and no money).
+- Phase 21C proves the **go-live baseline**: the arm records `N₀` and one `baseline` row for every block
+  already full, at all ten levels (fixture B: 5 rows / **₱12,000.00**; fixture C: 18 rows /
+  **₱50,000.00**; `h = 4`: 58 rows / **₱176,000.00**, level 4 included above a depth of 3), refuses a
+  second arm, the stream on, an unseeded queue, a zero level, a queue hole and a concurrent run, prints
+  the same numbers on two dry runs and writes nothing on either, and moves **no money** — not one
+  credited row, not one wallet movement. Sections D–G are appended by their phases.
 
 ---
 
@@ -649,7 +655,7 @@ docs/qa/
 ├── phase-17-unilevel-repeat-purchase.md ← manual checks for Phase 17 (sections A–G, 57 checks)
 ├── phase-19-royalty.md                 ← manual checks for Phase 19 (sections A–G, 60 checks)
 ├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–G, signed)
-├── phase-21-general-harvest.md        ← manual checks for Phase 21 (sections A–B so far; C–G appended by their phases)
+├── phase-21-general-harvest.md        ← manual checks for Phase 21 (sections A–C so far; D–G appended by their phases)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
 ├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + phase-21/ + unilevel-escrow/)

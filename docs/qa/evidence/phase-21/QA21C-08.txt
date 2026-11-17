@@ -1,0 +1,165 @@
+QA21C-08 — A business reset unarms the board and a new network can be armed
+Date: 2026-11-17 01:36:31 +0800 · schema ecowealth_sneat_tool_b_test · PHP 8.3.16
+
+$ php storage/p21c_queue.php build ecowealth_sneat_tool_b_test 121 40
+schema:      ecowealth_sneat_tool_b_test (127.0.0.1)
+tables:      39
+members:     121 member accounts
+queue:       40 position(s), MAX(id) = 40
+ladder:      10 rows, sum 8,381,000.00
+seed marker: 2026-11-01 00:00:00
+
+$ php bin/general_harvest_arm.php --json   (the copy is armed as in QA21C-02)
+{
+    "armed": true,
+    "n": 40,
+    "rows": 18,
+    "excluded": 50000,
+    "per_level": {
+        "1": 13,
+        "2": 4,
+        "3": 1,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0,
+        "10": 0
+    },
+    "dry_run": false
+}
+(exit 0)
+
+$ php storage/p21c_queue.php sql ecowealth_sneat_tool_b_test "SELECT COUNT(*) AS awards, SUM(amount) AS amount FROM general_harvest_awards"
+mysql> SELECT COUNT(*) AS awards, SUM(amount) AS amount FROM general_harvest_awards
+| awards | amount   |
+| 18     | 50000.00 |
+
+$ php bin/db_reset.php --force --confirm=ecowealth_sneat_tool_b_test
+EcoWealth database reset
+  target : ecowealth_sneat_tool_b_test at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 121 members · 2 staff · 0 orders · 0 ledger · 3 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (1 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: never
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Reset
+   OK   lock                   Advisory lock acquired                             0 rows (0 ms)
+   OK   preflight              Preflight check                                    2 rows (2 ms)
+   OK   counts                 Snapshot the row counts                            0 rows (52 ms)
+   OK   impersonation          S-Login sessions                                   0 deleted (1 ms)
+   OK   unilevel               Repeat-purchase bonus awards and month snapshots     0 deleted (1 ms)
+   OK   royalty                Royalty bonus awards and month headers             0 deleted (2 ms)
+   OK   general_harvest        General Harvest award ledger                      18 deleted (2 ms)
+   OK   harvest                Team Harvest queue positions and level awards     40 deleted (2 ms)
+   OK   orders                 Shop orders, payments, invoices and fulfilment     0 deleted (3 ms)
+   OK   carts                  Carts and cart lines                               0 deleted (1 ms)
+   OK   addresses              Address book                                       0 deleted (1 ms)
+   OK   wallet                 Wallet ledger, transfers and admin top-ups         0 deleted (3 ms)
+   OK   payouts                Payout requests                                    0 deleted (1 ms)
+   OK   commissions            Commissions and activations                        0 deleted (2 ms)
+   OK   codes                  Registration codes                                 3 deleted (1 ms)
+   OK   sessions               Remember-me sessions (all users)                   0 deleted (1 ms)
+   OK   general_harvest_board  Return the General Harvest board to unarmed        1 rows (1 ms)
+   OK   members                Member accounts                                  121 deleted (19 ms)
+   OK   staff                  Reset the staff accounts                           2 rows (1 ms)
+  SKIP  catalogue              Keep the existing catalogue                        0 rows (0 ms)
+  SKIP  audit_clear            Keep the audit log                                 0 rows (0 ms)
+   OK   live                   Bump live revisions                               18 rows (1 ms)
+   OK   settings               Write the reset metadata                           3 rows (2 ms)
+   OK   audit                  Append the reset audit row                         1 rows (50 ms)
+   OK   auto_increment         Reset AUTO_INCREMENT counters                     24 rows (529 ms)
+   OK   uploads                Delete orphaned upload files                       0 rows (1 ms)
+  SKIP  demo                   Install the demo tree                              0 rows (0 ms)
+  SKIP  codes_generate         Generate registration codes                        0 rows (7 ms)
+   OK   verify                 Verify the reset                                  15 rows (273 ms)
+
+Verification
+   OK   Member accounts               0 member row(s) (expected 0)
+   OK   Business rows                 0 rows across 27 tables (all zero)
+   OK   Staff accounts                2 staff, balances zero, package/sponsor null, active
+   OK   Catalogue                     7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)
+   OK   Registration codes            0 code row(s) (expected 0)
+   OK   Audit trail                   1 system.db_reset row(s) (expected 1)
+   OK   Wallet reconciliation         WalletService::reconcile clean
+   OK   Commission reconciliation     CommissionService::reconcile clean
+   OK   Transfer reconciliation       TransferService::reconcile clean
+   OK   Payout reconciliation         PayoutService::reconcile clean
+   OK   Repeat-purchase reconciliation  UnilevelService::reconcile clean
+   OK   Royalty reconciliation        RoyaltyService::reconcile clean
+   OK   Team Harvest reconciliation   TeamHarvestService::reconcile clean
+   OK   Live revisions                18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters       24 counter(s) at 1
+
+  deleted: 182 rows · members 121 → 0 · orders 0 → 0 · ledger 0 → 0 · codes 3 → 0
+  catalogue: 7 products / 2 packages · audit 2 rows · live 18 surfaces · counters reset 24
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+(exit 0)
+
+$ php storage/p21c_queue.php sql ecowealth_sneat_tool_b_test "SELECT COUNT(*) AS awards FROM general_harvest_awards"
+mysql> SELECT COUNT(*) AS awards FROM general_harvest_awards
+| awards |
+| 0      |
+
+$ php storage/p21c_queue.php sql ecowealth_sneat_tool_b_test "SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board"
+mysql> SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board
+| id | baseline_n | armed_at | armed_by | settled_n |
+| 1  |            |          |          | 0         |
+
+$ php storage/p21c_queue.php sql ecowealth_sneat_tool_b_test "SELECT COUNT(*) AS ladder_rows, SUM(amount) AS ladder_total FROM general_harvest_levels"
+mysql> SELECT COUNT(*) AS ladder_rows, SUM(amount) AS ladder_total FROM general_harvest_levels
+| ladder_rows | ladder_total |
+| 10          | 8381000.00   |
+
+--- the go-live order starts from the queue: without a seed, the arm refuses ---
+$ php bin/general_harvest_arm.php --json
+{
+    "ok": false,
+    "error": "The Harvest queue is not live (team_harvest_ledger_since is empty); run bin/harvest_queue_seed.php before arming (plan §14.3 Rule 4).",
+    "reason": "unseeded"
+}
+(exit 1)
+
+$ php storage/p21c_queue.php queue ecowealth_sneat_tool_b_test 40 40 qa21c_n   (the new network's 40 positions, then the marker)
+members:     40
+queue:       40 position(s), MAX(id) = 40
+seed marker: 2026-11-02 00:00:00
+
+$ php bin/general_harvest_arm.php --json
+{
+    "armed": true,
+    "n": 40,
+    "rows": 18,
+    "excluded": 50000,
+    "per_level": {
+        "1": 13,
+        "2": 4,
+        "3": 1,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0,
+        "10": 0
+    },
+    "dry_run": false
+}
+(exit 0)
+
+$ php storage/p21c_queue.php sql ecowealth_sneat_tool_b_test "SELECT COUNT(*) AS awards, SUM(amount) AS amount FROM general_harvest_awards"
+mysql> SELECT COUNT(*) AS awards, SUM(amount) AS amount FROM general_harvest_awards
+| awards | amount   |
+| 18     | 50000.00 |
+
+$ php storage/p21c_queue.php sql ecowealth_sneat_tool_b_test "SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board"
+mysql> SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board
+| id | baseline_n | armed_at            | armed_by | settled_n |
+| 1  | 40         | 2026-11-17 01:36:36 |          | 40        |

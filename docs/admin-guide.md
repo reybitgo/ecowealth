@@ -942,7 +942,7 @@ in §18 — both call `TeamHarvestService::statusFor()` and cannot legitimately 
 
 ---
 
-## 20. General Harvest bonus: the shared board and its configuration (Phase 21B)
+## 20. General Harvest bonus: the shared board and its configuration (Phases 21B–21C)
 
 The General Harvest bonus is the **second, shared board**. It is not a member's private matrix: there
 is **one board for the whole network**, every Harvest-qualified member holds exactly one **node** — their
@@ -975,9 +975,10 @@ Three things an operator has to hold on to:
 The whole board's liability at queue size `N` is a closed form you can check without reading a row:
 **₱2,000 at N = 4**, **₱176,000 at N = 121**, **₱190,208,000 at N = 88,573**.
 
-> **Phase 21B shipped the configuration and the arithmetic; 21C–21F build the baseline, the money and
-> the visibility.** Nothing can pay yet: there is no arm job, no settlement and no page that writes an
-> award. This section is the card and the numbers it shows. The member's own view arrives with 21F.
+> **Phase 21B shipped the configuration and the arithmetic; 21C adds the CLI arm that records the
+> go-live baseline. Nothing can pay yet: there is no settlement until 21D.** This section is the card
+> and the numbers it shows; the arm is a separate, CLI-only act (see *The one irreversible rule* below
+> and the runbook), not a control on this page. The member's own view arrives with 21F.
 
 ### Where to edit it
 

@@ -1054,7 +1054,9 @@ return [
          * **20F** adds the member visibility: the fourth earnings tab, its
          * six cards, the dashboard tile and the genealogy badge — again all
          * reads; **21B** adds the shared board's read model, which reads the
-         * same queue as the source of `N` (plan §12.3). */
+         * same queue as the source of `N` (plan §12.3); **21C** adds the
+         * board's service (it reads the queue's positions for the baseline)
+         * and its refusal type (it names the seed job in its message). */
         $allowList = [
             '/app/Services/WalletService.php',
             '/app/helpers.php',
@@ -1064,6 +1066,8 @@ return [
             '/app/Models/HarvestQueue.php',
             '/app/Models/TeamHarvestAward.php',
             '/app/Models/GeneralHarvestBoard.php',
+            '/app/Services/GeneralHarvestService.php',
+            '/app/Services/GeneralHarvestException.php',
             '/app/Services/TeamHarvestService.php',
             '/app/Services/TeamHarvestException.php',
             '/app/Controllers/AdminSettingsController.php',
@@ -1210,8 +1214,10 @@ return [
          * ledger model and service, which write and prove them; and
          * **20E's** member-directory join (`Member::adminList()` reads the
          * stored position in the same query) and its report read model
-         * (`Report::teamHarvest*()`). The views call those models — no page
-         * queries either table directly (Rule 5). */
+         * (`Report::teamHarvest*()`); **21C's** board service, which reads
+         * the queue's positions to write the go-live baseline. The views
+         * call those models — no page queries either table directly
+         * (Rule 5). */
 
         assert_same(
             [
@@ -1222,6 +1228,7 @@ return [
                 '/app/Models/Report.php',
                 '/app/Models/TeamHarvestAward.php',
                 '/app/Services/DatabaseResetService.php',
+                '/app/Services/GeneralHarvestService.php',
                 '/app/Services/TeamHarvestService.php',
             ],
             $readers,

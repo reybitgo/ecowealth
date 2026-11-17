@@ -1592,15 +1592,12 @@ return [
             assert_same(0, preg_match('/general_harvest/i', (string) file_get_contents($appRoot . $file)), $file . ' has no General Harvest route');
         }
 
-        assert_false(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
+        /* 21C adds the arm job and the ledger's baseline writer; the
+         * catch-up (21D) and every page above the card (21E/21F) do not
+         * exist yet, and this phase still changes no schema. */
+        assert_true(is_file($appRoot . '/bin/general_harvest_arm.php'), 'the arm job is 21C');
         assert_false(is_file($appRoot . '/bin/general_harvest_catchup.php'), 'the catch-up job is 21D');
-
-        foreach ([
-            '/app/Models/GeneralHarvestAward.php',
-            '/app/Services/GeneralHarvestService.php',
-        ] as $file) {
-            assert_false(is_file($appRoot . $file), $file . ' is not part of 21B');
-        }
+        assert_false(is_file($appRoot . '/app/Controllers/GeneralHarvestController.php'), 'the pages are 21E/21F');
     },
 
     'P21B-T33 the card is the only place the phase renders and no other card owns a key' => function () use ($sectionMethod, $ghKeys): void {

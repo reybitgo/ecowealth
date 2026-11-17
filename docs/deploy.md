@@ -1,6 +1,6 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: current.** This guide covers the **Phase 21 build in progress (21A–21B)**: 39 tables,
+> **Status: current.** This guide covers the **Phase 21 build in progress (21A–21C)**: 39 tables,
 > 79 settings, migrations `001`–`025`, ten Team Harvest and ten General Harvest ladder rows (plus the
 > unarmed General Harvest board row), six scheduled jobs and the live-update layer. The Phase 20F/20G
 > addendum at the end is the migration/upgrade note for the Team Harvest bonus, and the Phase 21
@@ -1028,6 +1028,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-16 | Phase 20F/20G (the member visibility and the release): the fourth `/earnings` tab, the dashboard tile and the genealogy badge; `APP_PHASE` **20**; the QA pack is signed (A–G, 58 checks) and the smoke walk is **263** checks. Counts **36 / 77 / 10 / 20**. No schema change. |
 | 2026-11-16 | Phase 21A (General Harvest foundation): migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement, two settings (stream **off**) and the ten ladder rows plus the unarmed board row; §5B and §11.6 now read **39 tables / 79 settings**. No route, no cron entry. |
 | 2026-11-16 | Phase 21B (General Harvest configuration and arithmetic): the *General Harvest bonus* sub-block on `/admin/settings` → Commissions, the generated ladder and position tables, the four-state strip, the calculator, the two models (`GeneralHarvestLevel`, `GeneralHarvestBoard`) and the `general_harvest.ladder.update` audit row. No schema change, no route, no cron entry. |
+| 2026-11-16 | Phase 21C (General Harvest baseline): the CLI-only one-time arm (`bin/general_harvest_arm.php` + `.cmd`), `GeneralHarvestAward` (read + baseline write), `GeneralHarvestService` / `GeneralHarvestException`, the `general_harvest.arm` audit row, the board armed at `N₀` (`baseline_n = settled_n = N₀`) and one `baseline` row per block already full, at all ten levels. **No money moves**, no schema change, no route, no cron entry. |
 
 ---
 
@@ -1716,7 +1717,7 @@ phase constant and the test/docs. The queue, the awards and the ladder stay exac
 
 ---
 
-## Phase 21 addendum — the General Harvest bonus (21A → 21B so far)
+## Phase 21 addendum — the General Harvest bonus (21A → 21C so far)
 
 **No new hosting requirement.** Phase 21 adds one more bonus on the Harvest queue Phase 20 built: one
 **shared 3-ary board** for the whole network, where a member's node is their queue position minus one
@@ -1766,9 +1767,33 @@ can change them afterwards.
 Every moved ladder writes one `general_harvest.ladder.update` audit row (switch, depth and the ten
 amounts, before and after) plus the tenant-wide `settings.update` row for the keys that moved.
 
+### Arming the baseline (21C)
+
+The arm is the stream's **one irreversible decision** and a **CLI-only** act: it is not a page, not a
+button and not a cron entry. It records `N₀` (the queue length at that instant) and one `baseline` row
+for every block that was already full, at all ten levels, then arms the board
+(`baseline_n = settled_n = N₀`). **It pays nothing.** The order is **configure → arm (dry run) → arm →
+enable**, and the arm refuses while the stream is on:
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+php bin\general_harvest_arm.php --dry-run   # read N0, the rows and the excluded amount
+php bin\general_harvest_arm.php             # record the baseline, in one transaction
+php bin\wallet_reconcile.php                # exit 0 — the arm moves no money
+```
+
+Read the dry run: it prints `N₀`, the number of `baseline` rows and the excluded amount
+(`boardTotal(N₀)`) — exactly what the network had already earned and will never be paid. A second arm is
+refused (`armed`; there is no `--force`), as are a stream that is switched on (`enabled`), an unseeded
+queue (`unseeded`), a level priced at zero (`invalid_ladder`) and a queue hole (`not_gapless`). Every
+refusal writes nothing. The resulting board row reads `(1, <N₀>, <instant>, NULL, <N₀>)`; the job is
+audited as `general_harvest.arm`. The full drill is in
+[`runbook.md`](runbook.md) → *General Harvest go-live order, part 1*.
+
 ### Verification after the upgrade
 
-- [ ] `php tests/run.php` → **1,371 / 1,371**; `powershell -File tests/smoke.ps1` → **268 / 268**.
+- [ ] `php tests/run.php` → **1,392 / 1,392**; `powershell -File tests/smoke.ps1` → **268 / 268**.
 - [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **39 tables / 79
       settings / 10 Team Harvest ladder rows / 10 General Harvest ladder rows / 1 unarmed board row**.
 - [ ] `php bin/wallet_reconcile.php` exits 0 — the General Harvest section is not part of the
@@ -1776,11 +1801,16 @@ amounts, before and after) plus the tenant-wide `settings.update` row for the ke
 - [ ] `/admin/settings` → Commissions shows the **General Harvest bonus** card: the reference amounts,
       the switch off, the depth 10, both generated tables and the strip **Not armed** naming
       `bin/general_harvest_arm.php`.
-- [ ] `SELECT * FROM general_harvest_board;` → one row `(1, NULL, NULL, NULL, 0)`.
+- [ ] `SELECT * FROM general_harvest_board;` → one row `(1, NULL, NULL, NULL, 0)` before the arm.
+- [ ] At go-live, the dry run and the real arm print the same `N₀`, row count and excluded amount, and
+      every written row is `baseline` with `ledger_id NULL`.
 
-### Rollback (21A/21B)
+### Rollback (21A/21C)
 
-Turn the switch off and revert the code. The ladder rows, the board row and the two settings may stay:
-they are inert and a later attempt can reuse them. No money exists to reverse: delete the three tables
-only with a matching `down` decision — dropping `general_harvest_awards` would erase the record of every
-node and award the moment 21D starts writing them.
+Turn the switch off and revert the code. The ladder rows, the board row, the baseline rows and the two
+settings may stay: they are inert, and the baseline is a correct record of what was already earned at
+go-live, so a later attempt can reuse it. No money exists to reverse. To abandon the stream entirely,
+`UPDATE general_harvest_board SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0`
+and `TRUNCATE general_harvest_awards`; delete the three tables only with a matching `down` decision —
+dropping `general_harvest_awards` would erase the record of every node and award the moment 21D starts
+writing them.
