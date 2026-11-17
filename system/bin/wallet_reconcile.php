@@ -38,6 +38,13 @@ declare(strict_types=1);
  *       it was never paid, orphan movements, the counter drift against
  *       a from-scratch recount and the ladder's ten rows (plan §14.13).
  *       The stream being off or unseeded is a warning, never a failure.
+ *    8. General Harvest — every credited award against its
+ *       `general_harvest` credit, every baseline row against the rule that
+ *       it was never paid, orphan movements, the per-level prefix against
+ *       `qFor(L, settled_n)`, the closed-form identity
+ *       `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)`,
+ *       and the ladder's ten priced rows. The stream being off or
+ *       unarmed is a warning, never a failure.
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -78,13 +85,14 @@ try {
     $unilevel     = (new UnilevelService())->reconcile();
     $royalty      = (new RoyaltyService())->reconcile();
     $teamHarvest  = (new TeamHarvestService())->reconcile();
+    $generalHarvest = (new GeneralHarvestService())->reconcile();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
 
 $ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok']
-    && $unilevel['ok'] && $royalty['ok'] && $teamHarvest['ok'];
+    && $unilevel['ok'] && $royalty['ok'] && $teamHarvest['ok'] && $generalHarvest['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -102,6 +110,7 @@ if (isset($options['json'])) {
             'unilevel'     => $unilevel,
             'royalty'      => $royalty,
             'team_harvest' => $teamHarvest,
+            'general_harvest' => $generalHarvest,
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
@@ -449,9 +458,56 @@ if ($teamHarvest['ok']) {
 
 echo PHP_EOL;
 
+echo 'General Harvest', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $generalHarvest['credited_rows'] ?? 0,
+    $format($generalHarvest['credited_total'] ?? 0),
+    PHP_EOL
+);
+printf(
+    "  baseline awards:   %d (%s)%s",
+    $generalHarvest['baseline_rows'] ?? 0,
+    $format($generalHarvest['baseline_total'] ?? 0),
+    PHP_EOL
+);
+printf("  general_harvest ledger: %s%s", $format($generalHarvest['ledger_total'] ?? 0), PHP_EOL);
+
+/* The switch being off and the board being unarmed are operational
+ * states, not books errors: they must never turn a clean reconciliation
+ * into exit 1 (plan D-10, D-19). */
+foreach ($generalHarvest['warnings'] ?? [] as $warning) {
+    printf(
+        "  warning:           [%s] %s%s",
+        (string) $warning['kind'],
+        (string) $warning['message'],
+        PHP_EOL
+    );
+}
+
+if ($generalHarvest['ok']) {
+    echo '  OK — every credited award has its wallet movement, every baseline row is unpaid,'
+        . ' and the closed form agrees.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($generalHarvest['mismatches']), PHP_EOL);
+
+    foreach ($generalHarvest['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
 if ($ok) {
-    echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty'
-        . ' and team-harvest awards reconcile.', PHP_EOL;
+    echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty,'
+        . ' team-harvest and general-harvest awards reconcile.', PHP_EOL;
     exit(0);
 }
 

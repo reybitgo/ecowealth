@@ -17,6 +17,12 @@ log conventions. The first two, the release job and the Royalty close have a kil
 have incremented. The month close (unilevel) has none either, on purpose: it pays no money, so there is
 nothing to kill.
 
+**General Harvest has no cron entry.** Its engine settles on every queue append (one position inline,
+via `RegistrationService`) and its backlog is cleared by the on-demand `bin/general_harvest_catchup.php`
+(D-08, §14.15). There is nothing to aggregate on a schedule: a block completes when the queue reaches
+a position, and the amount is fixed. Run the catch-up and its doctor after enabling the stream, after a
+repair, or after a deploy that fixed a bug — never on a cron schedule.
+
 ---
 
 # 1. Shop expiry

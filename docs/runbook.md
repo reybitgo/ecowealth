@@ -367,6 +367,51 @@ general_harvest_board SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, s
 
 ---
 
+### General Harvest award and reconcile drill, part 2 (once, Phase 21D)
+
+The board is armed and off after part 1. Part 2 switches the stream on, settles any backlog that built
+up while it was off, and proves the books with the reconciler and the doctor. This is the stream's
+only money movement, and every figure is traceable to a wallet movement.
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+# 7. Turn the stream on. From this second, every queue append settles one position inline.
+#    The card on /admin/settings shows "armed, switch on".
+setting_set general_harvest_enabled 1   (via /admin/settings, switch on)
+
+# 8. Settle the backlog created between the arm and the switch.
+php bin\general_harvest_catchup.php
+exit 0
+
+# 9. Prove the books.
+php bin\wallet_reconcile.php
+exit 0
+
+# 10. Doctor the stream.
+php bin\general_harvest_catchup.php --doctor
+exit 0
+```
+
+**Read the result.** Step 8 writes one award per newly-complete block and one withdrawable wallet
+credit per award, in board order. A second run pays nothing — the engine is idempotent
+(`settled_n` is exact, and `UNIQUE (seq, level)` anchors each award). Step 9's **General Harvest**
+section reports `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)` and `Σ baseline =
+boardTotal(baseline_n)`, with zero mismatches. Step 10's doctor is green when the ladder is priced,
+the queue is gapless, every credited award names its wallet movement, and the closed form agrees
+with the ledger.
+
+**If the catch-up is refused `disabled`:** the stream is still off — turn it on first (step 7).
+**If refused `unarmed`:** the board has no baseline — run part 1's arm first.
+**If the doctor is red:** read the failing check. A `per_level_prefix` failure means a row was
+deleted or hand-edited — restore from backup, never edit the ledger by hand. A `credit_link`
+failure means a wallet movement is missing — the settlement writes award and credit in one
+transaction, so this only happens if something outside the engine touched the books.
+
+**Exit codes:** `0` clean, `1` refused or a problem found, `2` database unreachable.
+
+---
+
 ## 3. Backups, install, reset and restore
 
 ### What to back up

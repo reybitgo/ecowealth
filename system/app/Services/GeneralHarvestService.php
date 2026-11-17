@@ -1016,9 +1016,54 @@ final class GeneralHarvestService
             $pass('ladder_ok', 'the ladder has ten priced rows and has not changed since the arm');
         }
 
+        /* Σ credited awards and wallet credits — captured for the report */
+        $creditedRows   = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM general_harvest_awards WHERE status = 'credited'"
+        )->fetchColumn();
+        $creditedTotal  = (float) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM general_harvest_awards WHERE status = 'credited'"
+        )->fetchColumn();
+        $baselineRows   = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM general_harvest_awards WHERE status = 'baseline'"
+        )->fetchColumn();
+        $baselineTotal  = (float) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM general_harvest_awards WHERE status = 'baseline'"
+        )->fetchColumn();
+        $ledgerTotal    = (float) $this->pdo->query(
+            "SELECT COALESCE(SUM(amount), 0) FROM ewallet_ledger
+               WHERE ref_type = 'general_harvest' AND type = 'credit'"
+        )->fetchColumn();
+
+        $warnings = [];
+
+        if (!$board['armed']) {
+            $warnings[] = [
+                'kind'    => 'unarmed',
+                'message' => 'the board is unarmed; nothing can pay until bin/general_harvest_arm.php runs',
+            ];
+        }
+
+        if (!$this->enabled()) {
+            $warnings[] = [
+                'kind'    => 'disabled',
+                'message' => 'the stream is switched off (general_harvest_enabled = 0); the queue still records positions',
+            ];
+        }
+
         return [
-            'ok'     => $ok,
-            'checks' => $checks,
+            'ok'               => $ok,
+            'checks'           => $checks,
+            'credited_rows'    => $creditedRows,
+            'credited_total'   => round($creditedTotal, 2),
+            'baseline_rows'    => $baselineRows,
+            'baseline_total'   => round($baselineTotal, 2),
+            'ledger_rows'      => $creditedRows,
+            'ledger_total'     => round($ledgerTotal, 2),
+            'mismatches'       => array_values(array_filter(
+                $checks,
+                static fn (array $check): bool => ($check['ok'] ?? false) !== true
+            )),
+            'warnings'         => $warnings,
         ];
     }
 

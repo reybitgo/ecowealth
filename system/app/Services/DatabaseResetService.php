@@ -1762,6 +1762,7 @@ final class DatabaseResetService
             'unilevel'     => ['label' => 'Repeat-purchase reconciliation', 'service' => 'UnilevelService'],
             'royalty'      => ['label' => 'Royalty reconciliation', 'service' => 'RoyaltyService'],
             'team_harvest' => ['label' => 'Team Harvest reconciliation', 'service' => 'TeamHarvestService'],
+            'general_harvest' => ['label' => 'General Harvest reconciliation', 'service' => 'GeneralHarvestService'],
         ];
 
         foreach ($services as $key => $meta) {
