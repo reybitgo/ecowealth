@@ -173,11 +173,11 @@ return [
         assert_same('general_harvest', (string) $page['data']['tab'], 'the fifth tab is general_harvest');
         assert_contains('General Harvest bonus', $page['html'], 'the card heading renders');
         assert_contains('Level distribution', $page['html'], 'the level distribution renders');
-        assert_contains($page['html'], 'Credited', 'the Credited tile renders');
-        assert_contains($page['html'], 'Before go-live', 'the Before go-live tile renders');
-        assert_contains($page['html'], 'Open liability', 'the Open liability tile renders');
-        assert_contains($page['html'], 'No block has completed yet', 'the empty state renders');
-        assert_contains($page['html'], 'Export CSV', 'the export button renders');
+        assert_contains('Credited', $page['html'], 'the Credited tile renders');
+        assert_contains('Before go-live', $page['html'], 'the Before go-live tile renders');
+        assert_contains('Open liability', $page['html'], 'the Open liability tile renders');
+        assert_contains('No block has completed yet', $page['html'], 'the empty state renders');
+        assert_contains('Export CSV', $page['html'], 'the export button renders');
     },
 
     /* ==========================================================
@@ -189,14 +189,17 @@ return [
 
         $page = $ledgerPage(['ledger' => 'general_harvest']);
 
-        assert_contains($page['html'], '₱50,000.00', 'the Credited total is ₱50,000.00');
-        assert_contains($page['html'], '18', '18 awards');
-        assert_contains($page['html'], '13', '13 recipients');
+        assert_contains('₱50,000.00', $page['html'], 'the Credited total is ₱50,000.00');
+        assert_contains('18', $page['html'], '18 awards');
+        assert_contains('13', $page['html'], '13 recipients');
 
         /* Node 0 (position #1) holds 3 levels: ₱14,000. */
         $rootUser = (int) $fixture['users'][0];
-        $root = db()->prepare('SELECT username FROM users WHERE id = ?')->execute([$rootUser])->fetch();
-        assert_contains($page['html'], '@' . (string) ($root['username'] ?? ''), 'the root member appears');
+        $rootStatement = db()->prepare('SELECT username FROM users WHERE id = ?');
+        $rootStatement->execute([$rootUser]);
+        $root = $rootStatement->fetch();
+
+        assert_contains('@' . (string) ($root['username'] ?? ''), $page['html'], 'the root member appears');
 
         $stats = $page['data']['stats'];
         assert_same(50000.0, (float) $stats['credited_total'], 'credited_total = 50,000');
@@ -239,22 +242,25 @@ return [
 
         /* Filter by level 3: one row (node 0, ₱8,000). */
         $page = $ledgerPage(['ledger' => 'general_harvest', 'level' => '3']);
-        assert_contains($page['html'], 'Level 3', 'level 3 filter applies');
-        assert_contains($page['html'], '₱8,000.00', 'the level 3 row is ₱8,000');
+        assert_contains('Level 3', $page['html'], 'level 3 filter applies');
+        assert_contains('₱8,000.00', $page['html'], 'the level 3 row is ₱8,000');
 
         /* Filter by status = credited: all 18 rows. */
         $page = $ledgerPage(['ledger' => 'general_harvest', 'status' => 'credited']);
-        assert_contains($page['html'], '₱50,000.00', 'credited filter keeps ₱50,000.00');
+        assert_contains('₱50,000.00', $page['html'], 'credited filter keeps ₱50,000.00');
 
         /* Filter by q (member search). */
         $rootUser = (int) $fixture['users'][0];
-        $root = db()->prepare('SELECT username FROM users WHERE id = ?')->execute([$rootUser])->fetch();
+        $rootStatement = db()->prepare('SELECT username FROM users WHERE id = ?');
+        $rootStatement->execute([$rootUser]);
+        $root = $rootStatement->fetch();
+
         $page = $ledgerPage(['ledger' => 'general_harvest', 'q' => (string) ($root['username'] ?? '')]);
-        assert_contains($page['html'], '@' . (string) ($root['username'] ?? ''), 'member filter finds the root');
+        assert_contains('@' . (string) ($root['username'] ?? ''), $page['html'], 'member filter finds the root');
 
         /* Unknown status falls back to "no filter". */
         $page = $ledgerPage(['ledger' => 'general_harvest', 'status' => 'bogus']);
-        assert_contains($page['html'], '₱50,000.00', 'an unknown status falls back to no filter');
+        assert_contains('₱50,000.00', $page['html'], 'an unknown status falls back to no filter');
     },
 
     /* ==========================================================
@@ -267,12 +273,12 @@ return [
         $page = $ledgerPage(['ledger' => 'general_harvest']);
 
         for ($level = 1; $level <= 10; $level++) {
-            assert_contains($page['html'], 'Level ' . $level, 'level ' . $level . ' appears in the distribution');
+            assert_contains('Level ' . $level, $page['html'], 'level ' . $level . ' appears in the distribution');
         }
 
-        assert_contains($page['html'], '₱2,000.00', 'level 1 amount');
-        assert_contains($page['html'], '₱5,000,000.00', 'level 10 amount');
-        assert_contains($page['html'], 'Levels that pay: 10', 'the depth badge reads 10');
+        assert_contains('₱2,000.00', $page['html'], 'level 1 amount');
+        assert_contains('₱5,000,000.00', $page['html'], 'level 10 amount');
+        assert_contains('Levels that pay: 10', $page['html'], 'the depth badge reads 10');
     },
 
     /* ==========================================================
@@ -530,7 +536,7 @@ return [
         $stats = $page['data']['stats'];
         assert_same(1, (int) $stats['queue_n'], 'the queue is at N = 1');
         assert_same(0, (int) $stats['settled_n'], 'settled_n stays 0');
-        assert_contains($page['html'], 'general_harvest_catchup.php', 'the backlog names the catch-up job');
+        assert_contains('general_harvest_catchup.php', $page['html'], 'the backlog names the catch-up job');
     },
 
     /* ==========================================================
