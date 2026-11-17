@@ -3,12 +3,20 @@ declare(strict_types=1);
 
 /**
  * Member General Harvest statement — the next-block progress card
- * (Phase 21F, plan §10 Rules 2–5, Appendix C.3/C.8).
+ * (Phase 21F, plan §10 Rules 3–5, Appendix C.3/C.8).
  *
  * When the member has not qualified, this is the whole region: the gate
  * and the count they hold. When they have qualified, it shows the next
  * incomplete level, how many slots are filled, what it pays and the exact
- * `N` the queue needs. No date is ever promised (Rule 5).
+ * `N` the queue needs. If nothing has completed for the member and
+ * nothing can complete at the current queue size, the mandatory Rule 4
+ * sentence replaces the progress. No date is ever promised (Rule 5).
+ *
+ * The network sentence (Rule 2) lives once, on the block card header;
+ * it is deliberately not repeated here (P21F-T13).
+ *
+ * Everything is `GeneralHarvestService::statusFor()` — the view formats
+ * and never computes (Rule 10).
  *
  * @var array<string, mixed> $general_harvest GeneralHarvestService::statusFor()
  */
@@ -17,14 +25,10 @@ $general_harvest = $general_harvest ?? [];
 
 $queued   = (bool) ($general_harvest['queued'] ?? false);
 $position = $general_harvest['position'] ?? null;
-$seq      = $general_harvest['seq'] ?? null;
 $queueN   = (int) ($general_harvest['queue_n'] ?? 0);
 $armed    = (bool) ($general_harvest['armed'] ?? false);
-$enabled  = (bool) ($general_harvest['enabled'] ?? false);
 $next     = is_array($general_harvest['next'] ?? null) ? $general_harvest['next'] : null;
-$reachable= (bool) ($general_harvest['reachable'] ?? false);
-$open     = (string) ($general_harvest['open'] ?? '');
-$earned   = (float) ($general_harvest['earned'] ?? 0.0);
+$rule4    = (bool) ($general_harvest['rule4'] ?? false);
 ?>
 <?php if (!$queued): ?>
               <div class="card mb-4" data-live-region="earnings-general-progress">
@@ -62,13 +66,14 @@ $earned   = (float) ($general_harvest['earned'] ?? 0.0);
                     recorded and will count when it is switched on.
                   </div>
 <?php endif; ?>
-<?php if ($next === null || !$reachable): ?>
+<?php if ($rule4): ?>
                   <p class="mb-3">
                     <strong>No level can complete at the current queue size.</strong>
-                    The queue is at <?= number_format($queueN) ?> qualified members; level 1 needs the
-                    queue to reach 4.
+                    The queue is at <?= number_format($queueN) ?> qualified members;
+                    level <?= (int) ($next['level'] ?? 1) ?> needs the queue to reach
+                    <strong><?= number_format((int) ($next['needs_n'] ?? 4)) ?></strong>.
                   </p>
-<?php else: ?>
+<?php elseif ($next !== null): ?>
 <?php
     $nextLevel = (int) ($next['level'] ?? 0);
     $nextFrom  = (int) ($next['from'] ?? 0);
@@ -90,17 +95,17 @@ $earned   = (float) ($general_harvest['earned'] ?? 0.0);
                     <div class="progress-bar bg-primary" style="width: <?= $nextPct ?>%"></div>
                   </div>
                   <p class="small text-body-secondary mt-2 mb-0">
-                    <strong><?= $nextRem ?> more qualified member<?= $nextRem === 1 ? '' : 's' ?></strong>
+                    <strong><?= number_format($nextRem) ?> more qualified member<?= $nextRem === 1 ? '' : 's' ?></strong>
                     needed. When the queue reaches
                     <strong><?= number_format($nextNeeds) ?></strong>, level
                     <?= $nextLevel ?> completes and pays <strong><?= e(money($nextAmt)) ?></strong>.
                   </p>
-<?php endif; ?>
-                  <p class="small text-body-secondary mt-3 mb-0">
-                    <strong>A slot in your block is filled by a qualified member of the whole network
-                    — not necessarily anyone in your team. Your block fills in the order members
-                    qualified.</strong>
+<?php else: ?>
+                  <p class="mb-3">
+                    <strong>All ten blocks are complete.</strong>
+                    Every level of your block has reached its last position and been decided.
                   </p>
+<?php endif; ?>
                 </div>
                 <div class="card-footer small text-body-secondary">
                   The amount is fixed by the plan; the timing is not knowable. Nothing on this card is

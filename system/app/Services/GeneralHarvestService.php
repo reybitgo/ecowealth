@@ -744,20 +744,31 @@ final class GeneralHarvestService
             }
         }
 
-        $reachable = false;
-
-        for ($level = GeneralHarvestLevel::LEVEL_MIN; $level <= $depth; $level++) {
-            if (GeneralHarvestLevel::paid($level, $queueN) > 0) {
-                $reachable = true;
-                break;
-            }
-        }
-
         $earned = 0.0;
 
         if ($seq !== null) {
             $earned = GeneralHarvestLevel::earnedBy($seq, $queueN, $amounts, $depth, $this->pdo);
         }
+
+        /* Rule 4 (plan §10): a card may only say "no level can complete at
+         * the current queue size" when that is true **for this node** and
+         * nothing has completed for the member yet. `reachable` is the
+         * next block's threshold against the current `N`; the view never
+         * computes it. */
+        $reachable = $seq !== null
+            && $next !== null
+            && (int) ($next['needs_n'] ?? 0) <= $queueN;
+
+        $anyComplete = false;
+
+        foreach ($levels as $levelRow) {
+            if (!empty($levelRow['complete'])) {
+                $anyComplete = true;
+                break;
+            }
+        }
+
+        $rule4 = $seq !== null && $next !== null && !$anyComplete && !$reachable;
 
         return [
             'queued'         => $position !== null,
@@ -765,6 +776,7 @@ final class GeneralHarvestService
             'seq'            => $seq,
             'queue_n'        => $queueN,
             'armed'          => $armed,
+            'armed_at'       => $board['armed_at'] ?? null,
             'enabled'        => $enabled,
             'baseline_n'     => $baselineN,
             'settled_n'      => $settledN,
@@ -776,12 +788,182 @@ final class GeneralHarvestService
             'levels'         => array_values($levels),
             'next'           => $next,
             'reachable'      => $reachable,
+            'rule4'          => $rule4,
             'paid_levels'    => count($paid),
             'baseline_levels'=> count(array_filter($levels, static fn (array $l): bool => $l['status'] === GeneralHarvestAward::STATUS_BASELINE)),
             'credited_amount'=> number_format($paidTotal, 2, '.', ''),
-            'roster'         => null,
             'open'           => number_format($open, 2, '.', ''),
         ];
+    }
+
+    /**
+     * One page of the occupants of one of the member's own blocks, with
+     * the D-20 privacy rule applied (plan §10 Rule 8, P21F-T19/T22/T23).
+     *
+     * `statusFor()` deliberately does not carry this: the dashboard tile
+     * and the genealogy badge do not need a roster, and reading one there
+     * would spend queries for nothing. The earnings page asks for it.
+     *
+     * Defaults to the member's next incomplete level; `$level` selects
+     * another. The block's range, slot count and filled count all come
+     * from `blockOccupants()` — the view formats, it never computes.
+     *
+     * @return array{level:int, page:int, per_page:int, pages:int,
+     *               from:int, to:int, filled:int, total:int,
+     *               rows:list<array{position:int, username:?string, relation:string}>}|null
+     */
+    public function rosterFor(int $userId, int $level = 0, int $page = 1, int $perPage = 25): ?array
+    {
+        $position = GeneralHarvestBoard::positionOf($userId, $this->pdo);
+
+        if ($position === null) {
+            return null;
+        }
+
+        $seq    = $position - 1;
+        $depth  = GeneralHarvestLevel::maxLevels();
+        $queueN = (int) GeneralHarvestBoard::queueN($this->pdo)['n'];
+
+        if ($level < GeneralHarvestLevel::LEVEL_MIN || $level > $depth) {
+            $level = 0;
+
+            for ($candidate = GeneralHarvestLevel::LEVEL_MIN; $candidate <= $depth; $candidate++) {
+                if (!GeneralHarvestLevel::complete($seq, $candidate, $queueN)) {
+                    $level = $candidate;
+                    break;
+                }
+            }
+        }
+
+        if ($level === 0) {
+            return null;
+        }
+
+        $page    = max(1, $page);
+        $perPage = max(1, min(25, $perPage));
+
+        $block = GeneralHarvestBoard::blockOccupants(
+            $seq,
+            $level,
+            ($page - 1) * $perPage,
+            $perPage,
+            $this->pdo
+        );
+
+        $relations = $this->relationsFor($userId, array_map(
+            static fn (array $row): int => (int) $row['user_id'],
+            $block['rows']
+        ));
+
+        $rows = [];
+
+        foreach ($block['rows'] as $row) {
+            $relation = $relations[(int) $row['user_id']] ?? 'outside';
+
+            $rows[] = [
+                'position' => (int) $row['position'],
+                'username' => $relation === 'outside' ? null : (string) $row['username'],
+                'relation' => $relation,
+            ];
+        }
+
+        return [
+            'level'    => $level,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'pages'    => (int) ceil($block['total'] / $perPage),
+            'from'     => $block['from'],
+            'to'       => $block['to'],
+            'filled'   => $block['filled'],
+            'total'    => $block['total'],
+            'rows'     => $rows,
+        ];
+    }
+
+    /**
+     * The relation of every member in `$userIds` to the viewer, for the
+     * roster's privacy rule (D-20): `self`, `direct`, `in-team` or
+     * `outside` (plan §10 Rule 13). A viewer never sees another member's
+     * username outside their own sponsor subtree.
+     *
+     * The sponsor chains are read **one generation at a time for the whole
+     * page**, so a 25-row page costs the depth of its deepest member's
+     * chain, not 25 ancestry walks (P21F-T19's query budget).
+     *
+     * @param list<int> $userIds
+     * @return array<int, 'self'|'direct'|'in-team'|'outside'>
+     */
+    private function relationsFor(int $viewerId, array $userIds): array
+    {
+        $sponsor = [];
+        $pending = [];
+
+        foreach ($userIds as $id) {
+            $id = (int) $id;
+
+            if ($id > 0 && $id !== $viewerId) {
+                $pending[$id] = true;
+            }
+        }
+
+        while ($pending !== []) {
+            $ids          = array_keys($pending);
+            $pending      = [];
+            $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+
+            $statement = $this->pdo->prepare(
+                'SELECT id, sponsor_id FROM users WHERE id IN (' . $placeholders . ')'
+            );
+            $statement->execute($ids);
+
+            foreach ($statement->fetchAll() as $row) {
+                $id       = (int) $row['id'];
+                $parent   = (int) ($row['sponsor_id'] ?? 0);
+                $sponsor[$id] = $parent;
+
+                if ($parent > 0 && $parent !== $viewerId && !isset($sponsor[$parent])) {
+                    $pending[$parent] = true;
+                }
+            }
+        }
+
+        $relations = [];
+
+        foreach ($userIds as $id) {
+            $id = (int) $id;
+
+            if ($id === $viewerId) {
+                $relations[$id] = 'self';
+                continue;
+            }
+
+            if (($sponsor[$id] ?? 0) === $viewerId) {
+                $relations[$id] = 'direct';
+                continue;
+            }
+
+            $relation = 'outside';
+            $cursor   = $id;
+            $seen     = [$id => true];
+
+            while (($parent = $sponsor[$cursor] ?? 0) > 0) {
+                if ($parent === $viewerId) {
+                    $relation = 'in-team';
+                    break;
+                }
+
+                if (isset($seen[$parent])) {
+                    break;
+                }
+
+                $seen[$parent] = true;
+                $cursor        = $parent;
+            }
+
+            $relations[$id] = $relation;
+        }
+
+        return $relations;
     }
 
     /**

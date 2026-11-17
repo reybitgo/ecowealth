@@ -52,6 +52,27 @@ $armed    = (bool) ($general_harvest['armed'] ?? false);
     $progress  = (float) ($levelRow['progress'] ?? 0.0);
     $paid      = $status === GeneralHarvestAward::STATUS_CREDITED;
     $baseline  = $status === GeneralHarvestAward::STATUS_BASELINE;
+
+    /* Member-facing status labels (Appendix C.7): stored statuses keep
+     * their badge labels; computed block states read in member vocabulary. */
+    $statusLabel = match ($status) {
+        GeneralHarvestAward::STATUS_CREDITED    => 'Paid',
+        GeneralHarvestAward::STATUS_BASELINE    => 'Before go-live',
+        'complete-beyond-depth'                 => 'Not paying at this depth',
+        'unpriced'                              => 'No amount configured',
+        'progress'                              => 'In progress',
+        'waiting'                               => 'Waiting for the queue',
+        default                                 => ucfirst(str_replace('_', ' ', $status)),
+    };
+    $statusTone = match ($status) {
+        GeneralHarvestAward::STATUS_CREDITED    => 'success',
+        GeneralHarvestAward::STATUS_BASELINE    => 'secondary',
+        'complete-beyond-depth'                 => 'info',
+        'unpriced'                              => 'warning',
+        'progress'                              => 'primary',
+        'waiting'                               => 'secondary',
+        default                                 => 'secondary',
+    };
 ?>
                       <tr data-live-key="level-<?= $level ?>">
                         <td class="text-nowrap fw-medium">Level <?= $level ?></td>
@@ -66,8 +87,13 @@ $armed    = (bool) ($general_harvest['armed'] ?? false);
                         <td class="text-end text-nowrap fw-semibold">
                           <?= e(money($amount)) ?>
                         </td>
-                        <td class="text-nowrap">
-                          <?= status_badge($status, GeneralHarvestAward::STATUS_BADGES) ?>
+                        <td>
+                          <span class="badge bg-label-<?= $statusTone ?> text-nowrap"><?= e($statusLabel) ?></span>
+<?php if (!$complete && $threshold > 0): ?>
+                          <span class="small text-body-secondary d-block text-nowrap">
+                            needs the queue to reach <?= number_format($threshold) ?>
+                          </span>
+<?php endif; ?>
                         </td>
                       </tr>
 <?php endforeach; ?>
@@ -75,7 +101,7 @@ $armed    = (bool) ($general_harvest['armed'] ?? false);
                   </table>
                 </div>
                 <div class="card-footer small text-body-secondary">
-                  A level pays once, ever, when the queue reaches its block's last position —
-                  #<?= number_format($threshold) ?> for level 1 at this node.
+                  A level pays once, ever, and in full: when the queue reaches the last position of
+                  its block. A block that is partly filled pays nothing.
                 </div>
               </div>

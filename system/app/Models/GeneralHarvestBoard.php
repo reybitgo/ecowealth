@@ -408,6 +408,85 @@ final class GeneralHarvestBoard
     }
 
     /**
+     * A page of the occupants of node `$seq`'s level-`$level` block — the
+     * members whose queue positions fill that block, in position order.
+     *
+     * The block spans positions `start+1 … start+3^L` where
+     * `start = 3^L·seq + (3^L − 1)/2` (§12.2). A page costs one bounded
+     * read of `harvest_queue` — no award row is read, and nothing here is
+     * money. Usernames are returned raw; the caller applies D-20 privacy
+     * (show a username only inside the viewer's sponsor subtree).
+     *
+     * @return array{level:int, seq:int, offset:int, limit:int, total:int,
+     *               filled:int, from:int, to:int, n:int,
+     *               rows:list<array{position:int, user_id:int, username:string}>}
+     */
+    public static function blockOccupants(
+        int $seq,
+        int $level,
+        int $offset,
+        int $limit,
+        ?PDO $pdo = null
+    ): array {
+        if ($level < GeneralHarvestLevel::LEVEL_MIN || $level > GeneralHarvestLevel::LEVEL_MAX) {
+            throw new InvalidArgumentException(sprintf(
+                'A General Harvest level is %d–%d; got %d.',
+                GeneralHarvestLevel::LEVEL_MIN,
+                GeneralHarvestLevel::LEVEL_MAX,
+                $level
+            ));
+        }
+
+        $pdo    ??= db();
+        $offset   = max(0, $offset);
+        $limit    = max(1, min(self::PAGE_MAX, $limit));
+        $n        = self::queueN($pdo)['n'];
+        $start    = GeneralHarvestLevel::blockStart($seq, $level);
+        $slots    = GeneralHarvestLevel::slots($level);
+        $total    = $slots;
+        $from     = $start + 1;
+        $to       = $start + $slots;
+        $rows     = [];
+
+        /* Only positions the queue has actually reached can be shown. */
+        $count = min($limit, max(0, min($to, $n) - max($from, 1) + 1));
+        $first = max($from, 1);
+
+        if ($count > 0 && $first <= $n) {
+            $statement = $pdo->prepare(
+                'SELECT q.id AS position, q.user_id, u.username
+                   FROM harvest_queue q
+                   JOIN users u ON u.id = q.user_id
+                  WHERE q.id BETWEEN ? AND ?
+                  ORDER BY q.id
+                  LIMIT ? OFFSET ?'
+            );
+            $statement->execute([$first, min($to, $n), $count, $offset]);
+
+            foreach ($statement->fetchAll() as $row) {
+                $rows[] = [
+                    'position' => (int) $row['position'],
+                    'user_id'  => (int) $row['user_id'],
+                    'username' => (string) $row['username'],
+                ];
+            }
+        }
+
+        return [
+            'level'  => $level,
+            'seq'    => $seq,
+            'offset' => $offset,
+            'limit'  => $limit,
+            'total'  => $total,
+            'filled' => min($slots, max(0, min($to, $n) - $from + 1)),
+            'from'   => $from,
+            'to'     => $to,
+            'n'      => $n,
+            'rows'   => $rows,
+        ];
+    }
+
+    /**
      * A page of the board's structure at one level: the nodes whose
      * level-`$level` block the queue has already filled, in node order.
      *

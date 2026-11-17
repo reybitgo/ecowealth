@@ -349,7 +349,7 @@ if ($isTeam) {
                     class="nav-link<?= $isGeneral ? ' active' : '' ?>"
 <?= $isGeneral ? ' aria-current="page"' : '' ?>
                   >
-                    <i class="icon-base bx bx-grid-alt me-1"></i> General Harvest bonus
+                    <i class="icon-base bx bx-grid-alt me-1"></i> General Harvest
                   </a>
                 </li>
               </ul>
@@ -669,6 +669,9 @@ if ($isTeam) {
 <?php if (!$generalQueued): ?>
 <?= View::capture('member/earnings/_general_progress', ['general_harvest' => $general_harvest]) ?>
 <?php else: ?>
+              <?= View::capture('member/earnings/_general_stats', ['general_harvest' => $general_harvest]) ?>
+              <?= View::capture('member/earnings/_general_blocks', ['general_harvest' => $general_harvest]) ?>
+              <?= View::capture('member/earnings/_general_progress', ['general_harvest' => $general_harvest]) ?>
               <div class="card">
 <?= View::capture('member/earnings/_general_header', [
     'general_harvest' => $general_harvest,
@@ -743,6 +746,10 @@ if ($isTeam) {
 
 <?= View::capture('member/earnings/_general_pagination', ['pager' => $pager]) ?>
               </div>
+
+<?= View::capture('member/earnings/_general_roster', [
+    'roster' => $general_harvest['roster'] ?? null,
+]) ?>
 <?php endif; ?>
 <?php else: ?>
 <?= View::capture('member/earnings/_stats', ['totals' => $totals]) ?>

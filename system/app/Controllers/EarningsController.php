@@ -378,6 +378,17 @@ final class EarningsController
         $awards = $pager->total === 0 ? [] : GeneralHarvestAward::select($filters, $pager);
         $status = $service->statusFor($userId);
 
+        /* The block roster (plan §10 Rule 8): the members whose positions
+         * fill one of the member's blocks, paginated at 25. It is asked
+         * for here, not in `statusFor()`, because the dashboard tile and
+         * the genealogy badge need no roster and must not pay for one. */
+        $status['roster'] = $service->rosterFor(
+            $userId,
+            (int) Request::string('roster_level', '0'),
+            (int) Request::string('roster_page', '1'),
+            (int) Request::string('roster_per_page', '25')
+        );
+
         return [
             'tab'           => self::TAB_GENERAL_HARVEST,
             'user_id'       => $userId,
@@ -852,10 +863,14 @@ final class EarningsController
 
         foreach ($rows as $row) {
             $status = (string) $row['status'];
+            $level  = (int) $row['level'];
+            $seq    = (int) ($row['seq'] ?? 0);
 
             $out[] = [
                 (string) ($row['credited_at'] ?? ''),
-                (string) (int) $row['level'],
+                (string) $level,
+                '#' . GeneralHarvestLevel::blockFrom($seq, $level)
+                    . '–#' . GeneralHarvestLevel::blockTo($seq, $level),
                 (string) (int) $row['n_at_award'],
                 (string) (int) $row['threshold_n'],
                 number_format((float) $row['amount'], 2, '.', ''),
@@ -1466,6 +1481,9 @@ final class EarningsController
                 ]),
                 'earnings-general-pagination' => View::capture('member/earnings/_general_pagination', [
                     'pager' => $pager,
+                ]),
+                'earnings-general-roster' => View::capture('member/earnings/_general_roster', [
+                    'roster' => $status['roster'] ?? null,
                 ]),
             ],
             'meta'      => [

@@ -28,6 +28,7 @@ $levels   = is_array($general_harvest['levels'] ?? null) ? $general_harvest['lev
 $earned   = (float) ($general_harvest['earned'] ?? 0.0);
 $credited = (float) ($general_harvest['credited_amount'] ?? 0.0);
 $baseline = (float) ($general_harvest['baseline_earned'] ?? 0.0);
+$armedAt  = (string) ($general_harvest['armed_at'] ?? '');
 $total    = (string) ($general_harvest['total'] ?? '');
 $next     = is_array($general_harvest['next'] ?? null) ? $general_harvest['next'] : null;
 $reachable= (bool) ($general_harvest['reachable'] ?? false);
@@ -73,9 +74,19 @@ $open     = (string) ($general_harvest['open'] ?? '');
                   <p class="mb-3">
                     <strong>Position #<?= (int) $position ?> · queue at <?= number_format($queueN) ?></strong>
                     <span class="text-body-secondary small d-block">
-                      One board for the whole network — a slot in your block is filled by a qualified
-                      member of the whole network, not necessarily anyone in your team.
+                      A slot in your block is filled by a qualified member of the whole network — not
+                      necessarily anyone in your team. Your block fills in the order members qualified.
                     </span>
+                  </p>
+                </div>
+<?php endif; ?>
+
+<?php if ($armed && $baseline > 0): ?>
+                <div class="card-body">
+                  <p class="small text-body-secondary mb-0">
+                    The board started paying on <strong><?= e(format_date($armedAt)) ?></strong>.
+                    Levels marked <strong>Before go-live</strong> were already complete on that date:
+                    they are recorded, not paid, and they do not count toward your Earned total.
                   </p>
                 </div>
 <?php endif; ?>

@@ -38,6 +38,8 @@ $grow   = $fixtures['grow'];
 $qualified = $fixtures['qualified'];
 $queue  = $fixtures['queue'];
 $append = $fixtures['append'];
+$account = $fixtures['account'];
+$count  = $fixtures['count'];
 
 $reference = GeneralHarvestLevel::referencePreset();
 
@@ -116,6 +118,22 @@ $fixtureC = static function () use ($clean, $seed, $switch, $grow, $qualified, $
     (new GeneralHarvestService())->settle(27);
 
     return $treeB['root'];
+};
+
+/** Build a perfect ternary tree of height 3, arm at N = 0, queue 40
+ *  members, switch on, settle. Returns the root id (no baseline). */
+$fixtureCPlain = static function () use ($clean, $seed, $switch, $grow, $qualified, $queue, $arm): int {
+    $clean();
+    $seed();
+
+    $tree = $grow(3, 'fcb');
+    $members = $qualified($tree);
+    $arm();            /* baseline at N = 0, switch off */
+    $queue($members);  /* N = 40 */
+    $switch(true);     /* enable the stream */
+    (new GeneralHarvestService())->settle(40); /* settle all positions */
+
+    return $tree['root'];
 };
 
 return [
@@ -230,44 +248,56 @@ assert_same('credited', $levels[2]['status'], 'level 3 is credited');
      * ========================================================== */
 
     'P21F-T8 member CSV has Appendix C.6 columns and caller rows only' => function () use (
-        $fixtureB
+        $fixtureB, $count
     ): void {
         $rootId = $fixtureB();
 
         $_GET = ['ledger' => 'general_harvest'] + ['per_page' => '25'];
-        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings/export?' . http_build_query($_GET);
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?' . http_build_query($_GET);
         test_signed_in_as(['id' => $rootId, 'role' => 'member']);
 
-        ob_start();
-        try {
-            $controller = new EarningsController();
-            $controller->export([]);
-        } finally {
-            $csv = (string) ob_get_clean();
-        }
+        $auditBefore = $count('audit_log');
 
-        $lines = array_filter(explode("\n", $csv));
+        /* The export file is `exportRows()` → the two formatting helpers;
+         * the controller's `export` action writes them and exits, so a case
+         * reads the same three pieces it uses (the Team Harvest and
+         * Royalty member CSV cases do the same). */
+        $filters = (new EarningsController())->context($rootId, 'general_harvest')['filters'];
+        assert_same($rootId, (int) $filters['user_id'], 'the session member is forced into the filters');
+
+        $export = GeneralHarvestAward::exportRows($filters, null, $rootId);
+
+        assert_count(2, $export, 'only the caller\'s rows (root has 2 credited awards)');
+        assert_same($rootId, (int) $export[0]['user_id'], 'every export row is the caller\'s');
+        assert_same($auditBefore, $count('audit_log'), 'a member export writes no audit row');
+
         assert_same(
-            'Date,Level,Block,Queue at award,Threshold,Amount,Status',
-            $lines[0],
+            ['Date', 'Level', 'Block', 'Queue at award', 'Threshold', 'Amount', 'Status'],
+            EarningsController::generalHarvestCsvHeader(),
             'the CSV header is exactly Appendix C.6'
         );
-        $rowCount = count($lines) - 1;
-        assert_same(2, $rowCount, 'only the caller\'s rows (root has 2 credited awards)');
 
-        /* ?user_id= cannot widen it — append another member's id and confirm no change. */
-        $_GET = ['ledger' => 'general_harvest', 'user_id' => '999999'] + ['per_page' => '25'];
-        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings/export?' . http_build_query($_GET);
+        $csv = EarningsController::generalHarvestCsvRows($export);
 
-        ob_start();
-        try {
-            $controller = new EarningsController();
-            $controller->export([]);
-        } finally {
-            $csv2 = (string) ob_get_clean();
-        }
+        assert_count(2, $csv, 'two CSV rows');
+        assert_count(7, $csv[0], 'each row has the seven documented columns');
+        assert_same('2', $csv[0][1], 'newest level first');
+        assert_same('#5–#13', $csv[0][2], 'the block the level was judged on');
+        assert_same('13', $csv[0][3], 'the queue at award');
+        assert_same('13', $csv[0][4], 'the threshold');
+        assert_same('4000.00', $csv[0][5]);
+        assert_same('Paid', $csv[0][6]);
 
-        assert_same($csv, $csv2, '?user_id= does not widen the export');
+        /* ?user_id= cannot widen it — another member's id is overwritten
+         * by the caller's id inside `exportRows()`. */
+        $widened = $filters;
+        $widened['user_id'] = 999999;
+
+        assert_same(
+            array_column($export, 'id'),
+            array_column(GeneralHarvestAward::exportRows($widened, null, $rootId), 'id'),
+            '?user_id= does not widen the export'
+        );
     },
 
     /* ==========================================================
@@ -318,6 +348,411 @@ assert_same('credited', $levels[2]['status'], 'level 3 is credited');
         $status = $data['general_harvest'];
         assert_false($status['queued'], 'the requesting member is not queued');
         assert_same(0, count($data['awards']), 'no award rows for the requesting member');
+    },
+
+    /* ==========================================================
+     *  P21F-T2 — block card for node 0 at N = 40 (no baseline)
+     * ========================================================== */
+
+    'P21F-T2 node 0 block card at N = 40' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $status = $data['general_harvest'];
+        assert_same(1, $status['position'], 'root is position #1');
+        assert_same(0, $status['seq'], 'root is node 0');
+        assert_same(40, $status['queue_n'], 'N = 40');
+        assert_same('14000.00', $status['credited_amount'], 'root earned 14,000 (levels 1–3)');
+
+        $levels = $status['levels'];
+        assert_same(10, count($levels), 'ten blocks are shown');
+
+        /* L1: 3/3 paid ₱2,000, block #2–#4 */
+        assert_same('credited', $levels[0]['status'], 'level 1 is paid');
+        assert_same(3, $levels[0]['filled'], 'level 1 filled 3 of 3');
+        assert_same(3, $levels[0]['slots'], 'level 1 has 3 slots');
+        assert_same(2, $levels[0]['from'], 'level 1 block starts at #2');
+        assert_same(4, $levels[0]['to'], 'level 1 block ends at #4');
+        assert_same(2000.0, $levels[0]['amount'], 'level 1 amount is ₱2,000');
+
+        /* L2: 9/9 paid ₱4,000, block #5–#13 */
+        assert_same('credited', $levels[1]['status'], 'level 2 is paid');
+        assert_same(9, $levels[1]['filled'], 'level 2 filled 9 of 9');
+        assert_same(9, $levels[1]['slots'], 'level 2 has 9 slots');
+        assert_same(5, $levels[1]['from'], 'level 2 block starts at #5');
+        assert_same(13, $levels[1]['to'], 'level 2 block ends at #13');
+        assert_same(4000.0, $levels[1]['amount'], 'level 2 amount is ₱4,000');
+
+        /* L3: 27/27 paid ₱8,000, block #14–#40 */
+        assert_same('credited', $levels[2]['status'], 'level 3 is paid');
+        assert_same(27, $levels[2]['filled'], 'level 3 filled 27 of 27');
+        assert_same(27, $levels[2]['slots'], 'level 3 has 27 slots');
+        assert_same(14, $levels[2]['from'], 'level 3 block starts at #14');
+        assert_same(40, $levels[2]['to'], 'level 3 block ends at #40');
+        assert_same(8000.0, $levels[2]['amount'], 'level 3 amount is ₱8,000');
+
+        /* L4: 0/81, needs N = 121 */
+        assert_same('progress', $levels[3]['status'], 'level 4 is in progress');
+        assert_same(0, $levels[3]['filled'], 'level 4 filled 0 of 81');
+        assert_same(81, $levels[3]['slots'], 'level 4 has 81 slots');
+        assert_same(41, $levels[3]['from'], 'level 4 block starts at #41');
+        assert_same(121, $levels[3]['to'], 'level 4 block ends at #121');
+        assert_same(12000.0, $levels[3]['amount'], 'level 4 amount is ₱12,000');
+
+        assert_contains('Position #1', $html, 'the page shows the position');
+        assert_contains('queue at 40', $html, 'the page shows N');
+        assert_contains('14,000.00', $html, 'Earned shows ₱14,000.00');
+    },
+
+    /* ==========================================================
+     *  P21F-T3 — block card for node 12 at N = 40
+     * ========================================================== */
+
+    'P21F-T3 node 12 block card at N = 40' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        /* Node 12 is at position #13 (seq 12). Sign in as that member. */
+        $memberId = $rootId + 12;
+
+        $result = $earningsPage($memberId, ['ledger' => 'general_harvest']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $status = $data['general_harvest'];
+        assert_same(13, $status['position'], 'node 12 is position #13');
+        assert_same(12, $status['seq'], 'node 12 is seq 12');
+        assert_same(40, $status['queue_n'], 'N = 40');
+
+        $levels = $status['levels'];
+
+        /* L1: block #38–#40, all 3 positions exist at N = 40 → 3/3 paid */
+        assert_same('credited', $levels[0]['status'], 'level 1 is paid for node 12');
+        assert_same(3, $levels[0]['filled'], 'level 1 filled 3 of 3');
+        assert_same(38, $levels[0]['from'], 'level 1 block starts at #38');
+        assert_same(40, $levels[0]['to'], 'level 1 block ends at #40');
+
+        /* L2: block #113–#121, none exist at N = 40 → 0/9, needs N = 121 */
+        assert_same('progress', $levels[1]['status'], 'level 2 is in progress');
+        assert_same(0, $levels[1]['filled'], 'level 2 filled 0 of 9');
+        assert_same(113, $levels[1]['from'], 'level 2 block starts at #113');
+        assert_same(121, $levels[1]['to'], 'level 2 block ends at #121');
+        assert_same(121, (int) $levels[1]['threshold_n'], 'level 2 needs N = 121');
+
+        /* L3: block #338–#364, none exist → 0/27, needs N = 364 */
+        assert_same('progress', $levels[2]['status'], 'level 3 is in progress');
+        assert_same(0, $levels[2]['filled'], 'level 3 filled 0 of 27');
+        assert_same(338, $levels[2]['from'], 'level 3 block starts at #338');
+        assert_same(364, $levels[2]['to'], 'level 3 block ends at #364');
+        assert_same(364, (int) $levels[2]['threshold_n'], 'level 3 needs N = 364');
+
+        /* The "no further level at this queue size" line is absent because L1 already paid */
+        assert_not_contains('No level can complete at the current queue size', $html,
+            'L1 paid so no Rule 4 sentence');
+    },
+
+    /* ==========================================================
+     *  P21F-T4 — mandatory Rule 4 sentence when nothing can complete
+     * ========================================================== */
+
+    'P21F-T4 Rule 4 sentence when no level can complete' => function () use (
+        $clean, $seed, $switch, $grow, $qualified, $queue, $arm, $earningsPage
+    ): void {
+        /* Grow a height-1 tree (N = 4), queue only 3 members → N = 3.
+         * At N = 3 no level can complete anywhere on the board (level 1
+         * needs N = 4), so reachable is false and the Rule 4 sentence is
+         * mandatory. */
+        $clean();
+        $seed();
+
+        $tree = $grow(1, 'p21f_t4');
+        $members = $qualified($tree);
+        $queue(array_slice($members, 0, 3)); /* N = 3 */
+        $arm();   /* baseline at N = 0 */
+        $switch(true);
+        (new GeneralHarvestService())->settle(3);
+
+        $rootId = $tree['root'];
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $status = $data['general_harvest'];
+        assert_false($status['reachable'], 'nothing can complete at N = 3');
+        assert_contains('No level can complete at the current queue size', $html,
+            'Rule 4 mandatory sentence is present');
+        assert_contains('queue at 3', $html, 'the page shows the current N');
+        assert_contains('4', $html, 'the page shows the exact N level 1 needs');
+    },
+
+    /* ==========================================================
+     *  P21F-T5 — block range display (#2–#4, #5–#13, #14–#40, #41–#121)
+     * ========================================================== */
+
+    'P21F-T5 block range display for node 0' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $levels = $data['general_harvest']['levels'];
+
+        assert_same('2–#4', $levels[0]['from'] . '–#' . $levels[0]['to'], 'level 1: #2–#4');
+        assert_same('5–#13', $levels[1]['from'] . '–#' . $levels[1]['to'], 'level 2: #5–#13');
+        assert_same('14–#40', $levels[2]['from'] . '–#' . $levels[2]['to'], 'level 3: #14–#40');
+        assert_same('41–#121', $levels[3]['from'] . '–#' . $levels[3]['to'], 'level 4: #41–#121');
+
+        assert_contains('#2–#4', $html, 'level 1 range renders');
+        assert_contains('#5–#13', $html, 'level 2 range renders');
+        assert_contains('#14–#40', $html, 'level 3 range renders');
+        assert_contains('#41–#121', $html, 'level 4 range renders');
+    },
+
+    /* ==========================================================
+     *  P21F-T12 — word search: no forbidden copy
+     * ========================================================== */
+
+    'P21F-T12 no forbidden words in member views' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $html   = $result['html'];
+
+        $forbidden = ['spillover', 'passive', 'guaranteed', 'unlimited', 'matrix scheme', 'binary', 'cycle'];
+        foreach ($forbidden as $word) {
+            assert_not_contains($word, $html, 'no "' . $word . '"');
+            assert_not_contains(mb_strtolower($word), mb_strtolower($html), 'no "' . $word . '" (case-insensitive)');
+        }
+    },
+
+    /* ==========================================================
+     *  P21F-T13 — network sentence verbatim, exactly once
+     * ========================================================== */
+
+    'P21F-T13 network sentence verbatim exactly once' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $html   = $result['html'];
+
+        $verbatim = 'A slot in your block is filled by a qualified member of the whole network — not '
+                  . 'necessarily anyone in your team. Your block fills in the order members qualified.';
+        /* The sentence is rendered across two lines in the HTML, so check each
+         * line separately and confirm the full sentence is present when
+         * whitespace is collapsed. */
+        $collapsed = preg_replace('/\s+/', ' ', $html);
+        $count = substr_count($collapsed, $verbatim);
+        assert_same(1, $count, 'the network sentence appears exactly once');
+    },
+
+    /* ==========================================================
+     *  P21F-T14 — purchases/rank/Active footnote
+     * ========================================================== */
+
+    'P21F-T14 purchases/rank/Active footnote' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $html   = $result['html'];
+        $col    = preg_replace('/\s+/', ' ', $html);
+
+        assert_contains('This bonus does not depend on any purchase', $html, 'purchases footnote');
+        assert_contains('on your rank', $html, 'rank footnote');
+        assert_contains('monthly Active status', $col, 'Active status footnote');
+
+        $count = substr_count($html, 'This bonus does not depend on any purchase');
+        assert_same(1, $count, 'the footnote appears exactly once');
+    },
+
+    /* ==========================================================
+     *  P21F-T19 — roster pagination for a large block
+     * ========================================================== */
+
+    'P21F-T19 roster renders with position and relation' => function () use (
+        $clean, $seed, $switch, $grow, $qualified, $queue, $arm, $earningsPage
+    ): void {
+        /* Build a height-2 tree, queue 6 members → N = 6.
+         * Node 0's L1 block (#2–#4) is complete; L2 (#5–#13) is the next
+         * level, with positions #5–#6 occupied at N = 6. The roster for
+         * level 2 shows 2 members. */
+        $clean();
+        $seed();
+
+        $tree = $grow(2, 'p21f_t19');
+        $members = $qualified($tree);
+        $queue(array_slice($members, 0, 6)); /* N = 6 */
+        $arm();   /* baseline at N = 0 */
+        $switch(true);
+        (new GeneralHarvestService())->settle(6);
+
+        $rootId = $tree['root'];
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest', 'roster_page' => '1', 'roster_per_page' => '25']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $roster = $data['general_harvest']['roster'] ?? null;
+        assert_not_null($roster, 'roster present for node 0');
+        assert_same(2, $roster['level'], 'roster is for level 2');
+        assert_same(9, $roster['total'], 'level 2 block has 9 slots');
+        assert_count(2, $roster['rows'], '2 members occupy the block at N = 6');
+
+        /* Each row has position, username (or null), relation. */
+        foreach ($roster['rows'] as $row) {
+            assert_true(isset($row['position']), 'row has position');
+            assert_true(isset($row['username']), 'row has username');
+            assert_true(isset($row['relation']), 'row has relation');
+            assert_true(in_array($row['relation'], ['self', 'direct', 'in-team', 'outside'], true), 'valid relation');
+        }
+
+        assert_contains('earnings-general-roster', $html, 'roster region renders');
+    },
+
+    /* ==========================================================
+     *  P21F-T20 — amounts match the ladder; depth-limited levels
+     * ========================================================== */
+
+    'P21F-T20 amounts match the ladder' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $data   = $result['data'];
+
+        $levels = $data['general_harvest']['levels'];
+        $amounts = GeneralHarvestLevel::amounts();
+
+        foreach ($levels as $levelRow) {
+            $level = (int) $levelRow['level'];
+            assert_same((float) $amounts[$level], $levelRow['amount'],
+                "level $level amount matches the ladder");
+        }
+
+        /* Levels above max_levels read "not paying at this depth". */
+        $depth = GeneralHarvestLevel::maxLevels();
+        for ($level = $depth + 1; $level <= 10; $level++) {
+            assert_same('complete-beyond-depth', $levels[$level - 1]['status'],
+                "level $level is beyond depth");
+        }
+    },
+
+    /* ==========================================================
+     *  P21F-T22 — stranger's username hidden in block roster
+     * ========================================================== */
+
+    'P21F-T22 stranger username hidden in roster' => function () use (
+        $clean, $seed, $switch, $queue, $arm, $account, $earningsPage
+    ): void {
+        /* Tree: R sponsors A and B; A sponsors C and D; B sponsors E and F.
+         * Queue order: R, A, B, C, D, E, F → N = 7.
+         * Node A (position #2, seq 1) L1 block = #5–#7 = D, E, F.
+         * D is A's direct (in team); E and F are B's directs (outside A's
+         * subtree → usernames hidden). */
+        $clean();
+        $seed();
+
+        $r  = $account('p21f_t22_r');
+        $a  = $account('p21f_t22_a', $r);
+        $b  = $account('p21f_t22_b', $r);
+        $c  = $account('p21f_t22_c', $a);
+        $d  = $account('p21f_t22_d', $a);
+        $e  = $account('p21f_t22_e', $b);
+        $f  = $account('p21f_t22_f', $b);
+
+        $queue([$r, $a, $b, $c, $d, $e, $f]); /* N = 7 */
+        $arm();   /* baseline at N = 0 */
+        $switch(true);
+        (new GeneralHarvestService())->settle(7);
+
+        /* Node A is at position #2, seq 1. Its L1 block is #5–#7. */
+        $result = $earningsPage($a, ['ledger' => 'general_harvest', 'roster_level' => '1', 'roster_page' => '1', 'roster_per_page' => '25']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $roster = $data['general_harvest']['roster'] ?? null;
+        assert_not_null($roster, 'roster present for node A');
+        assert_same(1, $roster['level'], 'roster is for level 1');
+        assert_same(3, $roster['total'], 'level 1 block has 3 positions');
+        assert_count(3, $roster['rows'], '3 members occupy the block');
+
+        /* Position #6 = member E, outside A's subtree: username hidden. */
+        $byPosition = [];
+        foreach ($roster['rows'] as $row) {
+            $byPosition[(int) $row['position']] = $row;
+        }
+
+        assert_not_null($byPosition[6] ?? null, 'position #6 is in the roster');
+        assert_null($byPosition[6]['username'] ?? null, "stranger's username is hidden");
+        assert_same('outside', $byPosition[6]['relation'], 'stranger is outside');
+
+        assert_contains('a member outside your team', $html, 'stranger label renders');
+        assert_not_contains('p21f_t22_e', $html, "stranger's username does not leak");
+        assert_not_contains('p21f_t22_f', $html, "stranger's username does not leak");
+    },
+
+    /* ==========================================================
+     *  P21F-T23 — own direct and deeper descendant shown in roster
+     * ========================================================== */
+
+    'P21F-T23 direct and in-team usernames shown' => function () use (
+        $clean, $seed, $switch, $queue, $arm, $account, $earningsPage
+    ): void {
+        /* Same tree as P21F-T22. Node A (position #2, seq 1) L1 block:
+         *   position #5 = member D (A's direct)
+         *   position #6 = member E (outside)
+         *   position #7 = member F (outside)
+         * Member D should show its username with "Direct" relation. */
+        $clean();
+        $seed();
+
+        $r  = $account('p21f_t23_r');
+        $a  = $account('p21f_t23_a', $r);
+        $b  = $account('p21f_t23_b', $r);
+        $c  = $account('p21f_t23_c', $a);
+        $d  = $account('p21f_t23_d', $a);
+        $e  = $account('p21f_t23_e', $b);
+        $f  = $account('p21f_t23_f', $b);
+
+        $queue([$r, $a, $b, $c, $d, $e, $f]);
+        $arm();
+        $switch(true);
+        (new GeneralHarvestService())->settle(7);
+
+        $result = $earningsPage($a, ['ledger' => 'general_harvest', 'roster_level' => '1', 'roster_page' => '1', 'roster_per_page' => '25']);
+        $data   = $result['data'];
+        $html   = $result['html'];
+
+        $roster = $data['general_harvest']['roster'] ?? null;
+        assert_not_null($roster, 'roster present');
+
+        $byPosition = [];
+        foreach ($roster['rows'] as $row) {
+            $byPosition[(int) $row['position']] = $row;
+        }
+
+        /* Position #5 = member D (direct): username shown, relation "Direct". */
+        assert_same('p21f_t23_d', $byPosition[5]['username'] ?? null, 'position #5 username shown');
+        assert_same('direct', $byPosition[5]['relation'], 'position #5 is a direct');
+
+        assert_contains('p21f_t23_d', $html, 'direct member D username shows');
+        assert_contains('Direct', $html, 'Direct relation label renders');
     },
 
 ];
