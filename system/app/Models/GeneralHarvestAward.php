@@ -18,10 +18,12 @@ declare(strict_types=1);
  *                 amount is recorded, `ledger_id` stays NULL and it is
  *                 never paid (D-06)
  *
- *  21C ships the read API and the **baseline write only**. The credited
- *  path (`create()` / `linkLedger()`) is 21D's, so this phase cannot
- *  write money even by mistake: `writeBaseline()` always stores
- *  `status = 'baseline'` and `ledger_id = NULL`.
+ *  21C ships the read API and the baseline write. 21D extends it with
+ *  `create()` / `linkLedger()` / `writeCredited()` — the credited path —
+ *  plus the read helpers `levelMap()`, `paidLevels()` and `gridFor()`.
+ *  Nothing here can write money by mistake: `writeBaseline()` always
+ *  stores `status = 'baseline'` and `ledger_id = NULL`, and `create()`
+ *  refuses a zero amount.
  *
  *  The model never opens a transaction of its own. It runs inside its
  *  caller's — the arm's one transaction — so the ledger and the board
@@ -622,6 +624,302 @@ final class GeneralHarvestAward
                (seq, user_id, level, threshold_n, n_at_award, amount, status, ledger_id, credited_at)
              VALUES ' . implode(', ', $values)
         );
+    }
+
+    /* ----------------------------------------------------------
+     *  Writes — 21D adds the credited path
+     * ---------------------------------------------------------- */
+
+    /**
+     * Insert one `credited` decision inside the caller's transaction.
+     *
+     * The snapshot carries the node holder, the level, the threshold and
+     * queue length in force, the amount and the decision instant. `status`
+     * is always `credited` and `ledger_id` starts NULL: `linkLedger()`
+     * names the wallet movement in the same transaction, so the award and
+     * its credit commit together or not at all (§14.7 Rule 3).
+     *
+     * The caller is responsible for the baseline check
+     * (`$seq <= qFor(L, baseline_n)` → `baseline`, never `credited`) and
+     * for the depth/amount checks; this method only refuses a row it
+     * cannot write (a bad level, a missing holder, a zero amount).
+     *
+     * @param array{user_id:int, level:int, threshold_n:int, n_at_award:int,
+     *              amount:float|int|string, credited_at:string} $snapshot
+     * @return int the new award id
+     */
+    public static function create(int $seq, array $snapshot, ?PDO $pdo = null): int
+    {
+        if ($seq < 0) {
+            throw new InvalidArgumentException('A General Harvest node is 0 or above; got ' . $seq . '.');
+        }
+
+        $level = (int) ($snapshot['level'] ?? 0);
+
+        if ($level < self::LEVEL_MIN || $level > self::LEVEL_MAX) {
+            throw new InvalidArgumentException(
+                'A General Harvest award is a level ' . self::LEVEL_MIN . '–' . self::LEVEL_MAX . '; got ' . $level . '.'
+            );
+        }
+
+        $userId     = (int) ($snapshot['user_id'] ?? 0);
+        $threshold  = max(0, (int) ($snapshot['threshold_n'] ?? GeneralHarvestLevel::threshold($seq, $level)));
+        $nAtAward   = max(0, (int) ($snapshot['n_at_award'] ?? $threshold));
+        $amount     = self::decimal($snapshot['amount'] ?? GeneralHarvestLevel::amount($level));
+        $creditedAt = trim((string) ($snapshot['credited_at'] ?? ''));
+
+        if ($userId <= 0) {
+            throw new InvalidArgumentException('A General Harvest award needs a positive user_id.');
+        }
+
+        if ($creditedAt === '' || strtotime($creditedAt) === false) {
+            throw new InvalidArgumentException('A General Harvest credited row needs the instant it was decided.');
+        }
+
+        if (self::cents($amount) <= 0) {
+            throw new InvalidArgumentException(sprintf(
+                'A credited General Harvest award must be greater than zero; level %d at node %d is unpriced.',
+                $level,
+                $seq
+            ));
+        }
+
+        /* The schema's chk_gha_n is the final word; refusing here gives a
+         * message instead of a PDOException. */
+        if ($nAtAward < $threshold) {
+            throw new InvalidArgumentException(sprintf(
+                'A General Harvest award cannot record n = %d below its threshold of %d.',
+                $nAtAward,
+                $threshold
+            ));
+        }
+
+        $pdo = $pdo ?? db();
+
+        /* The award row must exist before the wallet credit (its ref_id
+         * is the award id), so ledger_id starts NULL and is linked in the
+         * same transaction (§14.7). */
+        $pdo->prepare(
+            'INSERT INTO general_harvest_awards
+               (seq, user_id, level, threshold_n, n_at_award, amount, status, ledger_id, credited_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)'
+        )->execute([
+            $seq,
+            $userId,
+            $level,
+            $threshold,
+            $nAtAward,
+            $amount,
+            self::STATUS_CREDITED,
+            $creditedAt,
+        ]);
+
+        return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Name the wallet movement a credited award created.
+     *
+     * The only UPDATE in this class, and it runs on the row the engine
+     * just inserted, inside the transaction that also wrote the credit —
+     * so the pair commits together or not at all (§14.7). It refuses to
+     * overwrite an existing reference, which keeps an award from ever
+     * pointing at a second movement.
+     *
+     * @return bool true when the row was linked, false when nothing matched
+     */
+    public static function linkLedger(int $awardId, int $ledgerId, ?PDO $pdo = null): bool
+    {
+        if ($awardId <= 0 || $ledgerId <= 0) {
+            return false;
+        }
+
+        $pdo  = $pdo ?? db();
+        $stmt = $pdo->prepare(
+            "UPDATE general_harvest_awards
+                SET ledger_id = ?
+              WHERE id = ? AND status = 'credited' AND ledger_id IS NULL"
+        );
+        $stmt->execute([$ledgerId, $awardId]);
+
+        return $stmt->rowCount() === 1;
+    }
+
+    /**
+     * One credited decision, award row plus its wallet movement, in one
+     * transaction (the caller's, which this joins). Returns the award id
+     * or throws — nothing is half-written.
+     *
+     * @param array{user_id:int, level:int, threshold_n:int, n_at_award:int,
+     *              amount:float|int|string, credited_at:string} $snapshot
+     * @return array{award_id:int, ledger_id:int}
+     */
+    public static function writeCredited(int $seq, array $snapshot, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+        $owns = !$pdo->inTransaction();
+
+        if ($owns) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            $awardId = self::create($seq, $snapshot, $pdo);
+
+            $movement = (new WalletService($pdo))->credit(
+                (int) $snapshot['user_id'],
+                $snapshot['amount'],
+                self::REF_TYPE,
+                $awardId,
+                'General Harvest level ' . (int) $snapshot['level'] . ' bonus',
+                true
+            );
+
+            $ledgerId = (int) ($movement['ledger_id'] ?? 0);
+
+            if ($ledgerId <= 0 || !self::linkLedger($awardId, $ledgerId, $pdo)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Award #%d for node %d level %d could not be linked to its wallet movement.',
+                    $awardId,
+                    $seq,
+                    (int) $snapshot['level']
+                ));
+            }
+
+            if ($owns) {
+                $pdo->commit();
+            }
+
+            return ['award_id' => $awardId, 'ledger_id' => $ledgerId];
+        } catch (Throwable $e) {
+            if ($owns && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
+    /** One member's decided levels as `level => status`. */
+    public static function levelMap(int $userId, ?PDO $pdo = null): array
+    {
+        return self::levelMapFor([$userId], $pdo)[$userId] ?? [];
+    }
+
+    /**
+     * Several members' decided levels in ONE query — the batch read of
+     * §14.9.
+     *
+     * @param list<int> $userIds
+     * @return array<int, array<int, string>> user_id => level => status
+     */
+    public static function levelMapFor(array $userIds, ?PDO $pdo = null): array
+    {
+        $userIds = array_values(array_unique(array_filter(
+            array_map('intval', $userIds),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($userIds === []) {
+            return [];
+        }
+
+        $pdo   = $pdo ?? db();
+        $marks = implode(', ', array_fill(0, count($userIds), '?'));
+
+        $stmt = $pdo->prepare(
+            'SELECT seq, level, status FROM general_harvest_awards
+              WHERE user_id IN (' . $marks . ')
+              ORDER BY user_id, level'
+        );
+        $stmt->execute($userIds);
+
+        $map = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $map[(int) $row['user_id']][(int) $row['level']] = (string) $row['status'];
+        }
+
+        return $map;
+    }
+
+    /** The member's credited levels, ascending — what has been paid. */
+    public static function paidLevels(int $userId, ?PDO $pdo = null): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $pdo  = $pdo ?? db();
+        $stmt = $pdo->prepare(
+            "SELECT level FROM general_harvest_awards
+              WHERE user_id = ? AND status = 'credited'
+              ORDER BY level"
+        );
+        $stmt->execute([$userId]);
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /**
+     * Node `$seq`'s ten-cell board card: every level with its state, the
+     * amount it pays and whether a row already decided it.
+     *
+     * A level's status reads the stored row first: `credited` (paid) or
+     * `baseline` (before go-live). With no row yet it derives the state
+     * from completeness and depth: `complete` when the block is full and
+     * nothing decided it, `progress` when it is not full yet.
+     *
+     * @return array<int, array{level:int, slots:int, from:int, to:int,
+     *                          threshold:int, filled:int, complete:bool,
+     *                          amount:float, status:string, paid:bool}>
+     */
+    public static function gridFor(int $seq, int $n, ?PDO $pdo = null): array
+    {
+        $amounts = GeneralHarvestLevel::amounts($pdo);
+        $depth   = GeneralHarvestLevel::maxLevels();
+        $decided = [];
+
+        foreach ($pdo->query(
+            'SELECT level, status FROM general_harvest_awards WHERE seq = ? ORDER BY level',
+            [$seq]
+        ) as $row) {
+            $decided[(int) $row['level']] = (string) $row['status'];
+        }
+
+        $rows = [];
+
+        for ($level = self::LEVEL_MIN; $level <= self::LEVEL_MAX; $level++) {
+            $filled   = GeneralHarvestLevel::filled($seq, $level, $n);
+            $complete = GeneralHarvestLevel::complete($seq, $level, $n);
+            $amount   = (float) ($amounts[$level] ?? 0.0);
+            $status   = $decided[$level] ?? '';
+
+            if ($status === '') {
+                if ($complete) {
+                    $status = $level > $depth || $amount <= 0
+                        ? 'complete'
+                        : 'complete';
+                } else {
+                    $status = 'progress';
+                }
+            }
+
+            $rows[$level] = [
+                'level'     => $level,
+                'slots'     => GeneralHarvestLevel::slots($level),
+                'from'      => GeneralHarvestLevel::blockFrom($seq, $level),
+                'to'        => GeneralHarvestLevel::blockTo($seq, $level),
+                'threshold' => GeneralHarvestLevel::threshold($seq, $level),
+                'filled'    => $filled,
+                'complete'  => $complete,
+                'amount'    => $amount,
+                'status'    => $status,
+                'paid'      => $status === self::STATUS_CREDITED,
+            ];
+        }
+
+        return $rows;
     }
 
     /* ----------------------------------------------------------
