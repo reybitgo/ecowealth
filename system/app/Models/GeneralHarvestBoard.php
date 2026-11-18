@@ -414,8 +414,10 @@ final class GeneralHarvestBoard
      * The block spans positions `start+1 … start+3^L` where
      * `start = 3^L·seq + (3^L − 1)/2` (§12.2). A page costs one bounded
      * read of `harvest_queue` — no award row is read, and nothing here is
-     * money. Usernames are returned raw; the caller applies D-20 privacy
-     * (show a username only inside the viewer's sponsor subtree).
+     * money. `$n` may be supplied when the caller has already read the
+     * queue, which is what keeps the roster at one read per page
+     * (P21F-T19). Usernames are returned raw; the caller applies D-20
+     * privacy (show a username only inside the viewer's sponsor subtree).
      *
      * @return array{level:int, seq:int, offset:int, limit:int, total:int,
      *               filled:int, from:int, to:int, n:int,
@@ -426,7 +428,8 @@ final class GeneralHarvestBoard
         int $level,
         int $offset,
         int $limit,
-        ?PDO $pdo = null
+        ?PDO $pdo = null,
+        ?int $n = null
     ): array {
         if ($level < GeneralHarvestLevel::LEVEL_MIN || $level > GeneralHarvestLevel::LEVEL_MAX) {
             throw new InvalidArgumentException(sprintf(
@@ -440,7 +443,9 @@ final class GeneralHarvestBoard
         $pdo    ??= db();
         $offset   = max(0, $offset);
         $limit    = max(1, min(self::PAGE_MAX, $limit));
-        $n        = self::queueN($pdo)['n'];
+        /* A caller that already read the queue (the roster's page does)
+         * passes `N` and the page costs its one bounded read only. */
+        $n        = $n ?? self::queueN($pdo)['n'];
         $start    = GeneralHarvestLevel::blockStart($seq, $level);
         $slots    = GeneralHarvestLevel::slots($level);
         $total    = $slots;

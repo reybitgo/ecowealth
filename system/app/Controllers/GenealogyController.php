@@ -29,6 +29,12 @@ declare(strict_types=1);
  *  select and no N+1 however deep the team is; a position is displayed,
  *  never derived (plan §10 Rule 9).
  *
+ *  Phase 21F adds the **board node** to the reader's own badge
+ *  (`Harvest #13 · node 12`). A General Harvest node is the position minus
+ *  one (§12.1), so the same queue read serves it and the badge costs no
+ *  extra select. A downline member's node is never shown: the badge states
+ *  a position, and the node is the reader's own board fact.
+ *
  *  Every genealogy page also includes the shared `member.genealogy`
  *  revision in its ETag: a team change moves the ancestors' counters and
  *  lists and the descendants' upline chain, so one shared bump keeps the
@@ -139,6 +145,7 @@ final class GenealogyController
         /* One read for every badge on the page (20F): the reader's own
          * position and each downline member's, keyed by user id. */
         $positions = (new HarvestQueue())->map();
+        $position  = $positions[$userId] ?? null;
 
         return [
             'member'         => $member,
@@ -151,7 +158,10 @@ final class GenealogyController
             'team_count'     => count($team),
             'levels_used'    => $byLevel === [] ? 0 : max(array_keys($byLevel)),
             'harvest_positions' => $positions,
-            'harvest_position'  => $positions[$userId] ?? null,
+            'harvest_position'  => $position,
+            /* seq = position − 1 (§12.1): the node the reader holds on the
+             * shared Harvest board. Null for a member who is not queued. */
+            'harvest_node'      => $position === null ? null : max(0, (int) $position - 1),
             'referral_code'  => (string) ($member['referral_code'] ?? ''),
             'referral_link'  => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
         ];
@@ -228,6 +238,7 @@ final class GenealogyController
                     'team_count'       => $data['team_count'],
                     'levels_used'      => $data['levels_used'],
                     'harvest_position' => $data['harvest_position'] ?? null,
+                    'harvest_node'     => $data['harvest_node'] ?? null,
                 ]),
                 'genealogy-team-chain' => View::capture('member/genealogy/_team_chain', [
                     'member'       => $member,

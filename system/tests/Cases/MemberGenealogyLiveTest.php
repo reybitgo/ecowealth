@@ -19,7 +19,8 @@ declare(strict_types=1);
  *      each queued downline member's, and `—` for everyone else.
  * ============================================================== */
 
-$harvest = require __DIR__ . '/../fixtures/harvest_money.php';
+$harvest        = require __DIR__ . '/../fixtures/harvest_money.php';
+$generalHarvest = require __DIR__ . '/../fixtures/general_harvest.php';
 
 $makeMember = static function (string $username = '', string $role = 'member'): array {
     return test_user(
@@ -499,5 +500,77 @@ return [
         assert_contains('id="genealogyReferral"', $html);
         assert_contains('data-copy=', $html);
         assert_contains('Rows per page', $html);
+    },
+
+    /* ==========================================================
+     *  P21F-T11 — the Harvest badge: position and node
+     * ========================================================== */
+
+    'P21F-T11 the badge shows the reader’s position and node and each queued downline member' => function () use ($generalHarvest): void {
+        $clean   = $generalHarvest['clean'];
+        $seed    = $generalHarvest['seedMarker'];
+        $switch  = $generalHarvest['switch'];
+        $queue   = $generalHarvest['queue'];
+        $arm     = $generalHarvest['arm'];
+        $account = $generalHarvest['account'];
+
+        $clean();
+        $seed();
+
+        $root    = $account('mgl_gh_root');
+        $directs = [];
+
+        for ($i = 1; $i <= 3; $i++) {
+            $directs[$i] = $account('mgl_gh_d' . $i, $root);
+        }
+
+        $queue([$root, $directs[1]]);   /* #1 and #2 */
+        $arm();                          /* baseline at N = 2, switch off */
+        $switch(true);
+        (new GeneralHarvestService())->settle(2);
+
+        test_signed_in_as(test_user('mgl_gh_root'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/genealogy';
+
+        $controller = new GenealogyController();
+        $data       = $controller->genealogyContext(Member::find($root));
+        $payload    = $controller->feedPayload(3, '"member.genealogy:' . $root . ':3:x"', $data);
+
+        assert_same(1, (int) $data['harvest_position'], 'the reader is position #1');
+        assert_same(0, (int) $data['harvest_node'], 'the reader is node 0');
+        assert_same(2, (int) ($data['harvest_positions'][$directs[1]] ?? 0), 'the queued direct is #2');
+        assert_same(false, isset($data['harvest_positions'][$directs[2]]), 'an unqualified direct has no position');
+
+        $header = $payload['fragments']['genealogy-header'];
+        $rows   = $payload['fragments']['genealogy-recruits-rows'];
+
+        assert_contains('Harvest #1', $header, 'the reader’s position');
+        assert_contains('node 0', $header, 'the reader’s board node');
+
+        $row = static function (int $id) use ($rows): string {
+            $pattern = '/<tr data-live-key="' . $id . '"(?:(?!<\/tr>).)*?<\/tr>/s';
+
+            return preg_match($pattern, $rows, $match) === 1 ? $match[0] : '';
+        };
+
+        assert_contains('#2', $row($directs[1]), 'the queued downline member carries a position');
+        assert_contains('—', $row($directs[2]), 'an unqualified direct reads a dash');
+        assert_not_contains('#', $row($directs[2]), 'an unqualified direct carries no position');
+
+        /* A member who has not qualified keeps no badge and no node. */
+        $unqualified = $controller->genealogyContext(Member::find($directs[2]));
+
+        assert_same(null, $unqualified['harvest_position']);
+        assert_same(null, $unqualified['harvest_node']);
+
+        $unqualifiedPayload = $controller->feedPayload(
+            4,
+            '"member.genealogy:' . $directs[2] . ':4:x"',
+            $unqualified
+        );
+
+        assert_not_contains('Harvest #', $unqualifiedPayload['fragments']['genealogy-header']);
     },
 ];

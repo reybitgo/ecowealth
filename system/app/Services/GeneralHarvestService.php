@@ -275,7 +275,9 @@ final class GeneralHarvestService
      * position at a time up to `$maxNewPositions`.
      *
      * Returns `{state: 'off'}` / `{state: 'unarmed'}` / `{state: 'replayed'}`
-     * / `{state: 'settled', target, written, amount, unpriced, per_level}`.
+     * / `{state: 'settled', target, written, amount, unpriced, per_level,
+     * awarded}`. `awarded` lists the members the batch paid, so a caller
+     * (and this method's own live bumps) can refresh exactly their pages.
      * Configuration states return, never throw (§14.7 Rule 4).
      *
      * @param int $maxNewPositions how many positions this call may settle (1 inline)
@@ -478,8 +480,9 @@ final class GeneralHarvestService
                 return ($a['seq']) <=> ($b['seq']);
             });
 
-            $written    = 0;
-            $amountTotal = 0.0;
+            $written      = 0;
+            $amountTotal  = 0.0;
+            $awardedUsers = [];
 
             foreach ($rows as $row) {
                 $awardId = GeneralHarvestAward::create((int) $row['seq'], [
@@ -514,6 +517,7 @@ final class GeneralHarvestService
 
                     $written++;
                     $amountTotal += $row['amount'];
+                    $awardedUsers[(int) $row['user_id']] = true;
                 }
             }
 
@@ -525,6 +529,15 @@ final class GeneralHarvestService
                 $this->pdo->commit();
             }
 
+            /* Bump the live surfaces the settlement moved (21F, P21F-T17):
+             * each awarded member's `/earnings`, dashboard, wallet statement
+             * and genealogy badge. When this call owns the transaction the
+             * bumps run after the commit; inside a caller's transaction (the
+             * registration hook) they commit or roll back with the money.
+             * `Live::touch` logs and swallows, so a revision failure can
+             * never undo a payment. */
+            $this->touchAwarded(array_keys($awardedUsers));
+
             return [
                 'state'      => 'settled',
                 'target'     => $target,
@@ -533,6 +546,7 @@ final class GeneralHarvestService
                 'unpriced'   => $unpriced,
                 'per_level'  => $counts,
                 'settled_n'  => $target,
+                'awarded'    => array_keys($awardedUsers),
             ];
         } catch (Throwable $e) {
             if ($owns && $this->pdo->inTransaction()) {
@@ -544,6 +558,31 @@ final class GeneralHarvestService
             if ($owns && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
+        }
+    }
+
+    /**
+     * Bump the admin surfaces and every awarded member's surfaces after a
+     * settlement (21F, plan §10 Rule 11).
+     *
+     * One settlement can pay several node holders — a block belongs to the
+     * member at its `seq`, not to the member who just registered — so the
+     * bump is per awarded member rather than one surface for the caller.
+     * An empty batch bumps nothing: a replay moves no money and redraws no
+     * page.
+     *
+     * @param list<int|string> $userIds
+     */
+    private function touchAwarded(array $userIds): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        Live::touchGeneralHarvestAdmin();
+
+        foreach ($userIds as $userId) {
+            Live::touchGeneralHarvestMember((int) $userId);
         }
     }
 
@@ -632,8 +671,27 @@ final class GeneralHarvestService
         $backlog    = max(0, $queueN - $settledN);
 
         $amounts = GeneralHarvestLevel::amounts($this->pdo);
-        $paid    = GeneralHarvestAward::paidLevels($userId, $this->pdo);
-        $paidSet = array_flip($paid);
+
+        /* One read for the whole card (P21F-T19's query budget): every
+         * decided level of this node holder, keyed by level. The card used
+         * to ask `has()` and `findBySeqLevel()` per level — twenty selects
+         * on every member page, on the admin panel and on the dashboard
+         * tile — for rows this one read already carries. */
+        $decided = [];
+
+        if ($seq !== null) {
+            foreach (GeneralHarvestAward::forMember($userId, $this->pdo) as $row) {
+                $decided[(int) $row['level']] = $row;
+            }
+        }
+
+        $paidSet = [];
+
+        foreach ($decided as $decidedLevel => $decidedRow) {
+            if ($decidedRow['status'] === GeneralHarvestAward::STATUS_CREDITED) {
+                $paidSet[$decidedLevel] = true;
+            }
+        }
 
         $levels = [];
         $paidTotal = 0.0;
@@ -646,16 +704,8 @@ final class GeneralHarvestService
             $amount   = (float) ($amounts[$level] ?? 0.0);
             $threshold = $seq !== null ? GeneralHarvestLevel::threshold($seq, $level) : 0;
             $paidLevel = isset($paidSet[$level]);
-            $rowStatus = $seq !== null && GeneralHarvestAward::has($seq, $level, $this->pdo)
-                ? GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo)['status']
-                : '';
-
-            $paidAt = null;
-
-            if ($paidLevel) {
-                $row = GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo);
-                $paidAt = $row['credited_at'] ?? null;
-            }
+            $rowStatus = (string) ($decided[$level]['status'] ?? '');
+            $paidAt    = $paidLevel ? ($decided[$level]['credited_at'] ?? null) : null;
 
             if ($paidLevel) {
                 $status = GeneralHarvestAward::STATUS_CREDITED;
@@ -731,9 +781,7 @@ final class GeneralHarvestService
                     continue;
                 }
 
-                $row = GeneralHarvestAward::findBySeqLevel($seq, $level, $this->pdo);
-
-                if ($row !== null && $row['status'] === GeneralHarvestAward::STATUS_BASELINE) {
+                if (($decided[$level]['status'] ?? '') === GeneralHarvestAward::STATUS_BASELINE) {
                     continue;
                 }
 
@@ -789,7 +837,7 @@ final class GeneralHarvestService
             'next'           => $next,
             'reachable'      => $reachable,
             'rule4'          => $rule4,
-            'paid_levels'    => count($paid),
+            'paid_levels'    => count($paidSet),
             'baseline_levels'=> count(array_filter($levels, static fn (array $l): bool => $l['status'] === GeneralHarvestAward::STATUS_BASELINE)),
             'credited_amount'=> number_format($paidTotal, 2, '.', ''),
             'open'           => number_format($open, 2, '.', ''),
@@ -812,9 +860,18 @@ final class GeneralHarvestService
      *               from:int, to:int, filled:int, total:int,
      *               rows:list<array{position:int, username:?string, relation:string}>}|null
      */
-    public function rosterFor(int $userId, int $level = 0, int $page = 1, int $perPage = 25): ?array
-    {
-        $position = GeneralHarvestBoard::positionOf($userId, $this->pdo);
+    public function rosterFor(
+        int $userId,
+        int $level = 0,
+        int $page = 1,
+        int $perPage = 25,
+        ?int $position = null,
+        ?int $queueN = null
+    ): ?array {
+        /* The earnings page already read both in `statusFor()`; passing them
+         * in keeps the roster at two reads (P21F-T19's budget). A caller
+         * without them still gets a correct answer. */
+        $position = $position ?? GeneralHarvestBoard::positionOf($userId, $this->pdo);
 
         if ($position === null) {
             return null;
@@ -822,7 +879,7 @@ final class GeneralHarvestService
 
         $seq    = $position - 1;
         $depth  = GeneralHarvestLevel::maxLevels();
-        $queueN = (int) GeneralHarvestBoard::queueN($this->pdo)['n'];
+        $queueN = $queueN ?? (int) GeneralHarvestBoard::queueN($this->pdo)['n'];
 
         if ($level < GeneralHarvestLevel::LEVEL_MIN || $level > $depth) {
             $level = 0;
@@ -847,7 +904,8 @@ final class GeneralHarvestService
             $level,
             ($page - 1) * $perPage,
             $perPage,
-            $this->pdo
+            $this->pdo,
+            $queueN
         );
 
         $relations = $this->relationsFor($userId, array_map(
@@ -886,81 +944,69 @@ final class GeneralHarvestService
      * `outside` (plan §10 Rule 13). A viewer never sees another member's
      * username outside their own sponsor subtree.
      *
-     * The sponsor chains are read **one generation at a time for the whole
-     * page**, so a 25-row page costs the depth of its deepest member's
-     * chain, not 25 ancestry walks (P21F-T19's query budget).
+     * The page's sponsor chains are read in **one recursive query**, so a
+     * 25-row page costs exactly one read whatever its depth and whichever
+     * page it is (P21F-T19's query budget). The walk stops at the first
+     * generation that holds the viewer: depth 1 is the viewer's own direct
+     * recruit (*Direct*), anything deeper is *In your team*, and a member
+     * who is never reached is *Outside your team*. A depth cap keeps a
+     * corrupt sponsor cycle from recursing for ever.
      *
      * @param list<int> $userIds
      * @return array<int, 'self'|'direct'|'in-team'|'outside'>
      */
     private function relationsFor(int $viewerId, array $userIds): array
     {
-        $sponsor = [];
-        $pending = [];
-
-        foreach ($userIds as $id) {
-            $id = (int) $id;
-
-            if ($id > 0 && $id !== $viewerId) {
-                $pending[$id] = true;
-            }
-        }
-
-        while ($pending !== []) {
-            $ids          = array_keys($pending);
-            $pending      = [];
-            $placeholders = implode(', ', array_fill(0, count($ids), '?'));
-
-            $statement = $this->pdo->prepare(
-                'SELECT id, sponsor_id FROM users WHERE id IN (' . $placeholders . ')'
-            );
-            $statement->execute($ids);
-
-            foreach ($statement->fetchAll() as $row) {
-                $id       = (int) $row['id'];
-                $parent   = (int) ($row['sponsor_id'] ?? 0);
-                $sponsor[$id] = $parent;
-
-                if ($parent > 0 && $parent !== $viewerId && !isset($sponsor[$parent])) {
-                    $pending[$parent] = true;
-                }
-            }
-        }
-
         $relations = [];
+        $pending   = [];
 
         foreach ($userIds as $id) {
             $id = (int) $id;
+
+            if ($id <= 0) {
+                continue;
+            }
 
             if ($id === $viewerId) {
                 $relations[$id] = 'self';
                 continue;
             }
 
-            if (($sponsor[$id] ?? 0) === $viewerId) {
-                $relations[$id] = 'direct';
-                continue;
-            }
+            $pending[$id] = $id;
+        }
 
-            $relation = 'outside';
-            $cursor   = $id;
-            $seen     = [$id => true];
+        if ($pending === []) {
+            return $relations;
+        }
 
-            while (($parent = $sponsor[$cursor] ?? 0) > 0) {
-                if ($parent === $viewerId) {
-                    $relation = 'in-team';
-                    break;
-                }
+        $pending      = array_values($pending);
+        $placeholders = implode(', ', array_fill(0, count($pending), '?'));
+        $depthCap     = SponsorService::MAX_LEVELS + 2;
 
-                if (isset($seen[$parent])) {
-                    break;
-                }
+        $statement = $this->pdo->prepare(
+            'WITH RECURSIVE chain (origin, node, sponsor_id, depth) AS (
+                 SELECT u.id, u.id, u.sponsor_id, 0
+                   FROM users u
+                  WHERE u.id IN (' . $placeholders . ')
+                 UNION ALL
+                 SELECT c.origin, u.id, u.sponsor_id, c.depth + 1
+                   FROM chain c
+                   JOIN users u ON u.id = c.sponsor_id
+                  WHERE c.sponsor_id > 0 AND c.depth < ' . $depthCap . '
+             )
+             SELECT origin, MIN(depth) AS depth
+               FROM chain
+              WHERE node = ?
+              GROUP BY origin'
+        );
+        $statement->execute([...$pending, $viewerId]);
 
-                $seen[$parent] = true;
-                $cursor        = $parent;
-            }
+        foreach ($statement->fetchAll() as $row) {
+            $relations[(int) $row['origin']] = (int) $row['depth'] === 1 ? 'direct' : 'in-team';
+        }
 
-            $relations[$id] = $relation;
+        foreach ($pending as $id) {
+            $relations[$id] ??= 'outside';
         }
 
         return $relations;

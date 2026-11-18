@@ -60,13 +60,14 @@ declare(strict_types=1);
  *  the statement or its CSV (Rule 11).
  *
  *  The page is one per-member live surface (`member.earnings:{id}`).
- *  The four tabs share it: a repeat, Royalty or Team Harvest award bumps
- *  the same revision the package tab already listens to, so an open tab
- *  refreshes without a second surface (Rule 10). The repeat, Royalty and
- *  Team Harvest tabs also mix the shared genealogy revision into their
- *  ETag: their level cards, rank requirements and matrix roster list the
- *  team, so a registration, activation or status change refreshes them
- *  too, exactly like the genealogy page.
+ *  The five tabs share it: a repeat, Royalty, Team Harvest or General
+ *  Harvest award bumps the same revision the package tab already listens
+ *  to, so an open tab refreshes without a second surface (Rule 10, Rule
+ *  11). The repeat, Royalty, Team Harvest and General Harvest tabs also
+ *  mix the shared genealogy revision into their ETag: their level cards,
+ *  rank requirements, matrix roster and block roster list the team, so a
+ *  registration, activation or status change refreshes them too, exactly
+ *  like the genealogy page.
  * ============================================================== */
 
 final class EarningsController
@@ -382,11 +383,16 @@ final class EarningsController
          * fill one of the member's blocks, paginated at 25. It is asked
          * for here, not in `statusFor()`, because the dashboard tile and
          * the genealogy badge need no roster and must not pay for one. */
+        /* `statusFor()` already read the position and `N`; passing them in
+         * keeps the roster at its occupants and one sponsor generation
+         * (P21F-T19's query budget) instead of re-reading the board. */
         $status['roster'] = $service->rosterFor(
             $userId,
             (int) Request::string('roster_level', '0'),
             (int) Request::string('roster_page', '1'),
-            (int) Request::string('roster_per_page', '25')
+            (int) Request::string('roster_per_page', '25'),
+            $status['position'] === null ? null : (int) $status['position'],
+            (int) ($status['queue_n'] ?? 0)
         );
 
         return [
@@ -1109,6 +1115,12 @@ final class EarningsController
      * The configuration revision is in it too, because a ladder change
      * re-renders every amount on the matrix (§12.6 Rule 5). An award
      * itself bumps the surface, which is what P20F-T17 watches.
+     *
+     * The General Harvest tab (21F) reads the same queue and the same
+     * ladder: another member's qualification moves `N` and every block's
+     * progress, and an admin ladder or switch save re-renders every amount,
+     * so the team and configuration revisions are part of its scope too. An
+     * award bumps the surface, which is what P21F-T17 watches.
      */
     private function earningsScope(int $userId): string
     {
@@ -1125,6 +1137,11 @@ final class EarningsController
         }
 
         if (self::tab() === self::TAB_TEAM_HARVEST) {
+            $scope .= '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM)
+                . '|config:' . Live::revisionOrZero(Live::CONFIG);
+        }
+
+        if (self::tab() === self::TAB_GENERAL_HARVEST) {
             $scope .= '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM)
                 . '|config:' . Live::revisionOrZero(Live::CONFIG);
         }

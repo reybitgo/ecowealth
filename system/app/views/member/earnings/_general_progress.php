@@ -27,6 +27,7 @@ $queued   = (bool) ($general_harvest['queued'] ?? false);
 $position = $general_harvest['position'] ?? null;
 $queueN   = (int) ($general_harvest['queue_n'] ?? 0);
 $armed    = (bool) ($general_harvest['armed'] ?? false);
+$enabled  = (bool) ($general_harvest['enabled'] ?? false);
 $next     = is_array($general_harvest['next'] ?? null) ? $general_harvest['next'] : null;
 $rule4    = (bool) ($general_harvest['rule4'] ?? false);
 ?>
@@ -60,7 +61,7 @@ $rule4    = (bool) ($general_harvest['rule4'] ?? false);
                   <span class="badge bg-label-primary text-nowrap">Position #<?= (int) $position ?></span>
                 </div>
                 <div class="card-body">
-<?php if (!$armed): ?>
+<?php if (!$armed || !$enabled): ?>
                   <div class="alert alert-warning py-2 px-3 small mb-3" role="status">
                     The General Harvest bonus is not currently paying. Your position and blocks are
                     recorded and will count when it is switched on.

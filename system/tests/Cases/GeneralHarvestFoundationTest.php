@@ -1112,6 +1112,8 @@ return [
          * engine, **21E** the admin surfaces and **21F** the member
          * surfaces. Only the CLI job is outside /app. */
         $allowList = [
+            /* 21A — foundation: the wallet vocabulary, the enum, the
+             * installer and the reset service. */
             '/app/Services/WalletService.php',
             '/app/helpers.php',
             '/app/Services/DatabaseInstaller.php',
@@ -1128,6 +1130,41 @@ return [
             '/app/Models/GeneralHarvestAward.php',
             '/app/Services/GeneralHarvestService.php',
             '/app/Services/GeneralHarvestException.php',
+            /* 21D — the money engine: the registration hook and the
+             * live-touch surface registration. */
+            '/app/Controllers/EarningsController.php',
+            '/app/Controllers/DashboardController.php',
+            /* 21E — admin visibility: ledger, member panel, reports. */
+            '/app/Controllers/AdminCommissionController.php',
+            '/app/Controllers/AdminMemberController.php',
+            '/app/Controllers/AdminReportController.php',
+            '/app/Models/Member.php',
+            '/app/Models/Report.php',
+            '/app/Services/ReportService.php',
+            /* 21E views — admin commission tab, member board card,
+             * report cards and index pages. */
+            '/app/views/admin/commissions/_general_harvest_header.php',
+            '/app/views/admin/commissions/_general_harvest_levels.php',
+            '/app/views/admin/commissions/_general_harvest_rows.php',
+            '/app/views/admin/commissions/_general_harvest_stats.php',
+            '/app/views/admin/commissions/index.php',
+            '/app/views/admin/members/_general_harvest.php',
+            '/app/views/admin/members/_general_harvest_board_card.php',
+            '/app/views/admin/members/index.php',
+            '/app/views/admin/members/show.php',
+            '/app/views/admin/reports/_general_harvest.php',
+            '/app/views/admin/reports/index.php',
+            /* 21F views — member earnings tab, dashboard tile, genealogy. */
+            '/app/views/member/dashboard.php',
+            '/app/views/member/dashboard/_general_harvest.php',
+            '/app/views/member/earnings.php',
+            '/app/views/member/earnings/_general_blocks.php',
+            '/app/views/member/earnings/_general_header.php',
+            '/app/views/member/earnings/_general_pagination.php',
+            '/app/views/member/earnings/_general_progress.php',
+            '/app/views/member/earnings/_general_roster.php',
+            '/app/views/member/earnings/_general_rows.php',
+            '/app/views/member/earnings/_general_stats.php',
         ];
 
         $found = [];
@@ -1200,12 +1237,34 @@ return [
 
         assert_same(
             [
+                /* Sorted to match the recursive directory scan order. */
+                '/app/views/admin/commissions/_general_harvest_header.php',
+                '/app/views/admin/commissions/_general_harvest_levels.php',
+                '/app/views/admin/commissions/_general_harvest_rows.php',
+                '/app/views/admin/commissions/_general_harvest_stats.php',
+                '/app/views/admin/commissions/index.php',
+                '/app/views/admin/members/_general_harvest.php',
+                '/app/views/admin/members/_general_harvest_board_card.php',
+                '/app/views/admin/members/index.php',
+                '/app/views/admin/members/show.php',
+                '/app/views/admin/reports/_general_harvest.php',
+                '/app/views/admin/reports/index.php',
                 '/app/views/admin/settings/_commissions.php',
                 '/app/views/admin/settings/_general_harvest.php',
                 '/app/views/admin/settings/index.php',
+                '/app/views/member/dashboard.php',
+                '/app/views/member/dashboard/_general_harvest.php',
+                '/app/views/member/earnings.php',
+                '/app/views/member/earnings/_general_blocks.php',
+                '/app/views/member/earnings/_general_header.php',
+                '/app/views/member/earnings/_general_pagination.php',
+                '/app/views/member/earnings/_general_progress.php',
+                '/app/views/member/earnings/_general_roster.php',
+                '/app/views/member/earnings/_general_rows.php',
+                '/app/views/member/earnings/_general_stats.php',
             ],
             $naming,
-            'only the settings card renders the feature in 21B'
+            'only the settings card, admin pages and member pages render the feature'
         );
 
         /* The phase is inert: a fresh install carries no award, no position

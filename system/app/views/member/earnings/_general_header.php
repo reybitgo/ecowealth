@@ -9,6 +9,10 @@ declare(strict_types=1);
  * is filled by the whole network, and a block pays only when the queue
  * reaches its last position. No date is ever promised (Rule 5).
  *
+ * The "not paying" state covers **both** an unarmed board and an armed
+ * board whose switch is off (P21F-T21): the member reads the position, the
+ * queue and the network sentence either way, and no award row is invented.
+ *
  * Everything is `GeneralHarvestService::statusFor()` — position, `N`,
  * armed/enabled state, the ten levels, paid and baseline totals — so the
  * view formats and never computes (Rule 10).
@@ -58,7 +62,7 @@ $open     = (string) ($general_harvest['open'] ?? '');
                     after you.
                   </p>
                 </div>
-<?php elseif (!$armed): ?>
+<?php elseif (!$armed || !$enabled): ?>
                 <div class="card-body">
                   <div class="alert alert-warning py-2 px-3 small mb-3" role="status">
                     The General Harvest bonus is not currently paying. Your position and blocks are
@@ -67,6 +71,8 @@ $open     = (string) ($general_harvest['open'] ?? '');
                   <p class="mb-0 small text-body-secondary">
                     Your position is <strong>#<?= (int) $position ?></strong>; the queue is at
                     <strong><?= number_format($queueN) ?></strong> qualified members.
+                    A slot in your block is filled by a qualified member of the whole network — not
+                    necessarily anyone in your team. Your block fills in the order members qualified.
                   </p>
                 </div>
 <?php else: ?>

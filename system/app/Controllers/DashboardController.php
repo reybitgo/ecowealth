@@ -17,11 +17,12 @@ declare(strict_types=1);
  *  returns zeros until the `commissions` table arrives in Phase 10.
  *
  *  Live updates: the page is one per-member surface
- *  (`member.dashboard:{id}`) with eight regions — the header status pill,
+ *  (`member.dashboard:{id}`) with nine regions — the header status pill,
  *  the KPI row, the E-wallet card, the membership card, the recent-orders
- *  card, the earnings card, the Royalty tile and (Phase 20F) the Team
- *  Harvest tile. The greeting, the referral card and the static
- *  explanatory copy stay outside the regions.
+ *  card, the earnings card, the Royalty tile, the Team Harvest tile
+ *  (Phase 20F) and the General Harvest tile (Phase 21F). The greeting,
+ *  the referral card and the static explanatory copy stay outside the
+ *  regions.
  *
  *  Phase 18 adds the escrow read-out (`pending_repeat`): the repeat
  *  bonus the member has earned but that is not in the wallet yet. The
@@ -43,6 +44,15 @@ declare(strict_types=1);
  *  promise a level the engine would not pay (plan §10 Rule 9). It is a
  *  read-out with no form, and it is hidden only when the stream is off
  *  and the member holds neither a position nor history.
+ *
+ *  Phase 21F adds the General Harvest tile (`general_harvest`): the paid
+ *  total, the board position, the queue size and the next block's exact
+ *  progress and threshold. It reads `GeneralHarvestService::statusFor()`
+ *  — the same read the member's /earnings tab and the admin member panel
+ *  use — so the tile can never promise a block the engine would not pay,
+ *  and it carries no form. The two hard facts (the whole-network board and
+ *  the purchases/rank/Active exclusion) stay on the block card and are
+ *  never repeated here (Rule 2, Rule 7, P21F-T13/T14).
  * ============================================================== */
 
 final class DashboardController
@@ -141,6 +151,7 @@ final class DashboardController
             'pending_repeat'   => UnilevelAward::pendingSummaryForUser($userId),
             'royalty'          => $this->royaltySummary($userId),
             'team_harvest'     => $this->teamHarvestSummary($userId),
+            'general_harvest'  => $this->generalHarvestSummary($userId),
             'referral_code'    => (string) ($member['referral_code'] ?? ''),
             'referral_link'    => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
         ];
@@ -167,6 +178,32 @@ final class DashboardController
             return (new TeamHarvestService())->statusFor($userId);
         } catch (Throwable $e) {
             error_log('[ecowealth] team harvest dashboard tile unavailable: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * The General Harvest tile's figures (21F, plan §10, Appendix C.4).
+     *
+     * The read is `GeneralHarvestService::statusFor()` — the same read the
+     * member's General Harvest statement and the admin member panel use —
+     * so the tile can never show a block, an amount or a progress the
+     * engine would not pay (Rule 10). It is wrapped because the dashboard
+     * must render even when the projection is unavailable: a broken read
+     * hides the tile, never the page.
+     *
+     * The tile is a read-out: it carries no form and no action beyond the
+     * link to the statement (P21F-T10).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function generalHarvestSummary(int $userId): ?array
+    {
+        try {
+            return (new GeneralHarvestService())->statusFor($userId);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] general harvest dashboard tile unavailable: ' . $e->getMessage());
 
             return null;
         }
@@ -349,6 +386,9 @@ final class DashboardController
                 ]),
                 'dashboard-team-harvest' => View::capture('member/dashboard/_team_harvest', [
                     'team_harvest' => $data['team_harvest'] ?? null,
+                ]),
+                'dashboard-general-harvest' => View::capture('member/dashboard/_general_harvest', [
+                    'general_harvest' => $data['general_harvest'] ?? null,
                 ]),
             ],
             'meta'      => [

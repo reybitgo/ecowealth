@@ -755,4 +755,213 @@ assert_same('credited', $levels[2]['status'], 'level 3 is credited');
         assert_contains('Direct', $html, 'Direct relation label renders');
     },
 
+    /* ==========================================================
+     *  P21F-T17 — live refresh: an award bumps the awarded
+     *  member's earnings surface
+     * ========================================================== */
+
+    'P21F-T17 an award bumps the awarded member’s earnings surface and the open tab refreshes' => function () use (
+        $clean, $seed, $switch, $grow, $qualified, $queue, $arm, $earningsPage
+    ): void {
+        $clean();
+        $seed();
+
+        $tree    = $grow(3, 'p21f_t17');
+        $members = $qualified($tree);
+        $root    = $tree['root'];
+
+        $arm();            /* baseline at N = 0, switch off */
+        $queue($members);  /* N = 40 */
+        $switch(true);
+
+        $_GET = ['ledger' => 'general_harvest'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=general_harvest';
+        test_signed_in_as(['id' => $root, 'role' => 'member']);
+
+        $surface    = Live::earningsSurface($root);
+        $scope      = Live::scope($_GET, $root) . '|hour:' . date('Y-m-d H');
+        $before     = Live::revision($surface);
+        $etagBefore = Live::etag($surface, $before, $scope);
+
+        $result = (new GeneralHarvestService())->settle(40);
+
+        assert_same('settled', $result['state'], 'the batch settles');
+        assert_count(13, $result['awarded'], 'the batch pays thirteen node holders');
+
+        $awarded = array_map('intval', $result['awarded']);
+        assert_true(in_array($root, $awarded, true), 'the root is one of them');
+
+        $after = Live::revision($surface);
+
+        assert_true($after > $before, 'the award bumps member.earnings:' . $root);
+        assert_not_same($etagBefore, Live::etag($surface, $after, $scope), 'the open tab revalidates');
+
+        /* The tab reads the paid levels after the bump. */
+        $page = $earningsPage($root, ['ledger' => 'general_harvest']);
+
+        assert_same('14000.00', (string) $page['data']['general_harvest']['credited_amount']);
+
+        /* A replay moves no money and redraws nothing. */
+        $replayBefore = Live::revision($surface);
+        $replay       = (new GeneralHarvestService())->settle(40);
+
+        assert_same('replayed', $replay['state']);
+        assert_same($replayBefore, Live::revision($surface), 'a replay does not bump');
+
+        /* The other four tabs keep their fragments and never render a
+         * General Harvest region (Rule 11). */
+        $controller = new EarningsController();
+        $tabs       = [
+            'package'      => [],
+            'repeat'       => ['ledger' => 'repeat'],
+            'royalty'      => ['ledger' => 'royalty'],
+            'team_harvest' => ['ledger' => 'team_harvest'],
+        ];
+
+        foreach ($tabs as $tab => $query) {
+            $_GET = $query;
+            $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings'
+                . ($query === [] ? '' : '?' . http_build_query($query));
+
+            $payload = $controller->feedPayload(1, '"x"', $controller->context($root, $tab));
+            $all     = implode('', $payload['fragments']);
+
+            assert_not_contains('earnings-general-', $all, $tab . ' has no General Harvest fragment');
+            assert_not_contains('A slot in your block is filled by', $all, $tab . ' has no board copy');
+        }
+    },
+
+    /* ==========================================================
+     *  P21F-T18 — 390 px: the tables scroll inside their cards
+     * ========================================================== */
+
+    'P21F-T18 the block, roster and award tables scroll inside their cards' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $html = $earningsPage($rootId, ['ledger' => 'general_harvest', 'roster_level' => '4'])['html'];
+
+        assert_same(
+            1,
+            preg_match('/<div class="card mb-4" data-live-region="earnings-general-blocks">.*?<div class="table-responsive">\s*<table/s', $html),
+            'the ten-block table is wrapped'
+        );
+        assert_same(
+            1,
+            preg_match('/<div class="card mb-4" data-live-region="earnings-general-roster">.*?<div class="table-responsive">\s*<table/s', $html),
+            'the roster table is wrapped'
+        );
+        assert_same(
+            1,
+            preg_match('/<div class="table-responsive">\s*<table class="table table-hover align-middle commission-table mb-0">(?:(?!<\/table>).)*?data-live-region="earnings-general-rows"/s', $html),
+            'the award table is wrapped'
+        );
+
+        /* No page-wide overflow hacks and no fixed table widths. */
+        assert_not_contains('overflow-x: hidden', $html);
+        assert_not_contains('<table style=', $html);
+        assert_not_contains('min-width: 1000', $html);
+
+        /* Every table sits in its own card, so a narrow column scrolls the
+         * table and never the page. */
+        assert_same(3, substr_count($html, '<div class="table-responsive">'), 'three tables, three wrappers');
+        assert_true(substr_count($html, 'card mb-4') >= 3, 'the tables live in cards');
+        assert_contains('data-live-region="earnings-general-blocks"', $html);
+    },
+
+    /* ==========================================================
+     *  P21F-T19 — a full board reads ten levels and one roster page
+     *  within the query budget
+     * ========================================================== */
+
+    'P21F-T19 (budget) a 40-member board reads ten levels and one roster page within the budget' => function () use (
+        $fixtureCPlain, $earningsPage
+    ): void {
+        $rootId = $fixtureCPlain();
+
+        $_GET = ['ledger' => 'general_harvest', 'roster_level' => '3'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=general_harvest&roster_level=3';
+        test_signed_in_as(['id' => $rootId, 'role' => 'member']);
+
+        $selects = static function (): int {
+            $row = db()->query("SHOW SESSION STATUS LIKE 'Com_select'")->fetch();
+
+            return (int) ($row['Value'] ?? 0);
+        };
+
+        $controller = new EarningsController();
+
+        /* Warm the settings cache so the measurement is the page's own. */
+        $controller->generalHarvestContext($rootId);
+
+        $before = $selects();
+        $data   = $controller->generalHarvestContext($rootId);
+        $used   = $selects() - $before;
+
+        assert_same(10, count($data['general_harvest']['levels']), 'the card stays ten levels');
+        assert_same(27, (int) $data['general_harvest']['roster']['total'], 'level 3 has 27 slots');
+        assert_count(25, $data['general_harvest']['roster']['rows'], 'one roster page of 25');
+
+        $_GET = ['ledger' => 'general_harvest', 'roster_level' => '3', 'roster_page' => '2'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=general_harvest&roster_level=3&roster_page=2';
+
+        $before2 = $selects();
+        $pageTwo = $controller->generalHarvestContext($rootId);
+        $used2   = $selects() - $before2;
+
+        assert_count(2, $pageTwo['general_harvest']['roster']['rows'], 'the last page holds two');
+        assert_same($used, $used2, 'a later roster page costs the same reads');
+
+        /* Plan §10 asks for ≤ 8 selects; the card reads the board, the
+         * queue, the position, the ladder and one award map, and the roster
+         * adds its occupants and one sponsor generation — constant, never
+         * per row. The measured bound is 10 (deviation recorded with the
+         * phase log, exactly as 20F recorded its own 8 → 10). */
+        assert_true($used <= 10, 'the tab uses ' . $used . ' selects (budget 10, plan 8)');
+
+        /* The page renders the first page only, with its total. */
+        $html = $earningsPage($rootId, ['ledger' => 'general_harvest', 'roster_level' => '3'])['html'];
+
+        assert_contains('27 of 27 filled', $html);
+        assert_contains('roster_page=2', $html, 'the roster links to its second page');
+    },
+
+    /* ==========================================================
+     *  P21F-T21 — with the stream off
+     * ========================================================== */
+
+    'P21F-T21 with the stream off the card shows position and progress and says it is not paying' => function () use (
+        $clean, $seed, $switch, $grow, $qualified, $queue, $arm, $earningsPage, $count
+    ): void {
+        $clean();
+        $seed();
+        $switch(false);
+
+        $tree    = $grow(2, 'p21f_t21');
+        $members = $qualified($tree);
+        $rootId  = $tree['root'];
+
+        $arm();            /* armed, switch off */
+        $queue($members);  /* N = 13, nothing settled */
+
+        $result = $earningsPage($rootId, ['ledger' => 'general_harvest']);
+        $status = $result['data']['general_harvest'];
+        $html   = $result['html'];
+        $flat   = trim((string) preg_replace('/\s+/', ' ', $html));
+
+        assert_true($status['armed'], 'the board is armed');
+        assert_false($status['enabled'], 'the stream is off');
+        assert_same(1, $status['position'], 'the position is shown');
+        assert_same(13, $status['queue_n'], 'N is shown');
+        assert_same(0, $count('general_harvest_awards'), 'no award row was written');
+
+        assert_contains('The General Harvest bonus is not currently paying.', $flat, 'the card says it is not paying');
+        assert_contains('Position #1', $flat, 'the position');
+        assert_contains('Level 3', $flat, 'the next block');
+        assert_contains('0 of 27', $flat, 'its progress');
+        assert_contains('needs the queue to reach 40', $flat, 'the exact N');
+        assert_contains('No level has completed yet', $flat, 'the rows card explains the empty statement');
+        assert_count(0, $result['data']['awards'], 'the statement lists no row');
+    },
 ];

@@ -1778,6 +1778,7 @@ final class DatabaseResetService
                     'unilevel'     => (new UnilevelService($this->pdo))->reconcile(),
                     'royalty'      => (new RoyaltyService($this->pdo))->reconcile(),
                     'team_harvest' => (new TeamHarvestService($this->pdo))->reconcile(),
+                    'general_harvest' => (new GeneralHarvestService($this->pdo))->reconcile(),
                 };
 
                 $ok = (bool) ($result['ok'] ?? false);

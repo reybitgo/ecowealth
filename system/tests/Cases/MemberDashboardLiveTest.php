@@ -5,10 +5,10 @@ declare(strict_types=1);
  *  MemberDashboardLiveTest — the member's own dashboard
  *
  *  The dashboard is a per-member live surface (`member.dashboard:{id}`)
- *  with eight regions: the header status pill, the KPI row, the E-wallet
- *  card, the membership card, the recent-orders card, the earnings card
- *  and (Phase 19E) the Royalty tile, plus (Phase 20F) the Team Harvest
- *  tile.
+ *  with nine regions: the header status pill, the KPI row, the E-wallet
+ *  card, the membership card, the recent-orders card, the earnings card,
+ *  the Royalty tile (Phase 19E), the Team Harvest tile (Phase 20F) and the
+ *  General Harvest tile (Phase 21F).
  *
  *  A wallet movement, an order write for this buyer, an activation
  *  request/decision, a status change and a new downline line must all
@@ -16,7 +16,8 @@ declare(strict_types=1);
  *  the admin.dashboard surface.
  * ============================================================== */
 
-$harvest = require __DIR__ . '/../fixtures/harvest_money.php';
+$harvest        = require __DIR__ . '/../fixtures/harvest_money.php';
+$generalHarvest = require __DIR__ . '/../fixtures/general_harvest.php';
 
 $makeMember = static function (string $username = ''): array {
     return test_user($username !== '' ? $username : 'md_' . bin2hex(random_bytes(4)));
@@ -167,7 +168,7 @@ return [
         assert_same($before + 1, Live::revision(Live::memberDashboardSurface($id)), 'activation rejection');
     },
 
-    'the member dashboard feed renders the eight regions' => function () use ($makeMember): void {
+    'the member dashboard feed renders the nine regions' => function () use ($makeMember): void {
         $member = $makeMember();
         $id     = (int) $member['id'];
 
@@ -197,6 +198,7 @@ return [
                 'dashboard-earnings',
                 'dashboard-royalty',
                 'dashboard-team-harvest',
+                'dashboard-general-harvest',
             ],
             array_keys($payload['fragments'])
         );
@@ -208,6 +210,10 @@ return [
         /* The Team Harvest tile follows the same rule: off, not queued and
          * no history means nothing to say yet (20F's tile rule). */
         assert_same('', $payload['fragments']['dashboard-team-harvest'], 'no Team Harvest tile for a brand-new member');
+
+        /* The General Harvest tile needs a board position; a brand-new
+         * member holds none, and the gate is the Team Harvest tile's. */
+        assert_same('', $payload['fragments']['dashboard-general-harvest'], 'no General Harvest tile without a position');
 
         $header = $payload['fragments']['dashboard-header'];
         assert_contains('data-live-region="dashboard-header"', $header);
@@ -597,5 +603,90 @@ return [
 
         assert_contains('data-live-surface="admin.dashboard"', $html);
         assert_not_contains('data-live-surface="member.dashboard:', $html);
+    },
+
+    /* ==========================================================
+     *  P21F-T10 — the General Harvest tile
+     * ========================================================== */
+
+    'P21F-T10 the General Harvest tile shows the paid total, the position and the next block' => function () use ($generalHarvest, $render): void {
+        $clean     = $generalHarvest['clean'];
+        $seed      = $generalHarvest['seedMarker'];
+        $switch    = $generalHarvest['switch'];
+        $grow      = $generalHarvest['grow'];
+        $qualified = $generalHarvest['qualified'];
+        $queue     = $generalHarvest['queue'];
+        $arm       = $generalHarvest['arm'];
+        $account   = $generalHarvest['account'];
+
+        $clean();
+        $seed();
+
+        $tree    = $grow(2, 'mdj_gh');
+        $members = $qualified($tree);
+        $root    = $tree['root'];
+
+        $arm();            /* baseline at N = 0, switch off */
+        $queue($members);  /* N = 13 */
+        $switch(true);
+        (new GeneralHarvestService())->settle(13);
+
+        $controller = new DashboardController();
+        $data       = $controller->dashboardContext($root);
+
+        assert_not_null($data['general_harvest']);
+        assert_same(true, $data['general_harvest']['queued']);
+        assert_same(1, (int) $data['general_harvest']['position']);
+        assert_same(13, (int) $data['general_harvest']['queue_n']);
+        assert_same('6000.00', (string) $data['general_harvest']['credited_amount']);
+        assert_same(3, (int) $data['general_harvest']['next']['level']);
+        assert_same(0, (int) $data['general_harvest']['next']['filled']);
+        assert_same(27, (int) $data['general_harvest']['next']['slots']);
+        assert_same(40, (int) $data['general_harvest']['next']['needs_n']);
+
+        $tile = $controller->feedPayload(
+            10,
+            '"member.dashboard:' . $root . ':10:t10"',
+            $data
+        )['fragments']['dashboard-general-harvest'];
+
+        assert_contains('data-live-region="dashboard-general-harvest"', $tile);
+        assert_contains('General Harvest bonus', $tile);
+        assert_contains('Position #1', $tile);
+        assert_contains('Earned', $tile);
+        assert_contains(money(6000.0), $tile, 'the paid total');
+        assert_contains('Level 3', $tile, 'the next block');
+        assert_contains('0 of 27', $tile, 'its progress');
+        assert_contains('40', $tile, 'the exact N it needs');
+        assert_contains(money(8000.0), $tile, 'its amount');
+        assert_contains('href="' . url('earnings?ledger=general_harvest') . '"', $tile);
+
+        /* A read-out: no form, no CSRF field, no button that posts. */
+        assert_not_contains('<form', $tile);
+        assert_not_contains('name="_csrf"', $tile);
+        assert_not_contains('method="POST"', $tile);
+        assert_not_contains('guaranteed', mb_strtolower($tile), 'no promise of money');
+
+        /* The hard facts stay on the block card (P21F-T13/T14). */
+        assert_not_contains('A slot in your block is filled by', $tile, 'the tile never repeats the network sentence');
+        assert_not_contains('This bonus does not depend on any purchase', $tile, 'the tile never repeats the footnote');
+
+        /* The page renders the same region. */
+        $html = $render('member', 'member/dashboard', $data + [
+            'live' => Live::meta(Live::memberDashboardSurface($root), 'page'),
+        ]);
+
+        assert_contains('data-live-region="dashboard-general-harvest"', $html);
+        assert_contains(money(6000.0), $html);
+
+        /* A member who holds no position has nothing to say here: the
+         * qualification gate is the Team Harvest tile's. */
+        $fresh = $account('mdj_gh_fresh');
+
+        test_signed_in_as(test_user('mdj_gh_fresh'));
+
+        $empty = $controller->feedPayload(11, '"x"', $controller->dashboardContext($fresh));
+
+        assert_same('', $empty['fragments']['dashboard-general-harvest'], 'hidden without a position');
     },
 ];
