@@ -616,6 +616,92 @@ final class AdminSettingsController
         ],
     ];
 
+    /**
+     * The Product binary block (Phase 22B, plan §14.4).
+     *
+     * Five numbers and four switches. `binary_ledger_since` is a
+     * reconciliation baseline written by migration 026 and is deliberately
+     * never rendered here. The master switch ships off; everything else
+     * ships at the reference preset. A product controls only its own
+     * switch and its P.V. — there is no per-product pair size, pair rate
+     * or self rate (D-09).
+     *
+     * Same `{key,label,rule,suffix,hint}` shape as COMMISSION_FIELDS, plus
+     * the input attributes the view needs (`min`, `max`, `step`).
+     */
+    private const BINARY_FIELDS = [
+        [
+            'key'    => 'binary_self_pct',
+            'label'  => 'Self Bonus %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+            'hint'   => 'Paid to the buyer on their own purchase, once per order. 0 disables the Self Bonus without turning the stream off.',
+        ],
+        [
+            'key'    => 'binary_pair_points',
+            'label'  => 'Points per pair',
+            'rule'   => 'required|integer|gte:1|lte:1000000',
+            'suffix' => 'points',
+            'min'    => 1,
+            'max'    => 1000000,
+            'step'   => '1',
+            'hint'   => 'One pair needs this many points on each side. 0 would pair every purchase, so it is refused.',
+        ],
+        [
+            'key'    => 'binary_pair_pct',
+            'label'  => 'Pair value %',
+            'rule'   => 'required|numeric|gte:0|lte:100|decimal:3',
+            'suffix' => '%',
+            'min'    => 0,
+            'max'    => 100,
+            'step'   => '0.001',
+            'hint'   => 'A pair pays this percent of the matched point value, then multiplied by the pair count. 0 still accumulates and consumes points but pays nothing.',
+        ],
+        [
+            'key'    => 'binary_daily_pair_cap',
+            'label'  => 'Pairs per day per member',
+            'rule'   => 'required|integer|gte:0|lte:1000',
+            'suffix' => 'pairs',
+            'min'    => 0,
+            'max'    => 1000,
+            'step'   => '1',
+            'hint'   => 'Maximum pairs one recipient may be paid in one Asia/Manila day. 0 means unlimited.',
+        ],
+        [
+            'key'    => 'binary_hold_days',
+            'label'  => 'Release delay after delivery',
+            'rule'   => 'required|integer|gte:0|lte:365',
+            'suffix' => 'days',
+            'min'    => 0,
+            'max'    => 365,
+            'step'   => '1',
+            'hint'   => 'Days after delivery before a pending award becomes withdrawable. 0 releases at delivery. Applies to new awards only.',
+        ],
+    ];
+
+    /** The Product binary switches, in display order (plan §14.4, D-16). */
+    private const BINARY_TOGGLES = [
+        'binary_enabled' => [
+            'label' => 'Product binary enabled',
+            'hint'  => 'Off hides the offer and stops new awards. Nothing is paid by this phase — the payment engine arrives with Phase 22D, and the switch stays off until its gate passes.',
+        ],
+        'binary_requires_active' => [
+            'label' => 'Require the monthly Active rule',
+            'hint'  => 'Off: a pair recipient is paid without the monthly personal-purchase check. The account and membership checks still apply.',
+        ],
+        'binary_release_enabled' => [
+            'label' => 'Release Product binary awards',
+            'hint'  => 'Off pauses the release job; pending awards stay pending. Cancelling an order still cancels its pending awards.',
+        ],
+        'binary_reversal_enabled' => [
+            'label' => 'Reverse awards when a paid order is cancelled',
+            'hint'  => 'On: cancelling an order after its award was released claws the bonus back, best effort. Pending awards are always cancelled.',
+        ],
+    ];
+
     /** The one hint every General Harvest amount input carries. */
     private const GENERAL_HARVEST_AMOUNT_HINT = 'What this level pays when its block of 3^L positions is full. Blank and 0 are the same: the level still completes but pays nothing, and it must be given an amount before it can sit inside the payable depth.';
 
@@ -732,6 +818,8 @@ final class AdminSettingsController
             'general_harvest_positions' => $this->generalHarvestPositions(),
             'general_harvest_board'     => $this->generalHarvestBoard(),
             'general_harvest_preset'    => GeneralHarvestLevel::forForm(GeneralHarvestLevel::referencePreset()),
+            'binary_fields'  => self::BINARY_FIELDS,
+            'binary_toggles' => self::BINARY_TOGGLES,
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'cancel_enabled'    => Order::cancelEnabled(),
@@ -839,6 +927,8 @@ final class AdminSettingsController
                     'general_harvest_positions' => $data['general_harvest_positions'],
                     'general_harvest_board'     => $data['general_harvest_board'],
                     'general_harvest_preset'    => $data['general_harvest_preset'],
+                    'binary_fields'  => $data['binary_fields'],
+                    'binary_toggles' => $data['binary_toggles'],
                 ]),
                 'settings-transfers' => View::capture('admin/settings/_transfers', [
                     'settings'        => $data['settings'],
@@ -1387,6 +1477,22 @@ final class AdminSettingsController
             foreach (self::GENERAL_HARVEST_AMOUNTS as $field) {
                 $keys[] = (string) $field['key'];
             }
+
+            /* The Product binary block (Phase 22B, plan §14.4): the master
+             * switch first, then the five knobs, then the remaining toggles.
+             * `binary_ledger_since` is the reconciliation baseline and is
+             * never operator-editable. */
+            $keys[] = 'binary_enabled';
+
+            foreach (self::BINARY_FIELDS as $field) {
+                $keys[] = (string) $field['key'];
+            }
+
+            foreach (array_keys(self::BINARY_TOGGLES) as $key) {
+                if ((string) $key !== 'binary_enabled') {
+                    $keys[] = (string) $key;
+                }
+            }
         }
 
         if ($section === 'transfers') {
@@ -1415,7 +1521,8 @@ final class AdminSettingsController
                 array_keys(self::REPEAT_TOGGLES),
                 array_keys(self::ROYALTY_TOGGLES),
                 array_keys(self::TEAM_HARVEST_TOGGLES),
-                array_keys(self::GENERAL_HARVEST_TOGGLES)
+                array_keys(self::GENERAL_HARVEST_TOGGLES),
+                array_keys(self::BINARY_TOGGLES)
             ),
             default      => [],
         };
@@ -2231,6 +2338,17 @@ final class AdminSettingsController
             $rules[(string) $key] = 'required|in:0,1';
         }
 
+        /* The Product binary block (Phase 22B, plan §14.4): the five numbers
+         * keep their declared precision and range; the four switches are
+         * simple on/off. `binary_ledger_since` is never validated. */
+        foreach (self::BINARY_FIELDS as $field) {
+            $rules[(string) $field['key']] = (string) $field['rule'];
+        }
+
+        foreach (array_keys(self::BINARY_TOGGLES) as $key) {
+            $rules[(string) $key] = 'required|in:0,1';
+        }
+
         foreach (self::TRANSFER_FIELDS as $field) {
             $rules[(string) $field['key']] = (string) $field['rule'];
         }
@@ -2334,6 +2452,14 @@ final class AdminSettingsController
         }
 
         foreach (self::GENERAL_HARVEST_TOGGLES as $key => $toggle) {
+            $labels[(string) $key] = (string) $toggle['label'];
+        }
+
+        foreach (self::BINARY_FIELDS as $field) {
+            $labels[(string) $field['key']] = (string) $field['label'];
+        }
+
+        foreach (self::BINARY_TOGGLES as $key => $toggle) {
             $labels[(string) $key] = (string) $toggle['label'];
         }
 

@@ -44,6 +44,8 @@ declare(strict_types=1);
  * @var array<string, mixed> $general_harvest_positions
  * @var array<string, mixed> $general_harvest_board
  * @var array<int, string> $general_harvest_preset
+ * @var list<array{key:string,label:string,rule:string,suffix:string,min:mixed,max:mixed,step:string,hint:string}> $binary_fields
+ * @var array<string, array{label:string,hint:string}> $binary_toggles
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
@@ -81,6 +83,8 @@ $ghLadder         = $general_harvest_ladder ?? [];
 $ghPositions      = $general_harvest_positions ?? [];
 $ghBoard          = $general_harvest_board ?? [];
 $ghPreset         = $general_harvest_preset ?? [];
+$binaryFields     = $binary_fields ?? [];
+$binaryToggles    = $binary_toggles ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -304,6 +308,8 @@ $action = url('admin/settings');
     'general_harvest_positions' => $ghPositions,
     'general_harvest_board'     => $ghBoard,
     'general_harvest_preset'    => $ghPreset,
+    'binary_fields'  => $binaryFields,
+    'binary_toggles' => $binaryToggles,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

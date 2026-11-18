@@ -57,6 +57,8 @@ $generalLadder     = $general_harvest_ladder ?? [];
 $generalPositions  = $general_harvest_positions ?? [];
 $generalBoard      = $general_harvest_board ?? [];
 $generalPreset     = $general_harvest_preset ?? [];
+$binaryFields      = $binary_fields  ?? [];
+$binaryToggles     = $binary_toggles ?? [];
 
 $value = static function (string $key) use ($settings): string {
     return old($key, (string) ($settings[$key] ?? ''));
@@ -298,4 +300,117 @@ $checked = static function (string $key) use ($settings): bool {
     'general_harvest_board'     => $generalBoard,
     'general_harvest_preset'    => $generalPreset,
 ]) ?>
+
+<?php
+$binaryEnabled   = (string) ($settings['binary_enabled'] ?? '0') === '1';
+$pairPoints      = (string) ($settings['binary_pair_points'] ?? '1000');
+$pairPct         = (string) ($settings['binary_pair_pct'] ?? '10.000');
+
+$pairValue  = round((float) $pairPoints * (float) $pairPct / 100, 2);
+$pairPointsLabel = number_format((int) $pairPoints, 0, '', ',');
+$pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0'), '.');
+?>
+                      <hr class="my-5" />
+
+                      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <h6 class="mb-0">Product binary</h6>
+                        <span class="badge bg-label-<?= $binaryEnabled ? 'success' : 'secondary' ?>"><?= $binaryEnabled ? 'Configured — money engine arrives next' : 'Off — nothing pays' ?></span>
+                      </div>
+                      <p class="text-body-secondary small mb-4">
+                        A placement tree over repeat-purchase points: the buyer earns a Self Bonus on their own
+                        purchase, and every purchase points left against right to pay pairs up the binary tree.
+                        Points and money stay in separate ledgers. This card only configures the stream — no
+                        award is written until the money engine ships, and the master switch below is off by
+                        default. A product controls only its switch and its P.V.; there is no per-product pair
+                        size, pair rate or self rate.
+                      </p>
+
+                      <!-- Master switch first -->
+                      <div class="row g-4">
+                        <div class="col-12">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input <?= invalid_class('binary_enabled') ?>" type="checkbox"
+                                   role="switch" name="binary_enabled" value="1" id="setting-binary_enabled"
+                                   <?= $checked('binary_enabled') ? 'checked' : '' ?> />
+                            <label class="form-check-label" for="setting-binary_enabled">
+                              <?= e((string) ($binaryToggles['binary_enabled']['label'] ?? 'Product binary enabled')) ?>
+                            </label>
+                          </div>
+                          <p class="text-body-secondary small mb-0 ms-5 ps-2"><?= e((string) ($binaryToggles['binary_enabled']['hint'] ?? '')) ?></p>
+<?php if ($binaryEnabled): ?>
+                          <div class="text-warning small mt-1">Orders now place points and pay awards when the money engine is live. Turn this off to stop new awards.</div>
+<?php endif; ?>
+<?php if (has_error('binary_enabled')): ?>
+                          <div class="text-danger small mt-1"><?= e(error_for('binary_enabled')) ?></div>
+<?php endif; ?>
+                        </div>
+                      </div>
+
+                      <hr class="my-4" />
+
+                      <div class="row g-6">
+<?php foreach ($binaryFields as $field): ?>
+<?php
+    $key  = (string) $field['key'];
+    $min  = $field['min'] ?? null;
+    $max  = $field['max'] ?? null;
+    $step = $field['step'] ?? null;
+?>
+                        <div class="col-md-6">
+                          <label class="form-label" for="setting-<?= e($key) ?>"><?= e((string) $field['label']) ?></label>
+                          <div class="input-group">
+                            <input type="number"
+                                   <?= $min !== null ? 'min="' . e((string) $min) . '" ' : '' ?><?= $max !== null ? 'max="' . e((string) $max) . '" ' : '' ?><?= $step !== null ? 'step="' . e((string) $step) . '" ' : '' ?>
+                                   name="<?= e($key) ?>" id="setting-<?= e($key) ?>"
+                                   class="form-control <?= invalid_class($key) ?>" value="<?= $value($key) ?>" />
+                            <span class="input-group-text"><?= e((string) $field['suffix']) ?></span>
+                          </div>
+<?php if (has_error($key)): ?>
+                          <div class="invalid-feedback d-block"><?= e(error_for($key)) ?></div>
+<?php else: ?>
+                          <div class="form-text"><?= e((string) $field['hint']) ?></div>
+<?php endif; ?>
+                        </div>
+<?php endforeach; ?>
+                      </div>
+
+                      <div class="row g-4 mt-1">
+<?php foreach (array_slice($binaryToggles, 1) as $key => $toggle): ?>
+<?php $key = (string) $key; ?>
+                        <div class="col-12">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input <?= invalid_class($key) ?>" type="checkbox"
+                                   role="switch" name="<?= e($key) ?>" value="1" id="setting-<?= e($key) ?>"
+                                   <?= $checked($key) ? 'checked' : '' ?> />
+                            <label class="form-check-label" for="setting-<?= e($key) ?>">
+                              <?= e((string) $toggle['label']) ?>
+                            </label>
+                          </div>
+                          <p class="text-body-secondary small mb-0 ms-5 ps-2"><?= e((string) $toggle['hint']) ?></p>
+<?php if (has_error($key)): ?>
+                          <div class="text-danger small mt-1"><?= e(error_for($key)) ?></div>
+<?php endif; ?>
+                        </div>
+<?php endforeach; ?>
+                      </div>
+
+                      <!-- Readiness panel -->
+                      <div class="card mt-4">
+                        <div class="card-header"><h6 class="mb-0">Product binary readiness</h6></div>
+                        <div class="card-body py-3">
+                          <div class="row g-3">
+                            <div class="col-md-6">
+                              <p class="text-body-secondary small mb-1">Global switch</p>
+                              <strong class="d-block"><?= $binaryEnabled ? 'On' : 'Off' ?></strong>
+                              <p class="text-body-secondary small mb-0"><?= $binaryEnabled ? 'The stream is live — new paid orders place points and pay.' : 'The stream is off. Nothing is paid.' ?></p>
+                            </div>
+                            <div class="col-md-6">
+                              <p class="text-body-secondary small mb-1">Preset check</p>
+                              <p class="text-body-secondary small mb-0">
+                                <?= e($pairPointsLabel) ?> points per pair pays <?= e(money($pairValue)) ?> at <?= e($pairPctLabel) ?>%.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
