@@ -374,6 +374,28 @@ final class Product
         return $out;
     }
 
+    /**
+     * Readiness counts for the settings card (Phase 22B-S3): how many
+     * products carry the binary switch on with no P.V. (earn nothing),
+     * and how many have it off. One query, never one per row.
+     *
+     * @return array{binary_on_zero_pv:int, binary_off:int}
+     */
+    public static function binaryReadinessCounts(): array
+    {
+        $row = db()->query(
+            "SELECT
+                SUM(binary_enabled = 1 AND pv = 0) AS binary_on_zero_pv,
+                SUM(binary_enabled = 0)            AS binary_off
+             FROM products"
+        )->fetch() ?: [];
+
+        return [
+            'binary_on_zero_pv' => (int) ($row['binary_on_zero_pv'] ?? 0),
+            'binary_off'        => (int) ($row['binary_off'] ?? 0),
+        ];
+    }
+
     /** Snapshot of the binary-relevant product config for the audit trail. */
     public static function binarySnapshot(?array $product): array
     {

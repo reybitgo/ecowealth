@@ -786,7 +786,7 @@ page is the complete settings surface — **eight independent cards**, each with
 | **Payout methods** | `min_payout`, `usdt_rate`, `service_fee_<method>`, `usdt_*_gas_fee`, `payout_<method>_enabled` |
 | **Payment windows** | `shop_payment_deadline_hours`, `shop_correction_window_hours`, `shop_max_proof_attempts`, `shop_expiry_enabled` |
 | **Fulfilment & invoices** | `seller_*`, `shop_autocomplete_days`, `shop_autocomplete_enabled` |
-| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`; the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled`, `unilevel_hold_days`, `unilevel_release_enabled`; the **Royalty bonus** sub-block: `royalty_enabled`, `royalty_pay_enabled`, four rank thresholds, three quotas and six rates; the **Team Harvest bonus** sub-block: `team_harvest_enabled`, `team_harvest_qualify_directs`, `team_harvest_max_levels` and the ten `team_harvest_levels` amounts (table rows, not settings); the **General Harvest bonus** sub-block: `general_harvest_enabled`, `general_harvest_max_levels` and the ten `general_harvest_levels` amounts (table rows, not settings) |
+| **Commissions** | `commission_direct_enabled`, `commission_indirect_enabled`, `commission_indirect_max_levels`, `commission_requires_active_sponsor`, `commission_compression` (reserved), `free_registration_enabled`; the **Repeat-purchase bonus** sub-block: `unilevel_enabled`, `unilevel_max_levels` (1–10), `unilevel_requires_active_upline`, `unilevel_active_threshold`, `unilevel_reversal_enabled`, `unilevel_hold_days`, `unilevel_release_enabled`; the **Royalty bonus** sub-block: `royalty_enabled`, `royalty_pay_enabled`, four rank thresholds, three quotas and six rates; the **Team Harvest bonus** sub-block: `team_harvest_enabled`, `team_harvest_qualify_directs`, `team_harvest_max_levels` and the ten `team_harvest_levels` amounts (table rows, not settings); the **General Harvest bonus** sub-block: `general_harvest_enabled`, `general_harvest_max_levels` and the ten `general_harvest_levels` amounts (table rows, not settings); the **Product binary** sub-block (22B, inert until 22D): `binary_enabled` (off), `binary_self_pct` (`5.000`), `binary_pair_points` (`1000`), `binary_pair_pct` (`10.000`), `binary_daily_pair_cap` (`20`, 0 = unlimited), `binary_requires_active` (`1`), `binary_hold_days` (`7`), `binary_release_enabled` (`1`), `binary_reversal_enabled` (`1`); `binary_ledger_since` is the reconciliation baseline and is never rendered |
 | **Transfers** | `ewallet_transfer_fee`, `ewallet_min_transfer`, `ewallet_transfer_daily_limit`, `ewallet_transfer_weekly_limit` (0 = unlimited) |
 
 The controller only validates, writes and audits the submitted card's keys (`settings.update`, with
@@ -2074,7 +2074,34 @@ be trusted with a money run; both are CLI/`.cmd` only and both take their own lo
 
 Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md`**.
 
+## Product binary bonus (Phase 22B — configuration only)
+
+A **product binary bonus on repeat-purchase points**: every member's purchase lands on the left or right side of a placement tree (22C), matches left against right into pairs (22D), and pays the buyer a Self Bonus on their own purchase. Phase 22B **only configures** the stream — the master switch is off, no product is flagged, and **no money moves**. The money engine, placement, member pages and the tree arrive in 22C–22D.
+
+The single settings surface is **System → Settings → Commissions → Product binary**, one card, one form, one `settings.update` audit:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `binary_enabled` | `0` | The master switch. Off renders the offer nowhere and pays nothing (D-16). |
+| `binary_self_pct` | `5.000` | Self Bonus % of the order's points, paid to the buyer once per order, no Active gate (0 disables it). |
+| `binary_pair_points` | `1000` | Points per pair — one pair needs this many points on each side (1–1,000,000; 0 is refused). |
+| `binary_pair_pct` | `10.000` | Pair value % of the matched point value, multiplied by the pair count (0 still accumulates and consumes). |
+| `binary_daily_pair_cap` | `20` | Max pairs one recipient may be paid in one Asia/Manila day (0 = unlimited). |
+| `binary_requires_active` | `1` | Require the monthly unilevel Active rule for pair recipients. |
+| `binary_hold_days` | `7` | Days after delivery before a pending award becomes withdrawable (snapshotted at payment). |
+| `binary_release_enabled` | `1` | Release binary awards (shared `--stream=binary` release job, 22H). |
+| `binary_reversal_enabled` | `1` | Reverse credited awards when a paid order is cancelled (best effort). |
+
+`binary_ledger_since` is the reconciliation baseline written by migration 026; it is never operator-editable.
+
+**Product card** (`/admin/products/{id}/edit`): the *Product binary* card sits after the *Unilevel repeat-purchase bonus* card. The switch flags the product; the readout shows `P.V. → N points per unit` (`ROUND(pv)`). A product with the switch on and `pv = 0` is refused (*Give the product a P.V. or turn its binary switch off.*). The list badge reads `Binary N pts` (on) or nothing (off), and the `?binary=on|off` filter splits the list. There is **no** per-product pair size, pair rate or self rate — those are global (D-09).
+
+**Readiness panel** (same card, read-only): four counts — products flagged on with P.V. 0, products flagged off, the global switch (On/Off), and the preset check (*1,000 points per pair pays ₱100.00 at 10%.*). Each count links to the filtered product list; none changes a setting.
+
+**The switch stays off.** Paying an order after 22B writes no `binary_awards`, no `binary_volume` and no `binary` wallet movement — that hook is 22D's work. Member pages (`/shop`, `/checkout`, `/orders`, `/earnings`, `/genealogy`) show no binary content until 22F.
+
 ---
+
 
 ## Tests
 

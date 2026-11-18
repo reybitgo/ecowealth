@@ -28,12 +28,13 @@ declare(strict_types=1);
  * @var array<string, mixed> $team_harvest_status
  * @var array<int, string> $team_harvest_preset
  * @var list<array<string, mixed>> $general_harvest_fields
- * @var array<string, array{label:string, hint:string}> $general_harvest_toggles
+ * @var array<string, array{label:string,hint:string}> $general_harvest_toggles
  * @var array<int, string> $general_harvest_amounts
  * @var array<string, mixed> $general_harvest_ladder
  * @var array<string, mixed> $general_harvest_positions
  * @var array<string, mixed> $general_harvest_board
  * @var array<int, string> $general_harvest_preset
+ * @var array{binary_on_zero_pv:int, binary_off:int} $binary_readiness
  */
 
 $settings          = $settings ?? [];
@@ -395,16 +396,35 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                       </div>
 
                       <!-- Readiness panel -->
+                      <?php
+                      $readiness = $binary_readiness ?? [];
+                      $onZeroPv  = (int) ($readiness['binary_on_zero_pv'] ?? 0);
+                      $off       = (int) ($readiness['binary_off'] ?? 0);
+                      ?>
                       <div class="card mt-4">
                         <div class="card-header"><h6 class="mb-0">Product binary readiness</h6></div>
                         <div class="card-body py-3">
                           <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-md-3">
+                              <p class="text-body-secondary small mb-1">Binary on, no points</p>
+                              <strong class="d-block"><?= $onZeroPv ?></strong>
+                              <p class="text-body-secondary small mb-0">
+                                <?= $onZeroPv === 0 ? 'All flagged products earn points.' : sprintf('<a href="%s">%s product(s) flagged but earn 0 points — set a P.V. or switch them off.</a>', e(url('admin/products?binary=on')), $onZeroPv); ?>
+                              </p>
+                            </div>
+                            <div class="col-md-3">
+                              <p class="text-body-secondary small mb-1">Binary off</p>
+                              <strong class="d-block"><?= $off ?></strong>
+                              <p class="text-body-secondary small mb-0">
+                                <?= $off === 0 ? 'Every product places points.' : sprintf('<a href="%s">%s product(s) do not place points.</a>', e(url('admin/products?binary=off')), $off); ?>
+                              </p>
+                            </div>
+                            <div class="col-md-3">
                               <p class="text-body-secondary small mb-1">Global switch</p>
                               <strong class="d-block"><?= $binaryEnabled ? 'On' : 'Off' ?></strong>
                               <p class="text-body-secondary small mb-0"><?= $binaryEnabled ? 'The stream is live — new paid orders place points and pay.' : 'The stream is off. Nothing is paid.' ?></p>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                               <p class="text-body-secondary small mb-1">Preset check</p>
                               <p class="text-body-secondary small mb-0">
                                 <?= e($pairPointsLabel) ?> points per pair pays <?= e(money($pairValue)) ?> at <?= e($pairPctLabel) ?>%.

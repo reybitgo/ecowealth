@@ -291,6 +291,204 @@ Expected
 
 ---
 
+## 7. Section B — Phase 22B: Configuration and readiness (`QA22B-01` … `QA22B-09`)
+
+**Prerequisites.** Tag `p22a-foundation`; migration 026 applied to the development copy (39 → 42 tables, 79 → 89 settings); the app running. All of these checks are **read-only for money**: no binary award, volume or wallet row may be created in this section. Expected suite count for this section: **≥ 1,530** PHP cases and **278** smoke checks.
+
+### QA22B-01 — The product edit card renders off by default
+
+| Why | Rule 1 / D-16: the switch ships off and renders nowhere until configured. |
+|---|---|
+| Where | the running app as `admin` — `/admin/products/{id}/edit` |
+| Evidence | `QA22B-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open any product's edit page.
+2. Look for the **Product binary** card (after the *Unilevel repeat-purchase bonus* card, in the left column).
+3. Confirm the switch is **off** (unchecked).
+4. Confirm the points readout shows *0 points — set a P.V.* when `pv = 0`, or *N points per unit* when `pv > 0`.
+5. Confirm the self/pair sentence names the global preset (5% self, 1,000-point pair at 10% → ₱100.00).
+
+Expected
+
+- The card renders with the switch **off**.
+- The points readout matches the product's P.V. (`ROUND(pv)` per unit).
+- No per-product pair-size, pair-rate or self-rate input exists (D-09).
+- No binary award, volume or wallet row exists.
+
+### QA22B-02 — Flag a product and save; the switch persists
+
+| Why | P22B-T1 / P22B-T12: `binary_enabled` saves and re-reads; the badge reads `Binary N pts`. |
+|---|---|
+| Where | the running app as `admin` — `/admin/products/{id}/edit`, then `/admin/products` |
+| Evidence | `QA22B-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On a product's edit page, set P.V. to ₱250 and switch **Product binary** on.
+2. Save. Re-open the edit page.
+3. Open `/admin/products` and look at the product's row badge.
+
+Expected
+
+- Re-opened: the switch is **on** and the card reads *250 points per unit*.
+- The list badge reads **`Binary 250 pts`**.
+- The self/pair sentence still names the global preset.
+
+### QA22B-03 — Binary on with P.V. 0 is refused
+
+| Why | P22B-T2 / Rule 8: a flagged product with no P.V. earns nothing, so the pair is refused. |
+|---|---|
+| Where | the running app as `admin` — `/admin/products/{id}/edit` |
+| Evidence | `QA22B-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On a product's edit page with the switch **on**, set P.V. to `0`.
+2. Save.
+3. Confirm the form returns with a field error on the switch and the values as typed.
+4. Confirm the product row still shows its previous P.V. (one transaction, nothing changed).
+
+Expected
+
+- Field error: *"Give the product a P.V. or turn its binary switch off."*
+- The product row is unchanged.
+- With JS off, the same refusal happens (Rule 11).
+
+### QA22B-04 — The product list badge and the `?binary=on|off` filter
+
+| Why | P22B-T12 / P22B-T13: the badge and the filter work and combine with pagination. |
+|---|---|
+| Where | the running app as `admin` — `/admin/products?binary=on` and `?binary=off` |
+| Evidence | `QA22B-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Have at least one product flagged on (P.V. > 0) and one flagged off.
+2. Open `/admin/products?binary=on` — only flagged products appear.
+3. Open `/admin/products?binary=off` — only unflagged products appear.
+4. Apply `?status=` together with `?binary=` — both filters apply.
+
+Expected
+
+- The on-filter shows exactly the flagged products, each with `Binary N pts`.
+- The off-filter shows exactly the unflagged products, with no badge.
+- The filter survives pagination and combines with `?status=`.
+
+### QA22B-05 — The settings card: all nine keys, toggles, validation, audit
+
+| Why | P22B-T6 … T11, P22B-T18: the commissions card carries the nine binary keys, master first, validates ranges, and audits changes. |
+|---|---|
+| Where | the running app as `admin` — `/admin/settings` → **Commissions** → *Product binary* |
+| Evidence | `QA22B-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open **System → Settings** → **Commissions** → *Product binary*.
+2. Confirm the master switch, Self Bonus %, Points per pair, Pair value %, Pairs per day, Release delay, and the four toggles render, master first.
+3. Confirm `binary_ledger_since` is NOT rendered.
+4. Save with **Points per pair = 0** — refused.
+5. Save with **Self Bonus % = 100.001** (or four decimals) — refused.
+6. Save **Points per pair = 1000**, **Self 5.000**, **Pair 10.000**, **Cap 20**, **Hold 7** — persisted.
+7. Open the audit desk — one `settings.update` row for the commissions section.
+
+Expected
+
+- Nine visible binary keys, master switch first; `binary_ledger_since` absent.
+- Pair size 0 refused ("at least 1"); self above 100 or four decimals refused.
+- The preset saves; the audit desk shows the before/after.
+- A repeat save with identical values writes no audit row.
+
+### QA22B-06 — The readiness panel counts and links
+
+| Why | P22B-T19: the four readiness counts match the products table and the links filter correctly. |
+|---|---|
+| Where | the running app as `admin` — `/admin/settings` → **Commissions** → *Product binary readiness* |
+| Evidence | `QA22B-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Flag two products on (one with P.V. > 0, one with P.V. = 0 via a direct row or a prior version) and leave one off.
+2. Open the readiness panel.
+3. Confirm the counts: "Binary on, no points", "Binary off", "Global switch", "Preset check".
+4. Follow each link — it opens `/admin/products?binary=on` or `?binary=off`.
+
+Expected
+
+- The **Binary on, no points** count equals `COUNT(*) FROM products WHERE binary_enabled = 1 AND pv = 0`; its link opens the on-filter.
+- The **Binary off** count equals `COUNT(*) FROM products WHERE binary_enabled = 0`; its link opens the off-filter.
+- The **Global switch** reads On/Off; the **Preset check** reads *1,000 points per pair pays ₱100.00 at 10%.* (recomputed when the pair values change).
+- None of the four is a button that changes a setting (Rule 12).
+
+### QA22B-07 — The stream is on but still pays nothing
+
+| Why | P22B-T11 / P22B-T22 / D-16: configuring the stream in 22B writes no money; the engine arrives in 22D. |
+|---|---|
+| Where | the running app as `admin` + a member purchase; SQL on the development copy |
+| Evidence | `QA22B-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Turn the global switch **on**, set Self 0% and Pair 0%.
+2. Confirm the readiness sentence says pairs pay ₱0.00.
+3. As a member, place and pay an e-wallet order whose cart carries points (a product flagged on, P.V. > 0).
+4. `SELECT COUNT(*) FROM binary_awards; SELECT COUNT(*) FROM binary_volume; SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('binary','binary_reversal');`
+
+Expected
+
+- The card warns *Orders now place points and pay awards when the money engine is live.* (P22B-T24).
+- All three counts are **0**: no award, no volume, no wallet movement.
+- The order page and the sponsor's wallet are unchanged.
+
+### QA22B-08 — The product form works without JavaScript
+
+| Why | Rule 11: no JavaScript-only validation; with JS off the form still saves and validates. |
+|---|---|
+| Where | the running app as `admin` — `/admin/products/{id}/edit` with JS disabled |
+| Evidence | `QA22B-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Disable JavaScript in the browser.
+2. Open a product's edit page, flip the binary switch, set P.V. to 250, save.
+3. Re-open: the switch is on, the card reads *250 points per unit*.
+4. Try P.V. 0 with the switch on: the field error returns.
+
+Expected
+
+- The form saves and validates without JavaScript.
+- Only the live points readout is missing (progressive enhancement).
+
+### QA22B-09 — Member pages show no binary content
+
+| Why | P22B-T21 / D-22: 22B adds no member-facing binary surface; 22F owns the earnings tab. |
+|---|---|
+| Where | the running app as a member — `/shop/{id}`, `/checkout`, `/orders/{id}`, `/earnings`, `/genealogy` |
+| Evidence | `QA22B-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. As a member, open each of the five pages.
+2. Confirm none contains **Product binary**, **binary upline**, **Left team**, **Right team**, or any points/pairs figure.
+3. `SELECT COUNT(*) FROM binary_awards; SELECT COUNT(*) FROM binary_volume;` — **0**.
+
+Expected
+
+- No binary copy appears on any member page.
+- No binary award or volume row exists.
+
+---
+
 ## 6. Cleanup
 
 Section A creates no members, no QA rows and no money. If `QA22A-05` was run on a scratch schema, drop that schema or leave it — it is disposable. Nothing on the development copy changes.

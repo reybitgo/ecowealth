@@ -1169,3 +1169,58 @@ The copy rules hold verbatim and singularly:
   names the start date.
 - No forbidden word renders: "spillover", "passive", "guaranteed", "unlimited", "matrix scheme",
   "binary", "cycle".
+
+## 24. Product binary bonus: configuration only (Phase 22B)
+
+The Product binary bonus pays a member from the points their own repeat purchases and their binary
+team's purchases place on the two sides of a placement tree (22C), matching left against right into
+pairs (22D), plus a Self Bonus on the buyer's own purchase.
+
+**Phase 22B only configures the stream.** The master switch is off, no product is flagged, no member
+has a node yet, and **no money moves**. Placement, the money engine, the member pages and the tree
+arrive in 22C–22D.
+
+### Admin → Settings → Commissions → Product binary
+
+One card, one form, one `settings.update` audit:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Product binary enabled** | **off** | Master switch. Off renders the offer nowhere and pays nothing (D-16). |
+| **Self Bonus %** | `5.000` | % of the order's points paid to the buyer once per order; no Active gate (0 disables it). |
+| **Points per pair** | `1000` | Points needed on each side for one pair (1–1,000,000; 0 refused). |
+| **Pair value %** | `10.000` | % of the matched point value paid per pair, times the pair count (0 still accumulates). |
+| **Pairs per day per member** | `20` | Daily cap per recipient (0 = unlimited). |
+| **Release delay after delivery** | `7` | Days before a pending award becomes withdrawable (snapshotted at payment). |
+| **Require the monthly Active rule** | **on** | Pair recipients must be Active for the month. |
+| **Release Product binary awards** | **on** | The shared `--stream=binary` release job may credit them (22H). |
+| **Reverse awards when a paid order is cancelled** | **on** | Credited awards are clawed back best effort on cancellation (22D). |
+
+`binary_ledger_since` (the reconciliation baseline from migration 026) is never rendered.
+
+### Products → edit → Product binary
+
+The **Product binary** card sits after the *Unilevel repeat-purchase bonus* card:
+
+- The switch flags the product for binary points.
+- The readout shows `P.V. → N points per unit` (`ROUND(pv)`), and the self/pair sentence names the global preset.
+- A switch-on product with `pv = 0` is refused: *"Give the product a P.V. or turn its binary switch off."*
+- The list badge reads `Binary N pts` (on) or nothing (off), and `?binary=on|off` splits the list.
+- There is **no** per-product pair size, pair rate or self rate — those are global (D-09).
+
+### Product binary readiness (read-only)
+
+The same settings card gains a **Product binary readiness** panel with four counts:
+
+1. **Binary on, no points** — products flagged on with `pv = 0`. Links to `/admin/products?binary=on`.
+2. **Binary off** — products with the switch off. Links to `/admin/products?binary=off`.
+3. **Global switch** — On / *The stream is off. Nothing is paid.*
+4. **Preset check** — *1,000 points per pair pays ₱100.00 at 10%.* (recomputed when the pair values change).
+
+None of the four is a button; each links to the filtered product list (Rule 12).
+
+### The switch stays off
+
+Paying an order after 22B writes no `binary_awards`, no `binary_volume` and no `binary` wallet movement —
+that hook is 22D's work. Member pages (`/shop`, `/checkout`, `/orders`, `/earnings`, `/genealogy`) show no
+binary content until 22F, and the genealogy tree arrives in 22G.

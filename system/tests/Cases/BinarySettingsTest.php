@@ -325,4 +325,157 @@ return [
         setting_set('binary_enabled', '0');
         setting_cache_clear();
     },
+
+    /* ---------- Readiness counts (P22B-T19) ---------- */
+
+    'P22B-T19 readiness panel shows the four counts and links to the filtered list' => function () use ($renderPage, $commissions): void {
+        test_signed_in_as(test_user('p22b_readiness_admin', 'admin'));
+
+        /* One flagged-with-points product, one flagged-off product. */
+        Product::save([
+            'name'           => 'Readiness On',
+            'price'          => '10.00',
+            'pv'             => '250.00',
+            'stock'          => '1',
+            'status'         => 'active',
+            'binary_enabled' => '1',
+        ]);
+        Product::save([
+            'name'           => 'Readiness Off',
+            'price'          => '10.00',
+            'pv'             => '250.00',
+            'stock'          => '1',
+            'status'         => 'active',
+            'binary_enabled' => '0',
+        ]);
+
+        /* A misconfigured product (flagged but P.V. 0) can only exist via a
+         * direct row — validation refuses it through the form — and that is
+         * exactly the state the readiness count surfaces. */
+        $slug = 'ready-' . bin2hex(random_bytes(4));
+        db()->prepare(
+            'INSERT INTO products (sku, name, slug, price, pv, stock, status, binary_enabled)
+             VALUES (?, ?, ?, 10.00, 0.00, 1, "active", 1)'
+        )->execute(['READY-' . bin2hex(random_bytes(3)), 'Readiness Zero', $slug]);
+
+        $expectedOff   = (int) db()->query("SELECT COUNT(*) FROM products WHERE binary_enabled = 0")->fetchColumn();
+        $expectedZero  = (int) db()->query("SELECT COUNT(*) FROM products WHERE binary_enabled = 1 AND pv = 0")->fetchColumn();
+
+        assert_same(1, $expectedZero, 'the direct row is the one flagged-but-zero product');
+
+        $html = $commissions();
+
+        assert_contains('Product binary readiness', $html);
+        assert_contains('Binary on, no points', $html);
+        assert_contains('Binary off', $html);
+        assert_contains((string) $expectedZero, $html);
+        assert_contains((string) $expectedOff, $html);
+
+        /* Both links render: the on-link because a zero-PV flagged product exists,
+         * the off-link because off products exist. */
+        assert_contains('<a href="' . e(url('admin/products?binary=on')) . '"', $html);
+        assert_contains('<a href="' . e(url('admin/products?binary=off')) . '"', $html);
+
+        /* The on-link names the misconfiguration; the off-link names the rest. */
+        assert_contains('flagged but earn 0 points', $html);
+        assert_contains('do not place points', $html);
+    },
+
+    /* ---------- No money path yet (P22B-T22) ---------- */
+
+    'P22B-T22 paying an order with the switch on writes no binary row' => function (): void {
+        $buyer = test_user('p22b_t22_buyer', 'member');
+        test_signed_in_as($buyer);
+
+        /* Configure a product and flip the master switch on. */
+        $product = Product::save([
+            'name'           => 'T22 Product',
+            'price'          => '300.00',
+            'pv'             => '250.00',
+            'stock'          => '10',
+            'status'         => 'active',
+            'binary_enabled' => '1',
+        ]);
+        setting_set('binary_enabled', '1');
+        setting_cache_clear();
+
+        (new WalletService())->credit($buyer['id'], '1000.00', 'commission', random_int(1000000, 9999999), 'Test funds');
+
+        (new CartService())->add($buyer['id'], $product, 1);
+        $orderId = (int) (new OrderService())->placeFromCart(
+            $buyer['id'],
+            [
+                'billing_name'      => 'Buyer One',
+                'billing_phone'     => '0917 000 0000',
+                'shipping_name'     => 'Buyer One',
+                'shipping_phone'    => '0917 000 0000',
+                'shipping_address'  => '12 Mabini Street',
+                'shipping_barangay' => 'Poblacion',
+                'shipping_city'     => 'Makati',
+                'shipping_province' => 'Metro Manila',
+                'shipping_postal'   => '1200',
+                'notes_member'      => '',
+                'payment_method'    => 'ewallet',
+                'idempotency_key'   => bin2hex(random_bytes(16)),
+                'terms'             => '1',
+            ]
+        )['order_id'];
+
+        $order = Order::find($orderId);
+        assert_not_null($order);
+        assert_same('paid', $order['status']);
+
+        /* No money hook exists in this phase: nothing binary is written. */
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE order_id = ' . $orderId)->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE order_id = ' . $orderId)->fetchColumn());
+        assert_same(0, (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'")->fetchColumn());
+        assert_same(0, (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary_reversal'")->fetchColumn());
+
+        setting_set('binary_enabled', '0');
+        setting_cache_clear();
+    },
+
+    /* ---------- Member pages stay binary-free (P22B-T21) ---------- */
+
+    'P22B-T21 member earnings page renders no binary copy' => function (): void {
+        $renderView = static function (string $template, array $data): string {
+            ob_start();
+
+            try {
+                View::page('member', $template, $data);
+            } catch (Throwable $e) {
+                ob_end_clean();
+                throw $e;
+            }
+
+            return (string) ob_get_clean();
+        };
+
+        $earningsData = static function (int $userId): array {
+            $filters = Commission::normaliseFilters([]);
+            $pager   = Paginator::make(Commission::countForUser($userId, $filters), 1, Paginator::DEFAULT_PER_PAGE);
+
+            return [
+                'page_title'    => 'Earnings',
+                'current_nav'   => 'earnings',
+                'totals'        => Commission::totalsForUser($userId),
+                'levels'        => Commission::levelBreakdown($userId),
+                'filters'       => $filters,
+                'pager'         => $pager,
+                'commissions'   => Commission::pageForUser($userId, $filters, $pager),
+                'wallet_url'    => url('wallet'),
+                'genealogy_url' => url('genealogy'),
+                'statement_url' => url('earnings'),
+                'export_url'    => url('earnings/export'),
+            ];
+        };
+
+        $member = test_user('p22b_t21_' . bin2hex(random_bytes(4)));
+        test_signed_in_as($member);
+
+        $html = $renderView('member/earnings', $earningsData((int) $member['id']));
+
+        /* 22B adds no member-facing binary surface; 22F owns the earnings tab. */
+        assert_not_contains('binary', strtolower($html));
+    },
 ];

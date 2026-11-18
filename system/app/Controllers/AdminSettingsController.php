@@ -820,6 +820,7 @@ final class AdminSettingsController
             'general_harvest_preset'    => GeneralHarvestLevel::forForm(GeneralHarvestLevel::referencePreset()),
             'binary_fields'  => self::BINARY_FIELDS,
             'binary_toggles' => self::BINARY_TOGGLES,
+            'binary_readiness' => Product::binaryReadinessCounts(),
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'cancel_enabled'    => Order::cancelEnabled(),
@@ -929,6 +930,7 @@ final class AdminSettingsController
                     'general_harvest_preset'    => $data['general_harvest_preset'],
                     'binary_fields'  => $data['binary_fields'],
                     'binary_toggles' => $data['binary_toggles'],
+                    'binary_readiness' => $data['binary_readiness'],
                 ]),
                 'settings-transfers' => View::capture('admin/settings/_transfers', [
                     'settings'        => $data['settings'],

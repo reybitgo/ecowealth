@@ -1,10 +1,10 @@
 # Deploying EcoWealth to shared hosting (Hostinger)
 
-> **Status: current.** This guide covers the **Phase 21 build in progress (21A–21C)**: 39 tables,
-> 79 settings, migrations `001`–`025`, ten Team Harvest and ten General Harvest ladder rows (plus the
-> unarmed General Harvest board row), six scheduled jobs and the live-update layer. The Phase 20F/20G
-> addendum at the end is the migration/upgrade note for the Team Harvest bonus, and the Phase 21
-> addendum is the one for the General Harvest bonus; the go-live order itself lives once, in
+> **Status: current.** This guide covers the **Phase 21 build released at 21G plus Phase 22B configuration**: 42 tables,
+> 89 settings, migrations `001`–`026`, ten Team Harvest and ten General Harvest ladder rows (plus the
+> unarmed General Harvest board row), six scheduled jobs and the live-update layer. The Phase 20F/20G,
+> Phase 21 and Phase 22B addenda at the end are the migration/upgrade notes for the Team Harvest bonus,
+> the General Harvest bonus and the Product binary configuration; the go-live order itself lives once, in
 > [`runbook.md`](runbook.md). Hostinger's hPanel labels can change; the steps stay the same.
 >
 > Verified against the local build (PHP 8.3.16, MySQL 8.4.3). Hostinger's current
@@ -1029,6 +1029,7 @@ Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live)
 | 2026-11-16 | Phase 21A (General Harvest foundation): migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement, two settings (stream **off**) and the ten ladder rows plus the unarmed board row; §5B and §11.6 now read **39 tables / 79 settings**. No route, no cron entry. |
 | 2026-11-16 | Phase 21B (General Harvest configuration and arithmetic): the *General Harvest bonus* sub-block on `/admin/settings` → Commissions, the generated ladder and position tables, the four-state strip, the calculator, the two models (`GeneralHarvestLevel`, `GeneralHarvestBoard`) and the `general_harvest.ladder.update` audit row. No schema change, no route, no cron entry. |
 | 2026-11-16 | Phase 21C (General Harvest baseline): the CLI-only one-time arm (`bin/general_harvest_arm.php` + `.cmd`), `GeneralHarvestAward` (read + baseline write), `GeneralHarvestService` / `GeneralHarvestException`, the `general_harvest.arm` audit row, the board armed at `N₀` (`baseline_n = settled_n = N₀`) and one `baseline` row per block already full, at all ten levels. **No money moves**, no schema change, no route, no cron entry. |
+| 2026-11-18 | Phase 22B (Product binary configuration and readiness): the **Product binary** sub-block on `/admin/settings` → Commissions (nine keys, four toggles, master off), the product edit card (`binary_enabled`, the P.V.-to-points readout, the `Binary N pts` badge, the `?binary=on|off` filter), the read-only **Product binary readiness** panel, and the `binary`/`binary_reversal` wallet filter entries already present from 22A. Migration 026 (22A) already shipped the schema; 22B adds **no schema, no route, no money**. Counts **42 tables / 89 settings**. |
 
 ---
 
@@ -1809,6 +1810,85 @@ audited as `general_harvest.arm`. The full drill is in
       `/dashboard` shows the General Harvest tile and `/genealogy` the board badge (21F).
 - [ ] At go-live, the dry run and the real arm print the same `N₀`, row count and excluded amount, and
       every written row is `baseline` with `ledger_id NULL`.
+
+## Phase 22B addendum — Product binary configuration and readiness
+
+**No new hosting requirement.** Phase 22B configures the Product binary stream on the existing
+`/admin/settings` page (Commissions card) and the existing product edit page. It **adds no schema** (migration
+026 already shipped the three tables, the altered columns, the extended enum and the ten settings in 22A) and
+**no route** (the single placement route is 22C's). The stream ships **off** and **pays nothing** until 22D.
+
+### Migration `026` (22A — already applied)
+
+Apply `database/migrations/026_product_binary.sql` after `025` on an existing site, or import the regenerated
+`install.sql` on a fresh one. It adds:
+
+- `binary_nodes` — one row per member: `user_id` (PK), `upline_id`, `side`, `depth`, `path`, `state` and the cached balance columns;
+- `binary_volume` — the append-only signed points ledger;
+- `binary_awards` — the escrowed money ledger (`kind` `self`/`pair`);
+- `binary_position`, `binary_processed_at`, `binary_points`, `binary_self_total`, `binary_pair_total`, `binary_total` on `shop_orders`;
+- `unit_points`, `points_total` on `shop_order_items`;
+- `products.binary_enabled`;
+- `binary` and `binary_reversal` on `ewallet_ledger.ref_type` (15 movement kinds now);
+- ten `binary_*` settings, all off or at the reference preset.
+
+It is additive, idempotent and re-runnable: a second run never duplicates a setting and never touches a row.
+
+### The card (22B)
+
+**Settings → Commissions → Product binary**, below the General Harvest block. One form, one save:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Product binary enabled** | **off** | Master switch. Off renders the offer nowhere and pays nothing (D-16). |
+| **Self Bonus %** | `5.000` | % of the order's points paid to the buyer once per order (0 disables it). |
+| **Points per pair** | `1000` | Points needed on each side for one pair (1–1,000,000; 0 refused). |
+| **Pair value %** | `10.000` | % of the matched point value paid per pair (0 still accumulates). |
+| **Pairs per day per member** | `20` | Daily cap per recipient (0 = unlimited). |
+| **Release delay after delivery** | `7` | Days before a pending award becomes withdrawable (snapshotted at payment). |
+| **Require the monthly Active rule** | **on** | Pair recipients must be Active for the month. |
+| **Release Product binary awards** | **on** | The shared `--stream=binary` release job may credit them (22H). |
+| **Reverse awards when a paid order is cancelled** | **on** | Credited awards are clawed back best effort on cancellation (22D). |
+
+`binary_ledger_since` (the reconciliation baseline) is never rendered.
+
+### The product card (22B)
+
+`/admin/products/{id}/edit` gains the **Product binary** card after the *Unilevel repeat-purchase bonus* card:
+the switch flags the product, the readout shows `P.V. → N points per unit` (`ROUND(pv)`), and the self/pair
+sentence names the global preset. A switch-on product with `pv = 0` is refused (*Give the product a P.V. or
+turn its binary switch off.*). The list badge reads `Binary N pts` (on) or nothing (off), and `?binary=on|off`
+splits the list. There is **no** per-product pair size, pair rate or self rate (D-09).
+
+### Readiness panel (22B)
+
+The same card gains a read-only **Product binary readiness** panel with four counts:
+
+- **Binary on, no points** — products flagged on with `pv = 0` (link: `/admin/products?binary=on`);
+- **Binary off** — products with the switch off (link: `/admin/products?binary=off`);
+- **Global switch** — On / *The stream is off. Nothing is paid.*;
+- **Preset check** — *1,000 points per pair pays ₱100.00 at 10%.* (recomputed when the pair values change).
+
+None of the four is a button; each links to the filtered product list (Rule 12).
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → **≥ 1,530 / ≥ 1,530**; `powershell -File tests/smoke.ps1` → **278 / 278**.
+- [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **42 tables / 89 settings**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (this phase moves no money).
+- [ ] `/admin/settings` → Commissions shows the **Product binary** card: the nine keys, master first, the four
+      toggles, and the readiness panel with the four counts.
+- [ ] `/admin/products/{id}/edit` shows the **Product binary** card: the switch off, the readout at the P.V.,
+      no per-product rate input.
+- [ ] `/admin/products?binary=on` and `?binary=off` split the list; each row's badge reads `Binary N pts` or nothing.
+- [ ] `SELECT key_name, value FROM settings WHERE key_name LIKE 'binary\_%';` — **10** rows, `binary_enabled = '0'`.
+- [ ] `SELECT COUNT(*) FROM products WHERE binary_enabled <> 0;` — **0**.
+- [ ] Placing and paying an order writes **zero** `binary_awards`, `binary_volume` and `binary` wallet rows (P22B-T22).
+
+### Rollback (22B)
+
+Turn every product's switch off (`binary_enabled = 0`) and set `binary_enabled = '0'`, then revert the code.
+The settings and the product flags may stay: they are inert, no tree exists yet, and no money has moved.
 
 ### Money engine (21D)
 

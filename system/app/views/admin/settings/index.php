@@ -85,6 +85,7 @@ $ghBoard          = $general_harvest_board ?? [];
 $ghPreset         = $general_harvest_preset ?? [];
 $binaryFields     = $binary_fields ?? [];
 $binaryToggles    = $binary_toggles ?? [];
+$binaryReadiness  = $binary_readiness ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -310,6 +311,7 @@ $action = url('admin/settings');
     'general_harvest_preset'    => $ghPreset,
     'binary_fields'  => $binaryFields,
     'binary_toggles' => $binaryToggles,
+    'binary_readiness' => $binaryReadiness,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">
