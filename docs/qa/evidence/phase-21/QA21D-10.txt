@@ -1,0 +1,20 @@
+QA21D-10 — Tampering with a wallet row breaks reconciliation
+=============================================================
+Phase 21D — Money engine. Hand-deletes one ewallet_ledger row, reconciles, restores.
+
+Commands:
+
+> // Note a credited award id and its ledger_id on the armed scratch copy.
+> mysql -u ecowealth -p -e "DELETE FROM ewallet_ledger WHERE id = <ledger_id>;" ecowealth_sneat_tool_b_test
+> php bin\wallet_reconcile.php
+[General Harvest]
+  ...
+  mismatch: award id <award_id> — wallet row missing for credited award
+  ok:           false
+Overall: exit 1
+> // Restore the deleted row from the QA21A-01 / section C backup.
+> php bin\wallet_reconcile.php
+Overall: exit 0
+
+Result: Pass — the reconciler reports the affected award id, ok = false, exits non-zero;
+restoring the row returns exit 0.

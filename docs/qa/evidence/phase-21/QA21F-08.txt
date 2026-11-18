@@ -1,0 +1,13 @@
+QA21F-08 — ?user_id= cannot widen the member's data
+=====================================================
+Phase 21F — Member visibility. Runs as a member on /earnings?ledger=general_harvest.
+
+Steps:
+1. Open /earnings?ledger=general_harvest&user_id=<another member id>.
+2. Export the same URL with &user_id= and compare the file.
+
+Observed:
+- Page and file unchanged: only the caller's rows.
+- 0 audit rows on the export.
+
+Result: Pass — &user_id= is ignored; only the session member's rows are shown/exported.

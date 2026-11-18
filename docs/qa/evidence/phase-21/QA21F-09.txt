@@ -1,0 +1,13 @@
+QA21F-09 — The card and tab hold at mobile width
+==================================================
+Phase 21F — Member visibility. Runs at 390 px (mobile emulation).
+
+Steps:
+1. Repeat the block card and the tab at 390 px width.
+2. Confirm the ten-block table scrolls inside its card; the page never scrolls horizontally.
+
+Observed:
+- Readable at 390 px; ten-block table scrolls inside its card.
+- No page-level horizontal scroll.
+
+Result: Pass — readable at 390 px; no page-level horizontal scroll.

@@ -1,0 +1,15 @@
+QA21G-02 — The cold read
+=========================
+Phase 21G — Release. A tester who had not seen the plan executed sections A–F.
+
+Steps:
+1. Handed sections A–F to an unbriefed tester; recorded every question.
+2. Read plan §12 and the pack against the build; checked every number, URL, action name and exit code.
+3. Fixed every document-owned finding; code-owned findings were defects in their owning phase.
+
+Observed:
+- Zero questions from the cold tester; every check names its exact URL/command, expected number
+  and failure action.
+- Author's sweep found only documentation drift, fixed here; residual list empty.
+
+Result: Pass — the pack is executable by a stranger; no open documentation defects.

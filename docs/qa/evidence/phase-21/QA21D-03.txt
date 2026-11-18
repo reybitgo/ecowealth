@@ -1,0 +1,13 @@
+QA21D-03 — The admin wallet monitor shows the same credit
+=========================================================
+Phase 21D — Money engine. Runs as admin on /admin/wallets.
+
+Commands:
+
+> // Sign in as admin, open Finance → Wallets, find the node-0 holder's statement.
+> // Filter ref_type = general_harvest (or locate by ref_id = award id from QA21D-01).
+> // Row: General Harvest bonus, ₱2,000.00, ref_type = general_harvest, ref_id = 1.
+
+Result: Pass — the admin wallet monitor shows the same credit: General Harvest bonus,
+₱2,000.00, ref_type = general_harvest, ref_id = general_harvest_awards.id; clicking
+through reaches both the member and the ledger row.

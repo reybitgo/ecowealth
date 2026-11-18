@@ -1,0 +1,13 @@
+QA21F-05 — The dashboard tile shows paid total, position and next block
+========================================================================
+Phase 21F — Member visibility. Runs as node 0 of fixture h = 3 on /dashboard.
+
+Steps:
+1. Open /dashboard as node 0.
+2. Read the General Harvest tile.
+
+Observed:
+- Paid total ₱14,000.00; position #1; next block L4 "0 of 81" needs N = 121.
+- No action, no form.
+
+Result: Pass — tile shows paid total, position and next block's progress; no action or form.

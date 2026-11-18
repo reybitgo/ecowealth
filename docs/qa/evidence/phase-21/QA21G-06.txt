@@ -1,0 +1,19 @@
+QA21G-06 — The evidence folder and the gate records
+=====================================================
+Phase 21G — Release. Verifies one evidence file per check and complete gate records.
+
+Steps:
+1. Listed docs/qa/evidence/phase-21/ and matched every QA21X-nn check to a file.
+2. Read docs/qa/sign-off-sheet.md: Phase 21 section (21A–21G) and seven gate rows.
+3. Read docs/phase-log.md: seven Phase 21 entries plus the release entry (tag, counts, deviations).
+4. Read plan Appendix H: seven gate rows, deviation log, acceptance sign-off.
+
+Observed:
+- One file per check: 58 files (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6), named exactly as
+  each check's Evidence line; README.md indexes them.
+- Sign-off sheet carries the seven Phase 21 gate records (21A–21G), each with a decision and
+  tester line.
+- Phase log has seven Phase 21 entries (21A–21G) plus the release entry.
+- Appendix H filled.
+
+Result: Pass — one evidence file per check; seven gate records and phase-log entries present.

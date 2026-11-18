@@ -1,0 +1,20 @@
+QA21D-08 — The baseline is honoured: pre-go-live blocks record, never pay
+=========================================================================
+Phase 21D — Money engine. Arms at N = 13, grows to N = 40, inspects seq = 0.
+
+Commands:
+
+> // Arm at N = 13 (fixture B shape); grow the queue to N = 40 (fixture C shape), switch on.
+> mysql -u ecowealth -p -e "SELECT level, status, amount FROM general_harvest_awards WHERE seq = 0 ORDER BY level;" ecowealth_sneat_tool_b_test
++-------+-----------+---------+
+| level | status    | amount  |
++-------+-----------+---------+
+| 1     | baseline  | 2000.00 |
+| 2     | baseline  | 4000.00 |
+| 3     | credited  | 8000.00 |
++-------+-----------+---------+
+
+> // /wallet for node 0: one General Harvest bonus movement, ₱8,000.00.
+
+Result: Pass — levels 1–2 are baseline (₱2,000.00 / ₱4,000.00, ledger_id NULL); level 3 is credited
+₱8,000.00 with ledger_id set; node 0's wallet holds ₱8,000.00 only — never ₱14,000.00.

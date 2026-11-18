@@ -1,0 +1,14 @@
+QA21E-08 — The four existing tabs are unchanged
+================================================
+Phase 21E — Admin visibility. Runs as admin on /admin/commissions.
+
+Steps:
+1. Open each of the four legacy tabs (Package, Repeat-purchase, Royalty, Team Harvest).
+2. Confirm each looks and behaves exactly as before.
+
+Observed:
+- All four legacy tabs byte-identical to their pre-21E state.
+- No new route; ParityTest and RouterTest green.
+- Only addition is the fifth General Harvest pill.
+
+Result: Pass — regression confirmed; the four existing tabs unchanged.

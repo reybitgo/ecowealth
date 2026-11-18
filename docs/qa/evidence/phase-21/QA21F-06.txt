@@ -1,0 +1,15 @@
+QA21F-06 — The genealogy badge shows positions only
+====================================================
+Phase 21F — Member visibility. Runs as node 0 on /genealogy.
+
+Steps:
+1. Open /genealogy as node 0 of fixture h = 3.
+2. Confirm the badge shows the reader's position/node and each queued downline member's position;
+   unqualified members show —; no stranger's username outside the reader's subtree.
+
+Observed:
+- Reader's badge: position #1 / node 0.
+- Downline queued members show their positions; unqualified show —.
+- No stranger's username appears outside the reader's sponsor subtree.
+
+Result: Pass — positions shown, usernames restricted to the reader's subtree (D-20).

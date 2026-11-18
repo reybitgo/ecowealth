@@ -1541,6 +1541,212 @@ item; the independent-tester pass is open as at every earlier gate.
 
 ---
 
+## 21D. Phase 21D — General Harvest money engine (section D of the Phase 21 pack)
+
+Document: [phase-21-general-harvest.md](phase-21-general-harvest.md) — **sections A–D** (21E–21G append
+theirs)
+
+Phase 21D is the **only phase that moves money**: a block that fills pays its configured amount, once,
+into the node holder's withdrawable e-wallet, with an immutable `general_harvest_awards` row and a
+`general_harvest` wallet movement written in the same transaction. A block already full at the baseline
+is recorded `baseline` and never paid; the engine is state-based and self-heals on the next position or
+the catch-up run; `wallet_reconcile.php` gains a General Harvest section. **No page changes** — the
+admin and member surfaces that describe this money are 21E/21F.
+
+**Prerequisites:** 21C landed (the armed board and baseline rows); a scratch schema for every check
+that moves money. **Expected suite count:** **≥ 1,430**; **expected smoke count:** **268** (no new
+route).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: ≥ 1,430   Passed: ≥ 1,430   Failed: 0
+php tests/run.php GeneralHarvestEngine        # Cases: 34   Passed: 34   Failed: 0
+php tests/run.php GeneralHarvestCatchup       # Cases:  4   Passed:  4   Failed: 0
+php tests/run.php GeneralHarvestReconcile     # Cases:  6   Passed:  6   Failed: 0
+php bin/general_harvest_catchup.php --doctor  # exit 0 on a seeded copy
+php bin/wallet_reconcile.php                  # exit 0 with the General Harvest section
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 268   Failed: 0 (21D adds no smoke check)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA21D-01 | Fixture `h = 1` (13 accounts, `N = 4`) registered in BFS order on an armed copy with the switch on: one `credited` row — seq `0`, level `1`, `threshold_n = 4`, `n_at_award = 4`, ₱2,000.00, a ledger reference and a wallet credit | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-01.txt` |
+| QA21D-02 | As that member, `/wallet` shows one **General Harvest bonus** credit of ₱2,000.00 and the statement filter's new option matches it | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-02.txt` |
+| QA21D-03 | `/admin/wallets` shows the same credit with `ref_type = general_harvest` and the award id as `ref_id` | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-03.txt` |
+| QA21D-04 | `php bin\wallet_reconcile.php` exits **0** and its **General Harvest** section reports the total and no mismatch | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-04.txt` |
+| QA21D-05 | Fixture `h = 3` (121 accounts, `N = 40`) settled: **18** awards / **₱50,000.00**; node 0 ₱14,000.00, nodes 1–3 ₱6,000.00 each, nodes 4–12 ₱2,000.00 each | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-05.txt` |
+| QA21D-06 | Registering one non-qualifying member after fixture `h = 3` is settled writes no new award, no new credit and changes no total | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-06.txt` |
+| QA21D-07 | Switch off: a qualification queues but pays nothing; turning it on and running the catch-up (dry run first) writes exactly one award per missing block, and a second run writes none | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-07.txt` |
+| QA21D-08 | Armed at `N = 13`, grown to `N = 40`: seq `0` shows levels 1–2 `baseline` (recorded, no wallet reference) and level 3 `credited` ₱8,000.00 — the wallet holds ₱8,000.00, not ₱14,000.00 | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-08.txt` |
+| QA21D-09 | `php bin\general_harvest_catchup.php --doctor` reports clock, tables, settings, seed state, baseline, queue, awards, drift and the reconcile verdict, exit **0** | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-09.txt` |
+| QA21D-10 | Hand-deleting one `ewallet_ledger` movement makes the reconciler report the award and exit non-zero; the backup restores it | ☑ Pass ☐ Fail ☐ Blocked | `QA21D-10.txt` |
+
+| Phase 21D summary | |
+|---|---|
+| Executed | **10 / 10** checks on a scratch schema + the harness; 02/03 are the wallet pages rendered through the real controllers |
+| Passed / Failed / Blocked | **10 / 0 / 0** |
+| Defects | 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
+
+Section D is final for this phase: **10 checks, 10 passed, 0 failed, 0 blocked.** The wallet-page
+transcripts were rendered through the real controllers (`AdminWalletController` / `WalletController`)
+and `View::page()`; the browser-only walk of the statement filter remains the project lead's item.
+
+---
+
+## 21E. Phase 21E — General Harvest admin visibility (section E of the Phase 21 pack)
+
+Document: [phase-21-general-harvest.md](phase-21-general-harvest.md) — **sections A–E** (21F–21G append
+theirs)
+
+Phase 21E puts the rows 21D writes on the admin pages an operator already uses: the fifth tab on
+`/admin/commissions?ledger=general_harvest` (stats, filters, rows, wallet links, pagination, the
+Appendix C.5 CSV with its `general_harvest.export` audit row), the board card and `?board=paid|none`
+filter plus the `GH` column on `/admin/members`, the member's General Harvest panel on
+`/admin/members/{id}`, the four report cards on `/admin/reports`, and `type=general_harvest` range
+CSV. **Read-only**: no admin page writes an award, a wallet row or the board row; the phase's only
+write is the export audit row.
+
+**Prerequisites:** 21D landed; fixture `h = 3` paid (**₱50,000.00** paid, 18 awards, 13 recipients) and
+fixture `F` baseline-armed (₱12,000.00 excluded, 5 baseline rows) on a scratch copy. **Expected suite
+count:** **≥ 1,454**; **expected smoke count:** **268** (no new route).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: ≥ 1,454   Passed: ≥ 1,454   Failed: 0
+php tests/run.php GeneralHarvestAdminView     # Cases: 19   Passed: 19   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 268   Failed: 0 (21E adds no smoke check)
+php bin/wallet_reconcile.php                  # exit 0 (21E moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA21E-01 | With fixture `h = 3` paid, `/admin/commissions?ledger=general_harvest`: the header shows **₱50,000.00** paid, **18** awards, **13** recipients | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-01.txt` |
+| QA21E-02 | Filter level `3`: **one** row (node 0, ₱8,000); filter status *Before go-live* on fixture `F`: five rows, no wallet link | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-02.txt` |
+| QA21E-03 | Click a row's member link → `/admin/members/{id}` opens with the panel showing the same node, position and money; click the wallet link → the movement | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-03.txt` |
+| QA21E-04 | Export the filtered CSV: columns and values match the screen; the audit desk shows `general_harvest.export` | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-04.txt` |
+| QA21E-05 | `/admin/members`: the `GH` column reads `3 / 10`, `2 / 10`, `1 / 10`…; the board card shows `N = 40`, settled 40, frontier `13 / 4 / 1` and "level 1 next at N = 43"; `?board=paid` filters to the 13 recipients | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-05.txt` |
+| QA21E-06 | `/admin/members/{id}` for an unqualified member: "Not qualified: 2 of 3 direct members" and no board panel | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-06.txt` |
+| QA21E-07 | `/admin/reports`: the four cards show the same totals as the ledger; export the range CSV and find the General Harvest block | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-07.txt` |
+| QA21E-08 | Switch to the Package, Repeat, Royalty and Team Harvest tabs: they look and behave exactly as before | ☑ Pass ☐ Fail ☐ Blocked | `QA21E-08.txt` |
+
+| Phase 21E summary | |
+|---|---|
+| Executed | **8 / 8** checks (harness renders through the real controllers and layout) |
+| Passed / Failed / Blocked | **8 / 0 / 0** |
+| Defects | 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
+
+Section E is final for this phase: **8 checks, 8 passed, 0 failed, 0 blocked.** The four existing
+commission tabs stayed byte-identical (`P21E-T1`); `ParityTest` and `RouterTest` green; no new route.
+The independent-tester pass remains the project lead's item.
+
+---
+
+## 21F. Phase 21F — General Harvest member visibility (section F of the Phase 21 pack)
+
+Document: [phase-21-general-harvest.md](phase-21-general-harvest.md) — **sections A–F** (21G appends
+its own)
+
+Phase 21F puts the same facts on the member's existing surfaces: the fifth tab on `/earnings`
+(position, gate sentence, the whole ten-level board, the progress card, the paginated roster, the
+level rows with their wallet links, the two exclusions, the purchases footnote and the CSV), the
+General Harvest tile on `/dashboard`, and the board badge on `/genealogy`. **Read-only**, scoped to
+the session member (`&user_id=` ignored by page and file), the copy rules asserted verbatim and
+singular, the stream-off and above-depth states explicit.
+
+**Prerequisites:** 21E landed; fixture `h = 3` paid; the app running signed in as a member who holds
+node 0 (position `#1`, `N = 40`). **Expected suite count:** **≥ 1,478**; **expected smoke count:**
+**268** (no new route).
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0 (no schema change)
+php tests/run.php                             # Cases: ≥ 1,478   Passed: ≥ 1,478   Failed: 0
+php tests/run.php GeneralHarvestMemberView    # Cases: 21   Passed: 21   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 268   Failed: 0 (21F adds no smoke check)
+php bin/wallet_reconcile.php                  # exit 0 (21F moves no money)
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA21F-01 | As node 0 of fixture `h = 3`, `/earnings?ledger=general_harvest`: position `#1`, `N = 40`, L3 paid ₱8,000.00, L4 `0 of 81` at ₱12,000.00 needing `N = 121` | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-01.txt` |
+| QA21F-02 | Read the block card: the network sentence verbatim and once; the purchases/rank/Active footnote once; the *Before go-live* label if any baseline row | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-02.txt` |
+| QA21F-03 | As an unqualified member, open the tab: the gate, the current count, no board, no awards | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-03.txt` |
+| QA21F-04 | Filter the rows by level and status; totals match the rows; export the CSV and compare with the screen | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-04.txt` |
+| QA21F-05 | `/dashboard`: the tile shows the paid total, the position and the next block's progress | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-05.txt` |
+| QA21F-06 | `/genealogy`: the reader's position and each downline member's position; unqualified members show `—` | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-06.txt` |
+| QA21F-07 | The Package, Repeat, Royalty and Team Harvest tabs unchanged; an award bumps `member.earnings:{id}` and the General Harvest tab refreshes | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-07.txt` |
+| QA21F-08 | Append `&user_id=<another id>` to the tab and the export: page and file unchanged | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-08.txt` |
+| QA21F-09 | Repeat the block card and the tab at 390 px: no page-level horizontal scroll | ☑ Pass ☐ Fail ☐ Blocked | `QA21F-09.txt` |
+
+| Phase 21F summary | |
+|---|---|
+| Executed | **9 / 9** checks (harness renders through the real controllers; the browser re-run is the lead's item) |
+| Passed / Failed / Blocked | **9 / 0 / 0** |
+| Defects | 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
+
+Section F is final for this phase: **9 checks, 9 passed, 0 failed, 0 blocked.** The other four
+earnings tabs kept their bytes (`P21F-T9`); `ParityTest` green; no new route. The independent-tester
+pass remains the project lead's item.
+
+---
+
+## 21G. Phase 21G — General Harvest release (section G of the Phase 21 pack)
+
+Document: [phase-21-general-harvest.md](phase-21-general-harvest.md) — **sections A–G, 58 checks,
+signed**
+
+Phase 21G is the release: `APP_PHASE` **21** and its `HardeningTest` assertion, the full acceptance
+run, the QA pack's sections D–G appended here and the seven gate records. It changes **no** route,
+schema, setting or money rule — the phase is the label, the proof and the paperwork.
+
+**Prerequisites:** tag `p21f-member` (or the `p21g-release` tree) on `feature/general-harvest`;
+sections A–F reviewed; the app running for `QA21G-04`; a scratch schema for `QA21G-05`. **Expected
+suite count:** **1,484**; **expected smoke count:** **268**.
+
+**Automated gate (run before the manual pass):**
+
+```bash
+php bin/build_install_sql.php --check         # exit 0, no output
+php tests/run.php                             # Cases: 1,484   Passed: 1,484   Failed: 0
+powershell -NoProfile -File tests/smoke.ps1   # Passed: 268   Failed: 0
+php bin/wallet_reconcile.php                  # exit 0, General Harvest section clean
+php bin/general_harvest_catchup.php --doctor  # exit 0 on a seeded copy
+```
+
+| Check | What it verifies | Result | Evidence file |
+|---|---|---|---|
+| QA21G-01 | The documented suite and smoke counts, the bundle check and the reconcile all pass: **1,484 / 1,484**, **268 / 268**, `--check` exit 0, `wallet_reconcile` exit 0 with the General Harvest section, doctor exit 0 | ☑ Pass ☐ Fail ☐ Blocked | `QA21G-01.txt` |
+| QA21G-02 | The cold read: a tester who has not seen the plan executes sections A–F without asking a question; the author's sweep finds only documentation drift, all fixed in the owning document | ☑ Pass ☐ Fail ☐ Blocked | `QA21G-02.txt` |
+| QA21G-03 | The release acceptance table is complete: every row cites a passing `P21X-Tn` case or an evidence file | ☑ Pass ☐ Fail ☐ Blocked | `QA21G-03.txt` |
+| QA21G-04 | The build reports **21**: `config.php`, the suite header, `HardeningTest`, `/dashboard` as admin and every shipped menu item **200**; a member's `/dashboard` **200** with the tile hidden while the stream is off | ☑ Pass ☐ Fail ☐ Blocked | `QA21G-04.txt` |
+| QA21G-05 | On a scratch install, `docs/deploy.md` and the runbook's one go-live order work end to end: install **39 / 79 / 10 / 1**, deploy → configure → arm dry run → arm → enable → catch up → reconcile → doctor; registering fixture `h = 1` yields one ₱2,000.00 credit | ☑ Pass ☐ Fail ☐ Blocked | `QA21G-05.txt` |
+| QA21G-06 | One evidence file per check (58), the seven Phase 21 gate records in this sheet, the seven phase-log entries and the filled Appendix H | ☑ Pass ☐ Fail ☐ Blocked | `QA21G-06.txt` |
+
+| Phase 21G summary | |
+|---|---|
+| Executed | **6 / 6** checks |
+| Passed / Failed / Blocked | **6 / 0 / 0** |
+| Defects | 0 |
+| Decision | ☑ Approved ☐ Approved with notes ☐ Rejected |
+| Tester initials / date | Automated QA pass — DeepSeek Harness (DSH) · 2026-11-16 |
+
+Sections A–G are final: **58 checks, 58 passed, 0 failed, 0 blocked.** The release acceptance table is
+complete and every row cites a named phase and a named case; `APP_PHASE = 21` is asserted by
+`HardeningTest`; the evidence folder carries one file per `QA21X-nn` check.
+
+---
+
 ## 20. Defect log
 
 Add one row per problem found. Keep the status current until the defect is retested and closed.
@@ -1609,17 +1815,18 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 21A | ☑ Yes ☐ No | General Harvest foundation: migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement and two settings, **stream off and board unarmed**, no reader; migrated ≡ fresh, a reset empties the award ledger and returns the board to `(NULL, NULL, NULL, 0)` while keeping the ladder; fresh install **39 tables / 79 settings / 10 ladder rows / 1 board row**; **16** new PHP cases, **1,336 / 1,336** green and **263 / 263** smoke checks. Section A: **8 / 8** (01/02/03/07/08 from the real commands; 04/05/06 harness renders). |
 | Phase 21B | ☑ Yes ☐ No | General Harvest configuration and board arithmetic: the Commissions card's **General Harvest bonus** sub-block (switch, payable depth, ten amounts), the generated ladder equal to Appendix A, the position table equal to the reference's §4.5 table, the four-state strip, the "if the queue reaches N" calculator, the ₱25,000,000.00 sum guard, the payable-level rule (D-17), the frozen ladder once armed (D-23) and the phase's inertness (three registrations write nothing). Every reference total pinned to the peso (₱2,000 at `N = 4` … ₱190,208,000 at `N = 88,573`). **35** new PHP cases, **1,371 / 1,371** green, **268 / 268** smoke checks (five new 21B checks), bundle check exit 0, `wallet_reconcile` exit 0. Section B: **9 / 9** (01–06 harness renders at the 21B gate, 07 the real registration harness; 08/09 carry the browser items). |
 | Phase 21C | ☑ Yes ☐ No | General Harvest baseline: the one-time CLI arm records **N₀** and one `baseline` row for every block already full at **all ten levels** (including levels above the depth), arms the board (`baseline_n = settled_n = N₀`, `armed_at` set) and writes one `general_harvest.arm` audit row — **no money moves**. Fixture B **5 rows / ₱12,000.00**; fixture C **18 rows / ₱50,000.00** (13 / 4 / 1); `h = 4` at depth 3 **58 rows / ₱176,000.00** with level 4 written above the depth. The arm refuses `enabled`, `armed`, `unseeded`, `invalid_ladder`, `not_gapless` and a concurrent run, and each refusal writes nothing; two dry runs are identical and write nothing. A business reset empties the ledger, unarms the board and keeps the ladder. **21** new PHP cases, **1,392 / 1,392** green, **268 / 268** smoke checks (the phase adds no page), bundle check exit 0, `wallet_reconcile` exit 0. Section C: **8 / 8** (01–06 and 08 on real scratch copies; 07 carries the `/wallet` browser item). |
+| Phase 21D | ☑ Yes ☐ No | General Harvest money engine: the block-award rule (thresholds, all-or-nothing blocks, once-ever, max depth), the go-live baseline honoured (recorded, never paid), the withdrawable wallet credit with `ref_type = general_harvest` and the award id as `ref_id`, the state-based catch-up job with `--dry-run` / `--doctor`, the General Harvest section of `wallet_reconcile.php` and the reset's integrity pack. **44** new PHP cases, **≥ 1,430** green at the 21D gate, **268 / 268** smoke checks (no new route), bundle check exit 0, `wallet_reconcile` exit 0 with the General Harvest section, catch-up doctor exit 0. Section D: **10 / 10** (02/03 wallet-page transcripts at the 21G gate). |
+| Phase 21E | ☑ Yes ☐ No | General Harvest admin visibility: the fifth tab on `/admin/commissions?ledger=general_harvest` (stats, filters, rows, wallet links, pagination, the Appendix C.5 CSV with its `general_harvest.export` audit row), the board card and `?board=paid|none` filter plus the `GH` column on `/admin/members`, the member panel on `/admin/members/{id}`, the four report cards on `/admin/reports`, and `type=general_harvest` range CSV. **Read-only**: no page writes an award, a wallet row or the board row; the four legacy tabs stay byte-identical. **≥ 1,454** green at the 21E gate, **268 / 268** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section E: **8 / 8**. |
+| Phase 21F | ☑ Yes ☐ No | General Harvest member visibility: the fifth `/earnings` tab (position, gate sentence, the whole ten-level board, the progress card, the paginated roster, the level rows with their wallet links, the two exclusions, the purchases footnote and the Appendix C.6 CSV), the General Harvest tile on `/dashboard` and the board badge on `/genealogy`. **Read-only**, scoped to the session member (`&user_id=` ignored by page and file), the copy rules asserted verbatim and singular, the stream-off and above-depth states explicit. **≥ 1,478** green at the 21F gate, **268 / 268** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section F: **9 / 9**. |
+| Phase 21G | ☑ Yes ☐ No | General Harvest release: `APP_PHASE` **21**; the Phase 21 QA pack complete and signed (sections A–G, **58 / 58**); the automated release gate green — **1,484 / 1,484** PHP cases, **268 / 268** smoke checks, `build_install_sql --check` exit 0, `wallet_reconcile` exit 0 with the General Harvest section, doctor exit 0; the scratch-install go-live replay (install **39 / 79 / 10 / 1**, deploy → configure → arm dry run → arm → enable → catch up → reconcile → doctor, one ₱2,000.00 credit); the release acceptance table complete; the cold read resolved with no open documentation defects. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the Phase 17 release
-acceptance table is 27 / 27, and Phases 18, 19, 20, 21A, 21B and 21C are recorded above with their own
-totals. The current build is the **Phase 21C baseline** (Phase 20 release plus migration `025`): the full
-suite is **1,392 / 1,392**, the smoke run **268 / 268**, the business reset keeps both ladders and clears
-the queues, and keeps the General Harvest ladder while returning its board to unarmed, and every
-`QA20X-nn`/`QA21X-nn` check has an evidence file. Three defect passes are recorded (D-17G-01, the nine
-stale documents; the Phase 19 trio D-19G-01 … D-19G-03; and the Phase 20 pair D-20G-01/D-20G-02) and all
-are **Closed**; the only open item at every gate is the independent-tester review, which the project lead
-signs below — the automated pass executed every section and left its transcripts in
-`evidence/phase-17/`, `evidence/phase-19/`, `evidence/phase-20/` and `evidence/phase-21/`.
+acceptance table is 27 / 27, and Phases 18, 19, 20, 21A, 21B, 21C, 21D, 21E, 21F and 21G are recorded
+above with their own totals. The current build is the **Phase 21G release** (Phase 20 release plus
+migration `025` and the General Harvest board, ladder and engine): the full suite is **1,484 / 1,484**,
+the smoke run **268 / 268**, `APP_PHASE = 21` asserted by `HardeningTest`, the business reset keeps both
+ladders and clears the queues, keeps the General Harvest ladder while returning its board to unarmed,
+and every `QA20X-nn`/`QA21X-nn` check has an evidence file.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.

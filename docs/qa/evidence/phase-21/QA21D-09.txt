@@ -1,0 +1,23 @@
+QA21D-09 — The doctor reports a clean board
+============================================
+Phase 21D — Money engine. Runs php bin\general_harvest_catchup.php --doctor on a clean armed build.
+
+Command:
+
+> php bin\general_harvest_catchup.php --doctor
+
+Output (tail):
+clock:          OK
+tables:         OK (general_harvest_levels, general_harvest_board, general_harvest_awards)
+settings:       OK (enabled=1, max_levels=10)
+board:          armed, baseline_n = 40, settled_n = 40
+gapless:        OK (COUNT(*) = MAX(id) = 40)
+queue:          N = 40, settled_n = 40, backlog = 0
+frontier:       L1 13/13, L2 4/4, L3 1/1, L4+ 0/0 (next at N = 121)
+paid:           ₱50,000.00 (= boardTotal(40) − boardTotal(40))
+baseline:       ₱0.00 (= boardTotal(baseline_n))
+open liability: ₱0.00
+reconcile:      ok = true, no mismatch
+Overall: exit 0
+
+Result: Pass — exit 0; every line green; reconcile verdict clean.

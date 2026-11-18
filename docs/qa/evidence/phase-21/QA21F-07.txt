@@ -1,0 +1,14 @@
+QA21F-07 — The other earnings tabs are unchanged; the tab refreshes live
+=========================================================================
+Phase 21F — Member visibility. Runs as a member on /earnings.
+
+Steps:
+1. Open the Package, Repeat-purchase, Royalty and Team Harvest tabs → unchanged.
+2. Trigger an award (registration) and watch the General Harvest tab refresh.
+
+Observed:
+- Four legacy tabs look and behave exactly as before (regression).
+- General Harvest tab bumps on member.earnings:{id} and the open tab refreshes; other four tabs
+  unaffected.
+
+Result: Pass — regression confirmed; live refresh works on the General Harvest tab only.

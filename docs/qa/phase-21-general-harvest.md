@@ -13,10 +13,10 @@ money**: it applies a migration, reads counts, opens two pages that must *not* h
 the install/reset tools on scratch schemas. From section C on the checks may arm a board and move test
 money, and every one of those runs on a scratch schema — never on a production database.
 
-**Document status.** Section A was written by 21A (2026-11-16) with the automated gate green, section
-B by 21B (2026-11-16) with its own, and section C by 21C (2026-11-16). Sections D–G are appended by
-their phases. **25 checks**: 8 in section A, 9 in section B and 8 in section C. Every check has an
-evidence file under
+**Document status.** All seven sections are complete: section A by 21A (2026-11-16), section B by 21B
+(2026-11-16), section C by 21C (2026-11-16), sections D–F by their phases and completed here at 21G,
+and section G by 21G. **58 checks**: 8 in section A, 9 in section B, 8 in section C, 10 in section D,
+8 in section E, 9 in section F and 6 in section G. Every check has an evidence file under
 `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`; a check whose only output is a
 count, a SQL row or a rendered fragment is a text transcript, and the browser-only steps are recorded
 there as harness transcripts at the markup level (the note in the evidence index says which ones a real
@@ -900,3 +900,815 @@ Section C writes **only** on its scratch copy. Its last step resets that copy, s
 the state it started from (an unarmed board and an empty ledger); the ladder survives the reset. Do not
 run any of section C on the development copy: an arm there is irreversible without a business reset, and
 the lock it takes is real.
+
+---
+
+## 6. Section D — Phase 21D: Money engine (`QA21D-01` … `QA21D-10`)
+
+Section D is the **only phase that moves money**. It settles a completed block into the node holder's
+withdrawable e-wallet, once ever, honours the baseline (pre-go-live blocks recorded, never paid), and is
+state-based so a missed registration self-heals on the next position or the catch-up run. **No page
+appears in this phase** — verification is through the wallet statements, the tables and SQL.
+
+**Prerequisites.** Section C complete (board armed on a scratch copy); the reference ladder saved; the
+stream switch on for the money steps. Every money step runs on a scratch schema (`ecowealth_sneat_tool_b_test`
+or `ecowealth_sneat_tool_a_test`), never on the development copy. Expected suite count at this gate:
+**≥ 1,430** PHP cases (plan phase map); smoke unchanged at **268** (no new route). Build the copy once:
+
+```powershell
+# A scratch schema at migration 025 + seeds, with the reference ladder seeded and the board armed
+# (section C's arm run on this same copy, N0 recorded). The switch is left off until QA21D-07 turns it on.
+# Fixtures: h = 1 (13 accounts, N = 4) and h = 3 (121 accounts, N = 40), built through the plan's
+# §16.2 fixture recipes and queued through RegistrationService.
+```
+
+### QA21D-01 — One block fills and pays its amount, once
+
+| Why | §12.5 rule 3: a completed block pays its configured amount once, ever, as a wallet credit. |
+|---|---|
+| Where | `RegistrationService::register()` in BFS order on an armed scratch copy with the switch on |
+| Evidence | `QA21D-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On an armed scratch copy with the reference ladder and `general_harvest_enabled = 1`, register the
+   members of fixture `h = 1` (13 accounts, `N = 4`) in BFS order.
+2. `SELECT id, seq, level, threshold_n, n_at_award, amount, status, ledger_id FROM general_harvest_awards WHERE seq = 0;`
+3. `SELECT COUNT(*) FROM general_harvest_awards;`
+4. Open the member who holds node 0 on `/wallet` and filter by **General Harvest bonus**.
+
+Expected
+
+- Step 2: one row — seq `0`, level `1`, `threshold_n = 4`, `n_at_award = 4`, amount `₱2,000.00`,
+  `status = 'credited'`, `ledger_id` set.
+- Step 3: **1** award total (node 0's block is the only one complete at `N = 4`).
+- Step 4: one **General Harvest bonus** credit of **₱2,000.00**, withdrawable, `ref_id` = the award id.
+
+### QA21D-02 — The member's wallet shows the General Harvest credit
+
+| Why | §12.7: the credit raises the wallet and the withdrawable bucket, and the statement filter names it. |
+|---|---|
+| Where | `/wallet` as the node-0 holder, plus the statement filter |
+| Evidence | `QA21D-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as the member who holds node 0 of fixture `h = 1`.
+2. Open `/wallet` and apply the **General Harvest bonus** filter.
+3. Read the credit row and the bucket totals.
+
+Expected
+
+- One movement: **General Harvest bonus**, ₱2,000.00, `ref_type = 'general_harvest'`, `ref_id` = the award id.
+- The withdrawable bucket rose by ₱2,000.00; the statement total matches.
+- No other movement kind is affected.
+
+### QA21D-03 — The admin wallet monitor shows the same credit
+
+| Why | Rule 6 of §12.7: every credited award has one ledger row the finance side can trace to the award. |
+|---|---|
+| Where | `/admin/wallets` (admin wallet monitor) |
+| Evidence | `QA21D-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as `admin`, open **Finance → Wallets**.
+2. Find the member who holds node 0 of fixture `h = 1` and open their statement.
+3. Filter by `ref_type = 'general_harvest'` (or locate the row by `ref_id` = award id).
+
+Expected
+
+- The same credit: **General Harvest bonus**, ₱2,000.00, `ref_type = 'general_harvest'`, `ref_id` = the
+  `general_harvest_awards.id` from QA21D-01.
+- The row links back to the award and to the member; clicking through reaches both.
+
+### QA21D-04 — Reconciliation passes with the General Harvest section
+
+| Why | Rule 14 of §14.5: `reconcile()` proves the ledger, the wallet and the closed form agree. |
+|---|---|
+| Where | `php bin\wallet_reconcile.php` on the armed scratch copy |
+| Evidence | `QA21D-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\wallet_reconcile.php`.
+2. Read the **General Harvest** section and the final exit code.
+
+Expected
+
+- Exit **0**.
+- The **General Harvest** section reports paid ₱2,000.00, 1 award, 1 recipient, baseline ₱0.00, no
+  mismatch, and its totals equal the award ledger and the wallet movements.
+
+### QA21D-05 — Fixture `h = 3` completes three levels and pays the reference board total
+
+| Why | §12.8 example D: `N = 40` pays node 0 ₱14,000.00, nodes 1–3 ₱6,000.00 each, nodes 4–12 ₱2,000.00 each; board ₱50,000.00, 18 awards. |
+|---|---|
+| Where | `RegistrationService::register()` on an armed scratch copy with the switch on |
+| Evidence | `QA21D-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Build fixture `h = 3` (121 accounts, 40 qualified) on an armed scratch copy, switch on.
+2. Register the last member so the queue reaches `N = 40` (level 3 completes).
+3. `SELECT COUNT(*), SUM(amount) FROM general_harvest_awards;`
+4. `SELECT user_id, SUM(amount) FROM general_harvest_awards GROUP BY user_id ORDER BY user_id LIMIT 4;` (node 0's wallet)
+5. Read node 0's wallet movements on `/wallet`.
+
+Expected
+
+- Step 3: **18** awards, **50000.00**.
+- Step 4: node 0 = **₱14,000.00** (L1–L3), nodes 1–3 = ₱6,000.00 each, nodes 4–12 = ₱2,000.00 each.
+- Step 5: node 0's wallet holds exactly ₱14,000.00 across three movements — never ₱50,000.00 (the baseline
+  rows are recorded, not paid).
+
+### QA21D-06 — A registration that completes nothing writes no award
+
+| Why | §12.5 rule 3 (all-or-nothing): a partial block pays nothing and is information only. |
+|---|---|
+| Where | Register one non-qualifying member after fixture `h = 3` is fully settled |
+| Evidence | `QA21D-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. With fixture `h = 3` settled at `N = 40`, register one more member under any sponsor who does not
+   qualify (fewer than 3 directs).
+2. `SELECT COUNT(*) FROM general_harvest_awards;` before and after.
+3. `SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';` before and after.
+
+Expected
+
+- Steps 2 and 3: **no change** — no new award, no new credit, totals unchanged (still 18 / ₱50,000.00).
+- The registration itself still succeeds (Phase 20's hook queues only qualifiers).
+
+### QA21D-07 — Off then on: no money while off, the backlog pays once when on
+
+| Why | D-10 / D-19: the switch gates money; state-based settlement self-heals a backlog on enablement. |
+|---|---|
+| Where | `/admin/settings` switch, then `php bin\general_harvest_catchup.php` on a scratch copy |
+| Evidence | `QA21D-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set `general_harvest_enabled = 0` on an armed scratch copy with a backlog (queue grown past
+   `settled_n`).
+2. Register three members under a new sponsor; confirm the queue grows and the awards do not.
+3. `php bin\general_harvest_catchup.php --dry-run` and note the missing awards / open liability.
+4. Turn the switch on and run the catch-up for real; then run it a second time.
+
+Expected
+
+- Step 2: queue rows exist; awards **0**; wallets unchanged; `settle()` returns `off`.
+- Step 3: the dry run writes nothing and lists exactly the missing awards and their amounts.
+- Step 4: the real catch-up writes exactly the missing awards, once, in board order; a second run writes
+  nothing (idempotent) and `settled_n` catches up to `N`.
+
+### QA21D-08 — The baseline is honoured: pre-go-live blocks record, never pay
+
+| Why | D-06 / §12.6: blocks full at `N₀` are `baseline` rows with no money; only post-baseline completions credit. |
+|---|---|
+| Where | Arm at `N = 13`, grow to `N = 40`, inspect `seq = 0` rows and the wallet |
+| Evidence | `QA21D-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On a fresh scratch copy, arm at `N = 13` (fixture B shape: 40 accounts, 13 qualified).
+2. Grow the queue to `N = 40` (register to fixture C shape) with the switch on.
+3. `SELECT level, status, amount FROM general_harvest_awards WHERE seq = 0 ORDER BY level;`
+4. Read node 0's wallet on `/wallet`.
+
+Expected
+
+- Step 3: levels 1–2 show `baseline` (₱2,000.00 / ₱4,000.00, `ledger_id NULL`); level 3 shows
+  `credited` ₱8,000.00 with `ledger_id` set.
+- Step 4: the wallet holds **₱8,000.00 only** — never ₱14,000.00 (levels 1–2 were already full at go-live).
+
+### QA21D-09 — The doctor reports a clean board
+
+| Why | §14.11: `doctor()` reports clock, tables, settings, armed state, gapless, queue count, settled,
+  backlog, per-level frontier, paid, baseline, open liability and the reconcile verdict. |
+|---|---|
+| Where | `php bin\general_harvest_catchup.php --doctor` on a clean armed build |
+| Evidence | `QA21D-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Run `php bin\general_harvest_catchup.php --doctor` on an armed scratch copy with money settled.
+2. Read each line and the exit code.
+
+Expected
+
+- Exit **0**; every line green: clock, tables present, settings valid, board armed, gapless OK,
+  `N = settled_n` (no backlog), per-level frontier at the closed-form values, paid total equals
+  `boardTotal(settled_n) − boardTotal(baseline_n)`, baseline excluded equals `boardTotal(baseline_n)`,
+  open liability ₱0.00, reconcile verdict clean.
+
+### QA21D-10 — Tampering with a wallet row breaks reconciliation
+
+| Why | Rule 12 of §14.5 / I-06: every credited row has a ledger row; removing one makes reconcile fail and
+  names the award. |
+|---|---|
+| Where | Hand-delete one `ewallet_ledger` row, then `php bin\wallet_reconcile.php`, then restore from backup |
+| Evidence | `QA21D-10.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Note one credited award id and its `ledger_id` on an armed scratch copy.
+2. Delete that `ewallet_ledger` row by hand (`DELETE FROM ewallet_ledger WHERE id = <ledger_id>`).
+3. Run `php bin\wallet_reconcile.php` and read the General Harvest section and exit code.
+4. Restore the deleted row from the backup taken in QA21A-01 / section C's setup.
+
+Expected
+
+- Step 3: the reconciler reports the affected award id, `ok = false`, and exits **non-zero**.
+- Step 4: the row is restored and `wallet_reconcile.php` exits 0 again.
+
+---
+
+## 7. Section E — Phase 21E: Admin visibility (`QA21E-01` … `QA21E-08`)
+
+Section E is **read-only**: it renders the rows 21D writes and the arithmetic 21B proves on the admin
+pages an operator already uses — the fifth commissions tab, the board card and filter on the member
+list, the member panel, and the four report cards. **No controller, model or view in this phase writes
+money** (21E Rule 1).
+
+**Prerequisites.** Section D complete; fixture `h = 3` paid (₱50,000.00 paid, 18 awards, 13 recipients)
+and fixture `F` baseline-armed (₱12,000.00 excluded, 5 baseline rows) on a scratch copy; the app
+running, signed in as `admin`. Expected suite count at this gate: **≥ 1,454** PHP cases; smoke
+unchanged at **268**.
+
+### QA21E-01 — The ledger tab shows paid awards, totals and recipients
+
+| Why | Rule 4 of §12.5: *Paid* counts `status = 'credited'` only; baseline rows stay out of paid totals. |
+|---|---|
+| Where | `/admin/commissions?ledger=general_harvest` as `admin` |
+| Evidence | `QA21E-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. With fixture `h = 3` paid, open `/admin/commissions` and select the **General Harvest bonus** tab
+   (`?ledger=general_harvest`).
+2. Read the stats tiles: paid, awards, recipients, baseline, open, unsettled positions.
+
+Expected
+
+- **₱50,000.00** paid, **18** awards, **13** recipients, baseline **₱0.00** (on the paid network),
+  open **₱0.00**, unsettled positions **0**.
+- The `Position`, `Block`, `Queue (N)` and `Status` columns exist; rows render with their member and
+  wallet links.
+
+### QA21E-02 — Filters narrow the rows; baseline rows are their own tile
+
+| Why | Rule 10 of §12.5: filters fall back silently on unknown values; baseline is not credited money. |
+|---|---|
+| Where | The ledger tab, filtering by level and by status; fixture `F` for baseline |
+| Evidence | `QA21E-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Filter level `3` on the paid network: expect one row (node 0, ₱8,000).
+2. Switch to fixture `F` (armed at `N = 13`), filter status *Before go-live*: expect five rows, no wallet link.
+3. Combine two filters (level + status) and confirm they intersect.
+4. Type a garbage level value and confirm it falls back to "no filter" (no error).
+
+Expected
+
+- Each filter filters correctly; two combined filters intersect; a bad value means "no filter" and
+  returns the full set rather than an error.
+- Baseline rows appear in their own tile/column (₱12,000.00 before go-live) and **not** inside *Paid*.
+
+### QA21E-03 — A row links to its member, panel and wallet movement
+
+| Why | Rule 6 of §12.5: a finance reviewer walks award → member → ledger row in one click each. |
+|---|---|
+| Where | Click a row's member link on the ledger tab, then its wallet link |
+| Evidence | `QA21E-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On `/admin/commissions?ledger=general_harvest`, click a credited row's member link.
+2. Confirm `/admin/members/{id}` opens with the General Harvest panel showing the same node, position
+   and money.
+3. Back on the ledger, click the wallet link → the movement row.
+
+Expected
+
+- The member panel shows position, node, settled state, the ten-cell grid and the awards table,
+  matching the ledger row.
+- The wallet link opens the member's statement filtered to that `ref_id`.
+
+### QA21E-04 — CSV export matches the screen and is audited
+
+| Why | Rule 12 of §12.5: the export columns match the screen plus the wallet reference, with one
+  `general_harvest.export` audit row. |
+|---|---|
+| Where | Export the filtered ledger CSV; then `/admin/audit` |
+| Evidence | `QA21E-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Apply a filter (level 3, or status baseline on fixture `F`) on the ledger tab.
+2. Download the CSV; compare columns and values with the screen.
+3. Open **System → Audit log** and find the `general_harvest.export` row.
+
+Expected
+
+- Header row plus one row per filtered award; columns match the screen plus the wallet reference
+  (`ref_type`, `ref_id`).
+- Exactly one `general_harvest.export` audit row carrying the tab, the filters and the row count.
+- Export with no rows yields a header-only file plus one audit row.
+
+### QA21E-05 — The member list: GH column, board card, paid filter
+
+| Why | Rule 5 of §12.5: nodes are read from the ledger and queue, never recomputed; the board card shows
+  the frontier and the open liability. |
+|---|---|
+| Where | `/admin/members` and `?board=paid` / `?board=none` |
+| Evidence | `QA21E-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/members` with fixture `h = 3` paid.
+2. Read the `GH` column (`3 / 10`, `2 / 10`, `1 / 10` … for node holders; `—` otherwise).
+3. Read the board card: `N = 40`, settled 40, frontier `13 / 4 / 1`, "level 1 next at N = 43".
+4. Apply `?board=paid` and confirm it filters to the 13 recipients; `?board=none` filters to node
+   holders with no credited level.
+
+Expected
+
+- The `GH` column shows credited levels out of ten for node holders; non-holders show `—`.
+- The board card shows `N`, settled, the per-level frontier (rows written / next `seq` / completing
+  `N` / amount) and the open liability `₱0.00` (`boardTotal(N) − boardTotal(settled_n)`).
+- The paid filter survives pagination and intersects with the status filter.
+
+### QA21E-06 — An unqualified member has no board panel
+
+| Why | D-02: earning requires holding a node, which requires Phase 20 qualification (≥ 3 directs). |
+|---|---|
+| Where | `/admin/members/{id}` for a member with fewer than 3 directs |
+| Evidence | `QA21E-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/members/{id}` for a member who has not qualified.
+2. Read the gate line and confirm there is no board panel.
+
+Expected
+
+- *"Not qualified: 2 of 3 direct members"* (or the current count) and no General Harvest board panel,
+  no `GH` value, no awards table.
+
+### QA21E-07 — The reports cards match the ledger tab
+
+| Why | Rule 13 of §12.5: the report cards and the ledger tab call the same model methods. |
+|---|---|
+| Where | `/admin/reports`, then export the range CSV |
+| Evidence | `QA21E-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/reports` with fixture `h = 3` paid.
+2. Read the four General Harvest cards: paid total, by-level split, bands.
+3. Export the range CSV with `type=general_harvest` and find the General Harvest block.
+
+Expected
+
+- The paid total **₱50,000.00**, the by-level split (26,000 / 16,000 / 8,000 across levels 1–3) and
+  the bands equal the ledger tab.
+- The range CSV includes the award rows and the board summary block.
+
+### QA21E-08 — The four existing tabs are unchanged
+
+| Why | Rule 2 of §12.5: package, repeat-purchase, Royalty and Team Harvest markup stay byte-identical;
+  `ParityTest` stays green. |
+|---|---|
+| Where | Switch among the Package, Repeat, Royalty and Team Harvest commissions tabs |
+| Evidence | `QA21E-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On `/admin/commissions`, open each of the four legacy tabs in turn.
+2. Confirm each looks and behaves exactly as before the General Harvest tab was added.
+
+Expected
+
+- All four legacy tabs are byte-identical to their pre-21E state; no new route; `ParityTest` and
+  `RouterTest` green; the only addition is the fifth General Harvest pill.
+
+---
+
+## 8. Section F — Phase 21F: Member visibility (`QA21F-01` … `QA21F-09`)
+
+Section F is **read-only member presentation**: the fifth earnings tab, the ten-block card, the
+progress card, the dashboard tile, the genealogy badge and the member CSV. Every number comes from
+`statusFor()` / `blocks()` (21D); the view formats, never computes. The copy rules are normative.
+
+**Prerequisites.** Section D complete; fixture `h = 3` paid; the app running signed in as a member who
+holds node 0 (position `#1`, `N = 40`). Expected suite count at this gate: **≥ 1,478** PHP cases;
+smoke unchanged at **268**.
+
+### QA21F-01 — The earnings tab shows position, blocks, progress and awards
+
+| Why | Rule 10 of §12.5: every number on the member card comes from the service. |
+|---|---|
+| Where | `/earnings?ledger=general_harvest` as node 0 of fixture `h = 3` |
+| Evidence | `QA21F-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. As node 0 of fixture `h = 3`, open `/earnings?ledger=general_harvest`.
+2. Read position `#1`, `N = 40`, the ten blocks, the progress card, the roster page and the award rows.
+
+Expected
+
+- Position `#1`, current `N = 40`, ten block rows (filled of slots, each with its amount), progress
+  card, paginated roster and award rows — all rendering without error.
+- L3 paid ₱8,000.00; L4 `0 of 81` at ₱12,000.00 needing `N = 121`.
+
+### QA21F-02 — The block card states the network rule, the gap and the footnotes
+
+| Why | Rules 2, 3, 4, 7 of §12.5: the network sentence, the position gap in numbers, and the
+  purchases/rank/Active footnote are mandatory and singular. |
+|---|---|
+| Where | Read the block card on `/earnings?ledger=general_harvest` |
+| Evidence | `QA21F-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Read the block card once: the network sentence, the "needs the queue to reach N" line per level,
+   the purchases/rank/Active footnote, and the *Before go-live* label if any baseline row exists.
+
+Expected
+
+- The network sentence present verbatim and exactly once (*"A slot in your block is filled by a
+  qualified member of the whole network — not necessarily anyone in your team…"*).
+- Every level row reads *"needs the queue to reach N"* with an exact number; never "soon" or "almost".
+- The purchases/rank/Active footnote present once (*"This bonus does not depend on any purchase, on
+  your rank, or on the monthly Active status."*).
+- If a baseline row exists, it is labelled *Before go-live* and excluded from *Earned*.
+
+### QA21F-03 — An unqualified member sees the gate, not a board
+
+| Why | D-02: a member without a node holds no block and earns nothing. |
+|---|---|
+| Where | `/earnings?ledger=general_harvest` as a member with fewer than 3 directs |
+| Evidence | `QA21F-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. As a member who has not qualified, open the tab.
+2. Read the gate explanation, the current direct count, and confirm no board and no awards table.
+
+Expected
+
+- The tab explains the gate ("3 direct members"), shows the current count, shows no board and no
+  awards table; no money figures appear.
+
+### QA21F-04 — Filters, totals and the member CSV agree
+
+| Why | Rule 12 of §12.5: every query is scoped to the session member; the CSV is model-scoped so
+  `?user_id=` cannot widen it. |
+|---|---|
+| Where | Filter rows by level/status on the earnings tab; export the CSV; append `&user_id=` |
+| Evidence | `QA21F-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Filter the award rows by level and by status; confirm totals match the rows.
+2. Export the CSV and compare it with the screen.
+3. Append `&user_id=<another id>` to the tab URL and to the export URL.
+
+Expected
+
+- Filtered totals match the filtered rows; the CSV columns match the screen.
+- `&user_id=` is ignored: the page and the file are unchanged (only the session member's rows).
+
+### QA21F-05 — The dashboard tile shows paid total, position and next block
+
+| Why | Rule 11 of §12.5: the tile is one live surface (`member.dashboard:{id}`) with no action or form. |
+|---|---|
+| Where | `/dashboard` as node 0 of fixture `h = 3` |
+| Evidence | `QA21F-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/dashboard` as node 0 of fixture `h = 3`.
+2. Read the General Harvest tile: paid total, position, next block's progress.
+
+Expected
+
+- The tile shows the paid total (₱14,000.00), the position (`#1`) and the next block's progress
+  (L4 `0 of 81`, needs `N = 121`); no action, no form.
+
+### QA21F-06 — The genealogy badge shows positions only
+
+| Why | D-20: a member sees a username only inside their own sponsor subtree; everybody else is
+  "a member outside your team" with their position. |
+|---|---|
+| Where | `/genealogy` as the reader |
+| Evidence | `QA21F-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/genealogy` as node 0 of fixture `h = 3`.
+2. Confirm the badge shows the reader's own position and node, and each queued downline member's
+   position; unqualified members show `—`.
+
+Expected
+
+- The reader's badge shows position `#1` / node 0; downline queued members show their positions;
+  unqualified members show `—`; no stranger's username appears outside the reader's subtree.
+
+### QA21F-07 — The other earnings tabs are unchanged; the tab refreshes live
+
+| Why | Rule 11 of §12.5: package, repeat-purchase, Royalty and Team Harvest tabs keep their URLs and
+  bytes; one live surface refreshes all five. |
+|---|---|
+| Where | Switch among the five earnings tabs; trigger an award and watch the General Harvest tab |
+| Evidence | `QA21F-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. As the same member, open the Package, Repeat, Royalty and Team Harvest tabs: unchanged.
+2. Wait for an award (or trigger one with a registration) and watch the General Harvest tab refresh.
+
+Expected
+
+- The four legacy tabs look and behave exactly as before (regression).
+- The General Harvest tab bumps on `member.earnings:{id}` and the open tab refreshes; the other four
+  tabs are unaffected.
+
+### QA21F-08 — `?user_id=` cannot widen the member's data
+
+| Why | Rule 12 of §12.5: every query and the CSV export are scoped to the session member in the model. |
+|---|---|
+| Where | Append `&user_id=<another id>` to the tab and to the export |
+| Evidence | `QA21F-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/earnings?ledger=general_harvest&user_id=<another member id>`.
+2. Export the same URL with `&user_id=` and compare the file.
+
+Expected
+
+- The page and the file are unchanged: only the caller's rows, **0** audit rows on the export.
+
+### QA21F-09 — The card and tab hold at mobile width
+
+| Why | Rule 18 of §12.5 / layout risk: the ten-block table scrolls inside its card; no page-level
+  horizontal scroll. |
+|---|---|
+| Where | `/earnings?ledger=general_harvest` and the block card at 390 px |
+| Evidence | `QA21F-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Repeat the block card and the tab at 390 px width (mobile emulation).
+2. Confirm the ten-block table scrolls inside its card and the page never scrolls horizontally.
+
+Expected
+
+- Readable at 390 px; no page-level horizontal scroll; the card stays ten levels.
+
+---
+
+## 9. Section G — Phase 21G: Release (`QA21G-01` … `QA21G-06`)
+
+Section G is the release: documentation that matches the code, `APP_PHASE 21`, a green acceptance run,
+and the signed gate record. **It changes no behaviour** (21G Rule 1).
+
+**Prerequisites.** Tag `p21f-member` (or the `p21g-release` tree) on `feature/general-harvest`; sections
+A–F complete and reviewed; the app running for `QA21G-04`; a **scratch schema** for `QA21G-05`.
+Expected suite count at the gate: **1,484** PHP cases; smoke **268** checks.
+
+> **Notation.** As in sections A–F: `mysql` is the Laragon client, `php` is Laragon's PHP 8.3 CLI, and
+> every command runs from `system/`. A command that must hit a different schema sets `ECO_DB_NAME` first
+> (`$env:ECO_DB_NAME='ecowealth_sneat_tool_b_test'`).
+
+**What section G changes in the app.** `APP_PHASE` **19 → 21** in `system/app/config.php`, the
+`HardeningTest` assertion, and the documents. **No route, no schema, no setting, no money rule:** the
+phase is the label, the proof and the paperwork.
+
+The automated pass, run before these checks:
+
+```text
+php bin\build_install_sql.php --check     → exit 0, no output
+php tests\run.php                         → Cases: 1,484   Passed: 1,484   Failed: 0   All good.
+powershell -File tests\smoke.ps1          → Passed: 268   Failed: 0
+php bin\wallet_reconcile.php              → exit 0, General Harvest section clean
+php bin\general_harvest_catchup.php --doctor → exit 0
+```
+
+### QA21G-01 — The automated release gate
+
+| Why | §2.4 and §11 Rule 2: no phase is signed from a red or unmeasured baseline. |
+|---|---|
+| Where | PowerShell, from `system/` |
+| Evidence | `QA21G-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\build_install_sql.php --check` — exit 0 and no output.
+2. `php tests\run.php` — the full suite; copy the last three lines.
+3. `powershell -NoProfile -File tests\smoke.ps1` — the HTTP walk; copy the summary line.
+4. `php bin\wallet_reconcile.php` — exit 0; copy the General Harvest section.
+5. `php bin\general_harvest_catchup.php --doctor` — exit 0 (on a seeded copy; if the development copy
+   is unseeded, run it against the scratch schema `QA21G-05` builds).
+
+Expected
+
+- `Cases: 1,484   Passed: 1,484   Failed: 0` followed by `All good.`
+- `Passed: 268   Failed: 0`
+- The bundle check prints nothing and exits 0; the reconciler reports every section clean, including
+  **General Harvest**; the doctor's lines are green.
+- If it fails: **stop**. A red suite or smoke run is not a documentation issue; fix it in the phase that
+  owns the behaviour, re-run that phase's gate and record the deviation (Rule 1). Do not sign from a
+  partial run.
+
+### QA21G-02 — The cold read
+
+| Why | §11 Rule 3 and §17 risk 16: the author cannot be the tester who proves the pack is readable. |
+|---|---|
+| Where | this document, the plan and the app |
+| Evidence | `QA21G-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Hand sections A–F to a tester who has not seen `dmp/plan-ecowealth-general-harvest.md` and ask them
+   to execute them. Record every question they have to ask.
+2. Separately, read plan §12 and this pack against the build and check every number, URL, action name
+   and exit code the documents state.
+3. Fix every finding in the document that owns it; a finding that needs a code change is a defect in the
+   phase that owns the behaviour (Rule 1).
+
+Expected
+
+- **Zero questions** from the cold tester; every check names its exact URL or command, the exact
+  expected number, and what to do when it fails.
+- The author's sweep finds only documentation drift, fixed here; the residual list is empty.
+- If it fails: the question or the drift is a documentation defect, not a tester error. Fix the document
+  and re-run the affected check; do not change the code to match a document (the code wins).
+
+### QA21G-03 — The release acceptance table
+
+| Why | §11 Rule 5: every acceptance criterion is ticked against a named phase and a named case. |
+|---|---|
+| Where | plan §11 *Release acceptance table*; the suite and the evidence folder |
+| Evidence | `QA21G-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Walk the plan's release acceptance table row by row. For each row, name the phase, the passing
+   `P21X-Tn` case(s) or the evidence file that proves it.
+2. Record the completed table in the evidence file, with no row left as `—`.
+
+Expected
+
+- **Every row ticked**; no acceptance criterion rests on an unexecuted check.
+- `wallet_reconcile.php` and the doctor are named on their own rows; the regression claims
+  (`P21E-T1`, `P21F-T9`) are named where the table asks.
+- If it fails: an unticked row keeps the release unsigned. Find the missing proof or record the
+  exception in the sign-off sheet; never tick a row on intention.
+
+### QA21G-04 — The build reports 21
+
+| Why | D-16 and the exit gate: one constant, asserted in code and visible in the suite header. |
+|---|---|
+| Where | `system/app/config.php`, `php tests\run.php`, `HardeningTest`, browser as `admin` |
+| Evidence | `QA21G-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php tests\run.php Hardening` → the `APP_PHASE 21` case passes, and the suite header reads `phase 21`.
+2. Read `system/app/config.php`: `defined('APP_PHASE') || define('APP_PHASE', 21);`, with the comment
+   naming Phase 21 and the plan.
+3. As an admin, open `/dashboard` → **200**, then every shipped menu item → **200**, no new item, no 500.
+4. As a member, open `/dashboard` → **200** and the General Harvest tile hidden while the stream is off.
+
+Expected
+
+- The runtime constant, the suite header, the `HardeningTest` case and the pages all report **21**.
+- No menu item appears that 21F did not ship; the constant only labels the build.
+- If it fails: a page that 500s is a regression, not a badge problem; `APP_PHASE` landing without its
+  `HardeningTest` assertion is a release defect (they are one deliverable in one commit).
+
+### QA21G-05 — The scratch install and the go-live order
+
+| Why | §11 Rules 2 and 6: the documented commands are executed, and the go-live order is the runbook's one
+  owner. |
+|---|---|
+| Where | a **scratch schema** (`ecowealth_sneat_tool_b_test`), the CLI and `docs/runbook.md` |
+| Evidence | `QA21G-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Follow [`docs/deploy.md`](../../deploy.md) on the scratch schema: build the bundle, install,
+   confirm **39 tables / 79 settings / 10 ladder rows** and the stream **off** and unarmed.
+2. Follow the one go-live order in [`docs/runbook.md`](../../runbook.md) §*General Harvest go-live order*:
+   deploy → configure the ladder → arm dry run → arm → enable → catch up → reconcile → doctor. Record
+   the exit code of every step.
+3. Register the 13 accounts of fixture `h = 1` through the real registration path; see one
+   ₱2,000.00 credit.
+4. `php bin\wallet_reconcile.php` → exit 0; `php bin\general_harvest_catchup.php --doctor` → exit 0.
+
+Expected
+
+- The arm dry run writes nothing and prints `N₀`, the row count and the excluded amount; the real arm
+  writes contiguous baseline rows and `settled_n = N₀`; enabling pays nothing by itself.
+- The qualifying registration writes **one** award and **one** withdrawable credit (₱2,000.00), and a
+  second settlement writes none.
+- Every command in `deploy.md` and the runbook executed here is copy-pasteable as written; the go-live
+  order exists in one place and every other document links to it.
+- If it fails: do not hand-edit an award or a position. The failing step names the owner (install →
+  deploy.md/21A; arm → 21C; award → 21D); fix that phase and re-run its gate.
+
+### QA21G-06 — The evidence folder and the gate records
+
+| Why | §11 Rule 4 and the exit gate: a factual record, not a claim. |
+|---|---|
+| Where | `docs/qa/evidence/phase-21/`, this sheet, `docs/phase-log.md`, plan Appendix H |
+| Evidence | `QA21G-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. List `docs/qa/evidence/phase-21/` and match every `QA21X-nn` check in this document to a file.
+2. Read `docs/qa/sign-off-sheet.md`: the Phase 21 section (21A–21G) and the seven gate rows.
+3. Read `docs/phase-log.md`: seven Phase 21 entries plus the release entry, with tag, counts and
+   deviations.
+4. Read plan Appendix H: the seven gate rows, the deviation log and the acceptance sign-off.
+
+Expected
+
+- **One file per check** (58 files: A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6), named exactly as the
+  check's *Evidence* line; the folder's `README.md` indexes them.
+- The sign-off sheet carries the seven Phase 21 gate records (21A … 21G), each with a decision and the
+  tester line; the phase log has the seven Phase 21 entries (21A–21G); Appendix H is filled.
+- If it fails: a missing file means that check was not executed — do not sign it. Record the exception
+  in the sign-off sheet's defect log with its phase and re-open that phase's gate.
+
+---
+
+## 10. Evidence — sections D–G
+
+Save each check's transcript under `docs/qa/evidence/phase-21/`, named exactly as its **Evidence**
+line (`QA21D-01.txt` … `QA21D-10.txt`, `QA21E-01.txt` … `QA21E-08.txt`, `QA21F-01.txt` …
+`QA21F-09.txt`, `QA21G-01.txt` … `QA21G-06.txt`). The folder's `README.md` is the index and stays
+current as each section is appended. Section G's evidence captures the suite and smoke summary lines,
+the completed acceptance table, the deploy/go-live commands with their exit codes and the one award
+observed, and the file inventory plus the gate-record check.
+
+## 11. Cleanup — sections D–G
+
+Section D writes **only** on its scratch copy; its money steps move test money that stays on the
+scratch schema (dropped or reset afterward). Section D's only development-copy touch is none — it adds
+no page and writes no row there. Section E and section F write nothing at all (read-only pages and
+scoped exports); the export's single audit row is on the scratch/development copy and is restored by
+the smoke walk's own cleanup. Section G's `QA21G-05` writes on a **scratch schema**: drop it
+(`DROP DATABASE ecowealth_sneat_tool_b_test;`) or reset it (`php bin\db_reset.php --force
+--confirm=ecowealth_sneat_tool_b_test`), which keeps the ladder and empties the queue and awards. The
+automation writes nothing to the development copy except the smoke run's own restored setting and
+audit rows; `QA21G-01` and `QA21G-04` are read-only. If the scratch schema is kept for a demonstration,
+leave the stream **off** and the queue as the seed left it; it is not a production copy.
+
+## 12. Sign-off line
+
+**Phase 21 QA pack — sections A–G complete.** 58 checks (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6),
+each with an evidence file under `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
+The automated gate is green at **1,484 / 1,484** PHP cases and **268 / 268** smoke checks; the bundle
+check and the reconciler exit 0; the doctor exits 0; the release acceptance table is complete; the sign-off
+sheet carries the seven gate records; `APP_PHASE = 21` is asserted by `HardeningTest`.
+

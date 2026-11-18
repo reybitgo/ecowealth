@@ -1,0 +1,16 @@
+QA21F-02 — The block card states the network rule, the gap and the footnotes
+============================================================================
+Phase 21F — Member visibility. Runs as a member on /earnings?ledger=general_harvest.
+
+Steps:
+1. Read the block card once.
+2. Confirm: network sentence verbatim and exactly once; "needs the queue to reach N" per level;
+   purchases/rank/Active footnote once; Before go-live label if any baseline row.
+
+Observed:
+- Network sentence present verbatim, exactly once.
+- Every level row reads "needs the queue to reach N" with an exact number; never "soon"/"almost".
+- Purchases/rank/Active footnote present once.
+- Baseline rows (if any) labelled Before go-live and excluded from Earned.
+
+Result: Pass — all normative copy present and singular; baseline rows labelled Before go-live.

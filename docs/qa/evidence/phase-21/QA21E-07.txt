@@ -1,0 +1,16 @@
+QA21E-07 — The reports cards match the ledger tab
+==================================================
+Phase 21E — Admin visibility. Runs as admin on /admin/reports with fixture h = 3 paid.
+
+Steps:
+1. Open /admin/reports.
+2. Read the four General Harvest cards: paid total, by-level split, bands.
+3. Export the range CSV with type=general_harvest; find the General Harvest block.
+
+Observed:
+- Paid total ₱50,000.00; by-level split 26,000 / 16,000 / 8,000 (levels 1–3); bands equal
+  the ledger tab.
+- Range CSV includes the award rows and the board summary block.
+
+Result: Pass — report cards equal the ledger tab (paid ₱50,000.00, by-level and bands match);
+type=general_harvest export includes awards and board block.

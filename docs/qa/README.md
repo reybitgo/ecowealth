@@ -65,7 +65,7 @@ result, capture evidence and sign the phase off.
 | [../qa-unilevel-product.md](../qa-unilevel-product.md) | 18 — repeat-purchase bonus escrow (A–E, **v2**; post-17 point release) | 21 (15 required · 6 optional) | 2–3 h (90–120 min required · 30–40 min optional) |
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
-| [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, **in progress (21C)**: sections A–C written | 25 so far (A 8 · B 9 · C 8; D–G appended by their phases) | 20–30 min (A) · 30–40 min (B) · 40–50 min (C, scratch copy) |
+| [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -79,8 +79,8 @@ its screenshots and terminal transcripts in `evidence/install-reset/`, indexed b
 `evidence/phase-17/`, indexed by that folder's `README.md`. Phase 18's escrow checks use
 `evidence/unilevel-escrow/`; the Phase 17 product walkthrough's images stay in
 `evidence/unilevel-product/`. Phase 20 keeps its transcripts in `evidence/phase-20/`, indexed by
-that folder's `README.md`; Phase 21 keeps its section A–C transcripts in `evidence/phase-21/`, indexed by
-that folder's `README.md` (sections D–G are appended there as they land).
+that folder's `README.md`; Phase 21 keeps all 58 checks' transcripts in `evidence/phase-21/`,
+indexed by that folder's `README.md` (sections A–G complete).
 
 ---
 

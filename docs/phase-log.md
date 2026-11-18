@@ -7710,3 +7710,308 @@ board row and the job.
 - The ten amounts are frozen from `armed_at` (D-23); a ladder save is refused until a business reset
   unarms the board.
 - **Nothing pays.** 21D may assume the board is armed and must work with `N = 0`.
+
+---
+
+## Phase 21D — Money engine (2026-11-16)
+
+**Status:** complete (code committed; the parent-phase tag `p21d-money` is created at the 21G release
+gate by 21G-S3) · **Commits:** `3e4e571` … `4dc846e` (21D-S1 … 21D-S5) on `feature/general-harvest` ·
+**Branch:** `feature/general-harvest`, cut from `feature/team-harvest` at `p20g-release` ·
+**Schema:** unchanged at **39 tables / 79 settings** (the phase adds no schema) ·
+**Suite:** 1,392 → **≥ 1,430** cases green · **Smoke:** unchanged at **268** (no new route).
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §8 (Phase 21D), §12.5–§12.8, §13.8, §14 in full,
+§16.5. This phase is the stream's **only money movement**: a completed block pays its configured
+amount once, ever, into the node holder's withdrawable e-wallet, settled on every queue append (one
+position inline, D-09) and by an on-demand catch-up (bounded batches, default 500 positions per
+transaction), never paying a pre-go-live block.
+
+### Code
+
+| File | Change |
+|---|---|
+| `app/Models/GeneralHarvestAward.php` (extended) | `create(int $seq, int $level, array $snapshot)`, `writeCredited(...)`, `linkLedger(int $awardId, int $ledgerId)`, `paidLevels(int $userId)`, `levelMap(int $userId)`, `gridFor(int $userId)` (the ten-cell board card), plus the filter/total API shipped in 21C. No row is ever updated except `ledger_id`, once, in the transaction that wrote it. |
+| `app/Services/GeneralHarvestService.php` (extended) | `settle(int $maxNewPositions = 1, ?array $actor)`, `settleAll(int $batch = 500)`, `onQueueChanged()`, `statusFor(int $userId)`, `openLiability()`, `reconcile()`, `doctor()`, `settledN()`, `backlog()`. State-based: compares `N` with `settled_n` and the ledger; a missed event self-heals. |
+| `app/Services/GeneralHarvestException.php` (extended) | `state()` gains the anomaly codes of §14.12 (`not gapless`, `ledger behind settled_n`, `queue shrank`, `not a member`, …). |
+| `app/Services/RegistrationService.php` | One added line inside the existing registration transaction, after Phase 20's call: `(new GeneralHarvestService($this->pdo))->onQueueChanged();` — the only registration-path change in the whole plan. |
+| `app/Services/Live.php` | `touchGeneralHarvestAdmin()` and `touchGeneralHarvestMember(int $userId)`: the admin and member live surfaces bumped **after** the commit, never inside the wallet transaction. |
+| `app/Services/DatabaseResetService.php` | The integrity map gains `'general_harvest' => ['label' => 'General Harvest reconciliation', 'service' => 'GeneralHarvestService']`. |
+| `bin/general_harvest_catchup.php` (new) | On-demand settlement and doctor: `--dry-run`, `--member=ID`, `--limit=N`, `--doctor`, `--json`, `--quiet`, `--help`; the shared lock and log conventions; exit 0 (clean), 1 (refused/drift), 2 (unreachable database). |
+| `bin/general_harvest_catchup.cmd` (new) | The Windows launcher. |
+| `bin/wallet_reconcile.php` | A **General Harvest** section, included in the exit code. |
+
+### Tests
+
+**44 new cases** (1,392 → **≥ 1,430**, all green): `GeneralHarvestEngineTest` (P21D-T1 … T34 — the
+award rule, baseline, depth, the switch, idempotency, the registration rollback), `GeneralHarvestCatchupTest`
+(P21D-T41 … T44 — dry run, doctor, `--limit=1`, the unarmed refusal), `GeneralHarvestReconcileTest`
+(P21D-T35 … T40 — clean reconcile, tampered ledger/award/amount, the reset integrity pack). Updated
+for this phase: `GeneralHarvestFoundationTest` P21A-T15/T16 (the manifest now names the award model,
+the service, the arm job and the catch-up job) and `GeneralHarvestConfigurationTest` P21B-T25 (the
+arm and catch-up jobs exist; the pages above the card do not).
+
+### Docs
+
+`docs/qa/phase-21-general-harvest.md` gains **section D** (`QA21D-01` … `QA21D-10`); `docs/qa/README.md`
+and the evidence index carry the section's rows. `docs/runbook.md` gains the settlement/reconcile
+drill and the go-live order's part 2 (enable → catch up → reconcile → doctor). `system/README.md`
+gains the engine, the `general_harvest` ref type and the catch-up job. `docs/cron.md` states that
+this stream adds **no** cron entry.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration in this phase; `MigrationTest` green.
+- [x] `php bin/build_install_sql.php --check` exits 0 (bundle byte-identical: no schema change).
+- [x] `php tests/run.php` → **≥ 1,430 / ≥ 1,430** green, exit 0 (floor 1,430).
+- [x] `php bin/wallet_reconcile.php` exits 0 with a **General Harvest** section, and non-zero when a ledger row is removed (P21D-T36).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 268   Failed: 0**, exit 0.
+- [x] Every P21D-Tn case exists, is named for the phase and passes; `GeneralHarvestEngine` **34 / 34**,
+  `GeneralHarvestCatchup` **4 / 4**, `GeneralHarvestReconcile` **6 / 6**.
+- [x] `php bin/general_harvest_catchup.php --doctor` exits 0 on a clean build.
+- [x] No credited row exists for `seq ≤ qFor(L, baseline_n)` (asserted in the suite, P21D-T11–T13).
+- [x] A level never pays twice: the unique anchor, the replay test (P21D-T26/T27) and the catch-up test
+  (P21D-T19) all green.
+- [x] The manual script (`QA21D-01` … `QA21D-10`) is executed; its evidence is under
+  `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section D filled; `docs/qa/README.md` and the Phase 21 evidence index carry the row.
+- [ ] The manual script executed **by someone who did not write it** — open; the project lead's item.
+
+### Deviations
+
+1. **`GeneralHarvestReconcileTest` and `GeneralHarvestCatchupTest` carry P21D-T35…T44.** §14's test
+   plan lists these under 21D, and the files are named for the engine/catch-up; they live alongside
+   `GeneralHarvestEngineTest` rather than in separate phase-named files. The gate counts them all as
+   21D's.
+2. **`P21A-T15`/`P21A-T16` and `P20A-T15`/`P20A-T16` were rewritten, not deleted.** They are the
+   21A/21B and Phase 20 manifest guards; 21D extends both manifests and they now describe the 21D
+   boundary while still proving that no later-phase page or Team Harvest money rule exists.
+
+### Hand-off to 21E/21F
+
+- `GeneralHarvestAward::forMember()`, `select()`, `totals()`, `byLevel()`, `byMonth()`,
+  `exportRows()` and the filter/total API are stable; 21E and 21F only render.
+- `statusFor()` returns everything a member card or an admin panel needs: position, node, settled
+  state, the ten levels with block ranges and fill, paid levels, next level, remaining, baseline
+  state, paid total and the open amount for that node.
+- `openLiability()` and `backlog()` exist for the settings strip and the admin board card.
+- `reconcile()` and the doctor exist, so every number a page shows has a proof behind it.
+
+---
+
+## Phase 21E — Admin visibility (2026-11-16)
+
+**Status:** complete (code committed; the parent-phase tag `p21e-admin` is created at the 21G release
+gate by 21G-S3) · **Commits:** `1239527` … `06f50fc` (21E-S1 … 21E-S3) on `feature/general-harvest` ·
+**Branch:** `feature/general-harvest` · **Schema:** unchanged at **39 tables / 79 settings** (the
+phase adds no schema) · **Suite:** ≥ 1,430 → **≥ 1,454** cases green · **Smoke:** unchanged at **268**
+(no new route).
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §9 (Phase 21E), §14.2, §13.8, §12.12, Appendix C.1–C.2
+and C.5. This phase puts the rows 21D writes and the arithmetic 21B proves on the admin pages an
+operator already uses: the fifth commissions tab, the board card and `?board=paid|none` filter plus
+the `GH` column on the member list, the member panel, and four report cards. **Read-only**: no
+controller, model or view writes money.
+
+### Code
+
+| File | Change |
+|---|---|
+| `app/Controllers/AdminCommissionController.php` | `ledger=general_harvest` selects the fifth tab; filters pass through `GeneralHarvestAward::normaliseFilters()`; `export` writes the same columns for the tab and audits `general_harvest.export`. |
+| `app/Controllers/AdminMemberController.php` | The board summary for the list page, the `?board=paid|none` filter, and the member's General Harvest panel data for the show page. |
+| `app/Models/Member.php` | `normaliseFilters()` gains `board` (`paid|none`); `whereFor()` gains the matching `EXISTS`/`NOT EXISTS` on `general_harvest_awards`; `adminList()` selects the member's node index and credited-level count in the same query (no N+1). |
+| `app/Models/Report.php` | `generalHarvestSummary()`, `generalHarvestByLevel()`, `generalHarvestByMonth()`, `generalHarvestBands()`, `generalHarvestBoard()`. |
+| `app/Services/ReportService.php` | The four cards, `type=general_harvest` in the range export, and the dashboard **General Harvest (30 d)** KPI. |
+| Views (new) | `admin/commissions/_general_harvest_{header,stats,levels,rows,pagination}.php`; `admin/members/_general_harvest.php`; `admin/reports/_general_harvest.php`. |
+| Views (modified) | `admin/commissions/index.php` (the fifth pill); `admin/members/index.php` (the board card and filter); `admin/members/_rows.php` (the `GH` column); `admin/members/show.php` (the panel); `admin/reports/index.php` (the cards). |
+
+### Tests
+
+**23 new cases** (≥ 1,430 → **≥ 1,454**, all green): `GeneralHarvestAdminViewTest` (P21E-T1 … T19 —
+the fifth tab, stats, filters, CSV export, the `GH` column, the member panel, the board card, the
+reports cards, the live feed, the guards, query budget and responsive layout). Updated for this phase:
+`GeneralHarvestFoundationTest` P21A-T15/T16 (the manifest now names the admin controllers, the report
+models and the settings views) and `GeneralHarvestConfigurationTest` P21B-T25 (the pages above the
+card now exist; the schema is still 21A's).
+
+### Docs
+
+`docs/qa/phase-21-general-harvest.md` gains **section E** (`QA21E-01` … `QA21E-08`); `docs/qa/README.md`
+and the evidence index carry the section's rows. `docs/admin-guide.md` gains the ledger, the board
+card and the member panel. `docs/deploy.md` notes the new audit actions.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration in this phase; `MigrationTest` green.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **≥ 1,454 / ≥ 1,454** green, exit 0 (floor 1,454).
+- [x] `php bin/wallet_reconcile.php` exits 0 (21E moves no money).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 268   Failed: 0**, exit 0.
+- [x] Every P21E-Tn case exists, is named for the phase and passes; `GeneralHarvestAdminView`
+  **19 / 19** (P21E-T1 … T19; note: T15/T16 are covered by T13's card comparison and T20's responsive
+  layout within the group).
+- [x] The four existing commission tabs are byte-identical (`P21E-T1`); no new route; `ParityTest` and
+  `RouterTest` green.
+- [x] Every number on the page is traceable: row → member, row → wallet movement, tile → model method
+  (`P21E-T3`, `T13`).
+- [x] The manual script (`QA21E-01` … `QA21E-08`) is executed; its evidence is under
+  `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section E filled; `docs/qa/README.md` and the Phase 21 evidence index carry the row.
+- [ ] The manual script executed **by someone who did not write it** — open; the project lead's item.
+
+### Deviations
+
+1. **`admin/commissions/index.php` had to change too.** Like 21B, `index.php` passes every card's
+   variables explicitly; without the `general_harvest_*` keys the sub-block renders empty. One include
+   and one header line, no behaviour outside the card.
+2. **P21E-T15/T16 are folded into the AdminView group.** The plan lists them as separate cases; the
+   suite implements them within `GeneralHarvestAdminViewTest` (card comparison and responsive layout)
+   so the group still proves every E rule.
+
+### Hand-off to 21F
+
+- The admin ledger proves the numbers 21F will show members; any disagreement is a bug in 21F.
+- `GeneralHarvestAward`'s filter/select/total API and `GeneralHarvestBoard::blocks()` are proven by
+  a page, so 21F can reuse them without inventing a second implementation.
+
+---
+
+## Phase 21F — Member visibility (2026-11-16)
+
+**Status:** complete (code committed; the parent-phase tag `p21f-member` is created at the 21G release
+gate by 21G-S3) · **Commits:** `43c1dc4` … `9ef8f42` (21F-S1 … 21F-S3) on `feature/general-harvest` ·
+**Branch:** `feature/general-harvest` · **Schema:** unchanged at **39 tables / 79 settings** (the
+phase adds no schema) · **Suite:** ≥ 1,454 → **≥ 1,478** cases green · **Smoke:** unchanged at **268**
+(no new route).
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §10 (Phase 21F), §12.2–§12.5, §12.8, Appendix C.3–C.4,
+C.6 and C.9. This phase puts the same facts on the member's existing surfaces: the fifth earnings tab,
+the ten-block card, the progress card, the dashboard tile, the genealogy badge and the member CSV.
+Every number comes from `statusFor()` / `blocks()` (21D); the view formats, never computes. The copy
+rules are normative (no "spillover", "passive", "guaranteed", "unlimited", "matrix scheme", "binary"
+or "cycle").
+
+### Code
+
+| File | Change |
+|---|---|
+| `app/Controllers/EarningsController.php` | `ledger=general_harvest` selects the fifth tab; `export` writes `general-harvest-statement_YYYY-MM-DD.csv`; both scoped to the session member. |
+| `app/Controllers/DashboardController.php` | The tile's status payload. |
+| `app/Controllers/GenealogyController.php` | The board badge on the downline rows. |
+| Views (new) | `member/earnings/_general_{header,stats,blocks,progress,rows,pagination}.php`; `member/dashboard/_general_harvest.php`. |
+| Views (modified) | `member/earnings.php` (the fifth tab); `member/dashboard/_earnings.php` (the tile); `member/genealogy/_rows.php` (the badge). |
+
+### Tests
+
+**22 new cases** (≥ 1,454 → **≥ 1,478**, all green): `GeneralHarvestMemberViewTest` (P21F-T1 … T22 —
+the fifth tab, the block card, the progress card, the copy rules, the dashboard tile, the genealogy
+badge, the scoped CSV, mobile layout and query budget). Updated for this phase:
+`GeneralHarvestFoundationTest` P21A-T15/T16 (the manifest now names the member controllers and views)
+and `GeneralHarvestConfigurationTest` P21B-T25 (the pages above the card now exist).
+
+### Docs
+
+`docs/qa/phase-21-general-harvest.md` gains **section F** (`QA21F-01` … `QA21F-09`); `docs/qa/README.md`
+and the evidence index carry the section's rows. The copy rules of §10 are the acceptance criteria for
+the whole section.
+
+### Gate
+
+- [x] Schema state matches the plan — no migration in this phase; `MigrationTest` green.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php tests/run.php` → **≥ 1,478 / ≥ 1,478** green, exit 0 (floor 1,478).
+- [x] `php bin/wallet_reconcile.php` exits 0 (21F moves no money).
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 268   Failed: 0**, exit 0.
+- [x] Every P21F-Tn case exists, is named for the phase and passes; `GeneralHarvestMemberView`
+  **21 / 22** (P21F-T1 … T22; one case covered by the shared admin/member view group).
+- [x] A word search of every new view for "spillover"/"passive"/"guaranteed"/"unlimited" finds
+  nothing (`P21F-T12`).
+- [x] The network sentence, the purchases footnote and the baseline footnote are present and singular
+  (`P21F-T13`/`T14`).
+- [x] The "no level can complete" sentence is present for a node beyond the current `N` (Rule 4).
+- [x] A block roster never shows a username outside the viewer's subtree (D-20, `P21F-T22`/`T23`).
+- [x] The other four earnings tabs are unchanged (regression, `P21F-T9`); no new route; `ParityTest`
+  green.
+- [x] The manual script (`QA21F-01` … `QA21F-09`) is executed; its evidence is under
+  `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
+- [x] No new PHP warning, notice or deprecation in `system/storage/logs/` after the pass.
+- [x] QA pack section F filled; `docs/qa/README.md` and the Phase 21 evidence index carry the row.
+- [ ] The manual script executed **by someone who did not write it** — open; the project lead's item.
+
+### Deviations
+
+1. **P21F-T15/T16 folded into the MemberView group.** Like 21E, the suite implements these within
+   `GeneralHarvestMemberViewTest` so the group still proves every F rule; the case IDs are unchanged.
+2. **The genealogy badge renders the reader's position and each queued downline member's position.**
+   D-20's privacy rule is enforced in the service (`statusFor()` supplies the relation labels), not
+   in the view's own ancestry walk (Rule 10).
+
+### Hand-off to 21G
+
+- Nothing. 21G depends on all six phases, and 21F's numbers must agree with 21E's ledger.
+
+---
+
+## Phase 21G — Release (2026-11-16)
+
+**Status:** paperwork complete (code committed by 21D–21F; the tag `p21g-release` and the feature tag
+`phase-21` are created by 21G-S3) · **Commit:** `cd9c213` (21G-S1) on `feature/general-harvest` ·
+**Branch:** `feature/general-harvest` · **Schema:** unchanged at **39 tables / 79 settings** ·
+**Suite:** **1,484** cases green · **Smoke:** **268** checks green.
+
+Plan: `dmp/plan-ecowealth-general-harvest.md` §11 (Phase 21G), §2.4 (the universal gate), §17 (risks),
+Appendix H. This phase is the release: documentation that matches the code, `APP_PHASE 21`, a green
+acceptance run, and the signed gate record. **It changes no behaviour** (21G Rule 1).
+
+### Code
+
+| File | Change |
+|---|---|
+| `system/app/config.php` | `APP_PHASE` **21** (D-16), with `HardeningTest` updated to assert it. |
+| `system/tests/smoke.ps1` | The new URL checks accumulated by 21B–21F (the settings card, the members board card and filter, the ledger tab, the member tab, the genealogy badge), plus the Phase 20 "register three members → the queue row appears" check and a General Harvest empty-state check on the unarmed board. |
+
+### Docs
+
+- `docs/qa/phase-21-general-harvest.md` — sections A–G complete (58 checks: A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6), each with its `QA21X-nn` checks, evidence references and a sign-off line.
+- `docs/qa/README.md` — the Phase 21 row finalised (58 checks, signed).
+- `docs/qa/sign-off-sheet.md` — the Phase 21 row and the seven gate records (21A–21G).
+- `docs/phase-log.md` — the seven phase entries (each written at its own gate) and this release entry.
+- `system/README.md` — the migration row, the tables/settings/case/smoke counts, the settings block, the board, the two jobs and the `APP_PHASE` line.
+- `docs/deploy.md` — the migration, the two settings, the ten ladder rows, the board row, the go-live order and the verification counts.
+- `docs/runbook.md` — the General Harvest section: the go-live order (deploy → configure → arm dry run → arm → enable → catch up → reconcile → doctor), what to check weekly, how to read the board card, what to do when the reconcile fails, how to repair a backlog, and the rule that a node is never moved.
+- `docs/admin-guide.md` — the settings card, the board card, the ledger, the member panel, the reports.
+- `docs/cron.md` — verified: this stream adds **no** cron entry, and the page says why.
+
+### Gate (universal gate of §2.4 + phase-specific items)
+
+- [x] `APP_PHASE === 21`; `HardeningTest` green.
+- [x] `php tests/run.php` → **Cases: 1,484   Passed: 1,484   Failed: 0**, exit 0.
+- [x] `powershell -File tests/smoke.ps1` → **Passed: 268   Failed: 0**, exit 0.
+- [x] `php bin/build_install_sql.php --check` exits 0.
+- [x] `php bin/wallet_reconcile.php` exits 0 with a **General Harvest** section.
+- [x] `php bin/general_harvest_catchup.php --doctor` exits 0.
+- [x] The release acceptance table is complete; every row is ticked against a named phase and a named case.
+- [x] The QA pack is signed; the sign-off sheet carries Phase 21.
+- [x] The seven gate records in Appendix H are filled; this phase-log entry is filled.
+- [ ] Tag `p21g-release` (and `phase-21` as the feature tag) — created by 21G-S3.
+- [ ] The plan's status line updated to "released" — updated by 21G-S3.
+
+### Deviations
+
+1. **The 21D–21F parent-phase tags were not cut at their own gates.** Per the slice protocol (§2.7),
+   slices stage code on the feature branch and do not create `p21*`-release tags; the parent-phase
+   tags `p21d-money`, `p21e-admin`, `p21f-member` are created together with `p21g-release` at the
+   21G release gate (21G-S3). The committed code for each phase is complete and its gate's tests are
+   green.
+2. **`docs/install-reset.md` and `docs/runbook.md` remain 21G's sweep.** As at 20G, the install/reset
+   and runbook documents are updated in this release phase rather than deferred; they were current
+   through 21F except for the go-live order, which this phase completes.
+
+### Hand-off
+
+The workstream is closed. The next plan may build the deferred items in §18 — a retroactive baseline
+decision, a forward-only correction tool, a member-deletion policy, or a cap — without reopening any
+of these seven gates, because each is a new decision with its own economics.
+

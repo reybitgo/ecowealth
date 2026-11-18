@@ -1,0 +1,31 @@
+QA21G-01 — The automated release gate
+======================================
+Phase 21G — Release. Runs from system/.
+
+Commands and output:
+
+> php bin\build_install_sql.php --check
+(no output; exit 0)
+
+> php tests\run.php
+----------------------------------------------------------------
+Cases: 1,484   Passed: 1,484   Failed: 0
+All good.
+
+> powershell -NoProfile -File tests\smoke.ps1
+  ...
+Passed: 268   Failed: 0
+
+> php bin\wallet_reconcile.php
+[General Harvest]
+  paid: ₱190,208,000.00 (at N = 88,573), awards: 44,281, baseline: boardTotal(baseline_n)
+  ok: true
+Overall: exit 0
+
+> php bin\general_harvest_catchup.php --doctor
+clock: OK · tables: OK · settings: OK · board: armed · gapless: OK
+N = settled_n · backlog: 0 · reconcile: ok = true
+Overall: exit 0
+
+Result: Pass — suite 1,484/1,484, smoke 268/268, bundle check exit 0, reconcile exit 0 with
+General Harvest section, doctor exit 0.

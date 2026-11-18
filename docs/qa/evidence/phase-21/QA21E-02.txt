@@ -1,0 +1,18 @@
+QA21E-02 — Filters narrow the rows; baseline rows are their own tile
+====================================================================
+Phase 21E — Admin visibility. Runs on the ledger tab; fixture F for baseline.
+
+Steps:
+1. Filter level 3 on the paid network → one row (node 0, ₱8,000).
+2. Switch to fixture F (armed at N = 13), filter status Before go-live → five rows, no wallet link.
+3. Combine level + status filters → they intersect.
+4. Type a garbage level value → falls back to "no filter" (no error).
+
+Observed:
+- Level 3 filter: exactly one row (node 0, ₱8,000.00).
+- Before go-live filter on fixture F: five rows, all baseline, no wallet link.
+- Combined filters intersect correctly.
+- Invalid filter value → full set returned, no error.
+
+Result: Pass — each filter filters correctly; combined filters intersect; a bad value means
+"no filter"; baseline rows appear in their own tile (₱12,000.00 excluded) and not in Paid.

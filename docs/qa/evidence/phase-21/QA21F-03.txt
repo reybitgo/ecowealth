@@ -1,0 +1,13 @@
+QA21F-03 — An unqualified member sees the gate, not a board
+============================================================
+Phase 21F — Member visibility. Runs as a member with fewer than 3 directs.
+
+Steps:
+1. Open /earnings?ledger=general_harvest as an unqualified member.
+2. Read the gate explanation and current direct count; confirm no board and no awards table.
+
+Observed:
+- Tab explains the gate ("3 direct members") and shows the current count.
+- No board and no awards table; no money figures appear.
+
+Result: Pass — unqualified members see the gate and current count, no board, no awards.

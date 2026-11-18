@@ -1,0 +1,14 @@
+QA21G-03 — The release acceptance table
+========================================
+Phase 21G — Release. Walks plan §11 Release acceptance table row by row.
+
+Steps:
+1. For each acceptance criterion, named the phase and the passing P21X-Tn case(s) or evidence file.
+2. Recorded the completed table in QA21G-03.txt; no row left as "—".
+
+Observed:
+- Every row ticked; no criterion rests on an unexecuted check.
+- wallet_reconcile.php and the doctor named on their own rows; regression claims (P21E-T1, P21F-T9)
+  named where the table asks.
+
+Result: Pass — release acceptance table complete; every row proven against a named phase/case.
