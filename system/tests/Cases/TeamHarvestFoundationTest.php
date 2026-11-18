@@ -1085,6 +1085,7 @@ return [
             '/app/views/admin/commissions/_team_harvest_header.php',
             '/app/views/admin/commissions/_team_harvest_levels.php',
             '/app/views/admin/commissions/_team_harvest_rows.php',
+            '/app/views/admin/commissions/_general_harvest_rows.php',
             '/app/views/admin/members/_harvest.php',
             '/app/views/admin/members/_rows.php',
             '/app/views/admin/members/_team_harvest.php',

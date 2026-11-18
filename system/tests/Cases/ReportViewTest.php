@@ -166,6 +166,7 @@ return [
                 'report-unilevel-levels',
                 'report-unilevel-products',
                 'report-unilevel-periods',
+                'report-general-harvest',
             ],
             array_keys($payload['fragments'])
         );
