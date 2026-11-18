@@ -128,10 +128,12 @@ final class Product
      * Shared WHERE builder.
      *
      * `unilevel` is the repeat-purchase filter: `on` shows products whose
-     * bonus switch is on, `off` the rest. Any other value is ignored, so a
-     * hand-edited URL can never produce a surprising list (plan §6).
+     * bonus switch is on, `off` the rest. `binary` is the product-binary
+     * filter: `on` shows products flagged for binary points, `off` the
+     * rest. Any other value is ignored, so a hand-edited URL can never
+     * produce a surprising list (plan §6).
      *
-     * @param array{q?: string, status?: string, unilevel?: string} $filters
+     * @param array{q?: string, status?: string, unilevel?: string, binary?: string} $filters
      * @return array{0: string, 1: list<string>}
      */
     private static function filterSql(array $filters, bool $catalogOnly): array
@@ -152,6 +154,12 @@ final class Product
             if ($unilevel === 'on' || $unilevel === 'off') {
                 $where[] = 'unilevel_enabled = ?';
                 $args[]  = $unilevel === 'on' ? 1 : 0;
+            }
+
+            $binary = (string) ($filters['binary'] ?? '');
+            if ($binary === 'on' || $binary === 'off') {
+                $where[] = 'binary_enabled = ?';
+                $args[]  = $binary === 'on' ? 1 : 0;
             }
         }
 
@@ -200,6 +208,7 @@ final class Product
             'sku'               => 'nullable|string|max:64|regex:/^[A-Za-z0-9._-]+$/',
             'price'             => 'required|numeric|gt:0|decimal:2',
             'pv'                => 'nullable|numeric|gte:0|lte:1000000|decimal:2',
+            'binary_enabled'    => 'nullable|in:0,1',
             'unilevel_base'     => 'nullable|in:auto,price,pv',
             'stock'             => 'required|integer|min:0|max:1000000',
             'sort_order'        => 'nullable|integer|min:0|max:1000000',
@@ -211,6 +220,7 @@ final class Product
             'sku'               => 'SKU',
             'price'             => 'Price',
             'pv'                => 'Point value (P.V.)',
+            'binary_enabled'    => 'Product binary points',
             'unilevel_base'     => 'Bonus base',
             'stock'             => 'Stock',
             'sort_order'        => 'Sort order',
@@ -240,6 +250,15 @@ final class Product
 
         if ($base === 'pv' && $pv <= 0 && !isset($errors['pv']) && !isset($errors['unilevel_base'])) {
             $errors['unilevel_base'] = 'A P.V. base needs a point value above 0 — set the P.V. or choose Auto.';
+        }
+
+        /* A product flagged for binary points must carry a P.V. above 0
+         * (plan §6 Rule 8): a switch with pv = 0 earns nothing, so refuse
+         * the pair instead of silently paying nothing. The error lands on
+         * the switch so the operator sees exactly what to flip or fix. */
+        $binaryEnabled = (string) ($data['binary_enabled'] ?? '') === '1';
+        if ($binaryEnabled && $pv <= 0 && !isset($errors['pv']) && !isset($errors['binary_enabled'])) {
+            $errors['binary_enabled'] = 'Give the product a P.V. or turn its binary switch off.';
         }
 
         return $errors;
@@ -290,7 +309,122 @@ final class Product
             ];
         }
 
+        $stmt  = ($pdo ?? db())->prepare(
+            'SELECT id, name, price, pv, binary_enabled, unilevel_enabled, unilevel_base
+               FROM products WHERE id IN (' . $marks . ')'
+        );
+        $stmt->execute($ids);
+
+        $rows = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $rows[(int) $row['id']] = [
+                'id'               => (int) $row['id'],
+                'name'             => (string) $row['name'],
+                'price'            => (string) $row['price'],
+                'pv'               => (string) $row['pv'],
+                'binary_enabled'   => (int) $row['binary_enabled'],
+                'unilevel_enabled' => (int) $row['unilevel_enabled'],
+                'unilevel_base'    => (string) $row['unilevel_base'],
+            ];
+        }
+
         return $rows;
+    }
+
+    /* ----------------------------------------------------------
+     *  Product binary points (Phase 22B-S2)
+     * ---------------------------------------------------------- */
+
+    /**
+     * One query for many products: whether binary points are on, the P.V.
+     * and the points per unit (`ROUND(pv)`). Missing products are simply
+     * absent — the caller reads them as off (plan §6 Rule 8).
+     *
+     * @param list<int|string> $ids
+     * @return array<int, array{binary_enabled:int, pv:float, points:int}>
+     */
+    public static function binaryStatusMap(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', $ids),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $stmt  = db()->prepare(
+            'SELECT id, binary_enabled, pv FROM products WHERE id IN (' . $marks . ')'
+        );
+        $stmt->execute($ids);
+
+        $out = [];
+
+        foreach ($stmt->fetchAll() as $row) {
+            $out[(int) $row['id']] = [
+                'binary_enabled' => (int) $row['binary_enabled'],
+                'pv'             => (float) $row['pv'],
+                'points'         => (int) round((float) $row['pv']),
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Snapshot of the binary-relevant product config for the audit trail. */
+    public static function binarySnapshot(?array $product): array
+    {
+        return [
+            'enabled' => !empty($product['binary_enabled']) ? 1 : 0,
+            'pv'      => number_format((float) ($product['pv'] ?? 0), 2, '.', ''),
+        ];
+    }
+
+    /** What moved between two binary snapshots, keyed for the audit payload. */
+    public static function binaryDiff(array $before, array $after): array
+    {
+        $changes = [];
+
+        foreach (['enabled', 'pv'] as $key) {
+            if (($before[$key] ?? null) !== ($after[$key] ?? null)) {
+                $changes[$key] = ['from' => $before[$key] ?? '', 'to' => $after[$key] ?? ''];
+            }
+        }
+
+        return $changes;
+    }
+
+    /**
+     * Record that a product's binary switch or P.V. changed.
+     *
+     * Written inside the caller's transaction (plan §6 Rule 8). Only the
+     * keys that moved are in `changes`; `before`/`after` are complete.
+     */
+    public static function audit(
+        int $productId,
+        string $name,
+        array $before,
+        array $after,
+        array $changes,
+        ?array $actor = null,
+        ?PDO $pdo = null
+    ): void {
+        AuditLog::record([
+            'action'       => 'product.binary.update',
+            'actor_id'     => $actor === null ? null : (int) ($actor['id'] ?? 0),
+            'actor_role'   => $actor === null ? null : (string) ($actor['role'] ?? ''),
+            'subject_type' => 'product',
+            'subject_id'   => $productId,
+            'meta'         => [
+                'product' => $name,
+                'changes' => $changes,
+                'before'  => $before,
+                'after'   => $after,
+            ],
+        ], $pdo);
     }
 
     /* ----------------------------------------------------------
@@ -344,6 +478,8 @@ final class Product
         if (array_key_exists('pv', $data)) {
             $record['pv'] = number_format(max(0.0, (float) ($data['pv'] ?? 0)), 2, '.', '');
         }
+
+        $record['binary_enabled'] = (string) ($data['binary_enabled'] ?? '') === '1' ? 1 : 0;
 
         if ($unilevel !== null) {
             $base = (string) ($data['unilevel_base'] ?? 'auto');
@@ -419,6 +555,28 @@ final class Product
                         $before ?? [],
                         $after ?? [],
                         $changes,
+                        $actor,
+                        $pdo
+                    );
+                }
+            }
+
+            /* Binary points switch / P.V.: audited on update when either
+             * moved, before/after, only when something changed
+             * (plan §6 Rule 8). On create there is no previous state to
+             * diff — the initial config is established, not changed. */
+            if ($existing !== null) {
+                $binaryBefore = self::binarySnapshot($existing);
+                $binaryAfter  = self::binarySnapshot($record);
+                $binaryChanges = self::binaryDiff($binaryBefore, $binaryAfter);
+
+                if ($binaryChanges !== []) {
+                    self::audit(
+                        $productId,
+                        (string) $record['name'],
+                        $binaryBefore,
+                        $binaryAfter,
+                        $binaryChanges,
                         $actor,
                         $pdo
                     );

@@ -598,6 +598,7 @@ return [
             'name'             => 'Engine A',
             'price'            => '300.00',
             'pv'               => '250.00',
+            'binary_enabled'   => 0,
             'unilevel_enabled' => 1,
             'unilevel_base'    => 'pv',
         ], $rows[$a]);

@@ -139,6 +139,9 @@ $unilevel = $unilevel ?? [];
     'current'  => $current,
     'unilevel' => $unilevel,
 ]) ?>
+<?= View::capture('admin/products/_binary', [
+    'current' => $current,
+]) ?>
                   </div>
 
                   <div class="col-xl-4">

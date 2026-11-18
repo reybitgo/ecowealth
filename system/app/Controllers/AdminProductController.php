@@ -52,11 +52,12 @@ final class AdminProductController
      * @return array{
      *   products: list<array<string, mixed>>,
      *   pager: Paginator,
-     *   filters: array{q: string, status: string, unilevel: string},
+     *   filters: array{q: string, status: string, unilevel: string, binary: string},
      *   stats: array{total:int, active:int, inactive:int, out_of_stock:int},
      *   references: array<int, array{orders:int, carts:int, packages:int, awards:int}>,
      *   available: array<int, int>,
      *   repeat_totals: array<int, float>
+     *   binary_status: array<int, array{binary_enabled:int, pv:float, points:int}>
      * }
      */
     private function listContext(): array
@@ -65,6 +66,7 @@ final class AdminProductController
             'q'        => Request::string('q'),
             'status'   => Request::string('status'),
             'unilevel' => Request::string('unilevel'),
+            'binary'   => Request::string('binary'),
         ];
 
         $pager    = Paginator::fromTableRequest(Product::countAdmin($filters));
@@ -79,6 +81,7 @@ final class AdminProductController
             'references'    => Product::referencesMap($ids),
             'available'     => StockService::availableMap($ids),
             'repeat_totals' => ProductUnilevel::totalsMap($ids),
+            'binary_status' => Product::binaryStatusMap($ids),
         ];
     }
 
@@ -136,7 +139,7 @@ final class AdminProductController
      * @param array{
      *   products: list<array<string, mixed>>,
      *   pager: Paginator,
-     *   filters: array{q: string, status: string, unilevel: string},
+     *   filters: array{q: string, status: string, unilevel: string, binary: string},
      *   stats: array{total:int, active:int, inactive:int, out_of_stock:int},
      *   references: array<int, array{orders:int, carts:int, packages:int, awards:int}>,
      *   available: array<int, int>,
@@ -214,7 +217,10 @@ final class AdminProductController
             /* A new product is pre-filled with the reference ladder but its
              * switch is off — nothing is enabled by default (plan §6 Rule 8, D-11). */
             'unilevel'    => $payload['unilevel'] ?? ProductUnilevel::forForm(ProductUnilevel::referencePreset()),
-            'page_js'     => ['assets/js/app-product-unilevel.js'],
+            'page_js'     => [
+                'assets/js/app-product-unilevel.js',
+                'assets/js/app-product-binary.js',
+            ],
         ]);
     }
 
@@ -238,7 +244,10 @@ final class AdminProductController
             'current'     => $payload['input'] ?? $product,
             'unilevel'    => $payload['unilevel']
                 ?? ProductUnilevel::forForm(ProductUnilevel::levels((int) $product['id'])),
-            'page_js'     => ['assets/js/app-product-unilevel.js'],
+            'page_js'     => [
+                'assets/js/app-product-unilevel.js',
+                'assets/js/app-product-binary.js',
+            ],
         ]);
     }
 
@@ -264,6 +273,7 @@ final class AdminProductController
             'status'            => Request::string('status', 'active'),
             'unilevel_base'     => Request::string('unilevel_base', 'auto'),
             'unilevel_enabled'  => Request::post('unilevel_enabled') === '1' ? '1' : '0',
+            'binary_enabled'    => Request::post('binary_enabled') === '1' ? '1' : '0',
         ];
 
         $levelsInput = ProductUnilevel::fromInput(
@@ -457,6 +467,7 @@ final class AdminProductController
             'image_url'         => null,
             'unilevel_enabled'  => '0',
             'unilevel_base'     => 'auto',
+            'binary_enabled'    => '0',
         ];
     }
 }

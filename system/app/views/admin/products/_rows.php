@@ -24,7 +24,8 @@ $query        = trim((string) ($filters['q'] ?? ''));
 $status       = (string) ($filters['status'] ?? '');
 $unilevel     = (string) ($filters['unilevel'] ?? '');
 $hasFilters   = $query !== '' || $status !== '' || $unilevel !== '';
-$repeatTotals = $repeat_totals ?? [];
+    $repeatTotals = $repeat_totals ?? [];
+    $binaryStatus = $binary_status ?? [];
 
 /**
  * A percentage without trailing zeros: 29.0 → "29", 12.5 → "12.5",
@@ -107,6 +108,12 @@ $percentLabel = static function (float $value): string {
 <?php if ($repeatOn): ?>
                                 <span class="badge bg-label-<?= $repeatTotal > 0 ? 'success' : 'warning' ?> mt-1">
                                   Repeat bonus <?= e($percentLabel($repeatTotal)) ?>%
+                                </span>
+<?php endif; ?>
+<?php if ((int) ($product['binary_enabled'] ?? 0) === 1): ?>
+                                <?php $binaryPoints = (int) (($binaryStatus[$id]['points'] ?? 0)); ?>
+                                <span class="badge bg-label-<?= $binaryPoints > 0 ? 'success' : 'warning' ?> mt-1">
+                                  Binary <?= $binaryPoints ?> pts
                                 </span>
 <?php endif; ?>
                               </div>

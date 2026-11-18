@@ -22,8 +22,10 @@ declare(strict_types=1);
 $query        = trim((string) ($filters['q'] ?? ''));
 $status       = (string) ($filters['status'] ?? '');
 $unilevel     = (string) ($filters['unilevel'] ?? '');
+$binary       = (string) ($filters['binary'] ?? '');
 $repeatTotals = $repeat_totals ?? [];
-$hasFilters   = $query !== '' || $status !== '' || $unilevel !== '';
+$binaryStatus = $binary_status ?? [];
+$hasFilters   = $query !== '' || $status !== '' || $unilevel !== '' || $binary !== '';
 
 $live = $live ?? [
     'surface'  => 'admin.products',
@@ -79,6 +81,11 @@ $live = $live ?? [
                       <option value="on" <?= $unilevel === 'on' ? 'selected' : '' ?>>Repeat bonus — on</option>
                       <option value="off" <?= $unilevel === 'off' ? 'selected' : '' ?>>Repeat bonus — off</option>
                     </select>
+                    <select name="binary" class="form-select" aria-label="Filter by product binary">
+                      <option value="">Product binary — all</option>
+                      <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Product binary — on</option>
+                      <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Product binary — off</option>
+                    </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($hasFilters): ?>
                     <a href="<?= e(url('admin/products')) ?>" class="btn btn-label-secondary">Clear</a>
@@ -104,6 +111,7 @@ $live = $live ?? [
     'available'     => $available,
     'filters'       => $filters,
     'repeat_totals' => $repeatTotals,
+    'binary_status' => $binaryStatus,
 ]) ?>
                   </table>
                 </div>
