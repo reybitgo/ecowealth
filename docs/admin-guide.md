@@ -1061,3 +1061,111 @@ wallet movement, no queue row and no board state; it reads the queue and the lad
 **Go-live order**: the sequence is deploy → configure (this card) → arm (21C) → enable → catch up →
 reconcile. Rollback is turning the switch off; the ladder rows and the two settings are inert and may
 stay.
+
+---
+
+## 21. General Harvest money engine and ledger (Phase 21D)
+
+The money engine pays every newly-complete block once, into the node holder's withdrawable wallet,
+honouring the baseline, the depth cap and the once-ever rule. Nothing pays until the board is armed
+and the stream is switched on; configuration states (off, unarmed, unpriced, beyond depth) never throw
+and never block a registration.
+
+### Settlement
+
+`GeneralHarvestService::settle(int $maxNewPositions = 1)` is state-based: it compares the queue length
+`N` with the board's `settled_n` and the ledger's per-level prefix. For each level `L` it pays every
+complete node from the current frontier up to the highest complete node — writing `status = 'credited'`
+plus one withdrawable wallet credit (`ref_type = 'general_harvest'`, `ref_id` = the award id) in the
+same transaction. The inline registration hook settles exactly one position per append; the on-demand
+`bin\general_harvest_catchup.php` settles a bounded backlog (default 500 positions per transaction).
+Awards are idempotent: a second settlement writes nothing.
+
+### Reconciliation
+
+`wallet_reconcile.php` gains an eighth section (General Harvest) that proves `Σ credited =
+boardTotal(settled_n) − boardTotal(baseline_n)` against the ledger and the wallet, and `Σ baseline =
+boardTotal(baseline_n)` against the board row. `bin\general_harvest_catchup.php --doctor` reports the
+clock, tables, settings, armed state, gaplessness, the queue count, settled, backlog, per-level
+frontier, paid, baseline, open liability and the reconcile verdict. Exit codes: `0` clean, `1`
+refused or a problem found, `2` database unreachable.
+
+---
+
+## 22. General Harvest admin visibility (Phase 21E)
+
+Read-only admin surfaces over rows the money engine already writes. No page in this section writes an
+award, a wallet movement or the board row.
+
+### Commissions ledger tab — `?ledger=general_harvest`
+
+The fifth tab on `/admin/commissions`. Stats tiles show credited, baseline, open liability and
+unsettled positions; the always-ten-row level distribution lists levels 1–10 (amounts from
+`general_harvest_levels`, with levels above `max_levels` marked *not paying at this depth*). Filters
+(level, status, dates, member, search) fall back silently on unknown values. Rows link to the member
+and to the wallet movement (`ref_id` = the award id). Pagination and the `general_harvest.export`
+CSV audit row complete the tab. The four older tabs are byte-identical (`P21E-T1`).
+
+### Members directory — `?board=paid|none` and the `GH` column
+
+`/admin/members` gains a `GH` column (`N / 10` credited levels for node holders, `—` otherwise), the
+`?board=paid` / `?board=none` filter, and a board card showing `N`, `settled_n`, the per-level
+frontier and the open liability `boardTotal(N) − boardTotal(settled_n)`, labelled *not yet paid*.
+
+### Member detail panel — `/admin/members/{id}`
+
+For a node holder: position, node, qualified-at, settled state, the ten-cell grid (paid / before
+go-live / in progress / not paying at this depth), the next level with its `N`, and the awards table.
+For a member who has not qualified: the gate ("2 of 3 direct members") and no board panel. Baseline
+holders see their baseline levels labelled *Before go-live* with amounts but no wallet link.
+
+### Reports — `/admin/reports`
+
+The General Harvest block (paid total, by-level split, bands, board summary) and the
+`type=general_harvest` range CSV, which includes the award rows and the board summary block. All
+figures call the same model methods as the ledger tab, so the two reconcile.
+
+---
+
+## 23. General Harvest member visibility (Phase 21F)
+
+Read-only member surfaces, each scoped to the session member (`WHERE user_id = ?`; `?user_id=` is
+ignored by page and export).
+
+### Earnings tab — `/earnings?ledger=general_harvest`
+
+The fifth tab: position, `N`, ten blocks with `#from–#to` ranges, filled-of-slots and amount, the
+progress card, the paginated block roster (Direct / In your team / Outside your team per D-20),
+award rows with wallet links, and the member CSV export (`general-harvest-statement_YYYY-MM-DD.csv`,
+no audit row).
+
+### Dashboard tile — `/dashboard`
+
+The General Harvest tile shows the paid total, the position and the next block's progress. No action,
+no form.
+
+### Genealogy badge — `/genealogy`
+
+The reader's own position and node badge, each queued downline member's position, and `—` for
+unqualified members.
+
+### Copy rules
+
+The copy rules hold verbatim and singularly:
+
+- The network sentence: *"A slot in your block is filled by a qualified member of the whole network —
+  not necessarily anyone in your team. Your block fills in the order members qualified."* (once, on
+  the block card)
+- The position gap: every level row reads *"needs the queue to reach N"*, and the card header reads
+  the current `N`. Never "soon", never "almost".
+- If nothing can complete at the current queue size: *"No level can complete at the current queue
+  size. Level 1 needs the queue to reach N."*
+- No date or guarantee: *"level 3 completes when the queue reaches 67 and pays ₱8,000.00"*, never
+  *"you will be paid by…"*
+- The whole board is shown, filled and empty blocks alike.
+- The footnote: *"This bonus does not depend on any purchase, on your rank, or on the monthly Active
+  status."*
+- Baseline rows are labelled *Before go-live* and excluded from every *Earned* figure; a footnote
+  names the start date.
+- No forbidden word renders: "spillover", "passive", "guaranteed", "unlimited", "matrix scheme",
+  "binary", "cycle".

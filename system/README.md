@@ -5,8 +5,8 @@ framework and no Composer. This folder is the backend application; the public ma
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
 **Current status: Phase 21 — the General Harvest bonus, in progress 21A → 21G
-(`dmp/plan-ecowealth-general-harvest.md`). 21A (foundation), 21B (configuration and the board
-arithmetic) and 21C (the baseline) have landed; `APP_PHASE` is still 20 until 21G.**
+(`dmp/plan-ecowealth-general-harvest.md`). 21A (foundation), 21B (configuration and the board arithmetic), 21C (the baseline), 21D (the money
+engine), 21E (admin visibility) and 21F (member visibility) have landed; `APP_PHASE` is still 20 until 21G.**
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -72,9 +72,14 @@ reaches N" calculator and `GeneralHarvestLevel` / `GeneralHarvestBoard`, which a
 later phase may read an amount, a threshold, a block or a board total; **21C** added the go-live arm —
 the one-time CLI job and `GeneralHarvestService` record `N₀` and one `baseline` row for every block
 already full at all ten levels, and `GeneralHarvestAward` is the ledger (read plus the baseline write
-only), so no money moves. 21D pays the armed board, 21E/21F add the admin and member surfaces and 21G
-releases it. The stream ships **off and unarmed**, so nothing pays until an operator configures, arms
-and enables it.
+only), so no money moves; **21D** pays the armed board — `GeneralHarvestService::settle()` credits one
+withdrawable wallet movement per completed block, honouring the baseline, the depth cap and the
+once-ever rule, with `bin/general_harvest_catchup.php` for the backlog and `wallet_reconcile.php`
+proving the closed form; **21E** adds the admin visibility — the `?ledger=general_harvest` ledger tab,
+the board card, the member panel, the report cards and the CSV export; **21F** adds the member
+visibility — the `?ledger=general_harvest` earnings tab, the ten-block card, the dashboard tile and the
+genealogy badge; and **21G** releases it. The stream ships **off and unarmed**, so nothing pays until
+an operator configures, arms and enables it.
 
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
@@ -1737,7 +1742,7 @@ php tests/run.php TeamHarvest                  # the whole stream (20A–20F)
 
 ---
 
-## General Harvest bonus (Phases 21A–21C)
+## General Harvest bonus (Phases 21A–21F)
 
 One **shared 3-ary board** over the Harvest queue Phase 20 built
 (`dmp/plan-ecowealth-general-harvest.md`, reference `docs/comp-plan_addons.md` §4). Every
@@ -1905,8 +1910,62 @@ order — and every refusal — is in `docs/runbook.md` → *General Harvest go-
 ```bash
 php tests/run.php GeneralHarvestConfiguration  # 35 configuration + arithmetic cases (21B)
 php tests/run.php GeneralHarvestBaseline       # 21 baseline + arm cases (21C)
-php tests/run.php GeneralHarvest              # the whole stream (21A–21C)
+php tests/run.php GeneralHarvestEngine         # credited + settled award cases (21D)
+php tests/run.php GeneralHarvestCatchup        # bounded backlog settlement + doctor (21D)
+php tests/run.php GeneralHarvestReconcileTest  # ledger / wallet / closed-form identity (21D)
+php tests/run.php GeneralHarvestAdminViewTest  # admin ledger, board card, member panel, reports (21E)
+php tests/run.php GeneralHarvestReportTest     # report cards, CSV export, dashboard KPI (21E)
+php tests/run.php GeneralHarvestMemberViewTest # earnings tab, block card, dashboard tile, badge (21F)
+php tests/run.php GeneralHarvest              # the whole stream (21A–21F)
 ```
+
+### `GeneralHarvestService` and settlement (21D)
+
+The money engine. `settle(int $maxNewPositions = 1)` is state-based: it compares the queue length `N`
+with the board's `settled_n` and the ledger's per-level prefix, so a missed registration self-heals on
+the next position or the catch-up run. For each level `L` it pays every complete node `have … Q` that
+is not a baseline block, not above `max_levels`, and not unpriced — writing `status = 'credited'`
+plus one withdrawable wallet credit (`ref_type = 'general_harvest'`, `ref_id` = the award id) in the
+same transaction. The inline hook `(new GeneralHarvestService($this->pdo))->onQueueChanged()` runs
+inside the registration transaction, exactly one position per append (D-09). `settleAll(int $batch =
+500)` bounds the catch-up; `reconcile()` proves `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)`
+against the ledger and the wallet; `doctor()` reports clock, tables, gaplessness, the frontier and the
+reconcile verdict. `statusFor(int $userId)` returns a node's position, its ten blocks with fill and
+amount, paid levels, next level and backlog — the single read model 21E and 21F render.
+
+### Admin visibility (21E)
+
+Read-only surfaces over rows 21D already writes:
+
+- `/admin/commissions?ledger=general_harvest` — the fifth commissions ledger tab: stats tiles
+  (credited, baseline, open liability, unsettled positions), the always-ten-row level distribution,
+  filters (level, status, dates, member, search), paginated rows with wallet links, and the
+  `general_harvest.export` CSV audit row.
+- `/admin/members` — the `GH` column (`N / 10` credited levels for node holders), the `?board=paid\|none`
+  filter, and the board card with the frontier (`settled_n`, `N`, per-level next completion) and the
+  open liability `boardTotal(N) − boardTotal(settled_n)`.
+- `/admin/members/{id}` — the member's board panel: position, node, settled state, the ten-cell grid
+  (paid / before go-live / in progress / not paying at this depth), the next level with its `N`, and
+  the awards table.
+- `/admin/reports` — the General Harvest block (paid, by-level split, bands, board summary) and the
+  `type=general_harvest` range CSV.
+
+### Member visibility (21F)
+
+Read-only surfaces, scoped to the session member:
+
+- `/earnings?ledger=general_harvest` — the fifth earnings tab: position, `N`, ten blocks with
+  `#from–#to` ranges, filled-of-slots and amount, the progress card, the paginated block roster
+  (Direct / In your team / Outside your team per D-20), award rows with wallet links, and the member
+  CSV export.
+- `/dashboard` — the General Harvest tile: paid total, position and the next block's progress.
+- `/genealogy` — the reader's position/node badge and each queued downline member's position; `—`
+  for unqualified members.
+
+The copy rules hold verbatim: the network sentence ("a slot in your block is filled by a qualified
+member of the whole network"), the position gap ("needs the queue to reach N"), the purchases /
+rank / Active footnote, "before go-live" baseline labels, and no forbidden words ("spillover",
+"passive", "guaranteed", "unlimited", "matrix scheme", "binary", "cycle").
 
 ---
 
@@ -1922,6 +1981,12 @@ Six scheduled jobs, each with a CLI runner, a guarded URL entry and a Windows la
 | Unilevel month close (monthly Active snapshot) | `bin/unilevel_month_close.php` | `/system/cron/unilevel_month_close.php` | `bin/unilevel_month_close.cmd` |
 | Unilevel release (credits due pending bonus) | `bin/unilevel_release.php` | `/system/cron/unilevel_release.php` | `bin/unilevel_release.cmd` |
 | Royalty month close (monthly rank-gated bonus) | `bin/royalty_month_close.php` | `/system/cron/royalty_month_close.php` | `bin/royalty_month_close.cmd` |
+
+**General Harvest adds no scheduled job.** Its engine settles one position inline on every queue
+append (`RegistrationService::onQueueChanged()`, inside the registration transaction), and its
+backlog is cleared by the on-demand `bin/general_harvest_catchup.php` (CLI / `.cmd`, its own lock,
+`--dry-run`, `--doctor`, `--limit`, `--member`, `--json`). There is nothing to aggregate on a
+schedule: a block completes when the queue reaches a position, and the amount is fixed (D-08).
 
 - Flags (CLI `--x=…`, URL `?x=…`): `limit`, `dry-run`, `json`, `doctor`, `log-dir` (CLI only),
   `quiet` (CLI only), `help`; the expiry job also has `from-settings`, the reset job `week` and
@@ -2014,11 +2079,13 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (1,392 cases; Phase 21 is in progress through 21C)
+php tests/run.php                 # full suite (≥ 1,478 cases; Phase 21 complete through 21F,
+                                   # release at 21G — `APP_PHASE` still 20 until the 21G gate)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 
 powershell -NoProfile -File tests/smoke.ps1    # 268 HTTP checks against the running app
+                              # (21B's five new checks; 21G finalizes the smoke inventory)
 ```
 
 - `tests/bootstrap.php` drops and recreates `ecowealth_sneat_test` from `schema.sql` and
@@ -2043,7 +2110,7 @@ window, the reports performance budget, the CSV exports and their audit rows, th
 transfer throttle. The install/reset workstream adds ten more — `IR4-T1…T5` for the web installer's
 refusal states, hardening headers, GET/POST side effects and shared stylesheet, and `IR6-T1…T5` for the
 reset console's guest redirect, member 403, admin form with no secret, three refusals that change
-nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), Phase 19 adds **19** (the commissions settings sub-block and the member Rank column, the Royalty ledger and its filters/CSV, the member statement and tile, and the Royalty close's URL entry and doctor), and Phase 20 adds **15**: three on the Team Harvest settings ladder (P20B), then the release walk (P20G) — the settings card, the fourth ledger tab and the three unchanged tabs, the directory and its filter, the reports block and CSV, the unqualified and queued member statements, the dashboard tile, the genealogy badge, and the registration hook. Phase 21B adds **5** more: the General Harvest card and its ten inputs, the generated ladder and position table, the ₱25,000,000.00 sum refusal, the depth-11 refusal and the card's inertness — **268** HTTP checks in all.
+nothing, and its stylesheet. Phase 17 adds **30** more: the product ladder card, the settings block and its validation, a paid order under the configured product, the repeat ledger and its filtered CSV, the report cards, the member product panel / checkout line / order card / earnings tab / dashboard tile, and the month-close URL pair (P17F-T10 doctor, P17F-T11 dry-run JSON). Phase 18 adds **4** (the escrow's pending/release rows), Phase 19 adds **19** (the commissions settings sub-block and the member Rank column, the Royalty ledger and its filters/CSV, the member statement and tile, and the Royalty close's URL entry and doctor), and Phase 20 adds **15**: three on the Team Harvest settings ladder (P20B), then the release walk (P20G) — the settings card, the fourth ledger tab and the three unchanged tabs, the directory and its filter, the reports block and CSV, the unqualified and queued member statements, the dashboard tile, the genealogy badge, and the registration hook. Phase 21B adds **5** more: the General Harvest card and its ten inputs, the generated ladder and position table, the ₱25,000,000.00 sum refusal, the depth-11 refusal and the card's inertness — **268** HTTP checks in all. Phase 21D–21F add no new URL routes (D-15); their smoke checks ride the existing wallet, admin and member surfaces plus the two CLI jobs — the general_harvest movement in the wallet filter, the catch-up and doctor exits, the ledger tab, the board card, the earnings tab, the tile and the badge — and are folded into the 21G smoke inventory.
 
 The install/reset groups run without a browser and without the application connection:
 

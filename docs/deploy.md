@@ -1717,7 +1717,7 @@ phase constant and the test/docs. The queue, the awards and the ladder stay exac
 
 ---
 
-## Phase 21 addendum — the General Harvest bonus (21A → 21C so far)
+## Phase 21 addendum — the General Harvest bonus (21A → 21F, release at 21G)
 
 **No new hosting requirement.** Phase 21 adds one more bonus on the Harvest queue Phase 20 built: one
 **shared 3-ary board** for the whole network, where a member's node is their queue position minus one
@@ -1725,12 +1725,12 @@ and a node's level-`L` block is the next `3^L` positions in that same queue. Thr
 operator must know before deploying it:
 
 1. **The trigger is the whole network's qualified count (`N`), not the member's team.** A block is
-   filled by whoever took those queue positions, so a registration anywhere can complete a block for a
-   member anywhere — including a complete stranger. That is the plan, not a defect.
+    filled by whoever took those queue positions, so a registration anywhere can complete a block for a
+    member anywhere — including a complete stranger. That is the plan, not a defect.
 2. **The board's liability is a closed form** — `Σ_L amount(L) · floor((N − (3^L − 1)/2) / 3^L)` —
-   which is why every report and reconcile check has an exact independent expectation.
+    which is why every report and reconcile check has an exact independent expectation.
 3. **Arming is a separate, irreversible act** (21C) and **is not reachable from any page**. The stream
-   ships **off and unarmed**, so a fresh install pays nothing.
+    ships **off and unarmed**, so a fresh install pays nothing.
 
 ### Migration `025` (21A)
 
@@ -1793,24 +1793,72 @@ audited as `general_harvest.arm`. The full drill is in
 
 ### Verification after the upgrade
 
-- [ ] `php tests/run.php` → **1,392 / 1,392**; `powershell -File tests/smoke.ps1` → **268 / 268**.
+- [ ] `php tests/run.php` → **≥ 1,478 / ≥ 1,478**; `powershell -File tests/smoke.ps1` → **268 / 268**.
 - [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **39 tables / 79
       settings / 10 Team Harvest ladder rows / 10 General Harvest ladder rows / 1 unarmed board row**.
-- [ ] `php bin/wallet_reconcile.php` exits 0 — the General Harvest section is not part of the
-      reconciler until 21D, and no `general_harvest` ledger row exists yet.
+- [ ] `php bin/wallet_reconcile.php` exits 0 with a **General Harvest** section reporting paid,
+      baseline, rows and no mismatch (21D).
+- [ ] `php bin/general_harvest_catchup.php --doctor` exits 0 (21D).
 - [ ] `/admin/settings` → Commissions shows the **General Harvest bonus** card: the reference amounts,
       the switch off, the depth 10, both generated tables and the strip **Not armed** naming
       `bin/general_harvest_arm.php`.
 - [ ] `SELECT * FROM general_harvest_board;` → one row `(1, NULL, NULL, NULL, 0)` before the arm.
+- [ ] `/admin/commissions?ledger=general_harvest` renders the ledger tab, stats, filters and rows
+      (21E); `/admin/members` shows the `GH` column and the board card (21E).
+- [ ] `/earnings?ledger=general_harvest` renders the earnings tab and the ten-block card (21F);
+      `/dashboard` shows the General Harvest tile and `/genealogy` the board badge (21F).
 - [ ] At go-live, the dry run and the real arm print the same `N₀`, row count and excluded amount, and
       every written row is `baseline` with `ledger_id NULL`.
 
-### Rollback (21A/21C)
+### Money engine (21D)
 
-Turn the switch off and revert the code. The ladder rows, the board row, the baseline rows and the two
-settings may stay: they are inert, and the baseline is a correct record of what was already earned at
-go-live, so a later attempt can reuse it. No money exists to reverse. To abandon the stream entirely,
+The settlement pays every newly-complete block once, into the node holder's withdrawable wallet,
+honouring the baseline, the depth cap and the once-ever rule. `bin/general_harvest_catchup.php`
+settles a bounded backlog (default 500 positions per transaction) with `--dry-run`, `--limit`,
+`--member`, `--doctor`, `--json` and `--quiet`; `wallet_reconcile.php` gains an eighth section that
+proves `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)` against the ledger and the
+wallet. The stream stays off until an operator switches it on after the arm; the catch-up and doctor
+run on demand, never on a cron schedule.
+
+### Admin visibility (21E)
+
+Read-only admin surfaces over rows 21D writes:
+
+- `/admin/commissions?ledger=general_harvest` — the fifth commissions ledger tab: stats tiles
+  (credited, baseline, open liability, unsettled positions), the ten-row level distribution, filters
+  (level, status, dates, member, search), paginated rows with wallet links, and the
+  `general_harvest.export` CSV audit row.
+- `/admin/members` — the `GH` column (`N / 10` credited levels for node holders), the `?board=paid\|none`
+  filter, and the board card with the frontier and the open liability.
+- `/admin/members/{id}` — the member's board panel: position, node, settled state, the ten-cell grid,
+  the next level with its `N`, and the awards table.
+- `/admin/reports` — the General Harvest block (paid, by-level split, bands, board summary) and the
+  `type=general_harvest` range CSV.
+
+### Member visibility (21F)
+
+Read-only member surfaces, scoped to the session member:
+
+- `/earnings?ledger=general_harvest` — the fifth earnings tab: position, `N`, ten blocks with
+  `#from–#to` ranges, filled-of-slots and amount, the progress card, the paginated block roster
+  (Direct / In your team / Outside your team per D-20), award rows with wallet links, and the member
+  CSV export.
+- `/dashboard` — the General Harvest tile: paid total, position and the next block's progress.
+- `/genealogy` — the reader's position/node badge and each queued downline member's position; `—`
+  for unqualified members.
+
+The copy rules hold verbatim: the network sentence, the position gap ("needs the queue to reach N"),
+the purchases / rank / Active footnote, "before go-live" baseline labels, and no forbidden words
+("spillover", "passive", "guaranteed", "unlimited", "matrix scheme", "binary", "cycle").
+
+### Rollback (21A–21F)
+
+Turn the switch off (`general_harvest_enabled = 0`) and revert the code. The ladder rows, the board
+row, the baseline rows and the two settings may stay: they are inert, and the baseline is a correct
+record of what was already earned at go-live, so a later attempt can reuse it. No money exists to
+reverse while nothing has been credited. Any `credited` awards already written are real money and a
+code rollback does not delete them — the ledger remains reconcilable because `wallet_reconcile.php`
+reads the tables, not the code path. To abandon the stream entirely before anything is paid,
 `UPDATE general_harvest_board SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0`
 and `TRUNCATE general_harvest_awards`; delete the three tables only with a matching `down` decision —
-dropping `general_harvest_awards` would erase the record of every node and award the moment 21D starts
-writing them.
+dropping `general_harvest_awards` would erase the record of every node and award.
