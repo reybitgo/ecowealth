@@ -7956,8 +7956,7 @@ the whole section.
 
 ## Phase 21G — Release (2026-11-16)
 
-**Status:** paperwork complete (code committed by 21D–21F; the tag `p21g-release` and the feature tag
-`phase-21` are created by 21G-S3) · **Commit:** `cd9c213` (21G-S1) on `feature/general-harvest` ·
+**Status:** complete · **Commit:** `1d0d74d` (21G-S3) on `feature/general-harvest` ·
 **Branch:** `feature/general-harvest` · **Schema:** unchanged at **39 tables / 79 settings** ·
 **Suite:** **1,484** cases green · **Smoke:** **268** checks green.
 
@@ -7995,8 +7994,8 @@ acceptance run, and the signed gate record. **It changes no behaviour** (21G Rul
 - [x] The release acceptance table is complete; every row is ticked against a named phase and a named case.
 - [x] The QA pack is signed; the sign-off sheet carries Phase 21.
 - [x] The seven gate records in Appendix H are filled; this phase-log entry is filled.
-- [ ] Tag `p21g-release` (and `phase-21` as the feature tag) — created by 21G-S3.
-- [ ] The plan's status line updated to "released" — updated by 21G-S3.
+- [x] Tag `p21g-release` (and `phase-21` as the feature tag) — created by 21G-S3.
+- [x] The plan's status line updated to "released" — updated by 21G-S3.
 
 ### Deviations
 

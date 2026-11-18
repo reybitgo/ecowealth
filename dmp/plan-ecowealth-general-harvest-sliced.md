@@ -1,8 +1,9 @@
 # Plan — General Harvest Bonus (the shared 3-ary Harvest board)
 
-**Phase 21** of the EcoWealth member system · **Status: in progress** — 21A (Foundation) landed
+**Phase 21** of the EcoWealth member system · **Status: released** — 21A (Foundation) landed
 2026-11-16, 21B (Configuration and the board arithmetic) landed 2026-11-16, 21C (The baseline) landed
-2026-11-16; 21D–21G planned.
+2026-11-16; 21D (Money engine), 21E (Admin visibility), 21F (Member visibility) and 21G (Release)
+landed 2026-11-18. Tag `p21g-release`.
 **Delivery model:** **seven gated phases, 21A → 21G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`
