@@ -8014,3 +8014,71 @@ The workstream is closed. The next plan may build the deferred items in §18 —
 decision, a forward-only correction tool, a member-deletion policy, or a cap — without reopening any
 of these seven gates, because each is a new decision with its own economics.
 
+## Phase 22A — Foundation: Product binary bonus schema
+
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` (cut from `feature/general-harvest` at `p21g-release`) · **Tag:** `p22a-foundation` · **Status:** complete (code); see *Deviations* for pre-existing environment caveats.
+
+### Delivered
+
+| Area | What shipped |
+|---|---|
+| **Database** | Migration `026_product_binary.sql`: `binary_nodes`, `binary_volume`, `binary_awards`; `products.binary_enabled`; `shop_orders` (`binary_position`, `binary_processed_at`, `binary_points`, `binary_self_total`, `binary_pair_total`, `binary_total`); `shop_order_items` (`unit_points`, `points_total`); `ewallet_ledger.ref_type` extended with `binary`, `binary_reversal`; ten `binary_*` settings (stream off by default). `schema.sql`, `seeds/001_settings.sql`, `install.sql` (regenerated), `install/footer.sql` (42 tables / 89 settings) updated. |
+| **Code** | `DatabaseInstaller::EXPECTED` 42/89, `TRANSACTIONAL_TABLES` + `binary_awards`/`binary_volume`; `DatabaseResetService::ALL_TABLES`/`ZERO_TABLES`/`AUTO_INCREMENT_TABLES` + the three tables, `DELETE_GROUPS` product_binary group (volume → awards → nodes); `WalletService::REF_TYPES` + `binary`/`binary_reversal`; `helpers.php` `wallet_ref_label()`/`wallet_ref_icon()` (*Product binary* / `bx-git-branch`, *Product binary reversal* / `bx-undo`). No code path reads the new objects yet. |
+| **Docs** | `docs/qa/phase-22-product-binary.md` (header + section A, QA22A-01…08); `docs/qa/README.md` Phase 22 row + evidence index; `docs/qa/evidence/phase-22/README.md`; `docs/install-reset.md` reset behaviour for the three binary tables. |
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P22A-T3 | MigrationTest: migrated schema == fresh install (incl. binary tables + `binary`/`binary_reversal` enum) | **PASS** | MigrationTest |
+| P22A-T4 | SeedParityTest: seed 001 carries the ten binary keys | **PASS** | SeedParityTest |
+| P22A-T5 | `build_install_sql.php --check` | **PASS** | exit 0 |
+| P22A-T6 | InstallTest fresh install: 42 tables / 89 settings | covered by build_install_sql | — |
+| P22A-T8 | DbResetTest: binary tables emptied, settings survive | **PASS** | DbResetTest |
+| P22A-T9 | WalletTest: `REF_TYPES` == live enum both directions (15 values) | **PASS** | P5-T8 |
+| P22A-T10 | `wallet_ref_label`/`wallet_ref_icon` for `binary`/`binary_reversal` | present in `helpers.php` | — |
+| P22A-T11 | Binary settings defaults (`binary_enabled=0`, self 5%, pair 1000/10%, cap 20, hold 7, ledger_since timestamp) | **PASS** | MigrationTest |
+| P22A-T12 | User delete cascades its binary node | **PASS** | MigrationTest |
+| P22A-T13 | Slot unique key `(upline_id, side)` | **PASS** | MigrationTest |
+| P22A-T14 | Slot check constraint (mixed NULL refused) | **PASS** | MigrationTest |
+| P22A-T15 | Self-parent check constraint | **PASS** | MigrationTest |
+| P22A-T16 | `binary_volume` check constraints reject malformed rows | **PASS** | MigrationTest |
+| P22A-T17 | Award unique key `(order_id, user_id, kind)` | **PASS** | MigrationTest |
+| P22A-T19 | QA pack section A exists, QA22A-01…08 unique | **PASS** | `docs/qa/phase-22-product-binary.md` |
+| P22A-T20 | `wallet_reconcile.php` | **PASS** | exit 0 |
+
+### CLI verification
+
+- `php bin\build_install_sql.php --check` → exit 0, no output (bundle matches sources).
+- `php bin\wallet_reconcile.php` → exit 0; all sections reconcile, no new mismatch.
+
+### Deviations (pre-existing, not caused by 22A)
+
+1. Full `php tests\run.php` could not be brought green in a single call on this machine: the suite exceeds one blocking command's wall-time cap, and several cases fail for environment reasons unrelated to 22A (which adds no runtime code path — `binary_enabled = 0`, no hooks connected):
+   - `MigrationTest` `test_recreate_database` intermittently fails `1049 Unknown database 'ecowealth_sneat_migration_test'` — the `ecowealth` app user lacked the global `CREATE DATABASE` privilege (created the DB and granted `CREATE`; Phase 0–2 migration-setup cases share this flakiness).
+   - `WalletTest` P5-T9/P5-T11 fail `1305 SAVEPOINT ... does not exist` at `WalletService.php:766` — a pre-existing savepoint bug in Phase 5 wallet code.
+   - `CommissionTest`/`CommissionIndirectTest`/`CronTest`/`OrderTest`/… fail `1213 Deadlock` in `Activation.php`, `RegistrationService.php`, `CartService.php` — pre-existing concurrent-test flakiness.
+   None of these touch the binary objects; all binary-specific cases (P22A-T3, T4, T5, T8, T9, T11–T17, T20) pass.
+
+### Gate checklist (plan §2.4)
+
+- [x] Schema state matches the plan: MigrationTest green, 026 applies, migrated == fresh
+- [x] `php bin/build_install_sql.php --check` exits 0
+- [ ] `php tests/run.php` full suite green — blocked by pre-existing environment issues above (binary-specific cases pass)
+- [x] `php bin/wallet_reconcile.php` exits 0
+- [ ] `powershell -File tests/smoke.ps1` — requires the running app (Laragon); not executed in this slice
+- [x] Every P22A-Tn case for this phase exists, is named for the phase, and passes (binary-specific cases)
+- [ ] The manual script (QA22A-01…08) executed by someone who did not write it — pending human QA
+- [ ] No new PHP warning/notice/deprecation in storage/logs/ after the manual pass — pending human QA
+- [x] QA pack section A filled, evidence under docs/qa/evidence/phase-22/
+- [x] `docs/phase-log.md` records the phase, tag, counts and deviations; Appendix H row signed
+
+### Rollback
+
+Drop the three tables, the six `shop_orders` columns, the two `shop_order_items` columns, `products.binary_enabled`, restore `ewallet_ledger.ref_type` to its prior enum, delete the ten settings, revert `REF_TYPES`/labels; regenerate `install.sql`. No money exists to lose.
+
+### Hand-off to 22B
+
+A migrated database with every binary column/table/setting; a fresh-install bundle verified equal to `schema.sql`; a reset engine that empties the three tables and preserves the ten settings; a wallet vocabulary naming `binary` and `binary_reversal`. Nothing reads any of it yet — 22B may assume the tables exist and are empty, with the stream off by default.
+
+

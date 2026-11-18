@@ -31,9 +31,14 @@ result, capture evidence and sign the phase off.
 > G 6. Its evidence lives in `evidence/phase-20/`, indexed by that folder's `README.md`.
 
 > **Phase 21 is the General Harvest bonus workstream** (`dmp/plan-ecowealth-general-harvest.md`),
-> delivered in seven gated phases **21A → 21G** and **in progress (21C)**. Sections A–C are written;
-> sections D–G are appended by their phases before their gates. Its evidence lives in
-> `evidence/phase-21/`, indexed by that folder's `README.md`.
+> delivered in seven gated phases **21A → 21G** and **signed at 21G**. Sections A–G are complete: 21A–21F wrote
+> A–F and 21G appended its section before its gate. **58 checks** — A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6.
+> Its evidence lives in `evidence/phase-21/`, indexed by that folder's `README.md` (sections A–G complete).
+
+> **Phase 22 is the Product binary bonus workstream** (`dmp/plan-ecowealth-product-binary-sliced.md`),
+> delivered in nine gated phases **22A → 22I** and **in progress (22A)**. Section A is written by 22A;
+> sections B–I are appended by their phases before their gates. **8 checks in section A** — QA22A-01 … QA22A-08.
+> Its evidence lives in `evidence/phase-22/`, indexed by that folder's `README.md`.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -66,6 +71,7 @@ result, capture evidence and sign the phase off.
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
 | [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
+| [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, section A, **in progress (22A)** | 8 (QA22A-01 … QA22A-08) | 90–120 min (A 90–120 min) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -80,7 +86,8 @@ its screenshots and terminal transcripts in `evidence/install-reset/`, indexed b
 `evidence/unilevel-escrow/`; the Phase 17 product walkthrough's images stay in
 `evidence/unilevel-product/`. Phase 20 keeps its transcripts in `evidence/phase-20/`, indexed by
 that folder's `README.md`; Phase 21 keeps all 58 checks' transcripts in `evidence/phase-21/`,
-indexed by that folder's `README.md` (sections A–G complete).
+indexed by that folder's `README.md` (sections A–G complete); Phase 22 keeps its
+8 section-A transcripts in `evidence/phase-22/`, indexed by that folder's `README.md`.
 
 ---
 

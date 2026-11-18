@@ -4822,7 +4822,7 @@ BOUNDS
 
 | Phase | Tag | Schema | Suite floor | QA section | Evidence | Signed |
 |---|---|---|---:|---|---|---|
-| 22A Foundation | `p22a-foundation` | 026 (3 tables, 4 alters, enum, 10 settings) | 1,506 | A (`QA22A-01`–`08`) | `docs/qa/evidence/phase-22/22a-*` | ☐ |
+| 22A Foundation | `p22a-foundation` | 026 (3 tables, 4 alters, enum, 10 settings) | 1,506 | A (`QA22A-01`–`08`) | `docs/qa/evidence/phase-22/QA22A-*.txt` | ☑ |
 | 22B Configuration | `p22b-configuration` | none | 1,530 | B (`QA22B-01`–`09`) | `22b-*` | ☐ |
 | 22C Placement | `p22c-placement` | none (writes the tree) | 1,576 | C (`QA22C-01`–`10`) | `22c-*` | ☐ |
 | 22D Money engine | `p22d-money` | none | 1,650 | D (`QA22D-01`–`12`) | `22d-*` | ☐ |

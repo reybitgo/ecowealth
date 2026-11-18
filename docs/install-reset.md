@@ -110,6 +110,7 @@ A reset returns a database to the **clean install state** while keeping your con
 | Install metadata (`install_version`, `install_channel`, …) | Commissions, activations, registration codes |
 | | S-Login sessions, remember-me sessions |
 | | Staff package, sponsor, registration, referral, wallet and transfer counters |
+| | Binary placement tree, points ledger and awards (`binary_nodes`, `binary_volume`, `binary_awards`) — emptied; the ten `binary_*` settings survive. |
 
 A reset is **not** a fresh schema: the tables and settings stay. It is the same database with the business rows removed and the staff rows put back to their install defaults.
 
