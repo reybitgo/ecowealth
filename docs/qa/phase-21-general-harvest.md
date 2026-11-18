@@ -8,15 +8,16 @@ work is delivered in seven gated phases, **21A → 21G**. This document is creat
 **section A only**; every later phase appends its own section before its gate, and the file is never
 rewritten.
 
-**Audience.** The developer/operator who runs the phase gate. Section A is surgical and moves **no
-money**: it applies a migration, reads counts, opens two pages that must *not* have changed, and runs
-the install/reset tools on scratch schemas. From section C on the checks may arm a board and move test
-money, and every one of those runs on a scratch schema — never on a production database.
+**Audience.** The person running the phase gate. If you are new to this system, start with the
+**glossary** (§2) and the **setup** (§3) before touching any check. Sections A–C move **no money**
+(migration, counts, page reads, install/reset tools on scratch schemas). Sections D–F may arm a board
+and move test money, and every one of those runs on a scratch schema — **never on a production
+database**.
 
 **Document status.** All seven sections are complete: section A by 21A (2026-11-16), section B by 21B
-(2026-11-16), section C by 21C (2026-11-16), sections D–F by their phases and completed here at 21G,
-and section G by 21G. **58 checks**: 8 in section A, 9 in section B, 8 in section C, 10 in section D,
-8 in section E, 9 in section F and 6 in section G. Every check has an evidence file under
+(2026-11-16), section C by 21C (2026-11-16), sections D–F by their phases, and section G by 21G.
+**58 checks**: 8 in section A, 9 in section B, 8 in section C, 10 in section D, 8 in section E, 9 in
+section F and 6 in section G. Every check has an evidence file under
 `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`; a check whose only output is a
 count, a SQL row or a rendered fragment is a text transcript, and the browser-only steps are recorded
 there as harness transcripts at the markup level (the note in the evidence index says which ones a real
@@ -35,32 +36,10 @@ powershell -NoProfile -File tests\smoke.ps1
 php bin\wallet_reconcile.php              # exit 0: this phase moves no money
 ```
 
-Expected final lines at `p21a-foundation`:
+Expected final lines at `p21g-release`:
 
 ```text
-Cases: 1336   Passed: 1336   Failed: 0
-All good.
-```
-
-```text
-Passed: 263   Failed: 0
-```
-
-Expected final lines at `p21b-configuration`:
-
-```text
-Cases: 1371   Passed: 1371   Failed: 0
-All good.
-```
-
-```text
-Passed: 268   Failed: 0
-```
-
-Expected final lines at `p21c-baseline`:
-
-```text
-Cases: 1392   Passed: 1392   Failed: 0
+Cases: 1484   Passed: 1484   Failed: 0
 All good.
 ```
 
@@ -72,7 +51,8 @@ The baseline was **1,320 / 1,320** PHP cases and **263 / 263** smoke checks at `
 release gate); 21A adds **16** cases and **no** smoke check, because it adds no route and no page. 21B
 adds **35** cases and **5** smoke checks, all of them on `/admin/settings` — the phase adds no route
 either. 21C adds **21** cases and **no** smoke check: it ships one CLI job and no page, so the smoke
-count is 21B's.
+count is 21B's. 21D adds its engine tests, catch-up tests and reconcile tests. 21E and 21F add their
+view and report tests. 21G brings the suite to **1,484** cases and smoke to **268** checks.
 
 21B's share of the PHP suite (`GeneralHarvestConfigurationTest`, 35 cases):
 
@@ -172,7 +152,53 @@ touches.
 
 ---
 
-## 2. How to read a check
+## 2. Glossary (read first if you are new to this system)
+
+| Term | Meaning |
+|---|---|
+| **General Harvest** | The bonus stream built in Phase 21. It pays members who hold a "node" on a shared board when the whole network's qualified-member count reaches certain positions. |
+| **Node** | One position on the board. Every qualified member holds exactly one node, indexed from 0 (`seq = harvest_queue.id − 1`). |
+| **Level** | One of ten board levels (1–10). Level `L` pays a flat amount and needs `3^L` slots to fill. |
+| **Block** | The set of positions that fill one level of one node. Level 1 of node 0 is positions #2–#4, level 2 is #5–#13, etc. |
+| **N** | The total number of qualified members in the whole network (`COUNT(*)` from `harvest_queue`). The only thing that triggers a payment is `N` reaching a position. |
+| **seq** | A node's 0-based index: `seq = position − 1`. Node 0 is the first qualified member ever. |
+| **Baseline (N₀)** | The queue length when the board is armed (go-live). Blocks already full at that moment are recorded as `baseline` rows — they are **never paid**. |
+| **Arm** | The one-time CLI job (`bin/general_harvest_arm.php`) that records the baseline. It must run once before the stream can pay. |
+| **Settle** | The money engine that pays a completed block into the node holder's wallet. Runs on every registration and via the catch-up job. |
+| **Catch-up** | The CLI job (`bin/general_harvest_catchup.php`) that pays any backlog the registrations missed, in bounded batches. |
+| **Scratch schema** | A throwaway database copy used for QA so you never touch production or the development copy. Created by the install/reset tools. |
+| **ref_type** | A column on `ewallet_ledger` that names the movement kind. General Harvest uses `ref_type = 'general_harvest'`. |
+| **Credited** | A baseline row vs. a paid row. `baseline` rows were full at go-live and pay nothing; `credited` rows carry real wallet money. |
+| **Gapless** | The queue must have no holes: `COUNT(*) = MAX(id)`. Settlement fails if there is a gap. |
+| **Depth** | `general_harvest_max_levels` (1–10). Levels above the depth stop paying but keep their amounts. |
+| **APP_PHASE** | A build constant. Phase 21 sets it to `21`. |
+| **IDempotent** | Running the same action twice produces the same result as running it once (e.g., re-running the migration, settling twice). |
+
+---
+
+## 3. Before you begin (setup for beginners)
+
+You need three things before running any check:
+
+1. **Laragon running** (Start All in the Laragon control panel) — gives you MySQL, PHP and the web app.
+2. **Two scratch schemas** named `ecowealth_sneat_tool_a_test` and `ecowealth_sneat_tool_b_test`. The install and reset tools recreate these themselves, but you may need to create them once:
+   ```powershell
+   & "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" -u root -e "CREATE DATABASE IF NOT EXISTS ecowealth_sneat_tool_a_test;"
+   & "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe" -u root -e "CREATE DATABASE IF NOT EXISTS ecowealth_sneat_tool_b_test;"
+   ```
+3. **The notation** used throughout this document:
+   - `mysql` means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe` with the app account.
+   - `php` means Laragon's PHP 8.3 CLI.
+   - Every command runs from `system/` (e.g., `C:\laragon\www\ecowealth\system`).
+   - `powershell -NoProfile -File` runs a PowerShell script without loading your profile.
+
+**Rule: never run sections C, D, E, F or G on the development or production database.** Section D moves
+real (test) money; section C's arm is irreversible without a business reset. Use only the scratch schemas
+named in each section's prerequisites.
+
+---
+
+## 4. How to read a check
 
 Every check has the same shape:
 
@@ -186,9 +212,12 @@ Every check has the same shape:
 A check that produces only counts is captured as a **text transcript**, pasted into its evidence file;
 a check that shows a browser screen is captured as a screenshot. Section A produces only text.
 
+When a check says "Expected," compare what you see against every bullet. If anything differs, mark the
+check `☐ Blocked`, save your output as evidence, and report before continuing.
+
 ---
 
-## 3. Section A — Phase 21A: Foundation (`QA21A-01` … `QA21A-08`)
+## 5. Section A — Phase 21A: Foundation (`QA21A-01` … `QA21A-08`)
 
 **Prerequisites.** Tag `p21-start` on `feature/general-harvest` (the Phase 20 release, `p20g-release`);
 the development copy at migration **024** (**36 tables, 74 settings** — it is migration-built, so it
@@ -197,9 +226,6 @@ carries no `install_*` metadata rows; a fresh install at `p21-start` holds 77 se
 `ecowealth_sneat_tool_b_test` provisioned (they are recreated by the tools themselves). Expected suite
 count for this section: **1,336**.
 
-> **Notation.** `mysql` below means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe` with the
-> app account; `php` means Laragon's PHP 8.3 CLI. Every command runs from `system/`.
->
 > **Where each check runs.** `QA21A-01` takes the backup. `QA21A-02`, `03`, `07` and `08` run on
 > scratch schemas. `QA21A-04`, `05` and `06` need the running application, which reads the development
 > copy: apply migration `025` to `ecowealth_sneat` once, then run them. The backup from `QA21A-01` is
@@ -415,7 +441,7 @@ Expected
 
 ---
 
-## 4. Section B — Phase 21B: Configuration and the board arithmetic (`QA21B-01` … `QA21B-09`)
+## 6. Section B — Phase 21B: Configuration and the board arithmetic (`QA21B-01` … `QA21B-09`)
 
 **Prerequisites.** Section A complete (migration `025` on the development copy: **39 tables**, the ten
 ladder rows, the unarmed board row); the app running (Laragon → **Start All**) signed in as `admin`;
@@ -665,7 +691,7 @@ Expected
 
 ---
 
-## 5. Section C — Phase 21C: The baseline (`QA21C-01` … `QA21C-08`)
+## 7. Section C — Phase 21C: The baseline (`QA21C-01` … `QA21C-08`)
 
 Section C is the stream's **irreversible** decision. The arm records `N₀` — the queue length at that
 instant — and one `baseline` row for every block that was already full, at **all ten levels**; from
@@ -676,19 +702,13 @@ that instant the ten amounts are frozen (D-23) and no pre-go-live block can ever
 is refused and there is no `--force`; undoing one takes a business reset. Build the copy once:
 
 ```powershell
-# A scratch schema at the current schema + seeds (the harness's own recipe):
-#   database/schema.sql, seeds/001_settings.sql … 005_demo_tree.sql
-# on ecowealth_sneat_tool_b_test.
-
-# The copy needs the shape of fixture C: 121 member accounts, 40 of them qualified
-# (root -> 3 directs -> 9 -> 27 leaves), queued at positions 1 … 40.
-# tests/fixtures/general_harvest.php builds exactly that; the transcript in
-# QA21C-01.txt records the counts the copy was built with.
-
+# A scratch schema at migration 025 + seeds, with the reference ladder seeded and the board armed
+# (section C's arm run on this same copy, N0 recorded). The switch is left off until QA21D-07 turns it on.
+# Fixtures: h = 1 (13 accounts, N = 4) and h = 3 (121 accounts, N = 40), built through the plan's
+# §16.2 fixture recipes and queued through RegistrationService.
 # Phase 20's queue must be live: team_harvest_ledger_since is a datetime. The real
 # seed job writes it on a production copy; on the scratch copy it is set to any
 # datetime, because the arm only checks that the marker parses.
-
 # The reference ladder is the migration's own seed; leave it in place.
 ```
 
@@ -873,37 +893,7 @@ Expected
 
 ---
 
-## 6. Evidence
-
-Save each check's transcript under `docs/qa/evidence/phase-21/`, named exactly as its **Evidence**
-line (`QA21A-01.txt` … `QA21A-08.txt`, `QA21B-01.txt` … `QA21B-09.txt`, `QA21C-01.txt` …
-`QA21C-08.txt`). The folder's `README.md` is the index and stays current as each phase appends its
-section.
-
-## 7. Cleanup
-
-Section A creates **no** General Harvest row on the development copy and no QA member: `QA21A-05` runs
-on a scratch schema. The only lasting traces of the section are (a) migration `025` on the development
-copy — additive, and the state every later section expects — and (b) whatever the reset in `QA21A-08`
-left on its scratch schema, which the next test run recreates. If `QA21A-02`/`03` edited an amount on
-`ecowealth_sneat_tool_b_test`, no cleanup is needed: the suite and the installer recreate that schema.
-The dump from `QA21A-01` is the rollback if migration `025` ever has to be undone (see the plan's
-**Rollback** note: restore the enum before dropping the tables).
-
-Section B writes the ten ladder amounts and the two settings on the development copy, so its steps
-restore the reference ladder (`Load reference ladder` → save) and leave the switch **off**. The board
-row is never written: no step arms it. `QA21B-07` is the only step that creates member accounts, and it
-deletes them; if the walk is abandoned halfway, delete the members it lists in its evidence file and
-restore the ladder from `QA21B-01`'s transcript.
-
-Section C writes **only** on its scratch copy. Its last step resets that copy, so it ends the walk in
-the state it started from (an unarmed board and an empty ledger); the ladder survives the reset. Do not
-run any of section C on the development copy: an arm there is irreversible without a business reset, and
-the lock it takes is real.
-
----
-
-## 6. Section D — Phase 21D: Money engine (`QA21D-01` … `QA21D-10`)
+## 8. Section D — Phase 21D: Money engine (`QA21D-01` … `QA21D-10`)
 
 Section D is the **only phase that moves money**. It settles a completed block into the node holder's
 withdrawable e-wallet, once ever, honours the baseline (pre-go-live blocks recorded, never paid), and is
@@ -1094,7 +1084,7 @@ Expected
 ### QA21D-09 — The doctor reports a clean board
 
 | Why | §14.11: `doctor()` reports clock, tables, settings, armed state, gapless, queue count, settled,
-  backlog, per-level frontier, paid, baseline, open liability and the reconcile verdict. |
+| backlog, per-level frontier, paid, baseline, open liability and the reconcile verdict. |
 |---|---|
 | Where | `php bin\general_harvest_catchup.php --doctor` on a clean armed build |
 | Evidence | `QA21D-09.txt` |
@@ -1115,7 +1105,7 @@ Expected
 ### QA21D-10 — Tampering with a wallet row breaks reconciliation
 
 | Why | Rule 12 of §14.5 / I-06: every credited row has a ledger row; removing one makes reconcile fail and
-  names the award. |
+| names the award. |
 |---|---|
 | Where | Hand-delete one `ewallet_ledger` row, then `php bin\wallet_reconcile.php`, then restore from backup |
 | Evidence | `QA21D-10.txt` |
@@ -1135,7 +1125,7 @@ Expected
 
 ---
 
-## 7. Section E — Phase 21E: Admin visibility (`QA21E-01` … `QA21E-08`)
+## 9. Section E — Phase 21E: Admin visibility (`QA21E-01` … `QA21E-08`)
 
 Section E is **read-only**: it renders the rows 21D writes and the arithmetic 21B proves on the admin
 pages an operator already uses — the fifth commissions tab, the board card and filter on the member
@@ -1213,7 +1203,7 @@ Expected
 ### QA21E-04 — CSV export matches the screen and is audited
 
 | Why | Rule 12 of §12.5: the export columns match the screen plus the wallet reference, with one
-  `general_harvest.export` audit row. |
+| `general_harvest.export` audit row. |
 |---|---|
 | Where | Export the filtered ledger CSV; then `/admin/audit` |
 | Evidence | `QA21E-04.txt` |
@@ -1235,7 +1225,7 @@ Expected
 ### QA21E-05 — The member list: GH column, board card, paid filter
 
 | Why | Rule 5 of §12.5: nodes are read from the ledger and queue, never recomputed; the board card shows
-  the frontier and the open liability. |
+| the frontier and the open liability. |
 |---|---|
 | Where | `/admin/members` and `?board=paid` / `?board=none` |
 | Evidence | `QA21E-05.txt` |
@@ -1297,7 +1287,7 @@ Expected
 ### QA21E-08 — The four existing tabs are unchanged
 
 | Why | Rule 2 of §12.5: package, repeat-purchase, Royalty and Team Harvest markup stay byte-identical;
-  `ParityTest` stays green. |
+| `ParityTest` stays green. |
 |---|---|
 | Where | Switch among the Package, Repeat, Royalty and Team Harvest commissions tabs |
 | Evidence | `QA21E-08.txt` |
@@ -1315,7 +1305,7 @@ Expected
 
 ---
 
-## 8. Section F — Phase 21F: Member visibility (`QA21F-01` … `QA21F-09`)
+## 10. Section F — Phase 21F: Member visibility (`QA21F-01` … `QA21F-09`)
 
 Section F is **read-only member presentation**: the fifth earnings tab, the ten-block card, the
 progress card, the dashboard tile, the genealogy badge and the member CSV. Every number comes from
@@ -1347,7 +1337,7 @@ Expected
 ### QA21F-02 — The block card states the network rule, the gap and the footnotes
 
 | Why | Rules 2, 3, 4, 7 of §12.5: the network sentence, the position gap in numbers, and the
-  purchases/rank/Active footnote are mandatory and singular. |
+| purchases/rank/Active footnote are mandatory and singular. |
 |---|---|
 | Where | Read the block card on `/earnings?ledger=general_harvest` |
 | Evidence | `QA21F-02.txt` |
@@ -1388,7 +1378,7 @@ Expected
 ### QA21F-04 — Filters, totals and the member CSV agree
 
 | Why | Rule 12 of §12.5: every query is scoped to the session member; the CSV is model-scoped so
-  `?user_id=` cannot widen it. |
+| `?user_id=` cannot widen it. |
 |---|---|
 | Where | Filter rows by level/status on the earnings tab; export the CSV; append `&user_id=` |
 | Evidence | `QA21F-04.txt` |
@@ -1426,7 +1416,7 @@ Expected
 ### QA21F-06 — The genealogy badge shows positions only
 
 | Why | D-20: a member sees a username only inside their own sponsor subtree; everybody else is
-  "a member outside your team" with their position. |
+| "a member outside your team" with their position. |
 |---|---|
 | Where | `/genealogy` as the reader |
 | Evidence | `QA21F-06.txt` |
@@ -1446,7 +1436,7 @@ Expected
 ### QA21F-07 — The other earnings tabs are unchanged; the tab refreshes live
 
 | Why | Rule 11 of §12.5: package, repeat-purchase, Royalty and Team Harvest tabs keep their URLs and
-  bytes; one live surface refreshes all five. |
+| bytes; one live surface refreshes all five. |
 |---|---|
 | Where | Switch among the five earnings tabs; trigger an award and watch the General Harvest tab |
 | Evidence | `QA21F-07.txt` |
@@ -1483,7 +1473,7 @@ Expected
 ### QA21F-09 — The card and tab hold at mobile width
 
 | Why | Rule 18 of §12.5 / layout risk: the ten-block table scrolls inside its card; no page-level
-  horizontal scroll. |
+| horizontal scroll. |
 |---|---|
 | Where | `/earnings?ledger=general_harvest` and the block card at 390 px |
 | Evidence | `QA21F-09.txt` |
@@ -1500,7 +1490,7 @@ Expected
 
 ---
 
-## 9. Section G — Phase 21G: Release (`QA21G-01` … `QA21G-06`)
+## 11. Section G — Phase 21G: Release (`QA21G-01` … `QA21G-06`)
 
 Section G is the release: documentation that matches the code, `APP_PHASE 21`, a green acceptance run,
 and the signed gate record. **It changes no behaviour** (21G Rule 1).
@@ -1627,7 +1617,7 @@ Expected
 ### QA21G-05 — The scratch install and the go-live order
 
 | Why | §11 Rules 2 and 6: the documented commands are executed, and the go-live order is the runbook's one
-  owner. |
+| owner. |
 |---|---|
 | Where | a **scratch schema** (`ecowealth_sneat_tool_b_test`), the CLI and `docs/runbook.md` |
 | Evidence | `QA21G-05.txt` |
@@ -1682,16 +1672,36 @@ Expected
 
 ---
 
-## 10. Evidence — sections D–G
+## 12. Evidence
 
 Save each check's transcript under `docs/qa/evidence/phase-21/`, named exactly as its **Evidence**
-line (`QA21D-01.txt` … `QA21D-10.txt`, `QA21E-01.txt` … `QA21E-08.txt`, `QA21F-01.txt` …
+line (`QA21A-01.txt` … `QA21A-08.txt`, `QA21B-01.txt` … `QA21B-09.txt`, `QA21C-01.txt` …
+`QA21C-08.txt`, `QA21D-01.txt` … `QA21D-10.txt`, `QA21E-01.txt` … `QA21E-08.txt`, `QA21F-01.txt` …
 `QA21F-09.txt`, `QA21G-01.txt` … `QA21G-06.txt`). The folder's `README.md` is the index and stays
 current as each section is appended. Section G's evidence captures the suite and smoke summary lines,
 the completed acceptance table, the deploy/go-live commands with their exit codes and the one award
 observed, and the file inventory plus the gate-record check.
 
-## 11. Cleanup — sections D–G
+## 13. Cleanup
+
+Section A creates **no** General Harvest row on the development copy and no QA member: `QA21A-05` runs
+on a scratch schema. The only lasting traces of the section are (a) migration `025` on the development
+copy — additive, and the state every later section expects — and (b) whatever the reset in `QA21A-08`
+left on its scratch schema, which the next test run recreates. If `QA21A-02`/`03` edited an amount on
+`ecowealth_sneat_tool_b_test`, no cleanup is needed: the suite and the installer recreate that schema.
+The dump from `QA21A-01` is the rollback if migration `025` ever has to be undone (see the plan's
+**Rollback** note: restore the enum before dropping the tables).
+
+Section B writes the ten ladder amounts and the two settings on the development copy, so its steps
+restore the reference ladder (`Load reference ladder` → save) and leave the switch **off**. The board
+row is never written: no step arms it. `QA21B-07` is the only step that creates member accounts, and it
+deletes them; if the walk is abandoned halfway, delete the members it lists in its evidence file and
+restore the ladder from `QA21B-01`'s transcript.
+
+Section C writes **only** on its scratch copy. Its last step resets that copy, so it ends the walk in
+the state it started from (an unarmed board and an empty ledger); the ladder survives the reset. Do not
+run any of section C on the development copy: an arm there is irreversible without a business reset, and
+the lock it takes is real.
 
 Section D writes **only** on its scratch copy; its money steps move test money that stays on the
 scratch schema (dropped or reset afterward). Section D's only development-copy touch is none — it adds
@@ -1704,11 +1714,10 @@ automation writes nothing to the development copy except the smoke run's own res
 audit rows; `QA21G-01` and `QA21G-04` are read-only. If the scratch schema is kept for a demonstration,
 leave the stream **off** and the queue as the seed left it; it is not a production copy.
 
-## 12. Sign-off line
+## 14. Sign-off line
 
 **Phase 21 QA pack — sections A–G complete.** 58 checks (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6),
 each with an evidence file under `docs/qa/evidence/phase-21/`, indexed by that folder's `README.md`.
 The automated gate is green at **1,484 / 1,484** PHP cases and **268 / 268** smoke checks; the bundle
 check and the reconciler exit 0; the doctor exits 0; the release acceptance table is complete; the sign-off
 sheet carries the seven gate records; `APP_PHASE = 21` is asserted by `HardeningTest`.
-
