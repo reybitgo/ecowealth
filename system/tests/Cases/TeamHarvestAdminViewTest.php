@@ -332,12 +332,13 @@ return [
         assert_contains('href="' . url('admin/commissions?ledger=royalty') . '"', $html);
         assert_contains('href="' . url('admin/commissions?ledger=team_harvest') . '"', $html);
 
-        /* Exactly four pills, and the three old ones are where they were. */
+        /* Exactly five pills at phase 21 (the General Harvest tab is live),
+         * and the four phase-20 ones are where they were. */
         assert_same(
             1,
             preg_match('/<ul class="nav nav-pills mb-4 commission-tabs"[^>]*>(.*?)<\/ul>/s', $html, $tabs)
         );
-        assert_same(4, preg_match_all('/class="nav-link/s', $tabs[1]));
+        assert_same(5, preg_match_all('/class="nav-link/s', $tabs[1]));
     },
 
     /* ==========================================================
