@@ -47,6 +47,9 @@
 --  Phase 21 owns: general_harvest_levels, general_harvest_board,
 --                general_harvest_awards and the 'general_harvest'
 --                ledger ref type (the stream is off and unarmed).
+--  Phase 22 owns: binary_nodes, binary_volume, binary_awards and the
+--                'binary' / 'binary_reversal' ledger ref types
+--                (the stream is off by default).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -189,6 +192,7 @@ CREATE TABLE IF NOT EXISTS products (
   pv                DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   unilevel_enabled  TINYINT(1)    NOT NULL DEFAULT 0,
   unilevel_base     ENUM('auto','price','pv') NOT NULL DEFAULT 'auto',
+  binary_enabled    TINYINT(1)    NOT NULL DEFAULT 0,
   stock             INT UNSIGNED  NOT NULL DEFAULT 0,
   image_url         VARCHAR(255)  NULL,
   short_description VARCHAR(255)  NULL,
@@ -201,6 +205,47 @@ CREATE TABLE IF NOT EXISTS products (
   UNIQUE KEY uq_products_sku (sku),
   UNIQUE KEY uq_products_slug (slug),
   KEY idx_products_status (status, sort_order)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Binary nodes — the placement tree and the cached point balances
+-- (Phase 22A, plan §15.3). Separate from the sponsor tree; the
+-- company root is the only row with upline_id/side both NULL.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS binary_nodes (
+  user_id        INT UNSIGNED     NOT NULL,
+  upline_id      INT UNSIGNED     NULL,
+  side           ENUM('left','right') NULL,
+  root_id        INT UNSIGNED     NULL,
+  depth          SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  path           VARCHAR(255)     NOT NULL DEFAULT '',
+  state          ENUM('root','placed','floating') NOT NULL DEFAULT 'floating',
+  left_points    BIGINT           NOT NULL DEFAULT 0,
+  right_points   BIGINT           NOT NULL DEFAULT 0,
+  left_credited  BIGINT           NOT NULL DEFAULT 0,
+  right_credited BIGINT           NOT NULL DEFAULT 0,
+  points_matched BIGINT           NOT NULL DEFAULT 0,
+  pairs_paid     INT UNSIGNED     NOT NULL DEFAULT 0,
+  personal_points BIGINT          NOT NULL DEFAULT 0,
+  placed_at      DATETIME         NULL,
+  placed_by      INT UNSIGNED     NULL,
+  moved_at       DATETIME         NULL,
+  moved_by       INT UNSIGNED     NULL,
+  move_count     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at     TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  UNIQUE KEY uq_binary_slot (upline_id, side),
+  KEY idx_binary_upline (upline_id),
+  KEY idx_binary_path (path(24)),
+  KEY idx_binary_root (root_id),
+  KEY idx_binary_state (state),
+  CONSTRAINT fk_bn_user   FOREIGN KEY (user_id)   REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_bn_upline FOREIGN KEY (upline_id) REFERENCES binary_nodes (user_id) ON DELETE CASCADE,
+  CONSTRAINT fk_bn_root   FOREIGN KEY (root_id)   REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT chk_bn_slot  CHECK ((upline_id IS NULL) = (side IS NULL)),
+  CONSTRAINT chk_bn_self  CHECK (upline_id IS NULL OR upline_id <> user_id),
+  CONSTRAINT chk_bn_depth CHECK (depth BETWEEN 0 AND 100)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -344,6 +389,9 @@ CREATE TABLE IF NOT EXISTS cart_items (
 --                      Phase 21 appends 'general_harvest' last (a
 --                      General Harvest block credit);
 --                      ref_id = general_harvest_awards.id.
+--                      Phase 22 appends 'binary' and 'binary_reversal'
+--                      last (a Product binary award credit and its
+--                      cancellation debit); ref_id = binary_awards.id.
 --  ref_id              source row id (order, payout, top-up, …)
 --
 --  uq_ewallet_idempotency makes a replayed system movement a no-op.
@@ -360,7 +408,7 @@ CREATE TABLE IF NOT EXISTS ewallet_ledger (
   ref_type          ENUM('commission','payout','transfer','topup','registration',
                          'shop_order','adjustment','refund','unilevel',
                          'unilevel_reversal','royalty','team_harvest',
-                         'general_harvest') NOT NULL,
+                         'general_harvest','binary','binary_reversal') NOT NULL,
   ref_id            INT UNSIGNED  NULL,
   note              VARCHAR(255)  NULL,
   created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -551,6 +599,12 @@ CREATE TABLE IF NOT EXISTS shop_orders (
   paid_at             DATETIME     NULL,
   unilevel_processed_at DATETIME   NULL,
   unilevel_total      DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  binary_position     ENUM('left','right') NULL,
+  binary_processed_at DATETIME     NULL,
+  binary_points       BIGINT       NOT NULL DEFAULT 0,
+  binary_self_total   DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  binary_pair_total   DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  binary_total        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   packed_at           DATETIME     NULL,
   shipped_at          DATETIME     NULL,
   delivered_at        DATETIME     NULL,
@@ -568,6 +622,8 @@ CREATE TABLE IF NOT EXISTS shop_orders (
   KEY idx_orders_paid (paid_at),
   KEY idx_orders_unilevel (unilevel_processed_at),
   KEY idx_orders_user_paid (user_id, paid_at),
+  KEY idx_orders_binary (binary_processed_at),
+  KEY idx_orders_binary_side (binary_position, paid_at),
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
@@ -591,6 +647,8 @@ CREATE TABLE IF NOT EXISTS shop_order_items (
   line_total        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   unit_base         DECIMAL(12,2) NULL,
   base_total        DECIMAL(12,2) NULL,
+  unit_points       INT UNSIGNED  NOT NULL DEFAULT 0,
+  points_total      BIGINT UNSIGNED NOT NULL DEFAULT 0,
   reservation_state ENUM('reserved','committed','deducted','released') NOT NULL DEFAULT 'reserved',
   created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -663,6 +721,88 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
   CONSTRAINT fk_ua_recipient FOREIGN KEY (user_id)       REFERENCES users (id)            ON DELETE CASCADE,
   CONSTRAINT chk_ua_level    CHECK (level BETWEEN 1 AND 10),
   CONSTRAINT chk_ua_amount   CHECK (amount >= 0 AND reversed_amount >= 0 AND reversed_amount <= amount)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Binary volume — the append-only, signed points ledger
+-- (Phase 22A, plan §15.4). One row per +/− point movement.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS binary_volume (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  node_user_id  INT UNSIGNED    NOT NULL,
+  side          ENUM('left','right') NOT NULL,
+  kind          ENUM('own','team','pair','pair_return','reversal','adjustment') NOT NULL,
+  points        BIGINT          NOT NULL,
+  order_id      INT UNSIGNED    NULL,
+  order_item_id INT UNSIGNED    NULL,
+  buyer_id      INT UNSIGNED    NULL,
+  award_id      BIGINT UNSIGNED NULL,
+  note          VARCHAR(160)    NULL,
+  created_by    INT UNSIGNED    NULL,
+  created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_bv_line (node_user_id, order_item_id, side, kind),
+  UNIQUE KEY uq_bv_award (award_id, side, kind),
+  KEY idx_bv_node (node_user_id, side, created_at),
+  KEY idx_bv_order (order_id),
+  KEY idx_bv_buyer (buyer_id, created_at),
+  KEY idx_bv_kind (kind, created_at),
+  KEY idx_bv_award (award_id),
+  CONSTRAINT fk_bv_node  FOREIGN KEY (node_user_id)  REFERENCES users (id)         ON DELETE CASCADE,
+  CONSTRAINT fk_bv_buyer FOREIGN KEY (buyer_id)      REFERENCES users (id)         ON DELETE SET NULL,
+  CONSTRAINT fk_bv_order FOREIGN KEY (order_id)      REFERENCES shop_orders (id)   ON DELETE CASCADE,
+  CONSTRAINT fk_bv_item  FOREIGN KEY (order_item_id) REFERENCES shop_order_items (id) ON DELETE CASCADE,
+  CONSTRAINT fk_bv_actor FOREIGN KEY (created_by)    REFERENCES users (id)         ON DELETE SET NULL,
+  CONSTRAINT chk_bv_points CHECK (points <> 0),
+  CONSTRAINT chk_bv_own    CHECK (kind <> 'own'    OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
+  CONSTRAINT chk_bv_team   CHECK (kind <> 'team'   OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
+  CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND order_item_id IS NOT NULL)),
+  CONSTRAINT chk_bv_pair   CHECK (kind <> 'pair'   OR (points < 0 AND award_id IS NOT NULL)),
+  CONSTRAINT chk_bv_return CHECK (kind <> 'pair_return' OR (points > 0 AND award_id IS NOT NULL)),
+  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Binary awards — the self/pair money ledger (escrowed)
+-- (Phase 22A, plan §15.4). One row per award kind per order.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS binary_awards (
+  id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  kind               ENUM('self','pair') NOT NULL,
+  order_id           INT UNSIGNED    NOT NULL,
+  buyer_id           INT UNSIGNED    NOT NULL,
+  user_id            INT UNSIGNED    NOT NULL,
+  side               ENUM('left','right') NULL,
+  points             BIGINT          NOT NULL DEFAULT 0,
+  pair_count         INT UNSIGNED    NOT NULL DEFAULT 0,
+  pair_points        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  rate_pct           DECIMAL(6,3)    NOT NULL DEFAULT 0.000,
+  amount             DECIMAL(12,2)   NOT NULL,
+  status             ENUM('pending','credited','voided','cancelled') NOT NULL DEFAULT 'pending',
+  hold_days          SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  ledger_id          INT UNSIGNED    NULL,
+  credited_at        DATETIME        NULL,
+  reversal_ledger_id INT UNSIGNED    NULL,
+  reversed_amount    DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
+  paid_at            DATETIME        NOT NULL,
+  voided_at          DATETIME        NULL,
+  void_reason        VARCHAR(160)    NULL,
+  created_at         TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_binary_award (order_id, user_id, kind),
+  KEY idx_ba_user (user_id, created_at),
+  KEY idx_ba_buyer (buyer_id, created_at),
+  KEY idx_ba_order (order_id),
+  KEY idx_ba_status (status, created_at),
+  KEY idx_ba_user_status (user_id, status),
+  KEY idx_ba_paid (paid_at),
+  KEY idx_ba_ledger (ledger_id),
+  CONSTRAINT fk_ba_order  FOREIGN KEY (order_id) REFERENCES shop_orders (id) ON DELETE CASCADE,
+  CONSTRAINT fk_ba_buyer  FOREIGN KEY (buyer_id) REFERENCES users (id)       ON DELETE CASCADE,
+  CONSTRAINT fk_ba_user   FOREIGN KEY (user_id)  REFERENCES users (id)       ON DELETE CASCADE,
+  CONSTRAINT chk_ba_amount CHECK (amount >= 0 AND reversed_amount >= 0 AND reversed_amount <= amount),
+  CONSTRAINT chk_ba_self   CHECK (kind <> 'self' OR (pair_count = 0 AND points > 0)),
+  CONSTRAINT chk_ba_pair   CHECK (kind <> 'pair' OR (pair_count > 0 AND points = 2 * pair_count * pair_points))
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

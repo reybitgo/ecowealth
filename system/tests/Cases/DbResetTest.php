@@ -274,7 +274,7 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
 
     $settings = $pdo->query('SELECT key_name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since', 'team_harvest_ledger_since'] as $dynamic) {
+    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since', 'team_harvest_ledger_since', 'binary_ledger_since'] as $dynamic) {
         unset($settings[$dynamic]);
     }
 

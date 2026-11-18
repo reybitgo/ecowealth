@@ -658,6 +658,8 @@ function wallet_ref_label(string $refType): string
         'royalty'           => 'Royalty bonus',
         'team_harvest'      => 'Team Harvest bonus',
         'general_harvest'   => 'General Harvest bonus',
+        'binary'            => 'Product binary',
+        'binary_reversal'   => 'Product binary reversal',
     ];
 
     return $map[$refType] ?? ucfirst(str_replace('_', ' ', $refType));
@@ -680,6 +682,8 @@ function wallet_ref_icon(string $refType): string
         'royalty'           => 'bx-crown',
         'team_harvest'      => 'bx-layer',
         'general_harvest'   => 'bx-grid-alt',
+        'binary'            => 'bx-git-branch',
+        'binary_reversal'   => 'bx-undo',
     ];
 
     return 'bx ' . ($map[$refType] ?? 'bx-wallet');

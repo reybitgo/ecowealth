@@ -83,9 +83,14 @@ final class WalletService
         'royalty',
         'team_harvest',
         'general_harvest',
+        'binary',
+        'binary_reversal',
     ];
 
-    /** DECIMAL(12,2) upper bound. */
+    /** Phase 22 appends `binary` and `binary_reversal` last, matching
+     *  the ewallet_ledger enum order (plan 22A Rule 7). P5-T8 compares
+     *  the list and the enum in both directions; the column and this
+     *  constant land in the same phase. */
     public const MAX_AMOUNT = 9999999999.99;
 
     /** Savepoint names must be unique when calls nest. */

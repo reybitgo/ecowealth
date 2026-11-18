@@ -38,6 +38,7 @@ $migrations    = [
     $migrationDir . '023_royalty_bonus.sql',
     $migrationDir . '024_team_harvest.sql',
     $migrationDir . '025_general_harvest.sql',
+    $migrationDir . '026_product_binary.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -314,6 +315,17 @@ return [
             );
         }
 
+        /* Phase 22 (P22A-T3): the three Product binary tables, exactly
+         * like a fresh install. BinaryFoundationTest proves the indexes,
+         * foreign keys and CHECK constraints. */
+        foreach (['binary_nodes', 'binary_volume', 'binary_awards'] as $table) {
+            assert_same(
+                $columnList($fresh, $table),
+                $columnList($migrated, $table),
+                $table . ' columns differ from schema.sql'
+            );
+        }
+
         $refType = static fn (PDO $pdo): string
             => (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
 
@@ -321,6 +333,8 @@ return [
         assert_contains("'royalty'", $refType($migrated), 'migration 023 appends the royalty movement');
         assert_contains("'team_harvest'", $refType($migrated), 'migration 024 appends the team_harvest movement');
         assert_contains("'general_harvest'", $refType($migrated), 'migration 025 appends the general_harvest movement');
+        assert_contains("'binary'", $refType($migrated), 'migration 026 appends the binary movement');
+        assert_contains("'binary_reversal'", $refType($migrated), 'migration 026 appends the binary_reversal movement');
         assert_contains("'unilevel_reversal'", $refType($migrated), 'the Phase 17 movements survive');
     },
 
@@ -1314,12 +1328,12 @@ return [
     'P21A-T3 migration 025 adds the General Harvest objects, appends the enum value and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
         $pdo = $buildMigrated();
 
-        /* The ordered list really carries 025, last. */
+        /* The ordered list really carries 026, last. */
         $list = array_map('basename', glob($migrationDir . '*.sql') ?: []);
         sort($list, SORT_STRING);
 
-        assert_true(in_array('025_general_harvest.sql', $list, true), 'migration 025 is part of the ordered list');
-        assert_same('025_general_harvest.sql', end($list), '025 is the last migration of Phase 21');
+        assert_true(in_array('026_product_binary.sql', $list, true), 'migration 026 is part of the ordered list');
+        assert_same('026_product_binary.sql', end($list), '026 is the last migration');
 
         /* The three tables exist and are empty except the ladder and the
          * single unarmed board row (plan 21A Rule 4). */
@@ -1352,13 +1366,14 @@ return [
 
         assert_same(['general_harvest_enabled' => '0', 'general_harvest_max_levels' => '10'], $settings);
 
-        /* The enum appends the new movement last (21A Rule 7). */
+        /* The enum appends binary_reversal last (22A Rule 7). */
         $refType = (string) $pdo->query("SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'")->fetch()['Type'];
-        assert_contains("'general_harvest'", $refType);
+        assert_contains("'binary'", $refType);
+        assert_contains("'binary_reversal'", $refType);
         assert_same(
-            "'general_harvest')",
-            substr(rtrim($refType), -strlen("'general_harvest')")),
-            'general_harvest is the last enum value'
+            "'binary_reversal')",
+            substr(rtrim($refType), -strlen("'binary_reversal')")),
+            'binary_reversal is the last enum value'
         );
 
         /* Structures equal a fresh install, table by table. */
@@ -1407,5 +1422,254 @@ return [
                 SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0
               WHERE id = 1'
         );
+    },
+
+    /* ---------- P22A: Product binary bonus (Phase 22A) ---------- */
+
+    'P22A-T11 binary settings land with the documented defaults' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        assert_same(
+            10,
+            (int) $pdo->query("SELECT COUNT(*) FROM settings WHERE key_name LIKE 'binary_%'")->fetchColumn(),
+            'ten binary settings exist'
+        );
+
+        foreach ([
+            'binary_enabled'           => '0',
+            'binary_self_pct'          => '5.000',
+            'binary_pair_points'       => '1000',
+            'binary_pair_pct'          => '10.000',
+            'binary_daily_pair_cap'    => '20',
+            'binary_requires_active'   => '1',
+            'binary_hold_days'         => '7',
+            'binary_release_enabled'   => '1',
+            'binary_reversal_enabled'  => '1',
+        ] as $key => $value) {
+            assert_same(
+                $value,
+                (string) $pdo->query("SELECT value FROM settings WHERE key_name = '{$key}'")->fetchColumn(),
+                'settings.' . $key . ' = ' . $value
+            );
+        }
+
+        assert_same(
+            1,
+            preg_match(
+                '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+                (string) $pdo->query("SELECT value FROM settings WHERE key_name = 'binary_ledger_since'")->fetchColumn()
+            ),
+            'binary_ledger_since is a MySQL datetime'
+        );
+
+        /* Every existing product keeps the master switch off (D-16). */
+        $products = $pdo->query('SELECT binary_enabled FROM products')->fetchAll();
+        foreach ($products as $product) {
+            assert_same(0, (int) $product['binary_enabled'], 'every migrated product starts switched off');
+        }
+    },
+
+    'P22A-T12 deleting a user cascades its binary node' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $rootId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        /* Place a root node for the admin, then a node for the user under it. */
+        $pdo->exec(
+            "INSERT INTO binary_nodes
+               (user_id, upline_id, side, root_id, depth, path, state, personal_points)
+             VALUES ({$rootId}, NULL, NULL, {$rootId}, 0, '', 'root', 0)"
+        );
+        $pdo->exec(
+            "INSERT INTO binary_nodes
+               (user_id, upline_id, side, root_id, depth, path, state, personal_points)
+             VALUES ({$userId}, {$rootId}, 'left', {$rootId}, 1, 'L', 'placed', 0)"
+        );
+
+        assert_same(1, (int) $pdo->query("SELECT COUNT(*) FROM binary_nodes WHERE user_id = {$userId}")->fetchColumn());
+
+        /* Deleting the user takes its node with it (CASCADE). */
+        $pdo->exec("DELETE FROM users WHERE id = {$userId}");
+        assert_same(
+            0,
+            (int) $pdo->query("SELECT COUNT(*) FROM binary_nodes WHERE user_id = {$userId}")->fetchColumn(),
+            'the node is deleted with its user'
+        );
+        assert_same(
+            1,
+            (int) $pdo->query("SELECT COUNT(*) FROM binary_nodes")->fetchColumn(),
+            'the root node survives'
+        );
+    },
+
+    'P22A-T13 the slot unique key refuses a second child on (upline, side)' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $rootId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_admin'")->fetchColumn();
+        $aId    = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        $pdo->exec(
+            "INSERT INTO binary_nodes
+               (user_id, upline_id, side, root_id, depth, path, state)
+             VALUES ({$rootId}, NULL, NULL, {$rootId}, 0, '', 'root')"
+        );
+        $pdo->exec(
+            "INSERT INTO binary_nodes
+               (user_id, upline_id, side, root_id, depth, path, state)
+             VALUES ({$aId}, {$rootId}, 'left', {$rootId}, 1, 'L', 'placed')"
+        );
+
+        /* A second member on the same slot is refused. */
+        $bId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_nodes
+                   (user_id, upline_id, side, root_id, depth, path, state)
+                 VALUES ({$bId}, {$rootId}, 'left', {$rootId}, 1, 'L', 'placed')"
+            ),
+            PDOException::class,
+            'the slot unique key holds'
+        );
+    },
+
+    'P22A-T14 the slot check constraint refuses mixed NULL upline/side' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_nodes
+                   (user_id, upline_id, side, root_id, depth, path, state)
+                 VALUES ({$userId}, NULL, 'left', {$userId}, 0, '', 'floating')"
+            ),
+            PDOException::class,
+            'upline_id and side must be both NULL or both set'
+        );
+
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_nodes
+                   (user_id, upline_id, side, root_id, depth, path, state)
+                 VALUES ({$userId}, {$userId}, NULL, {$userId}, 0, '', 'floating')"
+            ),
+            PDOException::class,
+            'upline_id and side must be both NULL or both set'
+        );
+    },
+
+    'P22A-T15 the self-parent check constraint is enforced' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_nodes
+                   (user_id, upline_id, side, root_id, depth, path, state)
+                 VALUES ({$userId}, {$userId}, 'left', {$userId}, 1, 'L', 'placed')"
+            ),
+            PDOException::class,
+            'a node cannot be its own upline'
+        );
+    },
+
+    'P22A-T16 binary_volume check constraints reject malformed rows' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $userId = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+
+        /* Zero points are refused. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_volume
+                   (node_user_id, side, kind, points, order_id, order_item_id)
+                 VALUES ({$userId}, 'left', 'own', 0, NULL, NULL)"
+            ),
+            PDOException::class,
+            'points must be non-zero'
+        );
+
+        /* An 'own' row with negative points is refused. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_volume
+                   (node_user_id, side, kind, points, order_id, order_item_id)
+                 VALUES ({$userId}, 'left', 'own', -100, NULL, NULL)"
+            ),
+            PDOException::class,
+            'own rows must be positive'
+        );
+
+        /* A 'pair' row without an award_id is refused. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_volume
+                   (node_user_id, side, kind, points, award_id)
+                 VALUES ({$userId}, 'left', 'pair', -1000, NULL)"
+            ),
+            PDOException::class,
+            'pair rows need an award_id'
+        );
+
+        /* A 'team' row without an order_item_id is refused. */
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_volume
+                   (node_user_id, side, kind, points, order_item_id)
+                 VALUES ({$userId}, 'left', 'team', 1000, NULL)"
+            ),
+            PDOException::class,
+            'team rows need an order_item_id'
+        );
+    },
+
+    'P22A-T17 the award unique key refuses a duplicate (order, user, kind)' => function () use ($buildMigrated): void {
+        $pdo = $buildMigrated();
+
+        $userId  = (int) $pdo->query("SELECT id FROM users WHERE username = 'legacy_user'")->fetchColumn();
+        $orderId = (int) $pdo->query("SELECT id FROM shop_orders LIMIT 1")->fetchColumn();
+
+        if ($orderId === 0) {
+            $pdo->exec(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                    subtotal, total, terms_accepted_at)
+                 VALUES ('EWT-P22A-1', {$userId}, 'pending', 'ewallet', 'Buyer', 'Buyer', 'Address',
+                         10.00, 10.00, NOW())"
+            );
+            $orderId = (int) $pdo->lastInsertId();
+        }
+
+        $pdo->exec(
+            "INSERT INTO binary_awards
+               (kind, order_id, buyer_id, user_id, points, pair_count, pair_points, rate_pct,
+                amount, status, paid_at)
+             VALUES ('self', {$orderId}, {$userId}, {$userId}, 1000, 0, 0, 0.000,
+                     50.00, 'pending', NOW())"
+        );
+
+        assert_throws(
+            static fn () => $pdo->exec(
+                "INSERT INTO binary_awards
+                   (kind, order_id, buyer_id, user_id, points, pair_count, pair_points, rate_pct,
+                    amount, status, paid_at)
+                 VALUES ('self', {$orderId}, {$userId}, {$userId}, 1000, 0, 0, 0.000,
+                         50.00, 'pending', NOW())"
+            ),
+            PDOException::class,
+            'a duplicate self award is refused'
+        );
+
+        /* A different kind on the same order/user is allowed. */
+        $pdo->exec(
+            "INSERT INTO binary_awards
+               (kind, order_id, buyer_id, user_id, points, pair_count, pair_points, rate_pct,
+                amount, status, paid_at)
+             VALUES ('pair', {$orderId}, {$userId}, {$userId}, 2000, 1, 1000, 10.000,
+                     100.00, 'pending', NOW())"
+        );
+        assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM binary_awards')->fetchColumn());
     },
 ];

@@ -332,17 +332,18 @@ return [
 
         /* Phase 17 adds the two repeat-purchase movements; Phase 19 appends
          * `royalty`; Phase 20 appends `team_harvest`; Phase 21 appends
-         * `general_harvest`. The list and the column must carry all of them
+         * `general_harvest`; Phase 22 appends `binary` and
+         * `binary_reversal`. The list and the column must carry all of them
          * or the stream cannot credit. */
-        foreach (['unilevel', 'unilevel_reversal', 'royalty', 'team_harvest', 'general_harvest'] as $refType) {
+        foreach (['unilevel', 'unilevel_reversal', 'royalty', 'team_harvest', 'general_harvest', 'binary', 'binary_reversal'] as $refType) {
             assert_true(in_array($refType, $php, true), 'WalletService::REF_TYPES carries "' . $refType . '"');
             assert_true(in_array($refType, $dbValues, true), 'the ledger enum carries "' . $refType . '"');
         }
 
-        assert_same('general_harvest', end($php), 'general_harvest is appended last (plan 21A Rule 7)');
-        assert_same('general_harvest', end($dbValues), 'the enum appends general_harvest last');
+        assert_same('binary_reversal', end($php), 'binary_reversal is appended last (plan 22A Rule 7)');
+        assert_same('binary_reversal', end($dbValues), 'the enum appends binary_reversal last');
 
-        assert_count(13, $php, 'the Phase 21 vocabulary is thirteen movement kinds');
+        assert_count(15, $php, 'the Phase 22 vocabulary is fifteen movement kinds');
 
         sort($dbValues);
         sort($php);

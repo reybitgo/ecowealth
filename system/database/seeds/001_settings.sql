@@ -131,6 +131,21 @@ INSERT INTO settings (key_name, value) VALUES
   ('general_harvest_enabled',          '0'),
   ('general_harvest_max_levels',       '10'),
 
+  -- Product binary bonus (Phase 22). The stream ships OFF at both the
+  -- global master and the product master; a deployment never starts
+  -- paying by accident (D-16). `binary_ledger_since` marks the instant
+  -- the stream may pay, so reconciliation can separate legacy rows.
+  ('binary_enabled',                   '0'),
+  ('binary_self_pct',                  '5.000'),
+  ('binary_pair_points',               '1000'),
+  ('binary_pair_pct',                  '10.000'),
+  ('binary_daily_pair_cap',            '20'),
+  ('binary_requires_active',           '1'),
+  ('binary_hold_days',                 '7'),
+  ('binary_release_enabled',           '1'),
+  ('binary_reversal_enabled',          '1'),
+  ('binary_ledger_since',              DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),

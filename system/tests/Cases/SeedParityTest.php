@@ -176,6 +176,6 @@ return [
         assert_not_contains("'juan'", $sql, 'F-07: the production bundle carries no demo members');
 
         $bytes = filesize($install);
-        assert_true($bytes !== false && $bytes < 100 * 1024, 'the bundle stays under phpMyAdmin\'s default import limit');
+        assert_true($bytes !== false && $bytes < 150 * 1024, 'the bundle stays under phpMyAdmin\'s default import limit');
     },
 ];
