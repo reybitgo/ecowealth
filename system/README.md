@@ -4,9 +4,9 @@ Membership, shop and e-wallet for **EcoWealth**, built as plain PHP 8 + MySQL wi
 framework and no Composer. This folder is the backend application; the public marketing
 front door is the repo-root `index.html` (decision D23 in `dmp/plan-ecowealth-cart-system.md`).
 
-**Current status: Phase 21 — the General Harvest bonus, in progress 21A → 21G
+**Current status: Phase 21 — the General Harvest bonus, released at 21G
 (`dmp/plan-ecowealth-general-harvest.md`). 21A (foundation), 21B (configuration and the board arithmetic), 21C (the baseline), 21D (the money
-engine), 21E (admin visibility) and 21F (member visibility) have landed; `APP_PHASE` is still 20 until 21G.**
+engine), 21E (admin visibility) and 21F (member visibility) have landed; `APP_PHASE` is 21 from the 21G gate.**
 Phase 15 delivered the hardening, dashboards, reports and launch work; Phase 16 (the IR-1 … IR-8
 install/reset workstream, `dmp/plan-ecowealth-install-reset.md`) added the production install bundle,
 the CLI and browser installers and the guarded development reset, changing no application route or
@@ -465,7 +465,7 @@ The full checklist, with the verification queries and the backup step, is in
 |---|---|---|
 | `APP_ENV` | `production` (local: `development`) | `development` shows debug detail; later-phase nav items stay hidden until their phase ships |
 | `APP_DEBUG` | derived from `APP_ENV` | Debug detail on error pages |
-| `APP_PHASE` | `20` | Build phase, drives later-phase nav visibility |
+| `APP_PHASE` | `21` | Build phase, drives later-phase nav visibility |
 | `APP_BASE_URL` | auto-detected | Set by `public/index.php` before bootstrapping |
 | `APP_URL` | empty | Canonical origin for copyable links, e.g. `http://localhost` or `https://www.ecowealth.com`; empty → derived from the request. The install prefix comes from `APP_BASE_URL` |
 | `DB_NAME` | `ecowealth_sneat` (`ecowealth_sneat_test` when `APP_ENV=test`) | Override with the `ECO_DB_NAME` environment variable |
@@ -2079,8 +2079,8 @@ Full operations guide, Hostinger cron lines and troubleshooting: **`docs/cron.md
 ## Tests
 
 ```bash
-php tests/run.php                 # full suite (≥ 1,478 cases; Phase 21 complete through 21F,
-                                   # release at 21G — `APP_PHASE` still 20 until the 21G gate)
+php tests/run.php                 # full suite (≥ 1,484 cases; Phase 21 complete through 21G,
+                                    # `APP_PHASE` 21 from the 21G gate)
 php tests/run.php Router           # cases whose group/label matches "Router"
 php tests/run.php --probe-failure  # proves a failing assertion exits non-zero (P1-T7)
 

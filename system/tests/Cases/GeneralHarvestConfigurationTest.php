@@ -1573,12 +1573,12 @@ return [
 
     'P21B-T25 the phase adds no schema: 39 tables, 76 seed settings, ten ladder rows' => function () use ($appRoot): void {
         /* 21B is configuration and arithmetic only: the schema is exactly
-         * 21A's, and the release phase (21G) is the one that moves APP_PHASE. */
+         * 21A's, and 21G moved APP_PHASE to 21. */
         assert_same(39, count(test_table_list(test_pdo(['db' => DB_NAME]))));
         assert_same(76, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
         assert_same(1, (int) db()->query('SELECT COUNT(*) FROM general_harvest_board')->fetchColumn());
-        assert_same(20, APP_PHASE, '21G owns the release badge');
+        assert_same(21, APP_PHASE, '21G owns the release badge');
 
         /* install.sql is untouched by this phase and still matches its sources. */
         $install = (string) file_get_contents($appRoot . '/database/install.sql');
