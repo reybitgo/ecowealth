@@ -10,7 +10,7 @@ declare(strict_types=1);
  *  touches ecowealth_sneat, ecowealth_sneat_test or their grants.
  *
  *      preflight    the check table, a missing schema, --create-database
- *      install      39 tables, 79 settings, 2 staff, 7/2/18/10, the lock
+ *      install      42 tables, 89 settings, 2 staff, 7/2/18/10, the lock
  *      credentials  the §6.8 policy, enforced before any SQL
  *      refusals     locked / not_empty, with the lock never overwritten
  *      guard        a table appearing mid-import is translated, not raw
@@ -103,7 +103,7 @@ return [
         assert_true($checks['database_exists']['ok'], 'the scratch schema exists');
         assert_true($checks['database_empty']['ok'], 'the scratch schema starts empty');
         assert_true($checks['install_sql']['ok'], 'database/install.sql parses');
-        assert_contains('70 statements', $checks['install_sql']['detail']);
+        assert_contains('73 statements', $checks['install_sql']['detail']);
         assert_true($checks['install_lock']['ok'], 'no lock is present');
         assert_true($preflight['ok'], 'the whole preflight passes');
         assert_false(DatabaseInstaller::isLocked(), 'preflight writes no lock');
@@ -144,7 +144,7 @@ return [
         assert_false($target->exists($missing), 'even --check --create-database creates nothing');
     },
 
-    'a fresh install produces 39/79/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
+    'a fresh install produces 42/89/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
         $clearLock();
 
         [$pdo, $database] = test_scratch_database('tool_a');
@@ -159,8 +159,8 @@ return [
             assert_same($database, $report['database']);
             assert_same('cli', $report['channel']);
 
-            assert_same(39, $report['counts']['tables_created']);
-            assert_same(79, $report['counts']['settings_rows']);
+            assert_same(42, $report['counts']['tables_created']);
+            assert_same(89, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -173,8 +173,8 @@ return [
             assert_same(0, $report['counts']['codes_rows']);
 
             /* The database itself, not just the report. */
-            assert_count(39, test_table_list($pdo, $database));
-            assert_same(79, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(42, test_table_list($pdo, $database));
+            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
             /* Phase 21: the board ships unarmed (21A Rule 4). */
@@ -331,6 +331,69 @@ return [
         }
     },
 
+    'P22A-T7 a binary award row fails the install verification and is named' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database));
+            assert_true($report['ok'], 'the clean install verifies');
+
+            $staff = $pdo->query("SELECT id, role FROM users WHERE role IN ('admin','superadmin') ORDER BY id")->fetchAll();
+            assert_count(2, $staff);
+
+            $productId = (int) $pdo->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+            assert_true($productId > 0);
+
+            $pdo->exec(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                    subtotal, total, paid_at, terms_accepted_at)
+                 VALUES ('EWT-22A-VERIFY', {$staff[0]['id']}, 'paid', 'ewallet', 'Staff', 'Staff', 'Address',
+                         100.00, 100.00, NOW(), NOW())"
+            );
+            $orderId = (int) $pdo->lastInsertId();
+
+            $pdo->exec(
+                "INSERT INTO shop_order_items
+                   (order_id, product_id, product_name, quantity, unit_price, line_total)
+                 VALUES ({$orderId}, {$productId}, 'Probe', 1, 100.00, 100.00)"
+            );
+
+            $pdo->exec(
+                "INSERT INTO binary_awards
+                   (kind, order_id, buyer_id, user_id, side, points, pair_count, pair_points, rate_pct, amount,
+                    status, hold_days, paid_at)
+                 VALUES ('self', {$orderId}, {$staff[0]['id']}, {$staff[1]['id']}, NULL, 1000, 0, 0, 5.000, 50.00,
+                         'pending', 7, NOW())"
+            );
+
+            $verify = $installer()->verify($pdo, ['database' => $database]);
+            assert_false($verify['ok'], 'a non-empty binary award table must fail the install verification');
+
+            $transactional = null;
+
+            foreach ($verify['checks'] as $check) {
+                if ($check['key'] === 'transactional') {
+                    $transactional = $check;
+                }
+            }
+
+            assert_not_null($transactional, 'the verification carries the transactional check');
+            assert_false($transactional['ok']);
+            assert_contains('binary_awards=1', (string) $transactional['detail'], 'the failing table is named');
+
+            /* Removing the order cascades the award and the verification passes again. */
+            $pdo->exec('DELETE FROM shop_orders WHERE id = ' . $orderId);
+
+            $again = $installer()->verify($pdo, ['database' => $database]);
+            assert_true($again['ok'], 'the clean install verifies again: ' . json_encode($again['checks']));
+        } finally {
+            $clearLock();
+        }
+    },
+
     'a demo install seeds the tree, wallets and codes and verifies it' => function () use ($installer, $clearLock, $options): void {
         $clearLock();
 
@@ -361,7 +424,7 @@ return [
             assert_same(5, $report['counts']['members_rows']);
             assert_same(3, $report['counts']['codes_rows']);
             assert_same(3, $report['counts']['ledger_rows']);
-            assert_same(39, $report['counts']['tables_created']);
+            assert_same(42, $report['counts']['tables_created']);
 
             /* The database itself, not just the report. */
             $usernames = $pdo->query(
@@ -570,12 +633,12 @@ return [
             assert_same(DatabaseToolException::KIND_NOT_EMPTY, $error->kind);
             assert_contains('is not empty', $error->getMessage());
             assert_same($database, $error->context['database']);
-            assert_same(39, (int) $error->context['tables']);
+            assert_same(42, (int) $error->context['tables']);
             assert_false(DatabaseInstaller::isLocked(), 'a refused install writes no lock');
 
             /* Nothing was deleted or added: the import is untouched. */
-            assert_count(39, test_table_list($pdo, $database));
-            assert_same(79, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(42, test_table_list($pdo, $database));
+            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         } finally {
             $clearLock();
         }

@@ -8,7 +8,7 @@
 --      mysql -u root ecowealth_sneat < database/schema.sql
 --
 --  Existing databases are upgraded with the per-phase files in
---  database/migrations/ (apply in order: 001, 002, …, 024).
+--  database/migrations/ (apply in order: 001, 002, …, 026).
 --
 --  Phase 1 owns: users.role, settings, audit_log.
 --  Phase 2 owns: products.
@@ -724,45 +724,6 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
--- Binary volume — the append-only, signed points ledger
--- (Phase 22A, plan §15.4). One row per +/− point movement.
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS binary_volume (
-  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  node_user_id  INT UNSIGNED    NOT NULL,
-  side          ENUM('left','right') NOT NULL,
-  kind          ENUM('own','team','pair','pair_return','reversal','adjustment') NOT NULL,
-  points        BIGINT          NOT NULL,
-  order_id      INT UNSIGNED    NULL,
-  order_item_id INT UNSIGNED    NULL,
-  buyer_id      INT UNSIGNED    NULL,
-  award_id      BIGINT UNSIGNED NULL,
-  note          VARCHAR(160)    NULL,
-  created_by    INT UNSIGNED    NULL,
-  created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_bv_line (node_user_id, order_item_id, side, kind),
-  UNIQUE KEY uq_bv_award (award_id, side, kind),
-  KEY idx_bv_node (node_user_id, side, created_at),
-  KEY idx_bv_order (order_id),
-  KEY idx_bv_buyer (buyer_id, created_at),
-  KEY idx_bv_kind (kind, created_at),
-  KEY idx_bv_award (award_id),
-  CONSTRAINT fk_bv_node  FOREIGN KEY (node_user_id)  REFERENCES users (id)         ON DELETE CASCADE,
-  CONSTRAINT fk_bv_buyer FOREIGN KEY (buyer_id)      REFERENCES users (id)         ON DELETE SET NULL,
-  CONSTRAINT fk_bv_order FOREIGN KEY (order_id)      REFERENCES shop_orders (id)   ON DELETE CASCADE,
-  CONSTRAINT fk_bv_item  FOREIGN KEY (order_item_id) REFERENCES shop_order_items (id) ON DELETE CASCADE,
-  CONSTRAINT fk_bv_actor FOREIGN KEY (created_by)    REFERENCES users (id)         ON DELETE SET NULL,
-  CONSTRAINT chk_bv_points CHECK (points <> 0),
-  CONSTRAINT chk_bv_own    CHECK (kind <> 'own'    OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
-  CONSTRAINT chk_bv_team   CHECK (kind <> 'team'   OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
-  CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND order_item_id IS NOT NULL)),
-  CONSTRAINT chk_bv_pair   CHECK (kind <> 'pair'   OR (points < 0 AND award_id IS NOT NULL)),
-  CONSTRAINT chk_bv_return CHECK (kind <> 'pair_return' OR (points > 0 AND award_id IS NOT NULL)),
-  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-
--- -------------------------------------------------------------
 -- Binary awards — the self/pair money ledger (escrowed)
 -- (Phase 22A, plan §15.4). One row per award kind per order.
 -- -------------------------------------------------------------
@@ -803,6 +764,46 @@ CREATE TABLE IF NOT EXISTS binary_awards (
   CONSTRAINT chk_ba_amount CHECK (amount >= 0 AND reversed_amount >= 0 AND reversed_amount <= amount),
   CONSTRAINT chk_ba_self   CHECK (kind <> 'self' OR (pair_count = 0 AND points > 0)),
   CONSTRAINT chk_ba_pair   CHECK (kind <> 'pair' OR (pair_count > 0 AND points = 2 * pair_count * pair_points))
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Binary volume — the append-only, signed points ledger
+-- (Phase 22A, plan §15.4). One row per +/− point movement.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS binary_volume (
+  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  node_user_id  INT UNSIGNED    NOT NULL,
+  side          ENUM('left','right') NOT NULL,
+  kind          ENUM('own','team','pair','pair_return','reversal','adjustment') NOT NULL,
+  points        BIGINT          NOT NULL,
+  order_id      INT UNSIGNED    NULL,
+  order_item_id INT UNSIGNED    NULL,
+  buyer_id      INT UNSIGNED    NULL,
+  award_id      BIGINT UNSIGNED NULL,
+  note          VARCHAR(160)    NULL,
+  created_by    INT UNSIGNED    NULL,
+  created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_bv_line (node_user_id, order_item_id, side, kind),
+  UNIQUE KEY uq_bv_award (award_id, side, kind),
+  KEY idx_bv_node (node_user_id, side, created_at),
+  KEY idx_bv_order (order_id),
+  KEY idx_bv_buyer (buyer_id, created_at),
+  KEY idx_bv_kind (kind, created_at),
+  KEY idx_bv_award (award_id),
+  CONSTRAINT fk_bv_node  FOREIGN KEY (node_user_id)  REFERENCES users (id)         ON DELETE CASCADE,
+  CONSTRAINT fk_bv_buyer FOREIGN KEY (buyer_id)      REFERENCES users (id)         ON DELETE SET NULL,
+  CONSTRAINT fk_bv_order FOREIGN KEY (order_id)      REFERENCES shop_orders (id)   ON DELETE CASCADE,
+  CONSTRAINT fk_bv_item  FOREIGN KEY (order_item_id) REFERENCES shop_order_items (id) ON DELETE CASCADE,
+  CONSTRAINT fk_bv_actor FOREIGN KEY (created_by)    REFERENCES users (id)         ON DELETE SET NULL,
+  CONSTRAINT fk_bv_award FOREIGN KEY (award_id)      REFERENCES binary_awards (id) ON DELETE RESTRICT,
+  CONSTRAINT chk_bv_points CHECK (points <> 0),
+  CONSTRAINT chk_bv_own    CHECK (kind <> 'own'    OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
+  CONSTRAINT chk_bv_team   CHECK (kind <> 'team'   OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
+  CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND order_item_id IS NOT NULL)),
+  CONSTRAINT chk_bv_pair   CHECK (kind <> 'pair'   OR (points < 0 AND award_id IS NOT NULL)),
+  CONSTRAINT chk_bv_return CHECK (kind <> 'pair_return' OR (points > 0 AND award_id IS NOT NULL)),
+  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

@@ -94,6 +94,9 @@ final class DatabaseResetService
         'addresses',
         'activations',
         'audit_log',
+        'binary_awards',
+        'binary_nodes',
+        'binary_volume',
         'cart_items',
         'carts',
         'commissions',
@@ -142,6 +145,9 @@ final class DatabaseResetService
     public const ZERO_TABLES = [
         'addresses',
         'activations',
+        'binary_awards',
+        'binary_nodes',
+        'binary_volume',
         'cart_items',
         'carts',
         'commissions',
@@ -218,6 +224,8 @@ final class DatabaseResetService
         'reg_codes',
         'impersonation_log',
         'remember_tokens',
+        'binary_volume',
+        'binary_awards',
     ];
 
     /**
@@ -330,6 +338,18 @@ final class DatabaseResetService
             'sql'   => [
                 'DELETE FROM team_harvest_awards',
                 'DELETE FROM harvest_queue',
+            ],
+        ],
+        [
+            /* Product binary (Phase 22A): the points ledger references
+             * awards and orders, so the tree's money is emptied before
+             * the orders group and before the members group. */
+            'key'   => 'product_binary',
+            'label' => 'Product binary points, awards and nodes',
+            'sql'   => [
+                'DELETE FROM binary_volume',
+                'DELETE FROM binary_awards',
+                'DELETE FROM binary_nodes',
             ],
         ],
         [

@@ -215,7 +215,9 @@ SQL);
         assert_true(is_int($result['elapsed_ms']));
 
         $expected = [
-            'activations', 'addresses', 'audit_log', 'cart_items', 'carts', 'commissions',
+            'activations', 'addresses', 'audit_log',
+            'binary_awards', 'binary_nodes', 'binary_volume',
+            'cart_items', 'carts', 'commissions',
             'ewallet_admin_topups', 'ewallet_ledger', 'ewallet_transfers',
             'general_harvest_awards', 'general_harvest_board', 'general_harvest_levels',
             'harvest_queue',

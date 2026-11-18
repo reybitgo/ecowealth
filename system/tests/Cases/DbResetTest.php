@@ -72,9 +72,11 @@ $service = static function (PDO $pdo, string $database, array $options = [], ?ca
     );
 };
 
-/** The 39 table names the counts helper reads. */
+/** The 42 table names the counts helper reads. */
 $allTables = [
-    'users', 'remember_tokens', 'settings', 'audit_log', 'products', 'packages',
+    'users', 'remember_tokens', 'settings', 'audit_log',
+    'binary_awards', 'binary_nodes', 'binary_volume',
+    'products', 'packages',
     'package_levels', 'package_products', 'carts', 'cart_items', 'ewallet_ledger',
     'ewallet_admin_topups', 'ewallet_transfers', 'payout_requests', 'addresses',
     'shop_orders', 'shop_order_items', 'shop_order_events', 'shop_payment_proofs',
@@ -546,7 +548,7 @@ return [
         }
 
         assert_same(7, $plan['orders']['statements']);
-        assert_same(24, $plan['auto_increment']['statements']);
+        assert_same(26, $plan['auto_increment']['statements']);
         assert_same(1, $plan['general_harvest']['statements'], 'the award ledger is emptied');
         assert_same(1, $plan['general_harvest_board']['statements'], 'the board is reset, never deleted');
         assert_same(0, $plan['catalogue']['statements'], 'the catalogue is kept by default');
@@ -623,6 +625,9 @@ return [
         assert_same(0, $after['unilevel_awards']);
         assert_same(0, $after['unilevel_activity']);
         assert_same(0, $after['unilevel_periods']);
+        assert_same(0, $after['binary_nodes'], 'the node table is emptied by a reset');
+        assert_same(0, $after['binary_volume'], 'the volume ledger is emptied by a reset');
+        assert_same(0, $after['binary_awards'], 'the awards ledger is emptied by a reset');
         assert_same(
             1,
             (int) $pdo->query('SELECT COUNT(*) FROM product_unilevel_levels')->fetchColumn(),
@@ -1078,7 +1083,7 @@ return [
         assert_true($second['ok'], json_encode($second['verification']['checks']));
 
         $deleteKeys = [
-            'impersonation', 'unilevel', 'orders', 'carts', 'addresses', 'wallet', 'payouts',
+            'impersonation', 'unilevel', 'product_binary', 'orders', 'carts', 'addresses', 'wallet', 'payouts',
             'commissions', 'codes', 'sessions', 'members',
         ];
 
@@ -1211,7 +1216,7 @@ return [
 
         $report = $service($pdo, $database)->run();
         assert_true($report['ok']);
-        assert_same(24, $report['auto_increment']['reset']);
+        assert_same(26, $report['auto_increment']['reset']);
         assert_same(0, $report['auto_increment']['failed']);
 
         foreach (['shop_orders', 'ewallet_ledger', 'reg_codes', 'activations', 'commissions'] as $table) {

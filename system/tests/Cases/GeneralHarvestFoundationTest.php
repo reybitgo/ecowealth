@@ -21,9 +21,9 @@ declare(strict_types=1);
  *      seed        seed 001 carries the two keys, the ten ladder rows
  *                  and the board row, exactly like the migration
  *      bundle      install.sql matches its sources and mirrors the
- *                  migration's objects (39 tables, 79 settings)
+                 *                  migration's objects (42 tables, 89 settings)
  *      tools       DatabaseInstaller / DatabaseResetService agree
- *                  with the schema (39 tables; the award ledger is
+                 *                  with the schema (42 tables; the award ledger is
  *                  transactional, the ladder and the board are not)
  *      vocabulary  WalletService::REF_TYPES, the label and the icon
  *      defaults    off and unarmed; the ladder is catalogue; no
@@ -516,7 +516,7 @@ return [
     /* ==========================================================
      *  The bundle (P21A-T5)
      * ========================================================== */
-    'P21A-T5 the committed install bundle matches its sources and carries 39 tables and 79 settings' => function () use ($appRoot): void {
+    'P21A-T5 the committed install bundle matches its sources and carries 42 tables and 89 settings' => function () use ($appRoot): void {
         require_once $appRoot . '/bin/build_install_sql.php';
 
         $result = build_install_sql_check($appRoot);
@@ -531,15 +531,15 @@ return [
         $footer = (string) file_get_contents($appRoot . '/database/install/footer.sql');
         $bundle = (string) file_get_contents($appRoot . '/database/install.sql');
 
-        assert_contains('39 tables', $header);
-        assert_contains('79 settings', $header);
+        assert_contains('42 tables', $header);
+        assert_contains('89 settings', $header);
         assert_contains('10 General Harvest level amounts', $header);
-        assert_contains('tables_created = 39', $footer);
-        assert_contains('settings_rows = 79', $footer);
+        assert_contains('tables_created = 42', $footer);
+        assert_contains('settings_rows = 89', $footer);
         assert_contains('general_harvest_levels_rows = 10', $footer);
         assert_contains('general_harvest_board_rows = 1', $footer);
-        assert_contains('39 tables', $bundle);
-        assert_contains('79 settings', $bundle);
+        assert_contains('42 tables', $bundle);
+        assert_contains('89 settings', $bundle);
 
         $script = SqlScript::fromFile($appRoot . '/database/install.sql');
         assert_false($script->containsDatabaseSwitch());
@@ -554,7 +554,7 @@ return [
             }
         }
 
-        assert_same(39, $creates, 'the bundle creates 39 tables');
+        assert_same(42, $creates, 'the bundle creates 39 tables');
 
         foreach (['general_harvest_levels', 'general_harvest_board', 'general_harvest_awards'] as $table) {
             assert_true(in_array($table, $created, true), 'the bundle creates ' . $table);
@@ -570,9 +570,9 @@ return [
     /* ==========================================================
      *  Fresh install (P21A-T6, P21A-T7)
      * ========================================================== */
-    'P21A-T6 a fresh install reports 39 tables, 79 settings, ten ladder rows and one unarmed board row' => function (): void {
-        assert_same(39, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(79, DatabaseInstaller::EXPECTED['settings_rows']);
+    'P21A-T6 a fresh install reports 42 tables, 89 settings, ten ladder rows and one unarmed board row' => function (): void {
+        assert_same(42, DatabaseInstaller::EXPECTED['tables_created']);
+        assert_same(89, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(10, DatabaseInstaller::EXPECTED['team_harvest_levels_rows']);
         assert_same(10, DatabaseInstaller::EXPECTED['general_harvest_levels_rows']);
         assert_same(1, DatabaseInstaller::EXPECTED['general_harvest_board_rows']);
@@ -614,14 +614,14 @@ return [
                 'the install reports ok: ' . json_encode($report['verification']['checks'] ?? [])
             );
 
-            assert_same(39, $report['counts']['tables_created']);
-            assert_same(79, $report['counts']['settings_rows']);
+            assert_same(42, $report['counts']['tables_created']);
+            assert_same(89, $report['counts']['settings_rows']);
             assert_same(10, $report['counts']['general_harvest_levels_rows']);
             assert_same(1, $report['counts']['general_harvest_board_rows']);
 
             /* The database itself, not just the report. */
-            assert_count(39, test_table_list($pdo, $database));
-            assert_same(79, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(42, test_table_list($pdo, $database));
+            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_awards')->fetchColumn());
 
@@ -838,7 +838,7 @@ return [
 
         assert_true($afterAward === null || $afterAward === 1, 'the award counter is reset, got ' . var_export($afterAward, true));
 
-        assert_same(39, count(DatabaseResetService::ALL_TABLES), 'ALL_TABLES names 39 tables');
+        assert_same(42, count(DatabaseResetService::ALL_TABLES), 'ALL_TABLES names 39 tables');
         assert_true(in_array('general_harvest_awards', DatabaseResetService::ZERO_TABLES, true));
         assert_true(in_array('general_harvest_awards', DatabaseResetService::AUTO_INCREMENT_TABLES, true));
         assert_false(in_array('general_harvest_board', DatabaseResetService::ZERO_TABLES, true), 'the board is state, not money');
@@ -858,10 +858,10 @@ return [
 
         $php = WalletService::REF_TYPES;
 
-        assert_count(13, $php, 'thirteen movement kinds after Phase 21 (21A adds general_harvest only)');
+        assert_count(15, $php, 'fifteen movement kinds after Phase 22A (21A adds general_harvest; 22A adds binary and binary_reversal)');
         assert_same($php, array_values(array_unique($php)), 'no duplicate movement kind');
-        assert_same('general_harvest', end($php), 'general_harvest is appended last, after team_harvest');
-        assert_same('general_harvest', end($dbValues), 'the enum appends general_harvest last');
+        assert_same('binary_reversal', end($php), 'binary_reversal is appended last, after general_harvest');
+        assert_same('binary_reversal', end($dbValues), 'the enum appends binary_reversal last');
         assert_same(
             1,
             count(array_keys($dbValues, 'general_harvest', true)),
@@ -1281,14 +1281,14 @@ return [
         setting_cache_clear();
         assert_false(setting_bool('general_harvest_enabled', true));
 
-        /* The suite's own count guard: the migration list ends at 025 and
-         * the reset list, the schema and the bundle all agree at 39. */
+        /* The suite's own count guard: the migration list ends at 026 and
+         * the reset list, the schema and the bundle all agree at 42. */
         $migrations = array_map('basename', glob($appRoot . '/database/migrations/*.sql') ?: []);
         sort($migrations, SORT_STRING);
 
-        assert_same('025_general_harvest.sql', end($migrations), '025 is the newest migration');
-        assert_same(39, count(test_table_list(test_pdo(['db' => DB_NAME]))));
-        assert_same(39, count(DatabaseResetService::ALL_TABLES));
-        assert_same(39, DbTarget::fromConfig()->tableCount(DB_NAME));
+        assert_same('026_product_binary.sql', end($migrations), '026 is the newest migration');
+        assert_same(42, count(test_table_list(test_pdo(['db' => DB_NAME]))));
+        assert_same(42, count(DatabaseResetService::ALL_TABLES));
+        assert_same(42, DbTarget::fromConfig()->tableCount(DB_NAME));
     },
 ];

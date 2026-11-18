@@ -17,7 +17,7 @@ declare(strict_types=1);
  *                  value
  *      parity      a migrated database and a fresh install agree
  *      bundle      install.sql matches its sources and mirrors the
- *                  migration's objects (39 tables, 79 settings)
+                 *                  migration's objects (42 tables, 89 settings)
  *      tools       DatabaseInstaller / DatabaseResetService agree
  *                  with the schema (39 tables; two money tables)
  *      vocabulary  WalletService::REF_TYPES, the label and the icon
@@ -84,6 +84,9 @@ $buildFoundation = static function () use (&$foundation, $buildStart, $migration
     /* Phase 21A appends 025 for the same reason: a fresh install now carries
      * the three General Harvest tables and the extended ledger enum. */
     test_run_sql_file($pdo, $migrationDir . '025_general_harvest.sql');
+    /* Phase 22A appends 026 for the same reason: a fresh install now carries
+     * the three Product binary tables and the extended ledger enum. */
+    test_run_sql_file($pdo, $migrationDir . '026_product_binary.sql');
     $foundation = $pdo;
 
     return $pdo;
@@ -417,11 +420,11 @@ return [
 
         $php = WalletService::REF_TYPES;
 
-        assert_count(13, $php, 'thirteen movement kinds after Phase 21 (19A adds royalty, 20A team_harvest, 21A general_harvest)');
+        assert_count(15, $php, 'fifteen movement kinds after Phase 22A (19A adds royalty, 20A team_harvest, 21A general_harvest, 22A adds binary and binary_reversal)');
         assert_same($php, array_values(array_unique($php)), 'no duplicate movement kind');
-        assert_same('royalty', $php[count($php) - 3], 'royalty keeps its place after unilevel_reversal');
-        assert_same('general_harvest', end($php), 'Phase 21 appends general_harvest last');
-        assert_same('general_harvest', end($dbValues), 'the enum appends general_harvest last');
+        assert_same('royalty', $php[count($php) - 5], 'royalty keeps its place after unilevel_reversal');
+        assert_same('binary_reversal', end($php), 'Phase 22 appends binary_reversal last');
+        assert_same('binary_reversal', end($dbValues), 'the enum appends binary_reversal last');
 
         assert_same(
             1,
@@ -526,7 +529,7 @@ return [
     /* ==========================================================
      *  The bundle and the tools (P19A-T9, P19A-T10)
      * ========================================================== */
-    'P19A-T9 the committed install bundle matches its sources and carries 39 tables and 79 settings' => function () use ($appRoot): void {
+    'P19A-T9 the committed install bundle matches its sources and carries 42 tables and 89 settings' => function () use ($appRoot): void {
         require_once $appRoot . '/bin/build_install_sql.php';
 
         $result = build_install_sql_check($appRoot);
@@ -541,12 +544,12 @@ return [
         $footer = (string) file_get_contents($appRoot . '/database/install/footer.sql');
         $bundle = (string) file_get_contents($appRoot . '/database/install.sql');
 
-        assert_contains('39 tables', $header);
-        assert_contains('79 settings', $header);
-        assert_contains('tables_created = 39', $footer);
-        assert_contains('settings_rows = 79', $footer);
-        assert_contains('39 tables', $bundle);
-        assert_contains('79 settings', $bundle);
+        assert_contains('42 tables', $header);
+        assert_contains('89 settings', $header);
+        assert_contains('tables_created = 42', $footer);
+        assert_contains('settings_rows = 89', $footer);
+        assert_contains('42 tables', $bundle);
+        assert_contains('89 settings', $bundle);
 
         $script = SqlScript::fromFile($appRoot . '/database/install.sql');
         assert_false($script->containsDatabaseSwitch());
@@ -561,16 +564,16 @@ return [
             }
         }
 
-        assert_same(39, $creates, 'the bundle creates 39 tables');
+        assert_same(42, $creates, 'the bundle creates 39 tables');
 
         foreach (['royalty_periods', 'royalty_awards'] as $table) {
             assert_true(in_array($table, $created, true), 'the bundle creates ' . $table);
         }
     },
 
-    'P19A-T10 DatabaseInstaller expects 39 tables and 79 settings and installs them' => function (): void {
-        assert_same(39, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(79, DatabaseInstaller::EXPECTED['settings_rows']);
+    'P19A-T10 DatabaseInstaller expects 42 tables and 89 settings and installs them' => function (): void {
+        assert_same(42, DatabaseInstaller::EXPECTED['tables_created']);
+        assert_same(89, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(0, DatabaseInstaller::EXPECTED['members_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
@@ -609,8 +612,8 @@ return [
                 'the install reports ok: ' . json_encode($report['verification']['checks'] ?? [])
             );
 
-            assert_same(39, $report['counts']['tables_created']);
-            assert_same(79, $report['counts']['settings_rows']);
+            assert_same(42, $report['counts']['tables_created']);
+            assert_same(89, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -620,8 +623,8 @@ return [
             assert_same(0, $report['counts']['codes_rows']);
 
             /* The database itself, not just the report. */
-            assert_count(39, test_table_list($pdo, $database));
-            assert_same(79, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_count(42, test_table_list($pdo, $database));
+            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM royalty_periods')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM royalty_awards')->fetchColumn());
         } finally {
@@ -1094,8 +1097,8 @@ return [
         $pdo    = test_pdo(['db' => DB_NAME]);
         $tables = test_table_list($pdo);
 
-        assert_count(39, $tables);
-        assert_same(39, DbTarget::fromConfig()->tableCount(DB_NAME));
+        assert_count(42, $tables);
+        assert_same(42, DbTarget::fromConfig()->tableCount(DB_NAME));
 
         /* The reset allow-list is exactly the schema's table list. */
         $allowList = DatabaseResetService::ALL_TABLES;
@@ -1116,8 +1119,8 @@ return [
             return $count;
         };
 
-        assert_same(39, $creates($appRoot . '/database/schema.sql'), 'schema.sql creates 39 tables');
-        assert_same(39, $creates($appRoot . '/database/install.sql'), 'the bundle creates 39 tables');
+        assert_same(42, $creates($appRoot . '/database/schema.sql'), 'schema.sql creates 39 tables');
+        assert_same(42, $creates($appRoot . '/database/install.sql'), 'the bundle creates 39 tables');
 
         /* The two royalty tables are money: a reset empties them. */
         foreach (['royalty_awards', 'royalty_periods'] as $table) {

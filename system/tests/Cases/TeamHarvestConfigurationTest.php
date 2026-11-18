@@ -770,22 +770,22 @@ return [
         }
     },
 
-    'P20B-T20 the phase adds no schema: 39 tables, 76 seed settings, ten ladder rows' => function (): void {
+    'P20B-T20 the phase adds no schema: 42 tables, 86 seed settings, ten ladder rows' => function (): void {
         /* 20B is configuration only: the schema is exactly 20A's, and the
          * release phase (20G) is the one that moves APP_PHASE — this guard
          * follows the constant so it still proves the schema, not the badge.
-         * Phase 21A later added three tables and two settings, so the guard
-         * follows the schema it lives in (39 / 76 / 10). */
-        assert_same(39, count(test_table_list(test_pdo(['db' => DB_NAME]))));
-        assert_same(76, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+         * Phase 21A and Phase 22A later added tables and settings, so the guard
+         * follows the schema it lives in (42 / 86 / 10). */
+        assert_same(42, count(test_table_list(test_pdo(['db' => DB_NAME]))));
+        assert_same(86, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
         assert_same(21, APP_PHASE, '21G owns the release badge');
 
         /* install.sql is untouched by this phase and still matches its
-         * sources; the bundle's own count is 39 / 79 / 10. */
+         * sources; the bundle's own count is 42 / 89 / 10. */
         $install = (string) file_get_contents(dirname(__DIR__, 2) . '/database/install.sql');
-        assert_contains('39 tables', $install);
-        assert_contains('79 settings', $install);
+        assert_contains('42 tables', $install);
+        assert_contains('89 settings', $install);
         assert_contains('10 Team Harvest level amounts', $install);
     },
 
