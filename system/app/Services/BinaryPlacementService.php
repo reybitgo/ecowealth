@@ -25,7 +25,12 @@ final class BinaryPlacementService
 
         if ($known === null) {
             try {
-                $known = (bool) db()->query('SELECT 1 FROM binary_nodes LIMIT 1')->fetch();
+                $row = db()->prepare(
+                    'SELECT 1 FROM information_schema.tables
+                     WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1'
+                );
+                $row->execute(['binary_nodes']);
+                $known = (bool) $row->fetch();
             } catch (Throwable) {
                 $known = false;
             }
@@ -259,6 +264,64 @@ final class BinaryPlacementService
                 'side' => $side,
                 'free' => BinaryNode::slotChild($uplineId, $side, $this->pdo) === null,
             ];
+        }
+
+        return $slots;
+    }
+
+    /**
+     * Up to `$limit` free slots inside `$rootId`'s subtree, breadth-first
+     * (shallow before deep, left before right). Each entry:
+     * `{upline_id, upline, side, depth}`. Used by checkSponsor() to let
+     * the register page prefill position choices.
+     *
+     * @return array{0:array<string,mixed>}
+     */
+    public function freeSlotsInSubtree(int $rootId, int $limit = 20): array
+    {
+        $rootNode = BinaryNode::find($rootId, $this->pdo);
+        if ($rootNode === null) {
+            return [];
+        }
+
+        $slots = [];
+        $queue   = [(int) $rootNode['user_id']];
+        $visited = [(int) $rootNode['user_id'] => true];
+
+        while ($queue !== [] && count($slots) < $limit) {
+            $current = array_shift($queue);
+            $currentNode = BinaryNode::find($current, $this->pdo);
+            $currentDepth = (int) ($currentNode['depth'] ?? 0) + 1;
+
+            $currentMember = Member::find($current, $this->pdo);
+            $currentUsername = (string) ($currentMember['username'] ?? '');
+
+            foreach (BinaryNode::SIDES as $side) {
+                $child = BinaryNode::slotChild($current, $side, $this->pdo);
+                if ($child === null) {
+                    $slots[] = [
+                        'upline_id' => $current,
+                        'upline'    => $currentUsername,
+                        'side'      => $side,
+                        'depth'     => $currentDepth,
+                    ];
+                    if (count($slots) >= $limit) {
+                        break;
+                    }
+                }
+            }
+
+            if (count($slots) >= $limit) {
+                break;
+            }
+
+            foreach (BinaryNode::children($current, $this->pdo) as $child) {
+                $childId = (int) ($child['user_id'] ?? 0);
+                if (!isset($visited[$childId])) {
+                    $visited[$childId] = true;
+                    $queue[] = $childId;
+                }
+            }
         }
 
         return $slots;

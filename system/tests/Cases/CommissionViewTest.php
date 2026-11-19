@@ -39,6 +39,7 @@ $pendingMember = static function (string $sponsor = 'juan'): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_position'  => 'left',
     ], null);
 
     $member = Member::find((int) $result['user_id']);

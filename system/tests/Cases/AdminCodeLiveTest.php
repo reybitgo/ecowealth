@@ -52,6 +52,7 @@ return [
             'package_id'       => '',
             'reg_code'         => $code,
             'terms'            => true,
+            'binary_position'  => 'left',
         ], null);
 
         assert_same($before + 1, Live::revision('admin.codes'));

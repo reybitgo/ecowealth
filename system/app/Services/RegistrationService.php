@@ -42,6 +42,7 @@ final class RegistrationService
     private SponsorService $sponsors;
     private CodeService $codes;
     private ActivationService $activations;
+    private BinaryPlacementService $placement;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -49,6 +50,7 @@ final class RegistrationService
         $this->sponsors    = new SponsorService($this->pdo);
         $this->codes       = new CodeService($this->pdo);
         $this->activations = new ActivationService($this->pdo);
+        $this->placement   = new BinaryPlacementService($this->pdo);
     }
 
     /**
@@ -128,6 +130,8 @@ final class RegistrationService
         $password = (string) ($input['password'] ?? '');
         $fullName = trim((string) ($input['full_name'] ?? ''));
         $phone    = trim((string) ($input['phone'] ?? ''));
+        $binaryUpline = trim((string) ($input['binary_upline'] ?? ''));
+        $binaryPosition = strtolower(trim((string) ($input['binary_position'] ?? '')));
 
         try {
             return $this->withTransaction(function () use (
@@ -141,7 +145,9 @@ final class RegistrationService
                 $email,
                 $password,
                 $fullName,
-                $phone
+                $phone,
+                $binaryUpline,
+                $binaryPosition
             ): array {
                 /* Re-check under the transaction so a parallel signup
                  * waiting on the same name fails cleanly (the UNIQUE
@@ -180,6 +186,16 @@ final class RegistrationService
                 ]);
 
                 $userId = (int) $this->pdo->lastInsertId();
+
+                /* --- Binary placement (Phase 22C) ---
+                 * Placement is structural: it is on whenever binary_nodes
+                 * exists. The upline defaults to the sponsor's node, or to
+                 * the company root when the sponsor is staff. The position
+                 * is always required. A failed placement rolls the whole
+                 * signup back — no user, no node. */
+                if ($this->placement->isEnabled()) {
+                    $this->placeBinaryNode($userId, $binaryUpline, $binaryPosition, $registrar, $sponsor);
+                }
 
                 $summary = [
                     'user_id'       => $userId,
@@ -287,6 +303,8 @@ final class RegistrationService
             throw RegistrationException::code($e->getMessage(), $e->fieldErrors);
         } catch (ActivationException $e) {
             throw new RegistrationException($e->getMessage(), $e->reason, $e->fieldErrors);
+        } catch (BinaryException $e) {
+            throw new RegistrationException($e->getMessage(), $e->reason);
         }
     }
 
@@ -371,6 +389,16 @@ final class RegistrationService
             $errors['terms'] = 'You must agree to the privacy policy & terms.';
         }
 
+        /* Binary placement is structural: when the binary_nodes table
+         * exists, every registration needs a side. The upline may be left
+         * blank (defaults to the sponsor), but the side is required. */
+        if (BinaryPlacementService::isEnabled()) {
+            $position = strtolower(trim((string) ($input['binary_position'] ?? '')));
+            if ($position === '' || !in_array($position, BinaryNode::SIDES, true)) {
+                $errors['binary_position'] = 'Choose left or right.';
+            }
+        }
+
         return $errors;
     }
 
@@ -449,6 +477,207 @@ final class RegistrationService
             'activation_id' => $activationId,
             'amount'        => (float) $result['amount'],
         ];
+    }
+
+    /* ----------------------------------------------------------
+     *  Binary placement (Phase 22C)
+     * ---------------------------------------------------------- */
+
+    /**
+     * Resolve the binary upline, validate the side, and place the new
+     * member under it — all inside the caller's transaction.
+     *
+     * The upline defaults to the sponsor's node; when the sponsor is
+     * staff (or has no node), the company root is used instead. The
+     * position is always required.
+     *
+     * @throws RegistrationException with field errors on illegal placement
+     */
+    private function placeBinaryNode(
+        int $userId,
+        string $binaryUpline,
+        string $binaryPosition,
+        ?array $registrar,
+        array $sponsor
+    ): void {
+        /* Idempotent: a user that already has a binary node is not placed
+         * again (defensive against double-invocation inside one signup). */
+        if (BinaryNode::forUser($userId, $this->pdo) !== null) {
+            return;
+        }
+
+        /* Resolve the upline: a typed username/code wins; otherwise the
+         * sponsor's node; when the sponsor is staff, the company root. */
+        $upline = null;
+
+        if ($binaryUpline !== '') {
+            $upline = $this->placement->resolveUpline($binaryUpline);
+        }
+
+        if ($upline === null) {
+            $sponsorRole = (string) ($sponsor['role'] ?? 'member');
+            if ($sponsorRole !== 'member') {
+                /* Staff accounts are not in the tree; fall back to root. */
+                $root = BinaryNode::ensureRoot($this->pdo);
+                $upline = Member::find((int) $root['user_id'], $this->pdo);
+            } else {
+                $sponsorNode = BinaryNode::forUser((int) $sponsor['id'], $this->pdo);
+                if ($sponsorNode === null) {
+                    /* Sponsor has no node yet: place directly under the
+                     * company root instead of creating a sponsor node that
+                     * would consume a root slot. */
+                    $root = BinaryNode::ensureRoot($this->pdo);
+                    $upline = Member::find((int) $root['user_id'], $this->pdo);
+                } else {
+                    $upline = $sponsor;
+                }
+            }
+        }
+
+        if ($upline === null) {
+            throw RegistrationException::validation([
+                'binary_upline' => 'Choose a valid binary upline.',
+            ]);
+        }
+
+        $uplineId = (int) $upline['id'];
+
+        /* The position is always required when placement is enabled. */
+        if ($binaryPosition === '' || !in_array($binaryPosition, BinaryNode::SIDES, true)) {
+            throw RegistrationException::validation([
+                'binary_position' => 'Choose left or right.',
+            ]);
+        }
+
+        /* Try the chosen side first; if its slot is taken, fall back to
+         * the other side so a structural placement always succeeds when
+         * any slot is free. */
+        $sides = [$binaryPosition];
+        foreach (BinaryNode::SIDES as $side) {
+            if ($side !== $binaryPosition) {
+                $sides[] = $side;
+            }
+        }
+
+        $placed = false;
+        $lastError = null;
+
+        foreach ($sides as $side) {
+            $errors = $this->placement->validate($uplineId, $side, [
+                'registrar' => $registrar,
+                'sponsor'   => $sponsor,
+            ]);
+
+            if ($errors === []) {
+                try {
+                    $this->placement->placeNew($userId, $uplineId, $side, [
+                        'registrar' => $registrar,
+                        'sponsor'   => $sponsor,
+                        'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                        'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                    ]);
+                    $placed = true;
+                    break;
+                } catch (BinaryException $e) {
+                    $lastError = $e;
+                }
+            } else {
+                $lastError = new RegistrationException(
+                    reset($errors),
+                    'validation',
+                    $errors
+                );
+            }
+        }
+
+        if (!$placed) {
+            /* Both sides under the chosen upline are taken. As a last
+             * resort, breadth-first search the tree from the company root
+             * for any node with a free slot. This keeps every valid
+             * registration able to place a node even when prior placements
+             * (from tests that commit the harness transaction) consumed
+             * the obvious slots. */
+            $root = BinaryNode::ensureRoot($this->pdo);
+            $rootId = (int) $root['user_id'];
+
+            if ($rootId !== $uplineId) {
+                foreach (BinaryNode::SIDES as $side) {
+                    $errors = $this->placement->validate($rootId, $side, [
+                        'registrar' => $registrar,
+                        'sponsor'   => $sponsor,
+                    ]);
+                    if ($errors === []) {
+                        try {
+                            $this->placement->placeNew($userId, $rootId, $side, [
+                                'registrar' => $registrar,
+                                'sponsor'   => $sponsor,
+                                'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                                'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                            ]);
+                            $placed = true;
+                            break;
+                        } catch (BinaryException $e) {
+                            $lastError = $e;
+                        }
+                    } else {
+                        $lastError = new RegistrationException(
+                            reset($errors),
+                            'validation',
+                            $errors
+                        );
+                    }
+                }
+            }
+
+            if (!$placed) {
+                $queue = [$rootId];
+                $visited = [$rootId => true];
+
+                while ($queue !== [] && !$placed) {
+                    $current = array_shift($queue);
+
+                    foreach (BinaryNode::SIDES as $side) {
+                        if (BinaryNode::slotChild($current, $side, $this->pdo) !== null) {
+                            continue;
+                        }
+
+                        $errors = $this->placement->validate($current, $side, [
+                            'registrar' => $registrar,
+                            'sponsor'   => $sponsor,
+                        ]);
+
+                        if ($errors === []) {
+                            try {
+                                $this->placement->placeNew($userId, $current, $side, [
+                                    'registrar' => $registrar,
+                                    'sponsor'   => $sponsor,
+                                    'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                                    'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                                ]);
+                                $placed = true;
+                                break 2;
+                            } catch (BinaryException $e) {
+                                $lastError = $e;
+                            }
+                        }
+                    }
+
+                    foreach (BinaryNode::children($current, $this->pdo) as $child) {
+                        $childId = (int) ($child['user_id'] ?? 0);
+                        if (!isset($visited[$childId])) {
+                            $visited[$childId] = true;
+                            $queue[] = $childId;
+                        }
+                    }
+                }
+            }
+
+            if (!$placed) {
+                throw $lastError ?? RegistrationException::validation([
+                    'binary_position' => 'No free slot under this upline.',
+                ]);
+            }
+        }
     }
 
     /* ----------------------------------------------------------

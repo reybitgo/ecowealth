@@ -28,6 +28,7 @@ $pendingMember = static function (string $sponsor = 'juan'): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_position'  => 'left',
     ], null);
 
     $member = Member::find((int) $result['user_id']);
@@ -184,6 +185,7 @@ return [
             'package_id'       => '',
             'reg_code'         => $batch['codes'][0],
             'terms'            => true,
+            'binary_position'  => 'left',
         ], null);
 
         assert_same('active', $result['member_status']);

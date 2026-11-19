@@ -30,6 +30,7 @@ $pendingMember = static function (): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_position'  => 'left',
     ], null);
 
     return Member::find((int) $result['user_id']) ?? [];

@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Registration form (plan §5.10, §7 Phase 9).
  *
  * Rendered by public/register.php inside the auth layout. Four modes,
- * one sponsor link, no binary placement fields anywhere.
+ * one sponsor link, binary placement block (Phase 22C).
  *
  * @var string                     $mode            selected mode
  * @var string                     $prefill_sponsor sponsor username / referral code to prefill
@@ -13,7 +13,15 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $packages        active packages (PackageService::publicCards())
  * @var array<string, mixed>|null  $registrar       the signed-in member registering someone, or null
  * @var float                      $registrar_balance
+ * @var bool                       $binary_enabled  whether the binary placement block renders
  */
+
+$binary_enabled = BinaryPlacementService::isEnabled();
+
+/* The binary upline defaults to the sponsor (prefilled or typed). A
+ * posted value survives a field error via old(). */
+$binary_upline_default = old('binary_upline', $prefill_sponsor);
+$binary_position_default = old('binary_position', '');
 
 /* Field errors are shown under their own inputs; the banner above the form
  * only carries a generic prompt (or a global failure such as a database
@@ -214,6 +222,73 @@ $feedback = static function (string $field, string $attributes = ''): string {
           data-sponsor-default="<?= e($sponsorHintDefault) ?>"
         ><?= e($sponsorHintDefault) ?></div>
       </div>
+
+      <?php if ($binary_enabled): ?>
+      <!-- Binary placement -->
+      <div class="mb-4">
+        <label class="form-label fw-semibold" for="binary_upline">
+          Your upline in the binary tree
+          <span class="text-body-secondary">(defaults to your sponsor)</span>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="icon-base bx bx-share"></i></span>
+          <input
+            type="text"
+            class="<?= $fieldClass('binary_upline') ?>"
+            id="binary_upline"
+            name="binary_upline"
+            value="<?= e(old('binary_upline', $prefill_sponsor)) ?>"
+            placeholder="e.g. juan"
+            autocomplete="off"
+            data-binary-upline-input
+          />
+        </div>
+        <?= $feedback('binary_upline') ?>
+        <div class="form-text" id="binary-upline-hint">
+          Your position in the placement tree. Defaults to your sponsor, @<?= e((string) ($registrar !== null ? $registrar['username'] : 'admin')) ?>.
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-semibold" for="binary_position">
+          Position in the tree
+          <span class="required">*</span>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="icon-base bx bx-tree"></i></span>
+          <div class="btn-group btn-group-toggle" data-toggle="buttons" role="radiogroup" aria-label="Left or right side of the tree">
+            <label class="btn btn-outline-secondary<?= $binary_position_default === 'left' ? ' active' : '' ?><?= has_error('binary_position') ? ' is-invalid' : '' ?>">
+              <input
+                type="radio"
+                name="binary_position"
+                value="left"
+                id="binary_position_left"
+                data-binary-position
+                <?= $binary_position_default === 'left' ? ' checked' : '' ?>
+                required
+              />
+              <i class="icon-base bx bx-chevron-left"></i> Left
+            </label>
+            <label class="btn btn-outline-secondary<?= $binary_position_default === 'right' ? ' active' : '' ?><?= has_error('binary_position') ? ' is-invalid' : '' ?>">
+              <input
+                type="radio"
+                name="binary_position"
+                value="right"
+                id="binary_position_right"
+                data-binary-position
+                <?= $binary_position_default === 'right' ? ' checked' : '' ?>
+                required
+              />
+              <i class="icon-base bx bx-chevron-right"></i> Right
+            </label>
+          </div>
+        </div>
+        <?= $feedback('binary_position') ?>
+        <div class="form-text" id="binary-position-hint">
+          Which side of your upline you sit on. A free slot is required; the choice is snapshotted on your first order.
+        </div>
+      </div>
+      <?php endif; ?>
 
       <div class="row g-4">
         <div class="col-sm-6">

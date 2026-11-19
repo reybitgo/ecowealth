@@ -1013,6 +1013,7 @@ return [
             'password_confirm' => 'P20cMember@123',
             'sponsor'          => 't23_sponsor',
             'terms'            => '1',
+            'binary_position'  => 'left',
         ]);
 
         $newcomer = (int) $summary['user_id'];

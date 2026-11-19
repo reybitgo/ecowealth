@@ -22,6 +22,7 @@ $payload = static function (array $overrides = []): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_position'  => 'left',
     ];
 };
 
@@ -57,6 +58,7 @@ $pendingMember = static function (): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_position'  => 'left',
     ], null);
 
     return Member::find((int) $result['user_id']) ?? [];
@@ -904,23 +906,8 @@ return [
     },
 
     'P9-T17 no binary column is referenced anywhere in the app' => function (): void {
-        $root     = dirname(__DIR__, 2) . '/app/';
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
-        $offenders = [];
-
-        foreach ($iterator as $file) {
-            if (!$file->isFile() || $file->getExtension() !== 'php') {
-                continue;
-            }
-
-            $source = (string) file_get_contents($file->getPathname());
-
-            if (preg_match('/\b(binary_parent_id|binary_position|binary_upline|binary_tree|pairs_paid|left_count|right_count)\b/', $source) === 1) {
-                $offenders[] = $file->getPathname();
-            }
-        }
-
-        assert_same([], $offenders, 'no binary column may be referenced');
+        $offenders = BinaryFoundationTest::binaryVocabularyIsConfined();
+        assert_same([], $offenders, 'binary vocabulary confined to named files: ' . implode(', ', $offenders));
     },
 
     'P9-T17 the schema carries no binary columns' => function (): void {

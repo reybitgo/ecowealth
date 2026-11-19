@@ -29,6 +29,7 @@ $registerWithCode = static function (string $sponsor = 'juan'): array {
         'package_id'       => '',
         'reg_code'         => 'DEMO-PKGA-2A7K',
         'terms'            => true,
+        'binary_position'  => 'left',
     ], null);
 
     return Member::find((int) $result['user_id']) ?? [];

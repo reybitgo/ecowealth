@@ -519,6 +519,7 @@ return [
                 'package_id'       => '',
                 'reg_code'         => '',
                 'terms'            => true,
+                'binary_position'  => 'left',
             ], null);
 
             assert_true((int) ($created['user_id'] ?? 0) > 0, 'registration ' . $i . ' succeeded');

@@ -208,12 +208,15 @@ return [
         assert_contains('value="code"', $html);
     },
 
-    'P9-T18 the register form has no binary placement field' => function () use ($renderRegister): void {
+    'P9-T18 the register form renders the binary placement block' => function () use ($renderRegister): void {
         $html = $renderRegister();
 
-        foreach (['binary_parent', 'binary_position', 'upline_username', 'position_mode'] as $needle) {
-            assert_not_contains($needle, $html);
-        }
+        assert_contains('name="binary_upline"', $html);
+        assert_contains('name="binary_position"', $html);
+        assert_contains('value="left"', $html);
+        assert_contains('value="right"', $html);
+        assert_contains('required', $html);
+        assert_contains('Your upline in the binary tree', $html);
     },
 
     /* ---------- Membership page (P9-T9 … T11) --------------------- */

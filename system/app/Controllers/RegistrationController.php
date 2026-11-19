@@ -100,6 +100,11 @@ final class RegistrationController
             ]);
         }
 
+        $placement = new BinaryPlacementService();
+        $slots     = $placement->isEnabled()
+            ? $placement->freeSlotsInSubtree((int) $sponsor['id'], 20)
+            : [];
+
         json_response([
             'ok'            => true,
             'valid'         => true,
@@ -107,6 +112,13 @@ final class RegistrationController
             'username'      => (string) $sponsor['username'],
             'referral_code' => (string) ($sponsor['referral_code'] ?? ''),
             'package_name'  => $sponsor['package_name'] === null ? null : (string) $sponsor['package_name'],
+            'slots'         => $slots,
+            'suggested'     => $slots !== []
+                ? [
+                    'upline_id' => (int) $slots[0]['upline_id'],
+                    'side'      => (string) $slots[0]['side'],
+                ]
+                : null,
         ]);
     }
 

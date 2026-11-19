@@ -77,6 +77,7 @@ return [
             'package_id'       => '',
             'reg_code'         => '',
             'terms'            => true,
+            'binary_position'  => 'left',
         ], null);
 
         $newId = (int) $result['user_id'];

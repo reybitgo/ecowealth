@@ -41,6 +41,8 @@ if (is_post()) {
         'package_id'       => (string) ($_POST['package_id'] ?? ''),
         'reg_code'         => (string) ($_POST['reg_code'] ?? ''),
         'terms'            => !empty($_POST['terms']),
+        'binary_upline'    => (string) ($_POST['binary_upline'] ?? ''),
+        'binary_position'  => strtolower((string) ($_POST['binary_position'] ?? '')),
     ];
 
     try {
@@ -67,6 +69,7 @@ if (is_post()) {
         Live::publish(['admin.dashboard', Live::GENEALOGY_TEAM]);
 
         $package = (string) ($result['package_name'] ?? '');
+        $return  = trim((string) ($_GET['return'] ?? $_POST['return'] ?? ''));
 
         if ($registrar !== null) {
             flash_set('success', sprintf(
@@ -75,6 +78,10 @@ if (is_post()) {
                 $package === '' ? '' : ' and activated with ' . $package,
                 (string) $registrar['username']
             ));
+
+            if ($return === 'genealogy') {
+                redirect('genealogy');
+            }
 
             redirect(is_admin($registrar) ? 'admin/members' : 'dashboard');
         }
@@ -109,14 +116,16 @@ if (is_post()) {
      * two identical banners (fixed after the Phase 9 QA pass). */
     errors_set($errors);
     old_set([
-        'mode'       => $input['mode'],
-        'username'   => $input['username'],
-        'email'      => $input['email'],
-        'full_name'  => $input['full_name'],
-        'phone'      => $input['phone'],
-        'sponsor'    => $input['sponsor'],
-        'package_id' => $input['package_id'],
-        'reg_code'   => $input['reg_code'],
+        'mode'            => $input['mode'],
+        'username'        => $input['username'],
+        'email'           => $input['email'],
+        'full_name'       => $input['full_name'],
+        'phone'           => $input['phone'],
+        'sponsor'         => $input['sponsor'],
+        'package_id'      => $input['package_id'],
+        'reg_code'        => $input['reg_code'],
+        'binary_upline'   => $input['binary_upline'],
+        'binary_position' => $input['binary_position'],
     ]);
 
     redirect('register');
