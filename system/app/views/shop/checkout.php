@@ -256,6 +256,10 @@ $live = $live ?? [
     'state'         => $state,
     'wallet'        => $wallet,
     'bonus_preview' => $bonus_preview ?? null,
+    'binary_preview'  => $binary_preview ?? null,
+    'binary_position' => $binary_position ?? '',
+    'is_placed'       => $is_placed ?? false,
+    'stream_on'       => $stream_on ?? false,
 ]) ?>
                       <div class="card-body pt-0">
                         <button

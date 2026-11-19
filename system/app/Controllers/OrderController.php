@@ -400,6 +400,9 @@ final class OrderController
                 'member-order-bonus' => View::capture('shop/order/_bonus', [
                     'order' => $order,
                 ]),
+                'member-order-binary' => View::capture('shop/order/_binary', [
+                    'order' => $order,
+                ]),
                 'member-order-history' => View::capture('shop/order/_history', [
                     'events' => $data['events'],
                 ]),

@@ -13,9 +13,11 @@ declare(strict_types=1);
  * @var array{key: string, label: string, tone: string} $stock
  * @var bool                 $shop_open
  * @var array<string, mixed>|null $bonus  UnilevelService::quoteLine() + totals, or null
+ * @var bool                 $stream_on BinaryService::enabled()
  */
 
 $bonus   = $bonus ?? null;
+$stream_on = (bool) ($stream_on ?? false);
 $image   = UploadService::url($product['image_url'] ?? null);
 $soldOut = $stock['key'] === 'out';
 $sku     = trim((string) ($product['sku'] ?? ''));
@@ -121,5 +123,7 @@ $sku     = trim((string) ($product['sku'] ?? ''));
 <?= View::capture('shop/product/_bonus', ['bonus' => $bonus]) ?>
                 </div>
 <?php endif; ?>
+
+<?= View::capture('shop/product/_binary', ['product' => $product, 'stream_on' => $stream_on]) ?>
               </div>
               </div>

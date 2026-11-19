@@ -152,6 +152,7 @@ final class DashboardController
             'royalty'          => $this->royaltySummary($userId),
             'team_harvest'     => $this->teamHarvestSummary($userId),
             'general_harvest'  => $this->generalHarvestSummary($userId),
+            'binary'           => $this->binarySummary($userId),
             'referral_code'    => (string) ($member['referral_code'] ?? ''),
             'referral_link'    => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
         ];
@@ -204,6 +205,31 @@ final class DashboardController
             return (new GeneralHarvestService())->statusFor($userId);
         } catch (Throwable $e) {
             error_log('[ecowealth] general harvest dashboard tile unavailable: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * The Product binary tile's figures (22F-S3, plan §14, Appendix C.5).
+     *
+     * The read is `BinaryService::totalsFor()` — the same read the member's
+     * binary statement uses — so the tile can never show a balance the
+     * ledger would not report. Wrapped so a missing table or a bad read
+     * hides the tile, never the page.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function binarySummary(int $userId): ?array
+    {
+        if (!BinaryService::enabled()) {
+            return null;
+        }
+
+        try {
+            return (new BinaryService())->totalsFor($userId);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] binary dashboard tile unavailable: ' . $e->getMessage());
 
             return null;
         }

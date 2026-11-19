@@ -107,6 +107,9 @@ final class CheckoutController
             'posted'          => old_payload(),
             'bonus_preview'   => $this->bonusPreview($state['items'] ?? []),
             'binary_preview'  => $this->binaryPreview($state['items'] ?? []),
+            'binary_position' => (string) (old_payload()['binary_position'] ?? ''),
+            'is_placed'       => BinaryNode::forUser($userId) !== null,
+            'stream_on'       => BinaryService::enabled(),
         ];
     }
 
@@ -290,6 +293,10 @@ final class CheckoutController
                     'state'         => $data['state'],
                     'wallet'        => $data['wallet'],
                     'bonus_preview' => $data['bonus_preview'] ?? null,
+                    'binary_preview'  => $data['binary_preview'] ?? null,
+                    'binary_position' => $data['binary_position'] ?? '',
+                    'is_placed'       => $data['is_placed'] ?? false,
+                    'stream_on'       => $data['stream_on'] ?? false,
                 ]),
                 'checkout-payment' => View::capture('shop/checkout/_payment', [
                     'payment_methods' => $data['payment_methods'],

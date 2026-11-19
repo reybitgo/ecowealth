@@ -15,10 +15,18 @@ declare(strict_types=1);
  * } $state
  * @var array{balance:float, withdrawable:float} $wallet
  * @var array<string, mixed>|null $bonus_preview repeat-purchase preview (17E)
+ * @var array<string, mixed>|null $binary_preview product-binary preview (22F-S3)
+ * @var string $binary_position posted position value ('' | 'left' | 'right')
+ * @var bool $is_placed the member has a binary node
+ * @var bool $stream_on BinaryService::enabled()
  */
 
 $state  = $state ?? ['items' => [], 'totals' => ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0]];
 $wallet = $wallet ?? ['balance' => 0.0, 'withdrawable' => 0.0];
+$binary_preview  = $binary_preview  ?? null;
+$binary_position = $binary_position ?? '';
+$is_placed       = (bool) ($is_placed ?? false);
+$stream_on       = (bool) ($stream_on ?? false);
 
 $items    = $state['items'] ?? [];
 $totals   = $state['totals'] ?? ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0];
@@ -66,4 +74,11 @@ $subtotal = (float) ($totals['subtotal'] ?? 0);
                         </div>
 
 <?= View::capture('shop/checkout/_bonus', ['bonus_preview' => $bonus_preview ?? null]) ?>
+
+<?= View::capture('shop/checkout/_binary', [
+    'binary_preview'  => $binary_preview,
+    'binary_position' => $binary_position,
+    'is_placed'       => $is_placed,
+    'stream_on'       => $stream_on,
+]) ?>
                       </div>

@@ -67,5 +67,6 @@ $live = $live ?? [
     'stock'     => $stock,
     'shop_open' => $shop_open,
     'bonus'     => $bonus ?? null,
+    'stream_on' => BinaryService::enabled(),
 ]) ?>
             </div>

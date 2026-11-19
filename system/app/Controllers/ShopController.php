@@ -289,6 +289,7 @@ final class ShopController
             'stock'     => StockService::label($available),
             'shop_open' => setting_bool('shop_enabled', true),
             'bonus'     => $this->productBonus($product),
+            'stream_on' => BinaryService::enabled(),
         ];
     }
 

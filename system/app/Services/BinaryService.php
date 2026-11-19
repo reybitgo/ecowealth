@@ -760,12 +760,15 @@ final class BinaryService
      * The own-node pair outcome for one chosen side: how many pairs the
      * buyer's node would make and how much they would pay. Read-only.
      *
+     * @param int $buyerId the member whose node balances are matched against;
+     *                     0 means "no buyer context" — points are reported
+     *                     but pairs stay 0 (backward-compatible).
      * @return array{
      *   side:string, points:int, pairs:int, amount:float,
      *   left:int, right:int, carry_left:int, carry_right:int
      * }
      */
-    public function quotePosition(array $lines, string $side, ?PDO $pdo = null): array
+    public function quotePosition(array $lines, string $side, ?PDO $pdo = null, int $buyerId = 0): array
     {
         $this->bind($pdo);
 
@@ -826,10 +829,67 @@ final class BinaryService
         }
 
         if ($points <= 0) {
-            return $empty;
+            return $empty + ['points' => 0];
         }
 
-        return $empty;
+        /* No buyer context: report the points, but pairs cannot be
+         * computed without a node to match against. */
+        if ($buyerId <= 0) {
+            return [
+                'side'         => $side,
+                'points'       => $points,
+                'pairs'        => 0,
+                'amount'       => 0.0,
+                'left'         => 0,
+                'right'        => 0,
+                'carry_left'   => 0,
+                'carry_right'  => 0,
+            ];
+        }
+
+        $node = BinaryNode::forUser($buyerId, $this->pdo);
+
+        if ($node === null) {
+            return [
+                'side'         => $side,
+                'points'       => $points,
+                'pairs'        => 0,
+                'amount'       => 0.0,
+                'left'         => 0,
+                'right'        => 0,
+                'carry_left'   => 0,
+                'carry_right'  => 0,
+            ];
+        }
+
+        $pairPoints = (int) setting_int('binary_pair_points', 1000);
+        $pairPct    = round((float) setting_float('binary_pair_pct', 10.0), 3);
+        $perPair    = round($pairPoints * $pairPct / 100, 2);
+
+        $currentLeft  = (int) ($node['left_points']  ?? 0);
+        $currentRight = (int) ($node['right_points'] ?? 0);
+
+        if ($side === 'left') {
+            $newLeft  = $currentLeft + $points;
+            $newRight = $currentRight;
+        } else {
+            $newLeft  = $currentLeft;
+            $newRight = $currentRight + $points;
+        }
+
+        $pairs = (int) min(floor($newLeft / $pairPoints), floor($newRight / $pairPoints));
+        $amount = round($pairs * $perPair, 2);
+
+        return [
+            'side'         => $side,
+            'points'       => $points,
+            'pairs'        => $pairs,
+            'amount'       => $amount,
+            'left'         => $currentLeft,
+            'right'        => $currentRight,
+            'carry_left'   => max(0, $newLeft - $pairs * $pairPoints),
+            'carry_right'  => max(0, $newRight - $pairs * $pairPoints),
+        ];
     }
 
     /* ----------------------------------------------------------
