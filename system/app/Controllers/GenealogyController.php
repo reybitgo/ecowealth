@@ -63,8 +63,21 @@ final class GenealogyController
         $userId  = (int) $user['id'];
         $isAdmin = is_admin($user);
 
-        /* The same URL doubles as the JSON feed. The page key is per user;
-         * the shared team revision is part of the ETag scope. */
+        /* Phase 22G: binary tree JSON feed — same route, ?view=binary&format=json.
+         * The sponsor view is never affected by this branch. */
+        if (Request::string('view') === 'binary' && Request::string('format') === 'json') {
+            try {
+                $payload = $this->binaryJson($userId, $isAdmin);
+                Live::json($payload['etag'], $payload);
+            } catch (BinaryException $e) {
+                Live::jsonError($e->getMessage(), 403);
+            } catch (Throwable $e) {
+                error_log('[ecowealth] binary tree feed failed: ' . $e->getMessage());
+                Live::jsonError('Could not load the binary tree. Please try again.', 500);
+            }
+            return;
+        }
+
         if (Live::isFeedRequest()) {
             $this->feed($userId);
             return;
@@ -86,6 +99,36 @@ final class GenealogyController
                 $this->genealogyScope($userId)
             ),
         ]);
+    }
+
+    /**
+     * JSON feed payload for the binary genealogy tree.
+     *
+     * Privacy: a member may request only their own subtree; an admin any
+     * node. ETag + If-None-Match gives 304 for an unchanged subtree.
+     *
+     * @return array<string, mixed>
+     * @throws BinaryException when the viewer is not allowed to see the root
+     */
+    public function binaryJson(int $userId, bool $isAdmin): array
+    {
+        session_write_close();
+
+        $rootId  = (int) Request::query('root', $userId);
+        $depth   = (int) Request::query('depth', BinaryTreeService::DEFAULT_DEPTH);
+
+        $service = new BinaryTreeService();
+        $scope   = $service->etagScope($rootId, $depth, $userId, $isAdmin);
+        $etag    = Live::etag('member.binary:' . $rootId, 0, $scope);
+
+        if (Live::matchesIfNoneMatch(Request::header('If-None-Match'), $etag)) {
+            Live::notModified($etag);
+        }
+
+        $payload = $service->subtree($rootId, $depth, $userId, $isAdmin);
+        $payload['etag'] = $etag;
+
+        return $payload;
     }
 
     /**

@@ -133,6 +133,26 @@ final class Live
     public const CONFIG = 'config';
 
     /**
+     * The product-binary live surface (`member.binary:42`).
+     *
+     * Bumped by BinaryService on every award/volume write and by
+     * BinaryPlacementService on every placement, so an open binary tree
+     * refreshes its points and pairs without reloading.
+     */
+    public const BINARY = 'binary';
+
+    /**
+     * The viewer's own binary surface (`member.binary:42`).
+     *
+     * One surface per viewer: one member's award never refreshes another
+     * member's open tree.
+     */
+    public static function binarySurface(int $userId): string
+    {
+        return 'member.binary:' . max(0, $userId);
+    }
+
+    /**
      * Bump the admin package list, the member package page and the shared
      * configuration revision.
      *
