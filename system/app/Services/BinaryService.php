@@ -231,6 +231,25 @@ final class BinaryService
             throw BinaryException::positionRequired();
         }
 
+        /* The company root is never paid and its own purchases place no
+         * points (D-02). Stamp zeros and stop before any volume or award
+         * is written for the root. */
+        $companyId = (int) (Member::primaryAdmin($this->pdo)['id'] ?? 0);
+        if ($companyId > 0 && $buyerId === $companyId) {
+            $this->stamp($orderId, 0, 0, 0.0, 0.0);
+
+            return $this->result($orderId, [
+                'processed' => true,
+                'replayed'  => false,
+                'reason'    => 'company account',
+                'points'    => 0,
+                'self'      => 0.0,
+                'pair'      => 0.0,
+                'pair_count'=> 0,
+                'awards'    => [],
+            ]);
+        }
+
         /* The buyer's side for the own row; the side each ancestor sees
          * is the letter of the buyer's path at that ancestor's depth. */
         $buyerSide = $position;
@@ -275,7 +294,6 @@ final class BinaryService
          * (plan §16.7, §14.10 rule 1). */
         $period     = UnilevelCycle::periodOf($paidAt);
         $previous   = UnilevelCycle::previous($period);
-        $companyId  = (int) (Member::primaryAdmin($this->pdo)['id'] ?? 0);
         $requiresActive = setting_bool('binary_requires_active', true);
         $activeMap  = $requiresActive
             ? UnilevelCycle::activeMap(array_keys(array_combine($ids, $ids)), $period, $this->pdo)
