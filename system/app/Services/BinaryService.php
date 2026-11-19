@@ -152,7 +152,6 @@ final class BinaryService
         )));
 
         $products = Product::rowsFor($productIds, $this->pdo);
-        $statuses   = Product::binaryStatusMap($productIds);
 
         $globalOn   = self::enabled();
         $position   = (string) ($order['binary_position'] ?? '');
@@ -169,7 +168,6 @@ final class BinaryService
         foreach ($items as $item) {
             $productId = (int) $item['product_id'];
             $product   = $products[$productId] ?? null;
-            $status    = $statuses[$productId] ?? ['binary_enabled' => 0, 'points' => 0];
 
             if ($product === null) {
                 error_log(sprintf(
@@ -179,7 +177,7 @@ final class BinaryService
                 continue;
             }
 
-            if ((int) $status['binary_enabled'] !== 1 || !$globalOn) {
+            if ((int) ($product['binary_enabled'] ?? 0) !== 1 || !$globalOn) {
                 continue;
             }
 
@@ -299,10 +297,24 @@ final class BinaryService
             ? UnilevelCycle::activeMap(array_keys(array_combine($ids, $ids)), $period, $this->pdo)
             : [];
 
+        /* Members resolved once for the whole chain, in one batch
+         * (plan §16.7: never a query per level). */
+        $members = [];
+        if ($ids !== []) {
+            $marks = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $this->pdo->prepare(
+                'SELECT * FROM users WHERE id IN (' . $marks . ')'
+            );
+            $stmt->execute($ids);
+            foreach ($stmt->fetchAll() as $row) {
+                $members[(int) $row['id']] = $row;
+            }
+        }
+
         $eligibility = [];
         foreach ($nodeList as $entry) {
             $id = (int) ($entry['node']['user_id'] ?? 0);
-            $member = Member::find($id, $this->pdo);
+            $member = $members[$id] ?? null;
 
             $reason = '';
 
@@ -371,8 +383,27 @@ final class BinaryService
             }
         }
 
-        foreach ($volumeRows as $row) {
-            BinaryVolume::create($row, $this->pdo);
+        /* Volume rows: one batched INSERT (one statement, not one per row;
+         * plan §16.6 — one volume batch). $volumeRows is validated by
+         * construction: side/kind come from the domain constants, points
+         * are non-zero, and own rows are anchored to the first item. */
+        if ($volumeRows !== []) {
+            $cols = [
+                'node_user_id', 'side', 'kind', 'points', 'order_id',
+                'order_item_id', 'buyer_id', 'award_id', 'note', 'created_by',
+            ];
+            $marks = [];
+            $params = [];
+            foreach ($volumeRows as $row) {
+                $marks[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                foreach ($cols as $col) {
+                    $params[] = $row[$col] ?? null;
+                }
+            }
+            $this->pdo->prepare(
+                'INSERT INTO binary_volume (' . implode(', ', $cols) . ')
+                 VALUES ' . implode(', ', $marks)
+            )->execute($params);
         }
 
         /* Update the node caches: buyer's own side + every ancestor's
@@ -390,11 +421,41 @@ final class BinaryService
             $cacheUpdates[$key]['delta'] += (int) $row['points'];
         }
 
-        foreach ($cacheUpdates as $update) {
-            $column = $update['side'] === 'left' ? 'left_points' : 'right_points';
+        /* Node-cache updates: one batched UPDATE (CASE per touched node,
+         * one statement, not one per node). */
+        if ($cacheUpdates !== []) {
+            $leftPairs   = [];
+            $rightPairs  = [];
+            $leftParams  = [];
+            $rightParams = [];
+            $userIds     = [];
+            foreach ($cacheUpdates as $update) {
+                $userId = (int) $update['user_id'];
+                $userIds[] = $userId;
+                if ($update['side'] === 'left') {
+                    $leftPairs[] = 'WHEN ? THEN left_points + ?';
+                    $leftParams[] = $userId;
+                    $leftParams[] = (int) $update['delta'];
+                    $rightPairs[] = 'WHEN ? THEN right_points + ?';
+                    $rightParams[] = $userId;
+                    $rightParams[] = 0;
+                } else {
+                    $leftPairs[] = 'WHEN ? THEN left_points + ?';
+                    $leftParams[] = $userId;
+                    $leftParams[] = 0;
+                    $rightPairs[] = 'WHEN ? THEN right_points + ?';
+                    $rightParams[] = $userId;
+                    $rightParams[] = (int) $update['delta'];
+                }
+            }
+            $marks = implode(',', array_fill(0, count($userIds), '?'));
             $this->pdo->prepare(
-                'UPDATE binary_nodes SET ' . $column . ' = ' . $column . ' + ?, updated_at = NOW() WHERE user_id = ?'
-            )->execute([$update['delta'], $update['user_id']]);
+                'UPDATE binary_nodes
+                   SET left_points  = CASE user_id ' . implode(' ', $leftPairs) . ' ELSE left_points END,
+                       right_points = CASE user_id ' . implode(' ', $rightPairs) . ' ELSE right_points END,
+                       updated_at   = NOW()
+                 WHERE user_id IN (' . $marks . ')'
+            )->execute(array_merge($leftParams, $rightParams, $userIds));
         }
 
         /* Personal points for the buyer (immutability rule in 22C). */
@@ -2325,8 +2386,6 @@ final class BinaryService
         foreach (array_keys($recipients) as $userId) {
             Live::touchEarnings((int) $userId);
             Live::touchMemberDashboard((int) $userId);
-            Live::touchMembership((int) $userId);
-            Live::touchMemberWallet((int) $userId);
         }
 
         Live::touch('admin.commissions');

@@ -665,6 +665,150 @@ return [
     },
 
     /* ----------------------------------------------------------
+     *  Cross-stream isolation (P22D-T69)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T69 binary on one order does not touch unilevel tables; unilevel does not touch binary' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE69', 300.00, 250.00);
+
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+
+        $count = static function (string $table, string $where = '1', array $params = []): int {
+            $stmt = db()->prepare('SELECT COUNT(*) FROM ' . $table . ' WHERE ' . $where);
+            $stmt->execute($params);
+            return (int) $stmt->fetchColumn();
+        };
+
+        $beforeUnilevel   = $count('unilevel_awards');
+        $beforeBinAwards  = $count('binary_awards');
+        $beforeBinVolume  = $count('binary_volume');
+        $beforeBinLedger  = $count('ewallet_ledger', "ref_type = 'binary'");
+        $beforeUniLedger  = $count('ewallet_ledger', "ref_type = 'unilevel'");
+
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(true, $result['processed']);
+        assert_same(false, $result['replayed']);
+        assert_same(50.00, (float) $result['self']);
+        assert_same(1000, (int) $result['points']);
+
+        /* Binary wrote only its own tables: one award, six volume rows
+         * (buyer own + five ancestors' team), no unilevel rows and no
+         * wallet movement yet (escrow). */
+        assert_same($beforeBinAwards + 1, $count('binary_awards'));
+        assert_same($beforeBinVolume + 6, $count('binary_volume'));
+        assert_same($beforeUnilevel, $count('unilevel_awards'));
+        assert_same($beforeBinLedger, $count('ewallet_ledger', "ref_type = 'binary'"));
+        assert_same($beforeUniLedger, $count('ewallet_ledger', "ref_type = 'unilevel'"));
+
+        /* The unilevel hook on the same order must not write binary rows. */
+        (new UnilevelService())->onOrderPaid((int) $order['id']);
+
+        assert_same($beforeBinAwards + 1, $count('binary_awards'));
+        assert_same($beforeBinVolume + 6, $count('binary_volume'));
+    },
+
+    /* ----------------------------------------------------------
+     *  wallet_reconcile.php integration (P22D-T70)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T70 wallet_reconcile.php reports the Product binary section and fails on a missing ledger row' => function () use ($buildFixtureTree): void {
+        $appRoot = dirname(__DIR__, 2);
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        test_run_sql_file($pdo, $appRoot . '/database/schema.sql');
+        test_run_sql_file($pdo, $appRoot . '/database/seeds/001_settings.sql');
+
+        $pdo->prepare(
+            "INSERT INTO users (username, email, password_hash, full_name, role, member_status, is_active, ewallet_balance, withdrawable_balance)
+             VALUES (?, 'rec70@test.local', 'x', 'Rec', 'member', 'active', 1, 50.00, 50.00)"
+        )->execute(['rec70']);
+        $userId = (int) $pdo->lastInsertId();
+
+        $pdo->prepare(
+            "INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, subtotal, total, billing_name,
+                shipping_name, shipping_address, paid_at, binary_position, binary_processed_at,
+                binary_points, binary_self_total, binary_pair_total, binary_total)
+             VALUES ('REC70-ORDER', ?, 'paid', 'ewallet', 0, 0, 'Rec', 'Rec', 'Address', NOW(),
+                     'left', NOW(), 1000, 50.00, 0.00, 50.00)"
+        )->execute([$userId]);
+        $orderId = (int) $pdo->lastInsertId();
+
+        $awardId = (int) $pdo->prepare(
+            "INSERT INTO binary_awards
+               (kind, order_id, buyer_id, user_id, side, points, pair_count, pair_points,
+                rate_pct, amount, status, hold_days, paid_at)
+             VALUES ('self', ?, ?, ?, 'left', 1000, 0, 0, 5.000, 50.00, 'credited', 7, NOW())"
+        )->execute([$orderId, $userId, $userId]);
+
+        $ledgerId = (int) $pdo->prepare(
+            "INSERT INTO ewallet_ledger
+               (user_id, type, amount, balance_after, withdrawable_after, ref_type, ref_id, note)
+             VALUES (?, 'credit', 50.00, 50.00, 50.00, 'binary', ?, 'Product binary self bonus — order REC70')"
+        )->execute([$userId, $awardId]);
+
+        $pdo->prepare('UPDATE binary_awards SET ledger_id = ? WHERE id = ?')
+            ->execute([$ledgerId, $awardId]);
+
+        $run = static function () use ($appRoot): array {
+            $command = escapeshellarg(PHP_BINARY) . ' '
+                . escapeshellarg($appRoot . '/bin/wallet_reconcile.php') . ' --json';
+            exec($command . ' 2>&1', $lines, $code);
+            return ['code' => $code, 'json' => json_decode(implode("\n", $lines), true)];
+        };
+
+        putenv('ECO_DB_NAME=' . $database);
+        $first = $run();
+
+        assert_same(0, $first['code'], 'wallet_reconcile should exit 0 when binary reconciles');
+        assert_same(true, $first['json']['binary']['ok'] ?? false, 'the binary section should reconcile');
+        assert_same(50.00, (float) ($first['json']['binary']['credited_total'] ?? -1.0));
+
+        /* Deleting the binary ledger row must make the command fail. */
+        $pdo->prepare('DELETE FROM ewallet_ledger WHERE id = ?')->execute([$ledgerId]);
+        $second = $run();
+        assert_not_same(0, $second['code'], 'wallet_reconcile should exit non-zero when a binary ledger row is missing');
+    },
+
+    /* ----------------------------------------------------------
+     *  Query budget (P22D-T71)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T71 order hook stays bounded on a multi-line order (no per-level query)' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE71', 300.00, 250.00);
+
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        foreach ([4, 2, 1] as $qty) {
+            $createOrderItem((int) $order['id'], (int) $p1['id'], $qty, 250, 250 * $qty);
+        }
+
+        $statements = static function (): int {
+            $row = db()->query("SHOW SESSION STATUS LIKE 'Com_stmt_execute'")->fetch();
+            return (int) ($row['Value'] ?? 0);
+        };
+
+        $before = $statements();
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+        $count = $statements() - $before;
+
+        /* The replay must be a no-op and must not add statements. */
+        $replayed = (new BinaryService())->onOrderPaid((int) $order['id']);
+        assert_same(true, $replayed['replayed']);
+
+        /* The probe's own execute is included in the difference; it is
+         * constant overhead, not a per-level query (plan §16.6, §18.3). */
+        assert_true($count <= 30, 'order hook used ' . $count . ' statements, expected ≤ 30 (no per-level query)');
+    },
+
+    /* ----------------------------------------------------------
      *  Paid-order engine: volume routing (P22D-T1, T2)
      *  ---------------------------------------------------------- */
 

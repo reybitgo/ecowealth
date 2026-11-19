@@ -290,24 +290,6 @@ final class Product
         }
 
         $marks = implode(',', array_fill(0, count($ids), '?'));
-        $stmt  = ($pdo ?? db())->prepare(
-            'SELECT id, name, price, pv, unilevel_enabled, unilevel_base
-               FROM products WHERE id IN (' . $marks . ')'
-        );
-        $stmt->execute($ids);
-
-        $rows = [];
-
-        foreach ($stmt->fetchAll() as $row) {
-            $rows[(int) $row['id']] = [
-                'id'               => (int) $row['id'],
-                'name'             => (string) $row['name'],
-                'price'            => (string) $row['price'],
-                'pv'               => (string) $row['pv'],
-                'unilevel_enabled' => (int) $row['unilevel_enabled'],
-                'unilevel_base'    => (string) $row['unilevel_base'],
-            ];
-        }
 
         $stmt  = ($pdo ?? db())->prepare(
             'SELECT id, name, price, pv, binary_enabled, unilevel_enabled, unilevel_base

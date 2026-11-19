@@ -45,6 +45,10 @@ declare(strict_types=1);
  *       `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)`,
  *       and the ladder's ten priced rows. The stream being off or
  *       unarmed is a warning, never a failure.
+ *    9. Product binary — every credited/voided award against its `binary`
+ *       credit, every reversal against `binary_reversal`, the order headline
+ *       totals and the idempotency stamp (plan §16.10). A stuck release is a
+ *       warning — a delay is not a books error.
  *
  *  Nothing is repaired: a mismatch means a balance or an award was
  *  written outside its service and needs a human looking at it.
@@ -86,13 +90,15 @@ try {
     $royalty      = (new RoyaltyService())->reconcile();
     $teamHarvest  = (new TeamHarvestService())->reconcile();
     $generalHarvest = (new GeneralHarvestService())->reconcile();
+    $binary       = (new BinaryService())->reconcile();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
     exit(2);
 }
 
 $ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok']
-    && $unilevel['ok'] && $royalty['ok'] && $teamHarvest['ok'] && $generalHarvest['ok'];
+    && $unilevel['ok'] && $royalty['ok'] && $teamHarvest['ok'] && $generalHarvest['ok']
+    && $binary['ok'];
 
 $format = static fn (mixed $value): string => $value === null
     ? '—'
@@ -111,6 +117,7 @@ if (isset($options['json'])) {
             'royalty'      => $royalty,
             'team_harvest' => $teamHarvest,
             'general_harvest' => $generalHarvest,
+            'binary'       => $binary,
         ],
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
     ) . PHP_EOL;
@@ -505,9 +512,65 @@ if ($generalHarvest['ok']) {
 
 echo PHP_EOL;
 
+echo 'Product binary', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $binary['credited_rows'],
+    $format($binary['credited_total']),
+    PHP_EOL
+);
+printf(
+    "  pending awards:    %d (%s) — earned, not in a wallet yet%s",
+    $binary['pending_rows'] ?? 0,
+    $format($binary['pending_total'] ?? 0),
+    PHP_EOL
+);
+printf(
+    "  cancelled awards:  %d (%s) — order cancelled before release, never paid%s",
+    $binary['cancelled_rows'] ?? 0,
+    $format($binary['cancelled_total'] ?? 0),
+    PHP_EOL
+);
+printf("  voided awards:     %d%s", $binary['voided_rows'], PHP_EOL);
+printf(
+    "  awarded total:     %s (pending + credited)%s",
+    $format($binary['ever_credited_total']),
+    PHP_EOL
+);
+printf("  binary ledger:     %s%s", $format($binary['ledger_total']), PHP_EOL);
+printf("  reversals:         %s%s", $format($binary['reversal_total']), PHP_EOL);
+
+if (($binary['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy movements:  %d (%s) — product-binary movements before the award history began%s",
+        (int) $binary['legacy_rows'],
+        $format($binary['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($binary['ok']) {
+    echo '  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($binary['mismatches']), PHP_EOL);
+
+    foreach ($binary['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
 if ($ok) {
     echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty,'
-        . ' team-harvest and general-harvest awards reconcile.', PHP_EOL;
+        . ' team-harvest, general-harvest and product-binary awards reconcile.', PHP_EOL;
     exit(0);
 }
 
