@@ -1788,6 +1788,7 @@ final class DatabaseResetService
             'royalty'      => ['label' => 'Royalty reconciliation', 'service' => 'RoyaltyService'],
             'team_harvest' => ['label' => 'Team Harvest reconciliation', 'service' => 'TeamHarvestService'],
             'general_harvest' => ['label' => 'General Harvest reconciliation', 'service' => 'GeneralHarvestService'],
+            'binary' => ['label' => 'Product binary points', 'service' => 'BinaryService'],
         ];
 
         foreach ($services as $key => $meta) {
@@ -1804,6 +1805,7 @@ final class DatabaseResetService
                     'royalty'      => (new RoyaltyService($this->pdo))->reconcile(),
                     'team_harvest' => (new TeamHarvestService($this->pdo))->reconcile(),
                     'general_harvest' => (new GeneralHarvestService($this->pdo))->reconcile(),
+                    'binary' => (new BinaryService($this->pdo))->reconcile(),
                 };
 
                 $ok = (bool) ($result['ok'] ?? false);

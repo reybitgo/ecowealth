@@ -38,6 +38,7 @@ final class OrderService
     private CartService $carts;
     private InvoiceService $invoices;
     private UnilevelService $unilevel;
+    private BinaryService $binary;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -46,6 +47,7 @@ final class OrderService
         $this->carts    = new CartService($this->pdo);
         $this->invoices = new InvoiceService($this->pdo);
         $this->unilevel = new UnilevelService($this->pdo);
+        $this->binary   = new BinaryService($this->pdo);
     }
 
     /* ----------------------------------------------------------
@@ -74,6 +76,7 @@ final class OrderService
             'notes_member'      => 'nullable|string|max:500',
             'payment_method'    => 'required|in:ewallet,gcash,maya,bank',
             'idempotency_key'   => 'nullable|string|max:64',
+            'binary_position'   => 'nullable|in:left,right',
         ], [
             'billing_name'      => 'Billing name',
             'billing_phone'     => 'Billing phone',
@@ -86,6 +89,7 @@ final class OrderService
             'shipping_postal'   => 'Postal code',
             'notes_member'      => 'Delivery notes',
             'payment_method'    => 'Payment method',
+            'binary_position'   => 'Placement side',
         ]);
 
         if (trim((string) ($input['terms'] ?? '')) !== '1') {
@@ -201,6 +205,14 @@ final class OrderService
                      * pays (plan §12.3, D-06). */
                     $base = ProductUnilevel::baseFor($product, $quantity);
 
+                    /* Binary points are frozen on the line too: ROUND(pv)
+                     * per unit × quantity, snapshotted at placement
+                     * (plan §14.3). */
+                    $lp = BinaryService::linePoints(
+                        ['pv' => (string) $product['pv']],
+                        $quantity
+                    );
+
                     $lines[] = [
                         'product_id'   => $productId,
                         'product_name' => mb_substr((string) $product['name'], 0, 160),
@@ -210,6 +222,8 @@ final class OrderService
                         'line_total'   => $lineTotal,
                         'unit_base'    => $base['unit'],
                         'base_total'   => $base['total'],
+                        'unit_points'  => $lp['unit_points'],
+                        'points_total' => $lp['points_total'],
                     ];
                 }
 
@@ -219,6 +233,25 @@ final class OrderService
 
                 $shippingFee = self::SHIPPING_FEE;
                 $total       = round($subtotal + $shippingFee, 2);
+
+                /* Binary position: required when the cart carries points,
+                 * optional otherwise. Validate before the order exists
+                 * (plan §14.6 Rule 2). */
+                $binaryPosition = trim((string) ($input['binary_position'] ?? ''));
+                $orderPoints    = 0;
+
+                foreach ($lines as $line) {
+                    if ((int) ($products[(int) $line['product_id']]['binary_enabled'] ?? 0) === 1
+                        && (int) ($line['points_total'] ?? 0) > 0) {
+                        $orderPoints += (int) $line['points_total'];
+                    }
+                }
+
+                if ($orderPoints > 0 && $binaryPosition === '') {
+                    throw OrderException::validation([
+                        'binary_position' => 'Choose left or right for this order.',
+                    ]);
+                }
 
                 if ($paymentMethod === 'ewallet') {
                     $balance = round((float) $member['ewallet_balance'], 2);
@@ -240,7 +273,8 @@ final class OrderService
                     $shippingFee,
                     $total,
                     $input,
-                    $deadline
+                    $deadline,
+                    $binaryPosition
                 );
 
                 $orderNo = OrderNumber::make($orderId);
@@ -486,7 +520,7 @@ final class OrderService
         $marks = implode(',', array_fill(0, count($productIds), '?'));
 
         $stmt = $this->pdo->prepare(
-            'SELECT id, name, sku, price, pv, unilevel_enabled, unilevel_base, stock, status
+            'SELECT id, name, sku, price, pv, unilevel_enabled, unilevel_base, binary_enabled, stock, status
                FROM products
               WHERE id IN (' . $marks . ')
               ORDER BY id ASC
@@ -544,17 +578,19 @@ final class OrderService
         float $shippingFee,
         float $total,
         array $input,
-        ?string $paymentDeadline
+        ?string $paymentDeadline,
+        string $binaryPosition = ''
     ): int {
         $country = strtoupper(substr(trim((string) ($input['shipping_country'] ?? 'PH')), 0, 2)) ?: 'PH';
+        $position = $binaryPosition === '' ? null : $binaryPosition;
 
         $this->pdo->prepare(
             "INSERT INTO shop_orders
                (order_no, user_id, status, payment_method, idempotency_key, subtotal, shipping_fee, total,
                 billing_name, billing_phone, shipping_name, shipping_phone, shipping_address,
                 shipping_barangay, shipping_city, shipping_province, shipping_postal, shipping_country,
-                notes_member, terms_version, terms_accepted_at, payment_deadline)
-             VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)"
+                notes_member, terms_version, terms_accepted_at, payment_deadline, binary_position)
+             VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)"
         )->execute([
             'T' . bin2hex(random_bytes(9)),
             $userId,
@@ -576,6 +612,7 @@ final class OrderService
             $this->nullable((string) ($input['notes_member'] ?? ''), 500),
             self::TERMS_VERSION,
             $paymentDeadline,
+            $position,
         ]);
 
         return (int) $this->pdo->lastInsertId();
@@ -587,8 +624,8 @@ final class OrderService
         $stmt = $this->pdo->prepare(
             "INSERT INTO shop_order_items
                (order_id, product_id, product_name, product_sku, quantity, unit_price, line_total,
-                unit_base, base_total, reservation_state)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved')"
+                unit_base, base_total, unit_points, points_total, reservation_state)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved')"
         );
 
         foreach ($lines as $line) {
@@ -602,6 +639,8 @@ final class OrderService
                 $this->decimal((float) $line['line_total']),
                 $this->decimal((float) ($line['unit_base'] ?? 0)),
                 $this->decimal((float) ($line['base_total'] ?? 0)),
+                (int) ($line['unit_points'] ?? 0),
+                (int) ($line['points_total'] ?? 0),
             ]);
         }
     }

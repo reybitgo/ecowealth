@@ -667,13 +667,13 @@ final class Product
         $product = self::find($id);
 
         if ($product === null) {
-            return ['ok' => false, 'reason' => 'missing', 'orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0];
+            return ['ok' => false, 'reason' => 'missing', 'orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0, 'binary' => 0];
         }
 
         $refs = self::referencesMap([$id])[$id]
-            ?? ['orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0];
+            ?? ['orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0, 'binary' => 0];
 
-        if ($refs['orders'] > 0 || $refs['carts'] > 0 || $refs['packages'] > 0 || $refs['awards'] > 0) {
+        if ($refs['orders'] > 0 || $refs['carts'] > 0 || $refs['packages'] > 0 || $refs['awards'] > 0 || $refs['binary'] > 0) {
             return [
                 'ok'       => false,
                 'reason'   => 'referenced',
@@ -681,6 +681,7 @@ final class Product
                 'carts'    => $refs['carts'],
                 'packages' => $refs['packages'],
                 'awards'   => $refs['awards'],
+                'binary'   => $refs['binary'],
             ];
         }
 
@@ -719,7 +720,7 @@ final class Product
 
         $out = [];
         foreach ($ids as $id) {
-            $out[$id] = ['orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0];
+            $out[$id] = ['orders' => 0, 'carts' => 0, 'packages' => 0, 'awards' => 0, 'binary' => 0];
         }
 
         $tables = [
@@ -743,6 +744,25 @@ final class Product
 
             foreach ($stmt->fetchAll() as $row) {
                 $out[(int) $row['pid']][$key] = (int) $row['n'];
+            }
+        }
+
+        /* binary_awards has no product_id column: the link runs through
+         * shop_order_items (order_id → order_id → product_id). Count
+         * awards per product with a join. */
+        if (self::tableExists('binary_awards') && self::tableExists('shop_order_items')) {
+            $marks = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = db()->prepare(
+                'SELECT oi.product_id AS pid, COUNT(*) AS n
+                   FROM binary_awards ba
+                   JOIN shop_order_items oi ON oi.order_id = ba.order_id
+                  WHERE oi.product_id IN (' . $marks . ')
+                  GROUP BY oi.product_id'
+            );
+            $stmt->execute($ids);
+
+            foreach ($stmt->fetchAll() as $row) {
+                $out[(int) $row['pid']]['binary'] = (int) $row['n'];
             }
         }
 

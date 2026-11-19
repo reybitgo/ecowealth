@@ -10,8 +10,9 @@ declare(strict_types=1);
  *  is not allowed to place is a normal authorization answer, not an
  *  exception (that is handled at the HTTP layer in 22C-S4).
  *
- *      not_placed · slot_taken · immutable · cycle · state
- * ============================================================== */
+     *      not_placed · slot_taken · immutable · cycle · state
+     *      not_paid · position_required
+     * ============================================================== */
 
 final class BinaryException extends RuntimeException
 {
@@ -62,5 +63,17 @@ final class BinaryException extends RuntimeException
     public static function state(string $message): self
     {
         return new self($message, 'state');
+    }
+
+    /** The order is not paid yet, so no binary work can run. */
+    public static function notPaid(): self
+    {
+        return new self('The order is not paid; binary points and awards are written on payment only.', 'not_paid');
+    }
+
+    /** The cart carries points but no binary position was chosen at checkout. */
+    public static function positionRequired(): self
+    {
+        return new self('This order places points — choose left or right before placing it.', 'position_required');
     }
 }

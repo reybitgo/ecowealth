@@ -106,6 +106,7 @@ final class CheckoutController
             'terms_version'   => OrderService::TERMS_VERSION,
             'posted'          => old_payload(),
             'bonus_preview'   => $this->bonusPreview($state['items'] ?? []),
+            'binary_preview'  => $this->binaryPreview($state['items'] ?? []),
         ];
     }
 
@@ -140,6 +141,35 @@ final class CheckoutController
         $quote = (new UnilevelService())->quoteCart($lines);
 
         return ((float) ($quote['total'] ?? 0)) > 0 ? $quote : null;
+    }
+
+    /**
+     * The product-binary preview for this cart (22D-S1, §14.11).
+     *
+     * One batched `quoteCart()` call — one product query, never one per
+     * line. Read-only: no writes, no node or Active evaluation. The
+     * global switch is checked here so a disabled stream renders
+     * nothing (§14.16 Rule 7).
+     *
+     * @param list<array<string, mixed>> $items CartService::state()['items']
+     * @return array<string, mixed>|null
+     */
+    private function binaryPreview(array $items): ?array
+    {
+        if ($items === [] || !BinaryService::enabled()) {
+            return null;
+        }
+
+        $lines = [];
+
+        foreach ($items as $item) {
+            $lines[] = [
+                'product_id' => (int) ($item['product_id'] ?? 0),
+                'quantity'   => (int) ($item['quantity'] ?? 0),
+            ];
+        }
+
+        return (new BinaryService())->quoteCart($lines);
     }
 
     /**
@@ -325,6 +355,7 @@ final class CheckoutController
             'notes_member'      => Request::string('notes_member'),
             'payment_method'    => Request::string('payment_method'),
             'idempotency_key'   => Request::string('idempotency_key'),
+            'binary_position'   => Request::string('binary_position'),
             'terms'             => Request::post('terms') === '1' ? '1' : '',
             'save_address'      => Request::post('save_address') === '1',
         ];

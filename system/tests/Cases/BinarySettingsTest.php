@@ -418,6 +418,7 @@ return [
                 'payment_method'    => 'ewallet',
                 'idempotency_key'   => bin2hex(random_bytes(16)),
                 'terms'             => '1',
+                'binary_position'   => 'left',
             ]
         )['order_id'];
 
