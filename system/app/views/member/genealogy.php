@@ -47,6 +47,12 @@ $referral_code     = $referral_code ?? '';
 $referral_link     = $referral_link ?? '';
 $recruits_pager    = $recruits_pager ?? Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE);
 
+$view           = $view ?? null;
+$binary_root    = $binary_root ?? null;
+$binary_list    = $binary_list ?? [];
+$binary_depth   = $binary_depth ?? BinaryTreeService::DEFAULT_DEPTH;
+$binary_root_id = $binary_root_id ?? (int) ($member['id'] ?? 0);
+
 $live = $live ?? [
     'surface'  => Live::genealogySurface((int) ($member['id'] ?? 0)),
     'enabled'  => false,
@@ -65,31 +71,137 @@ $live = $live ?? [
             >
               <?= flash_render() ?>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                <div>
-                  <h4 class="mb-1">Genealogy</h4>
-                  <p class="text-body-secondary mb-0">
-                    Your team by level — direct recruits at level 1, their recruits at level 2, and so on.
-                    Commissions follow this chain — one sponsor per member.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
+<?php if ($view === 'binary'): ?>
+                <!-- ============================ Binary tree (Phase 22G-S2) ============================ -->
+                <?php
+                $tree       = (array) (($binary_root['tree'] ?? null));
+                $rootId     = (int) ($binary_root['root'] ?? $binary_root_id);
+                $viewerId   = (int) ($binary_root['viewer'] ?? $rootId);
+                $isAdmin    = (bool) ($binary_root['is_admin'] ?? false);
+                $canReg     = (bool) ($binary_root['can_register'] ?? false);
+                $truncated  = (bool) ($binary_root['truncated'] ?? false);
+                $nodes      = (int) ($binary_root['nodes'] ?? 0);
+                $etag       = (string) ($binary_root['etag'] ?? '');
+                $rootUser   = null;
+                foreach ($binary_list as $row) {
+                    if ((int) ($row['id'] ?? 0) === $rootId) {
+                        $rootUser = $row;
+                        break;
+                    }
+                }
+                ?>
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+                  <div>
+                    <h4 class="mb-1">Binary Tree</h4>
+                    <p class="text-body-secondary mb-0">
+                      Your placement tree — left and right legs, points and pairs.
+                      Server-rendered on first paint; works without JavaScript.
+                    </p>
+                    <div class="small text-body-secondary mt-2">
+                      <strong><?= $nodes ?> node<?= $nodes === 1 ? '' : 's' ?></strong>
+                      in tree · depth <?= (int) $binary_depth ?>
+                      <?= $truncated ? '· some branches hidden (expand to load more)' : '' ?>
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <a
+                      href="<?= url('genealogy?view=binary&depth=' . max(1, (int) $binary_depth - 1)) ?>"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Shallower view"
+                      aria-label="Shallower view"
+                    ><i class="icon-base bx bx-chevron-up"></i></a>
+                    <a
+                      href="<?= url('genealogy?view=binary&depth=' . min(BinaryTreeService::MAX_DEPTH, (int) $binary_depth + 1)) ?>"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Deeper view"
+                      aria-label="Deeper view"
+                    ><i class="icon-base bx bx-chevron-down"></i></a>
+                    <a
+                      href="<?= url('genealogy?view=binary&root=' . $rootId) ?>"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Reset view"
+                      aria-label="Reset view"
+                    ><i class="icon-base bx bx-reset"></i></a>
+                  </div>
                 </div>
+
+                <div class="card">
+                  <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                    <h5 class="card-title mb-0">Binary placement tree</h5>
+                    <span class="badge rounded-pill bg-label-<?= $isAdmin ? 'info' : 'primary' ?>">
+                      <?= $isAdmin ? 'Admin view' : 'Your tree' ?>
+                    </span>
+                  </div>
+                  <div class="card-body p-0 position-relative">
+                    <!-- Server-rendered seed: d3 hydrates this when it loads. -->
+                    <script type="application/json" id="binaryTreeSeed"><?= e(json_encode($binary_root)) ?></script>
+
+                    <!-- No-JS semantic list: usable without d3 or JavaScript. -->
+                    <div id="binaryTreeListWrap" class="pb-3">
+<?= View::capture('member/genealogy/_tree', [
+    'tree'          => $tree,
+    'list'          => $binary_list,
+    'depth'         => (int) $binary_depth,
+    'root_id'       => $rootId,
+    'viewer_id'     => $viewerId,
+    'is_admin'      => $isAdmin,
+    'can_register'  => $canReg,
+    'truncated'     => $truncated,
+]) ?>
+                    </div>
+
+                    <?php if ($truncated): ?>
+                    <div class="alert alert-info py-3 mb-0 small mx-3">
+                      The tree is large — only the first <strong>500 nodes</strong> are in this paint.
+                      Expand a branch to load its children.
+                    </div>
+                    <?php endif; ?>
+                  </div>
+                </div>
+
+                <div class="card mt-3">
+                  <div class="card-body">
+                    <h6 class="mb-3">Legend</h6>
+                    <div class="d-flex flex-wrap gap-4 small">
+                      <span><span class="badge bg-label-success rounded-pill">●</span> Active</span>
+                      <span><span class="badge bg-label-secondary rounded-pill">●</span> Inactive</span>
+                      <span><span class="text-primary fw-bold">L</span> · Left slot &nbsp; <span class="text-danger fw-bold">R</span> · Right slot</span>
+                      <span><span class="text-body-secondary fw-bold">You</span> · Your node</span>
+                      <span><span class="badge bg-label-info rounded-pill">+</span> Free slot — register here</span>
+                    </div>
+                    <p class="text-body-secondary small mt-3 mb-0">
+                      An empty side carries a <strong>+</strong>. Click it (or open the link without
+                      JavaScript) to register a member into that slot through the normal registration form.
+                    </p>
+                  </div>
+                </div>
+<?php else: ?>
+                <!-- ============================ Sponsor genealogy (unchanged) ============================ -->
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+                  <div>
+                    <h4 class="mb-1">Genealogy</h4>
+                    <p class="text-body-secondary mb-0">
+                      Your team by level — direct recruits at level 1, their recruits at level 2, and so on.
+                      Commissions follow this chain — one sponsor per member.
+                      <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
+                    </p>
+                  </div>
 <?= View::capture('member/genealogy/_header', [
     'team_count'       => $team_count,
     'levels_used'      => $levels_used,
     'harvest_position' => $harvest_position ?? null,
 ]) ?>
-              </div>
+                </div>
 
-              <div class="row g-4">
-                <!-- Team chain -->
-                <div class="col-xl-6">
-                  <div class="card h-100">
-                    <div class="card-header">
-                      <h5 class="card-title mb-0">Team chain</h5>
-                      <small class="text-body-secondary">Your direct recruits at level 1, their recruits at level 2, and so on — up to ten levels.</small>
-                    </div>
-                    <div class="card-body">
+                <div class="row g-4">
+                  <!-- Team chain -->
+                  <div class="col-xl-6">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h5 class="card-title mb-0">Team chain</h5>
+                        <small class="text-body-secondary">Your direct recruits at level 1, their recruits at level 2, and so on — up to ten levels.</small>
+                      </div>
+                      <div class="card-body">
 <?= View::capture('member/genealogy/_team_chain', [
     'member'       => $member,
     'team_levels'  => $team_levels,
@@ -174,4 +286,5 @@ $live = $live ?? [
 ]) ?>
                 </div>
               </div>
+<?php endif; ?>
             </div>

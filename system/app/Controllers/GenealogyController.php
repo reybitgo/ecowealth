@@ -78,6 +78,50 @@ final class GenealogyController
             return;
         }
 
+        /* Phase 22G-S2: binary tree page — server-rendered first paint + no-JS list.
+         * The sponsor view is never affected by this branch. */
+        if (Request::string('view') === 'binary') {
+            $rootId  = (int) Request::query('root', $userId);
+            $depth   = max(1, min(BinaryTreeService::MAX_DEPTH, (int) Request::query('depth', BinaryTreeService::DEFAULT_DEPTH)));
+
+            try {
+                $payload = (new BinaryTreeService())->subtree($rootId, $depth, $userId, $isAdmin);
+            } catch (BinaryException $e) {
+                /* Privacy: a member who asks for another member's tree is
+                 * sent back to their own tree — no error page, no leak (P22G-T33). */
+                redirect('genealogy?view=binary');
+                return;
+            }
+
+            $listRows = (new BinaryTreeService())->listRows($rootId, $depth, $userId);
+
+            $member = Member::find($userId);
+
+            if ($member === null) {
+                View::error(404);
+            }
+
+            View::page($isAdmin ? 'admin' : 'member', 'member/genealogy', array_merge(
+                $this->genealogyContext($member),
+                [
+                    'page_title'  => 'Binary Tree',
+                    'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
+                    'page_css'    => ['assets/css/membership.css'],
+                    'page_js'     => [],
+                    'view'        => 'binary',
+                    'binary_root' => $payload,
+                    'binary_list' => $listRows,
+                    'binary_depth'=> $depth,
+                    'binary_root_id' => $rootId,
+                    'live'        => Live::meta(
+                        Live::genealogySurface($userId),
+                        $this->binaryScope($rootId, $depth, $userId)
+                    ),
+                ]
+            ));
+            return;
+        }
+
         if (Live::isFeedRequest()) {
             $this->feed($userId);
             return;
@@ -228,6 +272,17 @@ final class GenealogyController
     {
         return Live::scope($_GET, $userId)
             . '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM);
+    }
+
+    /** ETag scope for the binary tree page (view + depth + root + viewer). */
+    private function binaryScope(int $rootId, int $depth, int $userId): string
+    {
+        return Live::scope(
+            ['view' => 'binary', 'root' => (string) $rootId, 'depth' => (string) $depth],
+            $userId
+        )
+        . '|team:' . Live::revisionOrZero(Live::GENEALOGY_TEAM)
+        . '|binary:' . Live::revisionOrZero(Live::binarySurface($userId));
     }
 
     /**

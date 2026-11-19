@@ -30,6 +30,18 @@ $demoUser = static function (string $username): ?array {
     return $stmt->fetch() ?: null;
 };
 
+/** Render a view and return its HTML (same pattern as MembershipViewTest). */
+$renderView = static function (string $layout, string $template, array $data = []): string {
+    ob_start();
+    try {
+        View::page($layout, $template, $data);
+    } catch (Throwable $e) {
+        ob_end_clean();
+        throw $e;
+    }
+    return (string) ob_get_clean();
+};
+
 /** Look up the admin account. */
 $adminUser = static function () use ($demoUser): ?array {
     return $demoUser('admin');
@@ -339,6 +351,239 @@ return [
         assert_contains('view', $scope);
         assert_contains('team:', $scope);
         assert_contains('binary:', $scope);
+    },
+
+    /* ---------- Phase 22G-S2: server-rendered tree shell and no-JS list ---------- */
+
+    'P22G-T1 binary page renders header, seed JSON, list, controls and legend' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $juanId = (int) $juan['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => [
+                'surface'  => 'member.genealogy:' . $juanId,
+                'enabled'  => false,
+                'revision' => 0,
+                'etag'     => '',
+                'interval' => 30000,
+            ],
+        ]);
+
+        /* Binary header and branding. */
+        assert_contains('Binary Tree', $html);
+        assert_contains('Your placement tree', $html);
+
+        /* Server-rendered seed JSON. */
+        assert_contains('binaryTreeSeed', $html);
+        assert_contains('&quot;ok&quot;', $html);
+        assert_contains('&quot;root&quot;:' . $juanId, $html);
+
+        /* No-JS semantic list. */
+        assert_contains('role="tree"', $html);
+        assert_contains('aria-label="Binary placement tree"', $html);
+        assert_contains('binary-tree-node', $html);
+        assert_contains('aria-level=', $html);
+        assert_contains('@maria', $html);
+        assert_contains('@peter', $html);
+        assert_contains('@sarah', $html);
+        assert_contains('@david', $html);
+        assert_contains('depth', $html);
+
+        /* Controls. */
+        assert_contains('binary-tree-actions', $html);
+        assert_contains('bx-plus', $html);
+
+        /* Legend. */
+        assert_contains('Legend', $html);
+        assert_contains('Active', $html);
+        assert_contains('Inactive', $html);
+        assert_contains('You', $html);
+
+        /* Sponsor view content is absent. */
+        assert_not_contains('Team chain', $html);
+        assert_not_contains('Direct recruits', $html);
+    },
+
+    'P22G-T3 no-JS list renders one li per node with username, side, points' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $juanId = (int) $juan['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* One <li role="treeitem"> per node. */
+        preg_match_all('/<li[^>]*role="treeitem"/', $html, $treeItems);
+        assert_same(5, count($treeItems[0]), 'juan + 4 descendants');
+
+        /* Each node shows username, side and points. */
+        assert_contains('@maria', $html);
+        assert_contains('@peter', $html);
+        assert_contains('@sarah', $html);
+        assert_contains('@david', $html);
+
+        /* Side badges L/R. */
+        assert_contains('class="badge rounded-pill text-primary small">L', $html);
+        assert_contains('class="badge rounded-pill text-danger small">R', $html);
+
+        /* Status dots. */
+        assert_contains('bg-label-success', $html);
+    },
+
+    'P22G-T28 d3 unavailable: the list stays usable, server content unchanged' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $juanId = (int) $juan['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* The list and all node data are server-rendered, independent of d3. */
+        assert_contains('role="tree"', $html);
+        assert_contains('@maria', $html);
+        assert_contains('@peter', $html);
+
+        /* No d3 script tag is referenced (d3 is added in 22G-S3, vendored locally). */
+        assert_not_contains('d3.v7', $html);
+        assert_not_contains('cdn.', $html);
+    },
+
+    'P22G-T29 JS off: list, register link and controls all work' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $juanId = (int) $juan['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* Every node is an <li> — no JavaScript required to read it. */
+        assert_contains('role="tree"', $html);
+        assert_contains('@maria', $html);
+
+        /* The + link opens the register page with the sponsor prefilled. */
+        assert_contains('register?sponsor=', $html);
+        assert_contains('binary_position=left', $html);
+        assert_contains('binary_position=right', $html);
+        assert_contains('return=genealogy', $html);
+
+        /* Depth controls are plain links. */
+        assert_contains('depth=' . (3 - 1), $html);
+        assert_contains('depth=' . (3 + 1), $html);
+    },
+
+    'P22G-T31 sponsor view regression: /genealogy without ?view is unchanged' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $sponsors = new SponsorService();
+        $team     = $sponsors->downline((int) $juan['id']);
+
+        $byLevel = [];
+        foreach ($team as $row) {
+            $byLevel[(int) $row['level']][] = $row;
+        }
+        $teamLevels = $byLevel;
+        $direct     = $byLevel[1] ?? [];
+        unset($byLevel[1]);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'    => 'Genealogy',
+            'current_nav'   => 'genealogy',
+            'member'        => $juan,
+            'team_levels'   => $teamLevels,
+            'direct'        => $direct,
+            'recruits_pager' => Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE),
+            'deeper'        => $byLevel,
+            'team_count'    => count($team),
+            'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),
+            'referral_code' => (string) $juan['referral_code'],
+            'referral_link' => absolute_url('register?ref=' . (string) $juan['referral_code']),
+            'live'          => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        assert_contains('Team chain', $html);
+        assert_contains('Direct recruits', $html);
+        assert_contains('@maria', $html);
+
+        /* No binary content in the sponsor view. */
+        assert_not_contains('binaryTreeSeed', $html);
+        assert_not_contains('role="tree"', $html);
+        assert_not_contains('binary-tree-node', $html);
+    },
+
+    'P22G-T32 routes: no new route in this phase, guard is member' => function (): void {
+        $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
+
+        /* /genealogy still exists with the member guard. */
+        $match = $router->match('GET', '/genealogy');
+        assert_not_null($match);
+        assert_same('member', $match['route']['guard']);
+        assert_same(GenealogyController::class, $match['route']['handler'][0]);
+
+        /* Exactly one route carries the placement vocabulary (from 22C, unchanged). */
+        $placementRoutes = array_filter(
+            $router->routes(),
+            static fn (array $route): bool => str_contains($route['path'], 'placement')
+        );
+        assert_count(1, $placementRoutes, 'exactly one placement route');
     },
 
 ];
