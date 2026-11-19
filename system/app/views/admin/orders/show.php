@@ -163,6 +163,8 @@ $live = $live ?? [
 
 <?= View::capture('admin/orders/_unilevel', ['ctx' => $ctx]) ?>
 
+<?= View::capture('admin/orders/_binary', ['ctx' => $ctx]) ?>
+
 <?= View::capture('admin/orders/_fulfilment', ['ctx' => $ctx]) ?>
 
 <?= View::capture('admin/orders/_items', ['ctx' => $ctx]) ?>

@@ -383,6 +383,11 @@ final class AdminMemberController
             /* Phase 22C: the read-only binary placement panel — node facts
              * and a move form. Hidden when the member has no node. */
             'binary_placement'  => $this->binaryPlacementPanel($userId),
+            /* Phase 22E: the read-only binary member panel — node facts,
+             * balances, pairs, blocked-pair reasons, recent volume and
+             * awards. Read-only: nothing here writes a node, an award or a
+             * wallet row. */
+            'binary'            => $this->binaryMemberPanel($userId),
         ];
     }
 
@@ -569,6 +574,21 @@ final class AdminMemberController
                 'member-audit' => View::capture('admin/members/_audit', [
                     'audits' => $data['audits'],
                 ]),
+                'member-binary' => View::capture('admin/members/_binary', [
+                    'member'  => $member,
+                    'member_id' => $data['member_id'],
+                    'binary'  => $data['binary'] ?? [
+                        'node'          => null,
+                        'has_node'      => false,
+                        'totals'        => [],
+                        'awards'        => [],
+                        'volume'        => [],
+                        'blocked'       => [],
+                        'pairs_today'   => 0,
+                        'daily_cap'     => setting_int('binary_daily_pair_cap', 20),
+                        'tree_link_disabled' => true,
+                    ],
+                ]),
             ],
             'meta'      => [
                 'canonical' => $this->canonicalDetailUrl((int) $member['id'], $data['activations_pager']),
@@ -727,6 +747,64 @@ final class AdminMemberController
             'node'     => $node,
             'has_node' => $hasNode,
             'slots'    => $slots,
+        ];
+    }
+
+    /**
+     * The read-only Product Binary panel data for one member (Phase 22E).
+     *
+     * Reads node facts, award and volume rows, the daily-pair count and the
+     * blocked nodes in the member's subtree. Nothing is written here — the
+     * panel only displays what 22C and 22D already stored.
+     *
+     * @return array{
+     *   node:array<string,mixed>|null,
+     *   has_node:bool,
+     *   totals:array<string,mixed>,
+     *   awards:list<array<string,mixed>>,
+     *   volume:list<array<string,mixed>>,
+     *   blocked:list<array<string,mixed>>,
+     *   pairs_today:int,
+     *   daily_cap:int,
+     *   tree_link_disabled:bool
+     * }
+     */
+    private function binaryMemberPanel(int $userId): array
+    {
+        $hasNode = false;
+        $node = null;
+        $totals = [];
+        $awards = [];
+        $volume = [];
+        $blocked = [];
+        $pairsToday = 0;
+        $dailyCap = (int) setting_int('binary_daily_pair_cap', 20);
+
+        if (BinaryPlacementService::isEnabled()) {
+            $node = BinaryNode::forUser($userId);
+            $hasNode = $node !== null;
+
+            if ($hasNode) {
+                $totals = (new BinaryService())->totalsFor($userId);
+                $awards = BinaryAward::forUser($userId);
+                $volume = BinaryVolume::forNode($userId);
+                $blocked = BinaryNode::blockedPairs($userId);
+
+                /* Pairs today against the Asia/Manila day of "now". */
+                $pairsToday = BinaryService::pairsToday($userId, date('Y-m-d H:i:s'));
+            }
+        }
+
+        return [
+            'node'             => $node,
+            'has_node'         => $hasNode,
+            'totals'           => $totals,
+            'awards'           => $awards,
+            'volume'           => $volume,
+            'blocked'          => $blocked,
+            'pairs_today'      => $pairsToday,
+            'daily_cap'        => $dailyCap,
+            'tree_link_disabled' => true,
         ];
     }
 

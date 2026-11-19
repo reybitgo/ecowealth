@@ -406,6 +406,96 @@ final class AdminOrderController
                 'enabled'         => UnilevelService::enabled(),
                 'release_enabled' => UnilevelService::releaseEnabled(),
             ],
+            /* Phase 22E: the Product Binary card. Read-only over the rows
+             * 22D writes; no write path here. The stamp tells the card
+             * which of the four states to explain. */
+            'binary'           => $this->binaryOrderPanel($order, BinaryAward::forOrder($orderId)),
+        ];
+    }
+
+    /**
+     * The read-only Product Binary panel for one order (Phase 22E).
+     *
+     * Mirrors the unilevel panel's shape: the stamp and totals come from
+     * the order row, the awards come from `BinaryAward::forOrder()`. The
+     * released/pending/cancelled splits and the next-release date are
+     * derived from the rows already loaded — no second query.
+     *
+     * @param array<string, mixed> $order
+     * @param list<array<string, mixed>> $awards
+     * @return array<string, mixed>
+     */
+    private function binaryOrderPanel(array $order, array $awards): array
+    {
+        $orderId  = (int) ($order['id'] ?? 0);
+        $status   = (string) ($order['status'] ?? '');
+        $isPaid   = Order::isPaid($order);
+        $isCancelled = $status === 'cancelled'
+            || ($order['cancelled_at'] ?? null) !== null;
+
+        $releasedTotal  = 0.0;
+        $pendingTotal   = 0.0;
+        $cancelledTotal = 0.0;
+        $nextReleaseAt  = null;
+
+        foreach ($awards as $award) {
+            $awardStatus = (string) ($award['status'] ?? '');
+            $amount      = round((float) ($award['amount'] ?? 0), 2);
+
+            if ($awardStatus === 'credited') {
+                $releasedTotal = round($releasedTotal + $amount, 2);
+                continue;
+            }
+
+            if ($awardStatus === 'cancelled') {
+                $cancelledTotal = round($cancelledTotal + $amount, 2);
+                continue;
+            }
+
+            if ($awardStatus !== 'pending') {
+                continue;
+            }
+
+            $pendingTotal = round($pendingTotal + $amount, 2);
+
+            $delivered = $award['order_delivered_at'] ?? null;
+            $completed = $award['order_completed_at'] ?? null;
+            $base      = $delivered !== null && $delivered !== ''
+                ? (string) $delivered
+                : ($completed !== null && $completed !== '' ? (string) $completed : '');
+            $baseTs    = $base === '' ? false : strtotime($base);
+
+            if ($baseTs === false) {
+                continue;
+            }
+
+            $due = date(
+                'Y-m-d H:i:s',
+                $baseTs + max(0, (int) ($award['hold_days'] ?? 0)) * 86400
+            );
+
+            if ($nextReleaseAt === null || $due < $nextReleaseAt) {
+                $nextReleaseAt = $due;
+            }
+        }
+
+        return [
+            'awards'          => $awards,
+            'processed_at'    => $order['binary_processed_at'] ?? null,
+            'points'          => (int) ($order['binary_points'] ?? 0),
+            'self_total'      => (float) ($order['binary_self_total'] ?? 0),
+            'pair_total'      => (float) ($order['binary_pair_total'] ?? 0),
+            'total'           => (float) ($order['binary_total'] ?? 0),
+            'released_total'  => $releasedTotal,
+            'pending_total'   => $pendingTotal,
+            'cancelled_total' => $cancelledTotal,
+            'next_release_at' => $nextReleaseAt,
+            'position'        => (string) ($order['binary_position'] ?? ''),
+            'is_paid'         => $isPaid,
+            'is_cancelled'    => $isCancelled,
+            'status'          => $status,
+            'enabled'         => BinaryService::enabled(),
+            'release_enabled' => setting_bool('binary_release_enabled', true),
         ];
     }
 
@@ -466,6 +556,7 @@ final class AdminOrderController
                 'order-status' => View::capture('admin/orders/_status', ['ctx' => $ctx]),
                 'order-payment' => View::capture('admin/orders/_payment', ['ctx' => $ctx]),
                 'order-unilevel' => View::capture('admin/orders/_unilevel', ['ctx' => $ctx]),
+                'order-binary'   => View::capture('admin/orders/_binary', ['ctx' => $ctx]),
                 'order-fulfilment' => View::capture('admin/orders/_fulfilment', ['ctx' => $ctx]),
                 'order-items' => View::capture('admin/orders/_items', ['ctx' => $ctx]),
                 'order-timeline' => View::capture('admin/orders/_timeline', ['ctx' => $ctx]),

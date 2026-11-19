@@ -444,6 +444,7 @@ return [
                 'order-status',
                 'order-payment',
                 'order-unilevel',
+                'order-binary',
                 'order-fulfilment',
                 'order-items',
                 'order-timeline',
@@ -949,5 +950,175 @@ return [
         assert_contains('Cancelled before release', $card);
         assert_contains('This order was cancelled before any repeat-purchase bonus was released', $card);
         assert_not_contains('admin/wallets/', $card);
+    },
+
+    /* ==========================================================
+     *  Phase 22E — the Product Binary order card
+     *  P22E-T8 … T11
+     * ========================================================== */
+
+    'P22E-T8 a paid, processed order shows position, points, self, pairs and order totals' => function () use ($makeMember, $makeProduct): void {
+        setting_set('binary_enabled', '1');
+        setting_set('binary_self_pct', '5.000');
+        setting_set('binary_pair_points', '1000');
+        setting_set('binary_pair_pct', '10.000');
+        setting_set('binary_hold_days', '0');
+        setting_set('binary_release_enabled', '1');
+        setting_set('binary_requires_active', '0');
+
+        $product = $makeProduct([
+            'price'      => '300.00',
+            'pv'         => '250.00',
+        ]);
+        db()->prepare(
+            'UPDATE products SET binary_enabled = 1 WHERE id = ?'
+        )->execute([$product]);
+
+        $buyer = test_user('p22e_t8_buyer_' . bin2hex(random_bytes(3)));
+        $admin = test_user('p22e_t8_admin', 'admin');
+
+        /* The buyer needs a binary node under the company root. */
+        BinaryNode::ensureRoot();
+        $root  = BinaryNode::root();
+        BinaryNode::place(
+            (int) $buyer['id'],
+            (int) $root['user_id'],
+            'right',
+            (int) $admin['id']
+        );
+
+        $orderId = test_order((int) $buyer['id'], [
+            ['product_id' => $product, 'quantity' => 4],
+        ], 'paid', [
+            'paid_at'        => date('Y-m-d H:i:s'),
+            'subtotal'       => '1200.00',
+            'total'          => '1200.00',
+            'binary_position'=> 'right',
+        ]);
+        $itemId = (int) db()->query(
+            'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+        )->fetchColumn();
+        db()->prepare(
+            'UPDATE shop_order_items
+               SET product_name = ?, unit_price = 300.00, line_total = 1200.00,
+                   unit_base = 250.00, base_total = 1000.00,
+                   unit_points = 250, points_total = 1000
+             WHERE id = ?'
+        )->execute(['Binary Product', $itemId]);
+
+        /* Pay the order: 1000 pts → self ₱50.00, no pair yet (single side). */
+        (new BinaryService())->onOrderPaid($orderId);
+
+        $order = Order::find($orderId);
+        assert_same(1000, (int) $order['binary_points']);
+        assert_same('50.00', (string) $order['binary_self_total']);
+        assert_same('0.00', (string) $order['binary_pair_total']);
+        assert_same('50.00', (string) $order['binary_total']);
+
+        test_signed_in_as($admin);
+
+        $controller = new AdminOrderController();
+        $payload    = $controller->detailFeedPayload(
+            7,
+            '"admin.orders:' . $orderId . ':7:card"',
+            $controller->orderContext($order)
+        );
+
+        $card = $payload['fragments']['order-binary'];
+
+        assert_contains('data-live-region="order-binary"', $card);
+        assert_contains('Product binary', $card);
+        assert_contains('Right', $card, 'the chosen position is shown');
+        assert_contains('1000 pts', $card);
+        assert_contains(money(50.00), $card, 'the self bonus is shown');
+        assert_contains(money(50.00), $card, 'the order total equals self + pairs');
+        assert_contains('bg-label-warning', $card, 'the pending award wears the warning badge');
+        assert_contains('@' . (string) $buyer['username'], $card, 'the buyer is the self recipient');
+
+        test_signed_in_as(null);
+    },
+
+    'P22E-T9 an unpaid order explains that nothing is placed yet' => function () use ($makeMember, $makeProduct, $placeOrder): void {
+        setting_set('binary_enabled', '1');
+
+        $product = $makeProduct([
+            'price' => '300.00',
+            'pv'    => '250.00',
+        ]);
+        $member = $makeMember();
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        /* Still pending — onOrderPaid was never called, no stamp. */
+        $order = Order::find($orderId);
+        assert_null($order['binary_processed_at']);
+
+        test_signed_in_as(test_user('p22e_t9_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $card       = $controller->detailFeedPayload(1, '"x"', $controller->orderContext($order))['fragments']['order-binary'];
+
+        assert_contains('data-live-region="order-binary"', $card);
+        assert_contains('Paid orders place product-binary points', $card);
+        assert_contains('pending', $card);
+        assert_not_contains('1000 pts', $card);
+
+        test_signed_in_as(null);
+    },
+
+    'P22E-T10 an order paid before the feature says so and never pays retroactively' => function () use ($makeMember, $makeProduct, $placeOrder): void {
+        setting_set('binary_enabled', '1');
+
+        $product = $makeProduct([
+            'price' => '300.00',
+            'pv'    => '250.00',
+        ]);
+        $member = $makeMember();
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        /* Paid outside the app's payment path: the stamp stays NULL. */
+        db()->prepare("UPDATE shop_orders SET status = 'paid', paid_at = NOW() WHERE id = ?")->execute([$orderId]);
+
+        $order = Order::find($orderId);
+        assert_null($order['binary_processed_at']);
+        assert_same('0.00', (string) $order['binary_total']);
+
+        test_signed_in_as(test_user('p22e_t10_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $card       = $controller->detailFeedPayload(2, '"x"', $controller->orderContext($order))['fragments']['order-binary'];
+
+        assert_contains('paid before the Product binary stream was switched on', $card);
+        assert_not_contains('1000 pts', $card);
+
+        test_signed_in_as(null);
+    },
+
+    'P22E-T11 an order paid with the stream off shows no points were placed' => function () use ($makeMember, $makeProduct, $placeOrder): void {
+        /* binary_enabled stays at its default 0. */
+        setting_set('binary_enabled', '0');
+
+        $product = $makeProduct([
+            'price' => '300.00',
+            'pv'    => '250.00',
+        ]);
+        $member = $makeMember();
+        $orderId = $placeOrder((int) $member['id'], $product, 'gcash');
+
+        db()->prepare("UPDATE shop_orders SET status = 'paid', paid_at = NOW() WHERE id = ?")->execute([$orderId]);
+        (new BinaryService())->onOrderPaid($orderId);
+
+        $order = Order::find($orderId);
+        assert_not_null($order['binary_processed_at'], 'disabled orders are still stamped');
+        assert_same('0.00', (string) $order['binary_total']);
+
+        test_signed_in_as(test_user('p22e_t11_admin', 'admin'));
+
+        $controller = new AdminOrderController();
+        $card       = $controller->detailFeedPayload(3, '"x"', $controller->orderContext($order))['fragments']['order-binary'];
+
+        assert_contains('No points were placed: the stream was off when this order was paid', $card);
+        assert_not_contains('1000 pts', $card);
+
+        test_signed_in_as(null);
     },
 ];

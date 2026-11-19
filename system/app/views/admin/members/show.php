@@ -164,6 +164,22 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
     'binary_placement' => $binary_placement ?? ['node' => null, 'has_node' => false, 'slots' => []],
 ]) ?>
 
+<?= View::capture('admin/members/_binary', [
+    'member'        => $member,
+    'member_id'     => $member_id,
+    'binary'        => $binary ?? [
+        'node'          => null,
+        'has_node'      => false,
+        'totals'        => [],
+        'awards'        => [],
+        'volume'        => [],
+        'blocked'       => [],
+        'pairs_today'   => 0,
+        'daily_cap'     => setting_int('binary_daily_pair_cap', 20),
+        'tree_link_disabled' => true,
+    ],
+]) ?>
+
 <?= View::capture('admin/members/_audit', ['audits' => $audits]) ?>
                 </div>
               </div>

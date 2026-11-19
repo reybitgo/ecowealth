@@ -247,6 +247,8 @@ return [
                 'member-activations',
                 'member-upline',
                 'member-audit',
+                /* Phase 22E: the Product Binary panel is its own region. */
+                'member-binary',
             ],
             array_keys($payload['fragments'])
         );
@@ -438,5 +440,179 @@ return [
         assert_contains('Pending repeat-purchase', $html);
         assert_contains('Not in the wallet balance', $html);
         assert_contains(money(25), $html);
+    },
+
+    /* ==========================================================
+     *  Phase 22E — the Product Binary member panel
+     *  P22E-T12 … T13
+     * ========================================================== */
+
+    'P22E-T12 a member with a node shows balances, pairs, blocked pairs and reasons' => function (): void {
+        setting_set('binary_enabled', '1');
+        setting_set('binary_daily_pair_cap', '20');
+        setting_set('binary_requires_active', '0');
+
+        $admin = test_user('p22e_t12_admin', 'admin');
+        $member = test_user('p22e_t12_member_' . bin2hex(random_bytes(3)));
+
+        BinaryNode::ensureRoot();
+        $root  = BinaryNode::root();
+        BinaryNode::place(
+            (int) $member['id'],
+            (int) $root['user_id'],
+            'right',
+            (int) $admin['id']
+        );
+
+        /* A real order and item so the award row can reference them. */
+        $productId = (int) Product::save([
+            'name'  => 'P22E T12 Product ' . bin2hex(random_bytes(3)),
+            'sku'   => 'P22E-T12-' . strtoupper(bin2hex(random_bytes(3))),
+            'price' => '100.00',
+            'pv'    => '100.00',
+            'stock' => '100',
+            'status'=> 'active',
+        ]);
+        $orderId = test_order((int) $member['id'], [
+            ['product_id' => $productId, 'quantity' => 1],
+        ], 'paid', [
+            'paid_at'  => date('Y-m-d H:i:s'),
+            'subtotal' => '100.00',
+            'total'    => '100.00',
+        ]);
+        $itemId = (int) db()->query(
+            'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+        )->fetchColumn();
+
+        /* Give the member some points and pairs so the panel has data. */
+        db()->prepare(
+            'UPDATE binary_nodes SET left_points = 1000, pairs_paid = 1 WHERE user_id = ?'
+        )->execute([(int) $member['id']]);
+
+        BinaryAward::create([
+            'kind'       => 'pair',
+            'order_id'   => $orderId,
+            'order_item_id' => $itemId,
+            'buyer_id'   => (int) $member['id'],
+            'user_id'    => (int) $member['id'],
+            'side'       => 'right',
+            'points'     => 2000,
+            'pair_count' => 1,
+            'pair_points'=> 1000,
+            'rate_pct'   => '10.000',
+            'amount'     => 100.00,
+            'status'     => 'credited',
+            'hold_days'  => 7,
+            'paid_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        test_signed_in_as($admin);
+
+        $controller = new AdminMemberController();
+        $data       = $controller->memberContext(Member::find((int) $member['id']));
+
+        assert_true((bool) ($data['binary']['has_node'] ?? false));
+        assert_same(1000, (int) ($data['binary']['totals']['left_points'] ?? -1));
+        assert_same(1, (int) ($data['binary']['totals']['pairs_paid'] ?? -1));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members/' . (int) $member['id'];
+
+        ob_start();
+
+        try {
+            View::page('admin', 'admin/members/show', $data + [
+                'page_title'  => 'Member',
+                'current_nav' => 'admin.members',
+                'live'        => Live::meta('admin.members:' . (int) $member['id'], 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('data-live-region="member-binary"', $html);
+        assert_contains('Product binary', $html);
+        assert_contains('Left points', $html);
+        assert_contains('1000 pts', $html);
+        assert_contains('Pairs paid', $html);
+        assert_contains('1', $html);
+        assert_contains('Room today', $html);
+        assert_contains('20', $html);
+
+        test_signed_in_as(null);
+    },
+
+    'P22E-T13 a member with no node shows the not-placed state and the console link' => function (): void {
+        $admin  = test_user('p22e_t13_admin', 'admin');
+        $member = test_user('p22e_t13_member_' . bin2hex(random_bytes(3)));
+
+        /* No binary node is created for this member. */
+
+        test_signed_in_as($admin);
+
+        $controller = new AdminMemberController();
+        $data       = $controller->memberContext(Member::find((int) $member['id']));
+
+        assert_false((bool) ($data['binary']['has_node'] ?? true));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members/' . (int) $member['id'];
+
+        ob_start();
+
+        try {
+            View::page('admin', 'admin/members/show', $data + [
+                'page_title'  => 'Member',
+                'current_nav' => 'admin.members',
+                'live'        => Live::meta('admin.members:' . (int) $member['id'], 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('data-live-region="member-binary"', $html);
+        assert_contains('Not placed in the binary tree', $html);
+        assert_contains(url('admin/members/' . (int) $member['id']), $html);
+        assert_not_contains('Left points', $html);
+
+        test_signed_in_as(null);
+    },
+
+    /* ==========================================================
+     *  Phase 22E — the directory placement filter
+     *  P22E-T18
+     * ========================================================== */
+
+    'P22E-T18 placement=floating lists the floating members and links to the console' => function (): void {
+        $admin  = test_user('p22e_t18_admin', 'admin');
+        $member = test_user('p22e_t18_member_' . bin2hex(random_bytes(3)));
+
+        BinaryNode::ensureRoot();
+        $root  = BinaryNode::root();
+        /* Floating node: attached to nobody (no upline). */
+        db()->prepare(
+            "INSERT IGNORE INTO binary_nodes
+               (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+             VALUES (?, NULL, NULL, ?, 0, '', 'floating', NOW(), ?)"
+        )->execute([(int) $member['id'], (int) $root['user_id'], (int) $admin['id']]);
+
+        test_signed_in_as($admin);
+
+        $_GET = ['placement' => 'floating'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members?placement=floating';
+
+        $controller = new AdminMemberController();
+        $payload    = $controller->feedPayload(
+            5,
+            '"admin.members:5:abc"',
+            $controller->listContext()
+        );
+
+        $rows = $payload['fragments']['member-rows'];
+
+        assert_contains('@' . (string) $member['username'], $rows, 'the floating member is listed');
+        assert_contains('admin/members/' . (int) $member['id'], $rows, 'the row links to the member console');
+
+        test_signed_in_as(null);
     },
 ];
