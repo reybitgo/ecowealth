@@ -170,10 +170,10 @@ final class Member
      *  Admin directory
      * ---------------------------------------------------------- */
 
-    /** @return array{q:string, status:string, package:string, harvest:string, board:string} */
+    /** @return array{q:string, status:string, package:string, harvest:string, board:string, placement:string} */
     public static function filterDefaults(): array
     {
-        return ['q' => '', 'status' => '', 'package' => '', 'harvest' => '', 'board' => ''];
+        return ['q' => '', 'status' => '', 'package' => '', 'harvest' => '', 'board' => '', 'placement' => ''];
     }
 
     /**
@@ -187,7 +187,7 @@ final class Member
      * means "no filter" (Phase 21E Rule 9).
      *
      * @param array<string, mixed> $raw
-     * @return array{q:string, status:string, package:string, harvest:string, board:string}
+     * @return array{q:string, status:string, package:string, harvest:string, board:string, placement:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -221,13 +221,21 @@ final class Member
             $filters['board'] = $board;
         }
 
+        /* Phase 22C: the binary placement filter. `floating` keeps members
+         * whose binary node has state `floating` (no upline); `no-node` keeps
+         * members with no binary node at all. Anything else means no filter. */
+        $placement = strtolower(trim((string) ($raw['placement'] ?? '')));
+        if (in_array($placement, ['floating', 'no-node'], true)) {
+            $filters['placement'] = $placement;
+        }
+
         return $filters;
     }
 
     /**
      * WHERE clause shared by the count and the page.
      *
-     * @param array{q:string, status:string, package:string, harvest:string, board:string} $filters
+     * @param array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(array $filters): array
@@ -278,10 +286,20 @@ final class Member
                         WHERE gha.user_id = u.id AND gha.status = "credited")';
         }
 
+        /* Phase 22C: the binary placement filter. `floating` keeps members
+         * whose binary node has state `floating` (no upline); `no-node` keeps
+         * members with no binary node at all. */
+        if ($filters['placement'] === 'floating') {
+            $where[] = 'EXISTS (SELECT 1 FROM binary_nodes bn
+                        WHERE bn.user_id = u.id AND bn.state = \'floating\')';
+        } elseif ($filters['placement'] === 'no-node') {
+            $where[] = 'NOT EXISTS (SELECT 1 FROM binary_nodes bn WHERE bn.user_id = u.id)';
+        }
+
         return [implode(' AND ', $where), $params];
     }
 
-    /** @param array{q:string, status:string, package:string, harvest:string} $filters */
+    /** @param array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters */
     public static function countAdmin(array $filters, ?PDO $pdo = null): int
     {
         $pdo ??= db();
@@ -306,7 +324,7 @@ final class Member
      * the member has been credited for. It comes from the award table in the
      * same query, so no row costs a second query (P21E-T19).
      *
-     * @param array{q:string, status:string, package:string, harvest:string, board:string} $filters
+     * @param array{q:string, status:string, package:string, harvest:string, board:string, placement:string} $filters
      * @return list<array<string, mixed>>
      */
     public static function adminList(array $filters, Paginator $pager, ?PDO $pdo = null): array

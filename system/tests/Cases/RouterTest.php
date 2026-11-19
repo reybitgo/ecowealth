@@ -98,7 +98,7 @@ return [
             $live[$route['method'] . ' ' . $route['path']] = $route['guard'];
         }
 
-        assert_count(88, $live);
+        assert_count(89, $live);
         assert_same('any', $live['GET /']);
         assert_same('member', $live['GET /shop']);
         assert_same('member', $live['GET /shop/{id}']);
@@ -163,6 +163,7 @@ return [
         assert_same('admin', $live['GET /admin/members/{id}']);
         assert_same('admin', $live['POST /admin/members/{id}/status']);
         assert_same('admin', $live['POST /admin/members/{id}/toggle']);
+        assert_same('admin', $live['POST /admin/members/{id}/placement']);
         assert_same('admin', $live['GET /admin/codes']);
         assert_same('admin', $live['POST /admin/codes/generate']);
         assert_same('admin', $live['GET /admin/codes/export']);
@@ -342,7 +343,11 @@ return [
         );
         assert_same(
             AdminMemberController::class,
-            $router->match('POST', '/admin/members/42/status')['route']['handler'][0]
+            $router->match('POST', '/admin/members/42/toggle')['route']['handler'][0]
+        );
+        assert_same(
+            AdminMemberController::class,
+            $router->match('POST', '/admin/members/42/placement')['route']['handler'][0]
         );
         assert_same(
             AdminCodeController::class,
@@ -455,5 +460,32 @@ return [
         /* Not due yet, and the binary-upline endpoints are gone for good. */
         assert_null($router->match('POST', '/register/check-upline'));
         assert_null($router->match('POST', '/register/auto-select-upline'));
+
+        /* Phase 22C: exactly one route carries the placement vocabulary. */
+        $placementRoutes = array_filter(
+            $router->routes(),
+            static fn (array $route): bool => str_contains($route['path'], 'placement')
+        );
+        assert_count(1, $placementRoutes, 'exactly one placement route');
+    },
+
+    /* Phase 22C — placement move route: P22C-T37 / P22C-T38 */
+
+    'P22C-T37 the placement route requires an admin guard (non-admin refused)' => function (): void {
+        $member = test_user('p22c_t37_member');
+        test_signed_in_as($member);
+
+        assert_false(is_admin(), 'a plain member is not an admin');
+
+        $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
+        $match  = $router->match('POST', '/admin/members/42/placement');
+        assert_not_null($match);
+        assert_same('admin', $match['route']['guard']);
+    },
+
+    'P22C-T38 CSRF verification rejects a missing token' => function (): void {
+        assert_false(csrf_verify(null), 'csrf_verify rejects a null token');
+        assert_false(csrf_verify(''), 'csrf_verify rejects an empty token');
+        assert_false(csrf_verify('wrong'), 'csrf_verify rejects a wrong token');
     },
 ];

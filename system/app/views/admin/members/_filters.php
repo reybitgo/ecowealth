@@ -23,7 +23,8 @@ $status     = (string) $filters['status'];
 $package    = (string) $filters['package'];
 $harvest    = (string) ($filters['harvest'] ?? '');
 $board      = (string) ($filters['board'] ?? '');
-$hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !== '' || $board !== '';
+$placement  = (string) ($filters['placement'] ?? '');
+$hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !== '' || $board !== '' || $placement !== '';
 ?>
                 <div
                   class="card-body py-3 border-top"
@@ -64,6 +65,11 @@ $hasFilters = $query !== '' || $status !== '' || $package !== '' || $harvest !==
                       <option value="">General Harvest: all</option>
                       <option value="paid" <?= $board === 'paid' ? 'selected' : '' ?>>Has a paid level</option>
                       <option value="none" <?= $board === 'none' ? 'selected' : '' ?>>No paid level</option>
+                    </select>
+                    <select class="form-select" name="placement" aria-label="Filter by binary placement">
+                      <option value="">Binary placement: all</option>
+                      <option value="floating" <?= $placement === 'floating' ? 'selected' : '' ?>>Floating nodes</option>
+                      <option value="no-node" <?= $placement === 'no-node' ? 'selected' : '' ?>>No binary node</option>
                     </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($hasFilters): ?>

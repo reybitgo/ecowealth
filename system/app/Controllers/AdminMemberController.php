@@ -11,6 +11,7 @@ declare(strict_types=1);
  *      GET  /admin/members/{id}          sponsor, package, wallet, history
  *      POST /admin/members/{id}/status   suspend / restore (audited)
  *      POST /admin/members/{id}/toggle   reference admin_toggle_user
+ *      POST /admin/members/{id}/placement audited empty-subtree move (22C)
  *
  *  Suspending clears `is_active` as well as `member_status`, so the
  *  member is signed out on the next request and cannot log in again
@@ -70,11 +71,12 @@ final class AdminMemberController
     public function listContext(): array
     {
         $filters = Member::normaliseFilters([
-            'q'       => Request::string('q'),
-            'status'  => Request::string('status'),
-            'package' => Request::string('package'),
-            'harvest' => Request::string('harvest'),
-            'board'   => Request::string('board'),
+            'q'        => Request::string('q'),
+            'status'   => Request::string('status'),
+            'package'  => Request::string('package'),
+            'harvest'  => Request::string('harvest'),
+            'board'    => Request::string('board'),
+            'placement'=> Request::string('placement'),
         ]);
 
         $pager = Paginator::fromTableRequest(Member::countAdmin($filters));
@@ -378,6 +380,9 @@ final class AdminMemberController
             'upline'            => (new SponsorService())->chain($userId, SponsorService::MAX_LEVELS),
             'audits'            => AuditLog::forSubject('user', $userId, 8),
             'statement_url'     => url('admin/wallets/' . $userId),
+            /* Phase 22C: the read-only binary placement panel — node facts
+             * and a move form. Hidden when the member has no node. */
+            'binary_placement'  => $this->binaryPlacementPanel($userId),
         ];
     }
 
@@ -687,6 +692,125 @@ final class AdminMemberController
             (string) $member['username'],
             (string) $member['member_status']
         ));
+
+        redirect('admin/members/' . $id);
+    }
+
+    /* ----------------------------------------------------------
+     *  Phase 22C — binary placement
+     * ---------------------------------------------------------- */
+
+    /**
+     * Read-only placement facts for one member's detail page.
+     *
+     * @return array{node:array<string,mixed>|null, has_node:bool, slots:list<array{side:string, free:bool}>}
+     */
+    private function binaryPlacementPanel(int $userId): array
+    {
+        $node = null;
+        $hasNode = false;
+        $slots = [];
+
+        if (BinaryPlacementService::isEnabled()) {
+            $node = BinaryNode::forUser($userId);
+            $hasNode = $node !== null;
+
+            if ($hasNode) {
+                $uplineId = (int) ($node['upline_id'] ?? 0);
+                if ($uplineId > 0) {
+                    $slots = (new BinaryPlacementService())->slotsFor($uplineId);
+                }
+            }
+        }
+
+        return [
+            'node'     => $node,
+            'has_node' => $hasNode,
+            'slots'    => $slots,
+        ];
+    }
+
+    /**
+     * POST /admin/members/{id}/placement — audited empty-subtree move.
+     *
+     * Only an admin may call this (router guard). CSRF is verified by the
+     * router before the handler runs. The move itself is delegated to
+     * `BinaryPlacementService::move()`, which refuses non-empty subtrees,
+     * cycles, taken slots and the company root, and audits before/after.
+     *
+     * @param array<string, string> $params
+     */
+    public function placement(array $params = []): void
+    {
+        $id     = (int) ($params['id'] ?? 0);
+        $admin  = auth_user();
+
+        if ($admin === null) {
+            redirect('login');
+        }
+
+        if (!is_admin()) {
+            View::error(403);
+            return;
+        }
+
+        $member = Member::find($id);
+        if ($member === null) {
+            View::error(404);
+            return;
+        }
+
+        $newUpline = strtolower(trim(Request::string('binary_upline')));
+        $newSide   = strtolower(trim(Request::string('binary_position')));
+
+        $errors = [];
+
+        if ($newUpline === '') {
+            $errors['binary_upline'] = 'Choose a binary upline.';
+        }
+        if (!in_array($newSide, BinaryNode::SIDES, true)) {
+            $errors['binary_position'] = 'Choose left or right.';
+        }
+
+        if ($errors !== []) {
+            foreach ($errors as $field => $message) {
+                flash_set('danger', $message);
+            }
+            redirect('admin/members/' . $id);
+        }
+
+        $resolved = (new BinaryPlacementService())->resolveUpline($newUpline);
+        if ($resolved === null) {
+            flash_set('danger', 'Unknown member: ' . e($newUpline) . '.');
+            redirect('admin/members/' . $id);
+        }
+
+        try {
+            $result = (new BinaryPlacementService())->move(
+                $id,
+                (int) $resolved['id'],
+                $newSide,
+                (int) $admin['id']
+            );
+
+            flash_set('success', sprintf(
+                'Moved @%s under @%s on the %s side.',
+                (string) $member['username'],
+                (string) $resolved['username'],
+                BinaryNode::SIDE_LABELS[$newSide] ?? $newSide
+            ));
+        } catch (BinaryException $e) {
+            flash_set('danger', $e->getMessage());
+        } catch (Throwable $e) {
+            error_log('[ecowealth] binary placement move failed: ' . $e->getMessage());
+            flash_set('danger', 'The move could not be completed. Please try again.');
+        }
+
+        Live::publish([
+            'admin.dashboard',
+            'admin.members',
+            Live::memberSurface($id),
+        ]);
 
         redirect('admin/members/' . $id);
     }

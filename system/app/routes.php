@@ -148,6 +148,7 @@ return [
     ['GET',  '/admin/members/{id}',              [AdminMemberController::class, 'show'],            'admin'],  // admin_user_view
     ['POST', '/admin/members/{id}/status',       [AdminMemberController::class, 'status'],          'admin'],  // admin_deactivate_user
     ['POST', '/admin/members/{id}/toggle',       [AdminMemberController::class, 'toggle'],          'admin'],  // admin_toggle_user
+    ['POST', '/admin/members/{id}/placement',    [AdminMemberController::class, 'placement'],       'admin'],  // 22C: audited empty-subtree move
     ['GET',  '/admin/codes',                     [AdminCodeController::class, 'index'],             'admin'],  // admin_codes
     ['POST', '/admin/codes/generate',            [AdminCodeController::class, 'generate'],          'admin'],  // admin_gen_codes
     ['GET',  '/admin/codes/export',              [AdminCodeController::class, 'export'],            'admin'],  // admin_export_codes

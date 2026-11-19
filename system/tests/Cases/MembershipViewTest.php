@@ -715,7 +715,9 @@ return [
         assert_contains('Upline', $html);
         assert_contains('Recent audit', $html);
         assert_contains('Suspend member', $html);
-        assert_not_contains('binary', strtolower($html));
+        /* Phase 22C: the member detail page now carries a binary placement
+         * panel, so "binary" is expected where the member has no node yet. */
+        assert_contains('Binary placement', $html);
     },
 
     'P9-T16 the member table honours the rows-per-page choice' => function (): void {

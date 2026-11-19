@@ -154,9 +154,15 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
 ]) ?>
                 </div>
 
-                <!-- Upline + audit -->
+                <!-- Upline + placement + audit -->
                 <div class="col-xl-4">
 <?= View::capture('admin/members/_upline', ['upline' => $upline]) ?>
+
+<?= View::capture('admin/members/_placement', [
+    'member'        => $member,
+    'member_id'     => $member_id,
+    'binary_placement' => $binary_placement ?? ['node' => null, 'has_node' => false, 'slots' => []],
+]) ?>
 
 <?= View::capture('admin/members/_audit', ['audits' => $audits]) ?>
                 </div>
