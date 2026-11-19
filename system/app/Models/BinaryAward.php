@@ -63,15 +63,17 @@ final class BinaryAward
     ];
 
     /** Filter keys shared by the member tab (22F) and the admin tab (22E). */
-    public const FILTER_KEYS = ['kind', 'status', 'from', 'to', 'q'];
+    public const FILTER_KEYS = ['kind', 'status', 'side', 'product_id', 'from', 'to', 'q'];
 
-    /** @var array{kind:string, status:string, from:string, to:string, q:string} */
+    /** @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} */
     public const FILTER_DEFAULTS = [
-        'kind'  => '',
-        'status' => '',
-        'from'  => '',
-        'to'    => '',
-        'q'     => '',
+        'kind'       => '',
+        'status'     => '',
+        'side'       => '',
+        'product_id' => '',
+        'from'       => '',
+        'to'         => '',
+        'q'          => '',
     ];
 
     /* ----------------------------------------------------------
@@ -181,7 +183,7 @@ final class BinaryAward
      *  Filters and pages (shared by 22E and 22F)
      * ---------------------------------------------------------- */
 
-    /** @return array{kind:string, status:string, from:string, to:string, q:string} */
+    /** @return array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} */
     public static function filterDefaults(): array
     {
         return self::FILTER_DEFAULTS;
@@ -192,7 +194,7 @@ final class BinaryAward
      * falls back to "no filter".
      *
      * @param array<string, mixed> $raw
-     * @return array{kind:string, status:string, from:string, to:string, q:string}
+     * @return array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -206,6 +208,16 @@ final class BinaryAward
         $status = strtolower(trim((string) ($raw['status'] ?? '')));
         if (in_array($status, self::STATUSES, true)) {
             $filters['status'] = $status;
+        }
+
+        $side = strtolower(trim((string) ($raw['side'] ?? '')));
+        if (in_array($side, ['left', 'right'], true)) {
+            $filters['side'] = $side;
+        }
+
+        $productId = trim((string) ($raw['product_id'] ?? ''));
+        if (preg_match('/^\d+$/', $productId) === 1 && (int) $productId > 0) {
+            $filters['product_id'] = $productId;
         }
 
         $from = self::date((string) ($raw['from'] ?? ''));
@@ -239,7 +251,7 @@ final class BinaryAward
     /**
      * WHERE clause shared by every read.
      *
-     * @param array{kind:string, status:string, from:string, to:string, q:string} $filters
+     * @param array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(?int $userId, array $filters): array
@@ -260,6 +272,16 @@ final class BinaryAward
         if (($filters['status'] ?? '') !== '') {
             $where[]  = 'a.status = ?';
             $params[] = $filters['status'];
+        }
+
+        if (($filters['side'] ?? '') !== '') {
+            $where[]  = 'a.side = ?';
+            $params[] = $filters['side'];
+        }
+
+        if (($filters['product_id'] ?? '') !== '') {
+            $where[]  = 'EXISTS (SELECT 1 FROM shop_order_items oi WHERE oi.order_id = o.id AND oi.product_id = ?)';
+            $params[] = (int) $filters['product_id'];
         }
 
         if (($filters['from'] ?? '') !== '') {
@@ -658,7 +680,7 @@ final class BinaryAward
     public static function csvHeader(): array
     {
         return [
-            'Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Kind', 'Side',
+            'Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Product', 'Kind', 'Side',
             'Points', 'Pair count', 'Pair points', 'Rate %', 'Amount',
             'Status', 'Hold days', 'Released at', 'Reversed',
         ];
@@ -676,6 +698,7 @@ final class BinaryAward
                 (string) ($row['order_no'] ?? ''),
                 (string) ($row['buyer_username'] ?? ''),
                 (string) ($row['recipient_username'] ?? ''),
+                (string) ($row['product_name'] ?? ''),
                 (string) $row['kind'],
                 (string) ($row['side'] ?? ''),
                 (string) $row['points'],
@@ -965,6 +988,11 @@ final class BinaryAward
                        o.status         AS order_status,
                        o.delivered_at   AS order_delivered_at,
                        o.completed_at   AS order_completed_at,
+                       (SELECT oi.product_name
+                          FROM shop_order_items oi
+                         WHERE oi.order_id = o.id
+                         ORDER BY oi.id
+                         LIMIT 1) AS product_name,
                        l.balance_after      AS wallet_balance_after,
                        l.withdrawable_after AS wallet_withdrawable_after
                   FROM binary_awards a

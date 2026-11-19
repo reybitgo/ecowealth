@@ -29,13 +29,18 @@ declare(strict_types=1);
  *                              distribution, the board's frontier and the
  *                              six counters. Baseline rows are recorded,
  *                              never paid (D-06).
+ *   Product Binary             the binary award ledger (`binary_awards`):
+ *                              one row per (order, recipient, kind)
+ *                              decision: a `self` award paid to the buyer
+ *                              or a `pair` award paid at a node. Credited,
+ *                              pending, cancelled and voided states.
  *
  * One live surface: the counters, the period card, the card heading's
  * row count, the rows and the pagination are regions. The filter form
  * stays outside them so a background refresh never discards an
  * unsubmitted filter.
  *
- * @var string $tab 'package' (default), 'repeat', 'royalty', 'team_harvest' or 'general_harvest'
+ * @var string $tab 'package' (default), 'repeat', 'royalty', 'team_harvest', 'general_harvest' or 'binary'
  * @var string $ledger The tab, as a query value
  * @var string $ledger_url  This tab's URL
  * @var string $export_url  This tab's CSV export URL
@@ -44,6 +49,7 @@ declare(strict_types=1);
  * @var string $repeat_url
  * @var string $royalty_url
  * @var string $team_harvest_url
+ * @var string $binary_url
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
  *
  * Package tab:
@@ -87,19 +93,29 @@ declare(strict_types=1);
  * @var array<int, array<string, mixed>> $levels
  * @var int    $max_levels
  * @var list<array{level:int, rows:int, complete:int, missing:int, next_n:int, amount:float}> $frontier
+ *
+ * Binary tab:
+ * @var array{credited_total:float, this_month:float, credited:int, voided:int, unrecovered:float, recipients:int, average:float, pending_total:float, pending:int, cancelled:int, cancelled_total:float, total_awarded:float, next_release_at:?string, pending_recipients:int, self_total:float, pair_total:float} $stats
+ * @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
+ * @var list<array<string, mixed>> $awards
+ * @var array<int, array<string, mixed>> $kind_options
+ * @var array<string, mixed> $status_options
+ * @var array<int, array<string, mixed>> $side_options
  */
 
-$tab         = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest', 'general_harvest'], true) ? (string) $tab : 'package';
+$tab         = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest', 'general_harvest', 'binary'], true) ? (string) $tab : 'package';
 $package_url = $package_url ?? url('admin/commissions');
 $repeat_url  = $repeat_url ?? url('admin/commissions?ledger=repeat');
 $royalty_url = $royalty_url ?? url('admin/commissions?ledger=royalty');
 $team_harvest_url = $team_harvest_url ?? url('admin/commissions?ledger=team_harvest');
 $general_harvest_url = $general_harvest_url ?? url('admin/commissions?ledger=general_harvest');
+$binary_url = $binary_url ?? url('admin/commissions?ledger=binary');
 $ledger_url  = $ledger_url ?? match ($tab) {
     'repeat'            => $repeat_url,
     'royalty'           => $royalty_url,
     'team_harvest'      => $team_harvest_url,
     'general_harvest'   => $general_harvest_url,
+    'binary'            => $binary_url,
     default             => $package_url,
 };
 $export_url  = $export_url ?? url('admin/commissions/export');
@@ -117,6 +133,7 @@ $isRepeat      = $tab === 'repeat';
 $isRoyalty     = $tab === 'royalty';
 $isTeamHarvest = $tab === 'team_harvest';
 $isGeneralHarvest = $tab === 'general_harvest';
+$isBinary      = $tab === 'binary';
 
 if ($isRoyalty) {
     $stats        = $stats ?? [];
@@ -244,6 +261,19 @@ if ($isRoyalty) {
     foreach (GeneralHarvestAward::STATUSES as $status) {
         $statusOptions[$status] = GeneralHarvestAward::STATUS_LABELS[$status] ?? ucfirst($status);
     }
+} elseif ($isBinary) {
+    $stats    = $stats ?? BinaryAward::stats();
+    $filters  = $filters ?? BinaryAward::filterDefaults();
+    $awards   = $awards ?? [];
+    $pager    = $pager ?? new Paginator(0, Paginator::perPageFromRequest());
+
+    $hasFilters = (string) $filters['kind'] !== ''
+        || (string) $filters['status'] !== ''
+        || (string) $filters['side'] !== ''
+        || (string) $filters['product_id'] !== ''
+        || (string) $filters['from'] !== ''
+        || (string) $filters['to'] !== ''
+        || (string) $filters['q'] !== '';
 } else {
     $filters = $filters ?? Commission::normaliseFilters([]);
     $pager   = $pager ?? Paginator::fromTableRequest(Commission::countAdmin($filters));
@@ -365,6 +395,15 @@ if ($isRoyalty) {
 <?= $isGeneralHarvest ? ' aria-current="page"' : '' ?>
                   >
                     <i class="icon-base bx bx-grid-alt me-1"></i> General Harvest bonus
+                  </a>
+                </li>
+                <li class="nav-item" role="listitem">
+                  <a
+                    href="<?= e($binary_url) ?>"
+                    class="nav-link<?= $isBinary ? ' active' : '' ?>"
+<?= $isBinary ? ' aria-current="page"' : '' ?>
+                  >
+                    <i class="icon-base bx bx-link-external me-1"></i> Product Binary
                   </a>
                 </li>
               </ul>
@@ -786,6 +825,117 @@ if ($isRoyalty) {
                 </div>
 
 <?= View::capture('admin/commissions/_general_harvest_pagination', ['pager' => $pager]) ?>
+              </div>
+<?php elseif ($isBinary): ?>
+<?= View::capture('admin/commissions/_binary_stats', ['stats' => $stats]) ?>
+
+              <div class="card">
+<?= View::capture('admin/commissions/_binary_header', ['pager' => $pager]) ?>
+
+                <div class="card-body border-bottom">
+                  <form method="GET" action="<?= e($ledger_url) ?>" class="d-flex flex-wrap align-items-end gap-3 commission-filters">
+                    <?= per_page_hidden() ?>
+                    <input type="hidden" name="ledger" value="binary" />
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="binary-filter-q">Member, buyer, order or product</label>
+                      <input
+                        type="search"
+                        name="q"
+                        id="binary-filter-q"
+                        class="form-control"
+                        value="<?= e((string) $filters['q']) ?>"
+                        placeholder="Search the ledger…"
+                      />
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-kind">Kind</label>
+                      <select name="kind" id="binary-filter-kind" class="form-select">
+<?php foreach ($kind_options as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $filters['kind'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-status">Status</label>
+                      <select name="status" id="binary-filter-status" class="form-select">
+<?php foreach ($status_options as $value => $label): ?>
+                        <option value="<?= e($value) ?>" <?= $filters['status'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-side">Side</label>
+                      <select name="side" id="binary-filter-side" class="form-select">
+<?php foreach ($side_options as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $filters['side'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="binary-filter-product">Product</label>
+                      <input
+                        type="search"
+                        name="product_id"
+                        id="binary-filter-product"
+                        class="form-control"
+                        value="<?= e((string) $filters['product_id']) ?>"
+                        placeholder="Product id…"
+                      />
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="binary-filter-from">From</label>
+                      <input type="date" name="from" id="binary-filter-from" class="form-control" value="<?= e((string) $filters['from']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="binary-filter-to">To</label>
+                      <input type="date" name="to" id="binary-filter-to" class="form-control" value="<?= e((string) $filters['to']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
+<?php if ($hasFilters): ?>
+                      <a href="<?= e($ledger_url) ?>" class="btn btn-label-secondary ms-2">
+                        <i class="icon-base bx bx-x me-1"></i> Clear
+                      </a>
+<?php endif; ?>
+                    </div>
+                    <div class="text-end">
+                      <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
+                    </div>
+                  </form>
+
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle commission-table mb-0">
+                      <thead>
+                        <tr>
+                          <th scope="col" class="text-nowrap">Date</th>
+                          <th scope="col">Kind</th>
+                          <th scope="col">Member</th>
+                          <th scope="col">Buyer</th>
+                          <th scope="col">Product</th>
+                          <th scope="col" class="text-end">Side</th>
+                          <th scope="col" class="text-end">Points</th>
+                          <th scope="col" class="text-end">Rate</th>
+                          <th scope="col" class="text-end">Amount</th>
+                          <th scope="col">Status</th>
+                          <th scope="col" class="text-nowrap">Order</th>
+                          <th scope="col" class="text-end">Wallet</th>
+                        </tr>
+                      </thead>
+<?= View::capture('admin/commissions/_binary_rows', [
+    'awards'  => $awards,
+    'filters' => $filters,
+]) ?>
+                    </table>
+                  </div>
+
+<?= View::capture('admin/commissions/_binary_pagination', ['pager' => $pager]) ?>
               </div>
 <?php else: ?>
 <?= View::capture('admin/commissions/_stats', ['stats' => $stats]) ?>

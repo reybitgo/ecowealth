@@ -72,6 +72,9 @@ final class AdminCommissionController
     /** The General Harvest bonus ledger (Phase 21E). */
     public const TAB_GENERAL_HARVEST = 'general_harvest';
 
+    /** The Product Binary award ledger (Phase 22E). */
+    public const TAB_BINARY = 'binary';
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -99,6 +102,7 @@ final class AdminCommissionController
             self::TAB_ROYALTY      => self::TAB_ROYALTY,
             self::TAB_TEAM_HARVEST => self::TAB_TEAM_HARVEST,
             self::TAB_GENERAL_HARVEST => self::TAB_GENERAL_HARVEST,
+            self::TAB_BINARY       => self::TAB_BINARY,
             default                => self::TAB_PACKAGE,
         };
     }
@@ -115,6 +119,7 @@ final class AdminCommissionController
             self::TAB_ROYALTY      => $this->royaltyContext(),
             self::TAB_TEAM_HARVEST => $this->teamHarvestContext(),
             self::TAB_GENERAL_HARVEST => $this->generalHarvestContext(),
+            self::TAB_BINARY       => $this->binaryContext(),
             default                => $this->listContext(),
         };
     }
@@ -452,6 +457,81 @@ final class AdminCommissionController
     }
 
     /**
+     * Everything the Product Binary tab renders, built once for the page
+     * and its feed (plan §9 Phase 22E-S1).
+     *
+     * Read-only over the rows 22D writes. The filters go through
+     * `BinaryAward::normaliseFilters()`, so an unknown kind, status, side,
+     * product id, date or search falls back to "no filter" exactly like the
+     * other tabs (Rule 7). Points and money are shown side by side and
+     * never added together (Rule 4).
+     *
+     * @return array<string, mixed>
+     */
+    public function binaryContext(): array
+    {
+        $filters = BinaryAward::normaliseFilters([
+            'kind'       => Request::string('kind'),
+            'status'     => Request::string('status'),
+            'side'       => Request::string('side'),
+            'product_id' => Request::string('product_id'),
+            'from'       => Request::string('from'),
+            'to'         => Request::string('to'),
+            'q'          => Request::string('q'),
+        ]);
+
+        $pager  = Paginator::fromTableRequest(BinaryAward::countAdmin($filters));
+        $awards = BinaryAward::adminList($filters, $pager);
+        $stats  = BinaryAward::stats();
+
+        $hasFilters = (string) $filters['kind'] !== ''
+            || (string) $filters['status'] !== ''
+            || (string) $filters['side'] !== ''
+            || (string) $filters['product_id'] !== ''
+            || (string) $filters['from'] !== ''
+            || (string) $filters['to'] !== ''
+            || (string) $filters['q'] !== '';
+
+        $kindOptions = [['value' => '', 'label' => 'All kinds']];
+        foreach (BinaryAward::KINDS as $kind) {
+            $kindOptions[] = [
+                'value' => $kind,
+                'label' => ucfirst($kind),
+            ];
+        }
+
+        $statusOptions = ['' => 'All statuses'];
+        foreach (BinaryAward::STATUSES as $status) {
+            $statusOptions[$status] = BinaryAward::STATUS_LABELS[$status] ?? ucfirst($status);
+        }
+
+        $sideOptions = [['value' => '', 'label' => 'All sides']];
+        foreach (['left', 'right'] as $side) {
+            $sideOptions[] = ['value' => $side, 'label' => ucfirst($side)];
+        }
+
+        return [
+            'tab'         => self::TAB_BINARY,
+            'ledger'      => self::TAB_BINARY,
+            'stats'       => $stats,
+            'filters'     => $filters,
+            'pager'       => $pager,
+            'awards'      => $awards,
+            'kind_options'   => $kindOptions,
+            'status_options' => $statusOptions,
+            'side_options'   => $sideOptions,
+            'has_filters'  => $hasFilters,
+            'ledger_url'  => url('admin/commissions?ledger=binary'),
+            'export_url'  => url('admin/commissions/export' . self::binaryQueryString($filters)),
+            'wallet_url'  => url('admin/wallets'),
+            'package_url' => url('admin/commissions'),
+            'repeat_url'  => url('admin/commissions?ledger=repeat'),
+            'royalty_url' => url('admin/commissions?ledger=royalty'),
+            'binary_url'  => url('admin/commissions?ledger=binary'),
+        ];
+    }
+
+    /**
      * The period the Royalty tab shows (plan §8 Rule 3): an explicit
      * `current` or `YYYY-MM` wins; otherwise the latest final period,
      * then the latest header of any status, then the open month.
@@ -540,6 +620,11 @@ final class AdminCommissionController
 
         if (self::tab() === self::TAB_GENERAL_HARVEST) {
             $this->exportGeneralHarvest();
+            return;
+        }
+
+        if (self::tab() === self::TAB_BINARY) {
+            $this->exportBinary();
             return;
         }
 
@@ -893,6 +978,38 @@ final class AdminCommissionController
     }
 
     /**
+     * The General Harvest export query string: the tab first, then the
+     * present filters.
+     *
+     * @param array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+     */
+    private static function generalHarvestQueryString(array $filters): string
+    {
+        $present = array_filter(
+            $filters,
+            static fn (string|int $value): bool => $value !== '' && $value !== 0
+        );
+
+        return '?' . http_build_query(['ledger' => self::TAB_GENERAL_HARVEST] + $present);
+    }
+
+    /**
+     * The Binary export query string: the tab first, then the present
+     * filters.
+     *
+     * @param array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
+     */
+    private static function binaryQueryString(array $filters): string
+    {
+        $present = array_filter(
+            $filters,
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return '?' . http_build_query(['ledger' => self::TAB_BINARY] + $present);
+    }
+
+    /**
      * The Royalty export query string: the tab first, then the present
      * filters. The period is always present (the screen shows one).
      *
@@ -1004,19 +1121,59 @@ final class AdminCommissionController
     }
 
     /**
-     * The General Harvest export query string: the tab first, then the
-     * present filters.
-     *
-     * @param array{user_id:int, level:string, status:string, from:string, to:string, q:string} $filters
+     * GET /admin/commissions/export?ledger=binary — the filtered Product
+     * Binary awards as CSV. Audited once as `binary.export` with the tab,
+     * the filters and the row count (plan §15.4).
      */
-    private static function generalHarvestQueryString(array $filters): string
+    private function exportBinary(): void
     {
-        $present = array_filter(
-            $filters,
-            static fn (string|int $value): bool => $value !== '' && $value !== 0
-        );
+        $filters = BinaryAward::normaliseFilters([
+            'kind'       => Request::string('kind'),
+            'status'     => Request::string('status'),
+            'side'       => Request::string('side'),
+            'product_id' => Request::string('product_id'),
+            'from'       => Request::string('from'),
+            'to'         => Request::string('to'),
+            'q'          => Request::string('q'),
+        ]);
 
-        return '?' . http_build_query(['ledger' => self::TAB_GENERAL_HARVEST] + $present);
+        $rows  = BinaryAward::exportRows(null, $filters);
+        $admin = auth_user();
+
+        AuditLog::record([
+            'action'       => 'binary.export',
+            'actor_id'     => $admin === null ? null : (int) $admin['id'],
+            'actor_role'   => $admin === null ? null : (string) $admin['role'],
+            'subject_type' => 'binary_award',
+            'subject_id'   => null,
+            'meta'         => [
+                'tab'     => self::TAB_BINARY,
+                'filters' => $filters,
+                'rows'    => count($rows),
+            ],
+        ]);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="binary-awards_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, BinaryAward::csvHeader());
+
+        foreach (BinaryAward::csvRows($rows) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
     }
 
     /**
@@ -1143,6 +1300,10 @@ final class AdminCommissionController
             return $this->generalHarvestFeedPayload($revision, $etag, $data);
         }
 
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_BINARY) {
+            return $this->binaryFeedPayload($revision, $etag, $data);
+        }
+
         $pager = $data['pager'];
 
         return [
@@ -1257,6 +1418,49 @@ final class AdminCommissionController
                     'filters' => $data['filters'],
                 ]),
                 'general-harvest-pagination' => View::capture('admin/commissions/_general_harvest_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalListUrl($pager),
+            ],
+        ];
+    }
+
+    /**
+     * The Binary tab's fragments: the heading, counters, rows and
+     * pagination, under their own `binary-*` names so an open Binary tab
+     * never patches a package, repeat, Royalty, Team Harvest or General
+     * Harvest region. The filter form never travels in a fragment.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function binaryFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => 'admin.commissions',
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'binary-header' => View::capture('admin/commissions/_binary_header', [
+                    'pager' => $pager,
+                ]),
+                'binary-stats' => View::capture('admin/commissions/_binary_stats', [
+                    'stats' => $data['stats'],
+                ]),
+                'binary-rows' => View::capture('admin/commissions/_binary_rows', [
+                    'awards'  => $data['awards'],
+                    'filters' => $data['filters'],
+                ]),
+                'binary-pagination' => View::capture('admin/commissions/_binary_pagination', [
                     'pager' => $pager,
                 ]),
             ],
