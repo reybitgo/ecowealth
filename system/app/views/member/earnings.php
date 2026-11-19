@@ -115,16 +115,18 @@ $live = $live ?? [
     'interval' => 30000,
 ];
 
-$tab          = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest', 'general_harvest'], true) ? (string) $tab : 'package';
+$tab          = in_array($tab ?? 'package', ['repeat', 'royalty', 'team_harvest', 'general_harvest', 'binary'], true) ? (string) $tab : 'package';
 $isRepeat     = $tab === 'repeat';
 $isRoyalty    = $tab === 'royalty';
 $isTeam       = $tab === 'team_harvest';
 $isGeneral    = $tab === 'general_harvest';
+$isBinary     = $tab === 'binary';
 $package_url  = $package_url ?? url('earnings');
 $repeat_url   = $repeat_url ?? url('earnings?ledger=repeat');
 $royalty_url  = $royalty_url ?? url('earnings?ledger=royalty');
 $team_harvest_url = $team_harvest_url ?? url('earnings?ledger=team_harvest');
 $general_harvest_url = $general_harvest_url ?? url('earnings?ledger=general_harvest');
+$binary_url          = $binary_url ?? url('earnings?ledger=binary');
 $statement_url = $statement_url ?? match ($tab) {
     'repeat'       => $repeat_url,
     'royalty'      => $royalty_url,
@@ -352,6 +354,17 @@ if ($isTeam) {
                     <i class="icon-base bx bx-grid-alt me-1"></i> General Harvest
                   </a>
                 </li>
+<?php if (BinaryService::enabled()): ?>
+                <li class="nav-item" role="listitem">
+                  <a
+                    href="<?= e($binary_url) ?>"
+                    class="nav-link<?= $isBinary ? ' active' : '' ?>"
+<?= $isBinary ? ' aria-current="page"' : '' ?>
+                  >
+                    <i class="icon-base bx bx-git-branch me-1"></i> Product binary
+                  </a>
+                </li>
+<?php endif; ?>
               </ul>
 
 <?php if ($isTeam): ?>
@@ -750,6 +763,157 @@ if ($isTeam) {
 <?= View::capture('member/earnings/_general_roster', [
     'roster' => $general_harvest['roster'] ?? null,
 ]) ?>
+<?php endif; ?>
+<?php elseif ($isBinary): ?>
+<?php
+    $binaryNode   = BinaryNode::forUser((int) ($user_id ?? 0));
+    $binaryTotals = $totals ?? BinaryAward::totalsForUser((int) ($user_id ?? 0));
+    $binaryPending= $pending ?? BinaryAward::pendingSummaryForUser((int) ($user_id ?? 0));
+    $binaryPager  = $pager ?? Paginator::fromTableRequest(count($awards ?? []));
+    $binaryFilters= $filters ?? BinaryAward::filterDefaults();
+    $binaryAwards = $awards ?? [];
+
+    $hasFilters = (string) $binaryFilters['kind'] !== ''
+        || (string) $binaryFilters['status'] !== ''
+        || (string) $binaryFilters['side'] !== ''
+        || (string) $binaryFilters['product_id'] !== ''
+        || (string) $binaryFilters['from'] !== ''
+        || (string) $binaryFilters['to'] !== ''
+        || (string) $binaryFilters['q'] !== '';
+?>
+<?php if ($binaryNode === null): ?>
+              <div class="card mt-4">
+                <div class="card-header">
+                  <h5 class="card-title mb-0">Product binary</h5>
+                </div>
+                <div class="card-body text-center py-5">
+                  <i class="icon-base bx bx-user-x text-body-muted mb-3" style="font-size: 2.25rem;"></i>
+                  <h5 class="mb-2">You are not placed in the binary tree yet</h5>
+                  <p class="text-body-secondary mb-3">
+                    Your purchases will not place points until you are placed. Ask your upline or an
+                    administrator to place you in the tree.
+                  </p>
+                  <a href="<?= e(url('shop')) ?>" class="btn btn-primary">
+                    <i class="icon-base bx bx-store me-1"></i> Keep shopping
+                  </a>
+                </div>
+              </div>
+<?php else: ?>
+              <div class="row g-4 mb-4">
+<?= View::capture('member/earnings/_binary_stats', [
+    'totals'  => $binaryTotals,
+    'pending' => $binaryPending,
+]) ?>
+<?= View::capture('member/earnings/_binary_self', ['totals' => $binaryTotals]) ?>
+              </div>
+
+              <div class="card">
+<?= View::capture('member/earnings/_binary_header', ['pager' => $binaryPager]) ?>
+
+                <div class="card-body border-bottom">
+                  <form method="GET" action="<?= e($statement_url) ?>" class="d-flex flex-wrap align-items-end gap-3 commission-filters">
+                    <?= per_page_hidden() ?>
+                    <input type="hidden" name="ledger" value="binary" />
+
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="binary-filter-kind">Kind</label>
+                      <select name="kind" id="binary-filter-kind" class="form-select">
+                        <option value="">All kinds</option>
+                        <option value="self" <?= $binaryFilters['kind'] === 'self' ? 'selected' : '' ?>>Self bonus</option>
+                        <option value="pair" <?= $binaryFilters['kind'] === 'pair' ? 'selected' : '' ?>>Pair</option>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-status">Status</label>
+                      <select name="status" id="binary-filter-status" class="form-select">
+                        <option value="">All statuses</option>
+                        <option value="pending" <?= $binaryFilters['status'] === 'pending' ? 'selected' : '' ?>>Pending release</option>
+                        <option value="credited" <?= $binaryFilters['status'] === 'credited' ? 'selected' : '' ?>>Credited</option>
+                        <option value="cancelled" <?= $binaryFilters['status'] === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+                        <option value="voided" <?= $binaryFilters['status'] === 'voided' ? 'selected' : '' ?>>Voided</option>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-side">Side</label>
+                      <select name="side" id="binary-filter-side" class="form-select">
+                        <option value="">All sides</option>
+                        <option value="left" <?= $binaryFilters['side'] === 'left' ? 'selected' : '' ?>>Left</option>
+                        <option value="right" <?= $binaryFilters['side'] === 'right' ? 'selected' : '' ?>>Right</option>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="binary-filter-product">Product</label>
+                      <select name="product_id" id="binary-filter-product" class="form-select">
+                        <option value="">All products</option>
+<?php foreach (Product::all() as $product): ?>
+                        <option value="<?= (int) $product['id'] ?>" <?= $binaryFilters['product_id'] === (string) $product['id'] ? 'selected' : '' ?>><?= e((string) $product['name']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="binary-filter-from">From</label>
+                      <input type="date" name="from" id="binary-filter-from" class="form-control" value="<?= e((string) $binaryFilters['from']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-date">
+                      <label class="form-label" for="binary-filter-to">To</label>
+                      <input type="date" name="to" id="binary-filter-to" class="form-control" value="<?= e((string) $binaryFilters['to']) ?>" />
+                    </div>
+
+                    <div class="commission-filter-field commission-filter-wide">
+                      <label class="form-label" for="binary-filter-q">Order, product or teammate</label>
+                      <input
+                        type="search"
+                        name="q"
+                        id="binary-filter-q"
+                        class="form-control"
+                        value="<?= e((string) $binaryFilters['q']) ?>"
+                        placeholder="Search your awards…"
+                      />
+                    </div>
+
+                    <div class="commission-filter-actions">
+                      <button type="submit" class="btn btn-primary">Filter</button>
+<?php if ($hasFilters): ?>
+                      <a href="<?= e($statement_url) ?>" class="btn btn-label-secondary ms-2">
+                        <i class="icon-base bx bx-x me-1"></i> Clear
+                      </a>
+<?php endif; ?>
+                    </div>
+                  </form>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle commission-table mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="commission-col-date">Date</th>
+                        <th scope="col" class="commission-col-kind">Kind</th>
+                        <th scope="col" class="commission-col-buyer">Buyer</th>
+                        <th scope="col" class="commission-col-product">Product</th>
+                        <th scope="col" class="text-nowrap commission-col-side">Side</th>
+                        <th scope="col" class="text-end commission-col-points">Points</th>
+                        <th scope="col" class="text-end">Pairs</th>
+                        <th scope="col" class="text-end commission-col-rate">Rate</th>
+                        <th scope="col" class="text-end">Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="commission-col-order">Order</th>
+                      </tr>
+                    </thead>
+<?= View::capture('member/earnings/_binary_rows', [
+    'awards'     => $binaryAwards,
+    'filters'    => $binaryFilters,
+    'wallet_url' => $wallet_url,
+]) ?>
+                  </table>
+                </div>
+
+<?= View::capture('member/earnings/_binary_pagination', ['pager' => $binaryPager]) ?>
+              </div>
 <?php endif; ?>
 <?php else: ?>
 <?= View::capture('member/earnings/_stats', ['totals' => $totals]) ?>

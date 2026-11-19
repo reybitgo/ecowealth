@@ -87,6 +87,9 @@ final class EarningsController
     /** General Harvest bonus levels and blocks (Phase 21F). */
     public const TAB_GENERAL_HARVEST = 'general_harvest';
 
+    /** Product binary statement (Phase 22F). */
+    public const TAB_BINARY = 'binary';
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
@@ -134,6 +137,7 @@ final class EarningsController
             self::TAB_ROYALTY      => self::TAB_ROYALTY,
             self::TAB_TEAM_HARVEST => self::TAB_TEAM_HARVEST,
             self::TAB_GENERAL_HARVEST => self::TAB_GENERAL_HARVEST,
+            self::TAB_BINARY         => BinaryService::enabled() ? self::TAB_BINARY : self::TAB_PACKAGE,
             default                => self::TAB_PACKAGE,
         };
     }
@@ -152,6 +156,7 @@ final class EarningsController
             self::TAB_ROYALTY      => $this->royaltyContext($userId),
             self::TAB_TEAM_HARVEST => $this->teamHarvestContext($userId),
             self::TAB_GENERAL_HARVEST => $this->generalHarvestContext($userId),
+            self::TAB_BINARY         => $this->binaryContext($userId),
             default                => $this->earningsContext($userId),
         };
     }
@@ -415,6 +420,54 @@ final class EarningsController
     }
 
     /**
+     * Everything the Product binary statement renders (22F, plan §10).
+     *
+     * Every read is scoped to the session member (`$userId`): the award
+     * filters carry `user_id` from `$userId` and never from the request,
+     * so a hand-edited `?user_id=` cannot widen the statement (plan Rule
+     * 11, P22F-T23). The tab names no upline, sponsor or ancestor
+     * (plan §14.12, D-22).
+     *
+     * @return array<string, mixed>
+     */
+    public function binaryContext(int $userId): array
+    {
+        $filters = BinaryAward::normaliseFilters([
+            'kind'       => Request::string('kind'),
+            'status'     => Request::string('status'),
+            'side'       => Request::string('side'),
+            'product_id' => Request::string('product_id'),
+            'from'       => Request::string('from'),
+            'to'         => Request::string('to'),
+            'q'          => Request::string('q'),
+        ]);
+
+        $pager = Paginator::fromTableRequest(BinaryAward::countForUser($userId, $filters));
+        $rows  = BinaryAward::pageForUser($userId, $filters, $pager);
+
+        return [
+            'tab'           => self::TAB_BINARY,
+            'user_id'       => $userId,
+            'totals'        => BinaryAward::totalsForUser($userId),
+            'pending'       => BinaryAward::pendingSummaryForUser($userId),
+            'breakdown'     => BinaryAward::sideBreakdown($userId),
+            'filters'       => $filters,
+            'pager'         => $pager,
+            'awards'        => $rows,
+            'wallet_url'    => url('wallet'),
+            'genealogy_url' => url('genealogy'),
+            'package_url'   => url('earnings'),
+            'repeat_url'    => url('earnings?ledger=repeat'),
+            'royalty_url'   => url('earnings?ledger=royalty'),
+            'team_harvest_url' => url('earnings?ledger=team_harvest'),
+            'general_harvest_url' => url('earnings?ledger=general_harvest'),
+            'binary_url'    => url('earnings?ledger=binary'),
+            'statement_url' => url('earnings?ledger=binary'),
+            'export_url'    => url('earnings/export' . self::binaryQueryString($filters)),
+        ];
+    }
+
+    /**
      * The General Harvest statement's validated filters, with the session
      * member's id **forced** in (21F Rule 12).
      *
@@ -629,6 +682,12 @@ final class EarningsController
             return;
         }
 
+        if (self::tab() === self::TAB_BINARY) {
+            $this->exportBinary((int) $user['id']);
+
+            return;
+        }
+
         if (self::tab() === self::TAB_ROYALTY) {
             $this->exportRoyalty((int) $user['id']);
 
@@ -837,6 +896,52 @@ final class EarningsController
         fputcsv($out, self::generalHarvestCsvHeader());
 
         foreach (self::generalHarvestCsvRows($rows) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * GET /earnings/export?ledger=binary — the member's own binary award
+     * rows.
+     *
+     * The member is forced in at the model (`exportRows(..., $userId)`),
+     * so a hand-edited `?user_id=` cannot export another member's awards
+     * (Rule 11). No audit row: a member reading their own statement is
+     * the page itself (plan §15.1).
+     */
+    private function exportBinary(int $userId): void
+    {
+        $filters = BinaryAward::normaliseFilters([
+            'kind'       => Request::string('kind'),
+            'status'     => Request::string('status'),
+            'side'       => Request::string('side'),
+            'product_id' => Request::string('product_id'),
+            'from'       => Request::string('from'),
+            'to'         => Request::string('to'),
+            'q'          => Request::string('q'),
+        ]);
+
+        $rows = BinaryAward::exportRows($userId, $filters);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="binary-statement_' . date('Y-m-d') . '.csv"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: no-store');
+        }
+
+        $out = fopen('php://output', 'w');
+
+        if ($out === false) {
+            exit;
+        }
+
+        fputcsv($out, BinaryAward::csvHeader());
+
+        foreach (BinaryAward::csvRows($rows) as $row) {
             fputcsv($out, $row);
         }
 
@@ -1073,6 +1178,29 @@ final class EarningsController
     }
 
     /**
+     * The binary export query string: the tab first, then the filters.
+     * `user_id` never travels: the model forces it (Rule 11).
+     *
+     * @param array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
+     */
+    private static function binaryQueryString(array $filters): string
+    {
+        $query = ['ledger' => self::TAB_BINARY] + array_filter(
+            [
+                'kind'      => (string) $filters['kind'],
+                'status'    => (string) $filters['status'],
+                'side'      => (string) $filters['side'],
+                'product_id'=> (string) $filters['product_id'],
+                'from'      => (string) $filters['from'],
+                'to'        => (string) $filters['to'],
+            ],
+            static fn (string $value): bool => $value !== ''
+        );
+
+        return '?' . http_build_query($query);
+    }
+
+    /**
      * The Royalty export query string: the tab first, then the filters.
      *
      * @param array{period:string, status:string, rank:string, q:string} $filters
@@ -1146,6 +1274,10 @@ final class EarningsController
                 . '|config:' . Live::revisionOrZero(Live::CONFIG);
         }
 
+        if (self::tab() === self::TAB_BINARY) {
+            $scope .= '|binary:' . Live::revisionOrZero(Live::GENEALOGY_TEAM);
+        }
+
         return $scope;
     }
 
@@ -1206,6 +1338,10 @@ final class EarningsController
 
         if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_ROYALTY) {
             return $this->royaltyFeedPayload($revision, $etag, $data);
+        }
+
+        if (($data['tab'] ?? self::TAB_PACKAGE) === self::TAB_BINARY) {
+            return $this->binaryFeedPayload($revision, $etag, $data);
         }
 
         $pager = $data['pager'];
@@ -1333,6 +1469,53 @@ final class EarningsController
                     'payments_enabled' => (bool) ($data['royalty']['payments_enabled'] ?? true),
                 ]),
                 'earnings-royalty-pagination' => View::capture('member/earnings/_royalty_pagination', [
+                    'pager' => $pager,
+                ]),
+            ],
+            'meta'      => [
+                'page'      => $pager->page,
+                'pages'     => $pager->pages,
+                'total'     => $pager->total,
+                'per_page'  => $pager->perPage,
+                'canonical' => $this->canonicalEarningsUrl($pager),
+            ],
+        ];
+    }
+
+    /**
+     * The Product binary tab's fragments (22F): the stats card, the self
+     * bonus card, the award rows and the pagination. The filter form and
+     * the tab pills never travel in a fragment.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function binaryFeedPayload(int $revision, string $etag, array $data): array
+    {
+        $pager = $data['pager'];
+
+        return [
+            'ok'        => true,
+            'surface'   => Live::earningsSurface((int) $data['user_id']),
+            'revision'  => $revision,
+            'etag'      => $etag,
+            'fragments' => [
+                'earnings-binary-header' => View::capture('member/earnings/_binary_header', [
+                    'pager' => $pager,
+                ]),
+                'earnings-binary-stats' => View::capture('member/earnings/_binary_stats', [
+                    'totals'  => $data['totals'],
+                    'pending' => $data['pending'],
+                ]),
+                'earnings-binary-self' => View::capture('member/earnings/_binary_self', [
+                    'totals' => $data['totals'],
+                ]),
+                'earnings-binary-rows' => View::capture('member/earnings/_binary_rows', [
+                    'awards'     => $data['awards'],
+                    'filters'    => $data['filters'],
+                    'wallet_url' => $data['wallet_url'],
+                ]),
+                'earnings-binary-pagination' => View::capture('member/earnings/_binary_pagination', [
                     'pager' => $pager,
                 ]),
             ],
