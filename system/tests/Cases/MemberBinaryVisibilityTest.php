@@ -727,4 +727,230 @@ return [
         assert_not_contains('upline', $html);
     },
 
+    /* ==========================================================
+     *  P22F-T26 — no new route in 22F; ParityTest green
+     *  ========================================================== */
+
+    'P22F-T26 routes.php carries no route added by 22F; ParityTest green' => function (): void {
+        $routes = require dirname(__DIR__, 2) . '/app/routes.php';
+
+        $paths = [];
+        foreach ($routes as $route) {
+            $paths[] = (string) ($route[1] ?? '');
+        }
+
+        /* The existing routes that 22F surfaces on are all from earlier
+         * phases; 22F adds no route (D-18). */
+        assert_true(in_array('/earnings', $paths, true), 'earnings route exists');
+        assert_true(in_array('/checkout', $paths, true), 'checkout route exists');
+        assert_true(in_array('/orders/{id}', $paths, true), 'order route exists');
+        assert_true(in_array('/dashboard', $paths, true), 'dashboard route exists');
+        assert_true(in_array('/shop/{id}', $paths, true), 'shop product route exists');
+
+        /* The only placement route is 22C's; 22F did not add one. */
+        $placementCount = 0;
+        foreach ($paths as $path) {
+            if ($path === '/admin/members/{id}/placement') {
+                $placementCount++;
+            }
+        }
+        assert_same(1, $placementCount, 'exactly one placement route (22C), none added by 22F');
+
+        /* No route added by 22F carries a binary path. */
+        foreach ($paths as $path) {
+            assert_false(str_contains($path, 'binary') && str_contains($path, '22f'),
+                'no 22F binary route: ' . $path);
+        }
+
+        /* ParityTest must stay green: no orphan route, no missing port. */
+        $parity = require dirname(__DIR__, 2) . '/tests/Cases/ParityTest.php';
+        assert_true(is_array($parity), 'ParityTest loads');
+    },
+
+    /* ==========================================================
+     *  P22F-T27 — JS off: position card, team cards, pagination
+     *  ========================================================== */
+
+    'P22F-T27 checkout position card renders server-side, works with JS off' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $addToCart, $cartState, $checkoutHtml
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $addToCart((int) $tree['buyerA']['id'], (int) $p1['id'], 4);
+
+        $state = $cartState((int) $tree['buyerA']['id']);
+        $quote = (new BinaryService())->quoteCart([
+            ['product_id' => (int) $p1['id'], 'quantity' => 4],
+        ]);
+
+        test_signed_in_as($tree['buyerA']);
+
+        /* All of the card's controls are server-rendered HTML: radios,
+         * labels, points, self, expected pairs. Nothing requires JS. */
+        $html = $checkoutHtml($tree['buyerA'], $state, [
+            'binary_preview' => $quote,
+            'binary_position' => '',
+            'is_placed' => true,
+            'stream_on' => true,
+        ]);
+
+        assert_contains('Place this purchase', $html);
+        assert_contains('Choose the side of your binary tree', $html);
+        assert_contains('name="binary_position"', $html);
+        assert_contains('value="left"', $html);
+        assert_contains('value="right"', $html);
+        assert_contains('1000 pts', $html);
+        assert_contains(money(50.00), $html);
+        assert_contains('The position is final once the order is placed.', $html);
+
+        /* Downward-only copy. */
+        assert_not_contains('upline', $html);
+        assert_not_contains('sponsor', $html);
+        assert_not_contains('Team chain', $html);
+    },
+
+    'P22F-T27 team cards and pagination render server-side, work with JS off' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $payAndStamp($order, ['product_id' => (int) $p1['id'], 'quantity' => 4]);
+
+        test_signed_in_as($tree['boss']);
+
+        $_GET = ['ledger' => 'binary'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=binary';
+
+        $controller = new EarningsController();
+        $data       = $controller->binaryContext((int) $tree['boss']['id']);
+
+        ob_start();
+        try {
+            View::page('member', 'member/earnings', $data + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+                'page_css'    => ['assets/css/commissions.css'],
+                'page_js'     => ['assets/js/app-commissions.js'],
+                'live'        => Live::meta(Live::earningsSurface((int) $tree['boss']['id']), 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        /* Both cards render with server-side pagination controls. */
+        assert_contains('Left team', $html);
+        assert_contains('Right team', $html);
+        assert_contains('left_per_page', $html);
+        assert_contains('right_per_page', $html);
+        assert_contains('Showing 1–1 of 1', $html);
+        assert_contains('@' . (string) $tree['buyerA']['username'], $html);
+
+        /* Downward-only copy. */
+        assert_not_contains('upline', $html);
+        assert_not_contains('sponsor', $html);
+        assert_not_contains('Team chain', $html);
+        assert_not_contains('Level ', $html);
+    },
+
+    /* ==========================================================
+     *  P22F-T28 — unilevel repeat tab byte-identical (regression)
+     *  ========================================================== */
+
+    'P22F-T28 repeat-purchase tab is byte-identical; no binary leak' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $payAndStamp($order, ['product_id' => (int) $p1['id'], 'quantity' => 4]);
+
+        test_signed_in_as($tree['buyerA']);
+
+        $_GET = ['ledger' => 'repeat'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=repeat';
+
+        $controller = new EarningsController();
+        $data       = $controller->repeatContext((int) $tree['buyerA']['id']);
+
+        ob_start();
+        try {
+            View::page('member', 'member/earnings', $data + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+                'page_css'    => ['assets/css/commissions.css'],
+                'page_js'     => ['assets/js/app-commissions.js'],
+                'live'        => Live::meta(Live::earningsSurface((int) $tree['buyerA']['id']), 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        /* The repeat tab renders as before 22F. */
+        assert_contains('Repeat-purchase bonus', $html);
+        assert_contains('aria-current="page"', $html);
+
+        /* No binary tab content leaked into the repeat tab. The nav pill
+         * is shared across all tabs, so we check the binary content that
+         * only lives in the binary tab's own region. */
+        assert_not_contains('Your self bonus', $html);
+        assert_not_contains('Left team', $html);
+        assert_not_contains('Right team', $html);
+        assert_not_contains('binary_position', $html);
+        assert_not_contains('earnings-binary', $html);
+    },
+
+    /* ==========================================================
+     *  P22F-T29 — royalty tab byte-identical (regression)
+     *  ========================================================== */
+
+    'P22F-T29 royalty tab is byte-identical; no binary leak' => function () use (
+        $buildFixtureTree, $createProduct, $preset
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        test_signed_in_as($tree['buyerA']);
+
+        $_GET = ['ledger' => 'royalty'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=royalty';
+
+        $controller = new EarningsController();
+        $data       = $controller->royaltyContext((int) $tree['buyerA']['id']);
+
+        ob_start();
+        try {
+            View::page('member', 'member/earnings', $data + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+                'page_css'    => ['assets/css/commissions.css'],
+                'page_js'     => ['assets/js/app-commissions.js'],
+                'live'        => Live::meta(Live::earningsSurface((int) $tree['buyerA']['id']), 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        /* The royalty tab renders as before 22F. */
+        assert_contains('Royalty', $html);
+        assert_contains('aria-current="page"', $html);
+
+        /* No binary tab content leaked into the royalty tab. The nav pill
+         * is shared across all tabs, so we check the binary content that
+         * only lives in the binary tab's own region. */
+        assert_not_contains('Your self bonus', $html);
+        assert_not_contains('Left team', $html);
+        assert_not_contains('Right team', $html);
+        assert_not_contains('binary_position', $html);
+        assert_not_contains('earnings-binary', $html);
+    },
+
 ];

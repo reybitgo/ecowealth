@@ -680,6 +680,222 @@ Expected
 
 ---
 
+## 9. Section F — Phase 22F: Member visibility (`QA22F-01` … `QA22F-10`)
+
+**Prerequisites.** Tag `p22e-admin` (the Phase 22E release gate); migration 026 applied; the Product binary awards of QA22D-01 … QA22D-03 present on the development copy; the app running. All of these checks are **read-only for money**: no controller, model or view in this phase writes an award, a volume row, a node balance or a wallet row. Expected suite count for this section: **≥ 1,694** PHP cases and **278** smoke checks.
+
+### QA22F-01 — The binary tab renders with stats, self card, both team cards
+
+| Why | P22F-T1, P22F-T2, P22F-T3: the binary tab is active, carries stats, the self bonus card and both Left/Right team cards. |
+|---|---|
+| Where | the running app as a member — `/earnings?ledger=binary` |
+| Evidence | `QA22F-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. As `buyerA` after QA22D-01, open `/earnings?ledger=binary`.
+2. Confirm the *Product binary* tab pill is active.
+3. Confirm the stats tile, the *Your self bonus* card, the *Left team* card and the *Right team* card all render.
+4. Confirm the self card shows *₱50.00 pending* and *You earn on your own purchase: 5% of its points*.
+
+**Expected**
+
+- Four tabs render (package, repeat, royalty, binary); the binary tab is active.
+- Stats, progress, both team cards, the self card and the awards table all render.
+- The tab names no upline, sponsor or ancestor (D-22).
+
+---
+
+### QA22F-02 — Left/Right team cards list the member's own team
+
+| Why | P22F-T2, P22F-T3, P22F-T4: each side card shows its roster, own points, branch points and independent pagination. |
+|---|---|
+| Where | the running app as a member — `/earnings?ledger=binary` |
+| Evidence | `QA22F-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. As `c` after QA22D-01..03, open `/earnings?ledger=binary`.
+2. Confirm the Left team card lists the members under `c`'s left with their own points.
+3. Confirm the Right team card lists `buyerB` under `c`'s right.
+4. Confirm each row shows username, status badge, package, own points and branch points.
+5. Confirm the pair progress shows matched points and the pair.
+
+**Expected**
+
+- Both sides work independently; points carry *pts*, money carries currency.
+- No member outside the viewer's subtree is named, counted or hinted at (D-22).
+
+---
+
+### QA22F-03 — Independent per-side roster pagination
+
+| Why | P22F-T2, P22F-T3: `left_page`/`left_per_page` and `right_page`/`right_per_page` move independently. |
+|---|---|
+| Where | the running app as a member — `/earnings?ledger=binary&left_page=2&left_per_page=5` |
+| Evidence | `QA22F-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Page the left roster with `?ledger=binary&left_page=2&left_per_page=5`.
+2. Confirm only the left card moves; the right card and the awards table keep their page.
+3. Page the right side independently; confirm the left card is unaffected.
+
+**Expected**
+
+- Each side paginates independently with its own namespaced keys.
+- Moving one side never moves the other side or the awards table.
+
+---
+
+### QA22F-04 — Desktop and mobile rendering
+
+| Why | P22F-T22, P22F-T24: the two cards stack on mobile, no horizontal scroll, the roster stays readable, the checkout radios are full-width. |
+|---|---|
+| Where | the running app as a member — `/earnings?ledger=binary` at 1440×900 and 390×844 |
+| Evidence | `QA22F-04.png` (screenshots) |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Screenshot `/earnings?ledger=binary` at 1440×900: the two cards sit side by side.
+2. Screenshot at 390×844: the cards stack vertically, no horizontal page scroll.
+3. Confirm every number remains legible at both widths.
+
+**Expected**
+
+- Desktop: two cards side by side (`col-xl-6`).
+- Mobile: cards stack; roster readable; checkout radios full-width.
+
+---
+
+### QA22F-05 — Copy guard: no upline, sponsor, Team chain, level
+
+| Why | P22F-T6 (D-22): the binary tab names no ancestor, no upline, no sponsor, no *Team chain*, no *level*. |
+|---|---|
+| Where | the running app as a member — `/earnings?ledger=binary` |
+| Evidence | `QA22F-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Read the rendered HTML of `/earnings?ledger=binary`.
+2. Confirm no ancestor username, no `upline`, no `sponsor`, no *Team chain*, no *Level N* appears anywhere in the binary tab.
+3. Confirm *Left team*, *Right team*, *your points*, *pairs* are present.
+
+**Expected**
+
+- D-22 holds: downward-only copy, no upline surface.
+
+---
+
+### QA22F-06 — Checkout position card: side choice required when points exist
+
+| Why | P22F-T9, P22F-T10, P22F-T11: the position card shows left/right radios, points, self, expected pairs; submitting without a side is refused. |
+|---|---|
+| Where | the running app as a member — `/checkout` with a points-bearing cart |
+| Evidence | `QA22F-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Put 4 × P1 (P.V. ₱250, binary on) in the cart as `buyerA`.
+2. Open `/checkout`: confirm the position card renders with two radios, *1000 pts*, *₱50.00* self and expected own-node pairs per side.
+3. Choose *Right* and place the order with e-wallet: confirm the order page shows *Right · 1,000 pts*.
+4. Try to place with eligible points and no side selected: confirm refusal with the `binary_position` field error; nothing is placed.
+
+**Expected**
+
+- Side is required only when eligible points exist; no-points/unplaced/off states are truthful.
+- Member sees only their own self and own-node result, never upline awards.
+
+---
+
+### QA22F-07 — Order card: before and after payment
+
+| Why | P22F-T13, P22F-T14, P22F-T15: the order card shows the side, points, self and own-node pairs after payment; an unpaid order explains it places points when paid; an order with no points shows no card. |
+|---|---|
+| Where | the running app as a member — `/orders/{id}` |
+| Evidence | `QA22F-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Open an unpaid order: confirm the card says *This order places points when it is paid.*
+2. Pay the order: confirm the card shows the side, the points and the pending self.
+3. Open an order paid before the feature or with the stream off: confirm the honest absence message.
+
+**Expected**
+
+- The card is the buyer's view: side, points, self award, own-node pairs; no upline awards listed.
+
+---
+
+### QA22F-08 — Dashboard tile and product panel
+
+| Why | P22F-T16, P22F-T17: the dashboard tile shows left/right points, next pair, earned this month; the product panel shows points per unit and self rate. |
+|---|---|
+| Where | the running app as a member — `/dashboard` and `/shop/{id}` |
+| Evidence | `QA22F-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Open `/dashboard`: confirm the *Product binary* tile shows left/right points, the next pair and the binary earned this month; the link opens the earnings tab.
+2. Open `/shop/{id}` for a binary product: confirm the panel shows *N points per unit* and the self rate.
+3. For a product with the switch off or P.V. 0: confirm the panel is absent.
+
+**Expected**
+
+- The tile and product panel read the same points as the earnings tab.
+- No panel when the product is not flagged or P.V. is 0.
+
+---
+
+### QA22F-09 — Session-scoped: a member cannot read another's tab
+
+| Why | P22F-T23, P22F-T25: the statement carries the session member's id; a `?user_id=` query cannot widen it. |
+|---|---|
+| Where | the running app as two members |
+| Evidence | `QA22F-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. As `buyerA`, open `/earnings?ledger=binary`: confirm only buyerA's awards appear.
+2. As `buyerB`, open the same URL: confirm only buyerB's awards appear; buyerA's awards are absent.
+3. Append `?user_id=` to the URL: confirm nothing changes (the model forces the session member's id).
+
+**Expected**
+
+- The page is session-scoped; another member's awards are never visible.
+
+---
+
+### QA22F-10 — Stream off: every binary affordance disappears
+
+| Why | P22F-T8, P22F-T18, P22F-T20: with `binary_enabled = 0`, the tab pill, the checkout card and the product panel are absent; no dead affords. |
+|---|---|
+| Where | the running app as `admin` (Settings) and as a member |
+| Evidence | `QA22F-10.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Switch the stream off in Settings (`binary_enabled = 0`).
+2. Reload `/earnings`: confirm the *Product binary* tab pill is absent; `/earnings?ledger=binary` falls back to the package tab with no error.
+3. Reload `/checkout`, `/shop/{id}`, `/dashboard`: confirm no binary card, panel or tile appears.
+4. Confirm the package, repeat and royalty tabs are unchanged.
+
+**Expected**
+
+- Every binary affordance disappears; the other three earnings tabs are byte-identical.
+
+---
+
 ## 6. Cleanup
 
 Section A creates no members, no QA rows and no money. If `QA22A-05` was run on a scratch schema, drop that schema or leave it — it is disposable. Nothing on the development copy changes.
