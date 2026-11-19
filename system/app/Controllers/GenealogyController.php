@@ -149,7 +149,7 @@ final class GenealogyController
 
         return [
             'member'         => $member,
-            'display_name'   => $displayName,
+            'display_name'   => $display_name,
             'team_levels'    => $byLevel,
             'direct'         => $direct,
             'recruits_pager' => $recruitsPager,
@@ -164,6 +164,11 @@ final class GenealogyController
             'harvest_node'      => $position === null ? null : max(0, (int) $position - 1),
             'referral_code'  => (string) ($member['referral_code'] ?? ''),
             'referral_link'  => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
+            /* Phase 22C: the member's binary node facts for the page header.
+             * Null when the member has not been placed in the tree yet. */
+            'binary_node'    => BinaryPlacementService::isEnabled()
+                ? BinaryNode::forUser($userId)
+                : null,
         ];
     }
 

@@ -550,4 +550,14 @@ final class BinaryNode
             'UPDATE ' . self::TABLE . ' SET depth = ?, path = ?, updated_at = NOW() WHERE user_id = ?'
         )->execute([$depth, $path, $userId]);
     }
+
+    /** The maximum depth in the tree (0 for a root-only tree). */
+    public static function maxDepth(?PDO $pdo = null): int
+    {
+        $pdo ??= db();
+
+        $row = $pdo->query('SELECT MAX(depth) AS d FROM ' . self::TABLE)->fetch();
+
+        return (int) ($row['d'] ?? 0);
+    }
 }

@@ -152,6 +152,86 @@ SELECT u.id, 'credit', u.ewallet_balance, u.ewallet_balance, u.withdrawable_bala
 ON DUPLICATE KEY UPDATE note = note;
 
 -- -------------------------------------------------------------
+-- 3b. Binary placement tree (Phase 22C, decision D-24).
+--     Idempotent: fills only empty slots for the demo usernames;
+--     the company root is created lazily by the first placement.
+--     Runs after the demo members so every username exists.
+--
+--     admin  (root, state=root, depth 0, path '')
+--       ├─ L  juan        (depth 1, path L)
+--       │  ├─ L  maria    (depth 2, path LL)
+--       │  │  ├─ L  peter (depth 3, path LLL)
+--       │  │  ├─ R  sarah (depth 3, path LLR)
+--       │  │  └─   david  (pending, depth 2, path LR)
+--       └─   (right slot free)
+-- -------------------------------------------------------------
+
+-- Company root (the primary admin account).
+INSERT INTO binary_nodes
+  (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+SELECT u.id, NULL, NULL, u.id, 0, '', 'root', NOW(), u.id
+  FROM users u
+ WHERE u.username = 'admin'
+   AND u.role = 'admin'
+   AND u.is_active = 1
+   AND NOT EXISTS (
+         SELECT 1 FROM binary_nodes bn WHERE bn.user_id = u.id
+       )
+LIMIT 1;
+
+SET @admin_id := (SELECT id FROM users WHERE username = 'admin' LIMIT 1);
+SET @juan_id  := (SELECT id FROM users WHERE username = 'juan'  LIMIT 1);
+SET @maria_id := (SELECT id FROM users WHERE username = 'maria' LIMIT 1);
+SET @peter_id := (SELECT id FROM users WHERE username = 'peter' LIMIT 1);
+SET @sarah_id := (SELECT id FROM users WHERE username = 'sarah' LIMIT 1);
+SET @david_id := (SELECT id FROM users WHERE username = 'david' LIMIT 1);
+
+-- juan under admin, left.
+INSERT INTO binary_nodes
+  (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+SELECT @juan_id, @admin_id, 'left', @admin_id, 1, 'L', 'placed', NOW(), @admin_id
+ WHERE @juan_id IS NOT NULL AND @admin_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE user_id = @juan_id)
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE upline_id = @admin_id AND side = 'left')
+LIMIT 1;
+
+-- maria under juan, left.
+INSERT INTO binary_nodes
+  (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+SELECT @maria_id, @juan_id, 'left', @admin_id, 2, 'LL', 'placed', NOW(), @admin_id
+ WHERE @maria_id IS NOT NULL AND @juan_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE user_id = @maria_id)
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE upline_id = @juan_id AND side = 'left')
+LIMIT 1;
+
+-- peter under maria, left.
+INSERT INTO binary_nodes
+  (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+SELECT @peter_id, @maria_id, 'left', @admin_id, 3, 'LLL', 'placed', NOW(), @admin_id
+ WHERE @peter_id IS NOT NULL AND @maria_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE user_id = @peter_id)
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE upline_id = @maria_id AND side = 'left')
+LIMIT 1;
+
+-- sarah under maria, right.
+INSERT INTO binary_nodes
+  (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+SELECT @sarah_id, @maria_id, 'right', @admin_id, 3, 'LLR', 'placed', NOW(), @admin_id
+ WHERE @sarah_id IS NOT NULL AND @maria_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE user_id = @sarah_id)
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE upline_id = @maria_id AND side = 'right')
+LIMIT 1;
+
+-- david under juan, right.
+INSERT INTO binary_nodes
+  (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+SELECT @david_id, @juan_id, 'right', @admin_id, 2, 'LR', 'placed', NOW(), @admin_id
+ WHERE @david_id IS NOT NULL AND @juan_id IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE user_id = @david_id)
+   AND NOT EXISTS (SELECT 1 FROM binary_nodes WHERE upline_id = @juan_id AND side = 'right')
+LIMIT 1;
+
+-- -------------------------------------------------------------
 -- 4. Demo registration codes (format ABCD-EFGH-JKLM)
 --    Codes are sold offline; the row is the auditable record.
 -- -------------------------------------------------------------

@@ -1591,7 +1591,12 @@ final class DatabaseResetService
         $zeroTables = self::ZERO_TABLES;
 
         if ($demo) {
-            $zeroTables = array_values(array_diff($zeroTables, ['ewallet_ledger']));
+            $zeroTables = array_values(array_diff($zeroTables, [
+                'ewallet_ledger',
+                'binary_nodes',
+                'binary_volume',
+                'binary_awards',
+            ]));
         }
 
         $remaining = [];

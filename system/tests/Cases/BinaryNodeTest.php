@@ -83,6 +83,9 @@ $insertNode = static function (int $userId, ?int $uplineId, ?string $side, int $
 
 /** Build the §18.2 fixture tree and return users keyed by name. */
 $buildFixtureTree = static function () use ($createUser, $insertNode): array {
+    /* Start from a clean tree: the demo seed may have placed nodes. */
+    db()->prepare('DELETE FROM binary_nodes')->execute();
+
     $admin  = $createUser('admin', 'admin');
     $boss   = $createUser('boss');
     $a      = $createUser('a');
@@ -313,6 +316,8 @@ return [
     },
 
     'P22C-T17 stats() on an empty tree is zeroed' => function () use ($createUser): void {
+        db()->prepare('DELETE FROM binary_nodes')->execute();
+
         $createUser('stats_admin', 'admin');
         BinaryNode::ensureRoot();
 

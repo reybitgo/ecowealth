@@ -527,17 +527,22 @@ final class BinaryPlacementService
         /* Legality: a registrar may place inside their own subtree or the
          * sponsor's subtree; a guest self-registers inside the sponsor's
          * subtree. A registrar-less call is an admin placement and may
-         * place anywhere legal. */
+         * place anywhere legal. A registrar with no node yet imposes no
+         * subtree restriction. */
         if ($registrar !== null) {
-            $legal = $this->uplineInSubtree($upline, $registrar, $this->pdo);
+            $registrarNode = BinaryNode::forUser((int) $registrar['id'], $this->pdo);
 
-            if (!$legal && $sponsor !== null) {
-                $sponsorNode = BinaryNode::forUser((int) $sponsor['id'], $this->pdo);
-                $legal = $sponsorNode !== null && $this->uplineInSubtree($upline, $sponsorNode, $this->pdo);
-            }
+            if ($registrarNode !== null) {
+                $legal = $this->uplineInSubtree($upline, $registrarNode, $this->pdo);
 
-            if (!$legal) {
-                throw BinaryException::state('That upline is outside your subtree.');
+                if (!$legal && $sponsor !== null) {
+                    $sponsorNode = BinaryNode::forUser((int) $sponsor['id'], $this->pdo);
+                    $legal = $sponsorNode !== null && $this->uplineInSubtree($upline, $sponsorNode, $this->pdo);
+                }
+
+                if (!$legal) {
+                    throw BinaryException::state('That upline is outside your subtree.');
+                }
             }
         }
     }
@@ -642,8 +647,8 @@ final class BinaryPlacementService
 
     private function deepestDepth(): ?int
     {
-        $row = $this->pdo->query('SELECT MAX(depth) AS d FROM ' . BinaryNode::TABLE)->fetch();
+        $depth = BinaryNode::maxDepth($this->pdo);
 
-        return $row === false ? null : (int) ($row['d'] ?? 0);
+        return $depth > 0 ? $depth : null;
     }
 }
