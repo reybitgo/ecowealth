@@ -57,6 +57,7 @@ final class PaymentService
     private WalletService $wallet;
     private InvoiceService $invoices;
     private UnilevelService $unilevel;
+    private BinaryService $binary;
 
     public function __construct(?PDO $pdo = null)
     {
@@ -64,6 +65,7 @@ final class PaymentService
         $this->wallet   = new WalletService($this->pdo);
         $this->invoices = new InvoiceService($this->pdo);
         $this->unilevel = new UnilevelService($this->pdo);
+        $this->binary   = new BinaryService($this->pdo);
     }
 
     /* ----------------------------------------------------------
@@ -451,6 +453,10 @@ final class PaymentService
              * retry (plan §12.2, §14.5). */
             $this->unilevel->onOrderPaid($orderId, $this->pdo);
 
+            /* Product binary: points, Self Bonus and pairs on the same
+             * money event, inside the same transaction. */
+            $this->binary->onOrderPaid($orderId, $this->pdo);
+
             Live::touch('admin.products');
             Live::touchOrder($orderId, (int) $order['user_id']);
 
@@ -614,6 +620,11 @@ final class PaymentService
              * effort: a shortfall is recorded, the cancellation always
              * proceeds (plan §14.9, D-13). */
             $this->unilevel->reverseForOrder($orderId, 'Order cancelled — ' . $reasonText, $this->pdo);
+
+            /* Product binary reversal: cancel pending awards, void and
+             * claw back credited ones, reverse volume, return consumed
+             * pair points. Never re-pairs (plan §16.9). */
+            $this->binary->reverseForOrder($orderId, ['reason' => 'Order cancelled — ' . $reasonText], $this->pdo);
 
             /* A paid order had an invoice; cancelling reverses the sale,
              * so the document is voided (its content stays frozen). */

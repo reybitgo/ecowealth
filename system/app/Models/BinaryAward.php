@@ -737,8 +737,8 @@ final class BinaryAward
         }
 
         $amount = round((float) ($data['amount'] ?? 0), 2);
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('A binary award must be greater than zero.');
+        if ($amount < 0) {
+            throw new InvalidArgumentException('A binary award must not be negative.');
         }
 
         $points   = (int) ($data['points'] ?? 0);

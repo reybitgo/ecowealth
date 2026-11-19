@@ -343,6 +343,12 @@ final class OrderService
                      * propagates and aborts the checkout. */
                     $this->unilevel->onOrderPaid($orderId, $this->pdo);
 
+                    /* Product binary: points, Self Bonus and pairs on the
+                     * same money event, inside the same transaction.
+                     * binary_enabled defaults to 0, so this writes nothing
+                     * until the operator switches the stream on (22B). */
+                    $this->binary->onOrderPaid($orderId, $this->pdo);
+
                     $status = 'paid';
                 }
 

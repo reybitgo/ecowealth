@@ -91,7 +91,16 @@ $insertNode = static function (int $userId, ?int $uplineId, ?string $side, int $
 };
 
 $buildFixtureTree = static function () use ($createUser, $insertNode): array {
-    $admin  = $createUser('admin', 'admin');
+    /* Reuse the existing demo-tree admin (company root) rather than
+     * creating a second 'admin_<token>' user, which would duplicate the
+     * root and break ancestors() (two path='' roots match every buyer). */
+    $stmt = db()->prepare("SELECT id FROM users WHERE username = 'admin' AND role = 'admin' LIMIT 1");
+    $stmt->execute();
+    $admin = (array) $stmt->fetch();
+    if ($admin === false) {
+        $admin = $createUser('admin', 'admin');
+    }
+
     $boss   = $createUser('boss');
     $a      = $createUser('a');
     $b      = $createUser('b');
@@ -101,15 +110,18 @@ $buildFixtureTree = static function () use ($createUser, $insertNode): array {
     $sideR  = $createUser('sideR');
     $d      = $createUser('d');
 
+    /* The demo seed (005_demo_tree.sql) occupies admin's LEFT slot
+     * (juan L, maria LL, peter LLL). Place the fixture under the RIGHT
+     * slot (free) so ancestors() returns only the fixture's lineage. */
     $insertNode((int) $admin['id'], null, null, 0, '', 'root');
-    $insertNode((int) $boss['id'],  (int) $admin['id'], 'left',  1, 'L');
-    $insertNode((int) $a['id'],     (int) $boss['id'],  'left',  2, 'LL');
-    $insertNode((int) $b['id'],     (int) $a['id'],     'left',  3, 'LLL');
-    $insertNode((int) $c['id'],     (int) $b['id'],     'left',  4, 'LLLL');
-    $insertNode((int) $buyerA['id'],(int) $c['id'],     'left',  5, 'LLLLL');
-    $insertNode((int) $buyerB['id'],(int) $c['id'],     'right', 5, 'LLLLR');
-    $insertNode((int) $sideR['id'], (int) $a['id'],     'right', 3, 'LLR');
-    $insertNode((int) $d['id'],     (int) $boss['id'],  'right', 2, 'LR');
+    $insertNode((int) $boss['id'],  (int) $admin['id'], 'right',  1, 'R');
+    $insertNode((int) $a['id'],     (int) $boss['id'],  'left',  2, 'RL');
+    $insertNode((int) $b['id'],     (int) $a['id'],     'left',  3, 'RLL');
+    $insertNode((int) $c['id'],     (int) $b['id'],     'left',  4, 'RLLL');
+    $insertNode((int) $buyerA['id'],(int) $c['id'],     'left',  5, 'RLLLL');
+    $insertNode((int) $buyerB['id'],(int) $c['id'],     'right', 5, 'RLLLR');
+    $insertNode((int) $sideR['id'], (int) $a['id'],     'right', 3, 'RLR');
+    $insertNode((int) $d['id'],     (int) $boss['id'],  'right', 2, 'RR');
 
     return [
         'admin'  => $admin,
@@ -176,13 +188,12 @@ $createOrder = static function (int $userId, string $status = 'paid', string $po
             shipping_postal, shipping_country, terms_version, terms_accepted_at,
             payment_deadline, binary_position, binary_processed_at, paid_at)
          VALUES (?, ?, ?, 'ewallet', 0, 0, 0, 'Test', 'Test', 'Test', 'Test', 'Test',
-                 '1234', 'PH', 'v1', NOW(), NULL, ?, ?, ?)"
+                 '1234', 'PH', 'v1', NOW(), NULL, ?, NULL, ?)"
     )->execute([
         'T' . bin2hex(random_bytes(9)),
         $userId,
         $status,
         $position,
-        $position !== null ? $now : null,
         $paidAt,
     ]);
 
@@ -651,5 +662,376 @@ return [
         assert_same(true, $quote['eligible']);
         assert_same(1000, (int) $quote['points']); // 10 × 100 pts
         assert_count(10, $quote['lines']);
+    },
+
+    /* ----------------------------------------------------------
+     *  Paid-order engine: volume routing (P22D-T1, T2)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T1 buyerA 4 × P1 left → self ₱50, volume at buyer + 5 ancestors, 0 pairs' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(true, $result['processed']);
+        assert_same(false, $result['replayed']);
+        assert_same(1000, (int) $result['points']);
+        assert_same(50.00, (float) $result['self']);
+        assert_same(0.0, (float) $result['pair']);
+        assert_same(0, (int) $result['pair_count']);
+        assert_same(50.00, (float) $result['pair'] + (float) $result['self']);
+
+        $stmt = db()->prepare('SELECT binary_points, binary_self_total, binary_pair_total, binary_total FROM shop_orders WHERE id = ?');
+        $stmt->execute([(int) $order['id']]);
+        $row = $stmt->fetch();
+        assert_same(1000, (int) $row['binary_points']);
+        assert_same('50.00', (string) $row['binary_self_total']);
+        assert_same('0.00', (string) $row['binary_pair_total']);
+        assert_same('50.00', (string) $row['binary_total']);
+
+        /* One self award, no pair award. */
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_count(1, $awards);
+        assert_same('self', (string) $awards[0]['kind']);
+        assert_same((int) $tree['buyerA']['id'], (int) $awards[0]['user_id']);
+        assert_same(50.00, (float) $awards[0]['amount']);
+        assert_same('pending', (string) $awards[0]['status']);
+
+        /* Volume: buyerA own L 1000, then team L 1000 at c, b, a, boss, root. */
+        $vol = BinaryVolume::forOrder((int) $order['id']);
+
+        $byNodeSideKind = [];
+        foreach ($vol as $v) {
+            $key = (int) $v['node_user_id'] . ':' . $v['side'] . ':' . $v['kind'];
+            $byNodeSideKind[$key] = (int) $v['points'];
+        }
+        /* Expected nodes: buyerA own, then c, b, a, boss, admin team side left. */
+        assert_same(1000, $byNodeSideKind[(int) $tree['buyerA']['id'] . ':left:own']);
+        assert_same(1000, $byNodeSideKind[(int) $tree['c']['id'] . ':left:team']);
+        assert_same(1000, $byNodeSideKind[(int) $tree['b']['id'] . ':left:team']);
+        assert_same(1000, $byNodeSideKind[(int) $tree['a']['id'] . ':left:team']);
+        assert_same(1000, $byNodeSideKind[(int) $tree['boss']['id'] . ':left:team']);
+        /* buyerA is on admin's right side (fixture under admin's R slot). */
+        assert_same(1000, $byNodeSideKind[(int) $tree['admin']['id'] . ':right:team']);
+    },
+
+    'P22D-T2 buyerB 4 × P1 right → self ₱50, c pairs L/R 1000 → ₱100 pair' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE2', 300.00, 250.00);
+
+        /* First order: buyerA left, seeds c's left with 1000. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+    /* Second order: buyerB right. c now has L 1000 R 1000 → 1 pair. */
+    $orderB = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+    $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+    $result = (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+    assert_same(true, $result['processed']);
+    assert_same(1000, (int) $result['points']);
+    assert_same(50.00, (float) $result['self']);
+    assert_same(100.00, (float) $result['pair']);
+    assert_same(1, (int) $result['pair_count']);
+
+        $awards = BinaryAward::forOrder((int) $orderB['id']);
+        assert_count(2, $awards);
+
+        $self = $awards[0];
+        $pair = $awards[1];
+        if ((string) $self['kind'] !== 'self') {
+            $self = $awards[1];
+            $pair = $awards[0];
+        }
+        assert_same('self', (string) $self['kind']);
+        assert_same(50.00, (float) $self['amount']);
+        assert_same((int) $tree['buyerB']['id'], (int) $self['user_id']);
+
+        assert_same('pair', (string) $pair['kind']);
+        assert_same((int) $tree['c']['id'], (int) $pair['user_id']);
+        assert_same(100.00, (float) $pair['amount']);
+        assert_same(1, (int) $pair['pair_count']);
+        assert_same('pending', (string) $pair['status']);
+
+        /* c's balances consumed: L 0 R 0. */
+        $node = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(0, (int) $node['left_points']);
+        assert_same(0, (int) $node['right_points']);
+    },
+
+    /* ----------------------------------------------------------
+     *  Own-node pair at the buyer's node (P22D-T10)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T10 buyerA right with 1000 left already → own-node pair + self' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE3', 300.00, 250.00);
+
+        /* Seed buyerA's left with 1000 via an earlier order. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        /* Now buyerA buys right → own node has L 1000 R 1000 → 1 pair at buyerA. */
+        $orderB = $createOrder((int) $tree['buyerA']['id'], 'paid', 'right');
+        $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+        assert_same(true, $result['processed']);
+        assert_same(50.00, (float) $result['self']);
+        assert_same(100.00, (float) $result['pair']);
+        assert_same(1, (int) $result['pair_count']);
+
+        $awards = BinaryAward::forOrder((int) $orderB['id']);
+        assert_count(2, $awards);
+
+        $pair = null;
+        foreach ($awards as $a) {
+            if ((string) $a['kind'] === 'pair') {
+                $pair = $a;
+            }
+        }
+        assert_not_null($pair);
+        assert_same((int) $tree['buyerA']['id'], (int) $pair['user_id']);
+        assert_same(100.00, (float) $pair['amount']);
+        assert_same('right', (string) $pair['side']);
+    },
+
+    /* ----------------------------------------------------------
+     *  Root exclusion (P22D-T11)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T11 buyer under root directly, root has volume → root never paid' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE4', 300.00, 250.00);
+
+        /* boss is directly under root (left). Give root right points so
+         * root would pair if it were paid. */
+        db()->prepare('UPDATE binary_nodes SET right_points = right_points + 1000 WHERE user_id = ?')
+            ->execute([(int) $tree['admin']['id']]);
+
+        $order = $createOrder((int) $tree['boss']['id'], 'paid', 'right');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(true, $result['processed']);
+        assert_same(50.00, (float) $result['self']);
+        assert_same(0.0, (float) $result['pair']);
+
+        /* No award names the root. */
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        foreach ($awards as $a) {
+            assert_not_same((int) $tree['admin']['id'], (int) $a['user_id']);
+        }
+    },
+
+    /* ----------------------------------------------------------
+     *  Buyer not placed (P22D-T12) / company account (T13) / staff (T14)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T12 buyer has no node → stamped zeros, no exception' => function () use ($createProduct, $preset, $createOrder, $createOrderItem, $createUser): void {
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE5', 300.00, 250.00);
+        $unplaced = $createUser('unplaced');
+
+        $order = $createOrder((int) $unplaced['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(true, $result['processed']);
+        assert_same(false, $result['replayed']);
+        assert_same(1000, (int) $result['points']);
+        assert_same(0.0, (float) $result['self']);
+        assert_same(0.0, (float) $result['pair']);
+        assert_same(0, (int) $result['pair_count']);
+
+        $stmt = db()->prepare('SELECT binary_points, binary_self_total, binary_pair_total, binary_total, binary_processed_at IS NOT NULL AS stamped FROM shop_orders WHERE id = ?');
+        $stmt->execute([(int) $order['id']]);
+        $row = $stmt->fetch();
+        assert_same(1000, (int) $row['binary_points']);
+        assert_same('0.00', (string) $row['binary_self_total']);
+        assert_same('0.00', (string) $row['binary_pair_total']);
+        assert_same('0.00', (string) $row['binary_total']);
+        assert_same(1, (int) $row['stamped']);
+
+        assert_count(0, BinaryAward::forOrder((int) $order['id']));
+        assert_count(0, BinaryVolume::forOrder((int) $order['id']));
+    },
+
+    /* ----------------------------------------------------------
+     *  Zero-rate configurations (P22D-T21, T22)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T21 pair_pct = 0 → points consumed, no award row' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_pair_pct', '0.000');
+
+        $p1 = $createProduct('Coffee', 'COFFEE6', 300.00, 250.00);
+
+        /* Seed c with left 1000. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        /* buyerB right → c has L 1000 R 1000 → due 1 pair, but 0% pays nothing. */
+        $orderB = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+        assert_same(50.00, (float) $result['self']); /* self still pays */
+        assert_same(0.0, (float) $result['pair']);     /* but pair pays nothing */
+        assert_same(1, (int) $result['pair_count']);   /* pair_count still counts consumed pairs */
+
+        /* c's points consumed: L 0 R 0. */
+        $node = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(0, (int) $node['left_points']);
+        assert_same(0, (int) $node['right_points']);
+
+        /* A 0% pair still consumes points and writes a 0.00 award row
+         * (the schema FK on pair volume rows requires an award_id). */
+        $awards = BinaryAward::forOrder((int) $orderB['id']);
+        $pairAwards = array_filter($awards, static fn (array $a): bool => (string) $a['kind'] === 'pair');
+        assert_count(1, $pairAwards);
+        assert_same(0.00, (float) reset($pairAwards)['amount']);
+        assert_same(1, (int) reset($pairAwards)['pair_count']);
+    },
+
+    'P22D-T22 self_pct = 0 → no self award, pairs still pay' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_self_pct', '0.000');
+
+        $p1 = $createProduct('Coffee', 'COFFEE7', 300.00, 250.00);
+
+        /* Seed c with left 1000. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        /* buyerB right → c pairs, but buyerA gets no self. */
+        $orderB = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+        assert_same(0.0, (float) $result['self']);
+        assert_same(100.00, (float) $result['pair']);
+        assert_same(1, (int) $result['pair_count']);
+
+        $awards = BinaryAward::forOrder((int) $orderB['id']);
+        $selfAwards = array_filter($awards, static fn (array $a): bool => (string) $a['kind'] === 'self');
+        assert_count(0, $selfAwards);
+        assert_count(1, $awards);
+    },
+
+    /* ----------------------------------------------------------
+     *  Pair size and rate rounding (P22D-T23, T24, T25, T26)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T23 pair_points = 333, 1000 each side → 3 pairs, 1 point carry' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_pair_points', '333');
+
+        $p1 = $createProduct('Coffee', 'COFFEE8', 300.00, 250.00);
+
+        /* Seed c with left 1000 and right 1000 (cache only; pairing reads the cache). */
+        db()->prepare('UPDATE binary_nodes SET left_points = left_points + 1000, right_points = right_points + 1000 WHERE user_id = ?')
+            ->execute([(int) $tree['c']['id']]);
+
+        $order = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(3, (int) $result['pair_count']);
+        /* perPair = round(333 × 10% / 100, 2) = 33.30; 3 × 33.30 = 99.90 */
+        assert_same(99.90, (float) $result['pair']);
+
+        /* c seeded L 1000 + buyerB adds team R 1000 → L 1000 R 2000.
+         * 3 pairs consume 999 each side → L 1 R 1001. */
+        $node = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(1, (int) $node['left_points']);
+        assert_same(1001, (int) $node['right_points']);
+    },
+
+    'P22D-T24 pair rate 7.5%, 1000 points → ₱75.00 per pair, ₱225.00 for 3' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_pair_pct', '7.500');
+
+        $p1 = $createProduct('Coffee', 'COFFEE9', 300.00, 250.00);
+
+        /* Seed c with left 3000 and right 3000 (cache only). */
+        db()->prepare('UPDATE binary_nodes SET left_points = left_points + 3000, right_points = right_points + 3000 WHERE user_id = ?')
+            ->execute([(int) $tree['c']['id']]);
+
+        $order = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(3, (int) $result['pair_count']);
+        assert_same(225.00, (float) $result['pair']); /* 75.00 × 3 */
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        $pairAwards = array_filter($awards, static fn (array $a): bool => (string) $a['kind'] === 'pair');
+        assert_count(1, $pairAwards);
+        assert_same(225.00, (float) reset($pairAwards)['amount']);
+    },
+
+    'P22D-T25 self rate 3.333%, 1000 points → ₱33.33' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_self_pct', '3.333');
+
+        $p1 = $createProduct('Coffee', 'COFFEE10', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(33.33, (float) $result['self']);
+        assert_same(0.0, (float) $result['pair']);
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_count(1, $awards);
+        assert_same(33.33, (float) $awards[0]['amount']);
+    },
+
+    'P22D-T26 pair rate 10.125%, 1000 points → ₱101.25 per pair' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_pair_pct', '10.125');
+
+        $p1 = $createProduct('Coffee', 'COFFEE11', 300.00, 250.00);
+
+        /* Seed c with left 1000 and right 1000 (cache only). */
+        db()->prepare('UPDATE binary_nodes SET left_points = left_points + 1000, right_points = right_points + 1000 WHERE user_id = ?')
+            ->execute([(int) $tree['c']['id']]);
+
+        $order = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $result = (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        assert_same(1, (int) $result['pair_count']);
+        assert_same(101.25, (float) $result['pair']); /* round(1000 × 10.125 / 100, 2) = 101.25 */
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        $pairAwards = array_filter($awards, static fn (array $a): bool => (string) $a['kind'] === 'pair');
+        assert_count(1, $pairAwards);
+        assert_same(101.25, (float) reset($pairAwards)['amount']);
     },
 ];

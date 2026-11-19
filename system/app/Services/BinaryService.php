@@ -164,6 +164,7 @@ final class BinaryService
          * points_total > 0, product still exists. */
         $eligible = [];
         $points   = 0;
+        $firstItemId = null;
 
         foreach ($items as $item) {
             $productId = (int) $item['product_id'];
@@ -185,6 +186,10 @@ final class BinaryService
             $linePoints = (int) ($item['points_total'] ?? 0);
             if ($linePoints <= 0) {
                 continue;
+            }
+
+            if ($firstItemId === null) {
+                $firstItemId = (int) $item['id'];
             }
 
             $eligible[] = [
@@ -271,7 +276,7 @@ final class BinaryService
         $period     = UnilevelCycle::periodOf($paidAt);
         $previous   = UnilevelCycle::previous($period);
         $companyId  = (int) (Member::primaryAdmin($this->pdo)['id'] ?? 0);
-        $requiresActive = setting_bool('binary_requires_active', 1);
+        $requiresActive = setting_bool('binary_requires_active', true);
         $activeMap  = $requiresActive
             ? UnilevelCycle::activeMap(array_keys(array_combine($ids, $ids)), $period, $this->pdo)
             : [];
@@ -300,7 +305,10 @@ final class BinaryService
         }
 
         /* Write volume rows: own at the buyer's node, team at every
-         * ancestor. One row per (node, item, side, kind). */
+         * ancestor. One row per (node, item, side, kind).
+         * The own row carries the order total; it is anchored to the
+         * first eligible item so the schema CHECK on `own` (order_item_id
+         * NOT NULL) is satisfied (plan §14.7 rule 4). */
         $volumeRows = [];
         $volumeRows[] = [
             'node_user_id' => $buyerId,
@@ -308,7 +316,7 @@ final class BinaryService
             'kind'         => 'own',
             'points'       => $points,
             'order_id'     => $orderId,
-            'order_item_id'=> null,
+            'order_item_id'=> $firstItemId,
             'buyer_id'     => $buyerId,
             'note'         => 'Own purchase — ' . number_format($points, 0, '.', '') . ' pts on the ' . $buyerSide . ' side',
         ];
@@ -435,7 +443,10 @@ final class BinaryService
                 continue;
             }
 
-            $nodeRow = $entry['node'];
+            /* Re-read the node's current balances: ancestors() was resolved
+             * before the volume cache was updated, so $entry['node'] is
+             * stale for the points columns (plan §14.7 rule 4). */
+            $nodeRow = BinaryNode::forUser($recipientId, $this->pdo);
             $left    = (int) ($nodeRow['left_points'] ?? 0);
             $right   = (int) ($nodeRow['right_points'] ?? 0);
 
@@ -456,7 +467,27 @@ final class BinaryService
                 continue;
             }
 
-            /* Consume n × pair_points from each side (two negative rows). */
+            /* Consume n × pair_points from each side (two negative rows tied
+             * to the award — the schema requires award_id NOT NULL for pair
+             * kind, plan §14.7 rule 4). */
+            $pairAmount = round($perPairValue * $n, 2);
+
+            $pairAwardId = BinaryAward::create([
+                'kind'       => 'pair',
+                'order_id'   => $orderId,
+                'buyer_id'   => $buyerId,
+                'user_id'    => $recipientId,
+                'side'       => $entry['side'],
+                'points'     => 2 * $n * $pairPoints,
+                'pair_count' => $n,
+                'pair_points'=> $pairPoints,
+                'rate_pct'   => $pairPct,
+                'amount'     => $pairAmount,
+                'status'     => 'pending',
+                'hold_days'  => $holdDays,
+                'paid_at'    => $paidAt,
+            ], $this->pdo);
+
             $consume = -($n * $pairPoints);
 
             BinaryVolume::create([
@@ -467,6 +498,7 @@ final class BinaryService
                 'order_id'     => $orderId,
                 'order_item_id'=> null,
                 'buyer_id'     => $buyerId,
+                'award_id'     => $pairAwardId,
                 'note'         => 'Pair consumption — ' . number_format(abs($consume), 0, '.', '') . ' pts from the left side',
             ], $this->pdo);
 
@@ -478,44 +510,20 @@ final class BinaryService
                 'order_id'     => $orderId,
                 'order_item_id'=> null,
                 'buyer_id'     => $buyerId,
+                'award_id'     => $pairAwardId,
                 'note'         => 'Pair consumption — ' . number_format(abs($consume), 0, '.', '') . ' pts from the right side',
             ], $this->pdo);
 
-            /* One award row per (order, node, kind='pair'), pair_count = n. */
-            $pairAmount = round($perPairValue * $n, 2);
+            $awards[] = [
+                'kind'       => 'pair',
+                'user_id'    => $recipientId,
+                'points'     => 2 * $n * $pairPoints,
+                'pair_count' => $n,
+                'amount'     => $pairAmount,
+            ];
 
-            if ($pairAmount > 0) {
-                $pairAwardId = BinaryAward::create([
-                    'kind'       => 'pair',
-                    'order_id'   => $orderId,
-                    'buyer_id'   => $buyerId,
-                    'user_id'    => $recipientId,
-                    'side'       => $entry['side'],
-                    'points'     => 2 * $n * $pairPoints,
-                    'pair_count' => $n,
-                    'pair_points'=> $pairPoints,
-                    'rate_pct'   => $pairPct,
-                    'amount'     => $pairAmount,
-                    'status'     => 'pending',
-                    'hold_days'  => $holdDays,
-                    'paid_at'    => $paidAt,
-                ], $this->pdo);
-
-                $awards[] = [
-                    'kind'       => 'pair',
-                    'user_id'    => $recipientId,
-                    'points'     => 2 * $n * $pairPoints,
-                    'pair_count' => $n,
-                    'amount'     => $pairAmount,
-                ];
-
-                $totalPairCount += $n;
-                $totalPairAmount = round($totalPairAmount + $pairAmount, 2);
-            } else {
-                /* A 0% pair still consumes its points — the configuration
-                 * is a deliberate no-pay pair (§14.11 rule 5). */
-                $totalPairCount += $n;
-            }
+            $totalPairCount += $n;
+            $totalPairAmount = round($totalPairAmount + $pairAmount, 2);
 
             /* Update the node cache. */
             $this->pdo->prepare(
