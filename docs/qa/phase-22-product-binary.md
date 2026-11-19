@@ -487,6 +487,197 @@ Expected
 - No binary copy appears on any member page.
 - No binary award or volume row exists.
 
+## 8. Section E — Phase 22E: Admin visibility (`QA22E-01` … `QA22E-09`)
+
+**Prerequisites.** Tag `p22d-money` (the Phase 22D release gate); migration 026 applied; the Product binary awards of QA22D-01 … QA22D-03 present on the development copy; the app running. All of these checks are **read-only for money**: no controller, model or view in this phase writes an award, a volume row, a node balance or a wallet row (Rule 1). Expected suite count for this section: **≥ 1,668** PHP cases and **278** smoke checks.
+
+### QA22E-01 — The binary ledger shows credited and pending awards
+
+| Why | P22E-T1, P22E-T2, P22E-T3: the binary ledger tab renders its header counters, its award rows and its empty state. |
+|---|---|
+| Where | the running app as `admin` — `/admin/commissions?ledger=binary` |
+| Evidence | `QA22E-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Open `/admin/commissions?ledger=binary` as `admin`.
+2. Confirm the header shows the credited money, the pending liability and the award count from the QA22D awards (₱150.00 credited after release or pending before, 3 awards, 2 pairs).
+3. Confirm the rows render the columns: Date, Kind, Member, Buyer, Product, Side, Points, Rate, Amount, Status, Order.
+
+**Expected**
+
+- The header totals match `Report::binarySummary()` for the fixture window exactly.
+- The columns never mix points and money in a single total (Rule 4); points and money sit side by side.
+- The page is read-only: no setting is changed.
+
+---
+
+### QA22E-02 — Filters narrow the ledger; a bad value falls back
+
+| Why | P22E-T4: each filter narrows the ledger; two combined filters intersect; an unknown value falls back to "no filter" (Rule 7). |
+|---|---|
+| Where | the running app as `admin` — `/admin/commissions?ledger=binary&kind=pair`, then `&side=right` |
+| Evidence | `QA22E-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Filter `kind=pair`: confirm exactly one row (member `c`, ₱100.00, 1 pair) remains.
+2. Filter `side=right`: confirm the buyerB rows remain.
+3. Combine `kind=pair&side=right`: confirm the intersection remains.
+4. Filter with a bogus `kind` (e.g. `kind=bogus`): confirm it falls back to "no filter" and every row shows again.
+
+**Expected**
+
+- Each filter narrows correctly; combined filters intersect.
+- An unknown `kind`, `status`, `side`, `product_id`, `user_id` or date means "no filter".
+
+---
+
+### QA22E-03 — A voided row shows recovered amount and unrecovered shortfall
+
+| Why | P22E-T6: a voided row shows recovered amount and the header's *Unrecovered* equals the sum of shortfalls (Rule 6). |
+|---|---|
+| Where | the running app as `admin` — cancel a paid order, then reload `/admin/commissions?ledger=binary` |
+| Evidence | `QA22E-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. As `admin`, cancel a paid order that has a binary award.
+2. Reload `/admin/commissions?ledger=binary`.
+3. Confirm the cancelled/voided row shows the recovered amount and `voided · ₱X recovered of ₱Y`.
+4. Confirm the header's *Unrecovered* equals `Σ (amount − reversed_amount)` over voided rows.
+
+**Expected**
+
+- The recovered amount and unrecovered shortfall show exactly; nothing is hidden.
+
+---
+
+### QA22E-04 — Every row links to its order and its wallet movement
+
+| Why | P22E-T8: every row links to its order and to the wallet movement (Rule 8). |
+|---|---|
+| Where | the running app as `admin` — click a binary ledger row's order link, then its wallet link |
+| Evidence | `QA22E-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Click a row's order link on `/admin/commissions?ledger=binary`.
+2. Confirm `/admin/orders/{id}` opens with the binary card showing the same numbers.
+3. Back on the ledger, click the row's wallet link.
+4. Confirm the wallet movement opens.
+
+**Expected**
+
+- A finance reviewer can walk from a number to the order and to the ledger row in one click each.
+
+---
+
+### QA22E-05 — The filtered CSV matches the screen
+
+| Why | P22E-T7: the range export carries one row per filtered award; columns match the screen; an audit row records the filters. |
+|---|---|
+| Where | the running app as `admin` — Export CSV on `/admin/commissions?ledger=binary` (or `/admin/reports?type=binary`) |
+| Evidence | `QA22E-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Apply a filter (e.g. `kind=self`) on the binary ledger.
+2. Export CSV.
+3. Open the CSV: confirm the header row matches the screen columns and one row per filtered award is present.
+4. Confirm the values match the screen exactly.
+
+**Expected**
+
+- The CSV columns match the screen; every filtered award is one row; values agree with the screen.
+
+---
+
+### QA22E-06 — An unpaid or pre-22D order places nothing
+
+| Why | P22E-T9, P22E-T10, P22E-T11: orders that cannot place points show an explanatory card, never rows. |
+|---|---|
+| Where | the running app as `admin` — open a `payment_review` order and an order paid before 22D |
+| Evidence | `QA22E-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Open an order in `payment_review`: confirm the card explains nothing is placed yet.
+2. Open an order paid before the Product binary stream was switched on: confirm the card says so.
+3. Open an order paid with the stream off: confirm the card says no points were placed.
+
+**Expected**
+
+- No award or volume row is created for these orders; the card teaches why.
+
+---
+
+### QA22E-07 — The reports page and the dashboard tile
+
+| Why | P22E-T14, P22E-T15: the five binary report cards show the same totals as the ledger; the range CSV carries the binary rows; the dashboard tile reads the last 30 days. |
+|---|---|
+| Where | the running app as `admin` — `/admin/reports` and the admin dashboard |
+| Evidence | `QA22E-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Open `/admin/reports`.
+2. Confirm the five binary cards (summary, self vs pair, by day, by product, readiness) show the same totals as the binary ledger.
+3. Export the range CSV with `type=binary`; confirm the binary rows are present and the header names the stream.
+4. Open the dashboard: confirm the **Product binary (30 d)** tile shows the last-30-days total.
+
+**Expected**
+
+- Report totals match the ledger (report totals match the ledger — the stop condition).
+- The dashboard tile reads the last 30 days, never the current month's preview.
+
+---
+
+### QA22E-08 — The member panel shows the node and balances, read-only
+
+| Why | P22E-T12, P22E-T13: the member binary panel shows this member's node, balances and blocked-pair reason; nothing is a button that changes a setting (Rule 10). |
+|---|---|
+| Where | the running app as `admin` — `/admin/members/{id}` for a placed member and for a member with no node |
+| Evidence | `QA22E-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Open `/admin/members/{id}` for a placed member: confirm the binary panel shows the node (upline, side, depth, path), L/R balances, pairs, points matched, personal points, pairs today vs cap, and blocked-pair reasons when a recipient is inactive.
+2. Open `/admin/members/{id}` for a member with no node: confirm "Not placed in the binary tree." with the console link.
+3. Confirm *Open in tree* is disabled with a tooltip until 22G ships.
+
+**Expected**
+
+- The panel is counts and links, never actions (Rule 10). It shows this member's node only, never another member's upline chain (Rule 11).
+
+---
+
+### QA22E-09 — The other tabs are untouched
+
+| Why | P22E-T1, P22E-T9: the Repeat-purchase bonus and Royalty tabs look and behave exactly as before (Rule 2). |
+|---|---|
+| Where | the running app as `admin` — `/admin/commissions` with `ledger=repeat_purchase` and `ledger=royalty` |
+| Evidence | `QA22E-09.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+**Steps**
+
+1. Switch to the **Repeat-purchase bonus** tab: confirm its markup, filters, counts and export are byte-identical to `p22d-money`.
+2. Switch to the **Royalty** tab: confirm it looks and behaves exactly as before.
+3. Confirm no binary content leaked into either tab.
+
+**Expected**
+
+- The other three tabs are byte-identical to the 22D release; `P22E-T1` is a regression test, not a formality.
+
 ---
 
 ## 6. Cleanup

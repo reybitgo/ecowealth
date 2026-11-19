@@ -40,6 +40,12 @@ declare(strict_types=1);
  * @var list<array{month:string, awards:int, credited:int, credited_total:float, baseline:int, baseline_total:float}> $general_harvest_months
  * @var list<array{band:string, from:int, to:int, nodes:int, paid:float, credited:int, baseline:int}> $general_harvest_bands
  * @var array{state:array<string, mixed>, frontier:list<array<string, mixed>>, backlog:array<string, mixed>, open:array<string, mixed>} $general_harvest_board
+ * @var array{amount:float, count:int, cancelled:int, cancelled_total:float, voided:int, voided_total:float, unrecovered:float, recipients:int, all_time:float, this_month:float, pending_amount:float, pending_count:int, self_total:float, pair_total:float, points_left:int, points_right:int} $binary
+ * @var list<array{kind:string, count:int, amount:float, recipients:int, credited:int, pending:int}> $binary_by_kind
+ * @var list<array{day:string, awards:int, amount:float, pending_amount:float, points_left:int, points_right:int}> $binary_by_day
+ * @var list<array{product_id:int, product:string, points_placed:int, awards:int, self_total:float, pair_total:float}> $binary_products
+ * @var list<array{user_id:int, username:string, personal_points:int, left_points:int, right_points:int, pairs_paid:int}> $binary_top_nodes
+ * @var array{stream_on:bool, products_on_no_points:int, products_off:int, members_unplaced:int, members_total:int} $binary_readiness
  * @var array{accounts:int, float:float, withdrawable:float, credited_today:float, debited_today:float, movements_today:int} $wallet
  * @var array{by_status:list<array{status:string,count:int,amount:float,fees:float}>, by_method:list<array{method:string,count:int,amount:float}>, held:float, held_requests:int, completed_amount:float, completed_fees:float} $payouts
  * @var list<array<string, mixed>> $codes
@@ -257,6 +263,36 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
     'general_harvest_bands'  => $general_harvest_bands,
     'general_harvest_board'  => $general_harvest_board,
     'range'                  => $range,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12 col-xl-4">
+<?= View::capture('admin/reports/_binary', [
+    'binary' => $binary,
+    'range'  => $range,
+]) ?>
+                </div>
+                <div class="col-12 col-xl-4">
+<?= View::capture('admin/reports/_binary_pairs', [
+    'binary_by_kind' => $binary_by_kind,
+    'binary_by_day'  => $binary_by_day,
+    'range'          => $range,
+]) ?>
+                </div>
+                <div class="col-12 col-xl-4">
+<?= View::capture('admin/reports/_binary_products', [
+    'binary_products' => $binary_products,
+    'range'           => $range,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12">
+<?= View::capture('admin/reports/_binary_readiness', [
+    'binary_readiness' => $binary_readiness,
 ]) ?>
                 </div>
               </div>

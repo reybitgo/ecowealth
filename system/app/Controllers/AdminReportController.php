@@ -265,6 +265,22 @@ final class AdminReportController
                     'general_harvest_board'  => $data['general_harvest_board'],
                     'range'                  => $data['range'],
                 ]),
+                'report-binary'      => View::capture('admin/reports/_binary', [
+                    'binary' => $data['binary'],
+                    'range'  => $data['range'],
+                ]),
+                'report-binary-pairs' => View::capture('admin/reports/_binary_pairs', [
+                    'binary_by_kind' => $data['binary_by_kind'],
+                    'binary_by_day'  => $data['binary_by_day'],
+                    'range'          => $data['range'],
+                ]),
+                'report-binary-products' => View::capture('admin/reports/_binary_products', [
+                    'binary_products' => $data['binary_products'],
+                    'range'           => $data['range'],
+                ]),
+                'report-binary-readiness' => View::capture('admin/reports/_binary_readiness', [
+                    'binary_readiness' => $data['binary_readiness'],
+                ]),
             ],
             'data'      => [
                 'sales' => [

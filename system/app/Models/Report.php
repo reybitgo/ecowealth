@@ -1600,6 +1600,360 @@ final class Report
     }
 
     /* ----------------------------------------------------------
+     *  Product binary bonus (Phase 22E)
+     *
+     *  The award window is `binary_awards.created_at`, the same key the
+     *  admin ledger filters use, so `/admin/reports?from=…&to=…` and
+     *  `/admin/commissions?ledger=binary&from=…` always agree. Points
+     *  placed is read from `binary_volume` (kind 'own'/'team'), never
+     *  from the cached node balances — the ledger is the source of
+     *  truth (plan D-23). Points and money are shown side by side and
+     *  never added together (plan Rule 4).
+     * ---------------------------------------------------------- */
+
+    /**
+     * Product binary headline counters for a window of awards.
+     *
+     * `amount` / `count` are released money (in a wallet); `pending_amount` /
+     * `pending_count` are earned but not in a wallet; `cancelled` was never
+     * paid; `unrecovered` is the shortfall of a voided award after a
+     * post-release reversal.
+     *
+     * @return array{
+     *   amount:float, count:int, cancelled:int, cancelled_total:float,
+     *   voided:int, voided_total:float, unrecovered:float, recipients:int,
+     *   all_time:float, this_month:float, pending_amount:float,
+     *   pending_count:int, self_total:float, pair_total:float,
+     *   points_left:int, points_right:int
+     * }
+     */
+    public static function binarySummary(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(CASE WHEN status = 'credited' THEN 1 END) AS count,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS amount,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending_amount,
+                    COUNT(CASE WHEN status = 'cancelled' THEN 1 END) AS cancelled,
+                    COALESCE(SUM(CASE WHEN status = 'cancelled' THEN amount ELSE 0 END), 0) AS cancelled_total,
+                    COUNT(CASE WHEN status = 'voided' THEN 1 END) AS voided,
+                    COALESCE(SUM(CASE WHEN status = 'voided' THEN amount ELSE 0 END), 0) AS voided_total,
+                    COALESCE(SUM(CASE WHEN status = 'voided'
+                                       THEN amount - reversed_amount ELSE 0 END), 0) AS unrecovered,
+                    COUNT(DISTINCT CASE WHEN status IN ('credited','pending') THEN user_id END) AS recipients,
+                    COALESCE(SUM(CASE WHEN kind = 'self'  AND status IN ('pending','credited') THEN amount ELSE 0 END), 0) AS self_total,
+                    COALESCE(SUM(CASE WHEN kind = 'pair'  AND status IN ('pending','credited') THEN amount ELSE 0 END), 0) AS pair_total
+               FROM binary_awards
+              WHERE created_at >= ? AND created_at < ?"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $row = $stmt->fetch() ?: [];
+
+        $totals = $pdo->query(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS all_time,
+                    COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month
+               FROM binary_awards"
+        )->fetch() ?: [];
+
+        $points = $pdo->prepare(
+            "SELECT COALESCE(SUM(CASE WHEN side = 'left'  THEN points ELSE 0 END), 0) AS points_left,
+                    COALESCE(SUM(CASE WHEN side = 'right' THEN points ELSE 0 END), 0) AS points_right
+               FROM binary_volume
+              WHERE kind IN ('own','team') AND created_at >= ? AND created_at < ?"
+        );
+        $points->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $pts = $points->fetch() ?: [];
+
+        return [
+            'amount'          => round((float) ($row['amount'] ?? 0), 2),
+            'count'           => (int) ($row['count'] ?? 0),
+            'cancelled'       => (int) ($row['cancelled'] ?? 0),
+            'cancelled_total' => round((float) ($row['cancelled_total'] ?? 0), 2),
+            'voided'          => (int) ($row['voided'] ?? 0),
+            'voided_total'    => round((float) ($row['voided_total'] ?? 0), 2),
+            'unrecovered'     => round((float) ($row['unrecovered'] ?? 0), 2),
+            'recipients'      => (int) ($row['recipients'] ?? 0),
+            'all_time'        => round((float) ($totals['all_time'] ?? 0), 2),
+            'this_month'      => round((float) ($totals['this_month'] ?? 0), 2),
+            'pending_amount'  => round((float) ($row['pending_amount'] ?? 0), 2),
+            'pending_count'   => (int) ($row['pending_count'] ?? 0),
+            'self_total'      => round((float) ($row['self_total'] ?? 0), 2),
+            'pair_total'      => round((float) ($row['pair_total'] ?? 0), 2),
+            'points_left'     => (int) ($pts['points_left'] ?? 0),
+            'points_right'    => (int) ($pts['points_right'] ?? 0),
+        ];
+    }
+
+    /**
+     * Product binary awards and points placed per day in a window,
+     * zero-filled, oldest first.
+     *
+     * @return list<array{day:string, awards:int, amount:float, pending_amount:float, points_left:int, points_right:int}>
+     */
+    public static function binaryByDay(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT DATE(a.created_at) AS day,
+                    COUNT(*) AS awards,
+                    COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS amount,
+                    COALESCE(SUM(CASE WHEN a.status = 'pending' THEN a.amount ELSE 0 END), 0) AS pending_amount
+               FROM binary_awards a
+              WHERE a.created_at >= ? AND a.created_at < ?
+              GROUP BY day
+              ORDER BY day"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $found = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $found[(string) $row['day']] = [
+                'awards'          => (int) $row['awards'],
+                'amount'          => round((float) $row['amount'], 2),
+                'pending_amount'  => round((float) $row['pending_amount'], 2),
+                'points_left'     => 0,
+                'points_right'    => 0,
+            ];
+        }
+
+        $points = $pdo->prepare(
+            "SELECT DATE(v.created_at) AS day,
+                    COALESCE(SUM(CASE WHEN v.side = 'left'  THEN v.points ELSE 0 END), 0) AS points_left,
+                    COALESCE(SUM(CASE WHEN v.side = 'right' THEN v.points ELSE 0 END), 0) AS points_right
+               FROM binary_volume v
+              WHERE v.kind IN ('own','team') AND v.created_at >= ? AND v.created_at < ?
+              GROUP BY day"
+        );
+        $points->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        foreach ($points->fetchAll() as $row) {
+            $day = (string) $row['day'];
+            if (isset($found[$day])) {
+                $found[$day]['points_left']  = (int) $row['points_left'];
+                $found[$day]['points_right'] = (int) $row['points_right'];
+            }
+        }
+
+        $days = [];
+        $cursor = strtotime($from . ' 00:00:00');
+        $end    = strtotime($to . ' 00:00:00');
+
+        while ($cursor !== false && $end !== false && $cursor <= $end) {
+            $day = date('Y-m-d', $cursor);
+            $days[] = array_merge([
+                'day'          => $day,
+                'awards'       => 0,
+                'amount'       => 0.0,
+                'pending_amount'=> 0.0,
+                'points_left'  => 0,
+                'points_right' => 0,
+            ], $found[$day] ?? []);
+            $cursor = strtotime('+1 day', $cursor);
+        }
+
+        return $days;
+    }
+
+    /**
+     * Product binary awards split by kind (self vs pair) in a window.
+     *
+     * @return list<array{kind:string, count:int, amount:float, recipients:int, credited:int, pending:int}>
+     */
+    public static function binaryByKind(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT kind,
+                    COUNT(*) AS count,
+                    COALESCE(SUM(amount), 0) AS amount,
+                    COUNT(DISTINCT user_id) AS recipients,
+                    COUNT(CASE WHEN status = 'credited' THEN 1 END) AS credited,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending
+               FROM binary_awards
+              WHERE created_at >= ? AND created_at < ?
+              GROUP BY kind
+              ORDER BY kind"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $rows = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $rows[] = [
+                'kind'       => (string) $row['kind'],
+                'count'      => (int) $row['count'],
+                'amount'     => round((float) $row['amount'], 2),
+                'recipients' => (int) $row['recipients'],
+                'credited'   => (int) $row['credited'],
+                'pending'    => (int) $row['pending'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Product binary points placed and awards per product in a window,
+     * biggest points first.
+     *
+     * Points placed is read from `binary_volume` alone (never joined to
+     * awards, so an order's points are not multiplied by its award count).
+     * An award counts toward a product when its order placed that
+     * product's points.
+     *
+     * @return list<array{product_id:int, product:string, points_placed:int, awards:int, self_total:float, pair_total:float}>
+     */
+    public static function binaryByProduct(string $from, string $to, int $limit = 8, ?PDO $pdo = null): array
+    {
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(50, $limit));
+
+        $fromTs = $from . ' 00:00:00';
+        $toTs   = self::dayAfter($to) . ' 00:00:00';
+
+        /* Points placed per product, from the volume ledger alone. */
+        $points = [];
+        $stmt = $pdo->prepare(
+            "SELECT oi.product_id AS product_id, COALESCE(SUM(v.points), 0) AS points_placed
+               FROM binary_volume v
+               JOIN shop_order_items oi ON oi.id = v.order_item_id
+              WHERE v.kind IN ('own','team') AND v.created_at >= ? AND v.created_at < ?
+              GROUP BY oi.product_id"
+        );
+        $stmt->execute([$fromTs, $toTs]);
+        foreach ($stmt->fetchAll() as $row) {
+            $points[(int) $row['product_id']] = (int) $row['points_placed'];
+        }
+
+        /* Awards per product: an award counts toward a product when its
+         * order placed that product's points. */
+        $awards = [];
+        $stmt = $pdo->prepare(
+            "SELECT oi.product_id AS product_id, COUNT(DISTINCT a.id) AS awards
+               FROM binary_awards a
+               JOIN shop_order_items oi ON oi.order_id = a.order_id
+              WHERE a.created_at >= ? AND a.created_at < ?
+              GROUP BY oi.product_id"
+        );
+        $stmt->execute([$fromTs, $toTs]);
+        foreach ($stmt->fetchAll() as $row) {
+            $pid = (int) $row['product_id'];
+            if (isset($points[$pid])) {
+                $awards[$pid] = (int) $row['awards'];
+            }
+        }
+
+        $rows = [];
+        foreach ($points as $productId => $pointsPlaced) {
+            $rows[] = [
+                'product_id'  => $productId,
+                'product'     => '',
+                'points_placed' => $pointsPlaced,
+                'awards'      => $awards[$productId] ?? 0,
+                'self_total'  => 0.0,
+                'pair_total'  => 0.0,
+            ];
+        }
+
+        if ($rows !== []) {
+            $names = [];
+            foreach ($pdo->query('SELECT id, name FROM products')->fetchAll(PDO::FETCH_KEY_PAIR) as $id => $name) {
+                $names[(int) $id] = (string) $name;
+            }
+            foreach ($rows as &$row) {
+                $row['product'] = $names[$row['product_id']] ?? 'Product';
+            }
+            unset($row);
+        }
+
+        usort($rows, static fn (array $a, array $b): int =>
+            $b['points_placed'] <=> $a['points_placed']
+            ?: ($b['awards'] <=> $a['awards'])
+            ?: strcmp($a['product'], $b['product']));
+
+        return array_slice($rows, 0, $limit);
+    }
+
+    /**
+     * The top nodes by personal (own) points placed, biggest first.
+     *
+     * @return list<array{user_id:int, username:string, personal_points:int, left_points:int, right_points:int, pairs_paid:int}>
+     */
+    public static function binaryTopNodes(int $limit = 8, ?PDO $pdo = null): array
+    {
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(50, $limit));
+
+        $rows = $pdo->query(
+            "SELECT n.user_id, u.username, n.personal_points,
+                    n.left_points, n.right_points, n.pairs_paid
+               FROM binary_nodes n
+               JOIN users u ON u.id = n.user_id
+              WHERE n.state = 'placed'
+              ORDER BY n.personal_points DESC, n.user_id ASC
+              LIMIT " . $limit
+        )->fetchAll();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[] = [
+                'user_id'       => (int) $row['user_id'],
+                'username'      => (string) $row['username'],
+                'personal_points' => (int) $row['personal_points'],
+                'left_points'   => (int) $row['left_points'],
+                'right_points'  => (int) $row['right_points'],
+                'pairs_paid'    => (int) $row['pairs_paid'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Readiness counts for the Product binary stream: products flagged
+     * with no P.V., products with the switch off, members without a node,
+     * and whether the global master is on.
+     *
+     * @return array{
+     *   stream_on:bool, products_on_no_points:int, products_off:int,
+     *   members_unplaced:int, members_total:int
+     * }
+     */
+    public static function binaryReadiness(?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $streamOn = setting_bool('binary_enabled', false);
+
+        $row = $pdo->query(
+            "SELECT COUNT(CASE WHEN binary_enabled = 1 AND pv = 0 THEN 1 END) AS products_on_no_points,
+                    COUNT(CASE WHEN binary_enabled = 0 THEN 1 END) AS products_off
+               FROM products"
+        )->fetch() ?: [];
+
+        $unplaced = $pdo->query(
+            "SELECT COUNT(*) AS members_unplaced
+               FROM users u
+              WHERE u.role = 'member'
+                AND NOT EXISTS (SELECT 1 FROM binary_nodes n WHERE n.user_id = u.id)"
+        )->fetch() ?: [];
+
+        $total = $pdo->query("SELECT COUNT(*) AS members_total FROM users WHERE role = 'member'")->fetch() ?: [];
+
+        return [
+            'stream_on'          => (bool) $streamOn,
+            'products_on_no_points'=> (int) ($row['products_on_no_points'] ?? 0),
+            'products_off'       => (int) ($row['products_off'] ?? 0),
+            'members_unplaced'   => (int) ($unplaced['members_unplaced'] ?? 0),
+            'members_total'      => (int) ($total['members_total'] ?? 0),
+        ];
+    }
+
+    /* ----------------------------------------------------------
      *  Internals
      * ---------------------------------------------------------- */
 

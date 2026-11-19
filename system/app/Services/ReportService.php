@@ -34,6 +34,7 @@ final class ReportService
         'royalty'      => 'Royalty',
         'team_harvest' => 'Team Harvest bonus',
         'general_harvest' => 'General Harvest bonus',
+        'binary'       => 'Product binary bonus',
         'wallet'       => 'Wallet statement',
         'payouts'      => 'Payout register',
         'codes'        => 'Registration codes',
@@ -109,6 +110,7 @@ final class ReportService
             'royalty'          => $this->royaltyDashboard(),
             'team_harvest'     => $this->teamHarvestDashboard(),
             'general_harvest'  => $this->generalHarvestDashboard(),
+            'binary'           => $this->binaryDashboard(),
             'wallet'           => Report::walletFloat(),
             'payouts'          => Report::payoutSummary($last30['from'], $last30['to']),
             'members'          => Report::memberCounts(),
@@ -183,6 +185,34 @@ final class ReportService
     }
 
     /**
+     * The Product binary dashboard tile figures (Phase 22E).
+     *
+     * The KPI is the **last 30 days** of awards and points placed, the
+     * same window every other dashboard tile uses. Points and money are
+     * shown side by side and never summed (plan Rule 4).
+     *
+     * @return array{credited:float, count:int, recipients:int, pending:float,
+     *               points_left:int, points_right:int, this_month:float}
+     */
+    private function binaryDashboard(): array
+    {
+        $last30 = Report::binarySummary(
+            date('Y-m-d', strtotime('-29 days')),
+            date('Y-m-d')
+        );
+
+        return [
+            'credited'    => $last30['amount'],
+            'count'       => $last30['count'],
+            'recipients'  => $last30['recipients'],
+            'pending'     => $last30['pending_amount'],
+            'points_left' => $last30['points_left'],
+            'points_right'=> $last30['points_right'],
+            'this_month'  => $last30['this_month'],
+        ];
+    }
+
+    /**
      * The Royalty dashboard tile figures.
      *
      * `paid` / `pending` are all-time; `this_month` is the money
@@ -251,6 +281,12 @@ final class ReportService
             'general_harvest_bands'    => Report::generalHarvestBands(),
             'general_harvest_board'    => Report::generalHarvestBoard(),
             'general_harvest_totals'   => Report::generalHarvestTotals(),
+            'binary'          => Report::binarySummary($range['from'], $range['to']),
+            'binary_by_day'   => Report::binaryByDay($range['from'], $range['to']),
+            'binary_by_kind'  => Report::binaryByKind($range['from'], $range['to']),
+            'binary_products' => Report::binaryByProduct($range['from'], $range['to'], 6),
+            'binary_top_nodes'=> Report::binaryTopNodes(6),
+            'binary_readiness'=> Report::binaryReadiness(),
             'wallet'        => Report::walletFloat(),
             'payouts'       => Report::payoutSummary($range['from'], $range['to']),
             'codes'         => Report::codeRevenue(),
@@ -278,6 +314,7 @@ final class ReportService
             'royalty'      => $this->royaltyExport($from, $to),
             'team_harvest' => $this->teamHarvestExport($from, $to),
             'general_harvest' => $this->generalHarvestExport($from, $to),
+            'binary'          => $this->binaryExport($from, $to),
             'wallet'       => $this->walletExport($from, $to),
             'payouts'      => $this->payoutExport($from, $to),
             'codes'        => $this->codesExport($from, $to),
@@ -621,6 +658,69 @@ final class ReportService
             GeneralHarvestAward::STATUS_LABELS[$status] ?? ucfirst($status),
             ($row['ledger_id'] ?? null) === null ? '' : (string) (int) $row['ledger_id'],
         ];
+    }
+
+    /**
+     * The Product binary report CSV for a window: the window's award rows
+     * (exactly the columns the admin ledger shows) plus a readiness block
+     * — products with no points, products switched off, members without a
+     * node — so finance can see both what paid and what is still waiting.
+     *
+     * @return array{filename:string, header:list<string>, rows:list<list<string>>}
+     */
+    private function binaryExport(string $from, string $to): array
+    {
+        $filters = BinaryAward::normaliseFilters(['from' => $from, 'to' => $to]);
+        $rows    = BinaryAward::exportRows(null, $filters);
+        $ready   = Report::binaryReadiness();
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            $out[] = array_merge(['Award'], self::binaryColumns($row));
+        }
+
+        /* The readiness block: one row per readiness count, told apart by
+         * a `Scope` column, padded to the header width. */
+        $width  = count(self::binaryCsvHeader()) + 1;
+        $readyRow = array_pad([
+            'Readiness',
+            '',
+            $ready['stream_on'] ? 'On' : 'Off',
+            (string) $ready['products_on_no_points'] . ' products flagged with no P.V.',
+            (string) $ready['products_off'] . ' products switched off',
+            (string) $ready['members_unplaced'] . ' of ' . $ready['members_total'] . ' members unplaced',
+        ], $width, '');
+        $out[] = $readyRow;
+
+        return [
+            'filename' => self::filename('binary', ['from' => $from, 'to' => $to]),
+            'header'   => array_merge(['Scope'], self::binaryCsvHeader()),
+            'rows'     => $out,
+        ];
+    }
+
+    /**
+     * The Product binary ledger CSV header — the screen's columns.
+     *
+     * @return list<string>
+     */
+    public static function binaryCsvHeader(): array
+    {
+        return BinaryAward::csvHeader();
+    }
+
+    /**
+     * One Product binary award as the CSV columns above. `$scope` is not
+     * prepended here: the caller owns the discriminator (the ledger export
+     * emits the columns alone; the report export prepends `Scope`).
+     *
+     * @param array<string, mixed> $row
+     * @return list<string>
+     */
+    public static function binaryColumns(array $row): array
+    {
+        return BinaryAward::csvRows([$row])[0];
     }
 
     /** @return array{filename:string, header:list<string>, rows:list<list<string>>} */

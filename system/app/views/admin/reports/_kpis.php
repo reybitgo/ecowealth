@@ -21,6 +21,10 @@ $sales30d = array_merge(['orders' => 0, 'amount' => 0.0], $sales_30d ?? []);
 $commissions = array_merge(['amount' => 0.0, 'count' => 0, 'skipped' => 0, 'recipients' => 0], $commissions ?? []);
 $wallet = array_merge(['accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0], $wallet ?? []);
 $payouts = array_merge(['held' => 0.0, 'held_requests' => 0], $payouts ?? []);
+$binary = array_merge([
+    'credited' => 0.0, 'count' => 0, 'recipients' => 0, 'pending' => 0.0,
+    'points_left' => 0, 'points_right' => 0, 'this_month' => 0.0,
+], $binary ?? []);
 
 $codeTotals = ['issued' => 0, 'used' => 0, 'issued_value' => 0.0, 'redeemed_value' => 0.0];
 
@@ -54,6 +58,15 @@ $cards = [
             . ' · ' . $commissions['skipped'] . ' skipped · ' . money($commissions['all_time']) . ' all time',
         'icon'  => 'bx-line-chart',
         'tone'  => 'info',
+    ],
+    [
+        'label' => 'Product binary',
+        'value' => money($binary['credited']),
+        'hint'  => $binary['count'] . ' award' . ($binary['count'] === 1 ? '' : 's')
+            . ' · ' . $binary['recipients'] . ' recipient' . ($binary['recipients'] === 1 ? '' : 's')
+            . ' · ' . number_format($binary['points_left'] + $binary['points_right']) . ' pts placed',
+        'icon'  => 'bx-link-alt',
+        'tone'  => 'secondary',
     ],
     [
         'label' => 'Wallet float',

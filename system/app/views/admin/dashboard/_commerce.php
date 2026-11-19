@@ -36,6 +36,13 @@ $harvest  = array_merge(
     ],
     (array) ($commerce['team_harvest'] ?? [])
 );
+$binary   = array_merge(
+    [
+        'credited' => 0.0, 'count' => 0, 'recipients' => 0, 'pending' => 0.0,
+        'points_left' => 0, 'points_right' => 0, 'this_month' => 0.0,
+    ],
+    (array) ($commerce['binary'] ?? [])
+);
 $wallet   = array_merge(['accounts' => 0, 'float' => 0.0, 'withdrawable' => 0.0], (array) ($commerce['wallet'] ?? []));
 $payouts  = array_merge(['held' => 0.0, 'held_requests' => 0], (array) ($commerce['payouts'] ?? []));
 $members  = array_merge(['active' => 0, 'pending' => 0, 'new_30d' => 0], (array) ($commerce['members'] ?? []));
@@ -97,6 +104,16 @@ $cards = [
         'icon'  => 'bx-medal',
         'tone'  => 'info',
         'href'  => 'admin/commissions?ledger=team_harvest',
+    ],
+    [
+        'label' => 'Product binary (30 d)',
+        'value' => money($binary['credited']),
+        'hint'  => (int) $binary['count'] . ' award' . ((int) $binary['count'] === 1 ? '' : 's') . ' · '
+            . (int) $binary['recipients'] . ' recipient' . ((int) $binary['recipients'] === 1 ? '' : 's')
+            . ' · ' . number_format((int) $binary['points_left'] + (int) $binary['points_right']) . ' pts placed',
+        'icon'  => 'bx-link-alt',
+        'tone'  => 'secondary',
+        'href'  => 'admin/commissions?ledger=binary',
     ],
     [
         'label' => 'Wallet float',
