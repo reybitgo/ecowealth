@@ -1597,4 +1597,440 @@ return [
         assert_count(1, BinaryAward::forOrder((int) $orderA['id']));
         assert_count(2, BinaryAward::forOrder((int) $orderB['id']));
     },
+
+    /* ----------------------------------------------------------
+     *  Escrow and release (P22D-T53 … T60)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T53 after payment, before delivery → pending, no wallet movement' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE53', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_count(1, $awards);
+        assert_same('pending', (string) $awards[0]['status']);
+        assert_same(50.00, (float) $awards[0]['amount']);
+
+        $stmt = db()->prepare("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'");
+        $stmt->execute();
+        assert_same(0, (int) $stmt->fetchColumn());
+
+        $summary = BinaryAward::pendingSummaryForUser((int) $tree['buyerA']['id']);
+        assert_same(50.00, (float) $summary['total']);
+        assert_same(1, (int) $summary['count']);
+    },
+
+    'P22D-T54 releaseForOrder before delivery → not delivered' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE54', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $result = (new BinaryService())->releaseForOrder((int) $order['id']);
+        assert_same(0, (int) $result['released']);
+        assert_same('not delivered', (string) $result['reason']);
+        assert_same(0.0, (float) $result['amount']);
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_count(1, $awards);
+        assert_same('pending', (string) $awards[0]['status']);
+    },
+
+    'P22D-T55 delivered, hold 7 days not elapsed → not due' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE55', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = NOW() WHERE id = ?")
+            ->execute([(int) $order['id']]);
+
+        $result = (new BinaryService())->releaseForOrder((int) $order['id']);
+        assert_same(0, (int) $result['released']);
+        assert_same('not due', (string) $result['reason']);
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_same('pending', (string) $awards[0]['status']);
+    },
+
+    'P22D-T56 delivered + 7 days → credited ₱150 at c (self + pair)' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE56', 300.00, 250.00);
+
+        /* c buys first: self ₱50, c own L 1000. */
+        $orderC = $createOrder((int) $tree['c']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderC['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderC['id']);
+
+        /* buyerB (right child of c) buys: c team R 1000 → c pairs → ₱100 to c. */
+        $orderB = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+        $cAwards = array_merge(
+            array_filter(BinaryAward::forOrder((int) $orderC['id']), static fn (array $a): bool => (int) $a['user_id'] === (int) $tree['c']['id']),
+            array_filter(BinaryAward::forOrder((int) $orderB['id']), static fn (array $a): bool => (int) $a['user_id'] === (int) $tree['c']['id'])
+        );
+        assert_count(2, $cAwards);
+        assert_same(150.00, array_sum(array_map(static fn (array $a): float => (float) $a['amount'], $cAwards)));
+
+        /* Deliver both orders a week ago so the hold window elapses. */
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id IN (?, ?)")
+            ->execute([$longAgo, (int) $orderC['id'], (int) $orderB['id']]);
+
+        $r1 = (new BinaryService())->releaseForOrder((int) $orderC['id']);
+        $r2 = (new BinaryService())->releaseForOrder((int) $orderB['id']);
+        assert_same(1, (int) $r1['released']);
+        assert_same(50.00, (float) $r1['amount']);
+        assert_same(2, (int) $r2['released']); /* buyerB self + c pair */
+        assert_same(150.00, (float) $r2['amount']);
+
+        /* c credited ₱150 total (₱50 self + ₱100 pair), withdrawable. */
+        $stmt = db()->prepare("SELECT COALESCE(SUM(amount), 0) FROM ewallet_ledger WHERE ref_type = 'binary' AND user_id = ?");
+        $stmt->execute([(int) $tree['c']['id']]);
+        assert_same(150.00, (float) $stmt->fetchColumn());
+
+        foreach ($cAwards as $a) {
+            $row = BinaryAward::find((int) $a['id']);
+            assert_same('credited', (string) $row['status']);
+            assert_not_null($row['credited_at']);
+        }
+    },
+
+    'P22D-T57 binary_release_enabled = 0 → release is a no-op' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_release_enabled', '0');
+
+        $p1 = $createProduct('Coffee', 'COFFEE57', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id = ?")
+            ->execute([$longAgo, (int) $order['id']]);
+
+        $result = (new BinaryService())->releaseForOrder((int) $order['id']);
+        assert_same(0, (int) $result['released']);
+        assert_same('release disabled', (string) $result['reason']);
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_same('pending', (string) $awards[0]['status']);
+    },
+
+    'P22D-T58 binary_hold_days = 0 → due at delivery' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_hold_days', '0');
+
+        $p1 = $createProduct('Coffee', 'COFFEE58', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = NOW() WHERE id = ?")
+            ->execute([(int) $order['id']]);
+
+        $result = (new BinaryService())->releaseForOrder((int) $order['id']);
+        assert_same(1, (int) $result['released']);
+        assert_same(50.00, (float) $result['amount']);
+
+        $award = BinaryAward::forOrder((int) $order['id'])[0];
+        assert_same('credited', (string) $award['status']);
+    },
+
+    'P22D-T60 release twice → second returns nothing pending' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE60', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id = ?")
+            ->execute([$longAgo, (int) $order['id']]);
+
+        $r1 = (new BinaryService())->releaseForOrder((int) $order['id']);
+        assert_same(1, (int) $r1['released']);
+
+        $r2 = (new BinaryService())->releaseForOrder((int) $order['id']);
+        assert_same(0, (int) $r2['released']);
+        assert_same('nothing pending', (string) $r2['reason']);
+
+        $stmt = db()->prepare("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'");
+        $stmt->execute();
+        assert_same(1, (int) $stmt->fetchColumn());
+    },
+
+    /* ----------------------------------------------------------
+     *  Reversal (P22D-T61 … T68)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T61 admin cancels a paid, undelivered order via cancelByAdmin' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        test_enable_order_cancel();
+
+        $admin = (int) Member::primaryAdmin()['id'];
+        $p1 = $createProduct('Coffee', 'COFFEE61', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $beforeLedger = (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'")->fetchColumn();
+
+        (new PaymentService())->cancelByAdmin($admin, (int) $order['id'], 'admin_cancel');
+
+        $awards = BinaryAward::forOrder((int) $order['id']);
+        assert_count(1, $awards);
+        assert_same('cancelled', (string) $awards[0]['status']);
+
+        /* Volume reversed: buyerA's own balance back to 0. */
+        $node = BinaryNode::forUser((int) $tree['buyerA']['id']);
+        assert_same(0, (int) $node['left_points']);
+
+        $stmt = db()->prepare('SELECT binary_total FROM shop_orders WHERE id = ?');
+        $stmt->execute([(int) $order['id']]);
+        assert_same('0.00', (string) $stmt->fetchColumn());
+
+        /* No wallet movement for a cancelled pending award. */
+        $afterLedger = (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'")->fetchColumn();
+        assert_same($beforeLedger, $afterLedger);
+    },
+
+    'P22D-T62 cancel a delivered, released order → voided, debit binary_reversal' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE62', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id = ?")
+            ->execute([$longAgo, (int) $order['id']]);
+        (new BinaryService())->releaseForOrder((int) $order['id']);
+
+        $award = BinaryAward::forOrder((int) $order['id'])[0];
+        assert_same('credited', (string) $award['status']);
+        assert_same(50.00, (float) $award['amount']);
+
+        $result = (new BinaryService())->reverseForOrder((int) $order['id']);
+        assert_same(0, (int) $result['pending_cancelled']);
+        assert_same(1, (int) $result['credited_voided']);
+        assert_same(1, (int) $result['voided']);
+        assert_same(50.00, (float) $result['recovered']);
+        assert_same(0.0, (float) $result['shortfall']);
+        assert_same(6000, (int) $result['points_reversed']);
+
+        $row = BinaryAward::find((int) $award['id']);
+        assert_same('voided', (string) $row['status']);
+        assert_same(50.00, (float) $row['reversed_amount']);
+        assert_not_null($row['reversal_ledger_id']);
+
+        /* Wallet debited with binary_reversal. */
+        $stmt = db()->prepare("SELECT COALESCE(SUM(amount), 0) FROM ewallet_ledger WHERE ref_type = 'binary_reversal' AND user_id = ?");
+        $stmt->execute([(int) $tree['buyerA']['id']]);
+        assert_same(50.00, (float) $stmt->fetchColumn());
+
+        /* Volume reversed: buyerA's own balance back to 0. */
+        $node = BinaryNode::forUser((int) $tree['buyerA']['id']);
+        assert_same(0, (int) $node['left_points']);
+    },
+
+    'P22D-T63 cancel with a partly spent balance → partial clawback, shortfall, no negative' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE63', 300.00, 250.00);
+        $order = $createOrder((int) $tree['c']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id = ?")
+            ->execute([$longAgo, (int) $order['id']]);
+        (new BinaryService())->releaseForOrder((int) $order['id']);
+
+        /* c spends ₱30 of the ₱50 credit. */
+        (new WalletService())->debit((int) $tree['c']['id'], 30.00, 'payout', null, 'spent before reversal', true);
+        assert_same(20.00, (float) (new WalletService())->withdrawable((int) $tree['c']['id']));
+
+        $result = (new BinaryService())->reverseForOrder((int) $order['id']);
+        assert_same(1, (int) $result['credited_voided']);
+        assert_same(20.00, (float) $result['recovered']);
+        assert_same(30.00, (float) $result['shortfall']);
+
+        $row = BinaryAward::forOrder((int) $order['id'])[0];
+        assert_same('voided', (string) $row['status']);
+        assert_same(20.00, (float) $row['reversed_amount']);
+
+        assert_same(0.0, (float) (new WalletService())->withdrawable((int) $tree['c']['id']), 'never a negative balance');
+    },
+
+    'P22D-T64 binary_reversal_enabled = 0 → credited stays, no debit, volume still reversed' => function () use ($buildFixtureTree, $createProduct, $preset, $setSetting, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+        $setSetting('binary_reversal_enabled', '0');
+
+        $p1 = $createProduct('Coffee', 'COFFEE64', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id = ?")
+            ->execute([$longAgo, (int) $order['id']]);
+        (new BinaryService())->releaseForOrder((int) $order['id']);
+
+        $result = (new BinaryService())->reverseForOrder((int) $order['id']);
+        assert_same(true, (bool) $result['disabled']);
+        assert_same(0, (int) $result['credited_voided']);
+        assert_same(0, (int) $result['voided']);
+        assert_same(0.0, (float) $result['recovered']);
+
+        /* Awards stay credited. */
+        $award = BinaryAward::forOrder((int) $order['id'])[0];
+        assert_same('credited', (string) $award['status']);
+
+        /* No debit, but volume is still reversed. */
+        $stmt = db()->prepare("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary_reversal'");
+        $stmt->execute();
+        assert_same(0, (int) $stmt->fetchColumn());
+        $node = BinaryNode::forUser((int) $tree['buyerA']['id']);
+        assert_same(0, (int) $node['left_points']);
+    },
+
+    'P22D-T65 member cancels an unpaid order → nothing to cancel' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder): void {
+        test_enable_order_cancel();
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $admin = (int) Member::primaryAdmin()['id'];
+        $order = $createOrder((int) $tree['buyerA']['id'], 'pending', 'left');
+
+        (new PaymentService())->cancelByAdmin($admin, (int) $order['id'], 'admin_cancel');
+
+        assert_count(0, BinaryAward::forOrder((int) $order['id']));
+        assert_count(0, BinaryVolume::forOrder((int) $order['id']));
+        $stmt = db()->prepare("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('binary','binary_reversal')");
+        $stmt->execute();
+        assert_same(0, (int) $stmt->fetchColumn());
+    },
+
+    'P22D-T66 reversed purchase that paired at an ancestor → ancestor reversed, points returned' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE66', 300.00, 250.00);
+
+        /* buyerA left seeds c L 1000; buyerB right → c pairs ₱100. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        $orderB = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id IN (?, ?)")
+            ->execute([$longAgo, (int) $orderA['id'], (int) $orderB['id']]);
+        (new BinaryService())->releaseForOrder((int) $orderB['id']);
+
+        /* Reverse buyerB's order: c's pair award voided, pair points returned. */
+        $result = (new BinaryService())->reverseForOrder((int) $orderB['id']);
+        assert_same(0, (int) $result['pending_cancelled']);
+        assert_same(2, (int) $result['credited_voided']); /* buyerB self + c pair */
+        assert_same(6000, (int) $result['points_reversed']); /* orderB: buyerB own + 5 ancestors */
+
+        /* c's consumed pair points are returned: L 1000 R 0 (orderB's team R
+         * volume is reversed too, netting the pair return against it). */
+        $node = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(1000, (int) $node['left_points']);
+        assert_same(0, (int) $node['right_points']);
+
+        $pair = BinaryAward::forOrder((int) $orderB['id'])[1];
+        assert_same('voided', (string) BinaryAward::find((int) $pair['id'])['status']);
+    },
+
+    'P22D-T67 reverse twice → second call is a no-op' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE67', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id = ?")
+            ->execute([$longAgo, (int) $order['id']]);
+        (new BinaryService())->releaseForOrder((int) $order['id']);
+        $r1 = (new BinaryService())->reverseForOrder((int) $order['id']);
+        assert_same(1, (int) $r1['credited_voided']);
+
+        $r2 = (new BinaryService())->reverseForOrder((int) $order['id']);
+        assert_same(0, (int) $r2['pending_cancelled']);
+        assert_same(0, (int) $r2['credited_voided']);
+        assert_same(0, (int) $r2['points_reversed']);
+
+        /* One reversal row per volume row (buyerA own + 5 ancestors = 6),
+         * and the second call adds none (idempotent, no duplicate key). */
+        $reversals = db()->prepare("SELECT COUNT(*) FROM binary_volume WHERE order_id = ? AND kind = 'reversal'");
+        $reversals->execute([(int) $order['id']]);
+        assert_same(6, (int) $reversals->fetchColumn());
+    },
+
+    'P22D-T68 reversal never re-pairs → returned points stay unmatched' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE68', 300.00, 250.00);
+
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        $orderB = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $orderB['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderB['id']);
+
+        $longAgo = date('Y-m-d H:i:s', strtotime('-8 days'));
+        db()->prepare("UPDATE shop_orders SET status = 'delivered', delivered_at = ? WHERE id IN (?, ?)")
+            ->execute([$longAgo, (int) $orderA['id'], (int) $orderB['id']]);
+        (new BinaryService())->releaseForOrder((int) $orderB['id']);
+
+        /* Reverse buyerB's order: c's pair points return, no re-pairing. */
+        (new BinaryService())->reverseForOrder((int) $orderB['id']);
+
+        $node = BinaryNode::forUser((int) $tree['c']['id']);
+        /* c's pair points returned (L 1000) but orderB's team R volume is
+         * reversed (R 0): points are back, just not re-paired. */
+        assert_same(1000, (int) $node['left_points']);
+        assert_same(0, (int) $node['right_points']);
+
+        /* No new pair award was created by the reversal. */
+        $pairAwards = array_filter(BinaryAward::forOrder((int) $orderB['id']), static fn (array $a): bool => (string) $a['kind'] === 'pair');
+        assert_count(1, $pairAwards);
+        assert_same('voided', (string) reset($pairAwards)['status']);
+    },
 ];

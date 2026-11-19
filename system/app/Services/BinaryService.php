@@ -796,7 +796,6 @@ final class BinaryService
                 'released' => 0,
                 'awards'   => [],
                 'amount'   => 0.0,
-                'reason'   => '',
             ];
 
             $order = $this->lockOrder($orderId);
@@ -1357,44 +1356,64 @@ final class BinaryService
     {
         $rows = BinaryVolume::forOrder($orderId, $this->pdo);
 
+        /* Idempotency: an own/team row whose reversal already exists must
+         * not be re-reversed (plan §16.9, P22D-T67). */
+        $done = [];
+        $stmt = $this->pdo->prepare(
+            "SELECT node_user_id, order_item_id, side FROM binary_volume
+              WHERE order_id = ? AND kind = 'reversal'"
+        );
+        $stmt->execute([$orderId]);
+        foreach ($stmt->fetchAll() as $r) {
+            $done[] = (int) $r['node_user_id'] . '-' . (int) ($r['order_item_id'] ?? 0) . '-' . (string) $r['side'];
+        }
+
         $reversed = 0;
 
         foreach ($rows as $row) {
             $kind = (string) $row['kind'];
 
-            if ($kind === 'own' || $kind === 'team') {
-                $nodeId   = (int) $row['node_user_id'];
-                $side     = (string) $row['side'];
-                $points   = (int) $row['points']; // positive
+            if ($kind !== 'own' && $kind !== 'team') {
+                continue;
+            }
 
-                BinaryVolume::create([
-                    'node_user_id' => $nodeId,
-                    'side'         => $side,
-                    'kind'         => 'reversal',
-                    'points'       => -$points,
-                    'order_id'     => $orderId,
-                    'order_item_id'=> (int) ($row['order_item_id'] ?? 0),
-                    'buyer_id'     => (int) ($row['buyer_id'] ?? 0),
-                    'note'         => 'Reversal — cancelled order #' . $orderId,
-                ], $this->pdo);
+            $nodeId   = (int) $row['node_user_id'];
+            $side     = (string) $row['side'];
+            $itemId   = (int) ($row['order_item_id'] ?? 0);
+            $key      = $nodeId . '-' . $itemId . '-' . $side;
+            if (in_array($key, $done, true)) {
+                continue;
+            }
 
-                $column = $side === 'left' ? 'left_points' : 'right_points';
+            $points   = (int) $row['points']; // positive
+
+            BinaryVolume::create([
+                'node_user_id' => $nodeId,
+                'side'         => $side,
+                'kind'         => 'reversal',
+                'points'       => -$points,
+                'order_id'     => $orderId,
+                'order_item_id'=> $itemId,
+                'buyer_id'     => (int) ($row['buyer_id'] ?? 0),
+                'note'         => 'Reversal — cancelled order #' . $orderId,
+            ], $this->pdo);
+
+            $column = $side === 'left' ? 'left_points' : 'right_points';
+            $this->pdo->prepare(
+                'UPDATE binary_nodes
+                    SET ' . $column . ' = ' . $column . ' - ?, updated_at = NOW()
+                  WHERE user_id = ?'
+            )->execute([$points, $nodeId]);
+
+            if ($kind === 'own') {
                 $this->pdo->prepare(
                     'UPDATE binary_nodes
-                        SET ' . $column . ' = ' . $column . ' - ?, updated_at = NOW()
+                        SET personal_points = personal_points - ?, updated_at = NOW()
                       WHERE user_id = ?'
                 )->execute([$points, $nodeId]);
-
-                if ($kind === 'own') {
-                    $this->pdo->prepare(
-                        'UPDATE binary_nodes
-                            SET personal_points = personal_points - ?, updated_at = NOW()
-                          WHERE user_id = ?'
-                    )->execute([$points, $nodeId]);
-                }
-
-                $reversed += $points;
             }
+
+            $reversed += $points;
         }
 
         return $reversed;
