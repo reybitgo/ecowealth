@@ -415,4 +415,139 @@ final class BinaryNode
 
         return $blocked;
     }
+
+    /* ----------------------------------------------------------
+     *  Writes (called by BinaryPlacementService inside a
+     *  transaction; this model never opens one)
+     * ---------------------------------------------------------- */
+
+    /**
+     * Place a member under an upline on one side.
+     *
+     * depth/path are derived from the upline. The caller must have
+     * already verified the slot is free and the placement is legal.
+     */
+    public static function place(
+        int $userId,
+        int $uplineId,
+        string $side,
+        int $placedBy,
+        ?PDO $pdo = null
+    ): void {
+        $pdo ??= db();
+
+        $upline = self::find($uplineId, $pdo);
+        if ($upline === null) {
+            throw new InvalidArgumentException('Upline #' . $uplineId . ' has no binary node.');
+        }
+
+        $root = self::root($pdo);
+        if ($root === null) {
+            throw new RuntimeException('The binary tree has no company root.');
+        }
+
+        $depth  = (int) $upline['depth'] + 1;
+        $path   = (string) $upline['path'] . ($side === 'left' ? 'L' : 'R');
+
+        $pdo->prepare(
+            'INSERT INTO ' . self::TABLE . '
+               (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+             VALUES (?, ?, ?, ?, ?, ?, \'placed\', NOW(), ?)'
+        )->execute([
+            $userId,
+            $uplineId,
+            $side,
+            (int) $root['user_id'],
+            $depth,
+            $path,
+            $placedBy,
+        ]);
+    }
+
+    /**
+     * Move one node (and its whole subtree) to a new (upline, side).
+     *
+     * depth/path are recomputed for the moved node and every descendant
+     * in a single statement per level. The caller must have verified the
+     * subtree is empty of money, the slot is free, and no cycle results.
+     */
+    public static function move(
+        int $userId,
+        int $newUplineId,
+        string $newSide,
+        int $movedBy,
+        ?PDO $pdo = null
+    ): void {
+        $pdo ??= db();
+
+        $node     = self::find($userId, $pdo);
+        $newUpline = self::find($newUplineId, $pdo);
+
+        if ($node === null) {
+            throw new InvalidArgumentException('Member #' . $userId . ' has no binary node.');
+        }
+        if ($newUpline === null) {
+            throw new InvalidArgumentException('Upline #' . $newUplineId . ' has no binary node.');
+        }
+
+        $oldPath  = (string) $node['path'];
+        $oldDepth = (int) $node['depth'];
+        $newPath  = (string) $newUpline['path'] . ($newSide === 'left' ? 'L' : 'R');
+        $newDepth = (int) $newUpline['depth'] + 1;
+
+        /* The moved node and every descendant share the old path prefix,
+         * so one UPDATE rewrites the whole subtree: upline_id/side change
+         * only for the moved node itself, depth shifts by the delta, and
+         * path swaps the old prefix for the new one. */
+        $pdo->prepare(
+            'UPDATE ' . self::TABLE . '
+               SET upline_id   = CASE WHEN user_id = ? THEN ? ELSE upline_id END,
+                   side        = CASE WHEN user_id = ? THEN ? ELSE side END,
+                   depth       = ? + (depth - ?),
+                   path        = CONCAT(?, SUBSTRING(path, ? + 1)),
+                   moved_at    = NOW(),
+                   moved_by    = ?,
+                   move_count  = move_count + 1,
+                   updated_at  = NOW()
+             WHERE path LIKE CONCAT(?, \'%\')'
+        )->execute([
+            $userId,   $newUplineId,
+            $userId,   $newSide,
+            $newDepth, $oldDepth,
+            $newPath,  (int) strlen($oldPath),
+            $movedBy,
+            $oldPath,
+        ]);
+    }
+
+    /**
+     * Recompute one node's depth/path from its current upline (a single
+     * node, not its subtree). Used to repair a cached path.
+     */
+    public static function recomputePath(int $userId, ?PDO $pdo = null): void
+    {
+        $pdo ??= db();
+
+        $node = self::find($userId, $pdo);
+        if ($node === null || (string) $node['state'] === 'root') {
+            return;
+        }
+
+        $uplineId = (int) ($node['upline_id'] ?? 0);
+        if ($uplineId <= 0) {
+            return;
+        }
+
+        $upline = self::find($uplineId, $pdo);
+        if ($upline === null) {
+            return;
+        }
+
+        $depth = (int) $upline['depth'] + 1;
+        $path  = (string) $upline['path'] . ((string) ($node['side'] ?? 'left') === 'left' ? 'L' : 'R');
+
+        $pdo->prepare(
+            'UPDATE ' . self::TABLE . ' SET depth = ?, path = ?, updated_at = NOW() WHERE user_id = ?'
+        )->execute([$depth, $path, $userId]);
+    }
 }
