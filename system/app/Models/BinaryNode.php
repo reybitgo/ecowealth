@@ -352,6 +352,87 @@ final class BinaryNode
         ];
     }
 
+    /** One page of a node's team on one side (left or right), oldest path first. */
+    public static function sideRoster(int $userId, string $side, int $page = 1, int $perPage = 20, ?PDO $pdo = null): array
+    {
+        if (!in_array($side, self::SIDES, true)) {
+            throw new InvalidArgumentException('Side must be "left" or "right".');
+        }
+
+        $pdo ??= db();
+
+        $page = max(1, $page);
+        $perPage = max(1, min($perPage, 100));
+        $offset = ($page - 1) * $perPage;
+
+        $node = self::find($userId, $pdo);
+        if ($node === null) {
+            return [
+                'rows'   => [],
+                'pager'  => ['page' => $page, 'per_page' => $perPage, 'total' => 0],
+            ];
+        }
+
+        $path      = (string) $node['path'];
+        $letter    = $side === 'left' ? 'L' : 'R';
+        $prefix    = $path . $letter;
+        $likePrefix = $prefix . '%';
+
+        $countStmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM ' . self::TABLE . ' WHERE path LIKE ?'
+        );
+        $countStmt->execute([$likePrefix]);
+        $total = (int) $countStmt->fetchColumn();
+
+        $stmt = $pdo->prepare(
+            'SELECT n.*, u.username, u.member_status, u.is_active, u.role, u.package_id, p.name AS package_name
+               FROM ' . self::TABLE . ' n
+               JOIN users u ON u.id = n.user_id
+               LEFT JOIN packages p ON p.id = u.package_id
+              WHERE n.path LIKE ?
+              ORDER BY n.path
+              LIMIT ? OFFSET ?'
+        );
+        $stmt->execute([$likePrefix, $perPage, $offset]);
+
+        return [
+            'rows'   => $stmt->fetchAll(),
+            'pager'  => ['page' => $page, 'per_page' => $perPage, 'total' => $total],
+        ];
+    }
+
+    /** Sum of `personal_points` across each given member's subtree (the member included), keyed by user_id. */
+    public static function subtreePersonalPoints(array $userIds, ?PDO $pdo = null): array
+    {
+        $pdo ??= db();
+
+        $out = [];
+        foreach ($userIds as $userId) {
+            $out[(int) $userId] = 0;
+        }
+
+        if ($userIds === []) {
+            return $out;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+
+        $stmt = $pdo->prepare(
+            "SELECT n.user_id AS member_id, SUM(d.personal_points) AS branch_points
+               FROM " . self::TABLE . " n
+               JOIN " . self::TABLE . " d ON d.path LIKE CONCAT(n.path, '%')
+              WHERE n.user_id IN ($placeholders)
+              GROUP BY n.user_id"
+        );
+        $stmt->execute($userIds);
+
+        foreach ($stmt->fetchAll() as $row) {
+            $out[(int) ($row['member_id'] ?? 0)] = (int) ($row['branch_points'] ?? 0);
+        }
+
+        return $out;
+    }
+
     /** The number of direct children a node has on one side (0 or 1). */
     public static function countSide(int $uplineId, string $side, ?PDO $pdo = null): int
     {

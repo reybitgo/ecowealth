@@ -663,4 +663,228 @@ return [
         assert_contains(money(50.00), $html);
         assert_contains('Credited', $html);
     },
+
+    /* ==========================================================
+     *  P22F-T2 — Left team card
+     *  ========================================================== */
+
+    'P22F-T2 the Left team card shows count, available and lifetime points, progress and roster' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $payAndStamp($order, ['product_id' => (int) $p1['id'], 'quantity' => 4]);
+
+        test_signed_in_as($tree['boss']);
+
+        $_GET = ['ledger' => 'binary'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=binary';
+
+        $controller = new EarningsController();
+        $data       = $controller->binaryContext((int) $tree['boss']['id']);
+
+        $left = $data['left_team'];
+        assert_same(1, (int) $left['count'], 'left team member count');
+        assert_same(1000, (int) $left['available'], 'left available points');
+        assert_same(1000, (int) $left['lifetime'], 'left lifetime points');
+        assert_same(1000, (int) $left['pair_points']);
+        assert_same(1, (int) $left['pager']['total']);
+        assert_same(1, count($left['rows']));
+
+        $row = $left['rows'][0];
+        assert_same((int) $tree['buyerA']['id'], (int) $row['id']);
+        assert_same((string) $tree['buyerA']['username'], (string) $row['username']);
+        assert_same(1000, (int) $row['own_points'], 'buyerA own points');
+        assert_same(1000, (int) $row['branch_points'], 'buyerA branch points = subtree personal points');
+
+        ob_start();
+        try {
+            View::page('member', 'member/earnings', $data + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+                'page_css'    => ['assets/css/commissions.css'],
+                'page_js'     => ['assets/js/app-commissions.js'],
+                'live'        => Live::meta(Live::earningsSurface((int) $tree['boss']['id']), 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('Left team', $html);
+        assert_contains('@' . (string) $tree['buyerA']['username'], $html);
+        assert_contains('1000 pts', $html);
+        assert_contains('Showing 1–1 of 1', $html, 'left roster summary');
+
+        /* D-22: no upline language on the team card. */
+        assert_not_contains('upline', $html);
+        assert_not_contains('sponsor', $html);
+        assert_not_contains('Team chain', $html);
+        assert_not_contains('Level ', $html);
+    },
+
+    /* ==========================================================
+     *  P22F-T3 — Right team card
+     *  ========================================================== */
+
+    'P22F-T3 the Right team card shows count, available and lifetime points, progress and roster' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $payAndStamp($order, ['product_id' => (int) $p1['id'], 'quantity' => 4]);
+
+        test_signed_in_as($tree['boss']);
+
+        $_GET = ['ledger' => 'binary'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=binary';
+
+        $controller = new EarningsController();
+        $data       = $controller->binaryContext((int) $tree['boss']['id']);
+
+        $right = $data['right_team'];
+        assert_same(1, (int) $right['count'], 'right team member count');
+        assert_same(1000, (int) $right['available'], 'right available points');
+        assert_same(1000, (int) $right['lifetime'], 'right lifetime points');
+        assert_same(1, (int) $right['pager']['total']);
+        assert_same(1, count($right['rows']));
+
+        $row = $right['rows'][0];
+        assert_same((int) $tree['buyerB']['id'], (int) $row['id']);
+        assert_same((string) $tree['buyerB']['username'], (string) $row['username']);
+        assert_same(1000, (int) $row['own_points'], 'buyerB own points');
+        assert_same(1000, (int) $row['branch_points'], 'buyerB branch points');
+
+        ob_start();
+        try {
+            View::page('member', 'member/earnings', $data + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+                'page_css'    => ['assets/css/commissions.css'],
+                'page_js'     => ['assets/js/app-commissions.js'],
+                'live'        => Live::meta(Live::earningsSurface((int) $tree['boss']['id']), 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('Right team', $html);
+        assert_contains('@' . (string) $tree['buyerB']['username'], $html);
+        assert_contains('Showing 1–1 of 1', $html, 'right roster summary');
+    },
+
+    /* ==========================================================
+     *  P22F-T4 — a left member's row shows own and branch points
+     *  ========================================================== */
+
+    'P22F-T4 a left member row carries username, status badge, package, own points and branch points' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $payAndStamp($order, ['product_id' => (int) $p1['id'], 'quantity' => 4]);
+
+        test_signed_in_as($tree['boss']);
+
+        $_GET = ['ledger' => 'binary'];
+
+        $controller = new EarningsController();
+        $data       = $controller->binaryContext((int) $tree['boss']['id']);
+
+        $row = $data['left_team']['rows'][0];
+        assert_same((string) $tree['buyerA']['username'], (string) $row['username']);
+        assert_contains('active', (string) $row['member_status']);
+        assert_same(1000, (int) $row['own_points']);
+        assert_same(1000, (int) $row['branch_points']);
+    },
+
+    /* ==========================================================
+     *  P22F-T5 — empty left side
+     *  ========================================================== */
+
+    'P22F-T5 an empty left side shows the empty state and keeps totals at zero' => function () use (
+        $buildFixtureTree, $preset
+    ): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        test_signed_in_as($tree['buyerA']);
+
+        $_GET = ['ledger' => 'binary'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=binary';
+
+        $controller = new EarningsController();
+        $data       = $controller->binaryContext((int) $tree['buyerA']['id']);
+
+        /* buyerA has no one under their left side. */
+        assert_same(0, (int) $data['left_team']['count']);
+        assert_same(0, (int) $data['left_team']['available']);
+        assert_same(0, (int) $data['left_team']['lifetime']);
+        assert_same(0, (int) $data['left_team']['pager']['total']);
+        assert_same([], $data['left_team']['rows']);
+
+        ob_start();
+        try {
+            View::page('member', 'member/earnings', $data + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+                'page_css'    => ['assets/css/commissions.css'],
+                'page_js'     => ['assets/js/app-commissions.js'],
+                'live'        => Live::meta(Live::earningsSurface((int) $tree['buyerA']['id']), 'page'),
+            ]);
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('No members on your left team yet', $html);
+        assert_contains('Left team', $html);
+        assert_not_contains('Showing', $html, 'no roster summary on an empty side');
+    },
+
+    /* ==========================================================
+     *  P22F-T23 (team privacy) — one member cannot see another's team
+     *  ========================================================== */
+
+    'P22F-T23 team roster is session-scoped; buyerA cannot see buyerB' => function () use (
+        $buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem, $payAndStamp
+    ): void {
+        $tree  = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE', 300.00, 250.00);
+        $order = $createOrder((int) $tree['buyerB']['id'], 'paid', 'right');
+        $createOrderItem((int) $order['id'], (int) $p1['id'], 4, 250, 1000);
+        $payAndStamp($order, ['product_id' => (int) $p1['id'], 'quantity' => 4]);
+
+        test_signed_in_as($tree['buyerA']);
+
+        $_GET = ['ledger' => 'binary'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=binary';
+
+        $controller = new EarningsController();
+        $data       = $controller->binaryContext((int) $tree['buyerA']['id']);
+
+        /* buyerA's own team: buyerA has no downline, so both sides are empty. */
+        assert_same(0, (int) $data['left_team']['count']);
+        assert_same(0, (int) $data['right_team']['count']);
+
+        /* buyerB must never appear on buyerA's tab. */
+        $usernames = array_map(
+            static fn (array $r): string => (string) ($r['username'] ?? ''),
+            array_merge($data['left_team']['rows'], $data['right_team']['rows'])
+        );
+        assert_false(in_array((string) $tree['buyerB']['username'], $usernames, true),
+            'buyerB must not appear on buyerA\'s team cards');
+    },
 ];

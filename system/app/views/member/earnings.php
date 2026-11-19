@@ -807,6 +807,23 @@ if ($isTeam) {
 <?= View::capture('member/earnings/_binary_self', ['totals' => $binaryTotals]) ?>
               </div>
 
+<?php
+    $leftPts  = (int) ($binaryNode['left_points']  ?? 0);
+    $rightPts = (int) ($binaryNode['right_points'] ?? 0);
+    $pairPts  = (int) setting_int('binary_pair_points', 1000);
+?>
+<?= View::capture('member/earnings/_binary_progress', [
+    'left_points'  => $leftPts,
+    'right_points' => $rightPts,
+    'pair_points'  => $pairPts,
+]) ?>
+<?= View::capture('member/earnings/_binary_teams', [
+    'leftTeam'  => $left_team  ?? [],
+    'rightTeam' => $right_team ?? [],
+    'left_points'  => $leftPts,
+    'right_points' => $rightPts,
+]) ?>
+
               <div class="card">
 <?= View::capture('member/earnings/_binary_header', ['pager' => $binaryPager]) ?>
 

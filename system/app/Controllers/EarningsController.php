@@ -445,12 +445,21 @@ final class EarningsController
         $pager = Paginator::fromTableRequest(BinaryAward::countForUser($userId, $filters));
         $rows  = BinaryAward::pageForUser($userId, $filters, $pager);
 
+        $node   = BinaryNode::forUser($userId);
+        $leftPts  = (int) ($node['left_points']  ?? 0);
+        $rightPts = (int) ($node['right_points'] ?? 0);
+
+        $leftTeam  = $this->binarySideTeam($userId, 'left',  $leftPts);
+        $rightTeam = $this->binarySideTeam($userId, 'right', $rightPts);
+
         return [
             'tab'           => self::TAB_BINARY,
             'user_id'       => $userId,
             'totals'        => BinaryAward::totalsForUser($userId),
             'pending'       => BinaryAward::pendingSummaryForUser($userId),
             'breakdown'     => BinaryAward::sideBreakdown($userId),
+            'left_team'     => $leftTeam,
+            'right_team'    => $rightTeam,
             'filters'       => $filters,
             'pager'         => $pager,
             'awards'        => $rows,
@@ -464,6 +473,69 @@ final class EarningsController
             'binary_url'    => url('earnings?ledger=binary'),
             'statement_url' => url('earnings?ledger=binary'),
             'export_url'    => url('earnings/export' . self::binaryQueryString($filters)),
+        ];
+    }
+
+    /**
+     * One side team card's data: member count, available points, lifetime
+     * points, a paginated roster and the next-pair progress.
+     *
+     * @return array{
+     *   count:int, available:int, lifetime:int, pair_points:int,
+     *   pager:array{page:int, per_page:int, total:int, from:int, to:int},
+     *   rows:list<array{
+     *     id:int, username:string, member_status:string, is_active:int,
+     *     package_name:?string, own_points:int, branch_points:int
+     *   }>
+     * }
+     */
+    private function binarySideTeam(int $userId, string $side, int $available): array
+    {
+        $page  = max(1, (int) Request::query($side . '_page', 1));
+        $perPage = Paginator::perPageFromRequest($side . '_per_page');
+
+        $roster  = BinaryNode::sideRoster($userId, $side, $page, $perPage);
+        $rows    = $roster['rows'];
+        $pager   = $roster['pager'];
+
+        $memberIds = array_map(
+            static fn (array $row): int => (int) ($row['user_id'] ?? 0),
+            $rows
+        );
+
+        $branchPoints = $memberIds === []
+            ? []
+            : BinaryNode::subtreePersonalPoints($memberIds);
+
+        $lifetime = 0;
+        $stmt = db()->prepare(
+            'SELECT COALESCE(SUM(points), 0) FROM binary_volume
+              WHERE node_user_id = ? AND side = ? AND points > 0 AND kind IN (\'own\', \'team\')'
+        );
+        $stmt->execute([$userId, $side]);
+        $lifetime = (int) $stmt->fetchColumn();
+
+        $enriched = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['user_id'] ?? 0);
+            $enriched[] = [
+                'id'            => $id,
+                'username'      => (string) ($row['username'] ?? ''),
+                'member_status' => (string) ($row['member_status'] ?? ''),
+                'is_active'     => (int) ($row['is_active'] ?? 0),
+                'package_name'  => (string) ($row['package_name'] ?? ''),
+                'own_points'    => (int) ($row['personal_points'] ?? 0),
+                'branch_points' => (int) ($branchPoints[$id] ?? 0),
+            ];
+        }
+
+        return [
+            'count'    => (int) $pager['total'],
+            'available'=> $available,
+            'lifetime' => $lifetime,
+            'pair_points' => (int) setting_int('binary_pair_points', 1000),
+            'pager'    => $pager,
+            'rows'     => $enriched,
         ];
     }
 
