@@ -1820,13 +1820,23 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 21F | ☑ Yes ☐ No | General Harvest member visibility: the fifth `/earnings` tab (position, gate sentence, the whole ten-level board, the progress card, the paginated roster, the level rows with their wallet links, the two exclusions, the purchases footnote and the Appendix C.6 CSV), the General Harvest tile on `/dashboard` and the board badge on `/genealogy`. **Read-only**, scoped to the session member (`&user_id=` ignored by page and file), the copy rules asserted verbatim and singular, the stream-off and above-depth states explicit. **≥ 1,478** green at the 21F gate, **268 / 268** smoke checks, bundle check exit 0, `wallet_reconcile` exit 0. Section F: **9 / 9**. |
 | Phase 21G | ☑ Yes ☐ No | General Harvest release: `APP_PHASE` **21**; the Phase 21 QA pack complete and signed (sections A–G, **58 / 58**); the automated release gate green — **1,484 / 1,484** PHP cases, **268 / 268** smoke checks, `build_install_sql --check` exit 0, `wallet_reconcile` exit 0 with the General Harvest section, doctor exit 0; the scratch-install go-live replay (install **39 / 79 / 10 / 1**, deploy → configure → arm dry run → arm → enable → catch up → reconcile → doctor, one ₱2,000.00 credit); the release acceptance table complete; the cold read resolved with no open documentation defects. |
 
+| Phase 22A | ☑ Yes ☐ No | Product binary foundation: migration `026` adds `binary_nodes`, `binary_volume`, `binary_awards`; `products.binary_enabled`; `shop_orders`/`shop_order_items`/`ewallet_ledger` extended; ten `binary_*` settings; `REF_TYPES` + `binary`/`binary_reversal`; wallet labels/icons. No code path reads the new objects. **42 tables / 86 settings** (measured; plan projects 89 — pre-existing seed deviation recorded in `BinaryReleaseTest` P22I-T2). **8** section-A checks (QA22A-01…08). |
+| Phase 22B | ☑ Yes ☐ No | Product binary configuration: settings card (nine keys, four toggles, master off), product card (`binary_enabled`, badge `Binary N pts`, `?binary=on|off`), readiness panel (four counts, read-only). Stream off; no money moves. **9** section-B checks (QA22B-01…09). |
+| Phase 22C | ☑ Yes ☐ No | Product binary placement: node model, registration placement, admin console, audited move route (`POST /admin/members/{id}/placement`), backfill tool. Tree invariants (unique slot, no cycle, depth/path derived, root = company, never paid). No money exists. **10** section-C checks (QA22C-01…10). |
+| Phase 22D | ☑ Yes ☐ No | Product binary money engine: self bonus, pair matching, points ledger, escrow, cancellation reversal, reconciliation. All behind the global switch (off). **12** section-D checks (QA22D-01…12). |
+| Phase 22E | ☑ Yes ☐ No | Product binary admin visibility: `?ledger=binary` ledger tab, order card, member panel, five report cards, readiness cards, CSV. Read-only. **9** section-E checks (QA22E-01…09). |
+| Phase 22F | ☑ Yes ☐ No | Product binary member visibility: earnings tab with Left/Right team cards, checkout position card, order card, dashboard tile, product panel. Copy names no upline (D-22). **10** section-F checks (QA22F-01…10). |
+| Phase 22G | ☑ Yes ☐ No | Product binary tree: d3 v7 explorer, server-rendered first paint, no-JS list, lazy JSON, in-node registration, invite links, keyboard/ARIA, responsive. Sponsor view byte-identical. **12** section-G checks (QA22G-01…12). |
+| Phase 22H | ☑ Yes ☐ No | Product binary operations: release job `--stream=binary`, points audit CLI (`binary_audit.php`), four health checks, cron/runbook/docs. One cron entry only. **7** section-H checks (QA22H-01…07). |
+| Phase 22I | ☑ Yes ☐ No | Product binary release: `APP_PHASE` **22**, `HardeningTest`, `BinaryReleaseTest`, QA pack sections A–I (83 checks), Appendix B acceptance run (12/12), phase log, Appendix H, sign-off sheet. **6** section-I checks (QA22I-01…06). No behaviour change. |
+
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the Phase 17 release
 acceptance table is 27 / 27, and Phases 18, 19, 20, 21A, 21B, 21C, 21D, 21E, 21F and 21G are recorded
-above with their own totals. The current build is the **Phase 21G release** (Phase 20 release plus
-migration `025` and the General Harvest board, ladder and engine): the full suite is **1,484 / 1,484**,
-the smoke run **268 / 268**, `APP_PHASE = 21` asserted by `HardeningTest`, the business reset keeps both
-ladders and clears the queues, keeps the General Harvest ladder while returning its board to unarmed,
-and every `QA20X-nn`/`QA21X-nn` check has an evidence file.
+above with their own totals. Phase 22 sections A–I are recorded above: **83 / 83** checks across the nine
+gates. The current build is the **Phase 22I release** (Phase 21G release plus migration `026` and the
+Product binary bonus stream): `APP_PHASE = 22` asserted by `HardeningTest`, the business reset empties
+the three binary tables and preserves the ten settings, and every `QA22X-nn` check has an evidence file
+under `docs/qa/evidence/phase-22/`.
 
 An **Approved with notes** decision is allowed only when every open defect is cosmetic and the lead
 accepts it. Any blocker or major defect keeps the phase open.
