@@ -1970,6 +1970,7 @@ final class BinaryService
                     'user_id'  => $userId,
                     'username' => (string) $row['username'],
                     'side'     => 'left',
+                    'kind'     => 'balance',
                     'cached'   => $cacheL,
                     'ledger'   => $ledgerL,
                     'delta'    => $cacheL - $ledgerL,
@@ -1982,6 +1983,7 @@ final class BinaryService
                     'user_id'  => $userId,
                     'username' => (string) $row['username'],
                     'side'     => 'right',
+                    'kind'     => 'balance',
                     'cached'   => $cacheR,
                     'ledger'   => $ledgerR,
                     'delta'    => $cacheR - $ledgerR,
@@ -2002,10 +2004,12 @@ final class BinaryService
             $awardId = (int) $row['id'];
             $expected = -((int) $row['pair_count'] * (int) $row['pair_points']);
 
-            $actual = (int) $pdo->prepare(
+            $actualStmt = $pdo->prepare(
                 "SELECT COALESCE(SUM(points), 0) FROM binary_volume
                   WHERE award_id = ? AND kind = 'pair' AND side = 'left'"
-            )->execute([$awardId])->fetchColumn();
+            );
+            $actualStmt->execute([$awardId]);
+            $actual = (int) $actualStmt->fetchColumn();
 
             if ((int) $actual !== $expected) {
                 $ok = false;
@@ -2020,10 +2024,12 @@ final class BinaryService
                 ];
             }
 
-            $actualR = (int) $pdo->prepare(
+            $actualStmt = $pdo->prepare(
                 "SELECT COALESCE(SUM(points), 0) FROM binary_volume
                   WHERE award_id = ? AND kind = 'pair' AND side = 'right'"
-            )->execute([$awardId])->fetchColumn();
+            );
+            $actualStmt->execute([$awardId]);
+            $actualR = (int) $actualStmt->fetchColumn();
 
             if ((int) $actualR !== $expected) {
                 $ok = false;
@@ -2154,6 +2160,250 @@ final class BinaryService
             ];
         }
 
+        /* INV-1: every volume row respects the side/kind/sign contract. */
+        $volumeContract = $pdo->query(
+            "SELECT id, node_user_id, side, kind, points, order_item_id, award_id
+               FROM binary_volume
+              WHERE side NOT IN ('left','right')
+                 OR kind NOT IN ('own','team','pair','pair_return','reversal','adjustment')
+                 OR points = 0
+                 OR (kind IN ('own','team') AND (points <= 0 OR order_item_id IS NULL))
+                 OR (kind IN ('own','team') AND award_id IS NOT NULL)
+                 OR (kind = 'pair' AND (points >= 0 OR award_id IS NULL))
+                 OR (kind = 'pair_return' AND (points <= 0 OR award_id IS NULL))
+                 OR (kind = 'reversal' AND (points >= 0 OR order_item_id IS NULL))
+              ORDER BY id"
+        );
+
+        foreach ($volumeContract->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'volume'        => (int) $row['id'],
+                'node_user_id'  => (int) $row['node_user_id'],
+                'kind'          => 'volume_contract',
+                'message'       => 'volume row #' . (int) $row['id'] . ' violates the side/kind/sign contract',
+            ];
+        }
+
+        /* INV-3: left_credited / right_credited == Σ positive own/team points per node per side. */
+        $creditedStmt = $pdo->query(
+            "SELECT n.user_id, n.left_credited, n.right_credited,
+                    COALESCE(SUM(CASE WHEN v.side = 'left'  AND v.kind IN ('own','team') AND v.points > 0 THEN v.points ELSE 0 END), 0) AS ledger_left_credited,
+                    COALESCE(SUM(CASE WHEN v.side = 'right' AND v.kind IN ('own','team') AND v.points > 0 THEN v.points ELSE 0 END), 0) AS ledger_right_credited
+               FROM binary_nodes n
+               LEFT JOIN binary_volume v ON v.node_user_id = n.user_id
+              GROUP BY n.user_id, n.left_credited, n.right_credited
+              ORDER BY n.user_id"
+        );
+
+        foreach ($creditedStmt->fetchAll() as $row) {
+            $userId = (int) $row['user_id'];
+
+            if ((int) $row['left_credited'] !== (int) $row['ledger_left_credited']) {
+                $ok = false;
+                $drifts[] = [
+                    'user_id'  => $userId,
+                    'side'     => 'left',
+                    'kind'     => 'left_credited',
+                    'cached'   => (int) $row['left_credited'],
+                    'ledger'   => (int) $row['ledger_left_credited'],
+                    'delta'    => (int) $row['left_credited'] - (int) $row['ledger_left_credited'],
+                    'message'  => 'node #' . $userId . ' left_credited disagrees with the ledger',
+                ];
+            }
+
+            if ((int) $row['right_credited'] !== (int) $row['ledger_right_credited']) {
+                $ok = false;
+                $drifts[] = [
+                    'user_id'  => $userId,
+                    'side'     => 'right',
+                    'kind'     => 'right_credited',
+                    'cached'   => (int) $row['right_credited'],
+                    'ledger'   => (int) $row['ledger_right_credited'],
+                    'delta'    => (int) $row['right_credited'] - (int) $row['ledger_right_credited'],
+                    'message'  => 'node #' . $userId . ' right_credited disagrees with the ledger',
+                ];
+            }
+        }
+
+        /* INV-4: points_matched == Σ (pair_count × pair_points × 2) of live pair awards per node. */
+        $matchedStmt = $pdo->query(
+            "SELECT n.user_id, n.points_matched,
+                    COALESCE(SUM(a.pair_count * a.pair_points * 2), 0) AS ledger_matched
+               FROM binary_nodes n
+               LEFT JOIN binary_awards a ON a.user_id = n.user_id
+                  AND a.kind = 'pair' AND a.status IN ('pending', 'credited')
+              GROUP BY n.user_id, n.points_matched
+              ORDER BY n.user_id"
+        );
+
+        foreach ($matchedStmt->fetchAll() as $row) {
+            $userId = (int) $row['user_id'];
+
+            if ((int) $row['points_matched'] !== (int) $row['ledger_matched']) {
+                $ok = false;
+                $drifts[] = [
+                    'user_id'  => $userId,
+                    'kind'     => 'points_matched',
+                    'cached'   => (int) $row['points_matched'],
+                    'ledger'   => (int) $row['ledger_matched'],
+                    'delta'    => (int) $row['points_matched'] - (int) $row['ledger_matched'],
+                    'message'  => 'node #' . $userId . ' points_matched disagrees with its live pair awards',
+                ];
+            }
+        }
+
+        /* INV-5: duplicated pair consumption rows (award may not list the same side twice). */
+        $dupPair = $pdo->query(
+            "SELECT award_id, side, COUNT(*) AS copies
+               FROM binary_volume
+              WHERE kind = 'pair'
+              GROUP BY award_id, side
+              HAVING copies > 1
+              ORDER BY award_id"
+        );
+
+        foreach ($dupPair->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'award'    => (int) $row['award_id'],
+                'side'     => (string) $row['side'],
+                'kind'     => 'pair_consumption_dup',
+                'copies'   => (int) $row['copies'],
+                'message'  => 'pair award #' . (int) $row['award_id'] . ' has ' . (int) $row['copies'] . ' consumption rows on the ' . (string) $row['side'] . ' side',
+            ];
+        }
+
+        /* INV-6: self award amount == round(points × rate_pct / 100, 2). */
+        $selfAmountStmt = $pdo->query(
+            "SELECT a.id, a.user_id, a.order_id, a.points, a.rate_pct, a.amount, u.username
+               FROM binary_awards a
+               JOIN users u ON u.id = a.user_id
+              WHERE a.kind = 'self'
+              ORDER BY a.id"
+        );
+
+        foreach ($selfAmountStmt->fetchAll() as $row) {
+            $expected = round(round((float) $row['points'] * (float) $row['rate_pct'] / 100, 2), 2);
+            $actual   = (float) $row['amount'];
+
+            if (number_format($expected, 2, '.', '') !== number_format($actual, 2, '.', '')) {
+                $ok = false;
+                $drifts[] = [
+                    'award'    => (int) $row['id'],
+                    'user_id'  => (int) $row['user_id'],
+                    'order_id' => (int) $row['order_id'],
+                    'kind'     => 'self_amount',
+                    'expected' => $expected,
+                    'actual'   => $actual,
+                    'message'  => 'self award #' . (int) $row['id'] . ' amount disagrees with its formula',
+                ];
+            }
+        }
+
+        /* INV-8: shop_orders binary totals equal the sum of live awards. */
+        $orderTotalStmt = $pdo->query(
+            "SELECT o.id, o.order_no, o.binary_self_total, o.binary_pair_total, o.binary_total,
+                    COALESCE(SUM(CASE WHEN a.kind = 'self'  AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0) AS self_awarded,
+                    COALESCE(SUM(CASE WHEN a.kind = 'pair' AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0) AS pair_awarded,
+                    COALESCE(SUM(CASE WHEN a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0) AS total_awarded
+               FROM shop_orders o
+               LEFT JOIN binary_awards a ON a.order_id = o.id
+              GROUP BY o.id, o.order_no, o.binary_self_total, o.binary_pair_total, o.binary_total
+             HAVING o.binary_self_total <> COALESCE(SUM(CASE WHEN a.kind = 'self'  AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0)
+                OR o.binary_pair_total <> COALESCE(SUM(CASE WHEN a.kind = 'pair' AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0)
+                OR o.binary_total  <> COALESCE(SUM(CASE WHEN a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0)
+              ORDER BY o.id"
+        );
+
+        foreach ($orderTotalStmt->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'order'    => (int) $row['id'],
+                'order_no' => (string) $row['order_no'],
+                'kind'     => 'order_total',
+                'message'  => 'order #' . (int) $row['id'] . ' binary totals disagree with its live awards',
+            ];
+        }
+
+        /* Orders stamped but with no volume and positive binary_points. */
+        $stampedNoVolume = $pdo->query(
+            "SELECT o.id, o.order_no, o.binary_points, o.binary_processed_at
+               FROM shop_orders o
+              WHERE o.binary_processed_at IS NOT NULL
+                AND o.binary_points > 0
+                AND NOT EXISTS (SELECT 1 FROM binary_volume v WHERE v.order_id = o.id)
+              ORDER BY o.id"
+        );
+
+        foreach ($stampedNoVolume->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'order'    => (int) $row['id'],
+                'order_no' => (string) $row['order_no'],
+                'kind'     => 'stamped_no_volume',
+                'message'  => 'order #' . (int) $row['id'] . ' is stamped with ' . (int) $row['binary_points'] . ' points but has no volume row',
+            ];
+        }
+
+        /* Duplicate slots: two nodes claiming the same (upline_id, side). */
+        $dupSlots = $pdo->query(
+            "SELECT upline_id, side, COUNT(*) AS copies
+               FROM binary_nodes
+              WHERE upline_id IS NOT NULL AND side IS NOT NULL
+              GROUP BY upline_id, side
+              HAVING copies > 1
+              ORDER BY upline_id"
+        );
+
+        foreach ($dupSlots->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'upline_id' => (int) $row['upline_id'],
+                'side'      => (string) $row['side'],
+                'kind'      => 'duplicate_slot',
+                'copies'    => (int) $row['copies'],
+                'message'   => 'slot (' . (int) $row['upline_id'] . ', ' . (string) $row['side'] . ') is held by ' . (int) $row['copies'] . ' nodes',
+            ];
+        }
+
+        /* Longest path vs MAX_DEPTH. */
+        $maxDepth   = (int) BinaryNode::MAX_DEPTH;
+        $longest    = (int) $pdo->query('SELECT MAX(CHAR_LENGTH(path)) FROM binary_nodes')->fetchColumn();
+        $longest    = $longest === false ? 0 : $longest;
+
+        if ($longest > $maxDepth) {
+            $warnings[] = [
+                'kind'    => 'max_depth',
+                'longest' => $longest,
+                'max'     => $maxDepth,
+                'message' => 'the longest path (' . $longest . ') exceeds MAX_DEPTH (' . $maxDepth . ')',
+            ];
+        }
+
+        /* INV-12: exactly one root node, and it is the company account. */
+        $companyId = (int) (Member::primaryAdmin($pdo)['id'] ?? 0);
+
+        $rootCount = (int) $pdo->query('SELECT COUNT(*) FROM binary_nodes WHERE state = "root"')->fetchColumn();
+
+        if ($rootCount !== 1) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'root_count',
+                'message'  => 'expected exactly one root node, found ' . $rootCount,
+            ];
+        } elseif ($companyId > 0) {
+            $rootUser = (int) $pdo->query('SELECT user_id FROM binary_nodes WHERE state = "root" LIMIT 1')->fetchColumn();
+
+            if ($rootUser !== $companyId) {
+                $ok = false;
+                $drifts[] = [
+                    'kind'     => 'root_owner',
+                    'message'  => 'the root node is not the company account',
+                ];
+            }
+        }
+
         return [
             'ok'      => $ok,
             'drifts'  => $drifts,
@@ -2164,8 +2414,9 @@ final class BinaryService
     /**
      * Recompute every cached node balance from the append-only ledger
      * and re-run the audit. Touches only `binary_nodes` cache columns
-     * (`left_points`, `right_points`, `personal_points`, `pairs_paid`,
-     * `points_matched`) — never an award, a wallet row or a volume row.
+     * (`left_points`, `right_points`, `left_credited`, `right_credited`,
+     * `points_matched`, `pairs_paid`, `personal_points`) — never an
+     * award, a wallet row or a volume row.
      *
      * @return array{ok:bool, fixed:int, drifts:list<array<string, mixed>>}
      */
@@ -2180,10 +2431,10 @@ final class BinaryService
         $audit = $this->audit($pdo);
         $fixed = 0;
 
-        /* Recompute left/right points from the ledger. Share the caller's
-         * transaction; use a savepoint when one is already open so we
-         * never implicitly commit the outer unit (auditFix() may be
-         * called inside a test harness transaction). */
+        /* Recompute every cached column from the append-only ledger.
+         * Share the caller's transaction; use a savepoint when one is
+         * already open so we never implicitly commit the outer unit
+         * (auditFix() may be called inside a test harness transaction). */
         $owns = !$pdo->inTransaction();
         $savepoint = null;
 
@@ -2195,6 +2446,7 @@ final class BinaryService
         }
 
         try {
+            /* left_points / right_points: every signed volume row. */
             $pdo->prepare(
                 "UPDATE binary_nodes n
                    JOIN (
@@ -2203,12 +2455,28 @@ final class BinaryService
                          COALESCE(SUM(CASE WHEN side = 'right' THEN points ELSE 0 END), 0) AS right_points
                        FROM binary_volume
                        GROUP BY node_user_id
-                   ) v ON v.node_user_id = n.user_id
+                    ) v ON v.node_user_id = n.user_id
                   SET n.left_points  = v.left_points,
                       n.right_points = v.right_points,
                       n.updated_at   = NOW()"
             )->execute();
 
+            /* left_credited / right_credited: positive own/team volume per side. */
+            $fixed += (int) $pdo->exec(
+                "UPDATE binary_nodes n
+                   JOIN (
+                     SELECT node_user_id,
+                         COALESCE(SUM(CASE WHEN side = 'left'  AND kind IN ('own','team') AND points > 0 THEN points ELSE 0 END), 0) AS left_credited,
+                         COALESCE(SUM(CASE WHEN side = 'right' AND kind IN ('own','team') AND points > 0 THEN points ELSE 0 END), 0) AS right_credited
+                       FROM binary_volume
+                       GROUP BY node_user_id
+                    ) c ON c.node_user_id = n.user_id
+                  SET n.left_credited  = c.left_credited,
+                      n.right_credited = c.right_credited,
+                      n.updated_at     = NOW()"
+            );
+
+            /* personal_points: 'own' volume only. */
             $fixed += (int) $pdo->exec(
                 "UPDATE binary_nodes n
                    JOIN (
@@ -2216,9 +2484,25 @@ final class BinaryService
                        FROM binary_volume
                        WHERE kind = 'own'
                        GROUP BY node_user_id
-                   ) p ON p.node_user_id = n.user_id
+                    ) p ON p.node_user_id = n.user_id
                   SET n.personal_points = p.personal,
                       n.updated_at      = NOW()"
+            );
+
+            /* points_matched / pairs_paid: live pair awards per node. */
+            $fixed += (int) $pdo->exec(
+                "UPDATE binary_nodes n
+                   JOIN (
+                     SELECT a.user_id,
+                         COALESCE(SUM(a.pair_count * a.pair_points * 2), 0) AS points_matched,
+                         COALESCE(SUM(a.pair_count), 0) AS pairs_paid
+                       FROM binary_awards a
+                       WHERE a.kind = 'pair' AND a.status IN ('pending','credited')
+                       GROUP BY a.user_id
+                    ) m ON m.user_id = n.user_id
+                  SET n.points_matched = m.points_matched,
+                      n.pairs_paid     = m.pairs_paid,
+                      n.updated_at     = NOW()"
             );
 
             if ($owns) {

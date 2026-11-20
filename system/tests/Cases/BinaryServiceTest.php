@@ -523,7 +523,8 @@ return [
         $hasDrift = false;
         foreach ($audit['drifts'] as $drift) {
             if ((int) ($drift['user_id'] ?? 0) === (int) $tree['buyerA']['id']
-                && (string) ($drift['side'] ?? '') === 'left') {
+                && (string) ($drift['side'] ?? '') === 'left'
+                && (string) ($drift['kind'] ?? '') === 'balance') {
                 $hasDrift = true;
                 assert_same(999999 - 1000, (int) $drift['delta']);
             }
