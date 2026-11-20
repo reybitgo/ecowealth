@@ -926,6 +926,25 @@ or a stack trace; the detail is in PHP's `error_log`.
    ledger is the source of truth, the engine is the only writer, and `php bin\wallet_reconcile.php`
    must stay clean.
 
+### A Product binary award never arrives
+
+1. **Is the stream on?** **Admin → Settings → Commissions → Product binary** — "Product binary enabled"
+   must read On. Off renders the offer nowhere and pays nothing (D-16).
+2. **Health panel:** **Admin → Reports** — **Product binary readiness** must be `pass`; **Product binary
+   escrow** names how many pending awards are owed and their age. If escrow shows pending awards, they
+   are owed, not lost.
+3. **Is the release job running?** Read `system/storage/logs/unilevel_release-YYYY-MM.log`: one line per
+   run. `stream=binary` with `errors=0` means binary awards are being credited. `stream=unilevel` only
+   means binary is not in this run — the cron default is `--stream=all` (cron.md §6). `errors>0`
+   names the failing order; pending awards stay `pending` and retry on the next run.
+4. **Doctor:** `php bin\unilevel_release.php --doctor` must be green (lock, log folder, both switches).
+5. **Preview:** `php bin\unilevel_release.php --stream=binary --dry-run` lists the due binary awards and
+   their recipients; it credits nothing. Run the real run without `--dry-run` when the list is right.
+6. **Points drift:** if a member's cached balance disagrees with the ledger, `php bin\binary_audit.php
+   --check` names the node; `--fix` repairs the caches without touching awards, volume or wallets.
+7. **Never edit `binary_awards`, `binary_nodes` or `binary_volume` by hand.** The ledger is the source
+   of truth and `php bin\wallet_reconcile.php` must stay clean.
+
 ### A registration code will not redeem
 
 `unused` codes can expire; an expired code is refused with a message and flipped to `expired`.
@@ -1021,6 +1040,9 @@ matrix by environment is in `dmp/plan-ecowealth-install-reset.md` §11.4.
 | Rate-limited login | 5 failed attempts / 15 min per session |
 | Audit | **Admin → Audit log**, filter by action/subject/actor/date |
 | S-Login audit | **Admin → S-Login console**, **Admin → Audit log** (`slogin.*`) |
+| Product binary health | **Admin → Reports** (Health card): **Product binary readiness**, **Product binary points**, **Product binary escrow**, **Product binary release job** — each reports `pass`/`warn`/`fail` with a one-line remedy |
+| Binary points drift | `php bin\binary_audit.php --check` — exit 0; `--fix` repairs the caches without touching awards, volume or wallets |
+| Binary release job | `php bin\unilevel_release.php --doctor` → green; `--stream=binary --dry-run` previews due awards; `errors=0` in `system/storage/logs/unilevel_release-YYYY-MM.log` |
 
 Cron access, lock and log conventions are shared; see [`cron.md`](cron.md).
 

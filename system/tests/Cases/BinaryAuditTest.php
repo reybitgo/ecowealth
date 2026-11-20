@@ -480,4 +480,87 @@ return [
     assert_same($beforeL,   $nodeLeft($pdo, $data['buyer']));
     assert_same($beforeR,   $nodeRight($pdo, $data['buyer']));
 },
+
+/* --------------------------------------------------------------
+ *  P22H-T14: health pack
+ * -------------------------------------------------------------- */
+
+'P22H-T14 health pack: pass on a clean fixture, warn on zero-PV / unplaced, fail on drift' => function (): void {
+    $pdo = db();
+
+    /* Warm the settings cache from the DB, then switch the stream on for
+     * this case (both roll back with the case's transaction). */
+    setting('binary_enabled');
+    setting_set('binary_enabled', '1');
+
+    /* Build on the existing demo tree: one root already exists. Add one
+     * placed member and one P.V. product. */
+    $rootId = (int) $pdo->query(
+        "SELECT user_id FROM binary_nodes WHERE state = 'root' LIMIT 1"
+    )->fetchColumn();
+    assert_not_null($rootId, 'the demo tree must carry a company root');
+
+    $users = $pdo->prepare(
+        "INSERT INTO users (username, email, password_hash, full_name, role, member_status, is_active)
+         VALUES (?, ?, 'x', ?, 'member', 'active', 1)"
+    );
+    $users->execute(['p22ht14_member', 'p22ht14_m@test.local', 'Member']);
+    $memberId = (int) $pdo->lastInsertId();
+
+    $pdo->prepare(
+        "INSERT INTO binary_nodes
+           (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)"
+    )->execute([$memberId, $rootId, 'right', $rootId, 1, 'R', 'placed', $rootId]);
+
+    $pdo->exec(
+        "INSERT INTO products (sku, name, slug, price, pv, binary_enabled, stock)
+         VALUES ('P22HT14', 'Health product', 'p22ht14', 100.00, 1000.00, 1, 10)"
+    );
+
+    /* A clean release log so the release-job check reports pass. */
+    (new CronLog(null, 'unilevel_release'))->write(
+        'OK',
+        'stream=binary trigger=cli limit=200 hold=7 candidates=0 released_orders=0 released_awards=0 amount=0.00 skipped=0 errors=0 duration=5ms ids='
+    );
+
+    $sections = static function (PDO $p): array {
+        $out = [];
+        foreach ((new HealthService())->checks()['sections'] as $section) {
+            $out[(string) $section['key']] = $section;
+        }
+        return $out;
+    };
+
+    $byKey = $sections($pdo);
+
+    foreach (['binary_readiness', 'binary_points', 'binary_escrow', 'binary_release_job'] as $key) {
+        assert_true(array_key_exists($key, $byKey), $key . ' is a health section');
+        assert_true($byKey[$key]['ok'], $key . ' passes on a clean fixture: ' . $byKey[$key]['summary']);
+        assert_false(str_contains((string) ($byKey[$key]['summary'] ?? ''), 'warn'), $key . ' does not warn on a clean fixture');
+        assert_false(str_contains((string) ($byKey[$key]['summary'] ?? ''), 'fail'), $key . ' does not fail on a clean fixture');
+    }
+
+    /* A product flagged for the binary with P.V. 0 → readiness warns. */
+    $pdo->exec(
+        "INSERT INTO products (sku, name, slug, price, pv, binary_enabled, stock)
+         VALUES ('P22HT14-ZERO', 'Zero point product', 'p22ht14-zero', 0.00, 0.00, 1, 10)"
+    );
+    $byKey = $sections($pdo);
+    assert_true($byKey['binary_readiness']['ok']);
+    assert_true(str_contains((string) ($byKey['binary_readiness']['summary'] ?? ''), 'warn'), $byKey['binary_readiness']['summary']);
+
+    /* A member with no node → readiness warns. */
+    $users->execute(['p22ht14_unplaced', 'p22ht14_u@test.local', 'Unplaced']);
+    $byKey = $sections($pdo);
+    assert_true($byKey['binary_readiness']['ok']);
+    assert_true(str_contains((string) ($byKey['binary_readiness']['summary'] ?? ''), 'warn'), $byKey['binary_readiness']['summary']);
+
+    /* Corrupt a cached balance → points fails. */
+    $pdo->prepare('UPDATE binary_nodes SET left_points = 999999 WHERE user_id = ?')
+        ->execute([$memberId]);
+    $byKey = $sections($pdo);
+    assert_false($byKey['binary_points']['ok'], $byKey['binary_points']['summary']);
+    assert_true(str_contains((string) ($byKey['binary_points']['summary'] ?? ''), 'fail'), $byKey['binary_points']['summary']);
+},
 ];

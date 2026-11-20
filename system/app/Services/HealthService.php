@@ -53,6 +53,10 @@ final class HealthService
             $this->payouts(),
             $this->orders(),
             $this->stock(),
+            $this->binaryReadiness(),
+            $this->binaryPoints(),
+            $this->binaryEscrow(),
+            $this->binaryRelease(),
         ];
 
         $failing = 0;
@@ -498,6 +502,248 @@ final class HealthService
             );
         } catch (Throwable $e) {
             return $this->failed('royalty', 'Royalty stream', $e);
+        }
+    }
+
+    /* ----------------------------------------------------------
+     *  Product binary stream (Phase 22H)
+     * ---------------------------------------------------------- */
+
+    /**
+     * Readiness: is the master switch on, do flagged products earn points,
+     * and does every member have a node? Read-only, never changes a setting.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryReadiness(): array
+    {
+        try {
+            $streamOn = BinaryService::enabled();
+            $zeroPv   = (int) db()->query(
+                'SELECT COUNT(*) FROM products WHERE binary_enabled = 1 AND pv = 0'
+            )->fetchColumn();
+            $unplaced = (int) db()->query(
+                "SELECT COUNT(*) FROM users u
+                  WHERE u.role = 'member'
+                    AND NOT EXISTS (SELECT 1 FROM binary_nodes n WHERE n.user_id = u.id)"
+            )->fetchColumn();
+
+            $details = [];
+            $warn    = false;
+
+            if (!$streamOn) {
+                $warn = true;
+                $details[] = 'The master switch is off (Settings → Commissions → Product binary). Turn it on before any order pays.';
+            }
+            if ($zeroPv > 0) {
+                $warn = true;
+                $details[] = sprintf(
+                    '%d product(s) are flagged for the binary but earn 0 points — set a P.V. or switch them off.',
+                    $zeroPv
+                );
+            }
+            if ($unplaced > 0) {
+                $warn = true;
+                $details[] = sprintf(
+                    '%d member(s) have no node — place them in the tree so their purchases can pair.',
+                    $unplaced
+                );
+            }
+
+            if (!$streamOn) {
+                $summary = 'warn: Product binary is off — nothing is paid.';
+            } elseif ($warn) {
+                $summary = 'warn: stream is on, but ' . count($details) . ' item(s) need attention.';
+            } else {
+                $summary = 'pass: stream on; flagged products earn points and every member has a node.';
+            }
+
+            return $this->section(
+                'binary_readiness',
+                'Product binary readiness',
+                true,
+                $summary,
+                $details,
+                'admin/reports'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_readiness', 'Product binary readiness', $e);
+        }
+    }
+
+    /**
+     * Points: does every cached node balance equal the append-only ledger?
+     * Delegates to `BinaryService::audit()`; never repairs.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryPoints(): array
+    {
+        try {
+            $audit  = (new BinaryService())->audit();
+            $drifts = (array) ($audit['drifts'] ?? []);
+            $ok     = (bool) ($audit['ok'] ?? false) && $drifts === [];
+
+            if ($ok) {
+                $summary = 'pass: every cached node balance equals the append-only ledger.';
+                $details = [];
+            } else {
+                $summary = 'fail: ' . count($drifts) . ' point drift(s) — run `bin/binary_audit.php --fix` to recompute the caches.';
+                $details = [];
+                foreach (array_slice($drifts, 0, self::DETAIL_LIMIT) as $drift) {
+                    $details[] = sprintf(
+                        '[%s] %s',
+                        (string) ($drift['kind'] ?? 'drift'),
+                        (string) ($drift['message'] ?? '')
+                    );
+                }
+            }
+
+            return $this->section(
+                'binary_points',
+                'Product binary points',
+                $ok,
+                $summary,
+                $details,
+                'admin/reports'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_points', 'Product binary points', $e);
+        }
+    }
+
+    /**
+     * Escrow: how many pending binary awards exist, how much they are worth
+     * and how old the oldest one is. Read-only; the release job pays them.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryEscrow(): array
+    {
+        try {
+            if (!BinaryAward::tableExists(db())) {
+                return $this->section(
+                    'binary_escrow',
+                    'Product binary escrow',
+                    true,
+                    'pass: no binary awards table yet (the money engine is not installed).',
+                    [],
+                    'admin/commissions?ledger=binary'
+                );
+            }
+
+            $row = db()->query(
+                "SELECT COUNT(*) AS pending_count,
+                        COALESCE(SUM(amount), 0) AS pending_total,
+                        MIN(created_at) AS oldest_pending
+                   FROM binary_awards
+                  WHERE status = 'pending'"
+            )->fetch() ?: [];
+
+            $pending = (int) ($row['pending_count'] ?? 0);
+            $total   = round((float) ($row['pending_total'] ?? 0), 2);
+            $oldest  = (string) ($row['oldest_pending'] ?? '');
+            $age     = '—';
+
+            if ($oldest !== '') {
+                $age = round((time() - (int) strtotime($oldest)) / 86400, 1) . ' day(s)';
+            }
+
+            $details = [];
+
+            if ($pending === 0) {
+                $summary = 'pass: no pending binary awards — nothing owed to wallets yet.';
+            } else {
+                $summary = sprintf(
+                    'warn: %d pending binary award(s) worth ₱%s, oldest %s — run the release job (`bin/unilevel_release.php --stream=binary`) after delivery + hold.',
+                    $pending,
+                    number_format($total, 2, '.', ','),
+                    $age
+                );
+                $details[] = sprintf(
+                    '%d pending award(s) totalling ₱%s are earned but not yet credited; the oldest is %s old.',
+                    $pending,
+                    number_format($total, 2, '.', ','),
+                    $age
+                );
+            }
+
+            return $this->section(
+                'binary_escrow',
+                'Product binary escrow',
+                true,
+                $summary,
+                $details,
+                'admin/commissions?ledger=binary'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_escrow', 'Product binary escrow', $e);
+        }
+    }
+
+    /**
+     * Release job: what the last `unilevel_release` run did for the binary
+     * stream, read from the monthly cron log. Read-only.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryRelease(): array
+    {
+        try {
+            $log = new CronLog(null, 'unilevel_release');
+            $line = $log->latestLine();
+
+            if ($line === null) {
+                return $this->section(
+                    'binary_release_job',
+                    'Product binary release job',
+                    true,
+                    'warn: the release job has not written a log line yet — schedule `bin/unilevel_release.php` (hourly at :20) or run it by hand.',
+                    ['Run `php bin/unilevel_release.php --doctor` to verify the lock, the log folder and the switches.'],
+                    'admin/reports'
+                );
+            }
+
+            $isBinary = str_contains($line, 'stream=binary');
+            $isError  = str_contains($line, '[ERROR') || preg_match('/errors=([1-9][0-9]*)/', $line) === 1;
+
+            if ($isError) {
+                return $this->section(
+                    'binary_release_job',
+                    'Product binary release job',
+                    false,
+                    'fail: the last release run logged an error — read the monthly log and fix the cause.',
+                    ['Pending awards stay pending and are retried on the next run; do not hand-edit award rows.'],
+                    'admin/reports'
+                );
+            }
+
+            if (!$isBinary) {
+                return $this->section(
+                    'binary_release_job',
+                    'Product binary release job',
+                    true,
+                    'warn: the last run was `stream=unilevel` only — binary awards are not being released by the schedule.',
+                    ['Run `php bin/unilevel_release.php --stream=binary --dry-run` to preview the due binary awards.'],
+                    'admin/reports'
+                );
+            }
+
+            $released = '0';
+            if (preg_match('/released_awards=([0-9]+)/', $line, $m)) {
+                $released = $m[1];
+            }
+
+            return $this->section(
+                'binary_release_job',
+                'Product binary release job',
+                true,
+                sprintf('pass: the last release run ran `stream=binary` and credited %s award(s).', $released),
+                [],
+                'admin/reports'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_release_job', 'Product binary release job', $e);
         }
     }
 

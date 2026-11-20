@@ -1224,3 +1224,79 @@ None of the four is a button; each links to the filtered product list (Rule 12).
 Paying an order after 22B writes no `binary_awards`, no `binary_volume` and no `binary` wallet movement —
 that hook is 22D's work. Member pages (`/shop`, `/checkout`, `/orders`, `/earnings`, `/genealogy`) show no
 binary content until 22F, and the genealogy tree arrives in 22G.
+
+## 25. Product binary operations: health checks and the release job (Phase 22H)
+
+Phase 22H adds no schema, no route and no page. It adds four read-only health checks to the admin
+reports desk, a link from the readiness panel to the health panel, and the `--stream` flag on the shared
+release job. Nothing here moves money.
+
+### Admin → Reports — the health card
+
+`/admin/reports` renders the health widget. Phase 22H appends four sections, each with a `pass`/`warn`
+state and a one-line remedy:
+
+| Check | What it proves | Remedy |
+|---|---|---|
+| **Product binary readiness** | master switch on, no flagged product earns 0 points, every member has a node | turn the switch on, set a P.V. or switch the product off, place unplaced members |
+| **Product binary points** | every cached node balance equals the append-only ledger | `bin/binary_audit.php --fix` |
+| **Product binary escrow** | pending award count, worth and oldest age | `bin/unilevel_release.php --stream=binary` after delivery + hold |
+| **Product binary release job** | the last `unilevel_release` run ran `stream=binary` without error | `--doctor`, then `--dry-run`, then the real run |
+
+Readiness counts link to `/admin/products?binary=on|off`; nothing on the health panel is a button that
+changes a setting (Rule 10).
+
+### Settings → Commissions → Product binary
+
+The readiness panel now ends with **Open the health panel**, which opens `/admin/reports` (read-only).
+The **Release Product binary awards** toggle gates whether the shared release job may credit binary
+awards.
+
+### The release job — one job, two streams
+
+The release job already runs hourly at `:20` (cron.md §5). Phase 22H adds `--stream` so one job serves
+both money engines; **no second cron schedule is introduced**:
+
+| Flag | Effect |
+|---|---|
+| `--stream=unilevel` | credit due repeat-purchase awards only (the historical default) |
+| `--stream=binary` | credit due Product binary awards only |
+| `--stream=all` | credit both streams in one run (the cron default) |
+
+```powershell
+# preview due binary awards; credits nothing
+php bin\unilevel_release.php --stream=binary --dry-run
+
+# credit due binary awards
+php bin\unilevel_release.php --stream=binary --limit=200
+
+# environment, locks, log folder and both switches
+php bin\unilevel_release.php --doctor
+```
+
+### The audit (read-only, never repairs on `--check`)
+
+```powershell
+# exit 0 when every cached node balance equals the ledger; names drifting nodes otherwise
+php bin\binary_audit.php --check
+
+# recompute every cached balance from the append-only ledger; awards, volume and wallets are untouched
+php bin\binary_audit.php --fix
+```
+
+`--check` and `--fix` share exit codes: 0 = clean / repaired, 1 = drift found or refused.
+
+### Verification after the upgrade
+
+- [ ] `php tests\run.php` is green; `powershell -NoProfile -File tests\smoke.ps1` is green.
+- [ ] `php bin\wallet_reconcile.php` exits 0 (this phase moves no money).
+- [ ] `php bin\unilevel_release.php --doctor` is green.
+- [ ] `php bin\binary_audit.php --check` exits 0.
+- [ ] `/admin/reports` shows 12 health checks, all passing; the four binary sections render remedies.
+- [ ] **Open the health panel** from the readiness panel opens `/admin/reports`.
+
+### Rollback (22H)
+
+Revert `system/app/Services/HealthService.php` (remove the four binary sections) and
+`system/app/views/admin/settings/_commissions.php` (remove the health-panel link). The stream settings
+stay inert; no money has moved and no schema existed to drop.

@@ -431,6 +431,11 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                               </p>
                             </div>
                           </div>
+                          <div class="mt-3">
+                            <a href="<?= e(url('admin/reports')) ?>" class="small text-decoration-none">
+                              <i class="bx bx-compass me-1"></i> Open the health panel — the four Product binary checks render there, read-only.
+                            </a>
+                          </div>
                         </div>
                       </div>
                     </div>

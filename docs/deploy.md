@@ -1942,3 +1942,62 @@ reads the tables, not the code path. To abandon the stream entirely before anyth
 `UPDATE general_harvest_board SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0`
 and `TRUNCATE general_harvest_awards`; delete the three tables only with a matching `down` decision —
 dropping `general_harvest_awards` would erase the record of every node and award.
+
+## Phase 22H addendum — Operations (health checks and the release job)
+
+Phase 22H adds no schema, no route and no page. It adds **four read-only health checks** to the admin
+reports desk (`/admin/reports`), a **link from the Product binary readiness panel to the health panel**,
+and the **binary stream flag on the shared release job** (`bin/unilevel_release.php`). Nothing here moves
+money; every check is read-only.
+
+### CLI surface
+
+The release job already runs hourly at `:20` (cron.md §5). Phase 22H adds `--stream` so one job can serve
+both money engines without a second schedule:
+
+| Flag | Effect |
+|---|---|
+| `--stream=unilevel` | credit due repeat-purchase awards only (the historical default) |
+| `--stream=binary` | credit due Product binary awards only |
+| `--stream=all` | credit both streams in one run (the cron default) |
+
+The cron entry and the Windows task keep using `--stream=all` (or the default), so **no second cron
+schedule is introduced**. A second `unilevel_release` cron for binary alone would break the
+one-job-per-stream rule.
+
+| Entry | Command |
+|---|---|
+| Hostinger cron | `20 * * * * php system/bin/unilevel_release.php --stream=all --limit=200` |
+| Windows task | `EcoWealth - unilevel release` — hourly at `:20`, `--stream=all --limit=200` |
+
+### The four health checks (read-only)
+
+`/admin/reports` renders the health widget. Phase 22H appends four sections, each with a `pass`/`warn`
+state and a one-line remedy:
+
+| Check | What it proves | Remedy |
+|---|---|---|
+| **Product binary readiness** | master switch on, no flagged product earns 0 points, every member has a node | turn the switch on, set a P.V. or switch the product off, place unplaced members |
+| **Product binary points** | every cached node balance equals the append-only ledger | `bin/binary_audit.php --fix` |
+| **Product binary escrow** | pending award count, worth and oldest age | `bin/unilevel_release.php --stream=binary` after delivery + hold |
+| **Product binary release job** | the last `unilevel_release` run ran `stream=binary` without error | `--doctor`, then `--dry-run`, then the real run |
+
+The readiness panel in **Settings → Commissions → Product binary** now ends with **Open the health panel**,
+which opens `/admin/reports` (read-only). Nothing on that page changes a setting.
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → green; `powershell -File tests/smoke.ps1` → 278 / 278.
+- [ ] `php bin/unilevel_release.php --doctor` → green (lock, log folder, both switches).
+- [ ] `php bin/unilevel_release.php --stream=binary --dry-run` → lists due binary awards, credits nothing.
+- [ ] `php bin/binary_audit.php --check` → exit 0 (no drift).
+- [ ] `/admin/reports` health widget shows 12 checks, all passing; the four binary sections render with
+      remedies.
+- [ ] `/admin/settings` → Commissions → Product binary → **Open the health panel** opens `/admin/reports`.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (this phase moves no money).
+
+### Rollback (22H)
+
+Remove the four health sections (revert `system/app/Services/HealthService.php`), remove the readiness
+panel link (revert `system/app/views/admin/settings/_commissions.php`), and revert the code. The stream
+settings stay inert; no money has moved and no schema existed to drop.

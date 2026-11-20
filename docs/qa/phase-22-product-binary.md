@@ -896,6 +896,160 @@ Expected
 
 ---
 
+## 8. Section H — Phase 22H: Operations (`QA22H-01` … `QA22H-07`)
+
+**Prerequisites.** Tag `p22g-release` (the Phase 22G release gate); migration 026 applied to the development copy (42 tables, 89 settings); the app running. Every check in this section is **read-only for money**: no binary award, volume, node or wallet row may be created here. Expected suite count for this section: **≥ 1,720** PHP cases and **278** smoke checks.
+
+> **Where each check runs.** `QA22H-01` through `QA22H-06` need the running application (reads the development copy). `QA22H-07` runs from `system/` in PowerShell. Nothing in this section writes money, and the health checks never change a setting (plan Rule 10).
+
+### QA22H-01 — The four binary health checks render on `/admin/reports`
+
+| Why | P22H-T14: the health widget carries the four Product binary checks, each with a state, a summary and a remedy link. |
+|---|---|
+| Where | the running app as `admin` — `/admin/reports` (Health card) |
+| Evidence | `QA22H-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/reports` as `admin`.
+2. Confirm the Health card shows **twelve** checks: wallets, commissions, awards, royalty, transfers, payouts, orders, stock, **Product binary readiness**, **Product binary points**, **Product binary escrow**, **Product binary release job**.
+3. Confirm each binary section renders a state (`pass`/`warn`/`fail`), a one-line summary and a remedy naming an executable command or page.
+
+Expected
+
+- Exactly twelve checks render; the four binary sections are present and read-only.
+- No section is a button that changes a setting.
+- No page errors and no new PHP warning lands in `storage/logs/`.
+
+### QA22H-02 — Readiness: pass on a clean fixture, warn on zero-PV and unplaced
+
+| Why | P22H-T14: binary readiness reports `pass` when the stream is on, flagged products earn points and every member has a node; it reports `warn` (never `fail`) for products with P.V. 0 and members with no node, and names each remedy. |
+|---|---|
+| Where | the running app as `admin` — `/admin/reports`, plus SQL on the development copy |
+| Evidence | `QA22H-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On the development copy, confirm `binary_enabled = '1'` and flag one product with P.V. > 0; confirm every member has a `binary_nodes` row.
+2. Reload `/admin/reports`: **Product binary readiness** reads `pass`; its summary names the stream on and no remedy is needed.
+3. Flag one product on with P.V. `0` (direct row, or via the product form refused path): reload — readiness reads `warn` and its summary names *"earn 0 points — set a P.V. or switch them off."*
+4. Create one member with no `binary_nodes` row: reload — readiness reads `warn` and its summary names *"no node — place them in the tree."*
+5. Revert: set every flagged product's P.V. back above 0, switch off any product with P.V. 0, and give every member a node (or delete the scratch member).
+
+Expected
+
+- Step 2: `pass`, no `warn`/`fail` in the summary.
+- Step 3 and 4: `warn` (state stays green), the summary names the remedy, and no setting was changed.
+- Step 5: the fixture is back to clean; no money row exists.
+
+### QA22H-03 — Points: pass on a clean fixture, fail on drift, `--fix` repairs
+
+| Why | P22H-T14: binary points delegates to `BinaryService::audit()`; it reports `pass` when every cached balance equals the ledger and `fail` (with remedy `bin/binary_audit.php --fix`) on drift. |
+|---|---|
+| Where | the running app as `admin` — `/admin/reports`; SQL + `system/bin/binary_audit.php` on a scratch schema |
+| Evidence | `QA22H-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. On a scratch schema with a placed member and no volume: reload `/admin/reports` — **Product binary points** reads `pass`; summary: *"every cached node balance equals the append-only ledger."*
+2. Corrupt one cached balance (`UPDATE binary_nodes SET left_points = 999999 WHERE user_id = <member>`): reload — **Product binary points** reads `fail`; the summary names the drift count and the `--fix` remedy.
+3. `php bin\binary_audit.php --fix --database=<scratch>` — exit 0.
+4. Reload `/admin/reports` (against the scratch, or re-check): **Product binary points** reads `pass` again.
+5. `SELECT COUNT(*) FROM binary_awards; SELECT COUNT(*) FROM binary_volume; SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('binary','binary_reversal');` — all **0** (`--fix` writes no money).
+
+Expected
+
+- Steps 1 and 4: `pass`; step 2: `fail` naming `bin/binary_audit.php --fix`; step 3 exit 0; step 5 zero money rows.
+
+### QA22H-04 — Escrow: pending count, worth and oldest age
+
+| Why | P22H-T14: binary escrow reports the pending award count, their total worth and the oldest pending age, with a `warn` remedy when anything is owed. |
+|---|---|
+| Where | the running app as `admin` — `/admin/reports`; SQL on the development copy |
+| Evidence | `QA22H-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Confirm no pending binary award exists: `SELECT COUNT(*) FROM binary_awards WHERE status = 'pending';` → **0**; **Product binary escrow** reads `pass` (*no pending binary awards*).
+2. On a scratch schema, insert one `pending` binary award (kind `pair`, amount ₱100.00, `created_at` ten days ago) for a placed member: reload — **Product binary escrow** reads `warn`; the summary names `1` pending award, worth ₱100.00, oldest `10` day(s), and the release-job remedy.
+3. Delete the scratch award row.
+
+Expected
+
+- Step 1: `pass`, zero pending.
+- Step 2: `warn`, count/amount/age shown exactly, remedy names `bin/unilevel_release.php --stream=binary`.
+- Step 3: the scratch row is gone; no money row exists on the development copy.
+
+### QA22H-05 — Release job: last run, from `CronLog`
+
+| Why | P22H-T14: binary release job reads the last `unilevel_release` line from the monthly cron log and reports `pass` when it ran `stream=binary` without error, `warn` when it never ran or ran `stream=unilevel` only, `fail` on `[ERROR]`. |
+|---|---|
+| Where | `system/storage/logs/unilevel_release-YYYY-MM.log` plus `system/bin/unilevel_release.php` on a scratch schema |
+| Evidence | `QA22H-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\unilevel_release.php --doctor` — exit 0; read `pending`, `oldest_pending`, `due_now`, `errors` (all green).
+2. `php bin\unilevel_release.php --stream=binary --dry-run` — lists due binary awards, credits nothing; its own `[INFO ]` log line is written.
+3. Run the job for real: `php bin\unilevel_release.php --stream=binary --limit=200` — exit 0; the monthly log gains an `[OK   ]` line with `stream=binary` and `errors=0`.
+4. Reload `/admin/reports` — **Product binary release job** reads `pass`; summary names the last run credited N award(s).
+5. Confirm no second cron entry exists for binary: crontab / Task Scheduler shows one `unilevel_release` entry (`--stream=all` or `--stream=binary`), never two.
+
+Expected
+
+- Steps 1–3: exit 0, the log line carries `stream=binary errors=0`.
+- Step 4: `pass`, no `warn`/`fail`.
+- Step 5: exactly one release-job schedule.
+
+### QA22H-06 — Readiness panel links to the health panel (read-only)
+
+| Why | P22B-T19 / 22H-S3: the readiness card ends with **Open the health panel**, which opens `/admin/reports`; nothing there changes a setting. |
+|---|---|
+| Where | the running app as `admin` — `/admin/settings` → Commissions → Product binary readiness; then `/admin/reports` |
+| Evidence | `QA22H-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open **System → Settings → Commissions → Product binary readiness**.
+2. Confirm the card ends with **Open the health panel** linking to `/admin/reports`.
+3. Follow the link — `/admin/reports` opens with the Health card and the four binary sections.
+4. Confirm no button, link or form on `/admin/reports` changes a setting (read-only page).
+
+Expected
+
+- The link exists, opens `/admin/reports`, and the health card renders the four binary checks with states and remedies.
+- No setting is changed anywhere in steps 1–4.
+
+### QA22H-07 — One release job, both streams; no second cron
+
+| Why | The stop condition: health checks have executable remedies, commands are verified, and no second cron schedule is introduced. |
+|---|---|
+| Where | `system/bin/unilevel_release.php` on a scratch schema; crontab / Task Scheduler |
+| Evidence | `QA22H-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\unilevel_release.php --stream=unilevel --dry-run` — lists due unilevel awards, credits nothing.
+2. `php bin\unilevel_release.php --stream=binary --dry-run` — lists due binary awards, credits nothing.
+3. `php bin\unilevel_release.php --stream=all --dry-run` — lists both, credits nothing; one log line per run.
+4. Confirm `ECO_DB_NAME` points at the scratch schema and `wallet_reconcile.php` exits 0.
+5. Count the `unilevel_release` cron entries in crontab / Task Scheduler: exactly one.
+
+Expected
+
+- Steps 1–3: exit 0 each, `--dry-run` credits nothing (all `binary_awards.status = 'pending'` before and after).
+- Step 4: exit 0.
+- Step 5: one schedule only — no second cron for binary.
+
+---
+
 ## 6. Cleanup
 
 Section A creates no members, no QA rows and no money. If `QA22A-05` was run on a scratch schema, drop that schema or leave it — it is disposable. Nothing on the development copy changes.

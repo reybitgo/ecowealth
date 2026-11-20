@@ -766,6 +766,7 @@ bin\unilevel_release.cmd --dry-run
 |---|---|
 | `--limit=200` | due orders one run may release (clamped 1–1000) |
 | `--order=ID` | try exactly one order, under the normal due rule — a diagnostic, never a force |
+| `--stream=unilevel\|binary\|all` | which money engine this run credits (`all` is the cron default; there is **no** second schedule for binary) |
 | `--dry-run` | list the candidates and their awards; write nothing, credit nothing |
 | `--doctor` | environment / settings / health report (see below) |
 | `--json` | machine-readable payload |
