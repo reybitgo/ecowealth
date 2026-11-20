@@ -711,4 +711,240 @@ return [
         assert_contains('Move placement', $html);
     },
 
+    /* ---------- Phase 22G-S4: in-node registration modal and invite links ---------- */
+
+    'P22G-T13 free slots carry + with modal trigger, side and upline data' => function () use ($demoUser, $renderView): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+
+        test_signed_in_as($peter);
+
+        $peterId = (int) $peter['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($peterId, 3, $peterId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $peter,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($peterId, 3, $peterId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $peterId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* The root (peter) has free slots: both left and right are empty. */
+        assert_contains('data-binary-modal-trigger', $html);
+        assert_contains('data-binary-upline="peter"', $html);
+        assert_contains('data-binary-side="left"', $html);
+        assert_contains('data-binary-side="right"', $html);
+
+        /* maria's left slot is taken by peter — no + on maria's left. */
+        assert_not_contains('data-binary-upline="@maria"', $html);
+
+        /* The modal is present in the DOM. */
+        assert_contains('binaryRegisterModal', $html);
+        assert_contains('binaryRegisterForm', $html);
+    },
+
+    'P22G-T14 canRegister false for staff upline and full slot' => function () use ($demoUser): void {
+        $admin = $demoUser('admin');
+        assert_not_null($admin);
+
+        $service = new BinaryTreeService();
+
+        /* admin's left slot is taken by juan. */
+        assert_false($service->canRegister((int) $admin['id'], (int) $admin['id'], 'left'));
+
+        /* Staff cannot be an upline for a member registrar (the admin itself
+         * is staff, so registering under admin as a non-admin viewer fails). */
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+        assert_false($service->canRegister((int) $juan['id'], (int) $admin['id'], 'right'));
+    },
+
+    'P22G-T15 registration modal renders locked placement and form fields' => function () use ($demoUser, $renderView): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+
+        test_signed_in_as($peter);
+
+        $peterId = (int) $peter['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($peterId, 3, $peterId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $peter,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($peterId, 3, $peterId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $peterId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* Modal present. */
+        assert_contains('binaryRegisterModal', $html);
+        assert_contains('Register into this slot', $html);
+
+        /* CSRF and return target (points back to the binary tree). */
+        assert_contains('name="_csrf"', $html);
+        assert_contains('name="return"', $html);
+        assert_contains('view=binary', $html);
+
+        /* Placement fields are hidden (locked), not editable radios. */
+        assert_contains('name="binary_upline"', $html);
+        assert_contains('name="binary_position"', $html);
+        assert_not_contains('data-binary-position', $html);
+
+        /* Registration fields present. */
+        assert_contains('name="username"', $html);
+        assert_contains('name="email"', $html);
+        assert_contains('name="password"', $html);
+        assert_contains('name="password_confirm"', $html);
+        assert_contains('name="terms"', $html);
+
+        /* Mode choices present (standard, code, and e-wallet for a signed-in registrar). */
+        assert_contains('name="mode"', $html);
+        assert_contains('value="standard"', $html);
+        assert_contains('value="code"', $html);
+        assert_contains('value="ewallet"', $html);
+    },
+
+    'P22G-T16 post the modal for a free slot creates and places the member' => function () use ($demoUser): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+        $peterId = (int) $peter['id'];
+
+        /* peter's left slot is free. */
+        assert_true((new BinaryTreeService())->canRegister($peterId, $peterId, 'left'));
+
+        $service = new RegistrationService();
+        $result  = $service->register([
+            'mode'             => 'standard',
+            'username'         => 'newmember_' . bin2hex(random_bytes(2)),
+            'email'            => 'newmember_' . bin2hex(random_bytes(2)) . '@test.local',
+            'full_name'        => 'New Member',
+            'phone'            => '',
+            'password'         => 'Member@123',
+            'password_confirm' => 'Member@123',
+            'sponsor'          => 'peter',
+            'package_id'       => '',
+            'reg_code'         => '',
+            'terms'            => '1',
+            'binary_upline'    => 'peter',
+            'binary_position'  => 'left',
+        ]);
+
+        assert_not_null($result);
+        assert_same($peterId, (int) ($result['sponsor_id'] ?? 0));
+
+        /* The new member has a node under peter on the left. */
+        $node = BinaryNode::forUser((int) $result['user_id']);
+        assert_not_null($node);
+        assert_same($peterId, (int) ($node['upline_id'] ?? 0));
+        assert_same('left', (string) ($node['side'] ?? ''));
+        assert_same('placed', (string) ($node['state'] ?? ''));
+    },
+
+    'P22G-T17 slot taken → validate returns a field error, no double placement' => function () use ($demoUser): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+        $peterId = (int) $peter['id'];
+
+        /* Fill peter's left slot first. */
+        $service = new RegistrationService();
+        $first = $service->register([
+            'mode'             => 'standard',
+            'username' => 'slotwinner_' . bin2hex(random_bytes(2)),
+            'email'    => 'slotwinner_' . bin2hex(random_bytes(2)) . '@test.local',
+            'full_name'        => 'Slot Winner',
+            'phone'            => '',
+            'password'         => 'Member@123',
+            'password_confirm' => 'Member@123',
+            'sponsor'          => 'peter',
+            'package_id'       => '',
+            'reg_code'         => '',
+            'terms'            => '1',
+            'binary_upline'    => 'peter',
+            'binary_position'  => 'left',
+        ]);
+        assert_not_null($first);
+
+        /* Validating the same upline/side now returns a field error. */
+        $placement = new BinaryPlacementService();
+        $errors = $placement->validate($peterId, 'left', [
+            'registrar' => null,
+            'sponsor'   => $peter,
+        ]);
+        assert_true(array_key_exists('binary_upline', $errors));
+
+        /* The winner is placed on the left; nobody else is there. */
+        $node = BinaryNode::forUser((int) $first['user_id']);
+        assert_not_null($node);
+        assert_same($peterId, (int) ($node['upline_id'] ?? 0));
+        assert_same('left', (string) ($node['side'] ?? ''));
+    },
+
+    'P22G-T18 post the modal with a taken username fails' => function () use ($demoUser): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+
+        $service = new RegistrationService();
+        assert_throws(
+            function () use ($service, $peter) {
+                $service->register([
+                    'mode'             => 'standard',
+                    'username'         => 'peter',
+                    'email'            => 'taken_' . bin2hex(random_bytes(2)) . '@test.local',
+                    'full_name'        => 'Taken Name',
+                    'phone'            => '',
+                    'password'         => 'Member@123',
+                    'password_confirm' => 'Member@123',
+                    'sponsor'          => 'peter',
+                    'package_id'       => '',
+                    'reg_code'         => '',
+                    'terms'            => '1',
+                    'binary_upline'    => 'peter',
+                    'binary_position'  => 'left',
+                ]);
+            },
+            RegistrationException::class,
+            'taken username is refused'
+        );
+    },
+
+    'P22G-T19 the invite link carries ref, upline and side' => function () use ($demoUser, $renderView): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+
+        test_signed_in_as($peter);
+
+        $peterId = (int) $peter['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($peterId, 3, $peterId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $peter,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($peterId, 3, $peterId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $peterId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* Invite link for a free slot: /register?ref=<code>&upline=<user>&side=<left|right> */
+        assert_contains('data-binary-invite="1"', $html);
+        assert_contains('data-referral-code=', $html);
+        assert_contains('data-binary-upline="peter"', $html);
+    },
+
 ];
+

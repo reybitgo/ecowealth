@@ -4,9 +4,11 @@ declare(strict_types=1);
 /**
  * Binary tree — per-node actions menu (baseline, no-JS version).
  *
- * Phase 22G-S2: links only. The in-node registration modal (22G-S4) adds
- * the locked-upline/side modal with live validation; here the + is a plain
- * link to the prefilled registration form.
+ * Phase 22G-S2: links only. Phase 22G-S4 adds the in-node registration
+ * modal: each "+" carries data-binary-modal-trigger plus
+ * data-binary-upline / data-binary-side so the modal script locks the
+ * placement. A slot-specific invite link (/register?ref=&upline=&side=)
+ * is copied to the clipboard by the modal script.
  *
  * @var array<string, mixed> $node      one node card
  * @var array<string, mixed> $slots     side => ['free' => bool, 'user' => int|null]
@@ -19,6 +21,8 @@ $node   = (array) $node;
 $slots  = (array) ($node['slots'] ?? []);
 $userId = (int) ($node['id'] ?? 0);
 $isYou  = (bool) ($node['is_you'] ?? false);
+$username = (string) ($node['username'] ?? '');
+$referral = (string) ($node['referral_code'] ?? '');
 ?>
 <div class="binary-tree-actions d-flex align-items-center gap-1">
     <?php foreach (['left', 'right'] as $side): ?>
@@ -28,14 +32,29 @@ $isYou  = (bool) ($node['is_you'] ?? false);
     ?>
     <?php if ($free): ?>
     <a
-        href="<?= url('register?sponsor=' . rawurlencode((string) ($node['username'] ?? '')) . '&binary_position=' . $side . '&return=genealogy') ?>"
+        href="<?= url('register?sponsor=' . rawurlencode($username) . '&binary_position=' . $side . '&return=genealogy') ?>"
         class="btn btn-sm btn-outline-secondary binary-tree-slot-add"
         role="button"
-        aria-label="Register into <?= (string) ucfirst($side) ?> slot under @<?= e((string) ($node['username'] ?? '')) ?>"
-        title="Register into <?= (string) ucfirst($side) ?> slot under @<?= e((string) ($node['username'] ?? '')) ?>"
+        data-binary-modal-trigger
+        data-binary-upline="<?= e($username) ?>"
+        data-binary-side="<?= e($side) ?>"
+        aria-label="Register into <?= (string) ucfirst($side) ?> slot under @<?= e($username) ?>"
+        title="Register into <?= (string) ucfirst($side) ?> slot under @<?= e($username) ?>"
     ><i class="icon-base bx bx-plus"></i></a>
     <?php endif; ?>
     <?php endforeach; ?>
+
+    <?php if ($referral !== ''): ?>
+    <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary binary-tree-invite"
+        data-binary-invite="1"
+        data-binary-upline="<?= e($username) ?>"
+        data-referral-code="<?= e($referral) ?>"
+        title="Copy invite link"
+        aria-label="Copy invite link for @<?= e($username) ?>"
+    ><i class="icon-base bx bx-link"></i></button>
+    <?php endif; ?>
 
     <?php if ((bool) $is_admin): ?>
     <a

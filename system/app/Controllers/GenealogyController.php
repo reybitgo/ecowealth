@@ -121,7 +121,7 @@ final class GenealogyController
                     'page_title'  => 'Binary Tree',
                     'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
                     'page_css'    => ['assets/css/membership.css', 'assets/css/binary-tree.css'],
-                    'page_js'     => ['assets/vendor/libs/d3/d3.v7.min.js', 'assets/js/app-binary-tree.js'],
+                    'page_js'     => ['assets/vendor/libs/d3/d3.v7.min.js', 'assets/js/app-binary-tree.js', 'assets/js/app-binary-register.js'],
                     'view'        => 'binary',
                     'binary_root' => $payload,
                     'binary_list' => $listRows,

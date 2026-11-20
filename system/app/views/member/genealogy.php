@@ -218,6 +218,11 @@ $live = $live ?? [
                       Expand a branch to load its children.
                     </div>
                     <?php endif; ?>
+
+                    <?php
+                    /* Phase 22G-S4: in-node registration modal — rendered once per page. */
+                    ?>
+                    <?= View::capture('member/genealogy/_register_modal') ?>
                   </div>
                 </div>
 

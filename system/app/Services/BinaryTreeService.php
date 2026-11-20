@@ -101,6 +101,7 @@ final class BinaryTreeService
         if ($rootMember !== null) {
             $rootNode['username']      = (string) ($rootMember['username'] ?? '');
             $rootNode['full_name']     = (string) ($rootMember['full_name'] ?? '');
+            $rootNode['referral_code'] = (string) ($rootMember['referral_code'] ?? '');
             $rootNode['is_active']     = (int) ($rootMember['is_active'] ?? 0);
             $rootNode['member_status'] = (string) ($rootMember['member_status'] ?? '');
             $rootNode['role']          = (string) ($rootMember['role'] ?? 'member');
@@ -423,7 +424,7 @@ final class BinaryTreeService
         $pdo = db();
         $stmt = $pdo->prepare(
             'SELECT n.*, u.username, u.full_name, u.member_status, u.is_active, u.role,
-                    u.package_id, p.name AS package_name, DATE(u.created_at) AS joined,
+                    u.referral_code, u.package_id, p.name AS package_name, DATE(u.created_at) AS joined,
                     n.left_points, n.right_points, n.left_credited, n.right_credited,
                     n.personal_points, n.pairs_paid, n.depth, n.path, n.user_id, n.side
                FROM ' . self::TABLE . ' n
@@ -545,6 +546,7 @@ final class BinaryTreeService
             'id'            => $userId,
             'username'      => (string) ($node['username'] ?? ''),
             'name'          => $isAdmin ? ((string) ($node['full_name'] ?? null)) : null,
+            'referral_code' => (string) ($node['referral_code'] ?? ''),
             'side'          => (string) ($node['side'] ?? null),
             'path'          => (string) ($node['path'] ?? ''),
             'depth'         => $depth,
