@@ -1061,7 +1061,7 @@ return [
      *  P22E-T2 — the Binary tab renders on an empty ledger
      * ---------------------------------------------------------- */
 
-    'P22E-T2 the Binary ledger tab renders on an empty ledger' => function () use ($clean, $seed, $binaryPreset, $ledgerPage): void {
+    'P22E-T2 the Binary ledger tab renders on an empty ledger' => function () use ($binaryPreset, $ledgerPage): void {
         $binaryPreset();
 
         test_signed_in_as(test_user('p22e_admin', 'admin'));
@@ -1258,7 +1258,7 @@ return [
 
         $controller = new AdminCommissionController();
         ob_start();
-        $controller->export();
+        $controller->export(['no_exit' => true]);
         $csv = (string) ob_get_clean();
 
         $lines = array_filter(explode("\n", $csv));
@@ -1266,7 +1266,7 @@ return [
 
         $header = str_getcsv($lines[0]);
         assert_contains('Award', $header[0] ?? '', 'the CSV header starts with Award');
-        assert_contains('Product', $header, 'the CSV header has Product');
+        assert_true(in_array('Product', $header, true), 'the CSV header has Product');
 
         /* The binary.export audit row was written */
         $stmt = db()->prepare(
@@ -1306,7 +1306,7 @@ return [
         $payload    = $controller->feedPayload(Live::revision('admin.commissions'), Live::etag('admin.commissions', Live::revision('admin.commissions'), Live::scope(['ledger' => 'binary'], 1)), $data);
 
         assert_same('admin.commissions', $payload['surface']);
-        assert_contains('binary-rows', array_keys($payload['fragments']), 'the binary rows fragment is present');
+        assert_true(in_array('binary-rows', array_keys($payload['fragments']), true), 'the binary rows fragment is present');
     },
 
     /* ----------------------------------------------------------

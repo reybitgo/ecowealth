@@ -239,6 +239,7 @@ return [
                 'member-order-delivery',
                 'member-order-payment',
                 'member-order-bonus',
+                'member-order-binary',
                 'member-order-history',
             ],
             array_keys($payload['fragments'])

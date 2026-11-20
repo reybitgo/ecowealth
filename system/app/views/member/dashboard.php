@@ -142,7 +142,6 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
               <!-- General Harvest (Phase 21F) -->
 <?= View::capture('member/dashboard/_general_harvest', ['general_harvest' => $general_harvest ?? null]) ?>
 
-              <!-- Product binary (Phase 22F) -->
 <?= View::capture('member/dashboard/_binary', ['binary' => $binary ?? null]) ?>
 
               <div class="row g-4 mb-4">

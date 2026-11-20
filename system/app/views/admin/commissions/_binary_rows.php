@@ -120,7 +120,7 @@ $dueAt = static function (array $award): ?string {
                         <td class="text-end text-nowrap">
                           <?= e(ucfirst((string) ($award['side'] ?? '—'))) ?>
                         </td>
-                        <td class="text-end text-nowrap"><?= e((int) $award['points']) ?></td>
+                        <td class="text-end text-nowrap"><?= e((string) (int) $award['points']) ?></td>
                         <td class="text-end text-nowrap"><?= e(number_format($rate, 3, '.', '')) ?>%</td>
                         <td class="text-end text-nowrap fw-semibold <?= $credited ? 'commission-amount-credit' : 'text-body-secondary' ?>">
                           <?= e($credited ? money($amount, true) : money($amount)) ?>

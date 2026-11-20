@@ -1278,6 +1278,20 @@ final class GeneralHarvestService
             ];
         }
 
+        /* The shared mismatch contract (wallet_reconcile.php, HealthService):
+         * `kind` names the failed check, `message` carries its detail. `checks`
+         * keeps the keyed ok/detail shape the Phase 21 cases assert. */
+        $mismatches = [];
+
+        foreach ($checks as $key => $check) {
+            if (($check['ok'] ?? false) !== true) {
+                $mismatches[] = [
+                    'kind'    => (string) $key,
+                    'message' => (string) ($check['detail'] ?? ''),
+                ];
+            }
+        }
+
         return [
             'ok'               => $ok,
             'checks'           => $checks,
@@ -1287,10 +1301,7 @@ final class GeneralHarvestService
             'baseline_total'   => round($baselineTotal, 2),
             'ledger_rows'      => $creditedRows,
             'ledger_total'     => round($ledgerTotal, 2),
-            'mismatches'       => array_values(array_filter(
-                $checks,
-                static fn (array $check): bool => ($check['ok'] ?? false) !== true
-            )),
+            'mismatches'       => $mismatches,
             'warnings'         => $warnings,
         ];
     }

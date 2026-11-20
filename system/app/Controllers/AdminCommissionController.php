@@ -624,7 +624,9 @@ final class AdminCommissionController
         }
 
         if (self::tab() === self::TAB_BINARY) {
-            $this->exportBinary();
+            /* Tests drive this method in-process, where `exit` would end the
+             * runner: `no_exit` writes the same CSV and returns instead. */
+            $this->exportBinary(empty($params['no_exit']));
             return;
         }
 
@@ -1125,7 +1127,7 @@ final class AdminCommissionController
      * Binary awards as CSV. Audited once as `binary.export` with the tab,
      * the filters and the row count (plan §15.4).
      */
-    private function exportBinary(): void
+    private function exportBinary(bool $terminate = true): void
     {
         $filters = BinaryAward::normaliseFilters([
             'kind'       => Request::string('kind'),
@@ -1163,7 +1165,11 @@ final class AdminCommissionController
         $out = fopen('php://output', 'w');
 
         if ($out === false) {
-            exit;
+            if ($terminate) {
+                exit;
+            }
+
+            return;
         }
 
         fputcsv($out, BinaryAward::csvHeader());
@@ -1173,7 +1179,10 @@ final class AdminCommissionController
         }
 
         fclose($out);
-        exit;
+
+        if ($terminate) {
+            exit;
+        }
     }
 
     /**

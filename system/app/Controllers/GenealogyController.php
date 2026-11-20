@@ -273,7 +273,7 @@ final class GenealogyController
 
         return [
             'member'         => $member,
-            'display_name'   => $display_name,
+            'display_name'   => $displayName,
             'team_levels'    => $byLevel,
             'direct'         => $direct,
             'recruits_pager' => $recruitsPager,
