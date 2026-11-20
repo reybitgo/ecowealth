@@ -12,6 +12,10 @@ declare(strict_types=1);
  *  Covers: the dry run, the doctor, the real run's idempotency and log
  *  line, the kill switch, a held lock, the --order diagnostic and the
  *  JSON payload. The money rules themselves are UnilevelEscrowTest's.
+ *
+ *  Phase 22H adds --stream=unilevel|binary|all: P22H-T1..T7 and P22H-T15
+ *  cover the shared release job's binary stream. P18-T29..T36 are pinned
+ *  unchanged: --stream=unilevel must reproduce the pre-22 run exactly.
  * ============================================================== */
 
 $appRoot = dirname(__DIR__, 2);
@@ -25,6 +29,20 @@ $scratch = static function () use ($appRoot): array {
 
     $pdo->exec("UPDATE settings SET value = '7' WHERE key_name = 'unilevel_hold_days'");
     $pdo->exec("UPDATE settings SET value = '1' WHERE key_name = 'unilevel_release_enabled'");
+
+    return [$pdo, $database];
+};
+
+/** A scratch schema with both a repeat-purchase award and a binary award due. */
+$binaryScratch = static function () use ($appRoot): array {
+    [$pdo, $database] = test_scratch_database('tool_b');
+
+    test_run_sql_file($pdo, $appRoot . '/database/schema.sql');
+    test_run_sql_file($pdo, $appRoot . '/database/seeds/001_settings.sql');
+
+    $pdo->exec("UPDATE settings SET value = '7' WHERE key_name = 'unilevel_hold_days'");
+    $pdo->exec("UPDATE settings SET value = '1' WHERE key_name = 'unilevel_release_enabled'");
+    $pdo->exec("UPDATE settings SET value = '1' WHERE key_name = 'binary_release_enabled'");
 
     return [$pdo, $database];
 };
@@ -103,6 +121,120 @@ $fixture = static function (PDO $pdo, string $tag = 'a'): array {
     ];
 };
 
+/**
+ * One delivered, due order per stream: a pending unilevel award and a pending
+ * binary self award, plus an undelivered order and a cancelled order.
+ *
+ * @return array{buyer:int, recipient:int, due:int, dueAward:int, dueUnilevelAward:int, undelivered:int, undeliveredAward:int, undeliveredUnilevel:int, canceled:int, canceledAward:int}
+ */
+$binaryFixture = static function (PDO $pdo, string $tag = 'b'): array {
+    $users = $pdo->prepare(
+        "INSERT INTO users (username, email, password_hash, full_name, role, member_status, is_active)
+         VALUES (?, ?, 'x', ?, 'member', 'active', 1)"
+    );
+
+    $users->execute(['p22h_' . $tag . '_buyer', 'p22h_' . $tag . '_b@test.local', 'Buyer']);
+    $buyerId = (int) $pdo->lastInsertId();
+
+    $users->execute(['p22h_' . $tag . '_recipient', 'p22h_' . $tag . '_r@test.local', 'Recipient']);
+    $recipientId = (int) $pdo->lastInsertId();
+
+    $pdo->exec(
+        "INSERT INTO products (sku, name, slug, price, pv, unilevel_enabled, stock, binary_enabled)
+         VALUES ('P22H-CLI-{$tag}', 'Release product {$tag}', 'p22h-release-{$tag}', 100.00, 100.00, 1, 10, 1)"
+    );
+    $productId = (int) $pdo->lastInsertId();
+
+    $yesterday = date('Y-m-d H:i:s', time() - 86400);
+
+    $orders = $pdo->prepare(
+        "INSERT INTO shop_orders
+           (order_no, user_id, status, payment_method, subtotal, total, billing_name,
+            shipping_name, shipping_address, paid_at, delivered_at, binary_processed_at,
+            binary_points, binary_self_total, binary_pair_total, binary_total, terms_accepted_at)
+         VALUES (?, ?, ?, 'ewallet', 100.00, 100.00, 'Buyer', 'Buyer', 'Address',
+                 ?, ?, NOW(), 1000, 50.00, 0.00, 50.00, NOW())"
+    );
+
+    $orders->execute(['P22H-' . strtoupper($tag) . '-DUE', $buyerId, 'delivered', $yesterday, $yesterday]);
+    $dueOrderId = (int) $pdo->lastInsertId();
+
+    $orders->execute(['P22H-' . strtoupper($tag) . '-WAIT', $buyerId, 'shipped', null, null]);
+    $waitOrderId = (int) $pdo->lastInsertId();
+
+    $orders->execute(['P22H-' . strtoupper($tag) . '-CANC', $buyerId, 'delivered', $yesterday, $yesterday]);
+    $canceledOrderId = (int) $pdo->lastInsertId();
+    $pdo->exec("UPDATE shop_orders SET cancelled_at = NOW() WHERE id = " . $canceledOrderId);
+
+    $items = $pdo->prepare(
+        "INSERT INTO shop_order_items
+           (order_id, product_id, product_name, quantity, unit_price, line_total,
+            unit_base, base_total, unit_points, points_total, reservation_state)
+         VALUES (?, ?, 'Release product', 1, 100.00, 100.00, 100.00, 100.00, 1000, 1000, 'committed')"
+    );
+    $items->execute([$dueOrderId, $productId]);
+    $items->execute([$waitOrderId, $productId]);
+    $items->execute([$canceledOrderId, $productId]);
+
+    $dueItemId = (int) $pdo->query("SELECT id FROM shop_order_items WHERE order_id = $dueOrderId LIMIT 1")->fetchColumn();
+    $waitItemId = (int) $pdo->query("SELECT id FROM shop_order_items WHERE order_id = $waitOrderId LIMIT 1")->fetchColumn();
+    $cancItemId = (int) $pdo->query("SELECT id FROM shop_order_items WHERE order_id = $canceledOrderId LIMIT 1")->fetchColumn();
+
+    $unilevelAwards = $pdo->prepare(
+        "INSERT INTO unilevel_awards
+           (order_id, order_item_id, product_id, buyer_id, user_id, level,
+            base_amount, base_source, rate_pct, amount, hold_days, status, paid_at)
+         VALUES (?, ?, ?, ?, ?, 1, 100.00, 'line', 25.000, 25.00, 0, 'pending', NOW())"
+    );
+
+    $unilevelAwards->execute([$dueOrderId, $dueItemId, $productId, $buyerId, $recipientId]);
+    $dueUnilevelAwardId = (int) $pdo->lastInsertId();
+
+    $unilevelAwards->execute([$waitOrderId, $waitItemId, $productId, $buyerId, $recipientId]);
+    $waitUnilevelAwardId = (int) $pdo->lastInsertId();
+
+    $binaryAwards = $pdo->prepare(
+        "INSERT INTO binary_awards
+           (kind, order_id, buyer_id, user_id, side, points, pair_count, pair_points,
+            rate_pct, amount, status, hold_days, paid_at)
+         VALUES ('self', ?, ?, ?, 'left', 1000, 0, 1000, 5.000, 50.00, 'pending', 0, NOW())"
+    );
+
+    $binaryAwards->execute([$dueOrderId, $buyerId, $recipientId]);
+    $dueBinaryAwardId = (int) $pdo->lastInsertId();
+
+    $binaryAwards->execute([$waitOrderId, $buyerId, $recipientId]);
+    $waitBinaryAwardId = (int) $pdo->lastInsertId();
+
+    $binaryAwards->execute([$canceledOrderId, $buyerId, $recipientId]);
+    $canceledBinaryAwardId = (int) $pdo->lastInsertId();
+
+    return [
+        'buyer'               => $buyerId,
+        'recipient'           => $recipientId,
+        'due'                 => $dueOrderId,
+        'dueAward'            => $dueBinaryAwardId,
+        'dueUnilevelAward'    => $dueUnilevelAwardId,
+        'undelivered'         => $waitOrderId,
+        'undeliveredAward'    => $waitBinaryAwardId,
+        'undeliveredUnilevel' => $waitUnilevelAwardId,
+        'canceled'            => $canceledOrderId,
+        'canceledAward'       => $canceledBinaryAwardId,
+    ];
+};
+
+$ledgerCount = static function (PDO $pdo): int {
+    return (int) $pdo->query('SELECT COUNT(*) FROM ewallet_ledger')->fetchColumn();
+};
+
+$status = static function (PDO $pdo, int $awardId): string {
+    return (string) $pdo->query('SELECT status FROM unilevel_awards WHERE id = ' . $awardId)->fetchColumn();
+};
+
+$binaryStatus = static function (PDO $pdo, int $awardId): string {
+    return (string) $pdo->query('SELECT status FROM binary_awards WHERE id = ' . $awardId)->fetchColumn();
+};
+
 /** A throw-away log folder for one case. */
 $logDir = static function (): string {
     $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ecowealth-release-' . bin2hex(random_bytes(4));
@@ -168,10 +300,6 @@ $logLines = static function (string $dir) use ($logFile): array {
     }
 
     return array_values(file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: []);
-};
-
-$status = static function (PDO $pdo, int $awardId): string {
-    return (string) $pdo->query('SELECT status FROM unilevel_awards WHERE id = ' . $awardId)->fetchColumn();
 };
 
 return [
@@ -410,5 +538,225 @@ return [
         );
         assert_same(implode(',', $run['json']['ids']), $fields['ids'] ?? null);
         assert_same((string) $run['json']['duration_ms'], rtrim($fields['duration'] ?? '', 'ms'));
+    },
+
+    /* ----------------------------------------------------------
+     *  Phase 22H — shared release job, binary stream
+     * ---------------------------------------------------------- */
+
+    'P22H-T1 default run releases both streams for their due orders' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $ledgerCount, $binaryStatus, $status): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--json'], $dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_not_null($run['json'], $run['output']);
+        assert_same(true, $run['json']['ok']);
+        assert_same(2, (int) $run['json']['released_orders']);
+        assert_same(2, (int) $run['json']['released_awards']);
+        assert_same(75.0, (float) $run['json']['amount']);
+        assert_same([$data['due'], $data['due']], $run['json']['ids'], 'one order per stream');
+
+        assert_same('credited', $status($pdo, $data['dueAward']));
+        assert_same('credited', $status($pdo, $data['dueUnilevelAward']));
+        assert_same('pending', $status($pdo, $data['undeliveredAward']), 'an undelivered order is never paid');
+        assert_same(2, $ledgerCount($pdo), 'one ledger row per released award');
+        assert_same(75.0, (float) $pdo->query('SELECT ewallet_balance FROM users WHERE id = ' . $data['recipient'])->fetchColumn());
+    },
+
+    'P22H-T2 --stream=unilevel reproduces the pre-22 run exactly' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $binaryStatus, $status): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--stream=unilevel', '--json'], $dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_not_null($run['json'], $run['output']);
+
+        $expectedKeys = [
+            'ok', 'trigger', 'hold_days', 'candidates', 'released_orders',
+            'released_awards', 'amount', 'skipped', 'errors', 'ids',
+            'duration_ms', 'log',
+        ];
+        assert_same($expectedKeys, array_keys($run['json']), 'no binary keys leak into the unilevel payload');
+
+        assert_same(true, $run['json']['ok']);
+        assert_same('cli', $run['json']['trigger']);
+        assert_same(7, (int) $run['json']['hold_days']);
+        assert_same(1, (int) $run['json']['candidates']);
+        assert_same(1, (int) $run['json']['released_orders']);
+        assert_same(1, (int) $run['json']['released_awards']);
+        assert_same(25.0, (float) $run['json']['amount']);
+        assert_same([$data['due']], $run['json']['ids']);
+        assert_same(0, (int) $run['json']['skipped']);
+        assert_same(0, (int) $run['json']['errors']);
+
+        assert_same('credited', $status($pdo, $data['dueUnilevelAward']));
+        assert_same('pending', $binaryStatus($pdo, $data['dueAward']), 'binary awards stay pending under --stream=unilevel');
+        assert_same('pending', $binaryStatus($pdo, $data['undeliveredAward']));
+    },
+
+    'P22H-T3 --stream=binary releases only binary awards' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $binaryStatus, $status): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--stream=binary', '--json'], $dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_not_null($run['json'], $run['output']);
+        assert_same('binary', $run['json']['stream']);
+        assert_same(1, (int) $run['json']['released_orders']);
+        assert_same(1, (int) $run['json']['released_awards']);
+        assert_same(50.0, (float) $run['json']['amount']);
+        assert_same([$data['due']], $run['json']['ids']);
+
+        assert_same('credited', $binaryStatus($pdo, $data['dueAward']));
+        assert_same('pending', $status($pdo, $data['dueUnilevelAward']), 'unilevel awards stay pending under --stream=binary');
+        assert_same('pending', $status($pdo, $data['undeliveredUnilevel']));
+    },
+
+    'P22H-T4 --dry-run lists both streams and changes nothing' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $ledgerCount, $binaryStatus, $status): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--dry-run', '--json'], $dir);
+            $ledger = $ledgerCount($pdo);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_not_null($run['json'], $run['output']);
+        assert_same(true, $run['json']['ok']);
+        assert_same(true, $run['json']['dry_run']);
+        assert_same('all', $run['json']['stream']);
+        assert_same(2, (int) $run['json']['candidates']);
+        assert_same([$data['due'], $data['due']], $run['json']['ids']);
+        assert_same([$data['dueUnilevelAward'], $data['dueAward']], $run['json']['awards']);
+
+        assert_same('pending', $status($pdo, $data['dueUnilevelAward']));
+        assert_same('pending', $binaryStatus($pdo, $data['dueAward']));
+        assert_same($ledger, $ledgerCount($pdo), 'the dry run writes no ledger row');
+    },
+
+    'P22H-T5 a second run releases nothing' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $ledgerCount): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $first = $runJob($database, ['--json'], $dir);
+            $second = $runJob($database, ['--json'], $dir);
+            $ledger = $ledgerCount($pdo);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $first['exit'], $first['output']);
+        assert_same(2, (int) $first['json']['released_awards']);
+
+        assert_same(0, $second['exit'], $second['output']);
+        assert_same(0, (int) $second['json']['released_orders'], 'a second run releases no orders');
+        assert_same(0, (int) $second['json']['released_awards'], 'a second run releases no awards');
+        assert_same(0.0, (float) $second['json']['amount']);
+        assert_same($ledger, $ledgerCount($pdo), 'no second ledger row');
+    },
+
+    'P22H-T6 binary_release_enabled off keeps binary awards pending' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $binaryStatus, $status): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $pdo->exec("UPDATE settings SET value = '0' WHERE key_name = 'binary_release_enabled'");
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--json'], $dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_not_null($run['json'], $run['output']);
+        assert_same(true, $run['json']['ok']);
+        assert_same(1, (int) $run['json']['released_orders'], 'unilevel still releases');
+        assert_same(1, (int) $run['json']['released_awards']);
+        assert_same(25.0, (float) $run['json']['amount']);
+        assert_same([$data['due']], $run['json']['ids']);
+
+        assert_same('disabled', $run['json']['binary']['skipped']);
+        assert_same(false, $run['json']['binary']['ok']);
+        assert_same('pending', $binaryStatus($pdo, $data['dueAward']), 'binary awards stay pending');
+        assert_same('credited', $status($pdo, $data['dueUnilevelAward']));
+    },
+
+    'P22H-T7 --order on a cancelled order releases nothing' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $binaryStatus): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--stream=binary', '--order=' . $data['canceled'], '--json'], $dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_not_null($run['json'], $run['output']);
+        assert_same($data['canceled'], (int) $run['json']['order']);
+        assert_same(0, (int) $run['json']['released_awards']);
+        assert_same('cancelled', $run['json']['reason']);
+        assert_same('pending', $binaryStatus($pdo, $data['canceledAward']), 'nothing moves');
+    },
+
+    'P22H-T15 the job log carries one summary line per released stream' => function () use ($binaryScratch, $binaryFixture, $runJob, $logDir, $cleanup, $logLines, $logFile): void {
+        [$pdo, $database] = $binaryScratch();
+        $data = $binaryFixture($pdo);
+
+        $dir = $logDir();
+
+        try {
+            $run = $runJob($database, ['--json'], $dir);
+            $lines = $logLines($dir);
+            $file = $logFile($dir);
+        } finally {
+            $cleanup($dir);
+        }
+
+        assert_same(0, $run['exit'], $run['output']);
+        assert_count(2, $lines, 'one line per stream');
+        assert_contains('stream=unilevel', $lines[0]);
+        assert_contains('stream=binary', $lines[1]);
+        assert_contains('released_orders=1', $lines[0]);
+        assert_contains('released_orders=1', $lines[1]);
+        assert_contains('released_awards=1', $lines[0]);
+        assert_contains('released_awards=1', $lines[1]);
+        assert_contains('errors=0', $lines[0]);
+        assert_contains('errors=0', $lines[1]);
+        assert_true(str_ends_with($file, 'unilevel_release-' . date('Y-m') . '.log'));
     },
 ];
