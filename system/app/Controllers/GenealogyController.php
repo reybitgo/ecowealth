@@ -95,6 +95,20 @@ final class GenealogyController
 
             $listRows = (new BinaryTreeService())->listRows($rootId, $depth, $userId);
 
+            /* Admin root selector: company tree plus every member with a node (P22G-T21). */
+            $adminRoots = [];
+            if ($isAdmin) {
+                $stmt = db()->prepare(
+                    'SELECT u.id AS id, u.username AS username
+                       FROM binary_nodes n
+                       JOIN users u ON u.id = n.user_id
+                      WHERE u.role = \'member\'
+                      ORDER BY n.path, u.username'
+                );
+                $stmt->execute();
+                $adminRoots = $stmt->fetchAll();
+            }
+
             $member = Member::find($userId);
 
             if ($member === null) {
@@ -106,13 +120,14 @@ final class GenealogyController
                 [
                     'page_title'  => 'Binary Tree',
                     'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
-                    'page_css'    => ['assets/css/membership.css'],
-                    'page_js'     => [],
+                    'page_css'    => ['assets/css/membership.css', 'assets/css/binary-tree.css'],
+                    'page_js'     => ['assets/vendor/libs/d3/d3.v7.min.js', 'assets/js/app-binary-tree.js'],
                     'view'        => 'binary',
                     'binary_root' => $payload,
                     'binary_list' => $listRows,
                     'binary_depth'=> $depth,
                     'binary_root_id' => $rootId,
+                    'admin_roots' => $adminRoots,
                     'live'        => Live::meta(
                         Live::genealogySurface($userId),
                         $this->binaryScope($rootId, $depth, $userId)

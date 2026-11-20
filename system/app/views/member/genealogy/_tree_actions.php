@@ -44,6 +44,12 @@ $isYou  = (bool) ($node['is_you'] ?? false);
         title="View member"
         aria-label="View member"
     ><i class="icon-base bx bx-user"></i></a>
+    <a
+        href="<?= url('admin/members/' . $userId) ?>"
+        class="btn btn-sm btn-outline-secondary binary-tree-move-placement"
+        title="Move placement"
+        aria-label="Move placement"
+    ><i class="icon-base bx bx-transfer"></i></a>
     <?php endif; ?>
 
     <?php if ($isYou && !$is_admin): ?>

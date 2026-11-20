@@ -125,6 +125,65 @@ $live = $live ?? [
                   </div>
                 </div>
 
+                <!-- Controls toolbar (Phase 22G-S3) — plain links/buttons work without JS;
+                 the explorer script enhances them. -->
+                <div class="binary-tree-controls card mb-3">
+                  <div class="card-body py-3">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                      <?php if ($is_admin && $admin_roots !== []): ?>
+                      <div class="binary-tree-root-select d-flex align-items-center gap-2">
+                        <form method="GET" action="<?= url('genealogy') ?>" class="d-flex align-items-center gap-2 mb-0">
+                          <input type="hidden" name="view" value="binary" />
+                          <input type="hidden" name="depth" value="<?= (int) $binary_depth ?>" />
+                          <label class="form-label mb-0 small text-body-secondary" for="binaryTreeRoot">Root</label>
+                          <select class="form-select form-select-sm" id="binaryTreeRoot" name="root" aria-label="Tree root" onchange="this.form.submit()">
+                            <option value="0"<?= $rootId === 0 || $rootId === (int) ($binary_root['root'] ?? 0) ? ' selected' : '' ?>>Company tree</option>
+                            <?php foreach ($admin_roots as $adminRoot): ?>
+                            <option value="<?= (int) ($adminRoot['id'] ?? 0) ?>"<?= (int) ($adminRoot['id'] ?? 0) === $rootId ? ' selected' : '' ?>>
+                              @<?= e((string) ($adminRoot['username'] ?? '')) ?>
+                            </option>
+                            <?php endforeach; ?>
+                          </select>
+                          <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Go</button></noscript>
+                        </form>
+                      </div>
+                      <?php endif; ?>
+                      <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="fit" title="Fit tree to screen" aria-label="Fit tree to screen"><i class="icon-base bx bx-fit-screen"></i> Fit</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="zoomin" title="Zoom in" aria-label="Zoom in"><i class="icon-base bx bx-search-alt"></i> Zoom in</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="zoomout" title="Zoom out" aria-label="Zoom out"><i class="icon-base bx bx-minus"></i> Zoom out</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="reset" title="Reset pan and zoom" aria-label="Reset pan and zoom"><i class="icon-base bx bx-reset"></i> Reset</button>
+                      </div>
+                      <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="expandall" title="Expand all branches" aria-label="Expand all branches"><i class="icon-base bx bx-plus-square"></i> Expand all</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="collapseall" title="Collapse all branches" aria-label="Collapse all branches"><i class="icon-base bx bx-minus-square"></i> Collapse all</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="orientation" title="Toggle tree orientation" aria-label="Toggle tree orientation"><i class="icon-base bx bx-rotate-right"></i> Orientation</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="compact" title="Toggle compact mode" aria-label="Toggle compact mode"><i class="icon-base bx bx-layer"></i> Compact</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="backtome" title="Center on your node" aria-label="Center on your node"><i class="icon-base bx bx-user"></i> Back to me</button>
+                      </div>
+                      <div class="binary-tree-depth-select-wrap ms-auto d-flex align-items-center gap-2">
+                        <label class="form-label mb-0 small text-body-secondary" for="binaryTreeDepthSelect">Depth</label>
+                        <select class="form-select form-select-sm" id="binaryTreeDepthSelect" aria-label="Tree depth">
+                          <option value="1"<?= (int) $binary_depth === 1 ? ' selected' : '' ?>>1</option>
+                          <option value="2"<?= (int) $binary_depth === 2 ? ' selected' : '' ?>>2</option>
+                          <option value="3"<?= (int) $binary_depth === 3 ? ' selected' : '' ?>>3</option>
+                          <option value="4"<?= (int) $binary_depth === 4 ? ' selected' : '' ?>>4</option>
+                          <option value="5"<?= (int) $binary_depth === 5 ? ' selected' : '' ?>>5</option>
+                        </select>
+                      </div>
+                      <div class="binary-tree-search d-flex align-items-center">
+                        <input type="search" class="form-control form-control-sm" id="binaryTreeSearchInput" placeholder="Search members…" aria-label="Search members in this tree" />
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="binaryTreeSearchClear" title="Clear search" aria-label="Clear search"><i class="icon-base bx bx-x"></i></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Breadcrumb (filled by the explorer script). -->
+                <nav class="binary-tree-breadcrumb mb-3" aria-label="Tree location">
+                  <span class="current">Root</span>
+                </nav>
+
                 <div class="card">
                   <div class="card-header d-flex align-items-center justify-content-between gap-2">
                     <h5 class="card-title mb-0">Binary placement tree</h5>
@@ -135,6 +194,9 @@ $live = $live ?? [
                   <div class="card-body p-0 position-relative">
                     <!-- Server-rendered seed: d3 hydrates this when it loads. -->
                     <script type="application/json" id="binaryTreeSeed"><?= e(json_encode($binary_root)) ?></script>
+
+                    <!-- SVG explorer (d3, Phase 22G-S3). Hidden until d3 loads; the list stays otherwise. -->
+                    <div id="binaryTreeSvgWrap" class="binary-tree-svg-wrap" style="display:none" aria-hidden="true"></div>
 
                     <!-- No-JS semantic list: usable without d3 or JavaScript. -->
                     <div id="binaryTreeListWrap" class="pb-3">

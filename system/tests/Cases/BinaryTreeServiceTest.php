@@ -586,4 +586,129 @@ return [
         assert_count(1, $placementRoutes, 'exactly one placement route');
     },
 
+    /* ---------- Phase 22G-S3: d3 explorer, node cards and navigation controls ---------- */
+
+    'P22G-T11 node card carries username, status, side, depth, points, pairs, joined and You' => function () use ($demoUser): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+        $juanId = (int) $juan['id'];
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+        $tree    = $payload['tree'];
+
+        assert_same('juan', (string) $tree['username']);
+        assert_same(1, (int) $tree['depth'], 'juan sits at depth 1 under the company root');
+        assert_true($tree['is_you'], 'root is the viewer');
+        assert_same('active', (string) $tree['status']);
+        assert_same('left', (string) ($tree['side'] ?? null), 'juan is on the left slot');
+        assert_true(array_key_exists('points', $tree));
+        assert_true(array_key_exists('left', $tree['points']));
+        assert_true(array_key_exists('right', $tree['points']));
+        assert_true(array_key_exists('pairs', $tree['points']));
+        assert_true(array_key_exists('pairs_today', $tree['points']));
+        assert_true(array_key_exists('joined', $tree));
+        assert_not_same('', (string) ($tree['joined'] ?? ''));
+    },
+
+    'P22G-T12 name is null for a member viewer' => function () use ($demoUser): void {
+        $juan = $demoUser('juan');
+        $maria = $demoUser('maria');
+        assert_not_null($juan);
+        assert_not_null($maria);
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree((int) $maria['id'], 3, (int) $juan['id'], false);
+
+        assert_null($payload['tree']['name'], 'member viewer sees no full name');
+    },
+
+    'P22G-T12 name is the full name for an admin viewer' => function () use ($demoUser, $adminUser): void {
+        $admin = $adminUser();
+        $maria = $demoUser('maria');
+        assert_not_null($admin);
+        assert_not_null($maria);
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree((int) $maria['id'], 3, (int) $admin['id'], true);
+
+        assert_same('Maria Santos', (string) $payload['tree']['name'], 'admin viewer sees the full name');
+    },
+
+    'P22G-T21 admin root selector lists company tree and members with nodes' => function () use ($demoUser, $adminUser, $renderView): void {
+        $admin = $adminUser();
+        $juan = $demoUser('juan');
+        $maria = $demoUser('maria');
+        assert_not_null($admin);
+        assert_not_null($juan);
+        assert_not_null($maria);
+
+        test_signed_in_as($admin);
+        $adminId = (int) $admin['id'];
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($adminId, 3, $adminId, true);
+
+        $html = $renderView('admin', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'admin.genealogy',
+            'member'      => $admin,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($adminId, 3, $adminId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $adminId,
+            'is_admin'    => true,
+            'admin_roots' => [
+                ['id' => $juan['id'], 'username' => 'juan'],
+                ['id' => $maria['id'], 'username' => 'maria'],
+            ],
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        assert_contains('binaryTreeRoot', $html);
+        assert_contains('Company tree', $html);
+        assert_contains('@juan', $html);
+        assert_contains('@maria', $html);
+        assert_contains('name="root"', $html);
+        assert_contains('genealogy', $html);
+    },
+
+    'P22G-T22 admin node menu links to the member page and the placement panel' => function () use ($demoUser, $adminUser, $renderView): void {
+        $admin = $adminUser();
+        $juan = $demoUser('juan');
+        $maria = $demoUser('maria');
+        assert_not_null($admin);
+        assert_not_null($juan);
+        assert_not_null($maria);
+
+        test_signed_in_as($admin);
+        $adminId = (int) $admin['id'];
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($adminId, 3, $adminId, true);
+
+        $html = $renderView('admin', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'admin.genealogy',
+            'member'      => $admin,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($adminId, 3, $adminId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $adminId,
+            'is_admin'    => true,
+            'admin_roots' => [],
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        $juanId  = (int) $juan['id'];
+        $mariaId = (int) $maria['id'];
+
+        assert_contains('admin/members/' . $juanId, $html);
+        assert_contains('admin/members/' . $mariaId, $html);
+        assert_contains('View member', $html);
+        assert_contains('Move placement', $html);
+    },
+
 ];

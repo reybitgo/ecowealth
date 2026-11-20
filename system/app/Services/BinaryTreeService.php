@@ -92,6 +92,21 @@ final class BinaryTreeService
         $rootDepth  = (int) ($rootNode['depth'] ?? 0);
         $rootUserId = (int) ($rootNode['user_id'] ?? 0);
 
+        /* Enrich the root row with member facts (username, status, role)
+         * so the root card is rendered identically to every other node
+         * (§11.4). fetchSubtreeRows() joins users for the descendants, but
+         * the root row itself comes from BinaryNode::find() which carries
+         * none of those columns. */
+        $rootMember = Member::find($rootUserId);
+        if ($rootMember !== null) {
+            $rootNode['username']      = (string) ($rootMember['username'] ?? '');
+            $rootNode['full_name']     = (string) ($rootMember['full_name'] ?? '');
+            $rootNode['is_active']     = (int) ($rootMember['is_active'] ?? 0);
+            $rootNode['member_status'] = (string) ($rootMember['member_status'] ?? '');
+            $rootNode['role']          = (string) ($rootMember['role'] ?? 'member');
+            $rootNode['joined']        = substr((string) ($rootMember['created_at'] ?? ''), 0, 10);
+        }
+
         $all = $this->fetchSubtreeRows($rootPath, $rootUserId);
 
         $byId     = [];
