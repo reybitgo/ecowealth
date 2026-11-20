@@ -168,8 +168,8 @@ return [
         assert_contains('hash_equals', (string) file_get_contents(dirname(__DIR__, 2) . '/app/helpers.php'));
     },
 
-    'P15 the build reports phase 21' => function (): void {
-        assert_same(21, APP_PHASE);
+    'P15 the build reports phase 22' => function (): void {
+        assert_same(22, APP_PHASE);
         assert_true(defined('APP_NAME'));
         assert_true(defined('APP_DEBUG'));
         assert_true(defined('APP_TIMEZONE'));

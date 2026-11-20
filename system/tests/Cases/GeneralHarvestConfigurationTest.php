@@ -1579,7 +1579,7 @@ return [
         assert_same(86, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
         assert_same(1, (int) db()->query('SELECT COUNT(*) FROM general_harvest_board')->fetchColumn());
-        assert_same(21, APP_PHASE, '21G owns the release badge');
+        assert_same(22, APP_PHASE, '22I owns the release badge');
 
         /* install.sql is untouched by this phase and still matches its sources. */
         $install = (string) file_get_contents($appRoot . '/database/install.sql');

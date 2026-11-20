@@ -31,11 +31,10 @@ defined('APP_ENV') || define('APP_ENV', (string) (getenv('APP_ENV') ?: 'producti
 defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
 
 /* Phase currently under construction — controls which menu items render.
- * Phase 21 (the General Harvest bonus workstream) is released: see
- * docs/phase-log.md for the release entry and dmp/plan-ecowealth-general-harvest.md
- * §11 (Phase 21G — Release). The constant only labels the build; no route,
- * menu item or permission reads it for Phase 21. */
-defined('APP_PHASE') || define('APP_PHASE', 21);
+ * Phase 22 (the Product Binary Bonus workstream, dmp/plan-ecowealth-product-binary-sliced.md)
+ * is released: see docs/phase-log.md for the release entry. The constant only
+ * labels the build; no route, menu item or permission reads it for Phase 22. */
+defined('APP_PHASE') || define('APP_PHASE', 22);
 
 /* ---------- Database (MySQL) ---------- */
 defined('DB_HOST') || define('DB_HOST', '127.0.0.1');

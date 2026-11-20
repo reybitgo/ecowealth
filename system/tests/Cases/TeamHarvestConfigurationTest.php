@@ -779,7 +779,7 @@ return [
         assert_same(42, count(test_table_list(test_pdo(['db' => DB_NAME]))));
         assert_same(86, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
-        assert_same(21, APP_PHASE, '21G owns the release badge');
+        assert_same(22, APP_PHASE, '22I owns the release badge');
 
         /* install.sql is untouched by this phase and still matches its
          * sources; the bundle's own count is 42 / 89 / 10. */
