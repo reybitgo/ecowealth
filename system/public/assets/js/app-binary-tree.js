@@ -101,6 +101,7 @@
   var expanded   = new Set();   /* node user-ids that are expanded */
   var nodesById  = new Map();   /* user-id -> node datum (latest) */
   var focusedId  = null;
+  var focusIndex = -1;          /* index of the focused node in the flattened order */
   var loading    = new Set();   /* user-ids currently fetching children */
   var orientation = bodyHas('binary-horizontal') ? 'horizontal' : 'vertical';
 
@@ -336,6 +337,31 @@
       .attr('transform', function (d) {
         return 'translate(' + d.x + ',' + d.y + ')';
       })
+      .attr('role', 'treeitem')
+      .attr('aria-level', function (d) { return (d.data && d.data.depth != null) ? (d.data.depth + 1) : 1; })
+      .attr('aria-expanded', function (d) {
+        return (d.data && (d.data.children || d.data.has_more)) ? (expanded.has(d.data.id) ? 'true' : 'false') : 'false';
+      })
+      .attr('tabindex', '0')
+      .attr('aria-label', function (d) {
+        var n = d.data || {};
+        var pts = n.points || {};
+        var label = n.username || '';
+        if (n.is_you) {
+          label += ', you';
+        }
+        label += ', depth ' + (n.depth != null ? n.depth : 0);
+        label += ', ' + (n.status || 'unknown') + ' status';
+        if (pts.left != null) { label += ', left ' + pts.left + ' points'; }
+        if (pts.right != null) { label += ', right ' + pts.right + ' points'; }
+        if (pts.pairs != null) { label += ', ' + pts.pairs + ' pairs'; }
+        var slots = n.slots || {};
+        var free = [];
+        if (slots.left && slots.left.free) { free.push('left'); }
+        if (slots.right && slots.right.free) { free.push('right'); }
+        if (free.length) { label += ', free ' + free.join(' and ') + ' slot(s)'; }
+        return label;
+      })
       .style('cursor', function (d) {
         return (d.data.children || d.data.has_more) ? 'pointer' : 'default';
       })
@@ -346,6 +372,9 @@
         } else if (d.data.id !== viewerId) {
           focusNode(d.data.id);
         }
+      })
+      .on('keydown', function (event, d) {
+        onNodeKey(event, d);
       });
 
     nodeEnter.each(function (d) {
@@ -375,6 +404,23 @@
     })
     .attr('class', function (d) {
       return nodeClass(d);
+    })
+    .attr('aria-expanded', function (d) {
+      return (d.data && (d.data.children || d.data.has_more)) ? (expanded.has(d.data.id) ? 'true' : 'false') : 'false';
+    })
+    .attr('aria-label', function (d) {
+      var n = d.data || {};
+      var pts = n.points || {};
+      var label = n.username || '';
+      if (n.is_you) {
+        label += ', you';
+      }
+      label += ', depth ' + (n.depth != null ? n.depth : 0);
+      label += ', ' + (n.status || 'unknown') + ' status';
+      if (pts.left != null) { label += ', left ' + pts.left + ' points'; }
+      if (pts.right != null) { label += ', right ' + pts.right + ' points'; }
+      if (pts.pairs != null) { label += ', ' + pts.pairs + ' pairs'; }
+      return label;
     });
 
     /* Re-index datums (lazy-loaded branches add new ids). */
@@ -425,6 +471,132 @@
       }
     });
     return found;
+  }
+
+  /* ----------------------------------------------------------
+   *  Keyboard navigation (§11.5 rule 10: keyboard operable)
+   * ---------------------------------------------------------- */
+  function flattenedNodes() {
+    var out = [];
+    var stack = [{ datum: tree, depth: 0 }];
+    while (stack.length) {
+      var entry = stack.pop();
+      var n = entry.datum;
+      if (n && n.id) {
+        out.push({ id: n.id, depth: entry.depth });
+      }
+      if (n && n.children) {
+        for (var i = n.children.length - 1; i >= 0; i--) {
+          stack.push({ datum: n.children[i], depth: entry.depth + 1 });
+        }
+      }
+    }
+    out.reverse();
+    return out;
+  }
+
+  function focusNodeByIndex(idx) {
+    var list = flattenedNodes();
+    if (list.length === 0) {
+      return;
+    }
+    idx = Math.max(0, Math.min(list.length - 1, idx));
+    focusIndex = idx;
+    var id = list[idx].id;
+    focusedId = id;
+    var target = findNodeById(toHierarchy(tree, 0), id);
+    if (target) {
+      centerOn(target);
+    }
+    render();
+    setUrlParam('focus', (nodesById.get(id) || {}).username || '');
+  }
+
+  function onNodeKey(event, d) {
+    var id = d && d.data ? d.data.id : null;
+    var key = event.key;
+
+    if (key === 'Escape') {
+      /* Esc closes the modal if open, else clears focus. */
+      var modal = document.getElementById('binaryRegisterModal');
+      if (modal && !modal.classList.contains('d-none') && modal.style.display !== 'none') {
+        var bs = null;
+        try { bs = bootstrap.Modal.getInstance(modal); } catch (e) {}
+        if (bs) { bs.hide(); }
+      }
+      focusedId = null;
+      focusIndex = -1;
+      setUrlParam('focus', null);
+      render();
+      event.preventDefault();
+      return;
+    }
+
+    if (key === '+' || key === '=') {
+      nudgeZoom(1.25);
+      event.preventDefault();
+      return;
+    }
+    if (key === '-') {
+      nudgeZoom(0.8);
+      event.preventDefault();
+      return;
+    }
+
+    if (key === 'Home') {
+      focusNodeByIndex(0);
+      event.preventDefault();
+      return;
+    }
+    if (key === 'End') {
+      focusNodeByIndex(flattenedNodes().length - 1);
+      event.preventDefault();
+      return;
+    }
+
+    var list = flattenedNodes();
+    var current = id !== null ? list.findIndex(function (e) { return e.id === id; }) : -1;
+    if (current === -1) {
+      current = focusIndex >= 0 && focusIndex < list.length ? focusIndex : 0;
+    }
+
+    var next = current;
+    switch (key) {
+      case 'ArrowDown': next = Math.min(current + 1, list.length - 1); break;
+      case 'ArrowUp':   next = Math.max(current - 1, 0); break;
+      case 'ArrowRight':
+        /* Expand if collapsed, else move to first child. */
+        if (d && d.data && !expanded.has(id) && (d.data.children || d.data.has_more)) {
+          toggleNode(d);
+        } else {
+          next = Math.min(current + 1, list.length - 1);
+        }
+        break;
+      case 'ArrowLeft':
+        if (expanded.has(id)) {
+          expanded.delete(id);
+          render();
+        } else {
+          next = Math.max(current - 1, 0);
+        }
+        break;
+      case 'Enter':
+      case ' ':
+        if (d && d.data && (d.data.children || d.data.has_more)) {
+          toggleNode(d);
+        } else if (id !== null && id !== viewerId) {
+          focusNode(id);
+        }
+        event.preventDefault();
+        return;
+      default:
+        return;
+    }
+
+    if (next !== current) {
+      focusNodeByIndex(next);
+    }
+    event.preventDefault();
   }
 
   /* ----------------------------------------------------------
@@ -735,6 +907,11 @@
     svgWrap.style.display = '';
     svgWrap.setAttribute('aria-hidden', 'false');
 
+    /* Make the tree container itself reachable by Tab. */
+    svgWrap.setAttribute('tabindex', '0');
+    svgWrap.setAttribute('role', 'tree');
+    svgWrap.setAttribute('aria-label', 'Binary placement tree');
+
     indexNodes(tree);
 
     var focusParam = getUrlParam('focus');
@@ -749,12 +926,93 @@
     render();
     bindControls();
 
-    var resizeTimer = null;
-    window.addEventListener('resize', function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
+    /* ResizeObserver: re-lay out when the container changes size,
+     * without reloading the page (§11.5 rule 12). */
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () {
         render();
-      }, 150);
+      });
+      ro.observe(svgWrap);
+    } else {
+      var resizeTimer = null;
+      window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+          render();
+        }, 150);
+      });
+    }
+
+    /* Live refresh: when the binary surface bumps (award or placement),
+     * re-render the focused subtree preserving pan, zoom and expansion
+     * (§11.1 Live, §11.5 rule 10). */
+    document.addEventListener('ecowealth:live-applied', function (event) {
+      try {
+        var detail = event.detail || {};
+        if (detail.surface !== 'member.binary:' + viewerId && detail.surface !== 'member.binary:' + (payload && payload.root || 0)) {
+          return;
+        }
+      } catch (e) {
+        return;
+      }
+      /* Only refresh when the tab is visible and no modal is open. */
+      if (document.visibilityState === 'hidden') {
+        return;
+      }
+      if (document.querySelector('.modal.show')) {
+        return;
+      }
+
+      /* Remember pan/zoom/expansion state before re-render. */
+      var currentTransform = svg.node() ? d3.zoomTransform(svg.node()) : null;
+      var hadExpanded = new Set(expanded);
+      var hadFocused = focusedId;
+
+      /* Re-fetch the current subtree JSON so points/pairs/placement are fresh. */
+      var url = window.location.pathname + '?view=binary&format=json&root='
+        + encodeURIComponent(payload && payload.root ? payload.root : viewerId)
+        + '&depth=' + encodeURIComponent(startDepth);
+
+      fetch(url, {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      })
+        .then(function (res) {
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.tree) {
+            return;
+          }
+          tree = data.tree;
+          indexNodes(tree);
+
+          /* Restore expansion for nodes that still exist. */
+          expanded = new Set();
+          hadExpanded.forEach(function (id) {
+            if (nodesById.has(id)) {
+              expanded.add(id);
+            }
+          });
+
+          focusedId = hadFocused && nodesById.has(hadFocused) ? hadFocused : null;
+          focusIndex = -1;
+
+          /* Restore pan/zoom. */
+          if (currentTransform) {
+            svg.transition().duration(0).call(zoomBehavior.transform, currentTransform);
+          }
+
+          render();
+
+          showNotice('Tree updated', 'info');
+        })
+        .catch(function (err) {
+          console.error('[ecowealth] binary tree live refresh failed:', err);
+        });
     });
   }
 

@@ -63,6 +63,28 @@ final class GenealogyController
         $userId  = (int) $user['id'];
         $isAdmin = is_admin($user);
 
+        /* Phase 22G-S5: live feed for the binary tree — an open tree
+         * refreshes its points and placement without a reload. The
+         * ?format=json branch (above) is the direct endpoint; this
+         * branch serves X-Live: 1 polling from app-live.js. */
+        if (Live::isFeedRequest()) {
+            if (Request::string('view') === 'binary') {
+                try {
+                    $payload = $this->binaryJson($userId, $isAdmin);
+                    Live::json($payload['etag'], $payload);
+                } catch (BinaryException $e) {
+                    Live::jsonError($e->getMessage(), 403);
+                } catch (Throwable $e) {
+                    error_log('[ecowealth] binary live feed failed: ' . $e->getMessage());
+                    Live::jsonError('Could not load the binary tree. Please try again.', 500);
+                }
+                return;
+            }
+
+            $this->feed($userId);
+            return;
+        }
+
         /* Phase 22G: binary tree JSON feed — same route, ?view=binary&format=json.
          * The sponsor view is never affected by this branch. */
         if (Request::string('view') === 'binary' && Request::string('format') === 'json') {
@@ -129,7 +151,7 @@ final class GenealogyController
                     'binary_root_id' => $rootId,
                     'admin_roots' => $adminRoots,
                     'live'        => Live::meta(
-                        Live::genealogySurface($userId),
+                        Live::binarySurface($userId),
                         $this->binaryScope($rootId, $depth, $userId)
                     ),
                 ]

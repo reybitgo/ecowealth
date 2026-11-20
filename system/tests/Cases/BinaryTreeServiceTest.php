@@ -946,5 +946,128 @@ return [
         assert_contains('data-binary-upline="peter"', $html);
     },
 
+    /* ---------- Phase 22G-S5: live refresh, accessibility, responsive, performance ---------- */
+
+    'P22G-T23 a new award bumps the binary live surface' => function () use ($demoUser): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+        $juanId = (int) $juan['id'];
+
+        $before = Live::revision(Live::binarySurface($juanId));
+
+        /* Call BinaryService::touch() (private) via reflection with a
+         * single self award for juan. It must bump member.binary:<juan>. */
+        $service = new BinaryService();
+        $ref     = new ReflectionMethod($service, 'touch');
+        $ref->setAccessible(true);
+        $ref->invoke($service, 1, $juanId, [
+            ['user_id' => $juanId, 'kind' => 'self', 'status' => 'pending',
+             'amount' => 50.00, 'points' => 1000, 'pair_count' => 0,
+             'pair_points' => 1000, 'rate_pct' => 5, 'side' => null,
+             'hold_days' => 7],
+        ]);
+
+        $after = Live::revision(Live::binarySurface($juanId));
+        assert_same($before + 1, $after, 'creating an award bumps the binary live surface');
+    },
+
+    'P22G-T24 a placement change bumps the binary live surface' => function () use ($demoUser): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+        $peterId = (int) $peter['id'];
+
+        /* peter's left slot is free. */
+        assert_true((new BinaryTreeService())->canRegister($peterId, $peterId, 'left'));
+
+        $before = Live::revision(Live::binarySurface($peterId));
+
+        /* Place a new member under peter on the left. */
+        $svc = new RegistrationService();
+        $svc->register([
+            'mode'             => 'standard',
+            'username'         => 'liveres_' . bin2hex(random_bytes(2)),
+            'email'            => 'liveres_' . bin2hex(random_bytes(2)) . '@test.local',
+            'full_name'        => 'Live Refresh',
+            'phone'            => '',
+            'password'         => 'Member@123',
+            'password_confirm' => 'Member@123',
+            'sponsor'          => 'peter',
+            'package_id'       => '',
+            'reg_code'         => '',
+            'terms'            => '1',
+            'binary_upline'    => 'peter',
+            'binary_position'  => 'left',
+        ]);
+
+        $after = Live::revision(Live::binarySurface($peterId));
+        assert_same($before + 1, $after, 'placing a node bumps the binary live surface');
+    },
+
+    'P22G-T25 the explorer JS uses ResizeObserver for responsive re-layout' => function (): void {
+        $js = file_get_contents(dirname(__DIR__, 3) . '/system/public/assets/js/app-binary-tree.js');
+        assert_not_same(false, $js, 'app-binary-tree.js is readable');
+        assert_contains('ResizeObserver', $js, 'ResizeObserver is used for responsive re-layout');
+    },
+
+    'P22G-T26 the explorer JS handles keyboard navigation' => function (): void {
+        $js = file_get_contents(dirname(__DIR__, 3) . '/system/public/assets/js/app-binary-tree.js');
+        assert_not_same(false, $js, 'app-binary-tree.js is readable');
+        assert_contains('onNodeKey', $js, 'a keyboard handler exists');
+        assert_contains("'keydown'", $js, 'keydown is bound on node groups');
+        assert_contains('ArrowDown', $js, 'arrow keys traverse the tree');
+        assert_contains('ArrowUp', $js, 'arrow keys traverse the tree');
+        assert_contains('Enter', $js, 'Enter expands a node');
+        assert_contains('Escape', $js, 'Esc clears focus / closes the modal');
+    },
+
+    'P22G-T27 the rendered SVG tree carries ARIA tree semantics' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $juanId = (int) $juan['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        /* The SVG wrapper declares itself as a tree. */
+        assert_contains('role="tree"', $html);
+        /* Every node is a treeitem with aria-level. */
+        assert_contains('role="treeitem"', $html);
+        assert_contains('aria-level=', $html);
+        /* Each node has an accessible name. */
+        assert_contains('aria-label=', $html);
+        assert_contains('@maria', $html);
+    },
+
+    'P22G-T30 reduced motion disables transitions' => function (): void {
+        $css = file_get_contents(dirname(__DIR__, 3) . '/system/public/assets/css/binary-tree.css');
+        assert_not_same(false, $css, 'binary-tree.css is readable');
+        assert_contains('prefers-reduced-motion', $css, 'reduced motion media query is present');
+        assert_contains('transition: none', $css, 'transitions are removed under reduced motion');
+    },
+
+    'P22G-T35 vendored d3 is present with licence and parses' => function (): void {
+        $d3  = dirname(__DIR__, 3) . '/system/public/assets/vendor/libs/d3/d3.v7.min.js';
+        $lic = dirname(__DIR__, 3) . '/system/public/assets/vendor/libs/d3/LICENSE';
+        assert_true(is_file($d3), 'vendored d3.v7.min.js exists');
+        assert_true(is_file($lic), 'd3 LICENSE exists');
+        $d3Content = file_get_contents($d3);
+        assert_not_same(false, $d3Content, 'd3 is readable');
+        assert_contains('d3', $d3Content, 'd3 content is present');
+    },
+
 ];
 

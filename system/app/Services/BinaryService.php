@@ -2446,6 +2446,7 @@ final class BinaryService
         foreach (array_keys($recipients) as $userId) {
             Live::touchEarnings((int) $userId);
             Live::touchMemberDashboard((int) $userId);
+            Live::touch(Live::binarySurface((int) $userId));
         }
 
         Live::touch('admin.commissions');
@@ -2466,6 +2467,7 @@ final class BinaryService
             Live::touchMemberDashboard((int) $userId);
             Live::touchMembership((int) $userId);
             Live::touchMemberWallet((int) $userId);
+            Live::touch(Live::binarySurface((int) $userId));
         }
 
         Live::touch(['admin.commissions', 'admin.dashboard']);
@@ -2479,6 +2481,7 @@ final class BinaryService
         Live::touchMemberDashboard($buyerId);
         Live::touchMembership($buyerId);
         Live::touchMemberWallet($buyerId);
+        Live::touch(Live::binarySurface($buyerId));
         Live::touch('admin.commissions');
         Live::touchOrder($orderId, $buyerId);
     }

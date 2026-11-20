@@ -135,6 +135,11 @@ final class BinaryPlacementService
             ],
         ], $this->pdo);
 
+        /* An open tree showing this upline (or the new member) should
+         * refresh its points and placement in place. */
+        Live::touch(Live::binarySurface($uplineId));
+        Live::touch(Live::binarySurface($userId));
+
         return $node;
     }
 
@@ -220,6 +225,10 @@ final class BinaryPlacementService
                 'reason' => 'empty-subtree move',
             ],
         ], $this->pdo);
+
+        /* An open tree showing either end of the move should refresh. */
+        Live::touch(Live::binarySurface((int) ($before['user_id'] ?? $userId)));
+        Live::touch(Live::binarySurface($newUplineId));
 
         return ['before' => $before, 'after' => $after, 'node' => $after];
     }
