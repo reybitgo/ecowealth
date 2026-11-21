@@ -17,8 +17,8 @@ Severity: blocker = prevents the next gate · major = must be fixed before relea
 | D-06 | R1 | `_binary_rows.php` cast order `e((int)...)` breaks under strict types | blocker | R1 | fixed @ fa032b9 |
 | D-07 | R1 | Stray duplicate comment in `member/dashboard.php` | minor | R1 | fixed @ fa032b9 |
 | D-08 | R1 | Test expectations stale: `MemberOrderLiveTest`, `ProductTest`, `ReportViewTest`, `TeamHarvestAdminViewTest`, `AdminCommissionLiveTest` | blocker | R1 | fixed @ fa032b9 |
-| D-09 | R2 | `RegistrationService::placeBinaryNode()` falls back: opposite side → company root → BFS any free slot; taken slot silently placed elsewhere | blocker | R2 | open |
-| D-10 | R2 | `P22G-T17` exercises `validate()` directly, never `RegistrationService::register()` | blocker | R2 | open |
+| D-09 | R2 | `RegistrationService::placeBinaryNode()` falls back: opposite side → company root → BFS any free slot; taken slot silently placed elsewhere | blocker | R2 | fixed @ 9806913 (fallback removed; strict validate-once/place-once) |
+| D-10 | R2 | `P22G-T17` exercises `validate()` directly, never `RegistrationService::register()` | blocker | R2 | fixed @ b2eaf73 (rewritten to drive register(); P22C-T19/T22 added) |
 | D-11 | R3 | 49 named P22 test IDs absent from `tests/Cases/` (22A: 11, 22B: 2, 22C: 20, 22D: 6, 22E: 1, 22F: 2, 22H: 1, 22I: 6) | blocker | R3 | open |
 | D-12 | R3 | `BinaryReleaseTest` missing T4, T6–T10 (only T1–T3, T5 exist) | blocker | R3 | open |
 | D-13 | R3 | Phase log PASS rows mis-mapped: 22C T22/T31/T47, 22D T59, 22G T17 | blocker | R3 | open |
