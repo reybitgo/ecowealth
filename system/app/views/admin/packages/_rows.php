@@ -21,7 +21,7 @@ $hasFilters = $query !== '' || $status !== '';
                     <tbody data-live-region="package-rows">
 <?php if ($packages === []): ?>
                       <tr>
-                        <td colspan="8" class="py-0">
+                        <td colspan="9" class="py-0">
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-box',
@@ -43,6 +43,10 @@ $hasFilters = $query !== '' || $status !== '';
     $ladderTotal = array_sum($levelRows);
     $contentRows = $contents[$id] ?? [];
     $isActive    = $package['status'] === 'active';
+    $binaryMap   = Package::binaryStatusMap([$id]);
+    $binary      = $binaryMap[$id] ?? ['binary_enabled' => 0, 'binary_points' => 0];
+    $binaryOn    = (int) $binary['binary_enabled'] === 1;
+    $binaryPts   = (int) $binary['binary_points'];
 ?>
                       <tr data-live-key="<?= $id ?>">
                         <td>
@@ -60,6 +64,15 @@ $hasFilters = $query !== '' || $status !== '';
                         </td>
                         <td class="text-end text-nowrap"><?= (int) count($contentRows) ?></td>
                         <td><?= status_badge((string) $package['status']) ?></td>
+                        <td class="text-end text-nowrap">
+<?php if ($binaryOn): ?>
+                          <span class="badge bg-label-<?= $binaryPts > 0 ? 'success' : 'warning' ?>">
+                            Binary <?= $binaryPts ?> pts
+                          </span>
+<?php else: ?>
+                          <span class="badge bg-label-secondary">—</span>
+<?php endif; ?>
+                        </td>
                         <td class="text-end">
                           <div class="d-inline-flex align-items-center gap-1">
                             <a

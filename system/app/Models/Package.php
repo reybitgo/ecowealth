@@ -118,6 +118,13 @@ final class Package
             array_push($args, $like, $like);
         }
 
+        $binary = (string) ($filters['binary'] ?? '');
+        if ($binary === 'on') {
+            $where[] = 'binary_enabled = 1';
+        } elseif ($binary === 'off') {
+            $where[] = 'binary_enabled = 0';
+        }
+
         return [$where === [] ? '' : ' WHERE ' . implode(' AND ', $where), $args];
     }
 
@@ -162,6 +169,94 @@ public static function binaryPoints(int $packageId): int
     $row = $stmt->fetch();
 
     return (int) ($row['binary_points'] ?? 0);
+}
+
+/**
+ * One-query status map for the package list (Phase 23B Rule 10).
+ *
+ * @param list<int> $packageIds
+ * @return array<int, array{binary_enabled:int, binary_points:int}>
+ */
+public static function binaryStatusMap(array $packageIds): array
+{
+    $ids = self::intIds($packageIds);
+
+    if ($ids === []) {
+        return [];
+    }
+
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt  = db()->prepare(
+        'SELECT id, binary_enabled, binary_points FROM packages WHERE id IN (' . $marks . ')'
+    );
+    $stmt->execute($ids);
+
+    $map = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int) $row['id']] = [
+            'binary_enabled' => (int) $row['binary_enabled'],
+            'binary_points'  => (int) $row['binary_points'],
+        ];
+    }
+
+    return $map;
+}
+
+/** @return array{binary_enabled:int, binary_points:int} */
+private static function binarySnapshot(?array $package): array
+{
+    return [
+        'binary_enabled' => (int) ($package['binary_enabled'] ?? 0),
+        'binary_points'  => (int) ($package['binary_points'] ?? 0),
+    ];
+}
+
+/**
+ * @return array<string, int> field => new value, only the keys that moved
+ */
+private static function binaryDiff(array $before, array $after): array
+{
+    $changes = [];
+
+    foreach ($after as $key => $value) {
+        if (($before[$key] ?? null) !== $value) {
+            $changes[$key] = $value;
+        }
+    }
+
+    return $changes;
+}
+
+/**
+ * Record that a package's binary switch or points changed.
+ * Written inside the caller's transaction (Phase 23B Rule 10). Only keys
+ * that moved are in `changes`; `before`/`after` are complete.
+ *
+ * @param array<string, int> $changes
+ */
+public static function audit(
+    int $packageId,
+    string $name,
+    array $before,
+    array $after,
+    array $changes,
+    ?array $actor = null,
+    ?PDO $pdo = null
+): void {
+    AuditLog::record([
+        'action'       => 'package.binary.update',
+        'actor_id'     => $actor === null ? null : (int) ($actor['id'] ?? 0),
+        'actor_role'   => $actor === null ? null : (string) ($actor['role'] ?? ''),
+        'subject_type' => 'package',
+        'subject_id'   => $packageId,
+        'meta'         => [
+            'package' => $name,
+            'changes' => $changes,
+            'before'  => $before,
+            'after'   => $after,
+        ],
+    ], $pdo);
 }
 
 /* ----------------------------------------------------------
@@ -291,7 +386,7 @@ public static function binaryPoints(int $packageId): int
      */
     public static function validate(array $data): array
     {
-        return Validator::check($data, [
+        $errors = Validator::check($data, [
             'name'                  => 'required|string|min:2|max:80',
             'price'                 => 'required|numeric|gt:0|decimal:2',
             'product_value'         => 'nullable|numeric|gte:0|decimal:2',
@@ -300,6 +395,8 @@ public static function binaryPoints(int $packageId): int
             'description'           => 'nullable|string|max:5000',
             'perks'                 => 'nullable|string|max:5000',
             'status'                => 'required|in:active,inactive',
+            'binary_enabled'        => 'nullable|in:0,1',
+            'binary_points'         => 'nullable|integer|gte:0|lte:1000000',
         ], [
             'name'                  => 'Package name',
             'price'                 => 'Price',
@@ -309,7 +406,20 @@ public static function binaryPoints(int $packageId): int
             'description'           => 'Description',
             'perks'                 => 'Perks',
             'status'                => 'Status',
+            'binary_enabled'        => 'Package binary',
+            'binary_points'         => 'Points per activation',
         ]);
+
+        /* Cross-field: switch on with zero points is refused (Phase 23B Rule 3).
+         * A configuration error, not a valid state — the package keeps its old values. */
+        $binaryEnabled = (string) ($data['binary_enabled'] ?? '') === '1';
+        $binaryPoints  = (int) ($data['binary_points'] ?? 0);
+
+        if ($binaryEnabled && $binaryPoints <= 0 && !isset($errors['binary_points'])) {
+            $errors['binary_points'] = 'Set points above 0 or turn the package\'s binary switch off.';
+        }
+
+        return $errors;
     }
 
     /**
@@ -444,6 +554,8 @@ public static function binaryPoints(int $packageId): int
             'perks'                 => trim((string) ($data['perks'] ?? '')) ?: null,
             'status'                => in_array($status, self::STATUSES, true) ? $status : 'active',
             'sort_order'            => max(0, (int) ($data['sort_order'] ?? 0)),
+            'binary_enabled'        => (string) ($data['binary_enabled'] ?? '') === '1' ? '1' : '0',
+            'binary_points'         => max(0, (int) ($data['binary_points'] ?? 0)),
         ];
 
         $pdo = db();
@@ -519,6 +631,30 @@ public static function binaryPoints(int $packageId): int
             }
 
             throw $e;
+        }
+
+        /* Audit binary switch / points on update when either moved (Phase 23B Rule 10).
+         * On create there is no previous state to diff. */
+        if ($existing !== null) {
+            $binaryBefore = self::binarySnapshot($existing);
+            $binaryAfter  = self::binarySnapshot([
+                'id'           => $packageId,
+                'binary_enabled' => $record['binary_enabled'],
+                'binary_points'  => $record['binary_points'],
+            ]);
+            $binaryChanges = self::binaryDiff($binaryBefore, $binaryAfter);
+
+            if ($binaryChanges !== []) {
+                self::audit(
+                    $packageId,
+                    (string) $record['name'],
+                    $binaryBefore,
+                    $binaryAfter,
+                    $binaryChanges,
+                    null,
+                    $pdo
+                );
+            }
         }
 
         Live::touch('admin.dashboard');

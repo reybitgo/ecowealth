@@ -191,6 +191,12 @@ $contentRows = $contents === [] ? [['product_id' => 0, 'quantity' => 1]] : $cont
                       </div>
                     </div>
 
+                    <?= View::capture('admin/packages/_binary', [
+                        'current' => $current,
+                        'isEdit'  => $isEdit,
+                        'id'      => $id,
+                    ]) ?>
+
                     <div class="card">
                       <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                         <h5 class="mb-0">Package contents</h5>

@@ -46,6 +46,7 @@ final class AdminPackageController
         $filters = [
             'q'      => Request::string('q'),
             'status' => Request::string('status'),
+            'binary' => Request::string('binary'),
         ];
 
         $pager    = Paginator::fromTableRequest(Package::countAdmin($filters));
@@ -164,6 +165,7 @@ final class AdminPackageController
             'levels'          => $payload['levels'] ?? self::blankLevels(),
             'contents'        => $payload['contents'] ?? [],
             'content_options' => PackageService::contentOptions(null),
+            'page_js'         => ['assets/js/app-package-binary.js'],
         ]);
     }
 
@@ -187,6 +189,7 @@ final class AdminPackageController
             'levels'          => $payload['levels'] ?? self::levelsForForm($packageId),
             'contents'        => $payload['contents'] ?? self::contentsForForm($packageId),
             'content_options' => PackageService::contentOptions($packageId),
+            'page_js'         => ['assets/js/app-package-binary.js'],
         ]);
     }
 
@@ -210,6 +213,8 @@ final class AdminPackageController
             'perks'                 => Request::string('perks'),
             'status'                => Request::string('status', 'active'),
             'indirect_enabled'      => Request::post('indirect_enabled') === '1' ? '1' : '0',
+            'binary_enabled'        => Request::post('binary_enabled') === '1' ? '1' : '0',
+            'binary_points'         => Request::string('binary_points'),
         ];
 
         $levelsInput = is_array($_POST['levels'] ?? null) ? $_POST['levels'] : [];
@@ -335,6 +340,8 @@ final class AdminPackageController
             'perks'                 => '',
             'status'                => 'active',
             'indirect_enabled'      => '1',
+            'binary_enabled'        => '0',
+            'binary_points'         => '',
             'image'                 => null,
         ];
     }

@@ -19,7 +19,8 @@ declare(strict_types=1);
 
 $query      = trim((string) ($filters['q'] ?? ''));
 $status     = (string) ($filters['status'] ?? '');
-$hasFilters = $query !== '' || $status !== '';
+$binary     = (string) ($filters['binary'] ?? '');
+$hasFilters = $query !== '' || $status !== '' || $binary !== '';
 
 $live = $live ?? [
     'surface'  => 'admin.packages',
@@ -70,6 +71,11 @@ $live = $live ?? [
                       <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
                       <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                     </select>
+                    <select name="binary" class="form-select" aria-label="Filter by binary">
+                      <option value="">All sources</option>
+                      <option value="on" <?= $binary === 'on' ? 'selected' : '' ?>>Binary on</option>
+                      <option value="off" <?= $binary === 'off' ? 'selected' : '' ?>>Binary off</option>
+                    </select>
                     <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($hasFilters): ?>
                     <a href="<?= e(url('admin/packages')) ?>" class="btn btn-label-secondary">Clear</a>
@@ -88,6 +94,7 @@ $live = $live ?? [
                         <th scope="col" class="text-end">Levels 2–10</th>
                         <th scope="col" class="text-end">Contents</th>
                         <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Binary</th>
                         <th scope="col" class="text-end">Actions</th>
                       </tr>
                     </thead>
