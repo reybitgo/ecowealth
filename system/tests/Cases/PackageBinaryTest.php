@@ -78,6 +78,170 @@ $pendingMember = static function (): array {
 $activation = static fn (): ActivationService => new ActivationService();
 $wallet     = static fn (): WalletService => new WalletService();
 
+/* ----------------------------------------------------------
+ *  23C-S2 helpers: build the plan's fixture tree directly so
+ *  each case controls its own shape.
+ *
+ *      admin  (root, path '', depth 0)   ← already seeded
+ *        └─ L  boss          (path 'L',  depth 1)
+ *           ├─ L  a          (path 'LL', depth 2)
+ *           │  ├─ L  b       (path 'LLL', depth 3)
+ *           │  │  └─ L  c    (path 'LLLL', depth 4)
+ *           │  │     ├─ L  buyerA  (path 'LLLLL', depth 5)
+ *           │  │     └─ R  buyerB  (path 'LLLLR', depth 5)
+ *           │  └─ R  sideR   (path 'LLR', depth 3)
+ *           └─ R  d          (path 'LR', depth 2)
+ * ---------------------------------------------------------- */
+
+$createUser = static function (string $username, string $role = 'member') use ($token): array {
+    $name = $username . '_' . $token;
+
+    $stmt = db()->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
+    $stmt->execute([$name]);
+    $row = $stmt->fetch();
+
+    if ($row !== false) {
+        return $row;
+    }
+
+    db()->prepare(
+        'INSERT INTO users
+           (username, email, password_hash, full_name, role, member_status, referral_code, is_active)
+         VALUES (?, ?, ?, ?, ?, \'active\', ?, 1)'
+    )->execute([
+        $name,
+        $name . '@test.local',
+        password_hash('Member@123', PASSWORD_BCRYPT),
+        ucfirst($name) . ' Test',
+        $role,
+        strtoupper(bin2hex(random_bytes(4))),
+    ]);
+
+    $stmt = db()->prepare('SELECT id, username, role, member_status, is_active FROM users WHERE username = ? LIMIT 1');
+    $stmt->execute([$name]);
+
+    return (array) $stmt->fetch();
+};
+
+$insertNode = static function (int $userId, ?int $uplineId, ?string $side, int $depth, string $path, string $state = 'placed'): void {
+    $stmt = db()->prepare("SELECT id FROM users WHERE role = 'admin' AND is_active = 1 LIMIT 1");
+    $stmt->execute();
+    $admin = $stmt->fetch();
+    $rootId = (int) ($admin['id'] ?? 0);
+
+    db()->prepare(
+        "INSERT IGNORE INTO binary_nodes
+           (user_id, upline_id, side, root_id, depth, path, state, placed_at, placed_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)"
+    )->execute([
+        $userId,
+        $uplineId,
+        $side,
+        $rootId,
+        $depth,
+        $path,
+        $state,
+        $rootId,
+    ]);
+};
+
+$buildFixtureTree = static function () use ($createUser, $insertNode): array {
+    $stmt = db()->prepare("SELECT id FROM users WHERE username = 'admin' AND role = 'admin' LIMIT 1");
+    $stmt->execute();
+    $admin = (array) $stmt->fetch();
+    if ($admin === false) {
+        $admin = $createUser('admin', 'admin');
+    }
+
+    $boss   = $createUser('boss');
+    $a      = $createUser('a');
+    $b      = $createUser('b');
+    $c      = $createUser('c');
+    $buyerA = $createUser('buyerA');
+    $buyerB = $createUser('buyerB');
+    $sideR  = $createUser('sideR');
+    $d      = $createUser('d');
+
+    $insertNode((int) $admin['id'], null, null, 0, '', 'root');
+    $insertNode((int) $boss['id'],  (int) $admin['id'], 'right', 1, 'R');
+    $insertNode((int) $a['id'],     (int) $boss['id'],  'left',  2, 'RL');
+    $insertNode((int) $b['id'],     (int) $a['id'],     'left',  3, 'RLL');
+    $insertNode((int) $c['id'],     (int) $b['id'],     'left',  4, 'RLLL');
+    $insertNode((int) $buyerA['id'],(int) $c['id'],     'left',  5, 'RLLLL');
+    $insertNode((int) $buyerB['id'],(int) $c['id'],     'right', 5, 'RLLLR');
+    $insertNode((int) $sideR['id'], (int) $a['id'],     'right', 3, 'RLR');
+    $insertNode((int) $d['id'],     (int) $boss['id'],  'right', 2, 'RR');
+
+    return [
+        'admin'  => $admin,
+        'boss'   => $boss,
+        'a'      => $a,
+        'b'      => $b,
+        'c'      => $c,
+        'buyerA' => $buyerA,
+        'buyerB' => $buyerB,
+        'sideR'  => $sideR,
+        'd'      => $d,
+    ];
+};
+
+$setPkgBinary = static function (int $packageId, int $enabled, int $points) use ($nineLevels): void {
+    $pkg = Package::find($packageId);
+    assert_not_null($pkg, 'package #%d must exist');
+    Package::save([
+        'name'                   => $pkg['name'],
+        'price'                  => $pkg['price'],
+        'product_value'          => $pkg['product_value'],
+        'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+        'status'                 => $pkg['status'],
+        'sort_order'             => $pkg['sort_order'],
+        'indirect_enabled'       => $pkg['indirect_enabled'],
+        'binary_enabled'         => (string) $enabled,
+        'binary_points'          => (string) $points,
+    ], $nineLevels(), [], $packageId);
+};
+
+$pkgABinary = static function () use ($setPkgBinary, $nineLevels): int {
+    $pkg = Package::findBySlug('package-a');
+    assert_not_null($pkg, 'package-a must exist');
+    $setPkgBinary((int) $pkg['id'], 1, 1000);
+    setting_set('package_binary_enabled', '1');
+    setting_cache_clear();
+    return (int) $pkg['id'];
+};
+
+$pkgBDisabled = static function () use ($setPkgBinary, $nineLevels): int {
+    $pkg = Package::findBySlug('package-b');
+    assert_not_null($pkg, 'package-b must exist');
+    $setPkgBinary((int) $pkg['id'], 0, 1000);
+    setting_set('package_binary_enabled', '1');
+    setting_cache_clear();
+    return (int) $pkg['id'];
+};
+
+$createApprovedActivation = static function (int $userId, int $packageId): int {
+    $activationId = Activation::create([
+        'user_id'        => $userId,
+        'package_id'     => $packageId,
+        'amount'         => '1000.00',
+        'payment_method' => 'ewallet',
+        'status'         => 'approved',
+    ]);
+    Activation::markApproved($activationId, null);
+
+    /* Set the member active with the package (as complete() would). */
+    db()->prepare(
+        'UPDATE users SET package_id = ?, member_status = \'active\', activated_at = NOW() WHERE id = ?'
+    )->execute([$packageId, $userId]);
+
+    return $activationId;
+};
+
+$walletTopup = static function (int $userId, string $amount = '5000.00'): void {
+    $w = new WalletService();
+    $w->credit($userId, $amount, 'topup', random_int(100000, 999999), 'Test funds', false);
+};
+
 return [
 
     /* ---------- Validation (P23B-T1 … T5) ---------- */
@@ -692,4 +856,748 @@ return [
         }
         assert_true($threw, 'activation volume row without activation_id must throw');
     },
+
+    /* ----------------------------------------------------------
+     *  23C-S2 — Money engine: package activation orchestration
+     *  Tests P23C-T1–T2, T7–T9, T13–T29, T37–T39
+     * ---------------------------------------------------------- */
+
+    'P23C-T1 buyerA places five team rows, no own row, no award' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $activationId = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+
+        $service = new PackageBinaryService();
+        $result = $service->onActivation($activationId);
+
+        assert_same(true,  $result['processed']);
+        assert_same(false, $result['replayed']);
+        assert_same(1000,  $result['points']);
+        assert_same(0,     $result['pairs']);
+        assert_same(0.0,   $result['amount']);
+        assert_count(0,    $result['awards']);
+        assert_null($result['reason']);
+
+        /* Five team rows: c, b, a, boss, root — all from the path. */
+        $volume = BinaryVolume::forActivation($activationId);
+        assert_count(5, $volume, 'five team rows for buyerA');
+        $byNode = [];
+        foreach ($volume as $row) {
+            $byNode[(int) $row['node_user_id']] = $row;
+        }
+        assert_same('left',  $byNode[(int) $tree['c']['id']]['side'],   'left at c');
+        assert_same('left',  $byNode[(int) $tree['b']['id']]['side'],   'left at b');
+        assert_same('left',  $byNode[(int) $tree['a']['id']]['side'],   'left at a');
+        assert_same('left',  $byNode[(int) $tree['boss']['id']]['side'], 'left at boss');
+        assert_same('right', $byNode[(int) $tree['admin']['id']]['side'], 'right at root');
+        foreach ($volume as $row) {
+            assert_same('team',      $row['kind']);
+            assert_same(1000,        (int) $row['points']);
+            assert_same('activation',$row['source']);
+            assert_same($activationId, (int) $row['activation_id']);
+            assert_null($row['order_id']);
+            assert_null($row['order_item_id']);
+        }
+
+        /* No own row at the buyer. */
+        $stmt = db()->prepare("SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = 'own'");
+        $stmt->execute([$activationId]);
+        assert_same(0, (int) $stmt->fetchColumn(), 'no own row for the buyer');
+
+        /* No awards — every side is left. */
+        assert_count(0, BinaryAward::forActivation($activationId), 'no awards when no side matches');
+
+        /* Activation stamped. */
+        $summary = Activation::binarySummary($activationId);
+        assert_same(1000,   (int) $summary['binary_points']);
+        assert_same('0.00', (string) $summary['binary_total']);
+        assert_not_null($summary['binary_processed_at']);
+    },
+
+    'P23C-T2 buyerB completes one pair at c, ₱100 credited' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* c must carry a binary-enabled package to earn package pairs. */
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        /* buyerA first: 1000 left at every ancestor. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB second: 1000 right at c → c has L=1000/R=1000 → 1 pair. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true,  $result['processed']);
+        assert_same(false, $result['replayed']);
+        assert_same(1000,  $result['points']);
+        assert_same(1,     $result['pairs']);
+        assert_same(100.00,$result['amount']);
+        assert_count(1,    $result['awards']);
+
+        $award = $result['awards'][0];
+        assert_same('pair',   $award['kind']);
+        assert_same((int) $tree['c']['id'], (int) $award['user_id']);
+        assert_same('credited',  $award['status']);
+        assert_same(0,           (int) $award['hold_days']);
+        assert_same('activation',$award['source']);
+        assert_same($aidB,       (int) $award['activation_id']);
+        assert_null($award['order_id']);
+        assert_not_null($award['ledger_id'],   'credited award links a wallet movement');
+        assert_not_null($award['credited_at'], 'credited award is stamped');
+
+        /* Wallet: c is up ₱100.00, withdrawable. */
+        $wallet = new WalletService();
+        assert_same(100.00, $wallet->withdrawable((int) $tree['c']['id']));
+
+        /* Activation stamped. */
+        $summary = Activation::binarySummary($aidB);
+        assert_same(1000,   (int) $summary['binary_points']);
+        assert_same('100.00', (string) $summary['binary_total']);
+    },
+
+    'P23C-T7 PKB zero points: no volume, no award, stamped zeros' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '0',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $aid = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+        $result = (new PackageBinaryService())->onActivation($aid);
+
+        assert_same(true,  $result['processed']);
+        assert_same(false, $result['replayed']);
+        assert_same(0,     $result['points']);
+        assert_same(0,     $result['pairs']);
+        assert_same(0.0,   $result['amount']);
+        assert_count(0,    $result['awards']);
+
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aid)->fetchColumn());
+
+        $summary = Activation::binarySummary($aid);
+        assert_same(0,   (int) $summary['binary_points']);
+        assert_same('0.00', (string) $summary['binary_total']);
+        assert_not_null($summary['binary_processed_at']);
+    },
+
+    'P23C-T8 PKC switch off: no volume, no award, stamped zeros' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $aid = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+        $result = (new PackageBinaryService())->onActivation($aid);
+
+        assert_same(true,  $result['processed']);
+        assert_same(0,     $result['points']);
+        assert_same(0,     $result['pairs']);
+        assert_same(0.0,   $result['amount']);
+        assert_count(0,    $result['awards']);
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
+    },
+
+    'P23C-T9 global switch off: no volume, no award, stamped zeros' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '0');
+        setting_cache_clear();
+
+        $aid = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+        $result = (new PackageBinaryService())->onActivation($aid);
+
+        assert_same(true,  $result['processed']);
+        assert_same(0,     $result['points']);
+        assert_same(0,     $result['pairs']);
+        assert_same(0.0,   $result['amount']);
+        assert_count(0,    $result['awards']);
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
+    },
+
+    'P23C-T13 staff without a node: direct call stamps zeros, no volume' => function () use ($buildFixtureTree, $pkgABinary, $createUser): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* A staff member who has no binary node. */
+        $staff = $createUser('staff_' . bin2hex(random_bytes(2)));
+        $aid = Activation::create([
+            'user_id'        => (int) $staff['id'],
+            'package_id'     => $pkgId,
+            'amount'         => '1000.00',
+            'payment_method' => 'ewallet',
+            'status'         => 'approved',
+        ]);
+        Activation::markApproved($aid, null);
+
+        /* Do not set the member active or give them a node. */
+
+        $result = (new PackageBinaryService())->onActivation($aid);
+
+        assert_same(true,  $result['processed']);
+        assert_same(0,     $result['points']);
+        assert_same(0,     $result['pairs']);
+        assert_same('not placed', $result['reason']);
+
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aid)->fetchColumn());
+
+        $summary = Activation::binarySummary($aid);
+        assert_same(0,   (int) $summary['binary_points']);
+        assert_same('0.00', (string) $summary['binary_total']);
+    },
+
+    'P23C-T14 buyerB path LLLLR: sides come from the path' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* c must carry a binary-enabled package to earn package pairs. */
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        /* buyerA first: 1000 left at every ancestor. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB: right at c, left at b, a, boss, root. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true, $result['processed']);
+        assert_same(1,    $result['pairs']);
+
+        $volume = BinaryVolume::forActivation($aidB);
+        $byNode = [];
+        foreach ($volume as $row) {
+            $byNode[(int) $row['node_user_id']] = $row;
+        }
+
+        assert_same('right', $byNode[(int) $tree['c']['id']]['side'],  'right at c');
+        assert_same('left',  $byNode[(int) $tree['b']['id']]['side'],  'left at b');
+        assert_same('left',  $byNode[(int) $tree['a']['id']]['side'],  'left at a');
+        assert_same('left',  $byNode[(int) $tree['boss']['id']]['side'], 'left at boss');
+        assert_same('right', $byNode[(int) $tree['admin']['id']]['side'], 'right at root');
+    },
+
+    'P23C-T16 buyerA personal_points unchanged by own activation' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $stmt = db()->prepare('SELECT personal_points FROM binary_nodes WHERE user_id = ?');
+        $stmt->execute([(int) $tree['buyerA']['id']]);
+        $before = (int) $stmt->fetchColumn();
+
+        $aid = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aid);
+
+        $stmt->execute([(int) $tree['buyerA']['id']]);
+        $after = (int) $stmt->fetchColumn();
+        assert_same($before, $after, 'personal_points unchanged');
+    },
+
+    'P23C-T17 buyerA own balances unchanged by own activation' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $aid = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aid);
+
+        $node = BinaryNode::forUser((int) $tree['buyerA']['id']);
+        assert_same(0, (int) ($node['left_points']  ?? 0), 'buyerA left unchanged');
+        assert_same(0, (int) ($node['right_points'] ?? 0), 'buyerA right unchanged');
+    },
+
+    'P23C-T18 member with no node: direct call stamps zeros, reason not placed' => function () use ($buildFixtureTree, $pkgABinary, $createUser): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* A member with no binary node at all. */
+        $ghost = $createUser('ghost_' . bin2hex(random_bytes(2)));
+        $aid = Activation::create([
+            'user_id'        => (int) $ghost['id'],
+            'package_id'     => $pkgId,
+            'amount'         => '1000.00',
+            'payment_method' => 'ewallet',
+            'status'         => 'approved',
+        ]);
+        Activation::markApproved($aid, null);
+
+        $result = (new PackageBinaryService())->onActivation($aid);
+
+        assert_same(true,   $result['processed']);
+        assert_same(false,  $result['replayed']);
+        assert_same(0,      $result['points']);
+        assert_same(0,      $result['pairs']);
+        assert_same(0.0,    $result['amount']);
+        assert_same('not placed', $result['reason']);
+
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aid)->fetchColumn());
+    },
+
+    'P23C-T19 company root receives volume but is never paid' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* c must carry a binary-enabled package to earn package pairs. */
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        /* buyerA places 1000 left at root too. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB places 1000 right at root → root has L=1000/R=1000 but is never paid. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true, $result['processed']);
+        assert_same(1,    $result['pairs']);  /* only c gets paid */
+
+        /* The single pair is at c, not at root. */
+        $awards = BinaryAward::forActivation($aidB);
+        assert_count(1, $awards);
+        assert_not_same((int) $tree['admin']['id'], (int) $awards[0]['user_id']);
+
+        /* Root has volume (team row) but no award. */
+        $rootVolume = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND node_user_id = ? AND kind = "team"'
+        );
+        $rootVolume->execute([$aidB, (int) $tree['admin']['id']]);
+        assert_same(1, (int) $rootVolume->fetchColumn(), 'root has a team row');
+
+        $rootAwards = db()->prepare(
+            'SELECT COUNT(*) FROM binary_awards WHERE activation_id = ? AND user_id = ?'
+        );
+        $rootAwards->execute([$aidB, (int) $tree['admin']['id']]);
+        assert_same(0, (int) $rootAwards->fetchColumn(), 'root has no award');
+    },
+
+    'P23C-T20 root award count stays zero after any activations' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidB);
+
+        $stmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_awards a
+              JOIN activations act ON act.id = a.activation_id
+              WHERE a.user_id = ? AND a.kind = "pair"'
+        );
+        $stmt->execute([(int) $tree['admin']['id']]);
+        assert_same(0, (int) $stmt->fetchColumn(), 'root never has a package award');
+    },
+
+    'P23C-T21 package switched off before completion: nothing placed' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $aid = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+
+        /* Switch off inside the same request, before the service call. */
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '0',
+        ], $nineLevels(), [], (int) $pkg['id']);
+
+        $result = (new PackageBinaryService())->onActivation($aid);
+
+        assert_same(true,  $result['processed']);
+        assert_same(0,     $result['points']);
+        assert_same(0,     $result['pairs']);
+        assert_same(0.0,   $result['amount']);
+        assert_count(0,    $result['awards']);
+    },
+
+    'P23C-T22 c holds PKC (disabled): no pair, no consumption, blockedMap names it' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgAId = $pkgABinary(); /* buyerA's package: enabled, 1000 pts */
+
+        /* c holds PKC: same package row, but binary_enabled = 0 for c's
+         * qualification check. We flip it AFTER buyerA's activation so
+         * buyerA's volume still places. */
+        $pkg = Package::find((int) $pkgAId);
+
+        /* c's user row: set package to this package. */
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgAId, (int) $tree['c']['id']]);
+
+        setting_set('package_binary_enabled', '1');
+        setting_set('package_binary_requires_package', '1');
+        setting_cache_clear();
+
+        /* buyerA: 1000 left at c (package still enabled). */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgAId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* Now switch the package off — c is no longer qualified. */
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], $pkgAId);
+
+        /* buyerB: 1000 right at c → c would pair but is blocked. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgAId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true, $result['processed']);
+        assert_same(0,    $result['pairs'], 'no pair when recipient is not qualified');
+
+        /* c's points are NOT consumed: still 1000/0 (buyerA is left of c,
+         * buyerB's blocked activation placed nothing on the right). */
+        $c = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(1000, (int) ($c['left_points']  ?? 0), 'c left not consumed');
+        assert_same(0,    (int) ($c['right_points'] ?? 0), 'c right untouched');
+
+        /* blockedMap names c with the package reason. */
+        $blocked = (new PackageBinaryService())->blockedMap((int) $tree['buyerB']['id']);
+        assert_true(array_key_exists((int) $tree['c']['id'], $blocked), 'c is in the blocked map');
+        assert_contains('binary-enabled', $blocked[(int) $tree['c']['id']], 'block reason names the package');
+    },
+
+    'P23C-T23 c holds PKB (0 pts, enabled): c qualifies, the pair pays' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgAId = $pkgABinary(); /* enabled, 1000 pts */
+
+        /* c's package: binary_enabled = 1 (qualifies), binary_points = 0
+         * (c's own activations contribute nothing, but c can still earn). */
+        $pkg = Package::find((int) $pkgAId);
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], $pkgAId);
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgAId, (int) $tree['c']['id']]);
+
+        setting_set('package_binary_enabled', '1');
+        setting_set('package_binary_requires_package', '1');
+        setting_cache_clear();
+
+        /* buyerA: 1000 left at c. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgAId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB: 1000 right at c → c qualifies, pair pays. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgAId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true, $result['processed']);
+        assert_same(1,    $result['pairs'], 'c qualifies on a binary-enabled package');
+    },
+
+    'P23C-T24 requires_package off, c on PKC: the pair pays' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgAId = $pkgABinary(); /* buyerA/buyerB's activation package: enabled, 1000 pts */
+
+        /* c's package: package-b, disabled (PKC off). requires_package = 0
+         * means c still earns despite being on a disabled package. */
+        $pkgB = Package::findBySlug('package-b');
+        assert_not_null($pkgB, 'package-b must exist');
+        Package::save([
+            'name'                   => $pkgB['name'],
+            'price'                  => $pkgB['price'],
+            'product_value'          => $pkgB['product_value'],
+            'direct_referral_bonus'  => $pkgB['direct_referral_bonus'],
+            'status'                 => $pkgB['status'],
+            'sort_order'             => $pkgB['sort_order'],
+            'indirect_enabled'       => $pkgB['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkgB['id']);
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([(int) $pkgB['id'], (int) $tree['c']['id']]);
+
+        setting_set('package_binary_enabled', '1');
+        setting_set('package_binary_requires_package', '0');
+        setting_cache_clear();
+
+        /* buyerA: 1000 left at c (package-a enabled). */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgAId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB: 1000 right at c → without the package gate, c earns. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgAId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true, $result['processed']);
+        assert_same(1,    $result['pairs'], 'without the package gate, c earns');
+    },
+
+    'P23C-T25 c is_active = 0: no pair, no consumption' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 0 WHERE id = ?')
+            ->execute([(int) $pkg['id'], (int) $tree['c']['id']]);
+
+        setting_set('package_binary_enabled', '1');
+        setting_set('package_binary_requires_package', '1');
+        setting_cache_clear();
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], (int) $pkg['id']);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true,  $result['processed']);
+        assert_same(0,     $result['pairs'], 'disabled account cannot earn');
+    },
+
+    'P23C-T26 c suspended: same as inactive' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "suspended", is_active = 1 WHERE id = ?')
+            ->execute([(int) $pkg['id'], (int) $tree['c']['id']]);
+
+        setting_set('package_binary_enabled', '1');
+        setting_set('package_binary_requires_package', '1');
+        setting_cache_clear();
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], (int) $pkg['id']);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true,  $result['processed']);
+        assert_same(0,     $result['pairs'], 'suspended membership cannot earn');
+    },
+
+    'P23C-T27 c not Active this month: the pair still pays (package stream skips the Active rule)' => function () use ($buildFixtureTree, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+
+        $pkg = Package::findBySlug('package-a');
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([(int) $pkg['id'], (int) $tree['c']['id']]);
+
+        setting_set('package_binary_enabled', '1');
+        setting_set('package_binary_requires_package', '1');
+        setting_set('binary_requires_active', '1');
+        setting_cache_clear();
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], (int) $pkg['id']);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], (int) $pkg['id']);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(true, $result['processed']);
+        assert_same(1,    $result['pairs'], 'the Active rule does not apply to package pairs');
+    },
+
+    'P23C-T37 quoteActivation is read-only and returns pairs' => function () use ($buildFixtureTree, $pkgABinary): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* buyerB must carry a binary-enabled package to qualify. */
+        db()->prepare('UPDATE users SET package_id = ? WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['buyerB']['id']]);
+
+        $service = new PackageBinaryService();
+        $quote = $service->quoteActivation($pkgId, (int) $tree['buyerB']['id']);
+
+        assert_same(true,  $quote['eligible']);
+        assert_same(1000,  $quote['points']);
+        assert_same(0,     $quote['pairs']);
+        assert_same(0.0,   $quote['amount']);
+        assert_null($quote['reason']);
+
+        /* No writes were made. */
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE source = "activation"')->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE source = "activation"')->fetchColumn());
+    },
+
+    'P23C-T38 onActivation twice: the second call is replayed' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $aid = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $service = new PackageBinaryService();
+
+        $first  = $service->onActivation($aid);
+        $second = $service->onActivation($aid);
+
+        assert_same(true,  $first['processed']);
+        assert_same(false, $first['replayed']);
+        assert_same(false, $second['processed']);
+        assert_same(true,  $second['replayed']);
+        assert_same('replayed', $second['reason']);
+
+        /* No duplicate volume: still five rows. */
+        $volume = BinaryVolume::forActivation($aid);
+        assert_count(5, $volume, 'replay does not duplicate volume rows');
+    },
+
+    'P23C-T39 duplicate (activation_id, user_id, kind) → PDOException 23000' => function () use ($buildFixtureTree, $pkgABinary): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $aid = Activation::create([
+            'user_id'        => (int) $tree['buyerB']['id'],
+            'package_id'     => $pkgId,
+            'amount'         => '1000.00',
+            'payment_method' => 'ewallet',
+            'status'         => 'approved',
+        ]);
+        Activation::markApproved($aid, null);
+
+        BinaryAward::createForActivation([
+            'kind'       => 'pair',
+            'buyer_id'   => (int) $tree['buyerB']['id'],
+            'user_id'    => (int) $tree['c']['id'],
+            'side'       => 'left',
+            'points'     => 2000,
+            'pair_count' => 1,
+            'pair_points'=> 1000,
+            'rate_pct'   => 10.0,
+            'amount'     => 100.00,
+            'status'     => 'credited',
+            'hold_days'  => 0,
+            'paid_at'    => date('Y-m-d H:i:s'),
+            'activation_id'=> $aid,
+        ]);
+
+        $threw = false;
+        try {
+            BinaryAward::createForActivation([
+                'kind'       => 'pair',
+                'buyer_id'   => (int) $tree['buyerB']['id'],
+                'user_id'    => (int) $tree['c']['id'],
+                'side'       => 'left',
+                'points'     => 2000,
+                'pair_count' => 1,
+                'pair_points'=> 1000,
+                'rate_pct'   => 10.0,
+                'amount'     => 100.00,
+                'status'     => 'credited',
+                'hold_days'  => 0,
+                'paid_at'    => date('Y-m-d H:i:s'),
+                'activation_id'=> $aid,
+            ]);
+        } catch (PDOException $e) {
+            $threw = strpos((string) $e->getCode(), '23000') !== false;
+        }
+        assert_true($threw, 'duplicate activation award violates uq_binary_award_activation');
+    },
 ];
+
+
+

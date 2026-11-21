@@ -420,7 +420,7 @@ final class BinaryService
      * @param list<array> $items order items (ignored when teamOnly)
      * @param bool $teamOnly skip the own row and write one team row per ancestor
      */
-    private function applyVolume(
+    public function applyVolume(
         array $nodeList,
         array $items,
         int $orderId,
@@ -602,7 +602,7 @@ final class BinaryService
      *
      * @return array<int, string> user_id => '' when eligible, reason otherwise
      */
-    private function eligibilityMap(
+    public function eligibilityMap(
         array $nodeList,
         string $paidAt,
         string $stream,
@@ -712,7 +712,7 @@ final class BinaryService
      * @return null when the node pays nothing; otherwise
      *   ['award'=>array, 'pair_count'=>int, 'amount'=>float]
      */
-    private function settleNode(
+    public function settleNode(
         array $entry,
         int $orderId,
         int $buyerId,
@@ -835,13 +835,7 @@ final class BinaryService
         ]);
 
         return [
-            'award'      => [
-                'kind'       => 'pair',
-                'user_id'    => $recipientId,
-                'points'     => 2 * $n * $pairPoints,
-                'pair_count' => $n,
-                'amount'     => $pairAmount,
-            ],
+            'award'      => BinaryAward::find($pairAwardId, $pdo),
             'pair_count' => $n,
             'amount'     => $pairAmount,
         ];

@@ -144,13 +144,15 @@ final class Package
 }
 
 /** Whether this package's activations place binary points (Phase 23A). */
-public static function binaryEnabled(int $packageId): bool
+public static function binaryEnabled(int $packageId, ?PDO $pdo = null): bool
 {
     if ($packageId <= 0) {
         return false;
     }
 
-    $stmt = db()->prepare('SELECT binary_enabled FROM packages WHERE id = ? LIMIT 1');
+    $pdo ??= db();
+
+    $stmt = $pdo->prepare('SELECT binary_enabled FROM packages WHERE id = ? LIMIT 1');
     $stmt->execute([$packageId]);
     $row = $stmt->fetch();
 
@@ -158,13 +160,15 @@ public static function binaryEnabled(int $packageId): bool
 }
 
 /** The points one activation of this package contributes (Phase 23A). */
-public static function binaryPoints(int $packageId): int
+public static function binaryPoints(int $packageId, ?PDO $pdo = null): int
 {
     if ($packageId <= 0) {
         return 0;
     }
 
-    $stmt = db()->prepare('SELECT binary_points FROM packages WHERE id = ? LIMIT 1');
+    $pdo ??= db();
+
+    $stmt = $pdo->prepare('SELECT binary_points FROM packages WHERE id = ? LIMIT 1');
     $stmt->execute([$packageId]);
     $row = $stmt->fetch();
 

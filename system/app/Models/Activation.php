@@ -217,6 +217,39 @@ final class Activation
         $pdo->prepare('UPDATE activations SET commission_processed_at = NOW() WHERE id = ?')->execute([$id]);
     }
 
+    /** Stamp the package-binary hook so a second completion cannot pay twice. */
+    public static function markBinaryProcessed(int $id, int $points, float $total, ?PDO $pdo = null): void
+    {
+        $pdo ??= db();
+
+        $pdo->prepare(
+            'UPDATE activations
+               SET binary_points = ?,
+                   binary_total = ?,
+                   binary_processed_at = NOW()
+             WHERE id = ?'
+        )->execute([
+            number_format((float) $points, 0, '.', ''),
+            number_format(round($total, 2), 2, '.', ''),
+            $id,
+        ]);
+    }
+
+    /** The package-binary outcome of one activation. */
+    public static function binarySummary(int $id, ?PDO $pdo = null): array
+    {
+        $pdo ??= db();
+
+        $stmt = $pdo->prepare(
+            'SELECT binary_points, binary_total, binary_processed_at, status
+               FROM activations WHERE id = ? LIMIT 1'
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+
+        return $row === false ? [] : (array) $row;
+    }
+
     /* ----------------------------------------------------------
      *  Admin queue
      * ---------------------------------------------------------- */
