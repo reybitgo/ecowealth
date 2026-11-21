@@ -1,0 +1,13 @@
+QA22F-10 — Stream off: every binary affordance disappears
+Evidence file: docs/qa/evidence/phase-22/QA22F-10.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin (Settings) and as a member
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Product binary tab pill absent; /earnings?ledger=binary falls back to package tab; no binary card/panel/tile on checkout/shop/dashboard; other tabs unchanged.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22F-T8 (stream off — every binary affordance disappears — PASS).
+Reason: Environment dependency — browser-based check.

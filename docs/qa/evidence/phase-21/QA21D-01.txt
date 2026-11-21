@@ -1,0 +1,25 @@
+QA21D-01 — One block fills and pays its amount, once
+=====================================================
+Phase 21D — Money engine. Runs on an armed scratch copy with the reference ladder
+and general_harvest_enabled = 1.
+
+Commands (from system/):
+
+> php -r "require 'tests/bootstrap.php'; ..."
+> // Fixture h = 1 (13 accounts, N = 4) registered in BFS order through
+> // RegistrationService::register() on the armed copy.
+
+> mysql -u ecowealth -p -e "SELECT id, seq, level, threshold_n, n_at_award, amount, status, ledger_id FROM general_harvest_awards WHERE seq = 0;" ecowealth_sneat_tool_b_test
+
+id  seq  level  threshold_n  n_at_award  amount     status   ledger_id
+1   0    1      4            4           2000.00    credited 7
+
+> mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM general_harvest_awards;" ecowealth_sneat_tool_b_test
+1
+
+> // /wallet as the node-0 holder, filtered by General Harvest bonus
+> // One movement: General Harvest bonus, ₱2,000.00, ref_type = general_harvest,
+> // ref_id = 1, withdrawable.
+
+Result: Pass — one credited award for node 0 level 1 (₱2,000.00), threshold_n 4, n_at_award 4,
+ledger_id set; COUNT(*) = 1; one General Harvest bonus wallet credit of ₱2,000.00.

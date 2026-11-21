@@ -1,0 +1,13 @@
+QA22I-02 — The acceptance run: Appendix B's 12 steps
+Evidence file: docs/qa/evidence/phase-22/QA22I-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: scratch schema + the running app
+Full output: (not captured — requires manual execution of 12 acceptance steps)
+Exit code: not captured
+
+Expected: 12/12 steps pass; evidence committed for each step.
+Actual: Could not execute — requires scratch database, running app, and independent tester. Appendix B steps: migration + backfill; install parity; configuration; placement at registration; checkout position; payment and escrow; a pair; the tree; member page; admin pages; release; reversal and stop.
+Reason: Requires manual execution by an independent tester.

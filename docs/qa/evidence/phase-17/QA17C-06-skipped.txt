@@ -1,0 +1,19 @@
+QA17C-06 — a disabled level 2 is skipped, no compression (automated pass)
+
+level | user_id | amount | status   | reason                       
+--------------------------------------------
+1     | 19      | 25.00  | credited |                              
+2     | 20      | 25.00  | skipped  | recipient account is disabled
+3     | 21      | 25.00  | credited |                              
+4     | 22      | 15.00  | credited |                              
+
+Upline withdrawable balances while b is disabled:
+username         | withdrawable_balance
+---------------------------------------
+qa06_u1_aec610e0 | 25.00               
+qa06_u2_7400d417 | 0.00                
+qa06_u3_82d72960 | 25.00               
+qa06_u4_afe70502 | 15.00               
+
+Expected: L1 c credited 25; L2 b skipped 'recipient account is disabled' (25.00 due); L3 a credited 25 at level 3; L4 boss credited 15; credited total 65.
+

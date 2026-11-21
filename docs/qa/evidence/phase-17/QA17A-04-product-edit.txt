@@ -1,0 +1,17 @@
+# QA17A-04 - No new admin UI exists yet (product form)
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# Command: GET /admin/products/1/edit as admin -> 200, 32,774 bytes
+#
+# The form posts exactly: product_id, name, sku, price, stock, status, sort_order,
+# short_description, description, image, remove_image, _csrf
+#
+# Absence checks:
+#   name="pv"           -> not present (no P.V. field yet)
+#   'Repeat bonus'      -> 0 (no product-list badge yet)
+#   'unilevel_levels['  -> 0 (no ladder card yet)
+#   'Repeat-purchase'   -> 0
+#   'Ladder'            -> 0
+#
+# The cards are Details / Pricing & stock / Image, exactly as at p17-start.
+# Result: PASS - the product form is unchanged by Phase 17A.

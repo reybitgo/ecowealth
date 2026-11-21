@@ -1,0 +1,25 @@
+# ==============================================================
+#  EcoWealth — uploaded files (plan §3.8)
+#  Files here are user content: never execute them as PHP.
+# ==============================================================
+
+# Belt and braces for mod_php builds.
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+  php_flag engine off
+</IfModule>
+
+# Deny every script-like extension outright.
+<FilesMatch "\.(php|phtml|phar|php[0-9]|cgi|pl|py|sh|asp|aspx|jsp)$">
+  Require all denied
+</FilesMatch>
+
+# Uploaded files must never be sniffed into something else.
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>

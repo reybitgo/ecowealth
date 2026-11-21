@@ -1,0 +1,28 @@
+QA21B-05 - The switch refuses an unpriced ladder
+================================================
+
+Date: 2026-11-16 18:09:12 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 4 / D-17 — a payable level must be positive, or the ledger's per-level prefix could not
+stay gapless.
+
+Every amount was cleared and the switch turned on, through the real save path.
+
+  errors ............................. {"general_harvest_enabled":"Level 1 has no amount. The bonus can only be on while every level 1\u201310 pays something: give level 1 an amount, or turn the switch off."}
+  stored switch ...................... 0
+  stored ladder total ................ 8381000.00
+  audit rows written ................. 0 (a refused card writes none)
+
+The message asks for an amount or the switch off, and names the first level that needs one:
+  Level 1 has no amount. The bonus can only be on while every level 1–10 pays something: give level 1 an amount, or turn the switch off.
+
+Checks:
+  the refusal lands on the switch ..................... yes
+  it names level 1 .................................... yes
+  the stored switch is still off ...................... yes
+  the stored ladder is unchanged ...................... yes
+
+RESULT: PASS

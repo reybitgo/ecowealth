@@ -1,0 +1,30 @@
+QA20B-08 - The card saves and validates with JavaScript disabled
+================================================================
+
+Date: 2026-11-16 10:38:36 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: plan §6 Rule 5/7 and Appendix A: the card must be usable when the operator's browser blocks scripts; `app-team-harvest.js` is progressive enhancement only.
+
+The rendered card (AdminSettingsController::settingsContext() + View::page):
+  forms with method="post" ............. 10
+  submit handlers that require JS ...... 0
+  amount inputs ........................ 10
+  section field ........................ name="section" value="commissions"
+  the form posts to .................... /ecowealth/system/admin/settings
+
+The save path the POST reaches is `AdminSettingsController::applySection('commissions', $posted)`:
+it validates the same fields on the server, writes the ten ladder rows and the knobs in one
+transaction, and audits `team_harvest.ladder.update`. P20B-T2/T3 exercise that path with a plain
+server-side call, which is exactly what a browser without JavaScript submits.
+
+Checks:
+  a plain POST form exists ............. yes
+  no script-only submission path ....... yes
+  the ten amount fields post ........... yes
+  the section discriminator is present . yes
+  the server-side save is case-pinned . P20B-T2/T3 yes
+
+RESULT: PASS

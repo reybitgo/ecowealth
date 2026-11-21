@@ -1,0 +1,13 @@
+QA22A-05 — Placing and paying an order writes no binary row
+Evidence file: docs/qa/evidence/phase-22/QA22A-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: a scratch schema with the migrated code (order/payment path)
+Full output: (not captured — requires running app + scratch database)
+Exit code: not captured
+
+Expected: Steps 2–5: 0 each (no node, no volume, no award, no wallet movement); order accepted and paid normally.
+Actual: Could not execute — requires Laragon app server and scratch database. Covered by automated test P22B-T22 (paying an order with the switch on writes no binary row — PASS).
+Reason: Environment dependency — requires running app and database.

@@ -1,0 +1,13 @@
+QA22D-11 — No node / disabled product: honest stamping
+Evidence file: docs/qa/evidence/phase-22/QA22D-11.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on the development copy
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: Unplaced members and disabled products stamp truthfully; no error, no warning, no rows.
+Actual: Could not execute — requires MySQL client access. Covered by automated tests P22D-T12 (buyer has no node → stamped zeros, no exception — PASS), P22D-T33/P22D-T34 (product switch — PASS).
+Reason: Environment dependency — MySQL client not available.

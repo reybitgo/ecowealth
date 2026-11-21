@@ -1,0 +1,48 @@
+QA20G-02 - The cold read
+========================
+
+Date: 2026-11-16 10:37:10 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth
+Tag under test: p20g-release (working tree)
+
+Why: plan §11 Rule 3 and §17 risk 16 — the pack must be executable by someone who did not write it.
+
+Method
+
+1. Sections A–F were read against the build: every command, URL, expected number, action name and exit
+   code was checked against `system/` and the plan.
+2. A second pass checked every count in the shared documents: suite, smoke, tables, settings, ladder
+   rows, `APP_PHASE`, migrations, cron jobs and the Phase 20 check counts.
+3. A third pass matched every `QA20X-nn` check in the pack to a file in `docs/qa/evidence/phase-20/`.
+
+Findings
+
+F1 (major, D-20G-01) — `QA20E-01` … `QA20E-08` were listed in the pack and the evidence index as
+captured, but the files did not exist. Fixed at this gate: all eight were regenerated from the final
+tree through the real controllers and layout (`php tests/tmp/p20e_evidence.php`); the index and the
+sign-off sheet now point at them.
+
+F2 (major, D-20G-01) — the shared documents still described the pre-20G build:
+  · docs/qa/README.md — the Phase 20 row read "in progress (20C)", 25 checks, 1,180/248.
+  · docs/qa/sign-off-sheet.md — title 1–19, status 1,162/248, no 20E/20F/20G sections.
+  · system/README.md — "Phase 19 released", `APP_PHASE` 19, 1,162/248, migrations 001–023.
+  · docs/deploy.md — no Phase 20 rows in Appendix C and no 20F/20G addendum.
+  · docs/runbook.md — scope Phase 19, install 33/73, release 1,162/248.
+  · docs/cron.md — no statement of why Team Harvest adds no scheduled job.
+  · dmp/plan-ecowealth-team-harvest.md — status "planned", 20G row empty, 1,318 cases.
+All corrected in the owning document; see the release entry in `docs/phase-log.md`.
+
+F3 (minor, D-20G-02) — the admin member panel read "on their 3th direct member" and "their 3-th direct
+member". Fixed in its owning view (20E) to the same ordinal words the member card uses ("third"), with
+`P20E-T10` updated.
+
+F4 (none) — the A/B/D browser-only checks that were left pending at their gates (`QA20A-01`, `04`, `05`,
+`06`; `QA20B-07`, `08`, `09`; `QA20D-02`, `03`) now have harness evidence files: A-01/A-04 are
+reconstructions from the tags, and the rest run through the real registration, settings and wallet
+paths (`php tests/tmp/p20abd_evidence.php`). The click-only re-run is still the lead's item and is
+named in the sign-off sheet; it is no longer a missing file.
+
+Cold-tester questions outstanding: **0.** Every check names its exact command/URL and expected number;
+the residual document list is empty.
+
+RESULT: PASS

@@ -1,0 +1,80 @@
+2026-11-11 19:37–19:38 +08:00 — IR-2 gate: mysql import of the production bundle
+Host: Windows 10.0.26200.0 · PHP 8.3.16 (ZTS) · MySQL 8.4.3 · schema ecowealth_sneat_install_manual_test
+Command source: system/database/install.sql (generated, sha256 3e94fd28…)
+Exit: 0
+
+The schema name ends in `_test` on purpose: D-IR-16 keeps every scratch schema
+in the `_test` namespace. No development or production schema was touched.
+
+--------------------------------------------------------------------------------
+1. Create the empty schema
+--------------------------------------------------------------------------------
+Command:
+  mysql -u root -e "DROP DATABASE IF EXISTS ecowealth_sneat_install_manual_test;
+    CREATE DATABASE ecowealth_sneat_install_manual_test
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    GRANT ALL PRIVILEGES ON ecowealth_sneat_install_manual_test.* TO 'ecowealth'@'127.0.0.1';"
+Exit: 0
+
+--------------------------------------------------------------------------------
+2. Import the one bundle
+--------------------------------------------------------------------------------
+Command:
+  mysql -u root ecowealth_sneat_install_manual_test -e "source C:/laragon/www/ecowealth/system/database/install.sql"
+Exit: 0
+
+tables_created	settings_rows	staff_rows	members_rows	products_rows	packages_rows	levels_rows	contents_rows	codes_rows
+27	48	2	0	7	2	18	10	0
+
+key_name	value
+install_channel	install.sql
+install_completed_at	2026-11-11 19:37:46
+install_version	1.0.0
+site_name	EcoWealth
+
+username	role	member_status	is_active
+admin	admin	active	1
+superadmin	superadmin	active	1
+
+The 54-statement bundle prints the footer verification pack itself: 27 tables,
+48 settings (45 seed + 3 install_*), 2 active staff, 0 members, 7 products,
+2 packages, 18 ladder levels, 10 package contents, 0 registration codes.
+No demo member, demo code or demo wallet was created.
+
+--------------------------------------------------------------------------------
+3. Boot the application against the imported schema
+--------------------------------------------------------------------------------
+Command (background):
+  ECO_DB_NAME=ecowealth_sneat_install_manual_test \
+    php -d session.save_path=<system temp> -S 127.0.0.1:8099 -t public public/router.php
+
+HTTP checks (PowerShell web session; the CSRF token came from the real login form):
+
+GET  /login             -> 200  Login | EcoWealth
+POST /login             -> 200  final /dashboard  Dashboard | EcoWealth
+GET  /admin/products    -> 200  Products | EcoWealth   (EW-COFFEE and EW-COLONICS rendered)
+GET  /admin/packages    -> 200  Packages | EcoWealth   (Package A and Package B rendered)
+GET  /admin/members     -> 200  Members | EcoWealth    (no-members empty state rendered)
+
+The seeded admin account signed in with its published default password, which
+the header and docs tell the operator to change immediately. `member_status =
+'active'` (F-09) is what made the seeded staff row a working account state.
+
+--------------------------------------------------------------------------------
+4. Database counts behind the pages
+--------------------------------------------------------------------------------
+Command:
+  mysql -u root -N -e "SELECT 'tables', COUNT(*) FROM information_schema.tables
+    WHERE table_schema='ecowealth_sneat_install_manual_test'
+    UNION ALL SELECT 'settings', COUNT(*) FROM ecowealth_sneat_install_manual_test.settings
+    UNION ALL SELECT 'staff', COUNT(*) FROM ecowealth_sneat_install_manual_test.users
+    WHERE role IN ('admin','superadmin');"
+Exit: 0
+
+tables	27
+settings	48
+staff	2
+
+Both import paths (mysql here, phpMyAdmin in install-sql-phpmyadmin.png) produce
+the same schema: the bundle contains no CREATE DATABASE and no USE, so it lands
+in whichever empty schema the caller selected.

@@ -1,0 +1,13 @@
+QA22G-06 — No-JS register link and invite links
+Evidence file: docs/qa/evidence/phase-22/QA22G-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app
+Full output: (not captured — requires running browser with JS disabled)
+Exit code: not captured
+
+Expected: No-JS invite link works; registration form pre-fills upline and side; first valid registrant wins; no slot reservation.
+Actual: Could not execute — requires Laragon app server and browser with JS disabled. Covered by automated test P22G-T29 (JS off: list, register link and controls all work — PASS).
+Reason: Environment dependency — browser-based check with JavaScript disabled.

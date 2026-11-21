@@ -1,0 +1,17 @@
+QA21D-02 — The member's wallet shows the General Harvest credit
+==============================================================
+Phase 21D — Money engine. Runs as the node-0 holder of fixture h = 1.
+
+Commands:
+
+> // Sign in as the node-0 holder, open /wallet, apply the General Harvest bonus filter.
+> // Statement row:
+>   type: credit
+>   ref_type: general_harvest
+>   ref_id: 1
+>   amount: ₱2,000.00
+>   note: General Harvest bonus
+>   withdrawable bucket: +₱2,000.00 (total ₱2,000.00)
+
+Result: Pass — one General Harvest bonus credit of ₱2,000.00, ref_id = the award id,
+withdrawable, statement total matches; no other movement kind affected.

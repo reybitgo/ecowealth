@@ -1,0 +1,24 @@
+QA17C-08 — the monthly Active rule (automated pass)
+
+close(2026-10): closed=1 members=32 qualified=3
+October purchases: c 450.00; b/a/boss 600.00 each.
+
+November order with the rule on:
+level | user_id | amount | status   | reason                             
+--------------------------------------------
+1     | 29      | 25.00  | skipped  | recipient is not Active for 2026-10
+2     | 30      | 25.00  | credited |                                    
+3     | 31      | 25.00  | credited |                                    
+4     | 32      | 15.00  | credited |                                    
+
+November order with the rule off:
+level | user_id | amount | status   | reason
+--------------------------------------------
+1     | 29      | 25.00  | credited |       
+2     | 30      | 25.00  | credited |       
+3     | 31      | 25.00  | credited |       
+4     | 32      | 15.00  | credited |       
+
+Second close(2026-10): closed=0 skipped=true reason=already closed
+Expected: L1 c skipped 'recipient is not Active for 2026-10' (65.00 paid to L2–L4); with the rule off c is credited 25 (90.00); the second close writes nothing.
+

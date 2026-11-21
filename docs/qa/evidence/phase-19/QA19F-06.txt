@@ -1,0 +1,94 @@
+Phase 19F — Operations
+Check QA19F-06 — The second run is an exit-0 no-op with one log line
+Prerequisite: the month paid by QA19F-05
+Executed: 2026-11-15 15:20:45 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+Command:
+
+  php bin\royalty_month_close.php --json
+
+Exit code: 0
+
+{
+    "ok": true,
+    "trigger": "cli",
+    "dry_run": false,
+    "evaluate_only": false,
+    "pay_only": false,
+    "closed": 0,
+    "periods": [],
+    "award": 0,
+    "paid": 0,
+    "amount": 0,
+    "skipped": 0,
+    "status": "none",
+    "paused": false,
+    "resume_required": false,
+    "results": [],
+    "duration_ms": 36,
+    "log": "C:\\Users\\reybi\\AppData\\Local\\Temp\\qa19f-logs-6ee39210\\royalty_month_close-2026-11.log",
+    "operations": {
+        "open": "2026-11",
+        "baseline": "2026-10",
+        "last_final": {
+            "period": "2026-10",
+            "status": "paid",
+            "enabled": 1,
+            "evaluated_at": "2026-11-15 15:20:44",
+            "evaluated_by": null,
+            "paid_at": "2026-11-15 15:20:44",
+            "paid_by": null,
+            "as_of": "2026-11-01 00:00:00",
+            "leader_directs": 2,
+            "supervisor_leaders": 2,
+            "manager_supervisors": 2,
+            "director_managers": 2,
+            "quota_supervisor": "500000.00",
+            "quota_manager": "1000000.00",
+            "quota_director": "5000000.00",
+            "group_pct_supervisor": "3.000",
+            "personal_pct_supervisor": "5.000",
+            "group_pct_manager": "5.000",
+            "personal_pct_manager": "10.000",
+            "group_pct_director": "10.000",
+            "personal_pct_director": "15.000",
+            "members_count": 7,
+            "leaders_count": 2,
+            "supervisors_count": 1,
+            "managers_count": 0,
+            "directors_count": 0,
+            "award_count": 1,
+            "paid_count": 1,
+            "skipped_count": 0,
+            "award_total": "40000.00",
+            "paid_total": "40000.00",
+            "note": null,
+            "created_at": "2026-11-15 15:20:44"
+        },
+        "last_paid": "2026-10",
+        "pending": [],
+        "evaluated": [],
+        "next": null,
+        "switches": {
+            "earn": true,
+            "pay": true
+        },
+        "last_close_at": "2026-11-15 15:20:44",
+        "counts": {
+            "periods": 1,
+            "awards": 1,
+            "pending_rows": 0,
+            "pending_total": 0,
+            "paid_all_time": 40000
+        }
+    },
+    "exit_code": 0
+}
+
+Log lines before: 2 — after: 3
+Newest line:
+
+  [2026-11-15 15:20:45 +08:00] [INFO ] trigger=cli closed=0 periods=- award=0 paid=0 amount=0.00 skipped=0 status=none paused=0
+==============================================================================
+Asserted: exit 0, closed=0, "nothing to close — 2026-10 is already final", and exactly one new log line (one line per run).
+RESULT: PASS

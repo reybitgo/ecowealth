@@ -1,0 +1,3 @@
+Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered
+30,"2026-11-12 20:00:37",QA17D-501161,qa17d_buyer,qa17d_u2,"QA17D Coffee",2,500.00,5.000,25.00,skipped,"recipient account is disabled",0.00
+26,"2026-11-12 20:00:36",QA17D-721059,qa17d_buyer,qa17d_u2,"QA17D Coffee",2,500.00,5.000,25.00,credited,,0.00

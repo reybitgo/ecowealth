@@ -1,0 +1,13 @@
+QA22E-03 — A voided row shows recovered amount and unrecovered shortfall
+Evidence file: docs/qa/evidence/phase-22/QA22E-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — cancel a paid order, then reload /admin/commissions?ledger=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Cancelled/voided row shows recovered amount and voided · ₱X recovered of ₱Y; header Unrecovered equals Σ(amount − reversed_amount).
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22E-T6 (a voided row shows recovered amount and unrecovered shortfall — PASS).
+Reason: Environment dependency — browser-based check.

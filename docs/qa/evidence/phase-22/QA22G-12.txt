@@ -1,0 +1,13 @@
+QA22G-12 — Performance and query budget
+Evidence file: docs/qa/evidence/phase-22/QA22G-12.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: system/bin/binary_place_tree.php + /genealogy?view=binary on a large tree
+Full output: (not captured — requires running app + scratch database)
+Exit code: not captured
+
+Expected: First paint under budget; no runaway queries; depth and node caps hold.
+Actual: Could not execute — requires Laragon app server and scratch database with 2,000 nodes. Covered by automated test P22G-T34 (first payload bounded on large tree — PASS).
+Reason: Environment dependency — requires running app and scratch database.

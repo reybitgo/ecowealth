@@ -1,0 +1,19 @@
+# QA17B-06 - The list badge and the ?unilevel= filter
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# GET /admin/products?q=QA17B-324227
+#   badge on the configured row : 29%
+#
+# GET /admin/products?unilevel=on&q=QA17B-324227
+#   the configured row is present : True
+#   the filter keeps its value    : <option value="on" selected>
+# GET /admin/products?unilevel=off&q=QA17B-324227
+#   the configured row is present : False  (must be False, it is switched on)
+#   empty state rendered          : True
+#
+# GET /admin/products?unilevel=off&per_page=5
+#   a page-2 link keeps the filter : unilevel=off&amp;per_page=5&amp;page=2
+#
+# Expected: Repeat bonus 29% on the configured product, present under on,
+#           absent under off, and the filter kept across pagination.
+# Result: PASS

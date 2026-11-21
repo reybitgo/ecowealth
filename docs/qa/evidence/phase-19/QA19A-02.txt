@@ -1,0 +1,41 @@
+QA19A-02 — Apply migration 023, then apply it a second time
+============================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Database: ecowealth_sneat (development copy, at migration 022)
+
+Command 1
+
+  mysql -u ecowealth -p ecowealth_sneat < database\migrations\023_royalty_bonus.sql
+
+Output 1
+
+  mysql: [Warning] Using a password on the command line interface can be insecure.
+  exit=0
+
+Command 2 (same file again)
+
+  mysql -u ecowealth -p ecowealth_sneat < database\migrations\023_royalty_bonus.sql
+
+Output 2
+
+  mysql: [Warning] Using a password on the command line interface can be insecure.
+  exit=0
+
+Verification after both runs
+
+  SELECT COUNT(*) FROM information_schema.tables
+   WHERE table_schema='ecowealth_sneat';                          -> 33
+  SELECT COUNT(*) FROM ecowealth_sneat.settings;                  -> 70
+  SELECT COUNT(*) FROM ecowealth_sneat.settings
+   WHERE key_name LIKE 'royalty\_%';                              -> 16
+
+Notes
+
+- The second run printed no error: every CREATE TABLE is IF NOT EXISTS, the ENUM change is guarded
+  by the information_schema probe and the settings insert is ON DUPLICATE KEY UPDATE key_name =
+  key_name.
+- 70 settings = the previous 54 + the sixteen royalty keys (the development copy has no install_*
+  metadata rows; a fresh install reads 73).
+
+RESULT: PASS

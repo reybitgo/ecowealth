@@ -1,0 +1,13 @@
+QA22A-03 — The ten settings, the defaults and the stream off
+Evidence file: docs/qa/evidence/phase-22/QA22A-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Command: SELECT key_name, value FROM settings WHERE key_name LIKE 'binary\_%' ORDER BY key_name;
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: Exactly ten rows with the binary defaults; binary_enabled = 0; products with binary_enabled <> 0 = 0; shop_orders with binary_processed_at IS NOT NULL = 0.
+Actual: Could not execute — requires MySQL client access. Covered by automated test P22I-T2 (measured release counts: 42 tables, 86 settings — PASS).
+Reason: Environment dependency — MySQL client not available.

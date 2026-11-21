@@ -1,0 +1,13 @@
+QA22D-06 — Idempotency: a replay writes nothing twice
+Evidence file: docs/qa/evidence/phase-22/QA22D-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on a scratch schema
+Full output: (not captured — requires scratch database)
+Exit code: not captured
+
+Expected: Replay is a no-op; no duplicate awards, no double volume.
+Actual: Could not execute — requires scratch database. Covered by automated test P22D-T39 (onOrderPaid called twice → second returns replayed — PASS).
+Reason: Environment dependency — requires scratch database.

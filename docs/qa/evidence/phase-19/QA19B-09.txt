@@ -1,0 +1,76 @@
+QA19B-09 — The Royalty group and the full gate are green
+========================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19b-configuration
+
+1. The Royalty stream
+
+   php tests\run.php Royalty
+   exit 0
+
+   RoyaltyAdminMemberViewTest        3 / 3
+   RoyaltyConfigurationTest         12 / 12
+   RoyaltyFoundationTest            18 / 18
+   RoyaltyRankTest                  13 / 13
+
+   ------------------------------------------------------------------
+   Cases: 46   Passed: 46   Failed: 0
+   All good.
+
+2. The full PHP suite
+
+   php tests\run.php
+   exit 0
+
+   ------------------------------------------------------------------
+   Cases: 1054   Passed: 1054   Failed: 0
+   All good.
+
+   The baseline was 1,026 / 1,026 at p19a-foundation; 19B adds the 28 new cases described in the
+   phase log (RoyaltyConfiguration, RoyaltyRank, RoyaltyAdminMemberView).
+
+3. The HTTP smoke walk
+
+   powershell -NoProfile -File tests\smoke.ps1
+   exit 0
+
+   Passed: 232   Failed: 0
+
+   The three new checks:
+
+   P19B-T1 PASS   the Commissions card renders the Royalty sub-block, thirteen inputs and the saved
+                  ladder (status=200, numeric inputs=13)
+   P19B-T6 PASS   a Manager quota below the Supervisor quota is refused and nothing is written
+                  (stored=1000000)
+   P19B-T23 PASS  the member directory renders the Rank column and the derived distribution
+                  (status=200)
+
+   The pre-existing settings checks stay green with the Royalty keys in the card payload:
+   P15-T7 PASS and P17B-T18/T19 PASS.
+
+4. Wallet reconciliation (development copy, migration 023)
+
+   php bin\wallet_reconcile.php
+   exit 0
+
+   Wallets             OK
+   Commissions         OK
+   Transfers           OK
+   Payouts             OK
+   Repeat-purchase     OK
+
+   19B moves no money: there is no royalty amount in any wallet, ledger, period or award row.
+
+5. Install-bundle drift gate (no schema change in 19B)
+
+   php bin\build_install_sql.php --check
+   (no output) exit 0
+
+6. Warnings
+
+   No new PHP warning, notice or deprecation in system/storage/logs/ after the manual pass; the only
+   [ERROR] lines there are the deliberate Phase 17F refusal cases from 2026-11-12.
+
+RESULT: PASS

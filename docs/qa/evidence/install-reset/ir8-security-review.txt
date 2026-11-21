@@ -1,0 +1,73 @@
+IR-8-T1 security review — install.php, reset.php and the tool plumbing
+2026-11-12 06:50:35 +08:00
+Host: Windows 11 26200 · Apache 2.4.62 + PHP 8.3.16 · MySQL 8.4.3
+Local environment: APP_ENV=development (app/config.local.php); the production gates were exercised
+through a temporary router wrapper (APP_ENV=production) that was deleted after the evidence run.
+
+1. Response hardening — PASS
+   GET http://localhost/ecowealth/system/install.php -> 200, headers:
+     X-Content-Type-Options: nosniff
+     X-Frame-Options: DENY
+     Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+     Referrer-Policy: strict-origin-when-cross-origin
+     Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+     Cross-Origin-Opener-Policy: same-origin
+     X-Permitted-Cross-Domain-Policies: none
+     X-Robots-Tag: noindex, nofollow
+     Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+     Pragma: no-cache · Expires: 0
+   GET .../reset.php as a guest -> 302 to /login with the same header set.
+   Both pages call SecurityHeaders::send(); install.php adds the no-store trio.
+
+2. No password, DSN, hash or key in HTML/JSON — PASS
+   - The install page in its locked state (4,840 bytes) was fetched and compared with the value of
+     DB_PASS in config.local.php: the password does not appear. It also contains no "mysql:host=",
+     no bcrypt "$" hash and no install-key value.
+   - The INSTALL_KEY field is rendered as type=password with an empty value; the key is never echoed,
+     logged, stored in the database or written to the lock. The lock JSON carries only installed_at,
+     database, app_version, install_sql_sha256, staff usernames and channel.
+   - reset.php contains no SQL and no DSN; an engine failure is stored as a report and the detail goes
+     to error_log(). The CLI JSON reports were checked the same way in IR-3/IR-5.
+
+3. Install lock outside the web root, 0600 where the platform allows — PASS (with a Windows note)
+   Path: <app>/storage/install.lock (or <STORAGE_PATH>/install.lock in the test harness).
+   Resolved path C:\laragon\www\ecowealth\system\storage\install.lock is NOT under public/.
+   The writer puts the JSON in a temporary file, applies chmod 0600, then renames it into place.
+   Windows note: NTFS does not honour POSIX mode bits; icacls shows the file inheriting the storage
+   folder's ACL (BUILTIN\Users read, Authenticated Users modify). It contains no secret, and the folder
+   is outside the document root plus deny-all. On Linux the 0600 mode is effective.
+   Live check: GET /ecowealth/system/storage/install.lock -> 403 (storage/.htaccess).
+
+4. Production configuration — PASS (development file; production rules documented)
+   Effective constants from app/config.php + config.local.php:
+     APP_ENV = development
+     DB_RESET_ENABLED = false
+     INSTALL_KEY length = 0
+   config.local.php defines only APP_ENV, DB_HOST, DB_PORT, DB_USER, DB_PASS — no INSTALL_KEY and no
+   DB_RESET_ENABLED, so a production copy cannot inherit either. docs/deploy.md §7/§12 and
+   docs/runbook.md §7 state the production rules: INSTALL_KEY at least 32 random characters and
+   removed/rotated after install; DB_RESET_ENABLED absent or false; both tool files deleted.
+
+5. Not a route, not in any navigation or inventory — PASS
+   Search of app/routes.php, app/routes_inventory.php, app/layout/*.php and app/Controllers/*.php for
+   "install.php", "reset.php" or "db-tools.css": no matches. db-tools.css is referenced only by the two
+   standalone pages. Deleting the file is the complete retirement (D-IR-17).
+
+6. Uploads and storage guards — PASS
+   public/uploads/.htaccess disables the PHP engine and denies script extensions (Phase 15; the smoke
+   suite proves a .php probe answers 403). storage/.htaccess is "Require all denied". app/.htaccess,
+   database/.htaccess and tests/.htaccess are present. Live check: the lock over Apache -> 403.
+
+7. Session and cookie hardening — PASS
+   Application session (app/auth.php): secure only on HTTPS, HttpOnly, SameSite=Lax, use_strict_mode=1,
+   ID regeneration on sign-in, 30-minute idle.
+   Installer session: dedicated name ecowealth_install (never the application session), HttpOnly,
+   SameSite=Lax, secure on HTTPS, use_strict_mode=1.
+   Remember-me cookie: HttpOnly, SameSite=Lax, secure on HTTPS, cleared on logout and password change.
+   Observed: "Set-Cookie: ecowealth_install=…; path=/; HttpOnly; SameSite=Lax" (install.php) and
+             "Set-Cookie: ecowealth_sid=…; path=/; HttpOnly; SameSite=Lax" (reset.php redirect).
+
+8. Result
+   No finding required a code change. The gates themselves (CSRF, install key + throttle, typed phrase,
+   backup acknowledgement, role matrix, production 404) are covered by DbToolAccessTest, InstallTest
+   and the smoke IR4-T1…T5 / IR6-T1…T5 checks; the manual browser matrix is in phase-16-install-reset.md.

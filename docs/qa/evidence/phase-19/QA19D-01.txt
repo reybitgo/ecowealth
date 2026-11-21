@@ -1,0 +1,44 @@
+QA19D-01 - The Royalty ledger renders its header, counters, cards and rows
+==========================================================================
+
+Date: 2026-11-15 12:59:18 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19d-admin (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts, the QA19C-01 orders
+         (Director 100,000; each Supervisor 1,225,000), a prior month below quota and a
+         current-month Director purchase for the preview; the real RoyaltyService close.
+
+Why: Plan §8 Rules 3–5; Appendix C.2. The admin ledger is the finance view of the 19C month close.
+
+Monthly close (the same RoyaltyService the CLI calls):
+  prior 2026-09  status paid      awards 7  paid 0  skipped 7  award total ₱0.00
+  month 2026-10  status paid      awards 7  paid 7  skipped 0  award total ₱1,152,000.00
+
+GET /admin/commissions?ledger=royalty&period=2026-10  (admin session, 200)
+  tab                  royalty
+  period (default)     2026-10  ·  Paid
+  pager                7 row(s), page 1 of 1
+  paid in this period  ₱1,152,000.00   awaiting payment ₱0.00   period total ₱1,152,000.00
+  recipients 7   skipped 0   average ₱164,571.43   top rank Director   paid all time ₱1,152,000.00
+
+Rows as the table renders them:
+  qa19d_director     Director   GS   5,000,000.00  PS     100,000.00  quota 5,000,000.00  10.000% / 15.000%  amount   515,000.00  paid    
+  qa19d_mgr_a        Manager    GS   2,450,000.00  PS           0.00  quota 1,000,000.00  5.000% / 10.000%  amount   122,500.00  paid    
+  qa19d_mgr_b        Manager    GS   2,450,000.00  PS           0.00  quota 1,000,000.00  5.000% / 10.000%  amount   122,500.00  paid    
+  qa19d_sup_ax       Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  paid    
+  qa19d_sup_ay       Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  paid    
+  qa19d_sup_bx       Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  paid    
+  qa19d_sup_by       Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  paid    
+
+Markup assertions:
+  present  data-live-region="commission-royalty-header"
+  present  data-live-region="commission-royalty-stats"
+  present  data-live-region="commission-royalty-periods"
+  present  data-live-region="commission-royalty-rows"
+  present  data-live-region="commission-royalty-pagination"
+  present  One award per member per closed month
+  present  Royalty ledger
+  present  If this month closed now
+
+RESULT: PASS

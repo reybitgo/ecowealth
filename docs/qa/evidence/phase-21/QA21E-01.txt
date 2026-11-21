@@ -1,0 +1,20 @@
+QA21E-01 — The ledger tab shows paid awards, totals and recipients
+==================================================================
+Phase 21E — Admin visibility. Runs as admin on /admin/commissions?ledger=general_harvest.
+
+Steps:
+1. With fixture h = 3 paid, open /admin/commissions → General Harvest bonus tab.
+2. Read the stats tiles.
+
+Observed:
+- Paid: ₱50,000.00
+- Awards: 18
+- Recipients: 13
+- Baseline: ₱0.00
+- Open: ₱0.00
+- Unsettled positions: 0
+- Columns present: Position, Block, Queue (N), Status
+- Rows render with member and wallet links
+
+Result: Pass — ₱50,000.00 paid, 18 awards, 13 recipients, baseline ₱0.00, open ₱0.00,
+unsettled 0; Position/Block/Queue (N)/Status columns exist.

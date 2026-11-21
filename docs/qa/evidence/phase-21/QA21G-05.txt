@@ -1,0 +1,23 @@
+QA21G-05 — The scratch install and the go-live order
+======================================================
+Phase 21G — Release. Runs docs/deploy.md and docs/runbook.md on a scratch schema.
+
+Steps:
+1. Follow docs/deploy.md on ecowealth_sneat_tool_b_test: build bundle, install → 39 tables /
+   79 settings / 10 ladder rows / 1 board row; stream off and unarmed.
+2. Follow docs/runbook.md §General Harvest go-live order:
+   deploy → configure ladder → arm dry run → arm → enable → catch up → reconcile → doctor.
+   Recorded exit code of every step.
+3. Registered the 13 accounts of fixture h = 1 through the real registration path → one
+   ₱2,000.00 credit.
+4. php bin\wallet_reconcile.php → exit 0; php bin\general_harvest_catchup.php --doctor → exit 0.
+
+Observed:
+- Arm dry run writes nothing, prints N₀, row count and excluded amount; real arm writes contiguous
+  baseline rows, settled_n = N₀; enabling pays nothing by itself.
+- Qualifying registration writes one award and one ₱2,000.00 withdrawable credit; second settlement
+  writes none.
+- Every command in deploy.md and the runbook copy-pasteable as written; go-live order in one place.
+
+Result: Pass — scratch install and go-live order execute end to end; one ₱2,000.00 credit observed;
+reconcile and doctor exit 0.

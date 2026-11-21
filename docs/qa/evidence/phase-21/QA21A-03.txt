@@ -1,0 +1,57 @@
+QA21A-03 - The two settings, the ten amounts and the single unarmed board row
+=============================================================================
+
+Date: 2026-11-16 12:51:11 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (working tree, 21A)
+Schema: ecowealth_sneat_tool_b_test (scratch; migration 025 applied twice)
+
+Step 1 - the settings:
++----------------------------+-------+
+| key_name                   | value |
++----------------------------+-------+
+| general_harvest_enabled    | 0     |
+| general_harvest_max_levels | 10    |
++----------------------------+-------+
+
+Step 2 - the totals:
++------------+--------------+
+| rows_total | amount_total |
++------------+--------------+
+|         10 |   8381000.00 |
++------------+--------------+
+
+Step 3 - the ladder, level by level (the reference amounts, plan Appendix A):
++-------+------------+
+| level | amount     |
++-------+------------+
+|     1 |    2000.00 |
+|     2 |    4000.00 |
+|     3 |    8000.00 |
+|     4 |   12000.00 |
+|     5 |   25000.00 |
+|     6 |  100000.00 |
+|     7 |  250000.00 |
+|     8 |  480000.00 |
+|     9 | 2500000.00 |
+|    10 | 5000000.00 |
++-------+------------+
+
+Step 4 - the board singleton:
++----+------------+----------+----------+-----------+
+| id | baseline_n | armed_at | armed_by | settled_n |
++----+------------+----------+----------+-----------+
+|  1 |       NULL | NULL     |     NULL |         0 |
++----+------------+----------+----------+-----------+
+
+The full ladder is 2000 + 4000 + 8000 + 12000 + 25000 + 100000 + 250000 + 480000 + 2500000
++ 5000000 = 8381000.00 - the reference's 8,381,000 per node.
+
+Checks:
+  exactly two general_harvest_* settings ................. yes (0 / 10)
+  ten ladder rows, total 8381000.00 ...................... yes
+  the amounts equal the reference ladder ................. yes
+  exactly one board row, unarmed ......................... yes
+  no general_harvest_awards row .......................... yes (0)
+
+RESULT: PASS

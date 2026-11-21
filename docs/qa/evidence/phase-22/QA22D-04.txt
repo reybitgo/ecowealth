@@ -1,0 +1,13 @@
+QA22D-04 — Eligibility: an ineligible recipient keeps its volume
+Evidence file: docs/qa/evidence/phase-22/QA22D-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL + the running app
+Full output: (not captured — requires running app + database)
+Exit code: not captured
+
+Expected: Ineligible points preserved, not consumed, no skipped row; points pair when recipient becomes eligible.
+Actual: Could not execute — requires running app and database. Covered by automated tests P22D-T27 through P22D-T31 (eligibility — all PASS).
+Reason: Environment dependency — requires running app and database.

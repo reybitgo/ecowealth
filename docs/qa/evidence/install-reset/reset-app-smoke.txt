@@ -1,0 +1,24 @@
+2026-11-11 22:27:23 +08:00 — IR-5 app smoke after a reset
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3 · schema ecowealth_sneat_reset_manual (scratch)
+Starting point: the reset-cli-success.json run — 0 members · 2 staff · 2 codes · 0 orders · 7 products · 2 packages
+
+Server: php -S 127.0.0.1:8099 -t public public/router.php   (ECO_DB_NAME=ecowealth_sneat_reset_manual)
+Sign-in: GET /login (session + CSRF), POST /login as admin with the seeded default password → HTTP 302
+         (the password is the published install default and is deliberately not recorded here).
+
+Page probes with the signed-in cookie jar:
+
+  /dashboard       -> HTTP 200  (53,644 bytes)
+  /admin           -> HTTP 200  (53,184 bytes)
+  /admin/members   -> HTTP 200  (30,097 bytes)   content marker: "No members yet"
+  /admin/orders    -> HTTP 200  (31,352 bytes)   content marker: "No orders yet"
+  /admin/codes     -> HTTP 200  (39,022 bytes)
+  /shop            -> HTTP 200  (48,586 bytes)
+  /admin/packages  -> HTTP 200  (33,676 bytes)
+  /admin/products  -> HTTP 200  (61,089 bytes)   7 "EW-" SKUs rendered
+
+State after the smoke (unchanged by browsing):
+  members 0 · staff 2 · codes 2 · orders 0 · products 7 · packages 2
+
+This is the reset CLI's post-condition seen from the application: the back office
+signs in, the member and order lists are empty, and the catalogue is intact.

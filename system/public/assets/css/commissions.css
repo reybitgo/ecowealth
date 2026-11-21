@@ -1,0 +1,296 @@
+/* ==============================================================
+ *  EcoWealth — commissions (Phase 10)
+ *
+ *  The member earnings statement and the admin commission ledger:
+ *  summary cards, the award table, the filters and the detail drawer.
+ *  Loaded through page_css on /earnings and /admin/commissions.
+ * ============================================================== */
+
+/* ---------- Summary cards ---------- */
+.commission-stat-card .commission-stat-value,
+.commission-stat-card h4 {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.commission-stat-card .avatar-initial {
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- Award table ---------- */
+.commission-table {
+  font-size: 0.925rem;
+}
+
+.commission-table thead th {
+  white-space: nowrap;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.commission-amount-credit {
+  color: var(--bs-success);
+}
+
+/* A skipped award's reason stays readable but never stretches the row. */
+.commission-reason {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  max-width: 18rem;
+}
+
+/* ---------- Filters ---------- */
+.commission-filters .form-label {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.35rem;
+}
+
+.commission-filters .commission-filter-field {
+  flex: 1 1 8.5rem;
+  min-width: 8rem;
+  max-width: 16rem;
+}
+
+.commission-filters .commission-filter-wide {
+  flex: 1.5 1 11rem;
+  max-width: 20rem;
+}
+
+.commission-filters .commission-filter-date {
+  flex: 0 1 9.75rem;
+  min-width: 9.75rem;
+  max-width: 11rem;
+}
+
+.commission-filters .commission-filter-actions {
+  flex: 0 0 auto;
+}
+
+/* ---------- Unilevel breakdown (Phase 11) ---------- */
+.commission-level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.85rem 1.35rem;
+}
+
+.commission-level-item {
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--bs-body-bg);
+}
+
+.commission-level-item.is-paid {
+  border-color: var(--bs-info-border-subtle);
+  background: var(--bs-info-bg-subtle);
+}
+
+.commission-level-label {
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.commission-level-bar {
+  height: 0.35rem;
+  margin-top: 0.6rem;
+  background-color: var(--bs-secondary-bg);
+}
+
+/* ---------- Repeat-purchase team by level (17E follow-up) ----------
+ * The breakdown card now lists the member's team at each depth, so it
+ * reuses the genealogy "Team by level" card shape: one card per level,
+ * a chip-like total header, a compact member list and a pager of its
+ * own, shown whenever the level has a member. The card keeps its own
+ * natural height, so an empty level never stretches to a crowded one. */
+.commission-team-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.commission-team-card.is-paid {
+  border-color: var(--bs-info-border-subtle) !important;
+  background: var(--bs-info-bg-subtle);
+}
+
+.commission-team-list {
+  margin-top: 0.75rem;
+}
+
+.commission-team-member {
+  padding-block: 0.45rem;
+}
+
+.commission-team-member-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.commission-team-member-info > * {
+  min-width: 0;
+}
+
+.commission-team-member + .commission-team-member {
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.commission-team-member .badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+}
+
+.commission-team-amount {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.commission-team-amount > div:last-child {
+  font-size: 0.75rem;
+}
+
+.commission-team-pagination {
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+/* The shared bar's table-sized top margin would push the pager off the
+ * card's edge; the wrapper above owns the spacing here. */
+.commission-team-pagination .pagination-bar {
+  margin-top: 0 !important;
+  gap: 0.5rem !important;
+}
+
+/* ---------- Detail drawer ---------- */
+.commission-detail-list dt {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--bs-secondary-color);
+  padding-block: 0.45rem;
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.commission-detail-list dd {
+  margin-bottom: 0;
+  padding-block: 0.45rem;
+  border-top: 1px solid var(--bs-border-color-translucent);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.commission-detail-list dt:first-of-type,
+.commission-detail-list dd:first-of-type {
+  border-top: 0;
+}
+
+.commission-detail-list dd a[href] {
+  text-decoration: none;
+}
+
+.commission-detail-list dd a[href]:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Tabs (Phase 17E) ----------
+ * Two pills on a 390 px screen are wider than the page: let the second
+ * wrap onto its own row instead of pushing the page sideways. */
+.commission-tabs {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.commission-tabs .nav-link {
+  white-space: nowrap;
+}
+
+/* ---------- Repeat-purchase tab (Phase 17E) ----------
+ * The member statement reuses the level grid and the row table, but its
+ * columns are the ladder's own (buyer, product, level, base, rate,
+ * amount, status, order). On a phone the buyer cell carries the same
+ * facts, so the wide columns step aside instead of scrolling sideways. */
+@media (max-width: 767.98px) {
+  .commission-table .commission-col-base,
+  .commission-table .commission-col-rate,
+  .commission-table .commission-col-order {
+    display: none;
+  }
+}
+
+/* ---------- Small screens ---------- */
+/* On a phone the member table keeps date, source, amount, status and the
+ * detail button; the package and the leg move under the source, so the row
+ * reads top-to-bottom instead of scrolling sideways. */
+.commission-meta-mobile {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .commission-table thead th,
+  .commission-table tbody td {
+    padding: 0.55rem 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .commission-table .commission-col-date,
+  .commission-table .commission-col-package,
+  .commission-table .commission-col-type,
+  .commission-table .commission-col-activation,
+  .commission-table .commission-col-awarded {
+    display: none;
+  }
+
+  .commission-meta-mobile {
+    display: block;
+  }
+
+  /* A long username is one unbreakable word; let it wrap instead of
+   * widening the table past the screen. */
+  .commission-table .commission-col-source,
+  .commission-table .commission-col-source span {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ---------- Royalty ledger (Phase 19D) ----------
+ * GS/PS and the quota can run to seven figures, so the money columns
+ * keep their digits aligned (plan §8 Rule 6).
+ */
+.commission-table .commission-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- Royalty statement (Phase 19E) ----------
+ * The rank card and the dashboard tile carry a thin progress bar for
+ * "team sales against the quota". It is a read-out, so it keeps the
+ * platform's rounded shape and never grows taller than a rule.
+ */
+.commission-progress {
+  height: 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.commission-progress .progress-bar {
+  border-radius: 0.25rem;
+}
+
+/* The third pill already wraps on a 390 px screen (the Phase 17E
+ * `.commission-tabs` rule above). The monthly row is wider than the
+ * repeat row — group sales, personal sales, the quota and two rates —
+ * so on a phone those money columns step aside and the month cell keeps
+ * the rank it was judged at, leaving month, amount, status and paid date
+ * readable without a sideways scroll (plan §9 Rule 9). */
+@media (max-width: 767.98px) {
+  .commission-table .commission-col-gs,
+  .commission-table .commission-col-ps,
+  .commission-table .commission-col-quota,
+  .commission-table .commission-col-rates,
+  .commission-table .commission-col-paid {
+    display: none;
+  }
+}

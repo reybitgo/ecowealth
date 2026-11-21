@@ -1,0 +1,41 @@
+QA20B-04 — Load reference ladder (server-side equivalent)
+==========================================================
+
+Date: 2026-11-15 22:10:29 (Asia/Manila)
+Where: the card's data-reference attributes + a save round-trip through applySection().
+
+Note
+
+  The button itself is JavaScript (app-team-harvest.js): it copies each input's data-reference
+  into the input and re-renders the live total. A CLI pass cannot click it; this transcript
+  proves the server-side half — the preset rides on the inputs, and saving the preset values
+  stores them — while the click belongs to the manual pass (QA20B-08's browser session can
+  cover it in the same sitting).
+
+Steps
+
+1. Read every amount input's data-reference attribute.
+2. Change two levels and save; read the total.
+3. Post the reference values back and read the total.
+
+Result
+
+  QA20B-04 PASS  ten data-reference values: 1000.00, 2000.00, 4000.00, 6000.00, 12000.00, 50000.00, 120000.00, 200000.00, 1200000.00, 3500000.00
+  QA20B-04 PASS  the restored total reads ₱5,095,000.00
+
+The preset as stored in TeamHarvestLevel::referencePreset()
+
+  level 1      ₱1,000.00   (input value 1000.00)
+  level 2      ₱2,000.00   (input value 2000.00)
+  level 3      ₱4,000.00   (input value 4000.00)
+  level 4      ₱6,000.00   (input value 6000.00)
+  level 5     ₱12,000.00   (input value 12000.00)
+  level 6     ₱50,000.00   (input value 50000.00)
+  level 7    ₱120,000.00   (input value 120000.00)
+  level 8    ₱200,000.00   (input value 200000.00)
+  level 9   ₱1,200,000.00   (input value 1200000.00)
+  level 10  ₱3,500,000.00   (input value 3500000.00)
+
+After step 2 the total read ₱5,595,500.00; after step 3 it is ₱5,095,000.00.
+
+RESULT: PASS

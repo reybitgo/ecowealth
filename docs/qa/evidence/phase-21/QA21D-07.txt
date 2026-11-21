@@ -1,0 +1,22 @@
+QA21D-07 — Off then on: no money while off, the backlog pays once when on
+=========================================================================
+Phase 21D — Money engine. Runs on an armed scratch copy with a backlog.
+
+Commands:
+
+> mysql -u ecowealth -p -e "UPDATE settings SET value = '0' WHERE key_name = 'general_harvest_enabled';"
+> // Register three members under a new sponsor; queue grows, awards do not.
+> mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM general_harvest_awards;"
+0
+> php bin\general_harvest_catchup.php --dry-run
+N = 43, settled_n = 40, missing per level: L1 3 rows (seq 40..42), open liability ₱6,000.00
+(writes nothing)
+> mysql -u ecowealth -p -e "UPDATE settings SET value = '1' WHERE key_name = 'general_harvest_enabled';"
+> php bin\general_harvest_catchup.php
+Settled 3 positions; written 3 awards; settled_n = 43.
+> php bin\general_harvest_catchup.php
+Settled 0 positions; written 0 awards; settled_n = 43. (second run, idempotent)
+
+Result: Pass — switch off: queue rows exist, awards 0, wallets unchanged, settle() returns off;
+dry run writes nothing and lists the missing awards; switch on + catch-up writes exactly the missing
+awards once in board order; a second run writes nothing and settled_n catches up to N.

@@ -1,0 +1,24 @@
+QA19B-03 — A Manager quota below the Supervisor quota is refused
+================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP — /admin/settings, section=commissions
+
+Steps
+
+1. Set Supervisor: monthly group quota to 500000 and Manager: monthly group quota to 400000.
+2. Press Save settings.
+3. Reload the card and confirm the field error and the stored Manager quota.
+
+Result
+
+  QA19B-03 PASS  field error shown; stored Manager quota unchanged (1000000)
+
+Rendered error
+
+  The Manager quota cannot be below the Supervisor quota.
+
+Nothing was written: the stored Manager quota is still 1000000 (the value before the attempt) and
+no settings.update row was created by the refused save.
+
+RESULT: PASS

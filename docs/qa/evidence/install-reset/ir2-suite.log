@@ -1,0 +1,908 @@
+2026-11-11 20:06:52 +08:00 - IR-2 full-suite gate
+Host: Windows 10.0.26200.0 - PHP 8.3.16 (ZTS) - MySQL 8.4.3 - schema ecowealth_sneat_test
+Command: php tests/run.php
+Exit: 0
+
+EcoWealth test suite
+PHP 8.3.16 · schema ecowealth_sneat_test · phase 15
+
+AdminActivationLiveTest
+  [32mPASS[0m  a manual request bumps the queue and the member page
+  [32mPASS[0m  an approval bumps the queue, the directory and the member page
+  [32mPASS[0m  a rejection bumps the queue and the member page
+  [32mPASS[0m  the queue feed renders header, counters, tabs, rows and pagination
+  [32mPASS[0m  the queue feed renders its filtered empty state
+  [32mPASS[0m  the activation page declares its live surface and regions
+
+AdminCodeLiveTest
+  [32mPASS[0m  generating a batch bumps the code list
+  [32mPASS[0m  redeeming a code bumps the code list
+  [32mPASS[0m  an expiring code bumps the code list
+  [32mPASS[0m  the code feed renders the counters, rows and pagination
+  [32mPASS[0m  the code page declares its live surface and regions
+
+AdminCommissionLiveTest
+  [32mPASS[0m  a credited award bumps the commission ledger
+  [32mPASS[0m  a skipped award bumps the ledger without moving money
+  [32mPASS[0m  the ledger feed renders header, counters, rows and pagination
+  [32mPASS[0m  the ledger feed renders the filtered empty state
+  [32mPASS[0m  the commission page declares its live surface and regions
+
+AdminConfirmTest
+  [32mPASS[0m  the confirmation handler supports a required reason prompt
+  [32mPASS[0m  a live admin mutation waits for the confirmation answer
+  [32mPASS[0m  every admin decision page loads the themed confirmation handler
+  [32mPASS[0m  every admin decision form carries its confirmation copy
+
+AdminDashboardLiveTest
+  [32mPASS[0m  dashboard writes bump admin.dashboard
+  [32mPASS[0m  member status changes bump admin.dashboard
+  [32mPASS[0m  the dashboard feed renders eight regions and chart data
+
+AdminMemberLiveTest
+  [32mPASS[0m  member surfaces use the list + detail keys and bump together
+  [32mPASS[0m  wallet movements and status changes bump the member surfaces
+  [32mPASS[0m  registration bumps the directory, the new member and the sponsor chain
+  [32mPASS[0m  the directory feed renders stats, filters, rows and pagination
+  [32mPASS[0m  the directory feed renders its filtered empty state
+  [32mPASS[0m  the member detail feed renders every card and keeps escaping
+  [32mPASS[0m  the member pages declare their live surfaces and regions
+
+AdminOrderLiveTest
+  [32mPASS[0m  order surfaces use the list + detail keys and bump together
+  [32mPASS[0m  placing an order bumps the desk and changes its ETag
+  [32mPASS[0m  every payment and fulfilment step bumps both surfaces
+  [32mPASS[0m  review decisions and cancellations bump their surfaces
+  [32mPASS[0m  the expiry and auto-complete sweeps bump the surfaces
+  [32mPASS[0m  the order desk feed renders header, stats, rows and pagination
+  [32mPASS[0m  the order desk feed shows the filtered empty state
+  [32mPASS[0m  the detail feed renders every card and keeps escaping
+  [32mPASS[0m  the detail feed opens the review pane and the fulfilment steps
+  [32mPASS[0m  the live client keeps form regions and reports the held keys
+  [32mPASS[0m  the order pages declare their live surfaces and regions
+
+AdminPackageLiveTest
+  [32mPASS[0m  package writes bump the admin list, member catalogue and config
+  [32mPASS[0m  the admin package feed renders stats, rows and pagination
+  [32mPASS[0m  the member package catalogue feed renders the cards and the empty state
+  [32mPASS[0m  the package pages declare their live surfaces and regions
+
+AdminSettingsLiveTest
+  [32mPASS[0m  settings saves bump the settings page and the shared config revision
+  [32mPASS[0m  the settings feed renders the notice and eight held card bodies
+  [32mPASS[0m  the payout card follows a settings change and warns while the USDT rate is unset
+  [32mPASS[0m  the settings page declares its live surface and regions
+
+AdminWalletLiveTest
+  [32mPASS[0m  wallet surfaces use the list + detail keys and bump together
+  [32mPASS[0m  every wallet movement bumps the monitor and its detail page
+  [32mPASS[0m  member status changes bump the wallet monitor and detail page
+  [32mPASS[0m  the monitor feed renders the common regions and the members tab
+  [32mPASS[0m  the monitor feed renders the top-ups tab
+  [32mPASS[0m  the monitor feed renders the ledger tab with a held statement
+  [32mPASS[0m  the wallet detail feed renders every card and keeps escaping
+  [32mPASS[0m  the wallet pages declare their live surfaces and regions
+
+AuditLogTest
+  [32mPASS[0m  P15 an audit entry records actor, action, subject, meta and ip
+  [32mPASS[0m  P15 meta decoding never throws on broken JSON
+  [32mPASS[0m  P15 the audit list filters by action, subject, text and date
+  [32mPASS[0m  P15 the audit vocabulary and counters feed the filters
+  [32mPASS[0m  P15 the audit trail has no update or delete path
+  [32mPASS[0m  P15 the audit desk renders entries, filters and pagination
+  [32mPASS[0m  P15 the audit desk shows an empty state
+  [32mPASS[0m  P15 only an admin route can reach the audit desk
+
+CartLiveTest
+  [32mPASS[0m  cart surfaces are per member and bump on every cart write
+  [32mPASS[0m  clearing a cart bumps the surface and an empty add is refused
+  [32mPASS[0m  the cart feed renders one content region with the lines
+  [32mPASS[0m  the cart feed renders the empty state and the closed-shop notice
+  [32mPASS[0m  the cart feed keeps the stock warning and the blocked checkout
+  [32mPASS[0m  the cart page declares its live surface, regions and banner
+
+CartTest
+  [32mPASS[0m  P4-T1 adding a product creates the cart and its first line
+  [32mPASS[0m  P4-T1 a page view never creates a cart row
+  [32mPASS[0m  P4-T2 adding the same product again increments the single line
+  [32mPASS[0m  P4-T3 adding beyond available stock is refused with the exact numbers
+  [32mPASS[0m  P4-T3 quantity must be at least 1 and at most the line cap
+  [32mPASS[0m  P4-T10 inactive and unknown products cannot be added
+  [32mPASS[0m  P4-T3 reserved stock reduces what the cart will accept
+  [32mPASS[0m  P4-T4 updating the quantity persists and qty 0 removes the line
+  [32mPASS[0m  P4-T4 updating beyond available is refused and keeps the old quantity
+  [32mPASS[0m  P4-T4 an inactive product cannot have its quantity raised
+  [32mPASS[0m  P4-T4 the no-JS stepper adjusts the quantity by ±1
+  [32mPASS[0m  P4-T4 the no-JS stepper cannot oversell, raise an inactive line or cross carts
+  [32mPASS[0m  P4-T5 updating another member’s item is refused (IDOR)
+  [32mPASS[0m  P4-T6 removing another member’s item is refused (IDOR)
+  [32mPASS[0m  P4-T7 a catalogue price change reaches the cart totals
+  [32mPASS[0m  P4-T8 two members’ carts are fully isolated
+  [32mPASS[0m  P4-T9 concurrent adds to the last unit cannot oversell
+  [32mPASS[0m  P4-T1 getOrCreate returns one active cart; convert starts a new one
+  [32mPASS[0m  P4-T4 clear empties the active cart but keeps it
+  [32mPASS[0m  P4-T13 validateStock explains every blocking line
+  [32mPASS[0m  P4-T13 a clean cart reports no stock problems
+
+CartViewTest
+  [32mPASS[0m  P4-T1 the cart page renders lines, totals and no-JS forms
+  [32mPASS[0m  P4-T4 a typed quantity saves on change, without a separate Update button
+  [32mPASS[0m  P4-T1 an empty cart shows the browse state and no table
+  [32mPASS[0m  P4-T1 the empty-state icon is centred and not pointer-cursored
+  [32mPASS[0m  P4-T13 an over-stock line blocks checkout and explains why
+  [32mPASS[0m  P4-T10 an inactive product line is flagged as unavailable
+  [32mPASS[0m  P4-T9 product names in the cart are escaped
+  [32mPASS[0m  P4-T1 a closed shop still shows the saved cart with a notice
+  [32mPASS[0m  P4-T13 the off-canvas drawer renders lines, count and totals
+  [32mPASS[0m  P4-T1 the empty drawer invites the member to the shop
+  [32mPASS[0m  P4-T13 the navbar, sidebar and drawer carry the live badge
+  [32mPASS[0m  P4-T1 the catalogue card offers a no-JS add-to-cart form
+  [32mPASS[0m  P4-T13 the admin sidebar also carries the cart menu with the live badge
+  [32mPASS[0m  P4-T13 the member sidebar still shows the cart without admin items
+  [32mPASS[0m  P4-T13 an empty cart keeps the sidebar badge hidden for the script to reveal
+  [32mPASS[0m  P4-T13 the cart drawer and navbar badge are styled by the global shell sheet
+  [32mPASS[0m  P4-T5 the cart page never leaks another member’s line
+
+CommissionIndirectTest
+  [32mPASS[0m  P11-T1 a ten-deep chain pays levels 1–10 exactly per the package matrix
+  [32mPASS[0m  P11-T2 a chain eleven deep stops at level 10
+  [32mPASS[0m  P11-T3 an ineligible upline consumes its level and deeper levels continue
+  [32mPASS[0m  P11-T4 package B pays a higher level matrix than package A
+  [32mPASS[0m  P11-T5 a package with indirect disabled pays only the direct award
+  [32mPASS[0m  P11-T5 the global indirect switch turns the ladder off
+  [32mPASS[0m  P11-T5 commission_indirect_max_levels caps the walk
+  [32mPASS[0m  P11-T6 replaying the hook pays no level twice
+  [32mPASS[0m  P11-T7 a zero-amount level writes no row and keeps deeper levels
+  [32mPASS[0m  P11-T8 wallet credits equal the credited commission rows
+  [32mPASS[0m  P11-T9 the earnings page shows a per-level breakdown
+  [32mPASS[0m  P11-T10 the admin ledger filters indirect awards by type and level
+  [32mPASS[0m  P11-T11 a ten-hop sponsor walk stays within twenty queries
+  [32mPASS[0m  P11-T12 worked Example B pays the full ladder
+
+CommissionTest
+  [32mPASS[0m  P10-T1 an active sponsor earns the package direct bonus exactly once
+  [32mPASS[0m  P10-T1 registration with a code pays the sponsor immediately
+  [32mPASS[0m  P10-T1 package B pays its premium direct bonus
+  [32mPASS[0m  P10-T2 a pending sponsor is skipped without moving money
+  [32mPASS[0m  P10-T2 an inactive or package-less sponsor is skipped with a reason
+  [32mPASS[0m  P10-T2 a member with no sponsor earns nothing and no row is written
+  [32mPASS[0m  P10-T3 a package with a zero direct bonus awards nothing and does not error
+  [32mPASS[0m  P10-T4 replaying the hook pays nothing twice
+  [32mPASS[0m  P10-T4 the unique key refuses a second award for the same event
+  [32mPASS[0m  P10-T5 two recruits credit two separate awards
+  [32mPASS[0m  P10-T6 wallet and commission reconciliation stay clean
+  [32mPASS[0m  P10-T6 reconciliation catches an award without its wallet movement
+  [32mPASS[0m  P10-T7 member totals, filters and pagination follow the awards
+  [32mPASS[0m  P10-T8 the admin ledger filters by member, type, level, status and date
+  [32mPASS[0m  P10-T9 a member query never returns another member commissions
+  [32mPASS[0m  P10-T10 an award links to its activation, source member and wallet entry
+  [32mPASS[0m  P10-T10 the hook is still invoked exactly once per activation
+
+CommissionViewTest
+  [32mPASS[0m  P10-T7 the earnings page shows the summary, the award and the wallet link
+  [32mPASS[0m  P10-T7 an empty earnings page explains where awards come from
+  [32mPASS[0m  P10-T7 a skipped award shows its reason and never claims money
+  [32mPASS[0m  P10-T7 the earnings filters keep their values and offer Clear
+  [32mPASS[0m  P10-T7 a hostile username is escaped in the table and the drawer
+  [32mPASS[0m  P10-T8 the admin ledger shows the stats, both sides of the award and the links
+  [32mPASS[0m  P10-T8 the admin ledger filters by type, level and status
+  [32mPASS[0m  P10-T8 an empty ledger explains where awards come from
+  [32mPASS[0m  P10-T7 the dashboard links to the earnings page
+
+CronTest
+  [32mPASS[0m  the web cron is trusted on loopback and needs the key elsewhere
+  [32mPASS[0m  the cron lock allows one run at a time
+  [32mPASS[0m  the cron log writes one monthly line per run
+  [32mPASS[0m  the expiry sweep obeys the admin kill switch
+  [32mPASS[0m  the settings mode recomputes a pending order from the payment window
+  [32mPASS[0m  the settings mode measures a rejected order from its rejection
+  [32mPASS[0m  the settings mode keeps a fresh order alive
+  [32mPASS[0m  the sweep reports candidates, mode and expiry state
+
+DbTargetTest
+  [32mPASS[0m  fromConfig connects at server level and to one schema
+  [32mPASS[0m  exists reports a real schema and a missing one
+  [32mPASS[0m  tables and tableCount read information_schema in sorted order
+  [32mPASS[0m  the information_schema helpers describe the harness schema
+  [32mPASS[0m  a pre-provisioned scratch schema is recreated empty and then listed
+  [32mPASS[0m  recreating the scratch schema removes the previous case tables
+  [32mPASS[0m  create makes a missing schema and leaves it empty
+  [32mPASS[0m  create maps an existing schema and a refused name to hints
+  [32mPASS[0m  unsafe database names are rejected before any SQL
+  [32mPASS[0m  an unknown database maps to a create-it-first hint and leaks nothing
+  [32mPASS[0m  bad credentials map to a 1045 hint and never echo the password
+  [32mPASS[0m  an unreachable server maps to a not-reachable hint
+
+FulfilmentTest
+  [32mPASS[0m  P8-T1 pack → ready → ship moves the statuses and saves the tracking
+  [32mPASS[0m  P8-T1 a fulfilment step cannot be skipped, repeated or reversed
+  [32mPASS[0m  P8-T2 shipping without a courier or tracking is refused
+  [32mPASS[0m  P8-T2 the courier picker resolves a listed courier or a typed "Others" name
+  [32mPASS[0m  P8-T3 shipping deducts the physical stock exactly once
+  [32mPASS[0m  P8-T3 shipping refuses when the physical stock went short
+  [32mPASS[0m  P8-T4 deliver stamps the shipment and the member confirms the receipt
+  [32mPASS[0m  P8-T4 only the buyer can confirm, and only once the order is delivered
+  [32mPASS[0m  P8-T8 an order that has shipped can no longer be cancelled
+  [32mPASS[0m  P8-T9 the auto-complete sweep completes old deliveries and is idempotent
+  [32mPASS[0m  P8-T9 the auto-complete kill switch and day count are respected
+
+FulfilmentViewTest
+  [32mPASS[0m  P8-T5 the paid member page offers the invoice and explains what next
+  [32mPASS[0m  P8-T1 the shipped member page shows the courier and tracking
+  [32mPASS[0m  P8-T4 the delivered member page asks for a confirmation through the modal
+  [32mPASS[0m  P8-T4 the completed member page shows the closed order and the invoice
+  [32mPASS[0m  P8-T1 the paid admin page offers Start packing
+  [32mPASS[0m  P8-T1 the packing admin page offers Mark ready to ship
+  [32mPASS[0m  P8-T2 the ready admin page carries the guarded shipping form
+  [32mPASS[0m  P8-T2 the courier picker keeps the old choice and shows field errors
+  [32mPASS[0m  P8-T2 the ship script toggles the Other courier field progressively
+  [32mPASS[0m  P8-T4 the shipped admin page carries the delivery form and the shipment
+  [32mPASS[0m  P8-T9 the delivered admin page explains the auto-complete
+  [32mPASS[0m  P8-T5 the invoice page is a standalone A4 document
+  [32mPASS[0m  P8 the invoice page marks a voided document and keeps its content
+  [32mPASS[0m  P8 the invoice page escapes every snapshot value
+  [32mPASS[0m  P8 the settings page edits the seller identity and the completion rules
+  [32mPASS[0m  P8 the settings page echoes a bad completion window and the switch state
+
+HardeningTest
+  [32mPASS[0m  P15 the transfer throttle allows the limit then refuses
+  [32mPASS[0m  P15 the money forms are wired to the throttle
+  [32mPASS[0m  P15 the uploads directory cannot execute code
+  [32mPASS[0m  P15 the shared security headers are sent from the bootstrap
+  [32mPASS[0m  P15 production hides PHP errors and the 500 detail
+  [32mPASS[0m  P15 the repository ignores secrets and runtime artefacts
+  [32mPASS[0m  P15 the front controller pins the base URL, the router and the CSRF check
+  [32mPASS[0m  P15 the build reports phase 15
+
+ImpersonationTest
+  [32mPASS[0m  P14-T1 start records a hashed session and binds the member identity
+  [32mPASS[0m  P14-T2 every app URL keeps the token; assets and shared links do not
+  [32mPASS[0m  P14-T3 exit marks the log logged_out and the token is refused afterwards
+  [32mPASS[0m  P14-T4 a session past its TTL is refused and the audit row can be expired
+  [32mPASS[0m  P14-T5 an IP or user-agent change ends the session
+  [32mPASS[0m  P14-T6 only a superadmin can open a member session
+  [32mPASS[0m  P14-T7 the target must be an active member
+  [32mPASS[0m  P14-T8 six attempts in the window are rate-limited
+  [32mPASS[0m  P14-T9 a tampered token is rejected without touching the audit row
+  [32mPASS[0m  P14-T10 the raw nonce is never stored
+  [32mPASS[0m  P14-T11 the superadmin session survives start and exit
+  [32mPASS[0m  P14-T12 the audit list filters by status, search and date
+  [32mPASS[0m  P14-T13 a target suspended after the session opened is refused
+  [32mPASS[0m  P14-T14 a deleted audit row ends the session
+  [32mPASS[0m  P14-T15 bind refuses an invalid nonce
+  [32mPASS[0m  P14-T16 the console member picker lists only active members
+  [32mPASS[0m  P14-T17 the console and the audit trail render their real screens
+
+ImpersonationViewTest
+  [32mPASS[0m  P14-T1 the member layout shows the banner while impersonating
+  [32mPASS[0m  P14-T2 a normal member page has no banner
+  [32mPASS[0m  P14-T3 the banner is always present and never dismissible
+  [32mPASS[0m  P14-T4 the S-Login console is offered to superadmins only
+  [32mPASS[0m  P14-T5 the audit screen shows statuses but never a nonce hash
+  [32mPASS[0m  P14-T6 the audit screen has an empty state and filters
+
+InstallSqlTest
+  [32mPASS[0m  the committed bundle matches a fresh build byte for byte
+  [32mPASS[0m  the import matches the fresh schema, table by table
+  [32mPASS[0m  the import carries every setting and the three install_* keys
+  [32mPASS[0m  the catalogue matches by natural key (7 / 2 / 18 / 10)
+  [32mPASS[0m  the import seeds exactly two active staff accounts and no demo rows
+  [32mPASS[0m  a second import is refused by the guard and changes nothing
+
+InvoiceTest
+  [32mPASS[0m  P8-T5 an e-wallet payment freezes one invoice at payment time
+  [32mPASS[0m  P8-T5 a verified manual payment issues the invoice too
+  [32mPASS[0m  P8-T5 an unpaid order has no invoice and never gets one
+  [32mPASS[0m  P8-T6 reprinting returns the same number and frozen content
+  [32mPASS[0m  P8-T5 a paid order from an earlier phase is backfilled exactly once
+  [32mPASS[0m  P8-T5 invoice numbers are unique and follow INV-yymmdd-#####
+  [32mPASS[0m  cancelling a paid order voids its invoice without changing its content
+  [32mPASS[0m  P8-T7 invoice documents are scoped to their own order
+  [32mPASS[0m  P8 the invoice snapshot keeps the status it was issued at
+
+LaunchTest
+  [32mPASS[0m  P15-T10 a fresh install carries the final schema and every seed
+  [32mPASS[0m  P15-T7 the general card renames the application everywhere
+  [32mPASS[0m  P15-T7 the commission switches stop the direct leg and relax eligibility
+  [32mPASS[0m  P15-T7 the transfer card drives the member transfer rules
+  [32mPASS[0m  P15-T1 the UAT money path runs end to end and reconciles
+  [32mPASS[0m  P15-T2 ownership, role and CSRF probes are refused
+  [32mPASS[0m  P15-T3 the report queries stay under a second at launch scale
+  [32mPASS[0m  P15-T4 every finance invariant is zero on the seeded database
+  [32mPASS[0m  P15-T12 impersonation sessions end in a terminal audit state
+
+LiveTest
+  [32mPASS[0m  live revision starts at zero and touch increments it
+  [32mPASS[0m  live touch de-duplicates repeated surfaces
+  [32mPASS[0m  live etag is stable and changes with revision or scope
+  [32mPASS[0m  live If-None-Match accepts strong, weak and list forms
+  [32mPASS[0m  live scope is order-independent and user-specific
+  [32mPASS[0m  product writes bump the admin.products revision
+  [32mPASS[0m  a missing product delete does not bump the revision
+  [32mPASS[0m  live publish queues surfaces and ignores stale entries
+  [32mPASS[0m  the product feed renders stats, rows and pagination fragments
+  [32mPASS[0m  the product feed renders the empty state
+
+MemberDashboardLiveTest
+  [32mPASS[0m  the member dashboard surface is per user and bumps on wallet and order writes
+  [32mPASS[0m  activation requests and decisions bump the dashboard
+  [32mPASS[0m  a rejected activation bumps the dashboard
+  [32mPASS[0m  the member dashboard feed renders the six regions
+  [32mPASS[0m  the member dashboard feed shows the newest order and the open request
+  [32mPASS[0m  the member dashboard page declares its surface and six regions
+  [32mPASS[0m  admins keep the admin dashboard surface at /dashboard
+
+MemberEarningsLiveTest
+  [32mPASS[0m  the earnings surface is per user and bumps on award and skip
+  [32mPASS[0m  the earnings feed renders the stats, rows and pagination
+  [32mPASS[0m  the earnings feed surfaces a skipped award without claiming money
+  [32mPASS[0m  the earnings page declares its live surface and regions
+
+MemberGenealogyLiveTest
+  [32mPASS[0m  the genealogy surface is per user and team writes bump the shared revision
+  [32mPASS[0m  the genealogy feed renders the team chain, recruits and team levels
+  [32mPASS[0m  the genealogy feed clamps the recruits page and renders the empty states
+  [32mPASS[0m  the team chain shows an empty state for a member with no team
+  [32mPASS[0m  the team-by-level cards paginate on their own, ten rows by default
+  [32mPASS[0m  the genealogy page declares its live surface and regions
+
+MemberMembershipLiveTest
+  [32mPASS[0m  membership surfaces are per member and bump together
+  [32mPASS[0m  activation, status and wallet writes bump the membership page
+  [32mPASS[0m  the membership feed renders the activation paths for a pending member
+  [32mPASS[0m  the feed replaces the paths with the open-request notice
+  [32mPASS[0m  the feed shows the active associate state and its history
+  [32mPASS[0m  the feed renders the standard and suspended notices
+  [32mPASS[0m  the membership page declares its live surface and regions
+
+MemberOrderLiveTest
+  [32mPASS[0m  member order surfaces use the list + detail keys and bump together
+  [32mPASS[0m  placement, cancellation and fulfilment bump the member order surfaces
+  [32mPASS[0m  the order history feed renders rows and pagination
+  [32mPASS[0m  the order history feed renders its filtered empty state
+  [32mPASS[0m  the order detail feed renders every card with the forms held
+  [32mPASS[0m  the order detail feed renders a paid order without action forms
+  [32mPASS[0m  the member order pages declare their live surfaces and regions
+
+MemberProfileLiveTest
+  [32mPASS[0m  address-book writes bump the profile and checkout surfaces
+  [32mPASS[0m  cart and wallet movements bump the checkout surface
+  [32mPASS[0m  the profile feed renders the name, payout and address regions
+  [32mPASS[0m  a stale edit id falls back to the add-address form
+  [32mPASS[0m  the profile page declares its live surface and regions
+  [32mPASS[0m  the checkout feed renders, hides and selects the saved addresses
+  [32mPASS[0m  the checkout page declares its live surface and regions
+
+MemberWalletLiveTest
+  [32mPASS[0m  the member wallet surface is per user and bumps on every movement
+  [32mPASS[0m  the wallet feed renders the buckets and the statement
+  [32mPASS[0m  the wallet feed renders the empty statement
+  [32mPASS[0m  the wallet page declares its live surface and regions
+
+MembershipTest
+  [32mPASS[0m  P9-T6 the demo tree seeds a sponsor chain without binary links
+  [32mPASS[0m  P9-T14 the demo codes cover unused and expired states
+  [32mPASS[0m  P9-T1 standard registration creates an active member without a package
+  [32mPASS[0m  P9-T1 a blank sponsor joins the company account (primary admin)
+  [32mPASS[0m  P9-T1 the default sponsor is the primary admin
+  [32mPASS[0m  P9-T1 free registration can be closed by the setting
+  [32mPASS[0m  P9-T2 registering with a valid code activates the code package
+  [32mPASS[0m  P9-T3 an invalid, used or expired code is refused and no account is written
+  [32mPASS[0m  P9-T4 an e-wallet registration debits the registrar once and credits the admin
+  [32mPASS[0m  P9-T5 a guest cannot register someone from an e-wallet
+  [32mPASS[0m  P9-T6 a referral signup resolves the sponsor by code and stays pending
+  [32mPASS[0m  P9-T7 an unknown or self sponsor is refused without an account
+  [32mPASS[0m  P9-T8 duplicate usernames and emails are field errors
+  [32mPASS[0m  P9-T9 activation by e-wallet debits once and invokes the hook once
+  [32mPASS[0m  P9-T10 a manual proof waits for review and approval activates the member
+  [32mPASS[0m  P9-T11 rejection returns the member to pending with a reason and no debit
+  [32mPASS[0m  P9-T12 double activation and double approval are refused
+  [32mPASS[0m  P9-T12 a standard member cannot self-activate (plan §7 rule)
+  [32mPASS[0m  P9-T13 two parallel redemptions use a code exactly once
+  [32mPASS[0m  P9-T14 generation is transactional and stats follow the states
+  [32mPASS[0m  P9-T14 invalid batches are refused and write nothing
+  [32mPASS[0m  P9-T15 the code and member routes are admin-guarded and the binary routes are gone
+  [32mPASS[0m  P9-T17 the upline chain walks sponsor_id to the top
+  [32mPASS[0m  P9-T17 the downline is grouped by level with no duplicates
+  [32mPASS[0m  P9-T17 a corrupted cycle cannot loop the chain or the downline
+  [32mPASS[0m  P9-T17 no binary column is referenced anywhere in the app
+  [32mPASS[0m  P9-T17 the schema carries no binary columns
+  [32mPASS[0m  P9-T16 suspend blocks sign-in and restore returns the right status
+  [32mPASS[0m  P9-T16 staff accounts are not member rows
+  [32mPASS[0m  P9-T18 referral codes are unique eight-character values
+  [32mPASS[0m  P9-T16 activation history and recruits page with the shared pager
+
+MembershipViewTest
+  [32mPASS[0m  P9-T1 the register form offers the free, code and pending modes
+  [32mPASS[0m  P9-T3 a code error is announced once, not twice
+  [32mPASS[0m  P9-T3 a global registration failure shows its message once
+  [32mPASS[0m  P9-T1 the register form pre-fills a referral sponsor
+  [32mPASS[0m  P9-T4 a signed-in registrar sees the e-wallet mode and package cards
+  [32mPASS[0m  P9-T4 a signed-in registrar sees the register-a-member framing
+  [32mPASS[0m  P9-T1 closed free registration leaves only the code mode
+  [32mPASS[0m  P9-T18 the register form has no binary placement field
+  [32mPASS[0m  P9-T9 a pending member sees the three activation paths
+  [32mPASS[0m  P9-T10 an open proof request replaces the activation forms
+  [32mPASS[0m  P9-T11 an active associate sees the package, not the forms
+  [32mPASS[0m  P9-T1 a standard member reads the standard-membership note
+  [32mPASS[0m  P9-T11 a suspended member sees no activation form
+  [32mPASS[0m  P9-T17 genealogy renders the team chain and the team levels
+  [32mPASS[0m  P9-T17 genealogy escapes a hostile username
+  [32mPASS[0m  P9-T16 the dashboard shows status, both wallet buckets and the referral link
+  [32mPASS[0m  P9-T16 the dashboard tells a pending member what to do
+  [32mPASS[0m  P9-T14 the codes page renders stats, the issue form and the list
+  [32mPASS[0m  P9-T15 a member cannot reach the admin screens (route guards)
+  [32mPASS[0m  P9-T10 the review queue offers approve, reject and the proof
+  [32mPASS[0m  P9-T11 an approved activation has no review actions
+  [32mPASS[0m  P9-T16 the member directory shows sponsor, package, wallet and status
+  [32mPASS[0m  P9-T16 the member detail page carries the membership record
+  [32mPASS[0m  P9-T16 the member table honours the rows-per-page choice
+
+MigrationTest
+  [32mPASS[0m  migration renames user → member and adds superadmin
+  [32mPASS[0m  migration keeps every account and its password hash
+  [32mPASS[0m  migration creates settings, audit_log and the catalogue tables
+  [32mPASS[0m  migration adds the role index
+  [32mPASS[0m  migration is idempotent
+  [32mPASS[0m  migrated schema matches a fresh install
+  [32mPASS[0m  migration 019 adds the reporting indexes and re-runs cleanly
+  [32mPASS[0m  migration guards the ledger enum and the idempotency key
+  [32mPASS[0m  migration guards the order idempotency key and status enum
+  [32mPASS[0m  migration guards the payment-proof attempt and status enum
+  [32mPASS[0m  migration guards the shipment and invoice snapshots
+  [32mPASS[0m  migration adds membership columns, backfills and guards codes
+  [32mPASS[0m  migration adds the indirect commission settings
+  [32mPASS[0m  migration raises Package B to the premium ladder only
+  [32mPASS[0m  migration guards the commission event key and its cascades
+  [32mPASS[0m  migration guards the payout status machine and its cascades
+  [32mPASS[0m  migration guards the impersonation audit and its hashed nonce
+  [32mPASS[0m  migrated schema rejects the old user role value
+
+OrderTest
+  [32mPASS[0m  P6-T1 an e-wallet order is paid, reserved, converted and debited once
+  [32mPASS[0m  P6-T1 a manual order stays pending without touching the wallet
+  [32mPASS[0m  P6-T2 the same idempotency key returns the original order once
+  [32mPASS[0m  P6-T3 posted prices are ignored; the catalogue price wins
+  [32mPASS[0m  P6-T4 stock changed after the cart renders refuses the whole order
+  [32mPASS[0m  P6-T5 insufficient wallet refuses the order and keeps everything
+  [32mPASS[0m  P6-T6 missing address fields and terms are field-level errors
+  [32mPASS[0m  P6-T7 the address book enforces one default and member ownership
+  [32mPASS[0m  P6-T7 checkout can save the typed address for next time
+  [32mPASS[0m  P6-T8 another member cannot read or cancel the order
+  [32mPASS[0m  P6-T9 the order list filters, paginates and totals correctly
+  [32mPASS[0m  P6-T10 admins see every order; the stats count what they paid
+  [32mPASS[0m  P6-T11 cancelling an unpaid order releases stock and logs the transition
+  [32mPASS[0m  P6-T11 a paid order cannot be cancelled online
+  [32mPASS[0m  P6-T12 every transition writes one event with actor and timestamp
+  [32mPASS[0m  P6-T13 the order number is EW + yymmdd + id and is unique
+  [32mPASS[0m  P6-T14 two checkouts for the last unit create at most one order
+
+OrderViewTest
+  [32mPASS[0m  P6-T1 the checkout page carries items, payments, terms and the key
+  [32mPASS[0m  P6-T5 an unaffordable e-wallet is disabled and manual is preselected
+  [32mPASS[0m  P6-T6 checkout errors render inline and keep the typed input
+  [32mPASS[0m  P6-T6 the checkout script gates Place order on the terms checkbox
+  [32mPASS[0m  P6-T9 the orders list renders rows, filters and the empty state
+  [32mPASS[0m  P6-T9 order rows escape the snapshot product name
+  [32mPASS[0m  P6-T1 the paid order page shows items, payment, delivery and history
+  [32mPASS[0m  P6-T11 the pending order page shows instructions and the cancel form
+  [32mPASS[0m  P6-T11 the confirmation script uses SweetAlert2 with a native fallback
+  [32mPASS[0m  P6-T11 a cancelled order shows its reason and no cancel form
+  [32mPASS[0m  P6-T10 the admin desk lists orders with stats and member context
+  [32mPASS[0m  P6-T10 the admin order page shows the member, items and timeline
+  [32mPASS[0m  P6-T7 the profile page renders the address book and the form
+  [32mPASS[0m  P6-T7 editing an address opens the form with its values
+  [32mPASS[0m  P6-T1 the member menu now offers Orders and Profile
+
+PackageTest
+  [32mPASS[0m  P3-T1 the demo seed loads Package A and Package B
+  [32mPASS[0m  P3-T1 levelsMap batches the ladder for a page
+  [32mPASS[0m  P3-T1 contentsMap joins product details
+  [32mPASS[0m  P3-T1 stats count packages by status
+  [32mPASS[0m  P3-T1 the admin list filters by search and status
+  [32mPASS[0m  P3-T1 creating a package writes the ladder and contents
+  [32mPASS[0m  P3-T2 editing a level persists and keeps the rest
+  [32mPASS[0m  P3-T5 level 1 is the direct bonus and never stored as a level row
+  [32mPASS[0m  P3-T1 slugs stay unique across packages
+  [32mPASS[0m  P3-T3 invalid package fields are rejected
+  [32mPASS[0m  P3-T3 level amounts reject negatives, 3 decimals and over the cap
+  [32mPASS[0m  P3-T3 a failed save writes nothing
+  [32mPASS[0m  P3-T4 blank rows are dropped and duplicates merged
+  [32mPASS[0m  P3-T4 inactive products cannot be added to contents
+  [32mPASS[0m  P3-T4 an already-linked inactive product may stay in its package
+  [32mPASS[0m  P3-T4 content quantities must be between 1 and 1000
+  [32mPASS[0m  P3-T4 content options are the active catalogue plus linked products
+  [32mPASS[0m  P3-T6 setStatus toggles packages and refuses unknown statuses
+  [32mPASS[0m  P3-T6 deactivated packages disappear from the public cards
+  [32mPASS[0m  P3-T8 public cards expose the ladder, totals and contents
+  [32mPASS[0m  P3-T8 levelsFromInput normalises the posted matrix
+  [32mPASS[0m  P3-T8 contentsFromInput zips the repeater arrays
+
+PackageViewTest
+  [32mPASS[0m  P3-T8 the packages page lists both packages with prices and bonuses
+  [32mPASS[0m  P3-T8 the packages page shows the full ladder on demand
+  [32mPASS[0m  P3-T8 an empty catalogue shows the empty state
+  [32mPASS[0m  P3-T8 package text is escaped
+  [32mPASS[0m  P3-T1 the admin list renders packages with their ladder summary
+  [32mPASS[0m  P3-T5 the admin form renders 9 editable levels and a read-only level 1
+  [32mPASS[0m  P3-T2 the admin form shows validation errors and posted values
+
+ParityTest
+  [32mPASS[0m  P1-T12 inventory holds the 98 reference pages exactly once
+  [32mPASS[0m  P1-T12 dispositions total 67 port · 8 defer · 23 drop
+  [32mPASS[0m  P1-T12 port rows carry targets and a valid phase
+  [32mPASS[0m  P1-T12 every target is well formed and every page target exists
+  [32mPASS[0m  P1-T12 every route due in this phase is registered
+  [32mPASS[0m  P1-T12 no route from a later phase is registered early
+  [32mPASS[0m  P1-T12 every registered route belongs to the inventory
+  [32mPASS[0m  P1-T12 the live table has no duplicated method + path
+
+PaymentDetailsTest
+  [32mPASS[0m  payout accounts save with normalised phone numbers
+  [32mPASS[0m  payout accounts accept 09 and +63 numbers and reject nonsense
+  [32mPASS[0m  payout accounts can be cleared one by one and only touch the owner
+  [32mPASS[0m  the profile renders the payout accounts card with the saved values
+  [32mPASS[0m  a failed payout save keeps the typed values and shows the field error
+  [32mPASS[0m  an admin profile keeps the payout card in the back-office layout
+
+PaymentTest
+  [32mPASS[0m  P7-T1 a valid proof moves the order to payment_review and keeps the hold
+  [32mPASS[0m  P7-T1 a PDF proof is accepted and its facts are read from the file
+  [32mPASS[0m  P7-T2 a wrong file type or an oversized file is refused with no writes
+  [32mPASS[0m  P7-T2 the claim is validated field by field
+  [32mPASS[0m  P7-T3 the attempt cap refuses the fourth upload
+  [32mPASS[0m  P7-T4 verification pays the order, commits the stock and logs the event
+  [32mPASS[0m  P7-T4 verification refuses a wrong amount, a reused reference or no proof
+  [32mPASS[0m  P7-T5 rejection releases the stock and opens the correction window
+  [32mPASS[0m  P7-T5 a rejection needs a real reason and a pending proof
+  [32mPASS[0m  P7-T6 a re-upload after a rejection re-reserves the stock
+  [32mPASS[0m  P7-T7 the expiry sweep cancels overdue orders and is idempotent
+  [32mPASS[0m  P7-T7 a rejected order expires on its correction deadline
+  [32mPASS[0m  P7-T8 an upload past the deadline is refused with clear copy
+  [32mPASS[0m  P7-T8 a second upload while under review is refused
+  [32mPASS[0m  P7-T9 another member cannot upload a proof on this order
+  [32mPASS[0m  P7-T10 an admin cannot verify, reject or cancel their own order
+  [32mPASS[0m  P7-T11 the timeline records every step with its actor and reason
+  [32mPASS[0m  P7-T12 cancelling a wallet-paid order refunds the buckets it spent
+  [32mPASS[0m  P7-T12 cancelling a proof-paid order refunds nothing
+  [32mPASS[0m  P7-T12 an admin cancel rejects a pending proof and never double-cancels
+  [32mPASS[0m  P7-T12 a shipped order cannot be cancelled by an admin
+
+PaymentViewTest
+  [32mPASS[0m  P7-T1 the pending page offers the proof upload with its fields
+  [32mPASS[0m  P7-T8 a closed window hides the form and explains why
+  [32mPASS[0m  P7-T1 the page shows the review state without an upload form
+  [32mPASS[0m  P7-T5 the rejected page shows the reason, the window and the retry form
+  [32mPASS[0m  P7-T3 an exhausted attempt cap explains itself and hides the form
+  [32mPASS[0m  P7-T1 attempt rows escape a hostile reference and reason
+  [32mPASS[0m  P7-T4 the paid page shows the verified reference and no proof panel
+  [32mPASS[0m  P7-T12 a cancelled order says what happened to the money
+  [32mPASS[0m  P7-T4 the review pane offers verify and reject with confirmations
+  [32mPASS[0m  P7-T10 the admin own order shows the segregation banner instead of actions
+  [32mPASS[0m  P7-T12 a paid order shows the refunding cancel action
+  [32mPASS[0m  P7-T5 the rejected order tells the admin the correction window is open
+  [32mPASS[0m  P7-T4 the settings page renders the accounts, windows and save
+  [32mPASS[0m  P7-T4 the settings form echoes field errors and typed values
+  [32mPASS[0m  P7-T4 the admin menu offers Settings and the desk links the review filter
+
+PayoutLiveTest
+  [32mPASS[0m  the payout surface is per member and bumps for every decision
+  [32mPASS[0m  a refused payout request bumps no surface
+  [32mPASS[0m  the payout feed renders the four regions and holds the request region
+  [32mPASS[0m  the payout page scope follows the wallet revision as well
+  [32mPASS[0m  the payout page also revalidates when the saved payout accounts change
+  [32mPASS[0m  the payout settings fingerprint reaches both payout surfaces
+  [32mPASS[0m  a USDT settings change reaches the open payout page without a reload
+  [32mPASS[0m  the queue feed renders the stats, tabs and rows
+  [32mPASS[0m  the payout page declares its surface and loads the form script
+
+PayoutTest
+  [32mPASS[0m  P13-T1 a valid request holds the amount and queues a pending row
+  [32mPASS[0m  P13-T2 an amount below min_payout is refused and writes nothing
+  [32mPASS[0m  P13-T3 an amount above the withdrawable bucket is refused even when the balance covers it
+  [32mPASS[0m  P13-T4 a second request while one is open is refused
+  [32mPASS[0m  P13-T5 the service fee percentage is taken from the amount and stored
+  [32mPASS[0m  P13-T6 a USDT request converts at the server-side rate and stores the rate and gas
+  [32mPASS[0m  P13-T6 a USDT request is refused while usdt_rate is unset
+  [32mPASS[0m  P13-T7 approve records the staff account and the moment
+  [32mPASS[0m  P13-T8 complete settles the request without a second debit
+  [32mPASS[0m  P13-T9 reject refunds the held amount exactly once and records the reason
+  [32mPASS[0m  P13-T9 a rejection without a reason is refused
+  [32mPASS[0m  P13-T9 a refund is still paid back when an order refund already uses that id
+  [32mPASS[0m  P13-T10 a member cannot process a payout, and nobody can process their own
+  [32mPASS[0m  P13-T11 double approve and out-of-order decisions are refused
+  [32mPASS[0m  P13-T12 reconciliation matches every request to its hold and refund
+  [32mPASS[0m  P13-T13 the queue filters, counts and totals agree with the rows
+  [32mPASS[0m  the channel must exist and be switched on
+  [32mPASS[0m  the payout account is required and validated like the profile form
+  [32mPASS[0m  the note is trimmed, collapsed and capped
+  [32mPASS[0m  the quote reports both buckets of a request and refuses a swallowed net
+  [32mPASS[0m  the options a page renders know when a request is possible
+  [32mPASS[0m  a second request cannot hold money the first one already took
+
+PayoutViewTest
+  [32mPASS[0m  P13-T1 the payout page carries the withdrawable card and the request form
+  [32mPASS[0m  P13-T6 the USDT channels are closed while the rate is unset
+  [32mPASS[0m  P13-T7 an open request closes the form and shows what is held
+  [32mPASS[0m  P13-T2 a withdrawable balance below the minimum explains itself
+  [32mPASS[0m  P13-T13 the member history shows every request, its fee, net, USDT and reason
+  [32mPASS[0m  P13-T1 the payout page escapes hostile names, accounts and notes
+  [32mPASS[0m  P13-T3 the form echoes a refusal and keeps the submitted values
+  [32mPASS[0m  P13-T12 an admin sees their own payout page in the back-office layout
+  [32mPASS[0m  P13-T13 the queue lists the pending requests with their actions
+  [32mPASS[0m  P13-T13 an approved request offers complete, a completed one offers nothing
+  [32mPASS[0m  P13-T13 the queue filters by member and date and escapes hostile input
+  [32mPASS[0m  P13-T12 the queue shows the settings it is working with
+
+ProductTest
+  [32mPASS[0m  P2-T1 the demo seed loads the retail products
+  [32mPASS[0m  P2-T4 the storefront list is ordered and filtered by status
+  [32mPASS[0m  P2-T8 search matches name, SKU and short description
+  [32mPASS[0m  P2-T8 LIKE wildcards in the search term are escaped
+  [32mPASS[0m  P2-T8 the admin list paginates and keeps filters
+  [32mPASS[0m  P2-T1 creating a product generates a unique slug
+  [32mPASS[0m  P2-T4 updating keeps the slug and stores the new price
+  [32mPASS[0m  P2-T2 validation rejects empty name, zero price and negative stock
+  [32mPASS[0m  P2-T2 validation enforces the description length
+  [32mPASS[0m  P2-T1 a valid product passes validation
+  [32mPASS[0m  P2-T1 SKUs stay unique while empty SKUs may repeat
+  [32mPASS[0m  P2-T5 setStatus toggles products and refuses unknown statuses
+  [32mPASS[0m  P2-T6 an unreferenced product can be deleted
+  [32mPASS[0m  P2-T6 deleting a product removes its uploaded image
+  [32mPASS[0m  P2-T7 delete is refused while a cart references the product
+  [32mPASS[0m  P2-T7 delete is refused while an order references the product
+  [32mPASS[0m  P3-T4 delete is refused while a package contains the product
+  [32mPASS[0m  P2-T7 referencesMap batches counts for a page of products
+  [32mPASS[0m  P2-T2 StockService labels stock levels
+  [32mPASS[0m  P2-T2 available stock is the physical count while no orders exist
+  [32mPASS[0m  P2-T2 reservations from non-terminal orders reduce availability
+  [32mPASS[0m  P2-T2 availability never drops below zero
+  [32mPASS[0m  P2-T3 UploadService replaces a product image and removes the old file
+  [32mPASS[0m  P2-T3 UploadService ignores seeded asset paths when removing
+  [32mPASS[0m  P2-T1 slugify normalises names safely
+
+ProductViewTest
+  [32mPASS[0m  P2-T1 the catalogue renders cards with prices and stock badges
+  [32mPASS[0m  P2-T2 the catalogue shows sold-out and low-stock badges
+  [32mPASS[0m  P2-T5 the catalogue shows an empty state when nothing matches
+  [32mPASS[0m  P2-T5 a closed shop hides the catalogue
+  [32mPASS[0m  P2-T9 product names, prices and descriptions are escaped
+  [32mPASS[0m  P4-T1 the detail page renders an active add-to-cart form
+  [32mPASS[0m  P4-T1 the product stepper is a single-row, content-width group
+  [32mPASS[0m  P2-T2 a sold-out detail page says so
+  [32mPASS[0m  P2-T1 the admin list renders rows, filters and guarded delete buttons
+  [32mPASS[0m  P2-T1 the admin form renders values, errors and the upload field
+  [32mPASS[0m  P2-T4 the edit form shows the current image and a remove option
+
+ReportTest
+  [32mPASS[0m  P15 the report window defaults to 30 days and is inclusive
+  [32mPASS[0m  P15 the report window swaps a reversed range and caps a long one
+  [32mPASS[0m  P15 sales today, in the window and all time count paid orders only
+  [32mPASS[0m  P15 sales by day zero-fills every day in the window
+  [32mPASS[0m  P15 orders by status keep the lifecycle order
+  [32mPASS[0m  P15 top products rank paid lines and exclude unpaid orders
+  [32mPASS[0m  P15 sales by method groups paid orders
+  [32mPASS[0m  P15 commissions by level separate credited from skipped
+  [32mPASS[0m  P15 the wallet float equals the sum of both buckets
+  [32mPASS[0m  P15 the wallet statement export rows are ordered and member-scoped
+  [32mPASS[0m  P15 the payout summary separates held, completed and rejected
+  [32mPASS[0m  P15 code revenue counts issued, redeemed and expired codes
+  [32mPASS[0m  P15 each export builds a filename, header and rows
+  [32mPASS[0m  P15 an unknown export type is refused
+
+ReportViewTest
+  [32mPASS[0m  P15 the reports page renders every report and its export menu
+  [32mPASS[0m  P15 a report window comes from the query and is echoed in the form
+  [32mPASS[0m  P15 the reports page escapes product and member data
+  [32mPASS[0m  P15 the reports feed returns eight fragments and chart data
+  [32mPASS[0m  P15 the health widget reports every invariant and passes on a clean fixture
+  [32mPASS[0m  P15 the health widget flags a broken order total
+  [32mPASS[0m  P15 the admin menu offers Reports and the Audit log in phase 15
+
+RouterTest
+  [32mPASS[0m  Router matches a static route with its guard
+  [32mPASS[0m  Router extracts numeric parameters
+  [32mPASS[0m  Router rejects non-numeric parameters
+  [32mPASS[0m  Router requires the exact method
+  [32mPASS[0m  Router treats HEAD as GET and tolerates a trailing slash
+  [32mPASS[0m  Router keeps "/" distinct from every other path
+  [32mPASS[0m  Router refuses duplicate routes
+  [32mPASS[0m  Router refuses an unknown guard
+  [32mPASS[0m  Router refuses a malformed row
+  [32mPASS[0m  Live route table builds and contains the Phase 1–10 routes
+  [32mPASS[0m  Live route table resolves the Phase 1–10 URLs
+
+SLoginLiveTest
+  [32mPASS[0m  the console surface is admin.slogin and every impersonation write bumps it
+  [32mPASS[0m  the overdue sweep bumps the console only when it expires a row
+  [32mPASS[0m  the console feed renders the active and recent cards
+  [32mPASS[0m  the console feed renders both empty states
+  [32mPASS[0m  the console page declares the surface and keeps the form outside it
+  [32mPASS[0m  the console ETag follows the revision and the signed-in superadmin
+
+SeedParityTest
+  [32mPASS[0m  every settings key a migration introduces exists in seed 001 (F-01)
+  [32mPASS[0m  seed 001 has no duplicate settings key
+  [32mPASS[0m  seed 002 marks both staff accounts active (F-09)
+  [32mPASS[0m  the install bundle carries every seed key and parses cleanly
+
+SettingsPageTest
+  [32mPASS[0m  P7-T4 each settings card has its own form and Save settings button
+  [32mPASS[0m  P7-T4 a card only contains its own fields
+  [32mPASS[0m  P7-T4 errors and typed values stay inside their own card
+  [32mPASS[0m  P7-T4 the legacy all-in-one form is gone
+  [32mPASS[0m  the settings page has a section menu for every card
+  [32mPASS[0m  the settings cards keep a gap when they follow one another
+  [32mPASS[0m  P7-T4 the field catalog is partitioned by section
+  [32mPASS[0m  P7-T4 each section validates and saves only its own keys
+
+SettingsTest
+  [32mPASS[0m  settings seed loads the documented defaults
+  [32mPASS[0m  setting() returns the fallback for a missing key
+  [32mPASS[0m  setting_bool() understands the common truthy spellings
+  [32mPASS[0m  setting_bool() normalises text values
+  [32mPASS[0m  setting_int() and setting_float() cast values
+  [32mPASS[0m  setting_set() inserts, updates and refreshes the cache
+  [32mPASS[0m  setting_all() returns the whole table
+  [32mPASS[0m  settings written by one case are rolled back before the next
+
+ShopLiveTest
+  [32mPASS[0m  shop surfaces use the catalogue + product keys and bump together
+  [32mPASS[0m  product writes bump the catalogue and the product page
+  [32mPASS[0m  order reservations and releases bump the storefront
+  [32mPASS[0m  the catalogue feed renders the heading, results and quick view
+  [32mPASS[0m  the catalogue feed renders the filtered empty state
+  [32mPASS[0m  the product feed renders the heading, notice and card
+  [32mPASS[0m  the product feed swaps to the unavailable card after removal
+  [32mPASS[0m  the shop pages declare their live surfaces and regions
+
+SkeletonTest
+  [32mPASS[0m  P1-T5 detect_app_base_url: document root
+  [32mPASS[0m  P1-T5 detect_app_base_url: /ecowealth/system/ sub-folder
+  [32mPASS[0m  P1-T5 detect_app_base_url: normalises Windows separators
+  [32mPASS[0m  P1-T5 url() prefixes the installation path
+  [32mPASS[0m  P9-T18 absolute_url() adds the origin to copyable links
+  [32mPASS[0m  P1-T5 Request::pathFrom strips the install prefix from a deep URL
+  [32mPASS[0m  P1-T5 Request::pathFrom handles root, trailing slash and query
+  [32mPASS[0m  P1-T5 Request::pathFrom decodes percent-escapes
+  [32mPASS[0m  money() formats pesos
+  [32mPASS[0m  money() shows the sign only when asked (or negative)
+  [32mPASS[0m  status_badge() maps a known status
+  [32mPASS[0m  status_badge() humanises an unknown status
+  [32mPASS[0m  status_badge() accepts per-page overrides
+  [32mPASS[0m  Validator flags required, length and numeric rules
+  [32mPASS[0m  Validator checks decimals, email and confirmation
+  [32mPASS[0m  Validator passes valid input
+  [32mPASS[0m  Validator honours nullable fields
+  [32mPASS[0m  Validator counts characters when a field says string
+  [32mPASS[0m  Validator keeps amount semantics on numeric fields
+  [32mPASS[0m  Validator unique rule reads the database
+  [32mPASS[0m  Paginator computes pages, offset and summary
+  [32mPASS[0m  Paginator clamps an out-of-range page
+  [32mPASS[0m  Paginator handles an empty result
+  [32mPASS[0m  Paginator window surrounds the current page
+  [32mPASS[0m  Paginator defaults to ten rows and offers 5 … 100 in fives
+  [32mPASS[0m  Paginator reads a valid per_page and falls back to the default
+  [32mPASS[0m  Paginator page URLs keep the chosen page size
+  [32mPASS[0m  flash messages render once
+  [32mPASS[0m  old() repopulates and clears
+  [32mPASS[0m  form errors survive one round trip
+  [32mPASS[0m  invalid_class adds is-invalid only for a failing field
+
+SqlScriptTest
+  [32mPASS[0m  plain statements split with their starting line numbers
+  [32mPASS[0m  a semicolon inside a quoted string never splits the statement
+  [32mPASS[0m  doubled quotes and backslash escapes stay inside the string
+  [32mPASS[0m  -- is a comment only when followed by whitespace
+  [32mPASS[0m  # and block comments are stripped and keep the line numbers
+  [32mPASS[0m  a DELIMITER block is rejected with a clear message
+  [32mPASS[0m  a truncated script cannot end inside a string or a comment
+  [32mPASS[0m  containsDatabaseSwitch sees statements, never comments or strings
+  [32mPASS[0m  a failing statement names its index, line and driver code
+  [32mPASS[0m  schema.sql imports through the runner into a scratch schema
+  [32mPASS[0m  the application SQL sources contain no executable database switch
+  [32mPASS[0m  checksum ignores line endings and trailing whitespace but not content
+  [32mPASS[0m  run reports the statement count and calls the progress hook
+  [32mPASS[0m  a missing SQL file is a usage error
+  [32mPASS[0m  the statement cap stops a runaway script
+
+TransferLiveTest
+  [32mPASS[0m  the transfer surface is per member and bumps for both parties
+  [32mPASS[0m  a refused transfer bumps no surface
+  [32mPASS[0m  the transfer feed renders the four regions and keeps the form out of them
+  [32mPASS[0m  the transfer page scope follows the wallet revision as well
+  [32mPASS[0m  the monitor transfers feed renders the tab and its rows
+  [32mPASS[0m  the transfer page declares its surface and loads the form script
+
+TransferTest
+  [32mPASS[0m  P12-T1 a fee-free transfer moves the amount and writes two ledger rows
+  [32mPASS[0m  P12-T2 a member pays the fee, which is credited to the primary admin
+  [32mPASS[0m  P12-T3 an amount below the minimum is refused and writes nothing
+  [32mPASS[0m  P12-T4 a transfer larger than the balance is refused; counters stay put
+  [32mPASS[0m  P12-T5 a member cannot transfer to themselves
+  [32mPASS[0m  P12-T6 a wrong or missing password refuses before anything is written
+  [32mPASS[0m  P12-T7 the daily limit allows exactly the limit and refuses one peso more
+  [32mPASS[0m  P12-T8 the weekly limit is enforced independently of the daily one
+  [32mPASS[0m  P12-T9 the reset job zeroes daily counters every run and weekly ones on request
+  [32mPASS[0m  P12-T10 a second transfer cannot spend money the first one already took
+  [32mPASS[0m  P12-T11 a transfer spends non-withdrawable money first and credits non-withdrawable money
+  [32mPASS[0m  P12-T12 staff transfer without a fee or a limit and are attributed to the primary admin
+  [32mPASS[0m  an admin transfers without a fee
+  [32mPASS[0m  the recipient must exist, be enabled and not be suspended
+  [32mPASS[0m  the note travels to the transfer row and both ledger rows
+  [32mPASS[0m  the fee falls back to an unlinked ledger row when the admin is the recipient
+  [32mPASS[0m  an orphan transfer leg is reported, not treated as a money error
+  [32mPASS[0m  reconciliation matches every transfer to its three ledger legs
+
+TransferViewTest
+  [32mPASS[0m  P12-T1 the transfer page carries the password-confirmed form, fee and minimum
+  [32mPASS[0m  P12-T1 the page lists sent and received transfers with their direction
+  [32mPASS[0m  P12-T1 the transfer page escapes hostile names and notes
+  [32mPASS[0m  P12-T1 the form echoes a refusal and keeps the submitted values
+  [32mPASS[0m  P12-T1 the ?to= query prefills the recipient
+  [32mPASS[0m  P12-T12 an admin sees the staff exemption on the transfer page
+  [32mPASS[0m  P12-T2 the monitor transfers tab lists the log with links, fees and filters
+  [32mPASS[0m  P12-T10 the monitor transfers tab searches by member and date
+  [32mPASS[0m  P12-T1 an empty transfer log explains itself
+
+UploadTest
+  [32mPASS[0m  Upload stores a valid PNG with a random name
+  [32mPASS[0m  Upload rejects a PHP file renamed to .jpg
+  [32mPASS[0m  Upload rejects a file over the size cap
+  [32mPASS[0m  Upload reports a missing file
+  [32mPASS[0m  Upload accepts a PDF payment proof
+  [32mPASS[0m  Upload refuses an unknown area
+  [32mPASS[0m  Upload::remove() refuses paths outside uploads/
+
+ViewTest
+  [32mPASS[0m  View::capture renders an error template
+  [32mPASS[0m  View::page renders 404 inside the plain layout without a sidebar
+  [32mPASS[0m  View::page renders the member layout with member navigation only
+  [32mPASS[0m  View::page renders the admin layout with back-office navigation
+  [32mPASS[0m  View::page shows the member status, not sign-in state, in recent accounts
+  [32mPASS[0m  View::page hides later-phase items from the superadmin console for a plain admin
+  [32mPASS[0m  View::page links the top-bar identity to the member profile
+  [32mPASS[0m  View::page renders an admin profile inside the back-office layout
+  [32mPASS[0m  View::page marks the active menu item
+  [32mPASS[0m  View::page renders the password form with CSRF protection
+  [32mPASS[0m  View::page renders the storefront for members
+  [32mPASS[0m  View refuses unknown and traversing template names
+  [32mPASS[0m  Partials render empty states and pagination
+  [32mPASS[0m  View::page footer carries only the EcoWealth copyright
+  [32mPASS[0m  Escaping is applied everywhere user text is printed
+
+WalletTest
+  [32mPASS[0m  P5-T1 a withdrawable credit raises both buckets and writes one ledger row
+  [32mPASS[0m  P5-T2 a non-withdrawable credit raises the total only
+  [32mPASS[0m  P5-T3 debitInternal spends non-withdrawable money first
+  [32mPASS[0m  P5-T4 a debit larger than the total is refused and writes nothing
+  [32mPASS[0m  P5-T4 a withdrawable debit cannot touch locked money
+  [32mPASS[0m  P5-T5 replaying a system movement returns the original row
+  [32mPASS[0m  P5-T5 movements without a reference id are never collapsed
+  [32mPASS[0m  P5-T6 concurrent debits cannot overdraw the wallet
+  [32mPASS[0m  P5-T7 an admin top-up credits the non-withdrawable bucket and audits it
+  [32mPASS[0m  P5-T7 a non-admin cannot top up and a rejected top-up writes nothing
+  [32mPASS[0m  P5-T8 an unknown ref_type is refused before any write
+  [32mPASS[0m  P5-T8 the PHP ref_type list matches the live DB enum exactly
+  [32mPASS[0m  P5-T9 the statement filters, paginates and totals exactly
+  [32mPASS[0m  P5-T9 invalid statement filters are ignored, never trusted
+  [32mPASS[0m  P5-T10 the ledger has no update or delete path
+  [32mPASS[0m  P5-T11 reconciliation is clean for a correct ledger
+  [32mPASS[0m  P5-T11 reconciliation catches a balance written outside the ledger
+  [32mPASS[0m  P5-T11 reconciliation catches a missing ledger and a bad withdrawable
+
+WalletViewTest
+  [32mPASS[0m  P5-T1 the member statement shows both buckets, rows and totals
+  [32mPASS[0m  P5-T1 an empty statement explains where money comes from
+  [32mPASS[0m  P5-T9 filters keep their values, narrow the rows and offer Clear
+  [32mPASS[0m  P5-T9 a filter that matches nothing shows the filtered empty state
+  [32mPASS[0m  P5-T7 the statement escapes a hostile ledger note
+  [32mPASS[0m  P5-T7 the admin monitor shows the float, both buckets and the directory
+  [32mPASS[0m  P5-T7 the monitor filters members by status
+  [32mPASS[0m  P5-T7 the admin top-up tab and the all-movements tab render
+  [32mPASS[0m  P5-T7 the admin wallet page carries the CSRF top-up form and history
+  [32mPASS[0m  P5-T7 the top-up form echoes field errors and the submitted value
+
+----------------------------------------------------------------
+Cases: 761   Passed: 761   Failed: 0
+All good.

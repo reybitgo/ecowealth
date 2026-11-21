@@ -3,42 +3,132 @@
 declare(strict_types=1);
 
 /* ==============================================================
- *  Sneat Auth — Application Configuration
- *  Basic Login & Registration system (PHP 8 + MySQL)
+ *  EcoWealth — Application Configuration
+ *
+ *  Defaults only: nothing secret is committed here. Local
+ *  credentials and flags live in config.local.php (git-ignored),
+ *  loaded first, and every constant falls back to a safe default.
+ *
+ *  Every constant is declared with `defined() || define()` so
+ *  config.local.php, the front controller and the test harness
+ *  (tests/bootstrap.php) can each pin a value before this file
+ *  runs — plan §3.2, §8.2, §9.2.
  * ============================================================== */
 
+/* Local overrides (DB credentials, flags) — loaded first so a local
+ * APP_ENV can steer the environment defaults below. */
+$localConfig = __DIR__ . '/config.local.php';
+if (is_file($localConfig)) {
+    require $localConfig;
+}
+
+/* ---------- Environment ------------------------------------------------------
+ * development → debug errors, roadmap nav items visible
+ * production  → friendly error pages, technical detail only in error_log
+ * test        → used by tests/bootstrap.php (picks the *_test database)
+ * ------------------------------------------------------------------------- */
+defined('APP_ENV') || define('APP_ENV', (string) (getenv('APP_ENV') ?: 'production'));
+defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
+
+/* Phase currently under construction — controls which menu items render.
+ * Phase 22 (the Product Binary Bonus workstream, dmp/plan-ecowealth-product-binary-sliced.md)
+ * is released: see docs/phase-log.md for the release entry. The constant only
+ * labels the build; no route, menu item or permission reads it for Phase 22. */
+defined('APP_PHASE') || define('APP_PHASE', 22);
+
 /* ---------- Database (MySQL) ---------- */
-const DB_HOST    = '127.0.0.1'; // sql102.infinityfree.com
-const DB_PORT    = 3306;
-const DB_NAME    = 'if0_42820471_ew1_db';
-const DB_USER    = 'if0_42820471';
-const DB_PASS    = 'zM0t8q6kS6au';
-const DB_CHARSET = 'utf8mb4';
+defined('DB_HOST') || define('DB_HOST', '127.0.0.1');
+defined('DB_PORT') || define('DB_PORT', 3306);
+
+/* The test harness runs against a throwaway schema of the same shape.
+ * ECO_DB_NAME wins when set (CI / one-off runs); config.local.php should
+ * NOT define DB_NAME — see docs/phase-log.md (Phase 1). */
+defined('DB_NAME') || define('DB_NAME', (string) (
+    getenv('ECO_DB_NAME') ?: (APP_ENV === 'test' ? 'ecowealth_sneat_test' : 'ecowealth_sneat')
+));
+defined('DB_USER') || define('DB_USER', 'ecowealth');
+defined('DB_PASS') || define('DB_PASS', '');
+defined('DB_CHARSET') || define('DB_CHARSET', 'utf8mb4');
 
 /* MySQL session time zone (Asia/Manila, UTC+8) */
-const DB_TIMEZONE = '+08:00';
+defined('DB_TIMEZONE') || define('DB_TIMEZONE', '+08:00');
 
 /* ---------- Application ---------- */
-const APP_NAME    = 'Eco-wealth';
-const APP_TAGLINE = 'Login & Registration — PHP + MySQL';
+defined('APP_NAME') || define('APP_NAME', 'EcoWealth');
+defined('APP_TAGLINE') || define('APP_TAGLINE', 'Membership, shop and e-wallet');
 
 /* PHP display timezone (Asia/Manila) */
-const APP_TIMEZONE = 'Asia/Manila';
+defined('APP_TIMEZONE') || define('APP_TIMEZONE', 'Asia/Manila');
+
+/* ---------- Money ---------- */
+defined('CURRENCY_SYMBOL') || define('CURRENCY_SYMBOL', '₱');
+defined('CURRENCY_CODE') || define('CURRENCY_CODE', 'PHP');
+
+/* ---------- Feature switches ----------
+ * Code-level kill switches; per-admin toggles live in `settings`. */
+defined('SHOP_ENABLED') || define('SHOP_ENABLED', true);
+defined('COMMISSIONS_ENABLED') || define('COMMISSIONS_ENABLED', true);
+
+/* ---------- Uploads ---------- */
+defined('UPLOAD_MAX_BYTES') || define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);   // 5 MB
+
+/* ---------- Installation (plan IR-3, §6.8) ------------------------------------
+ * The installer key. It gates the guided installers only; the application
+ * never reads it. An empty value means an installer refuses to run when
+ * APP_ENV is production — set a long random string in config.local.php (or
+ * the ECO_INSTALL_KEY environment variable) on the server. Neither the CLI
+ * nor the web installer ever prints it back. */
+defined('INSTALL_KEY') || define('INSTALL_KEY', (string) (getenv('ECO_INSTALL_KEY') ?: ''));
+
+/* ---------- Web reset console (plan IR-6, §7.14) ------------------------------
+ * Deliberately false: the reset console is a development/QA tool. A
+ * production operator must opt in explicitly in config.local.php — and then
+ * delete public/reset.php after use. The page and the engine both refuse a
+ * production reset that has not been enabled here. */
+defined('DB_RESET_ENABLED') || define('DB_RESET_ENABLED', false);
+
+/* ---------- Runtime storage (cron logs + locks) -------------------------------
+ * Outside public/, so nothing stored here is web-readable. The test harness
+ * pins its own temp folder before this file is loaded (tests/bootstrap.php). */
+defined('STORAGE_PATH') || define('STORAGE_PATH', dirname(__DIR__) . '/storage');
 
 /* ---------- URL routing -------------------------------------------------------
- * Nothing to configure here. The app auto-detects where it is installed:
+ * The app auto-detects where it is installed:
  *
- *   • Document root (vhost / php -S)  →  /login, /register, /dashboard
- *   • Sub-folder (e.g. XAMPP htdocs)  →  /sneat-auth/public/login …
- *   • This demo's gateway             →  links keep ?XTransformPort=…
+ *   • Document root (vhost / php -S)   →  /login, /register, /dashboard
+ *   • Sub-folder (e.g. Laragon www)    →  /ecowealth/system/login …
  *
- * Clean URLs on Apache are enabled by public/.htaccess (shipped).
+ * public/index.php defines APP_BASE_URL before bootstrapping the app;
+ * helpers.php honours it. Clean URLs on Apache are enabled by the
+ * .htaccess pair (system/.htaccess → public/).
  * ----------------------------------------------------------------------------- */
 
+/* Canonical origin for links that leave the app (referral links, copy
+ * buttons, emails). Set it in config.local.php or the APP_URL environment
+ * variable:
+ *
+ *   development: http://localhost
+ *   production:  https://www.ecowealth.com
+ *
+ * The install prefix (/ecowealth/system/) is added by url(); this value is
+ * the scheme + host only. Empty → derive the origin from the request. */
+defined('APP_URL') || define('APP_URL', (string) (getenv('APP_URL') ?: ''));
+
 /* ---------- Sessions ---------- */
-const SESSION_NAME     = 'sneat_auth_sid';
-const SESSION_IDLE_MAX = 30 * 60;   // 30 minutes of inactivity
+defined('SESSION_NAME') || define('SESSION_NAME', 'ecowealth_sid');
+defined('SESSION_IDLE_MAX') || define('SESSION_IDLE_MAX', 30 * 60);   // 30 minutes of inactivity
+
+/* ---------- Super-login (plan §7 Phase 14) ------------------------------------
+ * An impersonated member tab carries its session nonce in the URL
+ * (`?imp=<64 hex>`) instead of a cookie. PHP opens a session whose id IS
+ * that nonce, under its own session name, so the superadmin's cookie
+ * session stays untouched. The nonce is 32 random bytes; only its
+ * SHA-256 is stored in impersonation_log. */
+defined('IMP_SESSION_NAME') || define('IMP_SESSION_NAME', 'ecowealth_imp');
+defined('IMP_SESSION_TTL') || define('IMP_SESSION_TTL', 8 * 60 * 60);          // 8 hours
+defined('IMP_MAX_ATTEMPTS') || define('IMP_MAX_ATTEMPTS', 5);                  // per target …
+defined('IMP_ATTEMPT_WINDOW') || define('IMP_ATTEMPT_WINDOW', 15 * 60);        // … per 15 minutes
 
 /* ---------- "Remember me" ---------- */
-const REMEMBER_COOKIE   = 'sneat_remember';
-const REMEMBER_LIFETIME = 60 * 60 * 24 * 30;   // 30 days
+defined('REMEMBER_COOKIE') || define('REMEMBER_COOKIE', 'ecowealth_remember');
+defined('REMEMBER_LIFETIME') || define('REMEMBER_LIFETIME', 60 * 60 * 24 * 30);   // 30 days

@@ -1,0 +1,32 @@
+﻿QA20C-04 - the seed run a second time writes nothing
+command: php bin/harvest_queue_seed.php  (again)
+schema:  ecowealth_sneat_tool_b_test
+date:    2026-11-15 23:49:55
+
+== the second run
+EcoWealth Team Harvest queue seed
+  refused:   The queue is already seeded (team_harvest_ledger_since = 2026-11-15 23:49:51) and holds 3 position(s); use --dry-run to preview or --force to append the 0 member(s) that are missing.
+  nothing was written.
+exit code: 1
+
+== the queue after it (positions and baseline must be unchanged)
+pos  username          teammates  baseline_n   directs source        qualified_at
+1    QA20C_Top                 2           2         3 seed          2026-11-01 09:02:00
+2    QA20C_Mid                 1           1         3 seed          2026-11-01 09:04:00
+3    QA20C_Low                 0           0         3 seed          2026-11-15 23:49:37
+
+== the baseline instant
+harvest_queue          = 3
+team_harvest_awards    = 0
+ewallet_ledger         = 0 rows · SUM(amount) = 0.00
+team_harvest ledger    = 0 row(s)
+team_harvest_ledger_since = '2026-11-15 23:49:51'
+team_harvest_levels    = 10 rows
+members                = 10
+
+Expected: exit 1 and the message 'The queue is already seeded
+(team_harvest_ledger_since = 2026-11-15 23:49:51) and holds 3 position(s) ...'.
+Zero rows written, no second audit row, the baseline instant unchanged.
+Note: the refusal is deliberate (plan 14.10 step 5) - a go-live script
+must not silently re-seed a queue that already has positions.
+

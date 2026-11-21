@@ -1,0 +1,13 @@
+QA22F-08 — Dashboard tile and product panel
+Evidence file: docs/qa/evidence/phase-22/QA22F-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /dashboard and /shop/{id}
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Product binary tile shows left/right points, next pair, earned this month; product panel shows N points per unit and self rate; absent for switch off or P.V. 0.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T16, P22F-T17.
+Reason: Environment dependency — browser-based check.

@@ -16,6 +16,8 @@
 
 > **How to use this document.** Work top to bottom. Each phase has a *Gate* — a list of automatable and manual checks. Do not start the next phase until the current gate is green (all tests pass, no regression in earlier phases, demo data seeded, commit tagged). Estimates assume one experienced PHP developer; AI-assisted implementation typically compresses them 30–50%.
 
+> **Install, reset and go-live tooling.** The production `install.sql` bundle, the CLI and browser installers, the guarded database reset and the tool-retirement checklist are specified in the companion plan [`plan-ecowealth-install-reset.md`](plan-ecowealth-install-reset.md) (IR-0 … IR-8). They are not phases of this document.
+
 ---
 
 ## 1. Executive summary
@@ -312,7 +314,7 @@ Two app layouts, plus a front door that lives outside the app:
 |---|---|---|
 | Front door (outside the app) | the repo-root `index.html` page and its own nav | `/ecowealth/` — visitors land here first; its only app-facing piece is a link into `/ecowealth/system/` |
 | Member (`layout=member`) | Dashboard, Shop, Cart, My Orders, Membership, Earnings, Wallet, Payouts, Profile | member pages (plus an impersonation banner during S-Login) |
-| Admin (`layout=admin`) | Dashboard, Products, Packages, Orders, Activations, Registration Codes, Members, Commissions, E-Wallet Monitor, Payouts, Settings, S-Login console | `/admin/*`, `/slogin` |
+| Admin (`layout=admin`) | Dashboard, Products, Packages, Orders, Activations, Codes, Members, Commissions, E-Wallet Monitor, Payouts, Settings, S-Login console | `/admin/*`, `/slogin` |
 
 Both app layouts are the existing EcoWealth vertical theme; the sidebar becomes data-driven from `app/layout/nav.php` (sections → items → route, icon, badge), with `$current_nav` derived from the active route. The current dashboard's anchor-based menu is replaced by this config in Phase 1. The impersonation banner in the member layout is added in Phase 14.
 
@@ -348,7 +350,7 @@ Component sources (copy structure from `dmp/sneat/`):
 | Dates | Stored UTC+8 (`SET time_zone`) and displayed `Asia/Manila` |
 | Money format | `money(1234.5)` → `₱1,234.50`; `money(…, true)` → `+₱…` |
 | Order number | `EW` + `yymmdd` + 5-digit id (e.g. `EW26110100042`), generated after insert and unique by id |
-| Pagination | 20 rows default, `?page=N`, server-side for admin tables, DataTables optional |
+| Pagination | 10 rows default, `?page=N` plus a rows-per-page control (5, 10, 15 … 100 in steps of five, `?per_page=N`), server-side for every table, DataTables not used |
 
 ### 3.7 Security baseline (applies to every phase)
 
@@ -646,7 +648,7 @@ active ──(exit / TTL expiry / IP-UA mismatch / member suspended)──▶ lo
 | E-wallet | **Logged-in** registrar only (sponsor/admin pays) | wallet debit, credited to admin revenue | Active with the chosen package; commissions fire immediately |
 | Pending / referral | Guest via referral link, free registration enabled | none at signup | `pending` account; activation later via code, e-wallet or manual proof |
 
-- Common validation: username format/uniqueness, password ≥ 8 + confirmation, sponsor username exists (and is not self), package active, terms accepted.
+- Common validation: username format/uniqueness, password ≥ 8 + confirmation, sponsor username exists when entered (and is not self), package active, terms accepted.
 - Sponsor is captured in every mode; **no** binary upline, binary position or placement mode is collected.
 - When a logged-in member registers someone else, the registrar's session is restored after the call; guests are logged in as the new member (reference behaviour).
 - The pending member's activation page offers code / e-wallet / manual-proof paths; admin approval of a manual proof completes the same activation service.
@@ -1286,7 +1288,7 @@ Phases 2 and 5 can run in parallel after 1; 3 starts once 2's product seeds exis
   - *Code* — the code determines the package; redemption and account creation happen in one transaction; member active immediately.
   - *E-wallet* — only a logged-in registrar (sponsor/admin); debit `debitInternal`, credit the primary admin as revenue, member active immediately.
   - *Pending* — free signup (referral flow), `member_status='pending'`; activation later by code, wallet or approved manual proof.
-- Sponsor is required in every mode; sponsor can be a username or a referral code; self-sponsorship and cycles are refused.
+- Sponsor is captured in every mode and is **optional**: a blank field joins the member under the company root (the primary admin). A typed sponsor can be a username or a referral code; self-sponsorship and cycles are refused.
 - Referral code: 8 random alphanumeric characters, unique, generated at registration, used by `?ref=`.
 - **Codes:** 12 characters in three groups (`ABCD-EFGH-JKLM`) from an unambiguous set; stored uppercase, compared case-insensitively; unique; admin sets package, quantity (1–500), price, expiry; single-use enforced by `UPDATE … WHERE status='unused'` + row-count check; expired codes flip to `expired` on validation; CSV export and stats.
 - **Activation:** one package at a time; only from `pending`/`inactive`; amount from `packages.price`; wallet path debits immediately; manual path stores a proof and waits for admin approval; approval runs the commission hook (Phase 10/11) inside the same transaction.
@@ -1764,7 +1766,7 @@ Every phase keeps prior tests runnable. The suite is cumulative: by Phase 15 it 
 |---|---|---|---|---|
 | D1 | App/brand name | EcoWealth / other | **EcoWealth** (configurable `APP_NAME`) | Phase 1 |
 | D2 | Can guests browse the shop? | Yes / members-only | **Members-only** (matches reference) | Phase 2 |
-| D3 | Is a sponsor required at registration? | Required / optional | **Required**, except seeded root accounts | Phase 9 |
+| D3 | Is a sponsor required at registration? | Required / optional | **Optional** — a blank sponsor joins under the company root (the primary admin); a typed sponsor must exist and be active. (Amended after Phase 9, 2026-11-07.) | Phase 9 |
 | D4 | Must a member have a package to shop? | Yes / no | **No** — shopping open to logged-in members; commissions only when active | Phase 6 |
 | D5 | Level 1 double pay? | Direct + indirect L1 / direct only | **Direct only** | Phase 11 |
 | D6 | Upline compression when inactive? | Compress / no compression | **No compression** (config flag reserved) | Phase 11 |

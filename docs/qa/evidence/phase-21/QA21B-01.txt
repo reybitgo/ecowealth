@@ -1,0 +1,66 @@
+QA21B-01 - The card on a fresh database
+=======================================
+
+Date: 2026-11-16 18:09:12 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 1, Rule 6, Rule 9 and Rule 10 — the operator can see the ladder, the knobs and the
+truth about the state before anything is armed.
+
+The settings page was rendered through AdminSettingsController::settingsContext() and
+View::page() on the test schema; the General Harvest sub-block was extracted from the
+Commissions form.
+
+  block bytes ........................ 29441
+  heading "General Harvest bonus" .... yes
+  badge "One board · levels 1–10" .... yes
+  switch name present ................ yes
+  switch checked ..................... no
+  depth input value .................. 10
+  amount inputs (each expected once) . 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+
+  the ten inputs, as the card shows them:
+      2000.00  4000.00  8000.00  12000.00  25000.00  100000.00  250000.00  480000.00  2500000.00  5000000.00
+
+  the preset carried on each input (data-reference):
+      2000.00  4000.00  8000.00  12000.00  25000.00  100000.00  250000.00  480000.00  2500000.00  5000000.00
+
+  the generated ladder table:
+      Level 1  slots 3      apex 4       stored ₱2,000.00    cumulative ₱2,000.00    paying
+      Level 2  slots 9      apex 13      stored ₱4,000.00    cumulative ₱6,000.00    paying
+      Level 3  slots 27     apex 40      stored ₱8,000.00    cumulative ₱14,000.00   paying
+      Level 4  slots 81     apex 121     stored ₱12,000.00   cumulative ₱26,000.00   paying
+      Level 5  slots 243    apex 364     stored ₱25,000.00   cumulative ₱51,000.00   paying
+      Level 6  slots 729    apex 1,093   stored ₱100,000.00  cumulative ₱151,000.00  paying
+      Level 7  slots 2,187  apex 3,280   stored ₱250,000.00  cumulative ₱401,000.00  paying
+      Level 8  slots 6,561  apex 9,841   stored ₱480,000.00  cumulative ₱881,000.00  paying
+      Level 9  slots 19,683 apex 29,524  stored ₱2,500,000.00 cumulative ₱3,381,000.00 paying
+      Level 10 slots 59,049 apex 88,573  stored ₱5,000,000.00 cumulative ₱8,381,000.00 paying
+
+  the generated position table (positions #1–#6 × levels 1–4):
+      #1  4  13  40  121
+      #2  7  22  67  202
+      #3  10  31  94  283
+      #4  13  40  121  364
+      #5  16  49  148  445
+      #6  19  58  175  526
+
+  state strip ........................ data-general-harvest-state="unarmed"
+  strip names the arm job ............ yes
+  strip sentence ..................... "Not armed — no baseline has been recorded."
+  full-ladder total in the sentence .. ₱8,381,000.00
+  node #1 / #2 / #3 in the sentence .. 88,573 / 147,622 / 206,671
+  calculator title ................... yes
+  calculator default ................. ₱0.00 / 0 awards
+  ceiling printed .................... ₱25,000,000.00
+  preset / clear buttons ............. both offered
+
+Checks:
+  ten amount inputs, each exactly once ................ yes
+  the reference amounts render ........................ yes
+  the strip says unarmed and names the arm job ........ yes
+  arming is not reachable from the page ............... yes
+
+RESULT: PASS

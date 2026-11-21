@@ -1,0 +1,13 @@
+QA21E-06 — An unqualified member has no board panel
+===================================================
+Phase 21E — Admin visibility. Runs as admin on /admin/members/{id}.
+
+Steps:
+1. Open /admin/members/{id} for a member with fewer than 3 directs.
+2. Read the gate line; confirm no board panel.
+
+Observed:
+- "Not qualified: 2 of 3 direct members" (current count).
+- No General Harvest board panel, no GH value, no awards table.
+
+Result: Pass — unqualified members show the gate and current count, no board panel.

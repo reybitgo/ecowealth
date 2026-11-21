@@ -29,9 +29,16 @@ function db(): PDO
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
-            // Keep MySQL session times aligned with the display timezone
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . DB_TIMEZONE . "'",
         ]);
+
+        /* Keep MySQL session times aligned with the display timezone.
+         *
+         * This used to be PDO::MYSQL_ATTR_INIT_COMMAND, which PHP 8.5
+         * deprecates in favour of Pdo\Mysql::ATTR_INIT_COMMAND. Running
+         * the statement normally keeps the same behaviour on every PHP
+         * version the app supports (8.3+) and avoids the deprecated
+         * driver constant entirely. */
+        $pdo->exec('SET time_zone = ' . $pdo->quote((string) DB_TIMEZONE));
     } catch (PDOException $e) {
         error_log('[sneat-auth] DB connection failed: ' . $e->getMessage());
         http_response_code(500);

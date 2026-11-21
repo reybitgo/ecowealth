@@ -1,0 +1,236 @@
+2026-11-12 06:46:23 +08:00 — IR-8 final verification (IR-8-T4)
+Host: Windows 11 26200 · PHP 8.3.16 · MySQL 8.4.3
+Scope: no application schema is touched; every target is a scratch schema created as root and granted to ecowealth.
+Bundle: database/install.sql, sha256 3E94FD28554294A051E43D88D8837C95A5D8AAFB210121AE3CAAF949764897BB (`php bin/build_install_sql.php --check` exit 0).
+
+[1] Scratch schemas
+Command: mysql -u root -e "DROP/CREATE ecowealth_sneat_ir8_live + ecowealth_sneat_ir8_reset; GRANT ALL ..."
+Exit: 0
+
+
+[2] Fresh install through `mysql` (scratch `ecowealth_sneat_ir8_reset`)
+Command: mysql -u root ecowealth_sneat_ir8_reset -e "SOURCE database/install.sql"
+Exit: 0
+tables_created	settings_rows	staff_rows	members_rows	products_rows	packages_rows	levels_rows	contents_rows	codes_rows
+27	48	2	0	7	2	18	10	0
+key_name	value
+install_channel	install.sql
+install_completed_at	2026-11-12 06:46:31
+install_version	1.0.0
+site_name	EcoWealth
+username	role	member_status	is_active
+admin	admin	active	1
+superadmin	superadmin	active	1
+
+[3] Demo tree (the QA fixture a reset returns to) + counts
+Command: mysql -u root ecowealth_sneat_ir8_reset -e "SOURCE database/seeds/005_demo_tree.sql"
+Exit: 0
+
+
+Counts after bundle + demo:
+tables_created	settings_rows	staff_rows	members_rows	products_rows	packages_rows	levels_rows	contents_rows	codes_rows	ledger_rows
+27	48	2	5	7	2	18	10	3	3
+
+[4] CLI reset on the demo QA schema (5 fresh codes, uploads kept)
+Command: $env:ECO_DB_NAME='ecowealth_sneat_ir8_reset'; php bin/db_reset.php --force --confirm=ecowealth_sneat_ir8_reset --codes=5 --keep-uploads
+Exit: 0
+EcoWealth database reset
+  target : ecowealth_sneat_ir8_reset at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 5 members · 2 staff · 0 orders · 3 ledger · 3 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (0 rows) · codes 5 (package #auto) · uploads kept · demo no
+  last reset: never
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Reset
+   OK   lock              Advisory lock acquired                             0 rows (1 ms)
+   OK   preflight         Preflight check                                    2 rows (4 ms)
+   OK   counts            Snapshot the row counts                            0 rows (71 ms)
+   OK   impersonation     S-Login sessions                                   0 deleted (1 ms)
+   OK   orders            Shop orders, payments, invoices and fulfilment     0 deleted (4 ms)
+   OK   carts             Carts and cart lines                               0 deleted (3 ms)
+   OK   addresses         Address book                                       0 deleted (1 ms)
+   OK   wallet            Wallet ledger, transfers and admin top-ups         3 deleted (3 ms)
+   OK   payouts           Payout requests                                    0 deleted (1 ms)
+   OK   commissions       Commissions and activations                        0 deleted (2 ms)
+   OK   codes             Registration codes                                 3 deleted (1 ms)
+   OK   sessions          Remember-me sessions (all users)                   0 deleted (3 ms)
+   OK   members           Member accounts                                    5 deleted (4 ms)
+   OK   staff             Reset the staff accounts                           2 rows (6 ms)
+  SKIP  catalogue         Keep the existing catalogue                        0 rows (0 ms)
+  SKIP  audit_clear       Keep the audit log                                 0 rows (0 ms)
+   OK   live              Bump live revisions                               18 rows (3 ms)
+   OK   settings          Write the reset metadata                           2 rows (2 ms)
+   OK   audit             Append the reset audit row                         1 rows (61 ms)
+   OK   auto_increment    Reset AUTO_INCREMENT counters                     19 rows (545 ms)
+  SKIP  uploads           Delete orphaned upload files                       0 rows (0 ms)
+  SKIP  demo              Install the demo tree                              0 rows (0 ms)
+   OK   codes_generate    Generate registration codes                        5 rows (19 ms)
+   OK   verify            Verify the reset                                  12 rows (191 ms)
+
+Verification
+   OK   Member accounts            0 member row(s) (expected 0)
+   OK   Business rows              0 rows across 19 tables (all zero)
+   OK   Staff accounts             2 staff, balances zero, package/sponsor null, active
+   OK   Catalogue                  7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)
+   OK   Registration codes         5 code row(s) (expected 5)
+   OK   Audit trail                1 system.db_reset row(s) (expected 1)
+   OK   Wallet reconciliation      WalletService::reconcile clean
+   OK   Commission reconciliation  CommissionService::reconcile clean
+   OK   Transfer reconciliation    TransferService::reconcile clean
+   OK   Payout reconciliation      PayoutService::reconcile clean
+   OK   Live revisions             18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters    18 counter(s) at 1 (1 table(s) hold rows, so their counter continues)
+
+  deleted: 11 rows · members 5 → 0 · orders 0 → 0 · ledger 3 → 0 · codes 3 → 5
+  catalogue: 7 products / 2 packages · audit 2 rows · live 18 surfaces · counters reset 19
+
+Registration codes (Package A)
+  P9XR-NSMJ-KJUQ   XSQF-3LY5-UG9G   CQH6-AZ3V-A7YN   3WSE-SZDG-B393
+  2PW7-NMBG-BKF3
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+
+[5] Finance reconciliation after the reset
+Command: php bin/wallet_reconcile.php
+Exit: 0
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat_ir8_reset (127.0.0.1)
+  accounts checked:  2
+  accounts with ledger: 0
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  ledger total:      0.00
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 0
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  0
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+All good — wallets, commissions, transfers and payouts reconcile.
+
+[6] Second reset (idempotency)
+Command: php bin/db_reset.php --force --confirm=ecowealth_sneat_ir8_reset --keep-uploads
+Exit: 0
+EcoWealth database reset
+  target : ecowealth_sneat_ir8_reset at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 0 members · 2 staff · 0 orders · 0 ledger · 5 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (2 rows) · codes 0 · uploads kept · demo no
+  last reset: 2026-11-12 06:47:01 by cli
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Reset
+   OK   lock              Advisory lock acquired                             0 rows (1 ms)
+   OK   preflight         Preflight check                                    2 rows (5 ms)
+   OK   counts            Snapshot the row counts                            0 rows (113 ms)
+   OK   impersonation     S-Login sessions                                   0 deleted (1 ms)
+   OK   orders            Shop orders, payments, invoices and fulfilment     0 deleted (3 ms)
+   OK   carts             Carts and cart lines                               0 deleted (2 ms)
+   OK   addresses         Address book                                       0 deleted (2 ms)
+   OK   wallet            Wallet ledger, transfers and admin top-ups         0 deleted (2 ms)
+   OK   payouts           Payout requests                                    0 deleted (1 ms)
+   OK   commissions       Commissions and activations                        0 deleted (1 ms)
+   OK   codes             Registration codes                                 5 deleted (2 ms)
+   OK   sessions          Remember-me sessions (all users)                   0 deleted (1 ms)
+   OK   members           Member accounts                                    0 deleted (2 ms)
+   OK   staff             Reset the staff accounts                           2 rows (2 ms)
+  SKIP  catalogue         Keep the existing catalogue                        0 rows (0 ms)
+  SKIP  audit_clear       Keep the audit log                                 0 rows (0 ms)
+   OK   live              Bump live revisions                               18 rows (3 ms)
+   OK   settings          Write the reset metadata                           2 rows (3 ms)
+   OK   audit             Append the reset audit row                         1 rows (81 ms)
+   OK   auto_increment    Reset AUTO_INCREMENT counters                     19 rows (469 ms)
+  SKIP  uploads           Delete orphaned upload files                       0 rows (0 ms)
+  SKIP  demo              Install the demo tree                              0 rows (0 ms)
+  SKIP  codes_generate    Generate registration codes                        0 rows (6 ms)
+   OK   verify            Verify the reset                                  12 rows (180 ms)
+
+Verification
+   OK   Member accounts            0 member row(s) (expected 0)
+   OK   Business rows              0 rows across 19 tables (all zero)
+   OK   Staff accounts             2 staff, balances zero, package/sponsor null, active
+   OK   Catalogue                  7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)
+   OK   Registration codes         0 code row(s) (expected 0)
+   OK   Audit trail                2 system.db_reset row(s) (expected 2)
+   OK   Wallet reconciliation      WalletService::reconcile clean
+   OK   Commission reconciliation  CommissionService::reconcile clean
+   OK   Transfer reconciliation    TransferService::reconcile clean
+   OK   Payout reconciliation      PayoutService::reconcile clean
+   OK   Live revisions             18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters    19 counter(s) at 1
+
+  deleted: 5 rows · members 0 → 0 · orders 0 → 0 · ledger 0 → 0 · codes 5 → 0
+  catalogue: 7 products / 2 packages · audit 3 rows · live 18 surfaces · counters reset 19
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+
+[7] Browser installer on a fresh schema (production environment, no SSH path)
+2026-11-12 06:48:30 +08:00
+Environment: php -S 127.0.0.1:8099 -t public public/router_ir8_prod.php (a temporary wrapper that defines
+APP_ENV=production before the app boots; config.local.php is not edited). ECO_DB_NAME=ecowealth_sneat_ir8_live
+(empty), ECO_INSTALL_KEY set to a 35-character test value (>= 32; never printed, stored or written to the database),
+and the repository's storage/install.lock moved aside so this run starts unlocked.
+
+GET  /install.php            -> 200, preflight passed, the form enabled (the IR-4 capture has the 15-row table)
+POST /install.php (INSTALL)  -> 200 "Installation complete" (12,629 bytes); sections: Staff accounts, Verification, Next steps
+GET  /install.php (again)    -> 200 "Already installed"; no form is offered
+
+storage/install.lock written by the installer:
+{
+    "installed_at": "2026-11-12T06:47:52+08:00",
+    "database": "ecowealth_sneat_ir8_live",
+    "app_version": "1.0.0",
+    "install_sql_sha256": "3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb",
+    "staff": [
+        "admin",
+        "superadmin"
+    ],
+    "channel": "web"
+}
+
+
+Verification pack on the installed schema:
+tables_created	settings_rows	staff_rows	members_rows	products_rows	packages_rows	levels_rows	contents_rows	codes_rows	demo_users	demo_codes	live_surfaces
+27	48	2	0	7	2	18	10	0	0	0	0
+
+Staff credential check (password_verify; neither hash matches a published default):
+admin: published-default=no operator-password=MATCHES
+superadmin: published-default=no operator-password=MATCHES
+
+[8] Go-live — retire the tools and verify the state
+2026-11-12 06:49:24 +08:00
+Lock readability (the web installer leaves storage/install.lock):
+  via the PHP server (docroot = public/)  -> 404
+  via Apache (/system/storage/...)        -> 403   (storage/.htaccess deny-all; the file is outside public/)
+
+Before deletion (production wrapper; DB_RESET_ENABLED absent => false):
+  /install.php -> 200 (locked page: "Already installed")
+  /reset.php   -> 404 (branded "Page not found"; the constant is off)
+
+After deleting both files from public/:
+  /install.php -> 404 (branded 404 body)
+  /reset.php   -> 404 (branded 404)
+  Screenshot: docs/qa/evidence/install-reset/go-live-tools-404.png (199855 bytes, 1440x900, headless Chrome)
+
+Both files were restored to the development tree after the capture (this repository keeps them for
+development; a production copy deletes them permanently). No route, navigation entry or routes.php
+reference exists to either file, so deleting the file is the complete retirement.

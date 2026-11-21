@@ -1,0 +1,7 @@
+# EcoWealth — line-ending policy for database assets.
+#
+# database/install.sql is generated and compared byte-for-byte by
+# `php bin/build_install_sql.php --check` (plan IR-2, D-IR-01). A Windows
+# checkout must not turn the bundle (or its sources) into CRLF and make a
+# correct tree look stale.
+*.sql text eol=lf

@@ -1,0 +1,9 @@
+QA evidence folder.
+
+Save screenshots here as described in the QA pack:
+
+  phase-1/QA1-05-member-menu.png
+  phase-2/QA2-01-products-list.png
+  phase-3/QA3-11-packages-page.png
+
+Use the exact names given in each check's "Evidence" row.

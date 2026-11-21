@@ -1,0 +1,13 @@
+QA22G-07 — Live refresh preserves pan/zoom state
+Evidence file: docs/qa/evidence/phase-22/QA22G-07.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app — /genealogy?view=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Pan/zoom/focus preserved after live refresh; no full-page reload.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22G-T7 (live refresh state preservation — PASS).
+Reason: Environment dependency — browser-based check.

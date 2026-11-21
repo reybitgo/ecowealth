@@ -1,6 +1,8 @@
 <?php
 /** Shared header for the authentication (guest) pages — Sneat template. */
-$page_title = $page_title ?? APP_NAME . ' — Auth';
+$site_name  = trim((string) setting('site_name', APP_NAME));
+$brand_name = $site_name === '' ? APP_NAME : $site_name;
+$page_title = $page_title ?? $brand_name . ' — Auth';
 ?>
 <!doctype html>
 <!-- beautify ignore:start -->
@@ -20,7 +22,7 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
       content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
     />
     <meta name="robots" content="noindex, nofollow" />
-    <title><?= e($page_title) ?> | <?= e(APP_NAME) ?></title>
+    <title><?= e($page_title) ?> | <?= e($brand_name) ?></title>
     <!-- Favicon -->
     <link
       rel="icon"
@@ -40,6 +42,7 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <link rel="stylesheet" href="<?= e(url('assets/vendor/libs/pickr/pickr-themes.css')) ?>" />
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/core.css')) ?>" />
     <link rel="stylesheet" href="<?= e(asset_url('assets/css/demo.css')) ?>" />
+    <link rel="stylesheet" href="<?= e(asset_url('assets/css/app.css')) ?>" />
     <!-- Vendors CSS -->
     <link
       rel="stylesheet"
@@ -54,6 +57,12 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <!-- Page CSS -->
     <!-- Page -->
     <link rel="stylesheet" href="<?= e(url('assets/vendor/css/pages/page-auth.css')) ?>" />
+<?php foreach ((array) ($auth_page_css ?? []) as $auth_css): ?>
+    <link rel="stylesheet" href="<?= e(asset_url((string) $auth_css)) ?>" />
+<?php endforeach; ?>
+<?php if (isset($auth_page_styles) && trim((string) $auth_page_styles) !== ''): ?>
+    <style><?= (string) $auth_page_styles ?></style>
+<?php endif; ?>
     <!-- Helpers -->
     <script src="<?= e(url('assets/vendor/js/helpers.js')) ?>"></script>
     <!--! Template customizer & Theme config files MUST be included after core stylesheets and helpers.js in the <head> section -->
@@ -66,4 +75,4 @@ $page_title = $page_title ?? APP_NAME . ' — Auth';
     <!-- Content -->
     <div class="container-xxl">
       <div class="authentication-wrapper authentication-basic container-p-y">
-        <div class="authentication-inner">
+        <div class="authentication-inner<?= isset($auth_inner_class) && (string) $auth_inner_class !== '' ? ' ' . e((string) $auth_inner_class) : '' ?>">

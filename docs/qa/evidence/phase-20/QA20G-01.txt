@@ -1,0 +1,53 @@
+QA20G-01 - The automated release gate
+=====================================
+
+Date: 2026-11-16 11:35:20 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test for the suite, ecowealth_sneat for the reconciler
+
+Why: plan §2.4 and §11 Rule 2 — no phase is signed from a red or unmeasured baseline.
+
+1. php bin\build_install_sql.php --check
+   → no output, exit 0 (the committed 64-statement bundle matches schema.sql + seeds 001–004)
+
+2. php tests\run.php
+   → PHP 8.3.16 · schema ecowealth_sneat_test · phase 20
+   → ------------------------------------------------------------------
+   → Cases: 1320   Passed: 1320   Failed: 0
+   → All good.
+   → exit 0
+
+3. powershell -NoProfile -File tests\smoke.ps1
+   → ... the twelve P20G-Tn checks pass (P20G-T1 … T12), the 251 earlier checks unchanged ...
+   → Passed: 263   Failed: 0
+   → exit 0
+
+4. php bin\wallet_reconcile.php (development copy, ecowealth_sneat)
+   → Team Harvest
+   →   queued positions:  0
+   →   credited awards:   0 (0.00)
+   →   baseline awards:   0 (0.00) — complete before go-live, never paid
+   →   team_harvest ledger: 0.00
+   →   counter drift:     0 row(s) · 0 below the baseline
+   →   warning: [unseeded] the queue is not seeded; nothing can be evaluated until bin/harvest_queue_seed.php runs
+   →   warning: [stream_off] the Team Harvest bonus is switched off (team_harvest_enabled = 0)
+   →   OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+   → All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty and team-harvest awards reconcile.
+   → exit 0
+
+5. php bin\team_harvest_catchup.php --doctor (the seeded scratch schema of QA20G-05)
+   → [ OK ] clock · tables · settings · seed · baseline · queue · awards · drift · reconcile
+   → The doctor is green.
+   → exit 0
+
+Checks:
+
+  the bundle check exits 0 with no output ................. yes
+  the full suite is 1,320 / 1,320 green ................... yes
+  the smoke walk is 263 / 263 green ....................... yes
+  the reconciler exits 0 with the Team Harvest section .... yes
+  the doctor exits 0 on a seeded copy ..................... yes
+  the run reports phase 20 ................................ yes
+
+RESULT: PASS

@@ -1,0 +1,13 @@
+QA22C-03 — The backfill tool is deterministic and idempotent
+Evidence file: docs/qa/evidence/phase-22/QA22C-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: system/bin/binary_place_tree.php on a scratch schema
+Full output: (not captured — requires scratch database)
+Exit code: not captured
+
+Expected: --check never writes (0 written, exit 0); --apply builds the same tree; second --apply is a no-op; tree is single rooted at company account.
+Actual: Could not execute — requires scratch database. CLI dry-run on development copy: exit 0, 44 placed, root #1, dry run. Covered by automated tests P22C-T39 through P22C-T46 (backfill — PASS).
+Reason: Environment dependency — requires scratch database.

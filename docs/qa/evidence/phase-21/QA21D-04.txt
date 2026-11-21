@@ -1,0 +1,25 @@
+QA21D-04 — Reconciliation passes with the General Harvest section
+=================================================================
+Phase 21D — Money engine. Runs php bin\wallet_reconcile.php on the armed scratch copy.
+
+Command:
+
+> php bin\wallet_reconcile.php
+
+Output (tail):
+
+...
+[General Harvest]
+  paid:          ₱2,000.00
+  awards:        1
+  recipients:    1
+  baseline:      ₱0.00
+  baseline rows: 0
+  open:          ₱0.00
+  mismatch:      none
+  ok:            true
+...
+Overall: exit 0
+
+Result: Pass — exit 0; the General Harvest section reports paid ₱2,000.00, 1 award,
+1 recipient, baseline ₱0.00, no mismatch; totals equal the award ledger and the wallet movements.

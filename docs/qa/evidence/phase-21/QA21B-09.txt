@@ -1,0 +1,32 @@
+QA21B-09 - The layout facts at 390 px and 1440 px
+=================================================
+
+Date: 2026-11-16 18:09:22 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 2's input hints, Rule 12 and the section's layout risk — the card must be readable on
+a phone without moving the page sideways.
+
+The card's grid and table wrappers, from the rendered markup:
+
+  amount inputs in their own stacking cell (col-12 col-md-6) ... 10
+  generated tables inside .table-responsive ..................... 2
+  any fixed min-width in the block .............................. no
+  any overflow-x: hidden in the block ........................... no
+
+At 390 px Bootstrap's breakpoint keeps each `col-12` at full width, so the ten inputs stack one
+per row and each badge wraps under its label; both tables scroll inside their own wrapper and the
+page itself never gains a horizontal scrollbar. At 1440 px the `col-md-6` classes pair the inputs
+into two columns and both tables fit without inner scrolling.
+
+Checks:
+  ten stacking cells ................................... yes
+  both generated tables wrapped ........................ yes
+  nothing forces a page-level width from this block .... yes
+
+Note: the visual confirmation at both widths (a real browser at 390 px and 1440 px) is the
+project lead's item and is named in the sign-off sheet.
+
+RESULT: PASS

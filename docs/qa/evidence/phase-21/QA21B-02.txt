@@ -1,0 +1,46 @@
+QA21B-02 - A changed ladder, its audit row and the new total
+============================================================
+
+Date: 2026-11-16 18:09:12 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 14, §15.4 — a ladder edit is one audited event with its before/after payload, and the
+card re-reads the stored ladder afterwards.
+
+The save went through the real AdminSettingsController::applySection() with the stored card
+plus level 1 = 2,500.00 and level 10 = 4,000,000.00.
+
+  errors ............................. []
+  stored level 1 ..................... 2500.00
+  stored level 10 .................... 4000000.00
+  full ladder total .................. 7381500.00
+  the card's total badge ............. ₱7,381,500.00
+  ladder change set .................. ["levels.1","levels.10"]
+
+The audit row:
+  rows ............................... 1
+  action ............................. general_harvest.ladder.update
+  actor_id ........................... 8
+  subject_type ....................... settings
+  before.enabled ..................... false
+  before.max_levels .................. 10
+  before.levels.1 / .10 .............. 2000.00 / 5000000.00
+  after.enabled ...................... false
+  after.max_levels ................... 10
+  after.levels.1 / .10 ............... 2500.00 / 4000000.00
+  changes ............................ levels.1, levels.10
+
+A second, unchanged save:
+  changes ............................ []
+  general_ladder.changed ............. false
+  ladder.update rows after it ........ 1
+
+Checks:
+  the two amounts persisted and the total reads 7,381,500.00 ... yes
+  one audit row with the switch, depth and ten amounts ......... yes
+  an unchanged save writes no audit row ....................... yes
+  the arithmetic: 8,381,000.00 − 2,000.00 + 2,500.00 − 5,000,000.00 + 4,000,000.00 = 7,381,500.00
+
+RESULT: PASS

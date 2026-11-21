@@ -1,0 +1,142 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Admin Product Binary ledger — headline counters (Phase 22E, plan §9).
+ *
+ * `credited` rows are released money (the wallet was credited at release).
+ * `pending` rows are earned but not in a wallet yet; `cancelled` rows were
+ * never paid, so they are not a shortfall. `unrecovered` counts only
+ * `voided` awards — the part of a released award the wallet could not
+ * return after a post-release reversal (plan §15.7, §19.3).
+ *
+ * Points and money are shown side by side and never added together
+ * (plan Rule 4): the header separates *Self* and *Pair* from the points
+ * placed on the tree.
+ *
+ * @var array{
+ *   credited_total:float, this_month:float, credited:int, voided:int, unrecovered:float,
+ *   recipients:int, average:float, pending_total:float, pending:int, cancelled:int,
+ *   cancelled_total:float, total_awarded:float, next_release_at:?string, pending_recipients:int,
+ *   self_total:float, pair_total:float
+ * } $stats
+ */
+
+$stats = array_merge([
+    'credited_total'    => 0.0, 'this_month' => 0.0, 'credited' => 0, 'voided' => 0, 'unrecovered' => 0.0,
+    'recipients'        => 0,   'average'    => 0.0,
+    'pending_total'     => 0.0, 'pending'    => 0,   'cancelled' => 0, 'cancelled_total' => 0.0,
+    'total_awarded'     => 0.0, 'next_release_at' => null, 'pending_recipients' => 0,
+    'self_total'        => 0.0, 'pair_total' => 0.0,
+], $stats ?? []);
+
+$pendingCount      = (int) $stats['pending'];
+$pendingRecipients = (int) $stats['pending_recipients'];
+$cancelledCount    = (int) $stats['cancelled'];
+$nextReleaseAt     = $stats['next_release_at'] === null ? null : (string) $stats['next_release_at'];
+
+$pendingHint = 'Earned but not yet in a wallet.';
+
+if ($pendingRecipients > 0) {
+    $pendingHint .= ' ' . $pendingRecipients . ' member' . ($pendingRecipients === 1 ? '' : 's') . ' waiting.';
+}
+
+if ($nextReleaseAt !== null) {
+    $pendingHint .= ' Next release ' . format_date($nextReleaseAt) . '.';
+}
+
+$cancelledHint = 'Never paid; no shortfall.';
+
+if ($cancelledCount > 0) {
+    $cancelledHint .= ' ' . money($stats['cancelled_total']) . ' cancelled.';
+}
+
+$cards = [
+    [
+        'label' => 'Total credited',
+        'value' => money($stats['credited_total']),
+        'hint'  => (int) $stats['recipients'] . ' member' . ($stats['recipients'] === 1 ? '' : 's') . ' paid',
+        'icon'  => 'bx-gift',
+        'tone'  => 'success',
+    ],
+    [
+        'label' => 'Pending release',
+        'value' => money($stats['pending_total']),
+        'hint'  => $pendingHint,
+        'icon'  => 'bx-time-five',
+        'tone'  => 'warning',
+    ],
+    [
+        'label' => 'This month',
+        'value' => money($stats['this_month']),
+        'hint'  => 'Since the 1st',
+        'icon'  => 'bx-calendar',
+        'tone'  => 'primary',
+    ],
+    [
+        'label' => 'Awards',
+        'value' => (string) $stats['credited'],
+        'hint'  => $stats['credited'] === 0
+            ? 'Nothing paid yet' . ($pendingCount > 0 ? ' · ' . $pendingCount . ' pending' : '')
+            : 'Average ' . money($stats['average'])
+                . ($pendingCount > 0 ? ' · ' . $pendingCount . ' pending' : ''),
+        'icon'  => 'bx-receipt',
+        'tone'  => 'info',
+    ],
+    [
+        'label' => 'Recipients',
+        'value' => (string) $stats['recipients'],
+        'hint'  => 'Members credited at least once',
+        'icon'  => 'bx-user-check',
+        'tone'  => 'secondary',
+    ],
+    [
+        'label' => 'Self bonus',
+        'value' => money($stats['self_total']),
+        'hint'  => 'Paid to the buyer on their own order',
+        'icon'  => 'bx-user',
+        'tone'  => 'info',
+    ],
+    [
+        'label' => 'Pair bonus',
+        'value' => money($stats['pair_total']),
+        'hint'  => 'Matched left against right at every node',
+        'icon'  => 'bx-link-alt',
+        'tone'  => 'secondary',
+    ],
+    [
+        'label' => 'Cancelled before release',
+        'value' => (string) $cancelledCount,
+        'hint'  => $cancelledHint,
+        'icon'  => 'bx-x-circle',
+        'tone'  => 'secondary',
+    ],
+    [
+        'label' => 'Unrecovered',
+        'value' => money($stats['unrecovered']),
+        'hint'  => 'Voided awards only — shortfall after a post-release reversal.',
+        'icon'  => 'bx-error-circle',
+        'tone'  => 'danger',
+    ],
+];
+?>
+              <div class="row g-4 mb-4" data-live-region="binary-stats">
+<?php foreach ($cards as $card): ?>
+                <div class="col-6 col-md-4 col-xl-3">
+                  <div class="card h-100 commission-stat-card">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center justify-content-between mb-3">
+                        <span class="avatar avatar-sm">
+                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
+                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
+                          </span>
+                        </span>
+                        <span class="text-body-secondary small text-end"><?= e($card['label']) ?></span>
+                      </div>
+                      <h4 class="mb-2 commission-stat-value"><?= e($card['value']) ?></h4>
+                      <p class="text-body-secondary small mb-0"><?= e($card['hint']) ?></p>
+                    </div>
+                  </div>
+                </div>
+<?php endforeach; ?>
+              </div>

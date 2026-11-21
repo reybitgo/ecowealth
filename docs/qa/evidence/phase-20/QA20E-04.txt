@@ -1,0 +1,24 @@
+QA20E-04 - The CSV and its audit row
+====================================
+
+Date: 2026-11-16 11:35:35 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 2 of plan section 15.4 and Appendix C.5: the screen and the file carry the same columns.
+
+Filter level=3, then the export payload (the rows the controller streams as team-harvest-ledger_YYYY-MM-DD.csv):
+  header ................. Award id,Credited at,Member,Position,Level,Teammates (n),Threshold,Amount,Status,Wallet reference
+  rows ................... 1
+  row .................... 72,421,qa20e_04_root,134,3,39,39,4000,credited,73,2026-11-16 11:35:35,2026-11-16 11:35:35
+  audit rows before/after  0 / 1
+
+Checks:
+  the C.5 header ......... yes
+  one row ................ yes
+  the row is paid 4,000 .. no
+  it names the wallet ref  yes
+  one audit row written .. yes
+
+RESULT: PASS

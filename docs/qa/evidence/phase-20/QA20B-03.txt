@@ -1,0 +1,31 @@
+QA20B-03 — The total ceiling is refused (and the per-level ceiling first)
+=======================================================================
+
+Date: 2026-11-15 22:10:29 (Asia/Manila)
+Where: applySection('commissions', ...) — three levels at the per-level ceiling, then level 10 at 20,000,000.
+
+Steps
+
+1. Post levels 8, 9 and 10 at 10000000.00 each (30,195,000.00 in total) and read the errors.
+2. Post level 10 at 20000000.00 and read the errors.
+3. Read SUM(amount) from team_harvest_levels.
+
+Result
+
+  QA20B-03 PASS  the 30,195,000.00 ladder is refused as a sum error
+  QA20B-03 PASS  the 20,000,000.00 single amount is refused on the level
+  QA20B-03 PASS  the stored ladder is unchanged (₱5,095,000.00 -> ₱5,095,000.00)
+
+The rendered errors
+
+  sum error      : The ten amounts total ₱30,195,000.00 — the full ladder cannot exceed ₱25,000,000.00. Lower a level instead of saving this ladder.
+  level 10 error : Level 10 amount must be at most 10000000.
+
+Deviation note for the tester
+
+  The plan's QA20B-03 step ("set level 10 to 20,000,000 and save: the sum error appears") is
+  refused by the per-level ceiling first (Rule 2: no amount above 10,000,000.00), so the
+  message is on team_harvest_amounts.10 and no sum is evaluated. The total ceiling is
+  exercised with three levels, as recorded in docs/phase-log.md.
+
+RESULT: PASS

@@ -1,0 +1,23 @@
+QA19D-08 - The audit desk lists the royalty.export row and the settings change
+==============================================================================
+
+Date: 2026-11-15 12:59:18 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19d-admin (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts, the QA19C-01 orders
+         (Director 100,000; each Supervisor 1,225,000), a prior month below quota and a
+         current-month Director purchase for the preview; the real RoyaltyService close.
+
+Why: Plan §8 and §15.4: the export is the only write 19D performs, and a settings save from 19B is visible beside it.
+
+GET /admin/audit  (the rows the desk lists)
+  recent royalty/settings rows:
+    settings.update      admin  settings       2026-11-15 12:59:18
+    settings.update      admin  settings       2026-11-15 12:59:18
+    royalty.export       admin  royalty_award  2026-11-15 12:59:18
+
+  royalty.export meta: tab=royalty period=2026-10 status= rows=7
+  settings.update rows for the commissions section: 2
+
+RESULT: PASS

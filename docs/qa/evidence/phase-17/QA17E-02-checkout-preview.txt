@@ -1,0 +1,18 @@
+QA17E-02 - 2 units in the cart: the preview is the panel times two, and the money is
+credited when the order is paid.
+URL: /checkout (HTTP 200)
+Cart: 2 x QA17E Coffee at 300.00 (line base 2 x P.V. 250.00 = 500.00)
+
+... 0 Shipping Free Total ₱600.00 E-wallet ₱1,000.00 ₱0.00 of it is withdrawable. View wallet Up to ₱145.00 goes to your sponsor chain when this order is paid. This is the repeat-purchase bonus on the products in this order. It is credited when the order is paid, and only to an uplin ...
+... ing Free Total ₱600.00 E-wallet ₱1,000.00 ₱0.00 of it is withdrawable. View wallet Up to ₱145.00 goes to your sponsor chain when this order is paid. This is the repeat-purchase bonus on the products in this order. It is credited when the order is paid, and only to an upline who i ...
+... e Total ₱600.00 E-wallet ₱1,000.00 ₱0.00 of it is withdrawable. View wallet Up to ₱145.00 goes to your sponsor chain when this order is paid. This is the repeat-purchase bonus on the products in this order. It is credited when the order is paid, and only to an upline who is eligi ...
+... ,000.00 ₱0.00 of it is withdrawable. View wallet Up to ₱145.00 goes to your sponsor chain when this order is paid. This is the repeat-purchase bonus on the products in this order. It is credited when the order is paid, and only to an upline who is eligible and Active that month. ...
+... ited when the order is paid, and only to an upline who is eligible and Active that month. It is not paid to you. Place order Tick the terms above to place your order. Manual payments (GCash / Maya / bank) keep the order pending until the company verifies it. © 2026 EcoWealth — Me ...
+
+data-bonus-preview present: True
+the word rebate appears: False
+the word cashback appears: False
+idempotency key: 04afdf4b45afdc2363278a45146d49ca
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:32 Asia/Manila.

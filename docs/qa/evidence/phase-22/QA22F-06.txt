@@ -1,0 +1,13 @@
+QA22F-06 — Checkout position card: side choice required when points exist
+Evidence file: docs/qa/evidence/phase-22/QA22F-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /checkout with a points-bearing cart
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Position card renders with two radios, 1000 pts, ₱50.00 self, expected pairs per side; submitting without side refused with binary_position field error; nothing placed.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T9 through P22F-T11.
+Reason: Environment dependency — browser-based check.

@@ -1,0 +1,13 @@
+QA22E-01 — The binary ledger shows credited and pending awards
+Evidence file: docs/qa/evidence/phase-22/QA22E-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/commissions?ledger=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Header shows credited money, pending liability, award count; rows render Date/Kind/Member/Buyer/Product/Side/Points/Rate/Amount/Status/Order; header totals match Report::binarySummary(); page is read-only.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22E-T1 through P22E-T3 (all PASS in AdminCommissionLiveTest/BinaryReportTest).
+Reason: Environment dependency — browser-based check.

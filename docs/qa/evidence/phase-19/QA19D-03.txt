@@ -1,0 +1,27 @@
+QA19D-03 - The ledger CSV carries the Appendix C.5 columns and writes one audit row
+===================================================================================
+
+Date: 2026-11-15 12:59:18 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19d-admin (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts, the QA19C-01 orders
+         (Director 100,000; each Supervisor 1,225,000), a prior month below quota and a
+         current-month Director purchase for the preview; the real RoyaltyService close.
+
+Why: Plan §8 Rule 7, §15.4. Finance must be able to reconcile offline from the same filters.
+
+GET /admin/commissions/export?ledger=royalty&period=2026-10  (admin session, text/csv)
+  header: Period,Member,Full name,Rank,Group sales,Personal sales,Quota,Group %,Personal %,Amount,Status,Reason,Evaluated at,Paid at,Ledger id
+  rows:   7
+
+  2026-10,qa19d_director,Qa19d Director,Director,5000000.00,100000.00,5000000.00,10.000,15.000,515000.00,paid,,2026-11-15 12:59:18,2026-11-15 12:59:18,4
+  2026-10,qa19d_mgr_a,Qa19d Mgr A,Manager,2450000.00,0.00,1000000.00,5.000,10.000,122500.00,paid,,2026-11-15 12:59:18,2026-11-15 12:59:18,5
+  …
+  2026-10,qa19d_sup_by,Qa19d Sup By,Supervisor,1225000.00,1225000.00,500000.00,3.000,5.000,98000.00,paid,,2026-11-15 12:59:18,2026-11-15 12:59:18,10
+
+  paid total in the CSV: 1,152,000.00
+  royalty.export rows written: 1
+  audit meta: tab=royalty period=2026-10 rows=7
+
+RESULT: PASS

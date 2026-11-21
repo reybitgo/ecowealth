@@ -1,0 +1,18 @@
+QA21D-06 — A registration that completes nothing writes no award
+=================================================================
+Phase 21D — Money engine. Runs after fixture h = 3 is settled at N = 40.
+
+Commands:
+
+> mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM general_harvest_awards;" ecowealth_sneat_tool_b_test
+18
+> mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';" ecowealth_sneat_tool_b_test
+18
+> // Register one non-qualifying member (fewer than 3 directs) under any sponsor.
+> mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM general_harvest_awards;" ecowealth_sneat_tool_b_test
+18
+> mysql -u ecowealth -p -N -e "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';" ecowealth_sneat_tool_b_test
+18
+
+Result: Pass — no change: no new award (still 18), no new credit (still 18), totals unchanged
+(₱50,000.00); the registration itself still succeeds.

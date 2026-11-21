@@ -1,0 +1,4704 @@
+<#
+.SYNOPSIS
+    EcoWealth HTTP smoke test (Phase 1-15: P1-T1 ... P1-T11, P2-T1 ... P2-T10,
+    P3-T1 ... P3-T8, P4-T1 ... P4-T13, P5-T7 / P5-T9 / P5-T11,
+    P6-T1 ... P6-T11, P7-T1 ... P7-T12, P8-T1 ... P8-T10,
+    P9-T1 ... P9-T17, P10-T1 ... P10-T8, P11-T8 ... P11-T12,
+    P12-T1 ... P12-T8, P13-T1 ... P13-T12, P14-T1 ... P14-T13,
+    P15-T1 ... P15-T12; Phase 17: P17B-T1 ... P17B-T20,
+    P17D-T1 ... P17D-T15, P17E-T1 ... P17E-T12 and
+    P17F-T10 / P17F-T11; Phase 18: the escrow's pending/release rows;
+    Phase 19B: P19B-T1 / T6 / T23;
+    Phase 19D: P19D-T1, T2, T3, T10, T11, T15, T18;
+    Phase 19E: P19E-T1, T2, T3, T12, T13, T14;
+    Phase 19F: P19F-T1, T2, T13;
+    Phase 20B: P20B-T1, T4, T11;
+    Phase 20G: P20G-T1 ... P20G-T12).
+
+.DESCRIPTION
+    Hits the running app through Apache (or `php -S`) and checks status
+    codes, redirects, guards, menu visibility, asset base paths,
+    maintenance mode, the product catalogue, the package matrix, the cart,
+    the e-wallet, checkout/orders, the manual payment loop, fulfilment
+    (pack, ship, deliver, confirm, invoices), the auto-complete job, the
+    Phase 9 membership flow (registration modes, registration codes,
+    activation by proof with admin approval, member suspend/restore and
+    genealogy) and the Phase 10/11 compensation path (real activations
+    crediting the direct sponsor and the unilevel levels 2-10, an
+    ineligible upline skipped, the member earnings statement with its
+    level breakdown, the admin commission ledger, the two CSV exports
+    and the finance report) end to end, including the expiry job from
+    both the CLI and its web entry. It also walks Phase 12 transfers, the
+    Phase 13 payout queue and the Phase 14 super-login (a URL-token
+    member session, its token-bearing links, Exit, TTL and user-agent
+    expiry, the superadmin-only guard, the audit trail and the console's
+    X-Live feed with its 304 revalidation), and the IR-4 web installer's
+    refusal states (locked/non-empty tree, hardening headers, no lock
+    written by a GET or a CSRF-less POST, the shared stylesheet). Phase 17
+    is walked from the outside: the product ladder card and the settings
+    block, a paid order under the configured product, the admin repeat
+    ledger and its report/order cards, the member product/checkout/order/
+    earnings surfaces, and the month-close entry (its doctor and its dry
+    run). Everything the script changes is restored in a finally block: a
+    throw-away member account, products with SKU prefix SMOKE-,
+    packages named "Smoke Package …", registration codes and member
+    accounts it creates, the commissions it paid and the wallet balances
+    they moved, `maintenance_mode`, the payment and fulfilment settings it
+    edits, the smoke proof files and its orders. Phase 20 adds the Team
+    Harvest baseline setting, its one queue row and the throw-away members
+    the release walk registers; all three are restored in the same block.
+
+    Wallet-funded activations (P9-T4 / P9-T9) are covered by the unit
+    suite instead: they move real money between the payer and the primary
+    admin, which an HTTP smoke run cannot reverse cleanly.
+
+    Runs under Windows PowerShell 5.1 and PowerShell 7 (ASCII only).
+
+.EXAMPLE
+    powershell -NoProfile -File tests\smoke.ps1
+
+.EXAMPLE
+    pwsh tests/smoke.ps1 -BaseUrl 'http://localhost/ecowealth/system' -DbPass 'secret'
+#>
+param(
+    [string] $BaseUrl   = 'http://localhost/ecowealth/system',
+    [string] $MysqlPath = 'C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe',
+    [string] $PhpPath   = 'C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe',
+    [string] $DbName    = 'ecowealth_sneat',
+    [string] $DbUser    = 'root',
+    [string] $DbPass    = ''
+)
+
+$ErrorActionPreference = 'Stop'
+$script:Failures = 0
+$script:Passed   = 0
+$script:TempDir  = Join-Path ([System.IO.Path]::GetTempPath()) ('ecowealth-smoke-' + [guid]::NewGuid().ToString('N'))
+
+New-Item -ItemType Directory -Force -Path $script:TempDir | Out-Null
+
+$base     = $BaseUrl.TrimEnd('/')
+$basePath = ([uri]$base).AbsolutePath.TrimEnd('/')      # e.g. /ecowealth/system
+
+$script:Jars = @{
+    guest  = Join-Path $script:TempDir 'guest.jar'
+    admin  = Join-Path $script:TempDir 'admin.jar'
+    member = Join-Path $script:TempDir 'member.jar'
+    other  = Join-Path $script:TempDir 'other.jar'
+    p9a    = Join-Path $script:TempDir 'p9a.jar'
+    p9b    = Join-Path $script:TempDir 'p9b.jar'
+    p9c    = Join-Path $script:TempDir 'p9c.jar'
+    p9d    = Join-Path $script:TempDir 'p9d.jar'
+    p9e    = Join-Path $script:TempDir 'p9e.jar'
+    p9f    = Join-Path $script:TempDir 'p9f.jar'
+    p10a   = Join-Path $script:TempDir 'p10a.jar'
+    p11reg = Join-Path $script:TempDir 'p11reg.jar'
+    p14super = Join-Path $script:TempDir 'p14super.jar'
+    p20g   = Join-Path $script:TempDir 'p20g.jar'
+    p20g1  = Join-Path $script:TempDir 'p20g1.jar'
+    p20g2  = Join-Path $script:TempDir 'p20g2.jar'
+    p20g3  = Join-Path $script:TempDir 'p20g3.jar'
+    p20g4  = Join-Path $script:TempDir 'p20g4.jar'
+}
+
+foreach ($jar in $script:Jars.Values) {
+    New-Item -ItemType File -Force -Path $jar | Out-Null
+}
+
+function Write-Result {
+    param([string] $Id, [bool] $Ok, [string] $Message)
+
+    if ($Ok) {
+        $script:Passed++
+        Write-Host ("  {0} {1,-6} {2}" -f $Id, 'PASS', $Message) -ForegroundColor Green
+    } else {
+        $script:Failures++
+        Write-Host ("  {0} {1,-6} {2}" -f $Id, 'FAIL', $Message) -ForegroundColor Red
+    }
+}
+
+function Assert-That {
+    param([string] $Id, [bool] $Condition, [string] $Message)
+    Write-Result -Id $Id -Ok $Condition -Message $Message
+}
+
+# ---------------------------------------------------------------------------
+#  HTTP helpers (curl.exe - no redirect following, one cookie jar per session)
+# ---------------------------------------------------------------------------
+function Invoke-App {
+    param(
+        [string]    $Method  = 'GET',
+        [string]    $Path    = '/',
+        [hashtable] $Form    = @{},
+        [string]    $Session = 'guest',
+        [string[]]  $Headers = @(),
+        [hashtable] $Files   = @{}
+    )
+
+    $id         = [guid]::NewGuid().ToString('N')
+    $bodyFile   = Join-Path $script:TempDir "body-$id.html"
+    $headerFile = Join-Path $script:TempDir "head-$id.txt"
+    $jar        = $script:Jars[$Session]
+    $url        = $base + $Path
+
+    $curlArgs = @(
+        '--silent', '--show-error',
+        '--output', $bodyFile,
+        '--dump-header', $headerFile,
+        '--write-out', '%{http_code}',
+        '--request', $Method,
+        '--cookie', $jar,
+        '--cookie-jar', $jar,
+        '--max-redirs', '0'
+    )
+
+    foreach ($header in $Headers) {
+        $curlArgs += @('--header', $header)
+    }
+
+    if ($Files.Count -gt 0) {
+        # Multipart: fields and files travel as form parts.
+        foreach ($key in $Form.Keys) {
+            $value = $Form[$key]
+            if ($value -is [System.Array]) {
+                foreach ($item in $value) { $curlArgs += @('--form', "$key=$item") }
+            } else {
+                $curlArgs += @('--form', "$key=$value")
+            }
+        }
+        foreach ($key in $Files.Keys) {
+            $curlArgs += @('--form', "$key=@$($Files[$key])")
+        }
+    } else {
+        foreach ($key in $Form.Keys) {
+            $value = $Form[$key]
+            if ($value -is [System.Array]) {
+                # Repeated keys: content_product_id[]=1&content_product_id[]=2
+                foreach ($item in $value) { $curlArgs += @('--data-urlencode', "$key=$item") }
+            } else {
+                $curlArgs += @('--data-urlencode', "$key=$value")
+            }
+        }
+    }
+
+    $status = & curl.exe @curlArgs $url
+    $code   = 0
+    [void][int]::TryParse(("$status").Trim(), [ref] $code)
+
+    $body = ''
+    if (Test-Path $bodyFile) { $body = [string] (Get-Content $bodyFile -Raw -ErrorAction SilentlyContinue) }
+
+    $responseHeaders = @{}
+    if (Test-Path $headerFile) {
+        foreach ($line in Get-Content $headerFile) {
+            if ($line -match '^([A-Za-z0-9\-]+):\s*(.+)$') {
+                $responseHeaders[$matches[1].ToLowerInvariant()] = $matches[2].Trim()
+            }
+        }
+    }
+
+    Remove-Item $bodyFile, $headerFile -Force -ErrorAction SilentlyContinue
+
+    $location = ''
+    if ($responseHeaders.ContainsKey('location')) { $location = [string] $responseHeaders['location'] }
+
+    [pscustomobject]@{
+        Status   = $code
+        Body     = $body
+        Headers  = $responseHeaders
+        Location = $location
+    }
+}
+
+function Get-Csrf {
+    param([string] $Html)
+
+    if ($Html -match 'name="_csrf"\s+value="([0-9a-f]{64})"') { return $matches[1] }
+    if ($Html -match 'value="([0-9a-f]{64})"\s+name="_csrf"') { return $matches[1] }
+
+    return ''
+}
+
+function Invoke-MySql {
+    param([string] $Sql)
+
+    $mysqlArgs = @('-u', $DbUser, '--batch', '--skip-column-names', '-D', $DbName, '-e', $Sql)
+    if ($DbPass -ne '') { $mysqlArgs = @('-p' + $DbPass) + $mysqlArgs }
+
+    return (& $MysqlPath @mysqlArgs) 2>&1
+}
+
+function Get-SettingValue {
+    param([string] $Key)
+
+    return (Invoke-MySql "SELECT value FROM settings WHERE key_name = '$Key';" | Out-String).Trim()
+}
+
+function Set-SettingValue {
+    param([string] $Key, [string] $Value)
+
+    Invoke-MySql "INSERT INTO settings (key_name, value) VALUES ('$Key', '$Value') ON DUPLICATE KEY UPDATE value = '$Value';" | Out-Null
+}
+
+# One Team Harvest ladder amount (Phase 20B). The ten amounts live in
+# team_harvest_levels, not in settings, so they have their own setter and
+# their own finally-block restore.
+function Set-LadderAmount {
+    param([int] $Level, [string] $Amount)
+
+    $value = if ([string]::IsNullOrWhiteSpace($Amount)) { '0.00' } else { $Amount }
+    Invoke-MySql "INSERT INTO team_harvest_levels (level, amount) VALUES ($Level, $value) ON DUPLICATE KEY UPDATE amount = $value;" | Out-Null
+}
+
+# One General Harvest ladder amount (Phase 21B). Same idea, its own table:
+# general_harvest_levels is a ten-row catalogue, and an operator's amount is
+# never overwritten by a deploy or by this script.
+function Set-GhLadderAmount {
+    param([int] $Level, [string] $Amount)
+
+    $value = if ([string]::IsNullOrWhiteSpace($Amount)) { '0.00' } else { $Amount }
+    Invoke-MySql "INSERT INTO general_harvest_levels (level, amount) VALUES ($Level, $value) ON DUPLICATE KEY UPDATE amount = $value;" | Out-Null
+}
+
+function Sign-In {
+    param([string] $Session, [string] $Username, [string] $Password)
+
+    $form  = Invoke-App -Path '/login' -Session $Session
+    $token = Get-Csrf $form.Body
+
+    if ($token -eq '') { return $false }
+
+    $result = Invoke-App -Method 'POST' -Path '/login' -Session $Session -Form @{
+        '_csrf'          = $token
+        'email-username' = $Username
+        'password'       = $Password
+    }
+
+    return $result.Status -eq 302 -and $result.Location -match '/dashboard$'
+}
+
+# ---------------------------------------------------------------------------
+#  Test run
+# ---------------------------------------------------------------------------
+Write-Host ''
+Write-Host 'EcoWealth HTTP smoke test (phases 1-20)' -ForegroundColor Cyan
+Write-Host "  app:      $base"
+Write-Host "  database: $DbName"
+Write-Host ''
+
+$memberUsername    = 'smoke_' + (Get-Random -Minimum 100000 -Maximum 999999)
+$otherUsername     = 'smoke_other_' + (Get-Random -Minimum 100000 -Maximum 999999)
+$memberPassword    = 'Smoke@12345'
+$maintenanceBefore = '0'
+$selfOrderId       = 0
+$settingsSnapshot  = @{}
+# Phase 20B: the ten Team Harvest amounts (a table, not settings).
+$p20bLadderBefore  = @{}
+
+# Phase 21B: the ten General Harvest amounts and the board row (the board is
+# state, not a setting: a smoke run must leave it exactly as it found it).
+$p21bLadderBefore  = @{}
+$p21bBoardBefore   = @{}
+
+# Phase 20G: the release walk registers throw-away members and seeds the
+# queue for one check (the registration hook is inert until the baseline
+# exists). The finally block restores the baseline setting, deletes the
+# queue row and the members, and removes the audit rows the walk wrote.
+$p20gUsers          = @()
+$p20gBaselineBefore = [string] (Get-SettingValue 'team_harvest_ledger_since')
+$p20gQueueStart     = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM harvest_queue;' | Out-String).Trim())
+$p20gAuditStart     = 0
+
+# Order cancellation ships off (Settings -> Shop -> Enable Cancel of Order).
+# This run exercises the legacy member/admin cancellation and refund paths,
+# so open the switch for the run and let the finally block put the
+# operator's value back. A database that predates migration 022 has no row;
+# restore the documented default ('0') in that case, not an empty string.
+$cancelBefore = [string] (Get-SettingValue 'shop_cancel_enabled')
+if ([string]::IsNullOrWhiteSpace($cancelBefore)) { $cancelBefore = '0' }
+$settingsSnapshot['shop_cancel_enabled'] = $cancelBefore
+Set-SettingValue 'shop_cancel_enabled' '1'
+
+# Phase 9 fixtures created by this run (removed in the finally block).
+$p9Users       = @()
+$p9CodeIds     = @()
+$p9CodeStart   = 0
+$p9PackageAId  = 0
+$p9JuanId      = 0
+$p9PendingId   = 0
+
+# Phase 10: commissions paid during this run go to demo members (juan), so
+# the finally block removes the awards, their ledger rows and restores every
+# pre-existing wallet to the balance it had before the run.
+$p10CommissionStart = 0
+$p10LedgerStart     = 0
+$p10WalletSnapshot  = @{}
+
+# Phase 12: the transfer this run writes, its ledger legs and its audit rows
+# are deleted in the finally block, and every limit counter is restored (the
+# reset cron zeroes them all during the run).
+$p12LedgerStart     = 0
+$p12TransferStart   = 0
+$p12AuditStart      = 0
+$p12CounterSnapshot = @{}
+$p12Ran             = $false
+
+# Phase 14: the impersonation sessions this run opens (and the audit rows
+# they write) are deleted in the finally block; no member data is touched.
+$p14LogStart   = 0
+$p14AuditStart = 0
+$p14Ran        = $false
+
+# Phase 15: the reports exports and settings saves write audit rows (and the
+# settings snapshot above restores the values); the finally block removes the
+# rows this run added and any upload probe file.
+$p15AuditStart = 0
+$p15Ran        = $false
+
+# Phase 13: the payout requests this run writes, their ledger legs (the hold
+# and the refund) and their audit rows are deleted in the finally block; the
+# wallet balances are restored by the Phase 10 snapshot above.
+$p13LedgerStart = 0
+$p13PayoutStart = 0
+$p13AuditStart  = 0
+$p13Ran         = $false
+
+try {
+    $p10CommissionStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM commissions;" | Out-String).Trim())
+    $p10LedgerStart     = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
+
+    foreach ($walletRow in @(Invoke-MySql "SELECT CONCAT(username, '|', ewallet_balance, '|', withdrawable_balance) FROM users;")) {
+        $walletParts = ([string] $walletRow).Trim().Split('|')
+        if ($walletParts.Count -eq 3) {
+            $p10WalletSnapshot[$walletParts[0]] = "$($walletParts[1])|$($walletParts[2])"
+        }
+    }
+    # ---- Guest surface ---------------------------------------------------
+    $homeGuest = Invoke-App -Path '/'
+    Assert-That 'P1-T1' ($homeGuest.Status -eq 302 -and $homeGuest.Location -match '/login$') `
+        "GET / as guest -> 302 login (got $($homeGuest.Status) $($homeGuest.Location))"
+
+    $shopGuest = Invoke-App -Path '/shop'
+    Assert-That 'P1-T1' ($shopGuest.Status -eq 302 -and $shopGuest.Location -match '/login$') `
+        "GET /shop as guest -> 302 login (got $($shopGuest.Status))"
+
+    $notFound = Invoke-App -Path '/no-such-page'
+    Assert-That 'P1-T4' ($notFound.Status -eq 404 -and $notFound.Body -match 'Page not found') `
+        "GET /no-such-page -> 404 page (got $($notFound.Status))"
+
+    $asset = Invoke-App -Path '/assets/css/demo.css'
+    Assert-That 'P1-T5' ($asset.Status -eq 200) "GET /assets/css/demo.css -> 200 (got $($asset.Status))"
+
+    $loginPage = Invoke-App -Path '/login'
+    Assert-That 'P1-T9' ($loginPage.Status -eq 200 -and (Get-Csrf $loginPage.Body) -ne '') `
+        'GET /login -> 200 with a CSRF token'
+
+    # ---- Admin session ---------------------------------------------------
+    $signedIn = Sign-In -Session 'admin' -Username 'admin' -Password 'Admin@123'
+    Assert-That 'P1-T9' $signedIn 'POST /login (admin) -> 302 /dashboard'
+
+    $dashboard = Invoke-App -Path '/dashboard' -Session 'admin'
+    Assert-That 'P1-T9' ($dashboard.Status -eq 200 -and $dashboard.Body -match 'admin') `
+        "GET /dashboard as admin -> 200 (got $($dashboard.Status))"
+
+    $homeAdmin = Invoke-App -Path '/' -Session 'admin'
+    Assert-That 'P1-T10' ($homeAdmin.Status -eq 302 -and $homeAdmin.Location -match '/dashboard$') `
+        "GET / as member -> 302 /dashboard (got $($homeAdmin.Status) $($homeAdmin.Location))"
+
+    $adminPage = Invoke-App -Path '/admin' -Session 'admin'
+    Assert-That 'P1-T3' ($adminPage.Status -eq 200 -and $adminPage.Body -match 'Back office' -and $adminPage.Body -match 'Products') `
+        "GET /admin as admin -> 200 with the back-office menu (got $($adminPage.Status))"
+
+    $memberAsAdmin = Invoke-App -Path '/shop' -Session 'admin'
+    Assert-That 'P1-T8' ($memberAsAdmin.Status -eq 200 `
+            -and $memberAsAdmin.Body -match 'Back office' `
+            -and $memberAsAdmin.Body -match 'href="[^"]*/admin/products"' `
+            -and $memberAsAdmin.Body -match 'href="[^"]*/admin/wallets"') `
+        "admin /shop keeps the back-office menu (got $($memberAsAdmin.Status))"
+
+    $passwordPage = Invoke-App -Path '/profile/password' -Session 'admin'
+    Assert-That 'P1-T9' ($passwordPage.Status -eq 200 -and $passwordPage.Body -match 'Current password') `
+        "GET /profile/password -> 200 (got $($passwordPage.Status))"
+
+    $deep404     = Invoke-App -Path '/admin/products/987654/edit' -Session 'admin'
+    $assetPathOk = $deep404.Body -match [regex]::Escape("$basePath/assets/")
+    $noWrongBase = $deep404.Body -notmatch [regex]::Escape("$basePath/admin/products/assets/")
+    Assert-That 'P1-T5' ($deep404.Status -eq 404 -and $assetPathOk -and $noWrongBase) `
+        'deep URL keeps asset URLs on the install prefix'
+
+    # Every asset the admin page references must resolve (gate: no 404 asset).
+    $origin       = ([uri]$base).GetLeftPart([System.UriPartial]::Authority)   # http://localhost
+    $assetMatches = [regex]::Matches($adminPage.Body, '(?:href|src)="([^"]*assets/[^"]+)"')
+    $assetUrls    = @($assetMatches | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $brokenAssets = @()
+
+    foreach ($assetUrl in $assetUrls) {
+        $assetStatus = & curl.exe --silent --output NUL --write-out '%{http_code}' ($origin + $assetUrl)
+        if ("$assetStatus".Trim() -ne '200') { $brokenAssets += "$assetUrl ($assetStatus)" }
+    }
+
+    Assert-That 'P1-T5' ($assetUrls.Count -gt 0 -and $brokenAssets.Count -eq 0) `
+        ("all {0} asset URLs on /admin resolve ({1} broken)" -f $assetUrls.Count, $brokenAssets.Count)
+    foreach ($broken in $brokenAssets) { Write-Host "        broken: $broken" -ForegroundColor DarkYellow }
+
+    # ---- P1-T6: a bad CSRF token must not sign the admin out -------------
+    $beforeLogout = Invoke-App -Path '/admin' -Session 'admin'
+    $badLogout    = Invoke-App -Method 'POST' -Path '/logout' -Session 'admin' -Form @{ '_csrf' = ('0' * 64) }
+    $afterLogout  = Invoke-App -Path '/admin' -Session 'admin'
+    Assert-That 'P1-T6' ($badLogout.Status -eq 302 -and $beforeLogout.Status -eq 200 -and $afterLogout.Status -eq 200) `
+        "POST /logout with a wrong CSRF token is rejected (logout=$($badLogout.Status), still signed in=$($afterLogout.Status))"
+
+    # ---- Member guard ----------------------------------------------------
+    # Phase 9: a guest registers and is signed in immediately, so the
+    # register POST redirects to /dashboard (no second sign-in needed).
+    $registerPage  = Invoke-App -Path '/register' -Session 'member'
+    $registerToken = Get-Csrf $registerPage.Body
+    $register = Invoke-App -Method 'POST' -Path '/register' -Session 'member' -Form @{
+        '_csrf'            = $registerToken
+        'mode'             = 'standard'
+        'sponsor'          = 'juan'
+        'username'         = $memberUsername
+        'email'            = "$memberUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    Assert-That 'P1-T9' ($register.Status -eq 302 -and $register.Location -match '/dashboard$') `
+        "POST /register creates an account and signs it in (got $($register.Status) $($register.Location))"
+
+    $memberDashboard = Invoke-App -Path '/dashboard' -Session 'member'
+    Assert-That 'P1-T9' ($memberDashboard.Status -eq 200 -and $memberDashboard.Body -match $memberUsername) `
+        "the new member's session opens /dashboard (got $($memberDashboard.Status))"
+
+    $adminAsMember = Invoke-App -Path '/admin' -Session 'member'
+    Assert-That 'P1-T2' ($adminAsMember.Status -eq 403 -and $adminAsMember.Body -match 'Access denied') `
+        "GET /admin as member -> 403 (got $($adminAsMember.Status))"
+
+    # ---- Central CSRF check on a routed POST -----------------------------
+    $csrfForm = Invoke-App -Method 'POST' -Path '/profile/password' -Session 'member' -Form @{ '_csrf' = 'nope' }
+    Assert-That 'P1-T6' ($csrfForm.Status -eq 302) `
+        "routed POST with a bad CSRF token redirects back (got $($csrfForm.Status))"
+
+    $csrfXhr = Invoke-App -Method 'POST' -Path '/profile/password' -Session 'member' -Form @{ '_csrf' = 'nope' } `
+        -Headers @('X-Requested-With: XMLHttpRequest', 'Accept: application/json')
+    Assert-That 'P1-T6' ($csrfXhr.Status -eq 422 -and $csrfXhr.Body -match '"code":"csrf"') `
+        "XHR with a bad CSRF token -> 422 JSON (got $($csrfXhr.Status))"
+
+    # ---- Phase 2: products & catalogue -----------------------------------
+    $adminToken = Get-Csrf $adminPage.Body
+    $smokeSku   = 'SMOKE-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $smokeName  = 'Smoke Product ' + $smokeSku
+
+    # P2-T1 — create through the admin form
+    $create = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = $smokeName
+        'sku'        = $smokeSku
+        'price'      = '123.45'
+        'stock'      = '7'
+        'sort_order' = '999'
+        'status'     = 'active'
+    }
+    $smokeId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = '$smokeSku' LIMIT 1;" | Out-String).Trim())
+    Assert-That 'P2-T1' ($create.Status -eq 302 -and $smokeId -gt 0) `
+        "POST /admin/products/save creates a product (status=$($create.Status), id=$smokeId)"
+
+    $adminList = Invoke-App -Path "/admin/products?q=$smokeSku" -Session 'admin'
+    Assert-That 'P2-T1' ($adminList.Status -eq 200 -and $adminList.Body.Contains($smokeName)) `
+        "the new product appears in the admin list (status=$($adminList.Status))"
+
+    # P2-T2 — invalid input keeps the form and writes nothing
+    $badCreate = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'  = $adminToken
+        'name'   = ''
+        'sku'    = "$smokeSku-BAD"
+        'price'  = '0'
+        'stock'  = '-1'
+        'status' = 'active'
+    }
+    $badForm = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    Assert-That 'P2-T2' ($badCreate.Status -eq 302 -and $badForm.Body -match 'Please fix the highlighted' -and $badForm.Body -match 'Product name is required') `
+        'invalid input is rejected and the form shows field errors'
+
+    $badRow = (Invoke-MySql "SELECT COUNT(*) FROM products WHERE sku = '$smokeSku-BAD';" | Out-String).Trim()
+    Assert-That 'P2-T2' ($badRow -eq '0') 'no row is written for an invalid product'
+
+    # P2-T3 — a script renamed .jpg, then a 6 MB file
+    $badImage = Join-Path $script:TempDir 'bad.jpg'
+    Set-Content -Path $badImage -Value '<?php echo "pwned";' -Encoding ASCII
+
+    $badUpload = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' `
+        -Files @{ 'image' = $badImage } `
+        -Form @{
+            '_csrf'      = $adminToken
+            'name'       = "$smokeName Upload"
+            'price'      = '10.00'
+            'stock'      = '1'
+            'sort_order' = '999'
+            'status'     = 'active'
+        }
+    $uploadForm = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    Assert-That 'P2-T3' ($badUpload.Status -eq 302 -and $uploadForm.Body -match 'not allowed') `
+        'a PHP file renamed .jpg is rejected'
+
+    $bigImage = Join-Path $script:TempDir 'big.png'
+    [System.IO.File]::WriteAllBytes($bigImage, (New-Object byte[] (6 * 1024 * 1024)))
+
+    $bigUpload = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' `
+        -Files @{ 'image' = $bigImage } `
+        -Form @{
+            '_csrf'      = $adminToken
+            'name'       = "$smokeName Big"
+            'price'      = '10.00'
+            'stock'      = '1'
+            'sort_order' = '999'
+            'status'     = 'active'
+        }
+    $bigForm = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    Assert-That 'P2-T3' ($bigUpload.Status -eq 302 -and $bigForm.Body -match 'too large') `
+        'a file over the 5 MB cap is rejected'
+
+    # P2-T4 — edit the price and see it in the shop
+    $edit = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'product_id' = "$smokeId"
+        'name'       = $smokeName
+        'sku'        = $smokeSku
+        'price'      = '99.99'
+        'stock'      = '7'
+        'sort_order' = '999'
+        'status'     = 'active'
+    }
+    $editForm = Invoke-App -Path "/admin/products/$smokeId/edit" -Session 'admin'
+    $detail   = Invoke-App -Path "/shop/$smokeId" -Session 'admin'
+    Assert-That 'P2-T4' ($edit.Status -eq 302 -and $editForm.Body -match 'value="99.99"' -and $detail.Body -match '99.99') `
+        'editing the price persists and the shop shows it'
+
+    # P2-T9 — XSS in a product name is escaped in the storefront
+    $xssCreate = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = '<script>alert(1)</script> Smoke'
+        'sku'        = "$smokeSku-XSS"
+        'price'      = '1.00'
+        'stock'      = '1'
+        'sort_order' = '999'
+        'status'     = 'active'
+    }
+    $xssShop = Invoke-App -Path "/shop?q=$smokeSku-XSS" -Session 'member'
+    Assert-That 'P2-T9' ($xssCreate.Status -eq 302 `
+            -and $xssShop.Body -notmatch [regex]::Escape('<script>alert(1)</script>') `
+            -and $xssShop.Body -match '&lt;script&gt;alert\(1\)&lt;/script&gt;') `
+        'product names are escaped in the storefront'
+
+    # P2-T8 — pagination and search keep their query
+    $pageRows = (1..12 | ForEach-Object {
+        "('$smokeSku-P$($_)', 'Smoke Page $($_)', '$($smokeSku.ToLower())-p$($_)', 1.00, 5, 'active', 999)"
+    }) -join ','
+    Invoke-MySql "INSERT INTO products (sku, name, slug, price, stock, status, sort_order) VALUES $pageRows;" | Out-Null
+
+    $page1  = Invoke-App -Path '/shop' -Session 'member'
+    $page2  = Invoke-App -Path '/shop?page=2' -Session 'member'
+    $search = Invoke-App -Path "/shop?q=$smokeSku" -Session 'member'
+    $cards1 = [regex]::Matches($page1.Body, '<article class="card product-card').Count
+
+    Assert-That 'P2-T8' ($page1.Status -eq 200 -and $cards1 -eq 12 -and $page2.Status -eq 200 `
+            -and $page1.Body -match 'assets/css/shop.css' `
+            -and $page1.Body -notmatch 'href="[^"]*/admin/products"' `
+            -and $page2.Body -match 'Smoke Page' -and $search.Body -match 'page=2' -and $search.Body -match "q=$smokeSku") `
+        "the catalogue paginates at 12 per page and search links keep q (page1 cards=$cards1)"
+
+    # P2-T5 — deactivate: gone from the shop, direct URL 404
+    $deactivate = Invoke-App -Method 'POST' -Path "/admin/products/$smokeId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'inactive' }
+    $hidden = Invoke-App -Path "/shop?q=$smokeSku" -Session 'member'
+    $gone   = Invoke-App -Path "/shop/$smokeId" -Session 'member'
+    Assert-That 'P2-T5' ($deactivate.Status -eq 302 -and -not $hidden.Body.Contains($smokeName) -and $gone.Status -eq 404) `
+        "a deactivated product leaves the shop and its URL 404s (status=$($gone.Status))"
+
+    # P2-T10 — members cannot reach the admin product routes
+    $memberAdmin = Invoke-App -Path '/admin/products' -Session 'member'
+    $memberPost  = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'member' -Form @{
+        '_csrf' = $adminToken
+        'name'  = 'Nope'
+        'price' = '1.00'
+        'stock' = '1'
+        'status' = 'active'
+    }
+    Assert-That 'P2-T10' ($memberAdmin.Status -eq 403 -and $memberPost.Status -eq 403) `
+        "a member cannot use admin product routes (GET=$($memberAdmin.Status), POST=$($memberPost.Status))"
+
+    # ---- Phase 3: packages -----------------------------------------------
+    $pkgName  = 'Smoke Package ' + $smokeSku
+    $coffeeId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = 'EW-COFFEE' LIMIT 1;" | Out-String).Trim())
+
+    # P3-T4 regression — a product bundled by a package cannot be deleted.
+    $blockedDelete = Invoke-App -Method 'POST' -Path "/admin/products/$coffeeId/delete" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken }
+    $coffeeStill = (Invoke-MySql "SELECT COUNT(*) FROM products WHERE id = $coffeeId;" | Out-String).Trim()
+
+    Assert-That 'P3-T4' ($blockedDelete.Status -eq 302 -and $coffeeStill -eq '1') `
+        "a product used by a package cannot be deleted (status=$($blockedDelete.Status), rows=$coffeeStill)"
+
+    $pkgFormFields = @{
+        'name'                  = $pkgName
+        'price'                 = '1234.00'
+        'product_value'         = '1300.00'
+        'direct_referral_bonus' = '150.00'
+        'sort_order'            = '999'
+        'status'                = 'active'
+        'indirect_enabled'      = '1'
+        'levels[2]'             = '100'
+        'levels[3]'             = '50'
+        'levels[4]'             = '40'
+        'levels[5]'             = '30'
+        'levels[6]'             = '20'
+        'levels[7]'             = '10'
+        'levels[8]'             = '5'
+        'levels[9]'             = '5'
+        'levels[10]'            = '5'
+        'content_product_id[]'  = @($coffeeId)
+        'content_quantity[]'    = @('2')
+    }
+
+    # P3-T1 — create with a full level matrix and contents
+    $pkgCreate = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'admin' `
+        -Form ($pkgFormFields + @{ '_csrf' = $adminToken })
+
+    $pkgId      = [int]((Invoke-MySql "SELECT id FROM packages WHERE name = '$pkgName' LIMIT 1;" | Out-String).Trim())
+    $levelCount = (Invoke-MySql "SELECT COUNT(*) FROM package_levels WHERE package_id = $pkgId AND level BETWEEN 2 AND 10;" | Out-String).Trim()
+    $level1Rows = (Invoke-MySql "SELECT COUNT(*) FROM package_levels WHERE package_id = $pkgId AND level = 1;" | Out-String).Trim()
+    $contentRow = (Invoke-MySql "SELECT CONCAT(product_id, ':', quantity) FROM package_products WHERE package_id = $pkgId;" | Out-String).Trim()
+
+    Assert-That 'P3-T1' ($pkgCreate.Status -eq 302 -and $pkgId -gt 0 -and $levelCount -eq '9' -and $contentRow -eq "${coffeeId}:2") `
+        "POST /admin/packages/save writes the package, 9 levels and its contents (status=$($pkgCreate.Status), id=$pkgId, levels=$levelCount)"
+
+    $pkgList = Invoke-App -Path "/admin/packages?q=$smokeSku" -Session 'admin'
+    Assert-That 'P3-T1' ($pkgList.Status -eq 200 -and $pkgList.Body.Contains($pkgName)) `
+        'the new package appears in the admin list'
+
+    # P3-T5 — level 1 is read-only and never stored as a level row
+    $pkgDetail = Invoke-App -Path "/admin/packages/$pkgId/edit" -Session 'admin'
+    Assert-That 'P3-T5' ($pkgDetail.Status -eq 200 `
+            -and $pkgDetail.Body -match 'Level 1 [^<]{1,6}Direct referral' `
+            -and $pkgDetail.Body -notmatch 'name="levels\[1\]"' `
+            -and $level1Rows -eq '0') `
+        'level 1 is read-only and not duplicated into package_levels'
+
+    # P3-T4 — contents show on the public card
+    $publicPackages = Invoke-App -Path '/packages' -Session 'member'
+    Assert-That 'P3-T4' ($publicPackages.Status -eq 200 -and $publicPackages.Body.Contains($pkgName) -and $publicPackages.Body -match 'Coffee') `
+        'the public page lists the package contents'
+
+    # P3-T8 — prices and bonuses formatted
+    Assert-That 'P3-T8' ($publicPackages.Body -match '4,498' -and $publicPackages.Body -match '6,998' `
+            -and $publicPackages.Body -match 'Direct referral \(level 1\)') `
+        'the packages page formats prices and shows the direct bonus'
+
+    # P3-T2 — edit level 3
+    $pkgEditFields = $pkgFormFields.Clone()
+    $pkgEditFields['levels[3]'] = '50.50'
+    $pkgEdit = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'admin' `
+        -Form ($pkgEditFields + @{ '_csrf' = $adminToken; 'package_id' = "$pkgId" })
+
+    $level3      = (Invoke-MySql "SELECT amount FROM package_levels WHERE package_id = $pkgId AND level = 3;" | Out-String).Trim()
+    $pkgEditForm = Invoke-App -Path "/admin/packages/$pkgId/edit" -Session 'admin'
+
+    Assert-That 'P3-T2' ($pkgEdit.Status -eq 302 -and $level3 -eq '50.50' -and $pkgEditForm.Body -match 'value="50.50"') `
+        "editing level 3 persists and reopens in the form (stored=$level3)"
+
+    # P3-T3 — invalid input is rejected without writing
+    $badPackage = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'admin' -Form @{
+        '_csrf'                 = $adminToken
+        'name'                  = ''
+        'price'                 = '0'
+        'direct_referral_bonus' = '-5'
+        'status'                = 'active'
+        'levels[2]'             = '-1'
+        'content_product_id[]'  = @($coffeeId)
+        'content_quantity[]'    = @('1')
+    }
+    $badPackageForm = Invoke-App -Path '/admin/packages/new' -Session 'admin'
+    $badPackageRows = (Invoke-MySql "SELECT COUNT(*) FROM packages WHERE name = '';" | Out-String).Trim()
+
+    Assert-That 'P3-T3' ($badPackage.Status -eq 302 -and $badPackageForm.Body -match 'Please fix the highlighted' `
+            -and $badPackageForm.Body -match 'Package name is required' -and $badPackageRows -eq '0') `
+        'invalid package input is rejected and nothing is written'
+
+    # P3-T6 — deactivate hides the package from members
+    $pkgDeactivate = Invoke-App -Method 'POST' -Path "/admin/packages/$pkgId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'inactive' }
+    $publicAfter = Invoke-App -Path '/packages' -Session 'member'
+
+    Assert-That 'P3-T6' ($pkgDeactivate.Status -eq 302 -and -not $publicAfter.Body.Contains($pkgName)) `
+        'a deactivated package disappears from the packages page'
+
+    # P3-T7 — members cannot reach the admin package routes
+    $memberPackages = Invoke-App -Path '/admin/packages' -Session 'member'
+    $memberPackagePost = Invoke-App -Method 'POST' -Path '/admin/packages/save' -Session 'member' -Form @{
+        '_csrf'                 = $adminToken
+        'name'                  = 'Nope'
+        'price'                 = '1.00'
+        'direct_referral_bonus' = '0'
+        'status'                = 'active'
+    }
+
+    Assert-That 'P3-T7' ($memberPackages.Status -eq 403 -and $memberPackagePost.Status -eq 403) `
+        "a member cannot use admin package routes (GET=$($memberPackages.Status), POST=$($memberPackagePost.Status))"
+
+    # ---- Phase 4: cart ---------------------------------------------------
+    # A dedicated product keeps every cart check away from the seeded catalogue.
+    $cartSku  = 'SMOKE-CART-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $cartName = 'Smoke Cart ' + $cartSku
+
+    Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = $cartName
+        'sku'        = $cartSku
+        'price'      = '20.00'
+        'stock'      = '3'
+        'sort_order' = '999'
+        'status'     = 'active'
+    } | Out-Null
+
+    $cartProductId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = '$cartSku' LIMIT 1;" | Out-String).Trim())
+    $cartMemberId  = [int]((Invoke-MySql "SELECT id FROM users WHERE username = '$memberUsername' LIMIT 1;" | Out-String).Trim())
+    $xhrHeaders    = @('X-Requested-With: XMLHttpRequest', 'Accept: application/json')
+
+    $cartGuest = Invoke-App -Path '/cart'
+    Assert-That 'P4-T1' ($cartGuest.Status -eq 302 -and $cartGuest.Location -match '/login$') `
+        "GET /cart as guest -> 302 login (got $($cartGuest.Status))"
+
+    $cartEmpty       = Invoke-App -Path '/cart' -Session 'member'
+    $memberCartToken = Get-Csrf $cartEmpty.Body
+    Assert-That 'P4-T1' ($cartEmpty.Status -eq 200 -and $cartEmpty.Body -match 'Your cart is empty' -and $memberCartToken -ne '') `
+        "GET /cart as a member -> 200 with the empty state (got $($cartEmpty.Status))"
+
+    # P4-T12 - a plain form POST (no JavaScript) redirects, flashes and writes.
+    $noJsAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    }
+    $cartAfterNoJs = Invoke-App -Path '/cart' -Session 'member'
+    $lineCount = (Invoke-MySql "SELECT COUNT(*) FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId;" | Out-String).Trim()
+
+    Assert-That 'P4-T12' ($noJsAdd.Status -eq 302 -and $lineCount -eq '1' `
+            -and $cartAfterNoJs.Body -match 'Added to cart' -and $cartAfterNoJs.Body.Contains($cartName)) `
+        "a no-JS add redirects, flashes and writes one line (status=$($noJsAdd.Status), rows=$lineCount)"
+
+    # P4-T13 - the drawer is on every member page and lists the saved line.
+    $shopWithCart = Invoke-App -Path '/shop' -Session 'member'
+    Assert-That 'P4-T13' ($shopWithCart.Status -eq 200 -and $shopWithCart.Body -match 'id="cartOffcanvas"' `
+            -and $shopWithCart.Body -match 'data-cart-badge' -and $shopWithCart.Body.Contains($cartName) `
+            -and $shopWithCart.Body -match 'data-cart-qty-form') `
+        'the storefront carries the cart drawer with the saved line and badge'
+
+    # P4-T11 - AJAX add answers ok + count + the refreshed drawer.
+    $ajaxAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '2'
+    }
+    $ajaxPayload = $ajaxAdd.Body | ConvertFrom-Json
+    Assert-That 'P4-T11' ($ajaxAdd.Status -eq 200 -and $ajaxPayload.ok -eq $true -and $ajaxPayload.count -eq 3 `
+            -and $ajaxPayload.drawer_html.Contains($cartName) -and $ajaxPayload.subtotal -eq 60) `
+        "an AJAX add returns ok, count and the drawer (count=$($ajaxPayload.count), subtotal=$($ajaxPayload.subtotal))"
+
+    $countJson    = Invoke-App -Path '/cart/count' -Session 'member' -Headers $xhrHeaders
+    $countPayload = $countJson.Body | ConvertFrom-Json
+    Assert-That 'P4-T11' ($countJson.Status -eq 200 -and $countPayload.ok -eq $true -and $countPayload.count -eq 3) `
+        "GET /cart/count returns the badge count (count=$($countPayload.count))"
+
+    # P4-T3 - adding beyond available is refused with the exact numbers.
+    $overAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '5'
+    }
+    $overPayload = $overAdd.Body | ConvertFrom-Json
+    $cartQty = (Invoke-MySql "SELECT quantity FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId;" | Out-String).Trim()
+
+    Assert-That 'P4-T3' ($overAdd.Status -eq 400 -and $overPayload.ok -eq $false `
+            -and $overAdd.Body -match 'Requested 8, only 3 available' -and $cartQty -eq '3') `
+        "adding beyond stock is refused and writes nothing (status=$($overAdd.Status), qty=$cartQty)"
+
+    # P4-T10 - a deactivated product cannot be added.
+    Invoke-App -Method 'POST' -Path "/admin/products/$cartProductId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'inactive' } | Out-Null
+    $inactiveAdd = Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    }
+    Invoke-App -Method 'POST' -Path "/admin/products/$cartProductId/status" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'status' = 'active' } | Out-Null
+
+    Assert-That 'P4-T10' ($inactiveAdd.Status -eq 400 -and $inactiveAdd.Body -match 'no longer available') `
+        "an inactive product cannot be added (status=$($inactiveAdd.Status))"
+
+    # P4-T4 - update the quantity, then remove the line with quantity 0.
+    $cartItemId = [int]((Invoke-MySql "SELECT ci.id FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId LIMIT 1;" | Out-String).Trim())
+    $update = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'    = $memberCartToken
+        'item_id'  = "$cartItemId"
+        'quantity' = '2'
+    }
+    $updatePayload = $update.Body | ConvertFrom-Json
+    $removed = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'    = $memberCartToken
+        'item_id'  = "$cartItemId"
+        'quantity' = '0'
+    }
+    $removedPayload = $removed.Body | ConvertFrom-Json
+    $rowAfterRemove = (Invoke-MySql "SELECT COUNT(*) FROM cart_items WHERE id = $cartItemId;" | Out-String).Trim()
+
+    Assert-That 'P4-T4' ($update.Status -eq 200 -and $updatePayload.count -eq 2 `
+            -and $removed.Status -eq 200 -and $removedPayload.removed -eq $true -and $removedPayload.count -eq 0 `
+            -and $rowAfterRemove -eq '0') `
+        "update persists and quantity 0 removes the line (count=$($updatePayload.count), removed=$($removedPayload.removed))"
+
+    # P4-T12 - the +/- steppers are submit buttons, so they work with JS off.
+    # The stale quantity posted alongside 'direction' must be ignored.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    } | Out-Null
+    $stepItemId = [int]((Invoke-MySql "SELECT ci.id FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId LIMIT 1;" | Out-String).Trim())
+
+    $stepUp = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Form @{
+        '_csrf'     = $memberCartToken
+        'item_id'   = "$stepItemId"
+        'direction' = 'up'
+        'quantity'  = '99'
+    }
+    $stepQtyUp = (Invoke-MySql "SELECT quantity FROM cart_items WHERE id = $stepItemId;" | Out-String).Trim()
+
+    $stepDown = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Form @{
+        '_csrf'     = $memberCartToken
+        'item_id'   = "$stepItemId"
+        'direction' = 'down'
+    }
+    $stepQtyDown = (Invoke-MySql "SELECT quantity FROM cart_items WHERE id = $stepItemId;" | Out-String).Trim()
+
+    $stepRemove = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'member' -Form @{
+        '_csrf'     = $memberCartToken
+        'item_id'   = "$stepItemId"
+        'direction' = 'down'
+    }
+    $stepRows = (Invoke-MySql "SELECT COUNT(*) FROM cart_items WHERE id = $stepItemId;" | Out-String).Trim()
+
+    Assert-That 'P4-T12' ($stepUp.Status -eq 302 -and $stepQtyUp -eq '2' `
+            -and $stepDown.Status -eq 302 -and $stepQtyDown -eq '1' `
+            -and $stepRemove.Status -eq 302 -and $stepRows -eq '0') `
+        "the +/- steppers post a direction with JS off (up=$stepQtyUp, down=$stepQtyDown, removed rows=$stepRows)"
+
+    # P4-T5 / P4-T6 - a second signed-in account cannot touch the line (IDOR).
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $memberCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '2'
+    } | Out-Null
+    $foreignItemId = [int]((Invoke-MySql "SELECT ci.id FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId AND ci.product_id = $cartProductId LIMIT 1;" | Out-String).Trim())
+
+    $otherRegPage  = Invoke-App -Path '/register' -Session 'other'
+    $otherRegToken = Get-Csrf $otherRegPage.Body
+    Invoke-App -Method 'POST' -Path '/register' -Session 'other' -Form @{
+        '_csrf'            = $otherRegToken
+        'mode'             = 'standard'
+        'sponsor'          = 'juan'
+        'username'         = $otherUsername
+        'email'            = "$otherUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    } | Out-Null
+    $otherSignedIn = (Invoke-App -Path '/dashboard' -Session 'other').Status -eq 200
+
+    $otherCartPage  = Invoke-App -Path '/cart' -Session 'other'
+    $otherCartToken = Get-Csrf $otherCartPage.Body
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'other' -Headers $xhrHeaders -Form @{
+        '_csrf'      = $otherCartToken
+        'product_id' = "$cartProductId"
+        'quantity'   = '1'
+    } | Out-Null
+
+    $idorUpdate = Invoke-App -Method 'POST' -Path '/cart/update' -Session 'other' -Headers $xhrHeaders -Form @{
+        '_csrf'    = $otherCartToken
+        'item_id'  = "$foreignItemId"
+        'quantity' = '9'
+    }
+    $idorRemove = Invoke-App -Method 'POST' -Path '/cart/remove' -Session 'other' -Headers $xhrHeaders -Form @{
+        '_csrf'   = $otherCartToken
+        'item_id' = "$foreignItemId"
+    }
+    $foreignQty = (Invoke-MySql "SELECT quantity FROM cart_items WHERE id = $foreignItemId;" | Out-String).Trim()
+
+    Assert-That 'P4-T5' ($otherSignedIn -and $idorUpdate.Status -eq 400 `
+            -and $idorUpdate.Body -match 'no longer in your cart' -and $foreignQty -eq '2') `
+        "another member cannot rewrite the line (status=$($idorUpdate.Status), qty=$foreignQty)"
+    Assert-That 'P4-T6' ($idorRemove.Status -eq 400 -and $foreignQty -eq '2' `
+            -and (Invoke-MySql "SELECT COUNT(*) FROM cart_items WHERE id = $foreignItemId;" | Out-String).Trim() -eq '1') `
+        "another member cannot remove the line (status=$($idorRemove.Status))"
+
+    # P4-T7 - the cart follows a catalogue price change on the next reload.
+    $cartBeforePrice = Invoke-App -Path '/cart' -Session 'member'
+    Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'product_id' = "$cartProductId"
+        'name'       = $cartName
+        'sku'        = $cartSku
+        'price'      = '12.50'
+        'stock'      = '3'
+        'sort_order' = '999'
+        'status'     = 'active'
+    } | Out-Null
+    $cartAfterPrice = Invoke-App -Path '/cart' -Session 'member'
+
+    Assert-That 'P4-T7' ($cartBeforePrice.Body -match '40\.00' `
+            -and $cartAfterPrice.Body -match '25\.00' -and $cartAfterPrice.Body -match '12\.50') `
+        'the cart follows the live catalogue price (2 x 20.00 becomes 2 x 12.50)'
+
+    # P4-T13 - admins shop too, so their sidebar offers the same cart.
+    $adminCart = Invoke-App -Path '/cart' -Session 'admin'
+    $adminMenu = ($adminCart.Body -match '<div>Cart</div>') -and ($adminCart.Body -match 'menu-item active') `
+        -and ($adminCart.Body -match 'admin/products')
+    Assert-That 'P4-T13' ($adminCart.Status -eq 200 -and $adminMenu) `
+        "GET /cart as admin keeps the back-office sidebar with an active Cart item (status=$($adminCart.Status))"
+
+    # ---- Phase 5: e-wallet -----------------------------------------------
+    $walletGuest = Invoke-App -Path '/wallet'
+    Assert-That 'P5-T7' ($walletGuest.Status -eq 302 -and $walletGuest.Location -match '/login$') `
+        "GET /wallet as guest -> 302 login (got $($walletGuest.Status))"
+
+    $walletPage  = Invoke-App -Path '/wallet' -Session 'member'
+    $walletToken = Get-Csrf $walletPage.Body
+    Assert-That 'P5-T7' ($walletPage.Status -eq 200 -and $walletPage.Body -match 'E-wallet' `
+            -and $walletPage.Body -match 'Total balance' -and $walletPage.Body -match 'Withdrawable' `
+            -and $walletPage.Body -match 'No wallet movements yet' -and $walletToken -ne '') `
+        "GET /wallet as a member -> 200 with both buckets and an empty statement (got $($walletPage.Status))"
+
+    $walletMonitor = Invoke-App -Path '/admin/wallets' -Session 'admin'
+    Assert-That 'P5-T7' ($walletMonitor.Status -eq 200 -and $walletMonitor.Body -match 'E-wallet monitor' `
+            -and $walletMonitor.Body -match 'Total float' -and $walletMonitor.Body -match 'My e-wallet') `
+        "GET /admin/wallets as admin -> 200 with the float and both menu items (got $($walletMonitor.Status))"
+
+    $adminWalletMember = Invoke-App -Path '/admin/wallets' -Session 'member'
+    $adminWalletMemberPost = Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'member' `
+        -Form @{ '_csrf' = $walletToken; 'amount' = '999.00'; 'note' = 'nope' }
+    Assert-That 'P5-T7' ($adminWalletMember.Status -eq 403 -and $adminWalletMemberPost.Status -eq 403) `
+        "a member cannot use the admin wallet routes (GET=$($adminWalletMember.Status), POST=$($adminWalletMemberPost.Status))"
+
+    $topupPage = Invoke-App -Path "/admin/wallets/$cartMemberId" -Session 'admin'
+    Assert-That 'P5-T7' ($topupPage.Status -eq 200 -and $topupPage.Body -match 'Credit this wallet' `
+            -and $topupPage.Body -match 'Top-up history' -and (Get-Csrf $topupPage.Body) -ne '') `
+        "GET /admin/wallets/$cartMemberId -> 200 with the top-up form (got $($topupPage.Status))"
+
+    # P5-T7 - an admin top-up credits the non-withdrawable bucket and writes
+    # the top-up row, the ledger row and the audit entry.
+    $topup = Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' -Form @{
+        '_csrf'  = $adminToken
+        'amount' = '500.25'
+        'note'   = 'Smoke top-up'
+    }
+    $walletBuckets = (Invoke-MySql "SELECT CONCAT(ewallet_balance, '|', withdrawable_balance) FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+    $topupRows     = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = $cartMemberId;" | Out-String).Trim()
+    $ledgerRows    = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'topup';" | Out-String).Trim()
+    $auditRows     = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-String).Trim()
+    Assert-That 'P5-T7' ($topup.Status -eq 302 -and $walletBuckets -eq '500.25|0.00' -and $topupRows -eq '1' `
+            -and $ledgerRows -eq '1' -and $auditRows -eq '1') `
+        "POST /admin/wallets/{id}/credit credits 500.25 non-withdrawable and records top-up + ledger + audit (status=$($topup.Status), buckets=$walletBuckets, topups=$topupRows, ledger=$ledgerRows, audit=$auditRows)"
+
+    $walletAfter = Invoke-App -Path '/wallet' -Session 'member'
+    Assert-That 'P5-T7' ($walletAfter.Status -eq 200 -and $walletAfter.Body.Contains('500.25') `
+            -and $walletAfter.Body -match 'Admin top-up' -and $walletAfter.Body.Contains('Smoke top-up')) `
+        "the member sees the top-up on /wallet (status=$($walletAfter.Status))"
+
+    # P5-T9 - the statement filters narrow the ledger.
+    $creditOnly = Invoke-App -Path '/wallet?type=credit&ref_type=topup' -Session 'member'
+    $debitOnly  = Invoke-App -Path '/wallet?type=debit' -Session 'member'
+    Assert-That 'P5-T9' ($creditOnly.Status -eq 200 -and $creditOnly.Body.Contains('Smoke top-up') `
+            -and $debitOnly.Status -eq 200 -and -not $debitOnly.Body.Contains('Smoke top-up')) `
+        "the statement filters narrow the ledger (credit=$($creditOnly.Status), debit=$($debitOnly.Status))"
+
+    $topupTab  = Invoke-App -Path '/admin/wallets?tab=topups' -Session 'admin'
+    $ledgerTab = Invoke-App -Path '/admin/wallets?tab=ledger' -Session 'admin'
+    Assert-That 'P5-T9' ($topupTab.Status -eq 200 -and $topupTab.Body.Contains('Smoke top-up') `
+            -and $ledgerTab.Status -eq 200 -and $ledgerTab.Body -match 'All wallet movements' `
+            -and $ledgerTab.Body.Contains($memberUsername)) `
+        "the monitor tabs list the top-up and every movement (topups=$($topupTab.Status), ledger=$($ledgerTab.Status))"
+
+    # P5-T7 - an invalid amount is refused and writes nothing.
+    $topupRowsBefore = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = $cartMemberId;" | Out-String).Trim()
+    $badTopup = Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' -Form @{
+        '_csrf'  = $adminToken
+        'amount' = '0'
+        'note'   = 'Nope'
+    }
+    $badTopupPage   = Invoke-App -Path "/admin/wallets/$cartMemberId" -Session 'admin'
+    $topupRowsAfter = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_admin_topups WHERE recipient_id = $cartMemberId;" | Out-String).Trim()
+    Assert-That 'P5-T7' ($badTopup.Status -eq 302 -and $topupRowsBefore -eq $topupRowsAfter `
+            -and $badTopupPage.Body -match 'greater than 0' -and $badTopupPage.Body -match 'is-invalid') `
+        "an invalid top-up is refused and writes nothing (status=$($badTopup.Status), rows=$topupRowsAfter)"
+
+    # P5-T11 - the reconciliation command agrees with the ledger.
+    $reconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $reconcileExit   = $LASTEXITCODE
+    $reconcileJson   = ($reconcileOutput -join "`n") | ConvertFrom-Json
+    Assert-That 'P5-T11' ($reconcileExit -eq 0 -and $reconcileJson.ok -eq $true) `
+        "bin/wallet_reconcile.php reports a clean ledger (exit=$reconcileExit, accounts=$($reconcileJson.checked))"
+
+    # Admins may open their own statement inside the back-office layout.
+    $adminWallet = Invoke-App -Path '/wallet' -Session 'admin'
+    Assert-That 'P5-T7' ($adminWallet.Status -eq 200 -and $adminWallet.Body -match 'My e-wallet' `
+            -and $adminWallet.Body -match 'E-wallet monitor') `
+        "GET /wallet as admin -> 200 in the back-office layout (got $($adminWallet.Status))"
+
+    # ---- Phase 6: checkout & orders ---------------------------------------
+    $orderSku  = 'SMOKE-ORDER-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $orderName = 'Smoke Order Product ' + $orderSku
+
+    Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form @{
+        '_csrf'      = $adminToken
+        'name'       = $orderName
+        'sku'        = $orderSku
+        'price'      = '40.00'
+        'stock'      = '10'
+        'sort_order' = '999'
+        'status'     = 'active'
+    } | Out-Null
+
+    $orderProductId = [int]((Invoke-MySql "SELECT id FROM products WHERE sku = '$orderSku' LIMIT 1;" | Out-String).Trim())
+
+    # Start from an empty cart so the order totals are deterministic.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+
+    $checkoutGuest = Invoke-App -Path '/checkout'
+    Assert-That 'P6-T1' ($checkoutGuest.Status -eq 302 -and $checkoutGuest.Location -match '/login$') `
+        "GET /checkout as guest -> 302 login (got $($checkoutGuest.Status))"
+
+    $emptyCheckout = Invoke-App -Path '/checkout' -Session 'member'
+    Assert-That 'P6-T1' ($emptyCheckout.Status -eq 302 -and $emptyCheckout.Location -match '/shop$') `
+        "GET /checkout with an empty cart -> 302 shop (got $($emptyCheckout.Status))"
+
+    # Fund the member's e-wallet through the audited admin route.
+    Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'amount' = '1000.00'; 'note' = 'Smoke order funds' } | Out-Null
+    $walletBeforeOrder = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '2' } | Out-Null
+
+    $checkoutPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $checkoutToken = Get-Csrf $checkoutPage.Body
+    $idem          = ''
+    if ($checkoutPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $idem = $matches[1] }
+
+    Assert-That 'P6-T1' ($checkoutPage.Status -eq 200 -and $checkoutPage.Body -match 'Checkout' `
+            -and $checkoutPage.Body -match 'E-wallet' -and $checkoutPage.Body -match 'Place order' `
+            -and $checkoutPage.Body -match 'name="terms"' -and $idem -ne '') `
+        "GET /checkout -> 200 with items, payment, terms and an idempotency key (status=$($checkoutPage.Status), key=$idem)"
+
+    $checkoutForm = @{
+        '_csrf'             = $checkoutToken
+        'billing_name'      = 'Smoke Buyer'
+        'billing_phone'     = '0917 000 0000'
+        'shipping_name'     = 'Smoke Buyer'
+        'shipping_phone'    = '0917 000 0000'
+        'shipping_address'  = '12 Smoke Street'
+        'shipping_barangay' = 'Poblacion'
+        'shipping_city'     = 'Makati'
+        'shipping_province' = 'Metro Manila'
+        'shipping_postal'   = '1200'
+        'notes_member'      = 'Smoke checkout'
+        'payment_method'    = 'ewallet'
+        'terms'             = '1'
+        'idempotency_key'   = $idem
+        'save_address'      = '1'
+    }
+
+    $placed  = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $checkoutForm
+    $orderId = 0
+    if ($placed.Location -match '/orders/(\d+)$') { $orderId = [int]$matches[1] }
+
+    $orderStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $orderTotal  = (Invoke-MySql "SELECT total FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $orderNo     = (Invoke-MySql "SELECT order_no FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $orderNoOk   = $orderNo -match '^EW\d{6}\d{5,}$'
+    $orderLine   = (Invoke-MySql "SELECT CONCAT(quantity, '|', reservation_state) FROM shop_order_items WHERE order_id = $orderId;" | Out-String).Trim()
+    $walletAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+    $orderLedger = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'shop_order';" | Out-String).Trim()
+    $orderEvents = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $orderId;" | Out-String).Trim()
+
+    Assert-That 'P6-T1' ($placed.Status -eq 302 -and $orderId -gt 0 -and $orderStatus -eq 'paid' `
+            -and $orderTotal -eq '80.00' -and $orderNoOk -and $orderLine -eq '2|committed' `
+            -and [math]::Abs($walletAfter - ($walletBeforeOrder - 80)) -lt 0.001 `
+            -and $orderLedger -eq '1' -and $orderEvents -eq '2') `
+        "POST /checkout (e-wallet) -> paid order, wallet debited once, stock held (id=$orderId, no=$orderNo, total=$orderTotal, wallet=$walletAfter, ledger=$orderLedger, events=$orderEvents)"
+
+    # P6-T2 - the same idempotency key returns the same order.
+    $repeatForm = $checkoutForm.Clone()
+    $repeatForm.Remove('save_address')
+    $repeated = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $repeatForm
+    $orderCount = (Invoke-MySql "SELECT COUNT(*) FROM shop_orders WHERE user_id = $cartMemberId;" | Out-String).Trim()
+    $walletRepeat = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+    Assert-That 'P6-T2' ($repeated.Status -eq 302 -and $repeated.Location -match "/orders/$orderId$" `
+            -and $orderCount -eq '1' -and [math]::Abs($walletRepeat - $walletAfter) -lt 0.001) `
+        "a replayed checkout returns the same order without charging twice (orders=$orderCount, wallet=$walletRepeat)"
+
+    $ordersPage     = Invoke-App -Path '/orders' -Session 'member'
+    $ordersFiltered = Invoke-App -Path '/orders?status=paid' -Session 'member'
+    Assert-That 'P6-T9' ($ordersPage.Status -eq 200 -and $ordersPage.Body.Contains($orderNo) `
+            -and $ordersFiltered.Status -eq 200 -and $ordersFiltered.Body.Contains($orderNo)) `
+        "GET /orders lists the order and filters by status (all=$($ordersPage.Status), paid=$($ordersFiltered.Status))"
+
+    $orderPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    Assert-That 'P6-T1' ($orderPage.Status -eq 200 -and $orderPage.Body.Contains($orderNo) `
+            -and $orderPage.Body -match 'Payment received' -and $orderPage.Body.Contains($orderName)) `
+        "GET /orders/$orderId -> 200 with the paid order (got $($orderPage.Status))"
+
+    $foreignOrder = Invoke-App -Path "/orders/$orderId" -Session 'other'
+    Assert-That 'P6-T8' ($foreignOrder.Status -eq 404) `
+        "another member opening the order gets 404 (got $($foreignOrder.Status))"
+
+    $adminOrders = Invoke-App -Path '/admin/orders' -Session 'admin'
+    $adminOrder  = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P6-T10' ($adminOrders.Status -eq 200 -and $adminOrders.Body.Contains($orderNo) `
+            -and $adminOrders.Body -match 'Paid revenue' `
+            -and $adminOrder.Status -eq 200 -and $adminOrder.Body.Contains($memberUsername)) `
+        "the admin desk lists and opens every order (list=$($adminOrders.Status), detail=$($adminOrder.Status))"
+
+    $memberAdminOrders = Invoke-App -Path '/admin/orders' -Session 'member'
+    Assert-That 'P6-T10' ($memberAdminOrders.Status -eq 403) `
+        "a member cannot open /admin/orders (got $($memberAdminOrders.Status))"
+
+    # P6-T11 - a manual order can be cancelled before payment.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+
+    $manualPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $manualToken = Get-Csrf $manualPage.Body
+    $manualIdem  = ''
+    if ($manualPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $manualIdem = $matches[1] }
+
+    $manualForm = $checkoutForm.Clone()
+    $manualForm['_csrf']           = $manualToken
+    $manualForm['payment_method']  = 'gcash'
+    $manualForm['idempotency_key'] = $manualIdem
+    $manualForm.Remove('save_address')
+
+    $manualPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $manualForm
+    $manualId = 0
+    if ($manualPlaced.Location -match '/orders/(\d+)$') { $manualId = [int]$matches[1] }
+
+    $manualStatus   = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $manualId;" | Out-String).Trim()
+    $manualDeadline = (Invoke-MySql "SELECT payment_deadline FROM shop_orders WHERE id = $manualId;" | Out-String).Trim()
+    $manualWallet   = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE id = $cartMemberId;" | Out-String).Trim())
+    $manualLedger   = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'shop_order';" | Out-String).Trim()
+
+    $manualPageView = Invoke-App -Path "/orders/$manualId" -Session 'member'
+    $orderPageToken = Get-Csrf $manualPageView.Body
+
+    Assert-That 'P6-T1' ($manualPlaced.Status -eq 302 -and $manualId -gt 0 -and $manualStatus -eq 'pending' `
+            -and $manualDeadline -ne '' -and $manualDeadline -ne 'NULL' `
+            -and [math]::Abs($manualWallet - $walletAfter) -lt 0.001 -and $manualLedger -eq '1' `
+            -and $manualPageView.Body -match 'Payment pending' -and $manualPageView.Body -match 'GCash' `
+            -and $manualPageView.Body -match 'Cancel order') `
+        "POST /checkout (GCash) -> pending order with a deadline, wallet untouched (id=$manualId, status=$manualStatus, wallet=$manualWallet)"
+
+    $cancelled = Invoke-App -Method 'POST' -Path "/orders/$manualId/cancel" -Session 'member' `
+        -Form @{ '_csrf' = $orderPageToken; 'reason' = 'Smoke cancel' }
+    $cancelStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $manualId;" | Out-String).Trim()
+    $cancelLine   = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $manualId;" | Out-String).Trim()
+    $cancelPage   = Invoke-App -Path "/orders/$manualId" -Session 'member'
+
+    Assert-That 'P6-T11' ($cancelled.Status -eq 302 -and $cancelStatus -eq 'cancelled' -and $cancelLine -eq 'released' `
+            -and $cancelPage.Body -match 'Order cancelled' -and $cancelPage.Body -match 'Smoke cancel') `
+        "POST /orders/{id}/cancel releases the reservation and cancels the order (status=$cancelStatus, line=$cancelLine)"
+
+    # P6-T7 - the checkout address was saved and the address book works.
+    $profilePage = Invoke-App -Path '/profile' -Session 'member'
+    Assert-That 'P6-T7' ($profilePage.Status -eq 200 -and $profilePage.Body.Contains('12 Smoke Street') `
+            -and $profilePage.Body.Contains('Smoke Buyer')) `
+        "GET /profile shows the address saved during checkout (got $($profilePage.Status))"
+
+    Invoke-App -Method 'POST' -Path '/profile/address' -Session 'member' -Form @{
+        '_csrf'          = (Get-Csrf $profilePage.Body)
+        'recipient_name' = 'Smoke Office'
+        'address_line'   = '99 Office Road'
+        'city'           = 'Pasig'
+        'is_default'     = '1'
+    } | Out-Null
+    $profileAfter = Invoke-App -Path '/profile' -Session 'member'
+
+    # Checkout needs a non-empty cart; put one unit back before reading it.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $checkoutAddress = Invoke-App -Path '/checkout' -Session 'member'
+    Assert-That 'P6-T7' ($profileAfter.Body.Contains('99 Office Road') `
+            -and $checkoutAddress.Status -eq 200 -and $checkoutAddress.Body.Contains('Smoke Office')) `
+        "the address book saves a new default and checkout pre-fills it (profile contains the address)"
+
+    # P6-T7 - payout accounts are member-editable from the profile.
+    $trc20 = 'T' + ('1' * 33)
+    $bep20 = '0x' + ('a' * 40)
+
+    $payoutSave = Invoke-App -Method 'POST' -Path '/profile/payment' -Session 'member' -Form @{
+        '_csrf'              = (Get-Csrf $profileAfter.Body)
+        'gcash_number'       = '0917 555 1234'
+        'maya_number'        = '+63 917 555 9876'
+        'usdt_trc20_address' = $trc20
+        'usdt_bep20_address' = $bep20
+    }
+    $profilePayments = Invoke-App -Path '/profile' -Session 'member'
+    $payoutRow = (Invoke-MySql "SELECT CONCAT(COALESCE(gcash_number,''), '|', COALESCE(maya_number,''), '|', COALESCE(usdt_trc20_address,'')) FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+
+    Assert-That 'P6-T7' ($payoutSave.Status -eq 302 -and $payoutRow -eq "09175551234|+639175559876|$trc20" `
+            -and $profilePayments.Body -match 'Payout accounts' -and $profilePayments.Body.Contains('09175551234')) `
+        "POST /profile/payment saves the payout accounts (status=$($payoutSave.Status), stored=$payoutRow)"
+
+    $payoutBeforeBad = (Invoke-MySql "SELECT COALESCE(gcash_number,'') FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+    $badPayout = Invoke-App -Method 'POST' -Path '/profile/payment' -Session 'member' -Form @{
+        '_csrf'              = (Get-Csrf $profilePayments.Body)
+        'gcash_number'       = 'nope'
+        'maya_number'        = ''
+        'usdt_trc20_address' = ''
+        'usdt_bep20_address' = ''
+    }
+    $badPayoutPage = Invoke-App -Path '/profile' -Session 'member'
+    $payoutAfterBad = (Invoke-MySql "SELECT COALESCE(gcash_number,'') FROM users WHERE id = $cartMemberId;" | Out-String).Trim()
+
+    Assert-That 'P6-T7' ($badPayout.Status -eq 302 -and $payoutBeforeBad -eq $payoutAfterBad `
+            -and $badPayoutPage.Body -match 'Enter a GCash number' -and $badPayoutPage.Body.Contains('value="nope"')) `
+        "an invalid payout number is refused and keeps the typed value (stored=$payoutAfterBad)"
+
+    # P6-T6 - missing terms is refused and the typed input is kept.
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $termsPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $termsToken = Get-Csrf $termsPage.Body
+    $termsIdem  = ''
+    if ($termsPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $termsIdem = $matches[1] }
+
+    $badTermsForm = @{
+        '_csrf'            = $termsToken
+        'billing_name'     = 'No Terms Buyer'
+        'shipping_name'    = 'No Terms Buyer'
+        'shipping_address' = '12 Smoke Street'
+        'payment_method'   = 'gcash'
+        'idempotency_key'  = $termsIdem
+    }
+    $ordersBeforeBadTerms = (Invoke-MySql "SELECT COUNT(*) FROM shop_orders WHERE user_id = $cartMemberId;" | Out-String).Trim()
+    $badTerms = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $badTermsForm
+    $ordersAfterBadTerms = (Invoke-MySql "SELECT COUNT(*) FROM shop_orders WHERE user_id = $cartMemberId;" | Out-String).Trim()
+    $termsErrorPage = Invoke-App -Path '/checkout' -Session 'member'
+
+    Assert-That 'P6-T6' ($badTerms.Status -eq 302 -and $ordersBeforeBadTerms -eq $ordersAfterBadTerms `
+            -and $termsErrorPage.Body -match 'Please accept the terms' `
+            -and $termsErrorPage.Body -match 'data-checkout-posted="1"' `
+            -and $termsPage.Body -match 'data-checkout-posted="0"' `
+            -and $termsPage.Body -match 'data-checkout-draft' `
+            -and $termsErrorPage.Body.Contains('No Terms Buyer')) `
+        "a checkout without terms is refused, writes no order and keeps the input (orders=$ordersAfterBadTerms)"
+
+    # ---- Phase 7: manual payments and the order lifecycle ------------------
+    $proofPng = Join-Path $script:TempDir 'proof.png'
+    [System.IO.File]::WriteAllBytes($proofPng, [Convert]::FromBase64String(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))
+
+    # A new manual order starts in pending with an open proof window.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+
+    $payPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $payToken = Get-Csrf $payPage.Body
+    $payIdem  = ''
+    if ($payPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $payIdem = $matches[1] }
+
+    $payForm = $checkoutForm.Clone()
+    $payForm['_csrf']           = $payToken
+    $payForm['payment_method']  = 'gcash'
+    $payForm['idempotency_key'] = $payIdem
+    $payForm.Remove('save_address')
+
+    $payPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $payForm
+    $payOrderId = 0
+    if ($payPlaced.Location -match '/orders/(\d+)$') { $payOrderId = [int]$matches[1] }
+
+    $payOrderPage = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+    $payOrderToken = Get-Csrf $payOrderPage.Body
+
+    Assert-That 'P7-T1' ($payOrderId -gt 0 -and $payOrderPage.Status -eq 200 `
+            -and $payOrderPage.Body -match 'Upload your payment proof' `
+            -and $payOrderPage.Body -match 'name="proof_image"' `
+            -and $payOrderPage.Body -match 'enctype="multipart/form-data"') `
+        "GET /orders/$payOrderId -> the proof panel is offered (id=$payOrderId)"
+
+    # P7-T2 - a script renamed .png is refused while the window is open.
+    $badProof = Join-Path $script:TempDir 'bad-proof.png'
+    Set-Content -Path $badProof -Value '<?php echo "pwned";' -Encoding ASCII
+
+    $badProofPost = Invoke-App -Method 'POST' -Path "/orders/$payOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $badProof } `
+        -Form @{
+            '_csrf'        = $payOrderToken
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-BAD-1'
+        }
+
+    $badProofCount = (Invoke-MySql "SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = $payOrderId;" | Out-String).Trim()
+    $badProofPage  = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+    $badProofState = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $payOrderId;" | Out-String).Trim()
+
+    Assert-That 'P7-T2' ($badProofPost.Status -eq 302 -and $badProofCount -eq '0' `
+            -and $badProofState -eq 'pending' -and $badProofPage.Body -match 'not allowed') `
+        "a PHP file renamed .png is refused with no attempt written (attempts=$badProofCount, status=$badProofState)"
+
+    # P7-T1 - upload a valid PNG proof.
+    $proofUpload = Invoke-App -Method 'POST' -Path "/orders/$payOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'         = (Get-Csrf $badProofPage.Body)
+            'amount_sent'   = '40.00'
+            'reference_no'  = 'SMOKE-REF-1'
+            'transfer_date' = (Get-Date -Format 'yyyy-MM-dd')
+        }
+
+    $payStatus  = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $payOrderId;" | Out-String).Trim()
+    $proofRow   = (Invoke-MySql "SELECT CONCAT(attempt_no, '|', status, '|', amount_claimed, '|', reference_no) FROM shop_payment_proofs WHERE order_id = $payOrderId;" | Out-String).Trim()
+    $proofId    = [int]((Invoke-MySql "SELECT id FROM shop_payment_proofs WHERE order_id = $payOrderId LIMIT 1;" | Out-String).Trim())
+    $proofEvent = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $payOrderId AND reason_code = 'proof_submitted';" | Out-String).Trim()
+    $proofPage  = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+
+    Assert-That 'P7-T1' ($proofUpload.Status -eq 302 -and $payStatus -eq 'payment_review' `
+            -and $proofRow -eq '1|pending|40.00|SMOKE-REF-1' -and $proofEvent -eq '1' `
+            -and $proofPage.Body -match 'We are verifying your payment') `
+        "POST /orders/{id}/proof stores attempt 1 and moves the order to review (status=$payStatus, proof=$proofRow)"
+
+    # P7-T9 - the proof streams only through the guarded admin route.
+    $adminProof   = Invoke-App -Path "/admin/proofs/$proofId" -Session 'admin'
+    $memberProof  = Invoke-App -Path "/admin/proofs/$proofId" -Session 'member'
+    $guestProof   = Invoke-App -Path "/admin/proofs/$proofId"
+    $proofMime    = ''
+    if ($adminProof.Headers.ContainsKey('content-type')) { $proofMime = [string] $adminProof.Headers['content-type'] }
+
+    Assert-That 'P7-T9' ($adminProof.Status -eq 200 -and $proofMime -match 'image/png' `
+            -and $memberProof.Status -eq 403 -and $guestProof.Status -eq 302) `
+        "GET /admin/proofs/{id} streams for an admin only (admin=$($adminProof.Status)/$proofMime, member=$($memberProof.Status), guest=$($guestProof.Status))"
+
+    # The review pane opens for an admin.
+    $reviewPage = Invoke-App -Path "/admin/orders/$payOrderId" -Session 'admin'
+    Assert-That 'P7-T4' ($reviewPage.Status -eq 200 -and $reviewPage.Body -match 'Payment review' `
+            -and $reviewPage.Body -match 'Verify payment' -and $reviewPage.Body -match 'Reject proof' `
+            -and $reviewPage.Body -match "admin/proofs/$proofId") `
+        "the admin order page shows the review pane (status=$($reviewPage.Status))"
+
+    # P7-T4 - a wrong amount is refused and changes nothing.
+    $reviewToken = Get-Csrf $reviewPage.Body
+    $wrongAmount = Invoke-App -Method 'POST' -Path "/admin/orders/$payOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'             = $reviewToken
+        'to'                = 'paid'
+        'amount_received'   = '39.99'
+        'payment_reference' = 'SMOKE-REF-1'
+    }
+    $statusAfterWrong = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $payOrderId;" | Out-String).Trim()
+    $wrongPage        = Invoke-App -Path "/admin/orders/$payOrderId" -Session 'admin'
+
+    Assert-That 'P7-T4' ($wrongAmount.Status -eq 302 -and $statusAfterWrong -eq 'payment_review' `
+            -and $wrongPage.Body -match 'does not match the order total') `
+        "a wrong amount is refused and the order stays in review (status=$statusAfterWrong)"
+
+    # P7-T4 - verify with the correct amount.
+    $verified = Invoke-App -Method 'POST' -Path "/admin/orders/$payOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'             = (Get-Csrf $wrongPage.Body)
+        'to'                = 'paid'
+        'amount_received'   = '40.00'
+        'payment_reference' = 'SMOKE-REF-1'
+        'note'              = 'Smoke verification'
+    }
+
+    $paidStatus  = (Invoke-MySql "SELECT CONCAT(o.status, '|', CASE WHEN o.paid_at IS NULL THEN 'no' ELSE 'yes' END, '|', COALESCE(o.payment_reference, '')) FROM shop_orders o WHERE o.id = $payOrderId;" | Out-String).Trim()
+    $paidLine    = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $payOrderId;" | Out-String).Trim()
+    $paidProof   = (Invoke-MySql "SELECT status FROM shop_payment_proofs WHERE id = $proofId;" | Out-String).Trim()
+    $paidEvent   = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $payOrderId AND reason_code = 'payment_verified';" | Out-String).Trim()
+    $paidPage    = Invoke-App -Path "/orders/$payOrderId" -Session 'member'
+
+    Assert-That 'P7-T4' ($verified.Status -eq 302 -and $paidStatus -eq 'paid|yes|SMOKE-REF-1' `
+            -and $paidLine -eq 'committed' -and $paidProof -eq 'verified' -and $paidEvent -eq '1' `
+            -and $paidPage.Body -match 'Payment received') `
+        "verifying pays the order, commits the stock and marks the proof (status=$paidStatus, line=$paidLine, proof=$paidProof)"
+
+    # P7-T5 / P7-T6 - reject, then re-upload within the correction window.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $retryPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $retryToken = Get-Csrf $retryPage.Body
+    $retryIdem  = ''
+    if ($retryPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $retryIdem = $matches[1] }
+    $retryForm = $payForm.Clone()
+    $retryForm['_csrf']           = $retryToken
+    $retryForm['idempotency_key'] = $retryIdem
+    $retryPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $retryForm
+    $retryOrderId = 0
+    if ($retryPlaced.Location -match '/orders/(\d+)$') { $retryOrderId = [int]$matches[1] }
+
+    $retryOrderPage = Invoke-App -Path "/orders/$retryOrderId" -Session 'member'
+    $retryOrderToken = Get-Csrf $retryOrderPage.Body
+    Invoke-App -Method 'POST' -Path "/orders/$retryOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'        = $retryOrderToken
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-REF-2'
+        } | Out-Null
+
+    $retryProofId = [int]((Invoke-MySql "SELECT id FROM shop_payment_proofs WHERE order_id = $retryOrderId ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $retryAdmin   = Invoke-App -Path "/admin/orders/$retryOrderId" -Session 'admin'
+    $rejected     = Invoke-App -Method 'POST' -Path "/admin/orders/$retryOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'       = (Get-Csrf $retryAdmin.Body)
+        'to'          = 'payment_failed'
+        'reason_code' = 'wrong_amount'
+        'note'        = 'Smoke rejection'
+    }
+
+    $failedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN correction_deadline IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $retryOrderId;" | Out-String).Trim()
+    $failedLine = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $retryOrderId;" | Out-String).Trim()
+    $failedProof = (Invoke-MySql "SELECT CONCAT(status, '|', COALESCE(reject_reason, '')) FROM shop_payment_proofs WHERE id = $retryProofId;" | Out-String).Trim()
+    $failedPage = Invoke-App -Path "/orders/$retryOrderId" -Session 'member'
+
+    Assert-That 'P7-T5' ($rejected.Status -eq 302 -and $failedRow -eq 'payment_failed|yes' `
+            -and $failedLine -eq 'released' -and $failedProof -match '^rejected\|The amount received' `
+            -and $failedPage.Body -match 'Payment needs correction') `
+        "a rejection releases the stock and opens the correction window (status=$failedRow, line=$failedLine)"
+
+    $retryUpload = Invoke-App -Method 'POST' -Path "/orders/$retryOrderId/proof" -Session 'member' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'        = (Get-Csrf $failedPage.Body)
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-REF-2R'
+        }
+
+    $retryStatus  = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $retryOrderId;" | Out-String).Trim()
+    $retryLine    = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $retryOrderId;" | Out-String).Trim()
+    $retryAttempt = (Invoke-MySql "SELECT COUNT(*) FROM shop_payment_proofs WHERE order_id = $retryOrderId;" | Out-String).Trim()
+
+    Assert-That 'P7-T6' ($retryUpload.Status -eq 302 -and $retryStatus -eq 'payment_review' `
+            -and $retryLine -eq 'reserved' -and $retryAttempt -eq '2') `
+        "a corrected proof re-reserves the stock (status=$retryStatus, line=$retryLine, attempts=$retryAttempt)"
+
+    # P7-T12 - an admin cancels the manual order; nothing is refunded.
+    $retryReview = Invoke-App -Path "/admin/orders/$retryOrderId" -Session 'admin'
+    $cancelledByAdmin = Invoke-App -Method 'POST' -Path "/admin/orders/$retryOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'       = (Get-Csrf $retryReview.Body)
+        'to'          = 'cancelled'
+        'reason_code' = 'out_of_stock'
+        'note'        = 'Smoke cancel'
+    }
+    $cancelRow    = (Invoke-MySql "SELECT CONCAT(status, '|', reservation_state) FROM shop_orders o JOIN shop_order_items oi ON oi.order_id = o.id WHERE o.id = $retryOrderId LIMIT 1;" | Out-String).Trim()
+    $refundRows   = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE user_id = $cartMemberId AND ref_type = 'refund';" | Out-String).Trim()
+    $cancelProof  = (Invoke-MySql "SELECT status FROM shop_payment_proofs WHERE order_id = $retryOrderId AND status = 'pending';" | Out-String).Trim()
+
+    Assert-That 'P7-T12' ($cancelledByAdmin.Status -eq 302 -and $cancelRow -eq 'cancelled|released' `
+            -and $refundRows -eq '0' -and $cancelProof -eq '') `
+        "an admin cancellation releases the stock and refunds no manual payment (row=$cancelRow, refunds=$refundRows)"
+
+    # P7-T7 - the expiry CLI cancels an overdue order once and only once.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $expirePage  = Invoke-App -Path '/checkout' -Session 'member'
+    $expireToken = Get-Csrf $expirePage.Body
+    $expireIdem  = ''
+    if ($expirePage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $expireIdem = $matches[1] }
+    $expireForm = $payForm.Clone()
+    $expireForm['_csrf']           = $expireToken
+    $expireForm['idempotency_key'] = $expireIdem
+    $expirePlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $expireForm
+    $expireOrderId = 0
+    if ($expirePlaced.Location -match '/orders/(\d+)$') { $expireOrderId = [int]$matches[1] }
+
+    Invoke-MySql "UPDATE shop_orders SET payment_deadline = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = $expireOrderId;" | Out-Null
+
+    $expiryScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\shop_expire.php'
+    $expiryFirst  = ((& $PhpPath $expiryScript --json 2>&1) -join "`n") | ConvertFrom-Json
+    $expirySecond = ((& $PhpPath $expiryScript --json 2>&1) -join "`n") | ConvertFrom-Json
+    $expiredStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $expireOrderId;" | Out-String).Trim()
+    $expiredLine   = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $expireOrderId;" | Out-String).Trim()
+    $expiredEvent  = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $expireOrderId AND reason_code = 'payment_expired';" | Out-String).Trim()
+
+    Assert-That 'P7-T7' ($expiryFirst.ok -eq $true -and @($expiryFirst.ids) -contains $expireOrderId `
+            -and $expirySecond.expired -eq 0 -and $expiredStatus -eq 'cancelled' `
+            -and $expiredLine -eq 'released' -and $expiredEvent -eq '1') `
+        "bin/shop_expire.php cancels the overdue order and is idempotent (first=$($expiryFirst.expired), second=$($expirySecond.expired), status=$expiredStatus)"
+
+    # P7-T7 - the guarded web entry (doctor, dry-run, JSON), used for local testing.
+    $cronDoctor = Invoke-App -Path '/cron/shop_expire.php?doctor=1'
+    $cronDry    = Invoke-App -Path '/cron/shop_expire.php?dry-run=1&from-settings=1'
+    $cronJson   = Invoke-App -Path '/cron/shop_expire.php?json=1'
+    $cronPayload = $null
+    try { $cronPayload = $cronJson.Body | ConvertFrom-Json } catch { }
+    $cronJsonOk = $cronPayload -ne $null -and $cronPayload.ok -eq $true `
+        -and $cronPayload.trigger -eq 'http' -and $cronPayload.mode -eq 'stamps'
+
+    Assert-That 'P7-T7' ($cronDoctor.Status -eq 200 -and $cronDoctor.Body -match 'expiry enabled' `
+            -and $cronDoctor.Body -match 'timezone' -and $cronDoctor.Body -match 'log' `
+            -and $cronDry.Status -eq 200 -and $cronDry.Body -match 'dry run' `
+            -and $cronDry.Body -match 'mode:\s+settings' `
+            -and $cronJson.Status -eq 200 -and $cronJsonOk) `
+        "the web cron entry serves doctor, dry-run and JSON (doctor=$($cronDoctor.Status), dry=$($cronDry.Status), json=$($cronJson.Status))"
+
+    # P7-T7 - the admin kill switch pauses the web entry too.
+    $expiryBefore = Get-SettingValue 'shop_expiry_enabled'
+    Set-SettingValue 'shop_expiry_enabled' '0'
+    $cronDisabled = Invoke-App -Path '/cron/shop_expire.php'
+    Set-SettingValue 'shop_expiry_enabled' '1'
+    $cronEnabled = Invoke-App -Path '/cron/shop_expire.php?dry-run=1'
+    Set-SettingValue 'shop_expiry_enabled' $expiryBefore
+
+    Assert-That 'P7-T7' ($cronDisabled.Status -eq 200 -and $cronDisabled.Body -match 'disabled in the admin settings' `
+            -and $cronEnabled.Status -eq 200 -and $cronEnabled.Body -match 'enabled:\s+yes') `
+        "the expiry kill switch pauses the web cron entry (status=$($cronDisabled.Status))"
+
+    # P7-T10 - an admin cannot verify their own order.
+    $adminCart      = Invoke-App -Path '/cart' -Session 'admin'
+    $adminCartToken = Get-Csrf $adminCart.Body
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'admin' `
+        -Form @{ '_csrf' = $adminCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $selfPage  = Invoke-App -Path '/checkout' -Session 'admin'
+    $selfToken = Get-Csrf $selfPage.Body
+    $selfIdem  = ''
+    if ($selfPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $selfIdem = $matches[1] }
+    $selfForm = $payForm.Clone()
+    $selfForm['_csrf']           = $selfToken
+    $selfForm['idempotency_key'] = $selfIdem
+    $selfPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'admin' -Form $selfForm
+    $selfOrderId = 0
+    if ($selfPlaced.Location -match '/orders/(\d+)$') { $selfOrderId = [int]$matches[1] }
+
+    $selfOrderPage = Invoke-App -Path "/orders/$selfOrderId" -Session 'admin'
+    Invoke-App -Method 'POST' -Path "/orders/$selfOrderId/proof" -Session 'admin' `
+        -Files @{ 'proof_image' = $proofPng } `
+        -Form @{
+            '_csrf'        = (Get-Csrf $selfOrderPage.Body)
+            'amount_sent'  = '40.00'
+            'reference_no' = 'SMOKE-SELF-1'
+        } | Out-Null
+
+    $selfReviewPage = Invoke-App -Path "/admin/orders/$selfOrderId" -Session 'admin'
+    $selfVerify     = Invoke-App -Method 'POST' -Path "/admin/orders/$selfOrderId/transition" -Session 'admin' -Form @{
+        '_csrf'             = (Get-Csrf $selfReviewPage.Body)
+        'to'                = 'paid'
+        'amount_received'   = '40.00'
+        'payment_reference' = 'SMOKE-SELF-1'
+    }
+    $selfStatus  = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $selfOrderId;" | Out-String).Trim()
+    $selfAfter   = Invoke-App -Path "/admin/orders/$selfOrderId" -Session 'admin'
+
+    Assert-That 'P7-T10' ($selfOrderId -gt 0 -and $selfReviewPage.Body -match 'You placed this order' `
+            -and $selfVerify.Status -eq 302 -and $selfStatus -eq 'payment_review' `
+            -and $selfAfter.Body -match 'cannot verify, reject or cancel their own order') `
+        "an admin cannot verify their own order (status=$selfStatus)"
+
+    # P7-T4 / P8-T16 - each settings card saves on its own.
+    $settingsBefore = Get-SettingValue 'shop_payment_deadline_hours'
+    $settingsPage   = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $settingsToken  = Get-Csrf $settingsPage.Body
+
+    foreach ($key in @(
+            'shop_enabled', 'shop_expiry_enabled', 'shop_autocomplete_enabled',
+            'payment_gcash_number', 'payment_gcash_name',
+            'payment_maya_number', 'payment_maya_name', 'payment_bank_name',
+            'payment_bank_account_name', 'payment_bank_account_number',
+            'shop_payment_deadline_hours', 'shop_correction_window_hours',
+            'shop_max_proof_attempts', 'shop_autocomplete_days',
+            'seller_name', 'seller_address', 'seller_tin', 'seller_phone')) {
+        $settingsSnapshot[$key] = Get-SettingValue $key
+    }
+
+    $sectionForms = ([regex]::Matches($settingsPage.Body, 'name="section" value="(general|shop|accounts|payouts|windows|fulfilment|commissions|transfers)"')).Count
+    $saveButtons  = ([regex]::Matches($settingsPage.Body, 'Save settings')).Count
+
+    # 1. Receiving accounts.
+    $saveAccounts = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = $settingsToken
+        'section'                     = 'accounts'
+        'payment_gcash_number'        = '0917 123 4567'
+        'payment_gcash_name'          = 'EcoWealth Smoke'
+        'payment_maya_number'         = '0917 765 4321'
+        'payment_maya_name'           = 'EcoWealth Smoke'
+        'payment_bank_name'           = 'BDO'
+        'payment_bank_account_name'   = 'EcoWealth Smoke Inc.'
+        'payment_bank_account_number' = '1234 5678 9012'
+    }
+    $gcashSaved = Get-SettingValue 'payment_gcash_number'
+
+    # 2. Fulfilment & invoices, without touching the accounts card.
+    $saveFulfilment = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = $settingsToken
+        'section'                     = 'fulfilment'
+        'seller_name'                 = 'EcoWealth Smoke Trading'
+        'seller_address'              = '1 Smoke Plaza, Makati'
+        'seller_tin'                  = '000-111-222-000'
+        'seller_phone'                = '0917 999 0000'
+        'shop_autocomplete_days'      = '9'
+        'shop_autocomplete_enabled'   = '1'
+    }
+    $sellerSaved = Get-SettingValue 'seller_name'
+    $daysSaved   = Get-SettingValue 'shop_autocomplete_days'
+    $autoSaved   = Get-SettingValue 'shop_autocomplete_enabled'
+    $gcashAfterFulfilment = Get-SettingValue 'payment_gcash_number'
+
+    # 3. Payment windows, without touching the seller block.
+    $saveWindows = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                       = $settingsToken
+        'section'                     = 'windows'
+        'shop_payment_deadline_hours' = '30'
+        'shop_correction_window_hours' = '12'
+        'shop_max_proof_attempts'     = '4'
+        'shop_expiry_enabled'         = '1'
+    }
+    $settingsSaved = (Invoke-MySql "SELECT CONCAT(value, '|') FROM settings WHERE key_name = 'shop_payment_deadline_hours';" | Out-String).Trim()
+    $attemptsSaved = Get-SettingValue 'shop_max_proof_attempts'
+    $expirySaved   = Get-SettingValue 'shop_expiry_enabled'
+    $sellerAfterWindows = Get-SettingValue 'seller_name'
+
+    # 4. Shop switch, on then off, without touching the windows.
+    $shopOff = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'        = $settingsToken
+        'section'      = 'shop'
+        'shop_enabled' = '0'
+        'shop_cancel_enabled' = '1'
+    }
+    $shopOffValue = Get-SettingValue 'shop_enabled'
+    $cancelAfterShopOff = Get-SettingValue 'shop_cancel_enabled'
+    $deadlineAfterShop = Get-SettingValue 'shop_payment_deadline_hours'
+
+    $shopOn = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'        = $settingsToken
+        'section'      = 'shop'
+        'shop_enabled' = '1'
+        'shop_cancel_enabled' = '1'
+    }
+    $shopOnValue = Get-SettingValue 'shop_enabled'
+
+    Assert-That 'P7-T4' ($settingsPage.Status -eq 200 -and $settingsPage.Body -match 'Receiving accounts' `
+            -and $settingsPage.Body -match 'name="shop_payment_deadline_hours"' `
+            -and $settingsPage.Body -match 'name="shop_expiry_enabled"' `
+            -and $settingsPage.Body -match 'name="seller_name"' `
+            -and $settingsPage.Body -match 'name="shop_autocomplete_days"' `
+            -and $settingsPage.Body -match 'Fulfilment &amp; invoices' `
+            -and $settingsPage.Body -match 'name="site_name"' `
+            -and $settingsPage.Body -match 'name="commission_direct_enabled"' `
+            -and $settingsPage.Body -match 'name="ewallet_transfer_fee"' `
+            -and $settingsPage.Body -match 'name="shop_cancel_enabled"' `
+            -and $settingsPage.Body -match 'Enable Cancel of Order' `
+            -and $sectionForms -eq 8 -and $saveButtons -eq 8 `
+            -and $saveAccounts.Status -eq 302 -and $gcashSaved -eq '0917 123 4567' `
+            -and $saveFulfilment.Status -eq 302 -and $sellerSaved -eq 'EcoWealth Smoke Trading' `
+            -and $daysSaved -eq '9' -and $autoSaved -eq '1' `
+            -and $saveWindows.Status -eq 302 -and $settingsSaved -eq '30|' `
+            -and $attemptsSaved -eq '4' -and $expirySaved -eq '1' `
+            -and $shopOff.Status -eq 302 -and $shopOffValue -eq '0' `
+            -and $cancelAfterShopOff -eq '1' `
+            -and $shopOn.Status -eq 302 -and $shopOnValue -eq '1') `
+        "each settings card has its own form + Save settings (forms=$sectionForms, buttons=$saveButtons, accounts=$gcashSaved, seller=$sellerSaved, deadline=$settingsSaved, days=$daysSaved, auto=$autoSaved, attempts=$attemptsSaved, expiry=$expirySaved, shopOff=$shopOffValue, cancel=$cancelAfterShopOff, shopOn=$shopOnValue, statuses=$($saveAccounts.Status)/$($saveFulfilment.Status)/$($saveWindows.Status)/$($shopOff.Status)/$($shopOn.Status))"
+
+    Assert-That 'P7-T4' ($gcashAfterFulfilment -eq '0917 123 4567' `
+            -and $sellerAfterWindows -eq 'EcoWealth Smoke Trading' `
+            -and $deadlineAfterShop -eq '30') `
+        "saving one card leaves the other cards untouched (accounts=$gcashAfterFulfilment, seller=$sellerAfterWindows, deadline=$deadlineAfterShop)"
+
+    $settingsAfter   = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $badSettings     = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                        = (Get-Csrf $settingsAfter.Body)
+        'section'                      = 'windows'
+        'shop_payment_deadline_hours'  = '0'
+        'shop_correction_window_hours' = '12'
+        'shop_max_proof_attempts'      = '4'
+        'shop_expiry_enabled'          = '1'
+    }
+    $settingsKept = Get-SettingValue 'shop_payment_deadline_hours'
+    $settingsErrorPage = Invoke-App -Path '/admin/settings' -Session 'admin'
+
+    Assert-That 'P7-T4' ($badSettings.Status -eq 302 -and $settingsKept -eq '30' `
+            -and $settingsErrorPage.Body -match 'must be at least 1') `
+        "an invalid window is refused and keeps the saved value (deadline=$settingsKept)"
+
+    # P8-T16 - the fulfilment card validates and saves independently too.
+    $badFulfilment = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                      = (Get-Csrf $settingsErrorPage.Body)
+        'section'                    = 'fulfilment'
+        'seller_name'                = ''
+        'seller_address'             = '1 Smoke Plaza, Makati'
+        'seller_tin'                 = '000-111-222-000'
+        'seller_phone'               = '0917 999 0000'
+        'shop_autocomplete_days'     = '9'
+        'shop_autocomplete_enabled'  = '1'
+    }
+    $sellerKept = Get-SettingValue 'seller_name'
+    $fulfilmentErrorPage = Invoke-App -Path '/admin/settings' -Session 'admin'
+
+    $unknownSection = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'   = (Get-Csrf $fulfilmentErrorPage.Body)
+        'section' = 'nope'
+    }
+    $unknownPage = Invoke-App -Path '/admin/settings' -Session 'admin'
+
+    Assert-That 'P8-T16' ($badFulfilment.Status -eq 302 -and $sellerKept -eq 'EcoWealth Smoke Trading' `
+            -and $fulfilmentErrorPage.Body -match 'Registered business name is required' `
+            -and $unknownSection.Status -eq 302 -and $unknownPage.Body -match 'Unknown settings section') `
+        "the fulfilment card validates on its own and an unknown section is refused (seller=$sellerKept)"
+
+    $memberSettings = Invoke-App -Path '/admin/settings' -Session 'member'
+    Assert-That 'P7-T4' ($memberSettings.Status -eq 403) `
+        "a member cannot open /admin/settings (got $($memberSettings.Status))"
+
+    # ---- Phase 8: fulfilment and invoices ---------------------------------
+    $invoiceCount = (Invoke-MySql "SELECT COUNT(*) FROM shop_invoices WHERE order_id = $orderId;" | Out-String).Trim()
+    $invoiceRow   = (Invoke-MySql "SELECT CONCAT(invoice_no, '|', subtotal, '|', total, '|', CASE WHEN voided_at IS NULL THEN 'live' ELSE 'void' END) FROM shop_invoices WHERE order_id = $orderId;" | Out-String).Trim()
+    $invoiceNo    = ''
+    if ($invoiceRow -match '^([^|]+)\|') { $invoiceNo = $matches[1] }
+
+    $invoiceMember = Invoke-App -Path "/orders/$orderId/invoice" -Session 'member'
+    $invoiceAdmin  = Invoke-App -Path "/admin/orders/$orderId/invoice" -Session 'admin'
+    $invoiceOther  = Invoke-App -Path "/orders/$orderId/invoice" -Session 'other'
+    $invoiceGuest  = Invoke-App -Path "/orders/$orderId/invoice"
+
+    Assert-That 'P8-T5' ($invoiceCount -eq '1' -and $invoiceRow -match '^INV-\d{6}-\d{5,}\|80\.00\|80\.00\|live$' `
+            -and $invoiceMember.Status -eq 200 -and $invoiceMember.Body -match 'SALES INVOICE' `
+            -and $invoiceMember.Body.Contains($invoiceNo) -and $invoiceMember.Body -match '@page \{ size: A4; margin: 14mm; \}' `
+            -and $invoiceMember.Body -notmatch 'layout-menu' `
+            -and $invoiceAdmin.Status -eq 200 -and $invoiceAdmin.Body.Contains($invoiceNo) `
+            -and $invoiceOther.Status -eq 404 -and $invoiceGuest.Status -eq 302) `
+        "an e-wallet payment freezes one A4 invoice; only its owner and an admin can read it (no=$invoiceNo, member=$($invoiceMember.Status), other=$($invoiceOther.Status), guest=$($invoiceGuest.Status))"
+
+    # P8-T6 - a reprint returns the same number and one row.
+    $invoiceAgain = Invoke-App -Path "/orders/$orderId/invoice" -Session 'member'
+    $invoiceCountAgain = (Invoke-MySql "SELECT COUNT(*) FROM shop_invoices WHERE order_id = $orderId;" | Out-String).Trim()
+    Assert-That 'P8-T6' ($invoiceAgain.Status -eq 200 -and $invoiceAgain.Body.Contains($invoiceNo) `
+            -and $invoiceAgain.Body -match 'SALES INVOICE' -and $invoiceCountAgain -eq '1') `
+        "re-printing the invoice returns the same snapshot (no=$invoiceNo, rows=$invoiceCountAgain)"
+
+    # P8-T1 - pack, ready to ship.
+    $stockBeforeShip = [int]((Invoke-MySql "SELECT stock FROM products WHERE id = $orderProductId;" | Out-String).Trim())
+    $adminOrderPage  = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    $pack = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/transition" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $adminOrderPage.Body); 'to' = 'packing'; 'note' = 'Smoke packing' }
+    $packStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $packPage   = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    $ready = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/transition" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $packPage.Body); 'to' = 'ready_to_ship' }
+    $readyStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $readyPage   = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T1' ($pack.Status -eq 302 -and $packStatus -eq 'packing' `
+            -and $packPage.Body -match 'Mark ready to ship' `
+            -and $ready.Status -eq 302 -and $readyStatus -eq 'ready_to_ship' `
+            -and $readyPage.Body -match '<select name="courier"' `
+            -and $readyPage.Body -match 'name="courier_other"' `
+            -and $readyPage.Body -match 'Others \(type below\)' `
+            -and $readyPage.Body -match 'app-ship.js' `
+            -and $readyPage.Body -notmatch '<datalist' `
+            -and $readyPage.Body -match 'name="tracking_number"' `
+            -and $readyPage.Body -match 'Ship order') `
+        "POST transition pack -> ready_to_ship; the ship form has a courier select + Others field (packed=$packStatus, ready=$readyStatus)"
+
+    # P8-T2 - shipping without tracking is refused.
+    $badShip = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $readyPage.Body); 'courier' = 'J&T Express'; 'tracking_number' = '' }
+    $afterBadShip      = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentAfterBad  = (Invoke-MySql "SELECT COUNT(*) FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $badShipPage       = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T2' ($badShip.Status -eq 302 -and $afterBadShip -eq 'ready_to_ship' `
+            -and $shipmentAfterBad -eq '0' -and $badShipPage.Body -match 'Tracking number is required') `
+        "shipping without tracking is refused with no write (status=$afterBadShip, shipments=$shipmentAfterBad)"
+
+    # P8-T2 - "Others" without a typed name is refused too (and nothing is written).
+    $badOther = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
+        -Form @{
+            '_csrf'           = (Get-Csrf $badShipPage.Body)
+            'courier'         = 'Others'
+            'courier_other'   = ''
+            'tracking_number' = 'JT-SMOKE-OTHER'
+        }
+    $afterBadOther     = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentAfterBadOther = (Invoke-MySql "SELECT COUNT(*) FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $badOtherPage      = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T2' ($badOther.Status -eq 302 -and $afterBadOther -eq 'ready_to_ship' `
+            -and $shipmentAfterBadOther -eq '0' `
+            -and $badOtherPage.Body -match 'Enter the courier name' `
+            -and $badOtherPage.Body -match 'value="Others" selected') `
+        "choosing Others without a name is refused and keeps the choice (status=$afterBadOther, shipments=$shipmentAfterBadOther)"
+
+    # P8-T1 / P8-T3 - ship: tracking saved, stock deducted exactly once.
+    $ship = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/ship" -Session 'admin' `
+        -Form @{
+            '_csrf'           = (Get-Csrf $badOtherPage.Body)
+            'courier'         = 'J&T Express'
+            'tracking_number' = 'JT-SMOKE-0001'
+            'notes'           = 'Smoke shipment'
+        }
+    $shipStatus    = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN shipped_at IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentRow   = (Invoke-MySql "SELECT CONCAT(courier, '|', tracking_number) FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $stockAfter    = [int]((Invoke-MySql "SELECT stock FROM products WHERE id = $orderProductId;" | Out-String).Trim())
+    $lineAfterShip = (Invoke-MySql "SELECT reservation_state FROM shop_order_items WHERE order_id = $orderId;" | Out-String).Trim()
+    $shippedMemberPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    Assert-That 'P8-T1' ($ship.Status -eq 302 -and $shipStatus -eq 'shipped|yes' `
+            -and $shipmentRow -eq 'J&T Express|JT-SMOKE-0001' `
+            -and $shippedMemberPage.Body -match 'On the way' `
+            -and $shippedMemberPage.Body.Contains('JT-SMOKE-0001')) `
+        "shipping saves the courier + tracking and the member sees it (status=$shipStatus, shipment=$shipmentRow)"
+    Assert-That 'P8-T3' ($stockAfter -eq ($stockBeforeShip - 2) -and $lineAfterShip -eq 'deducted') `
+        "shipping deducts the stock once (before=$stockBeforeShip, after=$stockAfter, line=$lineAfterShip)"
+
+    # P8-T8 - an order that has shipped cannot be cancelled.
+    $shippedAdminPage = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    $cancelAfterShip  = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/transition" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $shippedAdminPage.Body); 'to' = 'cancelled'; 'reason_code' = 'customer_request' }
+    $afterCancelShip = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $cancelPage      = Invoke-App -Path "/admin/orders/$orderId" -Session 'admin'
+    Assert-That 'P8-T8' ($cancelAfterShip.Status -eq 302 -and $afterCancelShip -eq 'shipped' `
+            -and $cancelPage.Body -match 'cannot be cancelled') `
+        "cancelling a shipped order is refused (status=$afterCancelShip)"
+
+    # P8-T4 - deliver, then the member confirms receipt.
+    $deliver = Invoke-App -Method 'POST' -Path "/admin/orders/$orderId/deliver" -Session 'admin' `
+        -Form @{ '_csrf' = (Get-Csrf $cancelPage.Body); 'note' = 'Left at the reception' }
+    $deliveredRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN delivered_at IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $shipmentDelivered = (Invoke-MySql "SELECT CASE WHEN delivered_at IS NULL THEN 'no' ELSE 'yes' END FROM shop_shipments WHERE order_id = $orderId;" | Out-String).Trim()
+    $deliveredMemberPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    $confirm = Invoke-App -Method 'POST' -Path "/orders/$orderId/confirm" -Session 'member' `
+        -Form @{ '_csrf' = (Get-Csrf $deliveredMemberPage.Body); 'note' = 'Received in good order' }
+    $completedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN completed_at IS NULL THEN 'no' ELSE 'yes' END) FROM shop_orders WHERE id = $orderId;" | Out-String).Trim()
+    $confirmEvent = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $orderId AND reason_code = 'receipt_confirmed';" | Out-String).Trim()
+    $completedPage = Invoke-App -Path "/orders/$orderId" -Session 'member'
+    Assert-That 'P8-T4' ($deliver.Status -eq 302 -and $deliveredRow -eq 'delivered|yes' -and $shipmentDelivered -eq 'yes' `
+            -and $deliveredMemberPage.Body -match 'Confirm your receipt' `
+            -and $confirm.Status -eq 302 -and $completedRow -eq 'completed|yes' -and $confirmEvent -eq '1' `
+            -and $completedPage.Body -match 'Order complete' -and $completedPage.Body -match 'View / print invoice') `
+        "deliver + member confirm -> completed with timestamps and one event (delivered=$deliveredRow, completed=$completedRow)"
+
+    # P8-T9 - the auto-complete job runs from its web entry and is idempotent.
+    # Use a second delivered order, backdated far beyond the window so a real
+    # dev database's young orders are never touched.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id = $cartMemberId;" | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$orderProductId"; 'quantity' = '1' } | Out-Null
+    $autoPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $autoToken = Get-Csrf $autoPage.Body
+    $autoIdem  = ''
+    if ($autoPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $autoIdem = $matches[1] }
+    $autoForm  = $checkoutForm.Clone()
+    $autoForm['_csrf']           = $autoToken
+    $autoForm['idempotency_key'] = $autoIdem
+    $autoForm.Remove('save_address')
+    $autoPlaced = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form $autoForm
+    $autoOrderId = 0
+    if ($autoPlaced.Location -match '/orders/(\d+)$') { $autoOrderId = [int]$matches[1] }
+
+    if ($autoOrderId -gt 0) {
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/transition" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'to' = 'packing' } | Out-Null
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/transition" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body); 'to' = 'ready_to_ship' } | Out-Null
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/ship" -Session 'admin' `
+            -Form @{
+                '_csrf'         = (Get-Csrf $autoAdminPage.Body)
+                'courier'       = 'Others'
+                'courier_other' = 'Flash Express'
+                'tracking_number' = 'LBC-SMOKE-1'
+            } | Out-Null
+        $autoCourier = (Invoke-MySql "SELECT courier FROM shop_shipments WHERE order_id = $autoOrderId;" | Out-String).Trim()
+        Assert-That 'P8-T2' ($autoCourier -eq 'Flash Express') `
+            "the Others picker stores the typed courier (courier=$autoCourier)"
+        $autoAdminPage = Invoke-App -Path "/admin/orders/$autoOrderId" -Session 'admin'
+        Invoke-App -Method 'POST' -Path "/admin/orders/$autoOrderId/deliver" -Session 'admin' `
+            -Form @{ '_csrf' = (Get-Csrf $autoAdminPage.Body) } | Out-Null
+
+        $autoDaysBefore = Get-SettingValue 'shop_autocomplete_days'
+        Set-SettingValue 'shop_autocomplete_days' '365'
+        Invoke-MySql "UPDATE shop_orders SET delivered_at = DATE_SUB(NOW(), INTERVAL 400 DAY) WHERE id = $autoOrderId;" | Out-Null
+        Invoke-MySql "UPDATE shop_shipments SET delivered_at = DATE_SUB(NOW(), INTERVAL 400 DAY) WHERE order_id = $autoOrderId;" | Out-Null
+
+        $autoDoctor = Invoke-App -Path '/cron/order_autocomplete.php?doctor=1'
+        $autoDry    = Invoke-App -Path '/cron/order_autocomplete.php?dry-run=1'
+        $autoFirstRaw  = Invoke-App -Path '/cron/order_autocomplete.php?json=1'
+        $autoSecondRaw = Invoke-App -Path '/cron/order_autocomplete.php?json=1'
+        $autoFirst  = $null
+        $autoSecond = $null
+        try { $autoFirst = $autoFirstRaw.Body | ConvertFrom-Json } catch { }
+        try { $autoSecond = $autoSecondRaw.Body | ConvertFrom-Json } catch { }
+        $autoStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $autoOrderId;" | Out-String).Trim()
+        $autoEvent  = (Invoke-MySql "SELECT COUNT(*) FROM shop_order_events WHERE order_id = $autoOrderId AND reason_code = 'auto_completed';" | Out-String).Trim()
+
+        Set-SettingValue 'shop_autocomplete_days' $autoDaysBefore
+
+        Assert-That 'P8-T9' ($autoDoctor.Status -eq 200 -and $autoDoctor.Body -match 'enabled' `
+                -and $autoDry.Status -eq 200 -and $autoDry.Body -match 'candidates:' `
+                -and $autoFirst.ok -eq $true -and @($autoFirst.ids) -contains $autoOrderId `
+                -and $autoSecond.completed -eq 0 -and $autoStatus -eq 'completed' -and $autoEvent -eq '1') `
+            "order_autocomplete.php completes the old delivery once and is idempotent (first=$($autoFirst.completed), second=$($autoSecond.completed), status=$autoStatus)"
+    } else {
+        Assert-That 'P8-T9' $false "the second checkout for the auto-complete check did not create an order"
+    }
+
+    # ---- Phase 9: registration, codes, membership and activation ---------
+    $p9PackageAId = [int]((Invoke-MySql "SELECT id FROM packages WHERE slug = 'package-a' LIMIT 1;" | Out-String).Trim())
+    $p9JuanId     = [int]((Invoke-MySql "SELECT id FROM users WHERE username = 'juan' LIMIT 1;" | Out-String).Trim())
+    $p9CodeStart  = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM reg_codes;" | Out-String).Trim())
+
+    # P9-T1 - the P1-T9 signup above is a standard, active, sponsored account.
+    $p9MemberRow = (Invoke-MySql ("SELECT CONCAT(member_status, '|', IF(package_id IS NULL, 'none', package_id), '|', LENGTH(referral_code)) FROM users WHERE username = '$memberUsername';") | Out-String).Trim()
+    $p9MemberSponsor = (Invoke-MySql ("SELECT sp.username FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$memberUsername';") | Out-String).Trim()
+    Assert-That 'P9-T1' ($p9MemberRow -eq 'active|none|8' -and $p9MemberSponsor -eq 'juan') `
+        "standard registration is active, package-free, sponsored and has a referral code (row=$p9MemberRow, sponsor=$p9MemberSponsor)"
+
+    # P9-T1 - a blank sponsor joins the company account (the primary admin).
+    $noSponsorName = 'smoke_nosponsor_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $noSponsorName
+    $noSponsorPage  = Invoke-App -Path '/register' -Session 'p9f'
+    $noSponsorToken = Get-Csrf $noSponsorPage.Body
+    $noSponsorPost  = Invoke-App -Method 'POST' -Path '/register' -Session 'p9f' -Form @{
+        '_csrf'            = $noSponsorToken
+        'mode'             = 'standard'
+        'sponsor'          = ''
+        'username'         = $noSponsorName
+        'email'            = "$noSponsorName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $noSponsorRow = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', COALESCE(sp.username, ''), '|', LENGTH(u.referral_code)) FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$noSponsorName';") | Out-String).Trim()
+    Assert-That 'P9-T1' ($noSponsorPage.Body -match '\(optional\)' `
+            -and $noSponsorPost.Status -eq 302 -and $noSponsorPost.Location -match '/dashboard$' `
+            -and $noSponsorRow -eq 'active|admin|8') `
+        "a blank sponsor is optional and joins the company account (row=$noSponsorRow)"
+
+    # P9-T6 - a referral link pre-fills the sponsor and creates a pending member.
+    $refPage = Invoke-App -Path '/register?ref=JUAN0001' -Session 'p9a'
+    $refToken = Get-Csrf $refPage.Body
+    $pendingUsername = 'smoke_pending_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $pendingUsername
+    $refPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9a' -Form @{
+        '_csrf'            = $refToken
+        'mode'             = 'pending'
+        'sponsor'          = 'JUAN0001'
+        'username'         = $pendingUsername
+        'email'            = "$pendingUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $pendingRow = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', COALESCE(sp.username, ''), '|', LENGTH(u.referral_code)) FROM users u LEFT JOIN users sp ON sp.id = u.sponsor_id WHERE u.username = '$pendingUsername';") | Out-String).Trim()
+    $p9PendingId = [int]((Invoke-MySql ("SELECT id FROM users WHERE username = '$pendingUsername';") | Out-String).Trim())
+    Assert-That 'P9-T6' ($refPage.Status -eq 200 -and $refPage.Body -match 'value="juan"' `
+            -and $refPost.Status -eq 302 -and $pendingRow -eq 'pending|juan|8') `
+        "a referral link pre-fills the sponsor and creates a pending member (row=$pendingRow)"
+
+    # P9-T2 - an admin-issued code activates the member with its package.
+    $codesPage  = Invoke-App -Path '/admin/codes' -Session 'admin'
+    $codesToken = Get-Csrf $codesPage.Body
+    $genPost = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '1'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $newCode = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p9CodeStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $newCodeId = [int]((Invoke-MySql "SELECT id FROM reg_codes WHERE code = '$newCode' LIMIT 1;" | Out-String).Trim())
+    if ($newCodeId -gt 0) { $p9CodeIds += $newCodeId }
+
+    $codeUsername = 'smoke_code_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $codeUsername
+    $codeRegPage  = Invoke-App -Path '/register' -Session 'p9b'
+    $codeRegToken = Get-Csrf $codeRegPage.Body
+    $codePost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9b' -Form @{
+        '_csrf'            = $codeRegToken
+        'mode'             = 'code'
+        'sponsor'          = 'juan'
+        'reg_code'         = $newCode
+        'username'         = $codeUsername
+        'email'            = "$codeUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $codeRow = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', p.slug, '|', LENGTH(u.referral_code)) FROM users u JOIN packages p ON p.id = u.package_id WHERE u.username = '$codeUsername';") | Out-String).Trim()
+    $codeUseRow = (Invoke-MySql "SELECT CONCAT(status, '|', IF(used_by IS NULL, 0, 1), '|', IF(used_at IS NULL, 0, 1)) FROM reg_codes WHERE id = $newCodeId;" | Out-String).Trim()
+    Assert-That 'P9-T2' ($genPost.Status -eq 302 -and $newCode -match '^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$' `
+            -and $codePost.Status -eq 302 -and $codeRow -eq 'active|package-a|8' -and $codeUseRow -eq 'used|1|1') `
+        "a registration code activates its package and is marked used (status=$($codePost.Status), row=$codeRow, code=$codeUseRow)"
+
+    # P9-T3 - invalid, unknown and reused codes never create an account.
+    $badPage  = Invoke-App -Path '/register' -Session 'p9c'
+    $badToken = Get-Csrf $badPage.Body
+    $badUsername  = 'smoke_bad_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $reusedName   = 'smoke_reused_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $badUsername
+    $p9Users += $reusedName
+    $badPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'code'
+        'sponsor'          = 'juan'
+        'reg_code'         = 'ZZZZ-ZZZZ-ZZZZ'
+        'username'         = $badUsername
+        'email'            = "$badUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $reusedPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'code'
+        'sponsor'          = 'juan'
+        'reg_code'         = $newCode
+        'username'         = $reusedName
+        'email'            = "$reusedName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    # The refusal page must announce the failure once (one alert, one message):
+    # the previous build flashed the message and also rendered it in the summary.
+    $badRender       = Invoke-App -Path '/register' -Session 'p9c'
+    $badMessageCount = [regex]::Matches($badRender.Body, 'That registration code has already been used\.').Count
+    $badAlertCount   = [regex]::Matches($badRender.Body, 'alert-danger').Count
+    Assert-That 'P9-T3' ($badRender.Status -eq 200 -and $badMessageCount -eq 1 -and $badAlertCount -eq 1) `
+        "a refused code renders one notification (alerts=$badAlertCount, messages=$badMessageCount)"
+    $badCount    = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username IN ('$badUsername', '$reusedName');" | Out-String).Trim())
+    Assert-That 'P9-T3' ($badPost.Status -eq 302 -and $badPost.Location -match '/register$' `
+            -and $reusedPost.Status -eq 302 -and $badCount -eq 0) `
+        "invalid and already-used codes are refused without creating an account (rows=$badCount)"
+
+    # P9-T5 - a guest choosing the e-wallet mode is sent to sign in.
+    $guestRegPage = Invoke-App -Path '/register' -Session 'guest'
+    $guestRegToken = Get-Csrf $guestRegPage.Body
+    $ewalletGuestName = 'smoke_ewallet_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $ewalletGuestName
+    $ewalletGuest = Invoke-App -Method 'POST' -Path '/register' -Session 'guest' -Form @{
+        '_csrf'            = $guestRegToken
+        'mode'             = 'ewallet'
+        'sponsor'          = 'juan'
+        'package_id'       = "$p9PackageAId"
+        'username'         = $ewalletGuestName
+        'email'            = "$ewalletGuestName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $ewalletGuestCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username = '$ewalletGuestName';" | Out-String).Trim())
+    Assert-That 'P9-T5' ($ewalletGuest.Status -eq 302 -and $ewalletGuest.Location -match '/login$' -and $ewalletGuestCount -eq 0) `
+        "a guest cannot register by e-wallet (got $($ewalletGuest.Status) $($ewalletGuest.Location), rows=$ewalletGuestCount)"
+
+    # P9-T7 - an unknown sponsor is a field error, not an account.
+    $sponsorFailName = 'smoke_sponsor_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $sponsorFailName
+    $sponsorPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'standard'
+        'sponsor'          = 'nobody_here'
+        'username'         = $sponsorFailName
+        'email'            = "$sponsorFailName@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $sponsorCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username = '$sponsorFailName';" | Out-String).Trim())
+    Assert-That 'P9-T7' ($sponsorPost.Status -eq 302 -and $sponsorPost.Location -match '/register$' -and $sponsorCount -eq 0) `
+        "an unknown sponsor is refused without an account (rows=$sponsorCount)"
+
+    # P9-T8 - an existing username is refused.
+    $duplicatePost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $badToken
+        'mode'             = 'standard'
+        'sponsor'          = 'juan'
+        'username'         = $memberUsername
+        'email'            = "dup_$memberUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $duplicateCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE username = '$memberUsername';" | Out-String).Trim())
+    Assert-That 'P9-T8' ($duplicatePost.Status -eq 302 -and $duplicatePost.Location -match '/register$' -and $duplicateCount -eq 1) `
+        "a duplicate username is refused (rows=$duplicateCount)"
+
+    # P9-T10 - a manual proof waits for review and the admin approves it.
+    $pngPath = Join-Path $script:TempDir 'p9-proof.png'
+    [System.IO.File]::WriteAllBytes($pngPath, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))
+
+    $membershipPage  = Invoke-App -Path '/membership' -Session 'p9a'
+    $membershipToken = Get-Csrf $membershipPage.Body
+    $proofReference  = 'SMOKE-P9-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $proofPost = Invoke-App -Method 'POST' -Path '/membership/activate' -Session 'p9a' -Form @{
+        '_csrf'        = $membershipToken
+        'method'       = 'manual'
+        'package_id'   = "$p9PackageAId"
+        'channel'      = 'gcash'
+        'reference_no' = $proofReference
+    } -Files @{ 'proof' = $pngPath }
+    $activationId = [int]((Invoke-MySql "SELECT id FROM activations WHERE user_id = $p9PendingId ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $activationRow = (Invoke-MySql "SELECT CONCAT(status, '|', payment_method, '|', IF(proof_path IS NULL, 'none', 'stored'), '|', COALESCE(reference_no, '')) FROM activations WHERE id = $activationId;" | Out-String).Trim()
+    $queuePage = Invoke-App -Path '/admin/activations' -Session 'admin'
+    $queueOk   = ($queuePage.Status -eq 200) -and ($queuePage.Body -match [regex]::Escape($pendingUsername)) -and ($queuePage.Body -match 'Approve')
+
+    $approve = Invoke-App -Method 'POST' -Path "/admin/activations/$activationId/approve" -Session 'admin' -Form @{
+        '_csrf' = $codesToken
+    }
+    $approvedMember = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', p.slug, '|', IF(u.activated_at IS NULL, 0, 1)) FROM users u JOIN packages p ON p.id = u.package_id WHERE u.id = $p9PendingId;") | Out-String).Trim()
+    $approvedRow = (Invoke-MySql "SELECT CONCAT(status, '|', IF(commission_processed_at IS NULL, 0, 1), '|', IF(reviewed_by IS NULL, 0, 1)) FROM activations WHERE id = $activationId;" | Out-String).Trim()
+    Assert-That 'P9-T10' ($proofPost.Status -eq 302 -and $activationRow -eq ('pending_review|gcash|stored|' + $proofReference) `
+            -and $queueOk -and $approve.Status -eq 302 -and $approvedMember -eq 'active|package-a|1' -and $approvedRow -eq 'approved|1|1') `
+        "a manual activation waits for review and approval activates the member (row=$activationRow, member=$approvedMember, activation=$approvedRow)"
+
+    # P9-T12 - approving the same activation again changes nothing.
+    $approveAgain = Invoke-App -Method 'POST' -Path "/admin/activations/$activationId/approve" -Session 'admin' -Form @{
+        '_csrf' = $codesToken
+    }
+    $approvedCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM activations WHERE user_id = $p9PendingId AND status = 'approved';" | Out-String).Trim())
+    $hookedCount   = [int]((Invoke-MySql "SELECT COUNT(*) FROM activations WHERE user_id = $p9PendingId AND commission_processed_at IS NOT NULL;" | Out-String).Trim())
+    Assert-That 'P9-T12' ($approveAgain.Status -eq 302 -and $approvedCount -eq 1 -and $hookedCount -eq 1) `
+        "a second approval is refused (approved=$approvedCount, hook stamped=$hookedCount)"
+
+    # P9-T11 - a rejection returns the member to pending with a reason.
+    $rejectUsername = 'smoke_reject_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $rejectUsername
+    $rejectRegPage  = Invoke-App -Path '/register' -Session 'p9c'
+    $rejectRegToken = Get-Csrf $rejectRegPage.Body
+    $rejectRegPost  = Invoke-App -Method 'POST' -Path '/register' -Session 'p9c' -Form @{
+        '_csrf'            = $rejectRegToken
+        'mode'             = 'pending'
+        'sponsor'          = 'juan'
+        'username'         = $rejectUsername
+        'email'            = "$rejectUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $rejectMemberId = [int]((Invoke-MySql "SELECT id FROM users WHERE username = '$rejectUsername';" | Out-String).Trim())
+    $rejectMembership = Invoke-App -Path '/membership' -Session 'p9c'
+    $rejectToken = Get-Csrf $rejectMembership.Body
+    $rejectProof = Invoke-App -Method 'POST' -Path '/membership/activate' -Session 'p9c' -Form @{
+        '_csrf'        = $rejectToken
+        'method'       = 'manual'
+        'package_id'   = "$p9PackageAId"
+        'channel'      = 'maya'
+        'reference_no' = 'SMOKE-RJ-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    } -Files @{ 'proof' = $pngPath }
+    $rejectActivationId = [int]((Invoke-MySql "SELECT id FROM activations WHERE user_id = $rejectMemberId ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $rejectAction = Invoke-App -Method 'POST' -Path "/admin/activations/$rejectActivationId/reject" -Session 'admin' -Form @{
+        '_csrf'  = $codesToken
+        'reason' = 'Smoke test rejection'
+    }
+    $rejectRow = (Invoke-MySql ("SELECT CONCAT(a.status, '|', u.member_status, '|', COALESCE(a.reject_reason, '')) FROM activations a JOIN users u ON u.id = a.user_id WHERE a.id = $rejectActivationId;") | Out-String).Trim()
+    Assert-That 'P9-T11' ($rejectRegPost.Status -eq 302 -and $rejectProof.Status -eq 302 -and $rejectAction.Status -eq 302 `
+            -and $rejectRow -eq 'rejected|pending|Smoke test rejection') `
+        "a rejected activation returns the member to pending with a reason (row=$rejectRow)"
+
+    # P9-T16 - the member detail page, then suspend/restore.
+    $detailPage = Invoke-App -Path "/admin/members/$p9PendingId" -Session 'admin'
+    $detailOk   = ($detailPage.Status -eq 200) -and ($detailPage.Body -match 'Package A') `
+        -and ($detailPage.Body -match '@juan') -and ($detailPage.Body -match 'Wallet') `
+        -and ($detailPage.Body -match 'Suspend member')
+
+    $suspend = Invoke-App -Method 'POST' -Path "/admin/members/$p9PendingId/status" -Session 'admin' -Form @{
+        '_csrf'   = $codesToken
+        'action'  = 'suspend'
+        'reason'  = 'Smoke test'
+    }
+    $suspendedRow = (Invoke-MySql "SELECT CONCAT(member_status, '|', is_active) FROM users WHERE id = $p9PendingId;" | Out-String).Trim()
+    $suspendedSession = Invoke-App -Path '/dashboard' -Session 'p9a'
+    $blockedLogin     = Sign-In -Session 'p9d' -Username $pendingUsername -Password $memberPassword
+
+    $restore = Invoke-App -Method 'POST' -Path "/admin/members/$p9PendingId/status" -Session 'admin' -Form @{
+        '_csrf'  = $codesToken
+        'action' = 'restore'
+    }
+    $restoredRow = (Invoke-MySql "SELECT CONCAT(member_status, '|', is_active) FROM users WHERE id = $p9PendingId;" | Out-String).Trim()
+    $restoredLogin = Sign-In -Session 'p9d' -Username $pendingUsername -Password $memberPassword
+
+    Assert-That 'P9-T16' ($detailOk -and $suspend.Status -eq 302 -and $suspendedRow -eq 'suspended|0' `
+            -and $suspendedSession.Status -eq 302 -and (-not $blockedLogin) `
+            -and $restore.Status -eq 302 -and $restoredRow -eq 'active|1' -and $restoredLogin) `
+        "member detail, suspend (sign-in blocked) and restore all work (detail=$detailOk, suspended=$suspendedRow, restored=$restoredRow)"
+
+    # P9-T16 - the tables take a rows-per-page size (5 ... 100, default 10).
+    $pagedFive = Invoke-App -Path '/admin/members?per_page=5' -Session 'admin'
+    $pagedBad  = Invoke-App -Path '/admin/members?per_page=7' -Session 'admin'
+    $pagedRows = [regex]::Matches($pagedFive.Body, 'member-row-avatar').Count
+    Assert-That 'P9-T16' ($pagedFive.Status -eq 200 -and $pagedRows -eq 5 `
+            -and $pagedFive.Body -match 'name="per_page"' `
+            -and $pagedFive.Body -match '<option value="5" selected' `
+            -and $pagedFive.Body -match 'Rows per page' `
+            -and $pagedBad.Body -match '<option value="10" selected') `
+        "the member table pages 5 per page and rejects an unlisted size (rows=$pagedRows, fallback=10)"
+
+    # P9-T15 - a member cannot open the back-office membership screens.
+    $memberCodes   = Invoke-App -Path '/admin/codes' -Session 'member'
+    $memberMembers = Invoke-App -Path '/admin/members' -Session 'member'
+    $memberActs    = Invoke-App -Path '/admin/activations' -Session 'member'
+    Assert-That 'P9-T15' ($memberCodes.Status -eq 403 -and $memberMembers.Status -eq 403 -and $memberActs.Status -eq 403) `
+        "a member gets 403 on codes/members/activations (got $($memberCodes.Status)/$($memberMembers.Status)/$($memberActs.Status))"
+
+    # P9-T14 - a batch of ten, one expired, the list and the CSV export.
+    $genTen = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '10'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $batchCount = [int]((Invoke-MySql "SELECT COUNT(*) FROM reg_codes WHERE id > $p9CodeStart;" | Out-String).Trim())
+    $expireCode = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p9CodeStart AND status = 'unused' ORDER BY id ASC LIMIT 1;" | Out-String).Trim()
+    Invoke-MySql "UPDATE reg_codes SET expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE code = '$expireCode';" | Out-Null
+
+    # Validating a past-dated code flips it to `expired` (plan §5.10).
+    $expireCheck = Invoke-App -Method 'POST' -Path '/register/validate-code' -Session 'guest' -Form @{
+        '_csrf' = $guestRegToken
+        'code'  = $expireCode
+    }
+    $expireJson = $null
+    try { $expireJson = $expireCheck.Body | ConvertFrom-Json } catch { }
+    $expireStatus = (Invoke-MySql "SELECT status FROM reg_codes WHERE code = '$expireCode';" | Out-String).Trim()
+    $expiredFilter = Invoke-App -Path "/admin/codes?status=expired" -Session 'admin'
+    $expiredOk     = ($expiredFilter.Status -eq 200) -and ($expiredFilter.Body -match [regex]::Escape($expireCode)) `
+        -and ($expireStatus -eq 'expired') -and ($expireJson.valid -eq $false)
+    $export = Invoke-App -Path '/admin/codes/export?status=expired' -Session 'admin'
+    $exportType = ''
+    if ($export.Headers.ContainsKey('content-type')) { $exportType = [string] $export.Headers['content-type'] }
+    $exportOk = ($export.Status -eq 200) -and ($exportType -match 'text/csv') `
+        -and ($export.Body -match 'Code,Package,Price') -and ($export.Body -match [regex]::Escape($expireCode))
+    Assert-That 'P9-T14' ($genTen.Status -eq 302 -and $batchCount -eq 11 -and $expiredOk -and $exportOk) `
+        "ten codes are generated, one expires and the CSV export follows the filter (batch=$batchCount, filter=$expiredOk, csv=$exportOk status=$($export.Status) type=$exportType bytes=$($export.Body.Length) expired=$expireCode)"
+
+    # P9-T17 - maria sees her team chain (level 1 direct recruits, level 2 their recruits).
+    $mariaLogin = Sign-In -Session 'p9e' -Username 'maria' -Password 'Demo@1234'
+    $genealogy  = Invoke-App -Path '/genealogy' -Session 'p9e'
+    $genealogyOk = ($genealogy.Status -eq 200) -and ($genealogy.Body -match 'Team chain') `
+        -and ($genealogy.Body -match 'peter') -and ($genealogy.Body -match 'Direct recruits') `
+        -and ($genealogy.Body -notmatch 'Upline chain') `
+        -and ($genealogy.Body -notmatch 'binary_parent|binary_position')
+    Assert-That 'P9-T17' ($mariaLogin -and $genealogyOk) `
+        "GET /genealogy shows maria's team chain, not her uplines (login=$mariaLogin, page=$($genealogy.Status))"
+
+    # ---- Phase 10: direct referral commissions ---------------------------
+    # The Phase 9 flows above already paid juan twice over HTTP: the code
+    # registration (P9-T2) and the approved manual activation (P9-T10).
+    $p10Credited = [int]((Invoke-MySql "SELECT COUNT(*) FROM commissions WHERE id > $p10CommissionStart AND status = 'credited' AND type = 'direct_referral';" | Out-String).Trim())
+    $p10LedgerRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE id > $p10LedgerStart AND ref_type = 'commission';" | Out-String).Trim())
+    $p10Linked = [int]((Invoke-MySql "SELECT COUNT(*) FROM commissions c JOIN ewallet_ledger l ON l.id = c.ledger_id WHERE c.id > $p10CommissionStart AND c.status = 'credited' AND l.ref_type = 'commission';" | Out-String).Trim())
+    $p10JuanBefore = [double](([string] $p10WalletSnapshot['juan']).Split('|')[0])
+    $p10JuanNow    = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p10JuanWithdrawable = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+
+    Assert-That 'P10-T1' ($p10Credited -eq 2 -and $p10LedgerRows -eq 2 -and $p10Linked -eq 2 `
+            -and [math]::Abs($p10JuanNow - ($p10JuanBefore + 1000)) -lt 0.001) `
+        "two activations credit the sponsor twice, each with its ledger row (awards=$p10Credited, ledger=$p10LedgerRows, linked=$p10Linked, juan=$p10JuanNow was $p10JuanBefore)"
+    Assert-That 'P10-T1' ($p10JuanWithdrawable -ge 1000) `
+        "the sponsor's commission is withdrawable (withdrawable=$p10JuanWithdrawable)"
+
+    # P10-T2 — a registration sponsored by the company root (active but
+    # package-less) records a skip and moves no money.
+    $skipGen = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '1'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $skipCode = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p9CodeStart AND status = 'unused' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $skipUsername = 'smoke_skip_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $skipUsername
+    $skipRegPage  = Invoke-App -Path '/register' -Session 'p9f'
+    $skipRegToken = Get-Csrf $skipRegPage.Body
+    $skipPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p9f' -Form @{
+        '_csrf'            = $skipRegToken
+        'mode'             = 'code'
+        'sponsor'          = 'admin'
+        'reg_code'         = $skipCode
+        'username'         = $skipUsername
+        'email'            = "$skipUsername@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $skipRow = (Invoke-MySql ("SELECT CONCAT(c.status, '|', c.amount, '|', CASE WHEN c.ledger_id IS NULL THEN 0 ELSE 1 END, '|', CASE WHEN c.reason IS NULL OR c.reason = '' THEN 0 ELSE 1 END) FROM commissions c JOIN users u ON u.id = c.source_user_id WHERE u.username = '$skipUsername' ORDER BY c.id DESC LIMIT 1;") | Out-String).Trim()
+    $skipMember = (Invoke-MySql ("SELECT CONCAT(u.member_status, '|', p.slug) FROM users u JOIN packages p ON p.id = u.package_id WHERE u.username = '$skipUsername';") | Out-String).Trim()
+    $p10AdminBefore = [double](([string] $p10WalletSnapshot['admin']).Split('|')[0])
+    $adminNow = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+    $juanAfterSkip = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    Assert-That 'P10-T2' ($skipPost.Status -eq 302 -and $skipRow -eq 'skipped|500.00|0|1' -and $skipMember -eq 'active|package-a' `
+            -and [math]::Abs($adminNow - $p10AdminBefore) -lt 0.001 -and [math]::Abs($juanAfterSkip - $p10JuanNow) -lt 0.001) `
+        "an ineligible sponsor is skipped, audited and unpaid (row=$skipRow, member=$skipMember, admin=$adminNow was $p10AdminBefore)"
+
+    # P10-T7 — juan's earnings statement shows the awards, the filters and
+    # the drawer; a guest cannot open it. (p10a is a fresh session: the P9
+    # jars are still signed in as the members they registered.)
+    $juanLogin = Sign-In -Session 'p10a' -Username 'juan' -Password 'Demo@1234'
+    $earnings  = Invoke-App -Path '/earnings' -Session 'p10a'
+    $earningsGuest = Invoke-App -Path '/earnings' -Session 'guest'
+    $earningsAdmin = Invoke-App -Path '/earnings' -Session 'admin'
+    # The statement totals every credited award, including the two QA
+    # awards already on this development database before the run.
+    $p10JuanEarningsValue = [double]((Invoke-MySql "SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE user_id = $p9JuanId AND status = 'credited';" | Out-String).Trim())
+    $p10JuanEarnings = $p10JuanEarningsValue.ToString('N2', [System.Globalization.CultureInfo]::InvariantCulture)
+    $earningsOk = ($earnings.Status -eq 200) `
+        -and ($earnings.Body -match 'Total credited') -and ($earnings.Body -match 'Direct referral') `
+        -and ($earnings.Body -match 'Indirect referral') -and ($earnings.Body -match [regex]::Escape($p10JuanEarnings)) `
+        -and ($earnings.Body -match [regex]::Escape($codeUsername)) `
+        -and ($earnings.Body -match 'name="level"') -and ($earnings.Body -match 'data-commission="') `
+        -and ($earnings.Body -match 'id="commissionDetail"') -and ($earnings.Body -match 'href="[^"]*/wallet"')
+    Assert-That 'P10-T7' ($juanLogin -and $earningsOk -and $earningsGuest.Status -eq 302 `
+            -and $earningsGuest.Location -match '/login$' -and $earningsAdmin.Status -eq 200) `
+        "GET /earnings shows the awards and the drawer; guest=$($earningsGuest.Status), admin=$($earningsAdmin.Status)"
+    Assert-That 'P10-T7' ($earningsAdmin.Body -match 'Back office') `
+        "an admin opening /earnings keeps the back-office layout"
+
+    # P10-T8 — the admin ledger lists both sides, filters, and is admin-only.
+    $ledgerPage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $ledgerSkipped = Invoke-App -Path '/admin/commissions?status=skipped' -Session 'admin'
+    $ledgerIndirect = Invoke-App -Path '/admin/commissions?type=indirect_referral' -Session 'admin'
+    $ledgerMember = Invoke-App -Path '/admin/commissions' -Session 'p10a'
+    $ledgerOk = ($ledgerPage.Status -eq 200) `
+        -and ($ledgerPage.Body -match 'Commission ledger') -and ($ledgerPage.Body -match 'Total credited') `
+        -and ($ledgerPage.Body -match '@juan') -and ($ledgerPage.Body -match [regex]::Escape($codeUsername)) `
+        -and ($ledgerPage.Body -match 'data-commission="')
+    $ledgerFiltersOk = ($ledgerSkipped.Status -eq 200) -and ($ledgerSkipped.Body -match [regex]::Escape($skipUsername)) `
+        -and ($ledgerIndirect.Status -eq 200) -and ($ledgerIndirect.Body -match 'Indirect referral') `
+        -and ($ledgerIndirect.Body -match 'Skipped')
+    Assert-That 'P10-T8' ($ledgerOk -and $ledgerFiltersOk -and $ledgerMember.Status -eq 403) `
+        "GET /admin/commissions lists and filters the ledger; member=$($ledgerMember.Status) (page=$($ledgerPage.Status), skipped=$($ledgerSkipped.Status), indirect=$($ledgerIndirect.Status))"
+
+    # ---- Phase 11: indirect referral commissions --------------------------
+    # A code registration under peter walks the demo chain:
+    #   peter L1 500, maria L2 100, juan L3 50, admin L4 skipped (no package).
+    $p11CodeStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM reg_codes;" | Out-String).Trim())
+    $p11Gen = Invoke-App -Method 'POST' -Path '/admin/codes/generate' -Session 'admin' -Form @{
+        '_csrf'      = $codesToken
+        'package_id' = "$p9PackageAId"
+        'quantity'   = '1'
+        'price'      = '4498.00'
+        'expires_at' = ''
+        'code_type'  = 'registration'
+    }
+    $p11Code = (Invoke-MySql "SELECT code FROM reg_codes WHERE id > $p11CodeStart AND status = 'unused' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p11Username = 'smoke_p11_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p9Users += $p11Username
+    $p11PeterBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p11MariaBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'maria';" | Out-String).Trim())
+    $p11JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p11AdminBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+
+    $p11RegPage  = Invoke-App -Path '/register' -Session 'p11reg'
+    $p11RegToken = Get-Csrf $p11RegPage.Body
+    $p11Post = Invoke-App -Method 'POST' -Path '/register' -Session 'p11reg' -Form @{
+        '_csrf'            = $p11RegToken
+        'mode'             = 'code'
+        'sponsor'          = 'peter'
+        'reg_code'         = $p11Code
+        'username'         = $p11Username
+        'email'            = "$p11Username@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+
+    $p11Awards = (Invoke-MySql ("SELECT CONCAT(COUNT(*), '|', SUM(status = 'credited'), '|', SUM(status = 'skipped'), '|', SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END)) FROM commissions c JOIN users u ON u.id = c.source_user_id WHERE u.username = '$p11Username';") | Out-String).Trim()
+    $p11Levels = (Invoke-MySql ("SELECT GROUP_CONCAT(CONCAT(level, ':', type, ':', status) ORDER BY level SEPARATOR ',') FROM commissions c JOIN users u ON u.id = c.source_user_id WHERE u.username = '$p11Username';") | Out-String).Trim()
+    $p11PeterAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p11MariaAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'maria';" | Out-String).Trim())
+    $p11JuanAfter  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p11AdminAfter = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+    Assert-That 'P11-T12' ($p11Gen.Status -eq 302 -and $p11Post.Status -eq 302 -and $p11Awards -eq '4|3|1|650.00' `
+            -and $p11Levels -eq '1:direct_referral:credited,2:indirect_referral:credited,3:indirect_referral:credited,4:indirect_referral:skipped') `
+        "a code registration pays the full unilevel chain (status=$($p11Post.Status), awards=$p11Awards, levels=$p11Levels)"
+    Assert-That 'P11-T8' ([math]::Abs($p11PeterAfter - ($p11PeterBefore + 500)) -lt 0.001 `
+            -and [math]::Abs($p11MariaAfter - ($p11MariaBefore + 100)) -lt 0.001 `
+            -and [math]::Abs($p11JuanAfter - ($p11JuanBefore + 50)) -lt 0.001 `
+            -and [math]::Abs($p11AdminAfter - $p11AdminBefore) -lt 0.001) `
+        "wallet credits match the levels: peter +500, maria +100, juan +50, admin skipped"
+
+    # P11-T9 — juan's earnings page now carries the level-3 award and the
+    # per-level breakdown; the unilevel CSV exports the same rows.
+    $p11Earnings = Invoke-App -Path '/earnings' -Session 'p10a'
+    $p11Csv      = Invoke-App -Path '/earnings/export' -Session 'p10a'
+    $p11CsvType  = ''
+    if ($p11Csv.Headers.ContainsKey('content-type')) { $p11CsvType = [string] $p11Csv.Headers['content-type'] }
+    $p11CsvGuest = Invoke-App -Path '/earnings/export' -Session 'guest'
+    $p11JuanEarningsValue = [double]((Invoke-MySql "SELECT COALESCE(SUM(amount), 0) FROM commissions WHERE user_id = $p9JuanId AND status = 'credited';" | Out-String).Trim())
+    $p11JuanEarnings = $p11JuanEarningsValue.ToString('N2', [System.Globalization.CultureInfo]::InvariantCulture)
+    $p11EarningsOk = ($p11Earnings.Status -eq 200) -and ($p11Earnings.Body -match 'Unilevel breakdown') `
+        -and ($p11Earnings.Body -match 'Level 3') -and ($p11Earnings.Body -match [regex]::Escape($p11JuanEarnings)) `
+        -and ($p11Earnings.Body -match 'Export CSV')
+    $p11CsvOk = ($p11Csv.Status -eq 200) -and ($p11CsvType -match 'text/csv') `
+        -and ($p11Csv.Body -match 'Award,"Awarded at",Level') -and ($p11Csv.Body -match 'indirect_referral') `
+        -and ($p11Csv.Body -match [regex]::Escape($p11Username))
+    Assert-That 'P11-T9' ($p11EarningsOk -and $p11CsvOk -and $p11CsvGuest.Status -eq 302 -and $p11CsvGuest.Location -match '/login$') `
+        "the earnings breakdown and unilevel CSV show the new L3 award; guest=$($p11CsvGuest.Status)"
+
+    # P11-T10 — the admin ledger filters the indirect rows by type and level,
+    # and its CSV export is admin-only.
+    $p11Ledger = Invoke-App -Path '/admin/commissions?type=indirect_referral&level=3' -Session 'admin'
+    $p11AdminCsv = Invoke-App -Path '/admin/commissions/export?type=indirect_referral' -Session 'admin'
+    $p11AdminCsvType = ''
+    if ($p11AdminCsv.Headers.ContainsKey('content-type')) { $p11AdminCsvType = [string] $p11AdminCsv.Headers['content-type'] }
+    $p11AdminCsvMember = Invoke-App -Path '/admin/commissions/export' -Session 'p10a'
+    $p11LedgerOk = ($p11Ledger.Status -eq 200) -and ($p11Ledger.Body -match '@juan') `
+        -and ($p11Ledger.Body -match 'Level 3') -and ($p11Ledger.Body -match '50\.00') `
+        -and ($p11Ledger.Body -notmatch 'No commissions match these filters')
+    $p11AdminCsvOk = ($p11AdminCsv.Status -eq 200) -and ($p11AdminCsvType -match 'text/csv') `
+        -and ($p11AdminCsv.Body -match 'Recipient,"Recipient name"') -and ($p11AdminCsv.Body -match 'indirect_referral')
+    Assert-That 'P11-T10' ($p11LedgerOk -and $p11AdminCsvOk -and $p11AdminCsvMember.Status -eq 403) `
+        "the admin ledger filters indirect/level and exports CSV; member=$($p11AdminCsvMember.Status)"
+
+    # P10-T6 — the finance report covers commissions too, and it is clean.
+    $p10ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $p10ReconcileExit   = $LASTEXITCODE
+    $p10ReconcileJson   = $null
+    try { $p10ReconcileJson = ($p10ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P10-T6' ($p10ReconcileExit -eq 0 -and $p10ReconcileJson.ok -eq $true `
+            -and $p10ReconcileJson.commissions.ok -eq $true `
+            -and $p10ReconcileJson.commissions.credited_rows -ge 5) `
+        "bin/wallet_reconcile.php reconciles wallets and commissions (exit=$p10ReconcileExit, credited=$($p10ReconcileJson.commissions.credited_rows))"
+
+    # ---- Phase 12: e-wallet transfers ------------------------------------
+    # juan pays peter 200 with the fee set to 8: juan -208, peter +200 and the
+    # primary admin +8, in one transfer row and three ledger rows. The cleanup
+    # below deletes the transfer, its legs and restores every counter, so a
+    # rerun starts from the same state.
+    $p12LedgerStart   = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
+    $p12TransferStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_transfers;" | Out-String).Trim())
+    $p12AuditStart    = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM audit_log;" | Out-String).Trim())
+    $p12Ran           = $true
+
+    foreach ($key in @('ewallet_transfer_fee', 'ewallet_min_transfer', 'ewallet_transfer_daily_limit', 'ewallet_transfer_weekly_limit')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    foreach ($counterRow in @(Invoke-MySql "SELECT CONCAT(username, '|', ewallet_sent_today, '|', ewallet_sent_this_week) FROM users;")) {
+        $counterParts = ([string] $counterRow).Trim().Split('|')
+        if ($counterParts.Count -eq 3) {
+            $p12CounterSnapshot[$counterParts[0]] = "$($counterParts[1])|$($counterParts[2])"
+        }
+    }
+
+    # The limits are pinned for the block (and restored in the finally block):
+    # an operator who tightened them for manual QA must not break the run.
+    Set-SettingValue 'ewallet_transfer_fee' '8'
+    Set-SettingValue 'ewallet_transfer_daily_limit' '5000'
+    Set-SettingValue 'ewallet_transfer_weekly_limit' '20000'
+
+    $p12JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p12PeterBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p12AdminBefore = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+
+    # P12-T1 - the send page, the statement's card and the guest guard.
+    $transferPage  = Invoke-App -Path '/wallet/transfer' -Session 'p10a'
+    $transferToken = Get-Csrf $transferPage.Body
+    $walletPage    = Invoke-App -Path '/wallet' -Session 'p10a'
+    $transferGuest = Invoke-App -Path '/wallet/transfer' -Session 'guest'
+    $transferPageOk = ($transferPage.Status -eq 200) -and ($transferPage.Body -match 'Send funds') `
+        -and ($transferPage.Body -match 'name="recipient"') -and ($transferPage.Body -match 'name="amount"') `
+        -and ($transferPage.Body -match 'name="note"') -and ($transferPage.Body -match 'name="password"') `
+        -and ($transferPage.Body -match 'Transfer limits') -and ($transferPage.Body -match 'Sent today') `
+        -and ($transferPage.Body -match 'Send transfer') -and ($transferPage.Body -match 'Transfer fee')
+    $walletCardOk = ($walletPage.Status -eq 200) -and ($walletPage.Body -match 'Send money to another member') `
+        -and ($walletPage.Body -match '/wallet/transfer')
+    Assert-That 'P12-T1' ($transferPageOk -and $walletCardOk -and $transferGuest.Status -eq 302 `
+            -and $transferGuest.Location -match '/login$') `
+        "GET /wallet/transfer renders the password-confirmed form and /wallet links it; guest=$($transferGuest.Status)"
+
+    # P12-T6 - a wrong password is refused before anything is written.
+    $p12Wrong = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'p10a' -Form @{
+        '_csrf'     = $transferToken
+        'recipient' = 'peter'
+        'amount'    = '200.00'
+        'note'      = 'Smoke transfer'
+        'password'  = 'not-the-password'
+    }
+    $p12WrongRows    = [int]((Invoke-MySql "SELECT COUNT(*) FROM ewallet_transfers WHERE id > $p12TransferStart;" | Out-String).Trim())
+    $p12WrongPage    = Invoke-App -Path '/wallet/transfer' -Session 'p10a'
+    $p12WrongBalance = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    Assert-That 'P12-T6' ($p12Wrong.Status -eq 302 -and $p12Wrong.Location -match '/wallet/transfer$' `
+            -and $p12WrongRows -eq 0 -and ($p12WrongPage.Body -match 'password is not correct') `
+            -and [math]::Abs($p12WrongBalance - $p12JuanBefore) -lt 0.005) `
+        "a wrong transfer password is refused and writes nothing (rows=$p12WrongRows, balance=$p12WrongBalance)"
+
+    # P12-T2 - the real transfer: fee 8, three ledger legs, the counter moves.
+    $p12Post = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'p10a' -Form @{
+        '_csrf'     = $transferToken
+        'recipient' = 'peter'
+        'amount'    = '200.00'
+        'note'      = 'Smoke transfer'
+        'password'  = 'Demo@1234'
+    }
+    $p12Row   = (Invoke-MySql "SELECT CONCAT(amount, '|', fee, '|', net_amount, '|', status) FROM ewallet_transfers WHERE id > $p12TransferStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p12Legs  = (Invoke-MySql "SELECT CONCAT(COUNT(*), '|', COUNT(CASE WHEN type = 'credit' THEN 1 END), '|', COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0)) FROM ewallet_ledger WHERE id > $p12LedgerStart AND ref_type = 'transfer';" | Out-String).Trim()
+    $p12JuanNow  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p12PeterNow = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'peter';" | Out-String).Trim())
+    $p12AdminNow = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'admin';" | Out-String).Trim())
+    $p12Counter  = (Invoke-MySql "SELECT ewallet_sent_today FROM users WHERE username = 'juan';" | Out-String).Trim()
+    $p12MoneyOk  = ([math]::Abs($p12JuanNow - ($p12JuanBefore - 208)) -lt 0.005) `
+        -and ([math]::Abs($p12PeterNow - ($p12PeterBefore + 200)) -lt 0.005) `
+        -and ([math]::Abs($p12AdminNow - ($p12AdminBefore + 8)) -lt 0.005) `
+        -and $p12Counter -eq '200.00'
+    Assert-That 'P12-T2' ($p12Post.Status -eq 302 -and $p12Post.Location -match '/wallet/transfer$' `
+            -and $p12Row -eq '200.00|8.00|200.00|completed' -and $p12Legs -eq '3|2|208.00' -and $p12MoneyOk) `
+        "juan sends 200 to peter with a fee: -208/+200/+8 and 3 ledger rows (row=$p12Row, legs=$p12Legs, counter=$p12Counter)"
+
+    # P12-T10 - the admin monitor lists the transfer, and only admins may look.
+    $p12Monitor = Invoke-App -Path '/admin/wallets?tab=transfers' -Session 'admin'
+    $p12MonitorMember = Invoke-App -Path '/admin/wallets?tab=transfers' -Session 'p10a'
+    $p12MonitorOk = ($p12Monitor.Status -eq 200) -and ($p12Monitor.Body -match 'Member-to-member movements') `
+        -and ($p12Monitor.Body -match '@juan') -and ($p12Monitor.Body -match '@peter') `
+        -and ($p12Monitor.Body -match 'Transfers today') -and ($p12Monitor.Body -match 'name="from"') `
+        -and ($p12Monitor.Body -match 'Smoke transfer')
+    Assert-That 'P12-T10' ($p12MonitorOk -and $p12MonitorMember.Status -eq 403) `
+        "the wallet monitor transfers tab lists the movement; member=$($p12MonitorMember.Status)"
+
+    # P12-T9 - the reset cron from its guarded web entry, twice (idempotent).
+    # `week=1` forces the weekly reset too, so this check does not depend on
+    # the weekday the run happens on.
+    $p12CronDryRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?dry-run=1&json=1'
+    $p12CronDry    = $null
+    try { $p12CronDry = $p12CronDryRaw.Body | ConvertFrom-Json } catch { }
+
+    $p12CronFirstRaw  = Invoke-App -Path '/cron/reset_transfer_limits.php?week=1&json=1'
+    $p12CronSecondRaw = Invoke-App -Path '/cron/reset_transfer_limits.php?week=1&json=1'
+    $p12CronFirst     = $null
+    $p12CronSecond    = $null
+    try { $p12CronFirst = $p12CronFirstRaw.Body | ConvertFrom-Json } catch { }
+    try { $p12CronSecond = $p12CronSecondRaw.Body | ConvertFrom-Json } catch { }
+    $p12CounterAfter = (Invoke-MySql "SELECT CONCAT(ewallet_sent_today, '|', ewallet_sent_this_week) FROM users WHERE username = 'juan';" | Out-String).Trim()
+    $p12CronOk = $p12CronDryRaw.Status -eq 200 -and $p12CronDry.ok -eq $true -and $p12CronDry.dry_run -eq $true `
+        -and $p12CronFirstRaw.Status -eq 200 -and $p12CronFirst.ok -eq $true -and $p12CronFirst.daily_zeroed -ge 1 `
+        -and $p12CronSecond.ok -eq $true -and $p12CronSecond.daily_zeroed -eq 0 `
+        -and $p12CounterAfter -eq '0.00|0.00'
+    Assert-That 'P12-T9' $p12CronOk `
+        "the transfer-limit cron zeroes the counters and a second run changes nothing (first=$($p12CronFirst.daily_zeroed), second=$($p12CronSecond.daily_zeroed), juan=$p12CounterAfter)"
+
+    # P12-T4 - an amount the balance cannot cover is refused.
+    $p12TooMuch = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'p10a' -Form @{
+        '_csrf'     = $transferToken
+        'recipient' = 'peter'
+        'amount'    = '999999.00'
+        'note'      = ''
+        'password'  = 'Demo@1234'
+    }
+    $p12TooMuchPage = Invoke-App -Path '/wallet/transfer' -Session 'p10a'
+    $p12TooMuchRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM ewallet_transfers WHERE id > $p12TransferStart;" | Out-String).Trim())
+    Assert-That 'P12-T4' ($p12TooMuch.Status -eq 302 -and $p12TooMuchRows -eq 1 `
+            -and ($p12TooMuchPage.Body -match 'Insufficient wallet balance')) `
+        "a transfer above the balance is refused (rows=$p12TooMuchRows)"
+
+    # P12-T3 - the finance report reconciles the transfer legs too.
+    $p12ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $p12ReconcileExit   = $LASTEXITCODE
+    $p12ReconcileJson   = $null
+    try { $p12ReconcileJson = ($p12ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P12-T3' ($p12ReconcileExit -eq 0 -and $p12ReconcileJson.ok -eq $true `
+            -and $p12ReconcileJson.transfers.ok -eq $true -and $p12ReconcileJson.transfers.checked -ge 1) `
+        "bin/wallet_reconcile.php reconciles transfers (exit=$p12ReconcileExit, checked=$($p12ReconcileJson.transfers.checked))"
+
+    # ---- Phase 13: payouts ------------------------------------------------
+    # juan asks to withdraw 500 through GCash with a 10% fee: 500 is held
+    # (pending, one ledger debit), the fee is 50 and the net is 450. The
+    # admin approves and completes it, then a second 600 request is rejected
+    # and the hold comes back. The finally block deletes the requests, their
+    # ledger legs and their audit rows; the Phase 10 snapshot restores every
+    # wallet balance.
+    $p13LedgerStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger;" | Out-String).Trim())
+    $p13PayoutStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM payout_requests;" | Out-String).Trim())
+    $p13AuditStart  = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM audit_log;" | Out-String).Trim())
+    $p13Ran         = $true
+
+    foreach ($key in @('min_payout', 'service_fee_gcash', 'usdt_rate', 'payout_gcash_enabled')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    Set-SettingValue 'min_payout' '500'
+    Set-SettingValue 'service_fee_gcash' '10'
+    Set-SettingValue 'usdt_rate' '0'
+    Set-SettingValue 'payout_gcash_enabled' '1'
+
+    $p13JuanBefore  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13JuanWithdrawable = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+
+    # P13-T1 - the payout page, its cross-link from the wallet, and the guard.
+    $payoutPage    = Invoke-App -Path '/payouts' -Session 'p10a'
+    $payoutToken   = Get-Csrf $payoutPage.Body
+    $walletPageP13 = Invoke-App -Path '/wallet' -Session 'p10a'
+    $payoutGuest   = Invoke-App -Path '/payouts' -Session 'guest'
+    $payoutPageOk = ($payoutPage.Status -eq 200) -and ($payoutPage.Body -match 'Withdrawable') `
+        -and ($payoutPage.Body -match 'name="amount"') -and ($payoutPage.Body -match 'name="payout_method"') `
+        -and ($payoutPage.Body -match 'name="account_gcash"') -and ($payoutPage.Body -match 'Request payout') `
+        -and ($payoutPage.Body -match 'Withdrawal history') -and ($payoutPage.Body -match 'novalidate')
+    $walletPayoutCardOk = ($walletPageP13.Status -eq 200) -and ($walletPageP13.Body -match 'Withdraw earnings') `
+        -and ($walletPageP13.Body -match '/payouts')
+    Assert-That 'P13-T1' ($payoutPageOk -and $walletPayoutCardOk -and $payoutGuest.Status -eq 302 `
+            -and $payoutGuest.Location -match '/login$') `
+        "GET /payouts renders the request form and /wallet links it; guest=$($payoutGuest.Status)"
+
+    # P13-T2 - below the minimum is refused and writes nothing.
+    $p13Low = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '100.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13LowRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    $p13LowPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    Assert-That 'P13-T2' ($p13Low.Status -eq 302 -and $p13Low.Location -match '/payouts$' -and $p13LowRows -eq 0 `
+            -and ($p13LowPage.Body -match 'The minimum payout is')) `
+        "a below-minimum payout is refused and writes nothing (rows=$p13LowRows)"
+
+    # P13-T6 - USDT is closed while the rate is unset (no client rate accepted).
+    $p13Usdt = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'           = $payoutToken
+        'amount'          = '1000.00'
+        'payout_method'   = 'usdt_trc20'
+        'account_usdt_trc20' = ('T' + ('1' * 33))
+        'usdt_rate'       = '1'
+    }
+    $p13UsdtRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    $p13UsdtPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    Assert-That 'P13-T6' ($p13Usdt.Status -eq 302 -and $p13UsdtRows -eq 0 `
+            -and ($p13UsdtPage.Body -match 'USDT payouts are unavailable')) `
+        "a USDT payout is refused while the rate is unset, ignoring a posted rate (rows=$p13UsdtRows)"
+
+    # P13-T3 - above the withdrawable bucket is refused.
+    $p13TooMuch = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '999999.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13TooMuchRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    $p13TooMuchPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    Assert-That 'P13-T3' ($p13TooMuch.Status -eq 302 -and $p13TooMuchRows -eq 0 `
+            -and ($p13TooMuchPage.Body -match 'You can withdraw up to')) `
+        "an amount above the withdrawable bucket is refused (rows=$p13TooMuchRows)"
+
+    # P13-T1/T5 - the real request: a 500 hold, a 50 fee, a 450 net.
+    # The demo balance leaves room for the separate 600 rejection below.
+    $p13Post = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '500.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '0917 123 4567'
+    }
+    $p13Row = (Invoke-MySql "SELECT CONCAT(amount, '|', payout_method, '|', payout_account, '|', service_fee_pct, '|', service_fee_amount, '|', status) FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p13Legs = (Invoke-MySql "SELECT CONCAT(COUNT(*), '|', COALESCE(SUM(amount), 0)) FROM ewallet_ledger WHERE id > $p13LedgerStart AND ref_type = 'payout';" | Out-String).Trim()
+    $p13JuanAfter  = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13JuanWithdrawableAfter = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13PayoutId = [int]((Invoke-MySql "SELECT id FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $p13MoneyOk = ([math]::Abs($p13JuanAfter - ($p13JuanBefore - 500)) -lt 0.005) `
+        -and ([math]::Abs($p13JuanWithdrawableAfter - ($p13JuanWithdrawable - 500)) -lt 0.005)
+    Assert-That 'P13-T1' ($p13Post.Status -eq 302 -and $p13Post.Location -match '/payouts$' `
+            -and $p13Row -eq '500.00|gcash|09171234567|10.00|50.00|pending' `
+            -and $p13Legs -eq '1|500.00' -and $p13MoneyOk) `
+        "juan requests 500 with a 10% fee: held, one ledger debit, net 450 (row=$p13Row, legs=$p13Legs, balance=$p13JuanAfter was $p13JuanBefore)"
+
+    # P13-T4 - the form closes while a request is open, and a second is refused.
+    $p13OpenPage = Invoke-App -Path '/payouts' -Session 'p10a'
+    $p13Second = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '600.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13SecondRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM payout_requests WHERE id > $p13PayoutStart;" | Out-String).Trim())
+    Assert-That 'P13-T4' ($p13OpenPage.Status -eq 200 -and ($p13OpenPage.Body -match 'Withdrawal in progress') `
+            -and ($p13OpenPage.Body -notmatch 'action="[^"]*/payouts/request"') `
+            -and $p13Second.Status -eq 302 -and $p13SecondRows -eq 1) `
+        "one open request closes the form and refuses a second (rows=$p13SecondRows)"
+
+    # P13-T10 - the queue is admin-only, and it lists the request.
+    $p13QueueMember = Invoke-App -Path '/admin/payouts' -Session 'p10a'
+    # The bare URL must open the pending work queue, not "all requests".
+    $p13Queue       = Invoke-App -Path '/admin/payouts' -Session 'admin'
+    $p13AdminToken  = Get-Csrf $p13Queue.Body
+    $p13PendingActive = ($p13Queue.Body -match 'href="[^"]*admin/payouts\?status=pending"[^>]*aria-selected="true"') `
+        -and ($p13Queue.Body -match 'data-live-surface="admin.payouts"')
+    $p13QueueOk = ($p13Queue.Status -eq 200) -and ($p13Queue.Body -match '@juan') `
+        -and ($p13Queue.Body -match 'Pending review') -and ($p13Queue.Body -match 'Approve') `
+        -and ($p13Queue.Body -match 'Rejection reason') -and ($p13Queue.Body -match 'Held in open requests') `
+        -and ($p13Queue.Body -match 'All requests') -and $p13PendingActive
+    Assert-That 'P13-T10' ($p13QueueOk -and $p13QueueMember.Status -eq 403 -and $p13AdminToken -ne '') `
+        "the admin queue lists juan's request and a member cannot open it (member=$($p13QueueMember.Status), defaultTab=$p13PendingActive)"
+
+    # P13-T7 - approve records the admin.
+    $p13AdminId = [int]((Invoke-MySql "SELECT id FROM users WHERE username = 'admin';" | Out-String).Trim())
+    $p13Approve = Invoke-App -Method 'POST' -Path "/admin/payouts/$p13PayoutId/approve" -Session 'admin' -Form @{
+        '_csrf' = $p13AdminToken
+    }
+    $p13ApprovedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN processed_by = $p13AdminId THEN 1 ELSE 0 END, '|', CASE WHEN processed_at IS NULL THEN 0 ELSE 1 END) FROM payout_requests WHERE id = $p13PayoutId;" | Out-String).Trim()
+    Assert-That 'P13-T7' ($p13Approve.Status -eq 302 -and $p13ApprovedRow -eq 'approved|1|1') `
+        "an admin approves the request and is recorded (row=$p13ApprovedRow)"
+
+    # P13-T8 - complete settles it without a second debit.
+    $p13Complete = Invoke-App -Method 'POST' -Path "/admin/payouts/$p13PayoutId/complete" -Session 'admin' -Form @{
+        '_csrf' = $p13AdminToken
+    }
+    $p13CompletedRow = (Invoke-MySql "SELECT CONCAT(status, '|', CASE WHEN processed_by = $p13AdminId THEN 1 ELSE 0 END) FROM payout_requests WHERE id = $p13PayoutId;" | Out-String).Trim()
+    $p13LegsAfter = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE id > $p13LedgerStart AND ref_type = 'payout';" | Out-String).Trim()
+    $p13BalanceAfterComplete = [double]((Invoke-MySql "SELECT ewallet_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    Assert-That 'P13-T8' ($p13Complete.Status -eq 302 -and $p13CompletedRow -eq 'completed|1' `
+            -and ($p13LegsAfter.Trim() -eq '1') -and ([math]::Abs($p13BalanceAfterComplete - $p13JuanAfter) -lt 0.005)) `
+        "completing the payout moves no money a second time (row=$p13CompletedRow, legs=$($p13LegsAfter.Trim()))"
+
+    # P13-T9 - a rejection refunds the hold exactly once.
+    $p13RejectRequest = Invoke-App -Method 'POST' -Path '/payouts/request' -Session 'p10a' -Form @{
+        '_csrf'         = $payoutToken
+        'amount'        = '600.00'
+        'payout_method' = 'gcash'
+        'account_gcash' = '09171234567'
+    }
+    $p13RejectId = [int]((Invoke-MySql "SELECT id FROM payout_requests WHERE id > $p13PayoutStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim())
+    $p13BeforeReject = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13Reject = Invoke-App -Method 'POST' -Path "/admin/payouts/$p13RejectId/reject" -Session 'admin' -Form @{
+        '_csrf' = $p13AdminToken
+        'note'  = 'Smoke rejection'
+    }
+    $p13RejectedRow = (Invoke-MySql "SELECT CONCAT(status, '|', admin_note) FROM payout_requests WHERE id = $p13RejectId;" | Out-String).Trim()
+    $p13Refunds = (Invoke-MySql "SELECT CONCAT(COUNT(*), '|', COALESCE(SUM(amount), 0)) FROM ewallet_ledger WHERE id > $p13LedgerStart AND ref_type = 'refund' AND note LIKE 'Payout request #%';" | Out-String).Trim()
+    $p13WithdrawableAfterReject = [double]((Invoke-MySql "SELECT withdrawable_balance FROM users WHERE username = 'juan';" | Out-String).Trim())
+    $p13RejectOk = ($p13Reject.Status -eq 302) -and ($p13RejectedRow -eq 'rejected|Smoke rejection') `
+        -and ($p13Refunds -eq '1|600.00') `
+        -and ([math]::Abs($p13WithdrawableAfterReject - ($p13BeforeReject + 600)) -lt 0.005)
+    Assert-That 'P13-T9' $p13RejectOk `
+        "a rejected payout refunds the hold once (row=$p13RejectedRow, refunds=$p13Refunds, withdrawable=$p13WithdrawableAfterReject was $p13BeforeReject)"
+
+    # P13-T12 - the finance report reconciles the payout legs too.
+    $p13ReconcileOutput = & $PhpPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'bin\wallet_reconcile.php') --json 2>&1
+    $p13ReconcileExit   = $LASTEXITCODE
+    $p13ReconcileJson   = $null
+    try { $p13ReconcileJson = ($p13ReconcileOutput | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P13-T12' ($p13ReconcileExit -eq 0 -and $p13ReconcileJson.ok -eq $true `
+            -and $p13ReconcileJson.payouts.ok -eq $true -and $p13ReconcileJson.payouts.checked -ge 2) `
+        "bin/wallet_reconcile.php reconciles payouts (exit=$p13ReconcileExit, checked=$($p13ReconcileJson.payouts.checked), orphans=$($p13ReconcileJson.payouts.orphans))"
+
+    # ---- Phase 14: super-login -------------------------------------------
+    # A superadmin opens juan's portal through a URL-token session, follows
+    # a token-bearing link, exits and proves the token is dead. Then TTL,
+    # user-agent, guards, a non-member target, rate limiting and tampering.
+    # The finally block removes the sessions and their audit rows.
+    $p14LogStart   = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM impersonation_log;" | Out-String).Trim())
+    $p14AuditStart = [int]((Invoke-MySql "SELECT COALESCE(MAX(id), 0) FROM audit_log;" | Out-String).Trim())
+    $p14Ran        = $true
+
+    $p14SignedIn = Sign-In 'p14super' 'superadmin' 'Super@123'
+    $p14Console  = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14ConsoleToken = Get-Csrf $p14Console.Body
+
+    $p14ConsoleOk = ($p14Console.Status -eq 200) `
+        -and ($p14Console.Body -match 'Open a member session') `
+        -and ($p14Console.Body -match 'name="username"') `
+        -and ($p14Console.Body -match 'data-live-surface="admin.slogin"') `
+        -and ($p14Console.Body -match 'data-live-region="slogin-active"') `
+        -and ($p14Console.Body -match 'data-live-region="slogin-recent"') `
+        -and ($p14Console.Body -match 'Audit trail') `
+        -and ($p14Console.Body -match 'S-Login console')
+
+    $p14Open = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'juan'
+    }
+
+    $p14Nonce = ''
+    if ($p14Open.Location -match 'imp=([0-9a-f]{64})') { $p14Nonce = $matches[1] }
+
+    $p14Dash = if ($p14Nonce -ne '') {
+        Invoke-App -Path "/dashboard?imp=$p14Nonce" -Session 'p14super'
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+
+    $p14Hash = ''
+    if ($p14Nonce -ne '') {
+        $p14Sha      = [System.Security.Cryptography.SHA256]::Create()
+        $p14HashBytes = $p14Sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($p14Nonce))
+        $p14Hash     = -join ($p14HashBytes | ForEach-Object { $_.ToString('x2') })
+    }
+
+    $p14Row = (Invoke-MySql "SELECT CONCAT(status, '|', nonce_hash, '|', target_username) FROM impersonation_log WHERE id > $p14LogStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p14RawLookup = (Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE nonce_hash = '$p14Nonce';" | Out-String).Trim()
+
+    $p14CookieOnImp = $false
+    if ($p14Dash.Headers.ContainsKey('set-cookie')) {
+        $p14CookieOnImp = ([string] $p14Dash.Headers['set-cookie']) -match 'ecowealth_imp='
+    }
+
+    $p14UrlOk = ($p14Open.Status -eq 302) -and ($p14Nonce -ne '') `
+        -and ($p14Dash.Status -eq 200) -and ($p14Dash.Body -match 'Viewing as @juan') `
+        -and ($p14Dash.Body -match 'data-impersonation-banner') `
+        -and ($p14Dash.Body -match 'Exit member session') `
+        -and ($p14Row -eq "active|$p14Hash|juan") `
+        -and ($p14Row -notmatch $p14Nonce) -and ($p14RawLookup -eq '0') `
+        -and (-not $p14CookieOnImp)
+    Assert-That 'P14-T1' ($p14SignedIn -and $p14ConsoleOk -and $p14UrlOk) `
+        "the console opens @juan through a URL token: dashboard banner, hashed-only audit row, no imp cookie (open=$($p14Open.Status), dash=$($p14Dash.Status), row=$p14Row, raw=$p14RawLookup, cookie=$p14CookieOnImp)"
+
+    # P14-T2 — a link rendered inside the impersonated tab keeps the token.
+    $p14Link = ''
+    if ($p14Dash.Body -match 'href="([^"]*/wallet\?imp=[0-9a-f]{64})"') { $p14Link = $matches[1] }
+    $p14LinkPath = $p14Link -replace [regex]::Escape($basePath), ''
+    $p14Wallet = if ($p14LinkPath -ne '') {
+        Invoke-App -Path $p14LinkPath -Session 'p14super'
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+    Assert-That 'P14-T2' ($p14Link -match 'imp=' -and $p14Wallet.Status -eq 200 `
+            -and $p14Wallet.Body -match 'Viewing as @juan' -and $p14Wallet.Body -match 'E-wallet') `
+        "a member link carries the token and stays impersonated (link=$p14LinkPath, status=$($p14Wallet.Status))"
+
+    # P14-T3 — Exit marks the log logged_out and the old URL is dead.
+    $p14ImpToken = Get-Csrf $p14Dash.Body
+    $p14Exit = Invoke-App -Method 'POST' -Path "/slogin/exit?imp=$p14Nonce" -Session 'p14super' -Form @{
+        '_csrf' = $p14ImpToken
+    }
+    $p14AfterExit = Invoke-App -Path '/slogin?exited=1' -Session 'p14super'
+    $p14ExitRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE id > $p14LogStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p14Replay = Invoke-App -Path "/dashboard?imp=$p14Nonce" -Session 'p14super'
+    $p14ReplayRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE id > $p14LogStart ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    $p14OwnSession = Invoke-App -Path '/admin' -Session 'p14super'
+    Assert-That 'P14-T3' ($p14Exit.Status -eq 302 -and $p14Exit.Location -match 'slogin\?exited=1' `
+            -and $p14AfterExit.Body -match 'You exited the member session' `
+            -and $p14ExitRow -eq 'logged_out' -and $p14Replay.Status -eq 302 `
+            -and $p14Replay.Location -match 'slogin\?expired=1' -and $p14ReplayRow -eq 'logged_out') `
+        "Exit marks the session logged_out and the token dies (exit=$($p14Exit.Status), replay=$($p14Replay.Status), row=$p14ReplayRow)"
+
+    # P14-T11 — the superadmin's own cookie session survived the round trip.
+    Assert-That 'P14-T11' ($p14OwnSession.Status -eq 200 -and $p14OwnSession.Body -match 'S-Login console') `
+        "the superadmin's own session still opens the back office after impersonating (status=$($p14OwnSession.Status))"
+
+    # P14-T4 — a session past its TTL bounces to the console and is expired.
+    $p14Open2 = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'maria'
+    }
+    $p14Nonce2 = ''
+    if ($p14Open2.Location -match 'imp=([0-9a-f]{64})') { $p14Nonce2 = $matches[1] }
+    if ($p14Nonce2 -ne '') {
+        Invoke-MySql "UPDATE impersonation_log SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE target_username = 'maria' AND status = 'active';" | Out-Null
+    }
+    $p14Expired = if ($p14Nonce2 -ne '') {
+        Invoke-App -Path "/dashboard?imp=$p14Nonce2" -Session 'p14super'
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+    $p14ExpiredRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE target_username = 'maria' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    Assert-That 'P14-T4' ($p14Nonce2 -ne '' -and $p14Expired.Status -eq 302 `
+            -and $p14Expired.Location -match 'expired=1' -and $p14ExpiredRow -eq 'expired') `
+        "a session past its TTL is destroyed and marked expired (status=$($p14Expired.Status), row=$p14ExpiredRow)"
+
+    # P14-T5 — a changed user agent ends the session.
+    $p14Open3 = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Headers @('User-Agent: SmokeUA/1.0') -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'peter'
+    }
+    $p14Nonce3 = ''
+    if ($p14Open3.Location -match 'imp=([0-9a-f]{64})') { $p14Nonce3 = $matches[1] }
+    $p14Ua = if ($p14Nonce3 -ne '') {
+        Invoke-App -Path "/dashboard?imp=$p14Nonce3" -Session 'p14super' -Headers @('User-Agent: SmokeUA/2.0')
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+    $p14UaRow = (Invoke-MySql "SELECT status FROM impersonation_log WHERE target_username = 'peter' ORDER BY id DESC LIMIT 1;" | Out-String).Trim()
+    Assert-That 'P14-T5' ($p14Nonce3 -ne '' -and $p14Ua.Status -eq 302 `
+            -and $p14Ua.Location -match 'expired=1' -and $p14UaRow -eq 'expired') `
+        "a changed user agent ends the session (status=$($p14Ua.Status), row=$p14UaRow)"
+
+    # P14-T6 — the console is superadmin-only; the audit list is admin-only.
+    $p14AdminConsole = Invoke-App -Path '/slogin' -Session 'admin'
+    $p14AdminAudit   = Invoke-App -Path '/admin/impersonations' -Session 'admin'
+    $p14MemberAudit  = Invoke-App -Path '/admin/impersonations' -Session 'p10a'
+    $p14Guest        = Invoke-App -Path '/slogin' -Session 'guest'
+    Assert-That 'P14-T6' ($p14AdminConsole.Status -eq 403 -and $p14AdminAudit.Status -eq 200 `
+            -and $p14MemberAudit.Status -eq 403 -and $p14Guest.Status -eq 302 -and $p14Guest.Location -match '/login$') `
+        "an admin gets 403 on /slogin, the audit list is admin-only, a guest is sent to login (admin=$($p14AdminConsole.Status), audit=$($p14AdminAudit.Status), member=$($p14MemberAudit.Status), guest=$($p14Guest.Status))"
+
+    # P14-T7 — an admin account is not a valid target, and the refusal is explained.
+    $p14AdminTarget = Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+        '_csrf'    = $p14ConsoleToken
+        'username' = 'admin'
+    }
+    $p14AdminTargetPage = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14AdminTargetRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE id > $p14LogStart AND target_username = 'admin';" | Out-String).Trim())
+    Assert-That 'P14-T7' ($p14AdminTarget.Status -eq 302 -and $p14AdminTargetRows -eq 0 `
+            -and ($p14AdminTargetPage.Body -match 'only available for member accounts')) `
+        "an admin account is refused as an S-Login target (rows=$p14AdminTargetRows)"
+
+    # P14-T8 — six attempts for one target in the window are rate-limited.
+    for ($p14Attempt = 1; $p14Attempt -le 6; $p14Attempt++) {
+        Invoke-App -Method 'POST' -Path '/slogin' -Session 'p14super' -Form @{
+            '_csrf'    = $p14ConsoleToken
+            'username' = 'p14_no_such_member'
+        } | Out-Null
+    }
+    $p14RatePage = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14Denied   = [int]((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE id > $p14AuditStart AND action = 'slogin.denied' AND meta_json LIKE '%p14_no_such_member%';" | Out-String).Trim())
+    $p14RateRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE target_username = 'p14_no_such_member';" | Out-String).Trim())
+    Assert-That 'P14-T8' ($p14RatePage.Body -match 'Too many S-Login attempts' -and $p14Denied -eq 6 -and $p14RateRows -eq 0) `
+        "six attempts are rate-limited and every refusal is audited (denied=$p14Denied, sessions=$p14RateRows)"
+
+    # P14-T9/T10 — a tampered token is refused; only the hash is ever stored.
+    $p14Tampered = Invoke-App -Path ('/dashboard?imp=' + ('a' * 64)) -Session 'p14super'
+    $p14TamperRows = [int]((Invoke-MySql "SELECT COUNT(*) FROM impersonation_log WHERE id > $p14LogStart;" | Out-String).Trim())
+    $p14HashLength = (Invoke-MySql "SELECT CONCAT(LENGTH(nonce_hash), '|', nonce_hash = '$p14Nonce') FROM impersonation_log WHERE id > $p14LogStart ORDER BY id ASC LIMIT 1;" | Out-String).Trim()
+    Assert-That 'P14-T9' ($p14Tampered.Status -eq 302 -and $p14Tampered.Location -match 'expired=1' -and $p14TamperRows -ge 3) `
+        "a tampered token is refused (status=$($p14Tampered.Status), rows=$p14TamperRows)"
+    Assert-That 'P14-T10' ($p14HashLength -eq '64|0' -and $p14Row -notmatch $p14Nonce) `
+        "the audit stores a 64-character hash, never the raw nonce (length|raw-match=$p14HashLength)"
+
+    # P14-T12 — the audit page lists the sessions and their end states.
+    $p14AuditPage = Invoke-App -Path '/admin/impersonations' -Session 'p14super'
+    $p14ConsoleAfter = Invoke-App -Path '/slogin' -Session 'p14super'
+    $p14AuditOk = ($p14AuditPage.Status -eq 200) `
+        -and ($p14AuditPage.Body -match 'Super-login audit') `
+        -and ($p14AuditPage.Body -match '@juan') -and ($p14AuditPage.Body -match '@maria') `
+        -and ($p14AuditPage.Body -match 'Logged out') -and ($p14AuditPage.Body -match 'Expired') `
+        -and ($p14AuditPage.Body -notmatch $p14Nonce) `
+        -and ($p14ConsoleAfter.Body -match 'Recent sessions')
+    Assert-That 'P14-T12' $p14AuditOk `
+        "the audit trail lists the sessions and their end states without a raw token (audit=$($p14AuditPage.Status))"
+
+    # P14-T13 — the console is a live surface: the X-Live feed returns both
+    # cards and its own ETag revalidates with a 304 (no page queries).
+    $p14Feed     = Invoke-App -Path '/slogin' -Session 'p14super' -Headers @('X-Live: 1', 'Accept: application/json')
+    $p14FeedJson = $null
+    try { $p14FeedJson = ($p14Feed.Body | Out-String) | ConvertFrom-Json } catch { }
+
+    $p14FeedEtag = ''
+    if ($null -ne $p14FeedJson -and $p14FeedJson.etag) { $p14FeedEtag = [string] $p14FeedJson.etag }
+
+    $p14Revalidate = if ($p14FeedEtag -ne '') {
+        Invoke-App -Path '/slogin' -Session 'p14super' -Headers @('X-Live: 1', 'Accept: application/json', "If-None-Match: $p14FeedEtag")
+    } else {
+        [pscustomobject]@{ Status = 0; Body = ''; Headers = @{}; Location = '' }
+    }
+
+    # An hour boundary between the two calls moves the scope (the "started"
+    # column is relative); retry once with the fresh ETag, as a client would.
+    if ($p14Revalidate.Status -eq 200) {
+        $p14RetryJson = $null
+        try { $p14RetryJson = ($p14Revalidate.Body | Out-String) | ConvertFrom-Json } catch { }
+
+        if ($null -ne $p14RetryJson -and $p14RetryJson.etag) {
+            $p14Revalidate = Invoke-App -Path '/slogin' -Session 'p14super' -Headers @('X-Live: 1', 'Accept: application/json', "If-None-Match: $([string] $p14RetryJson.etag)")
+        }
+    }
+
+    $p14ActiveFragment = ''
+    $p14RecentFragment = ''
+    if ($null -ne $p14FeedJson -and $null -ne $p14FeedJson.fragments) {
+        $p14ActiveFragment = [string] $p14FeedJson.fragments.'slogin-active'
+        $p14RecentFragment = [string] $p14FeedJson.fragments.'slogin-recent'
+    }
+
+    $p14HasEtag = $p14Feed.Headers.ContainsKey('etag')
+
+    Assert-That 'P14-T13' ($p14Feed.Status -eq 200 -and $null -ne $p14FeedJson `
+            -and $p14FeedJson.ok -eq $true -and $p14FeedJson.surface -eq 'admin.slogin' `
+            -and $p14HasEtag `
+            -and $p14ActiveFragment -match 'data-live-region="slogin-active"' `
+            -and $p14RecentFragment -match 'data-live-region="slogin-recent"' `
+            -and $p14ActiveFragment -notmatch $p14Nonce `
+            -and $p14Revalidate.Status -eq 304) `
+        "the console feed returns both cards and revalidates with its own ETag (feed=$($p14Feed.Status), etag=$p14HasEtag, revalidate=$($p14Revalidate.Status))"
+
+
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
+
+    # Leave the cart clean for the maintenance checks.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
+
+    # ---- Phase 17B: the repeat-purchase configuration -------------------
+    $p17bRan        = $true
+    $p17bAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+    $p17bSku        = 'SMOKE-P17B-' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p17bName       = 'Smoke Repeat Product ' + $p17bSku
+
+    # Every key the Commissions card owns: a card save writes all of them,
+    # so each one is snapshotted and posted back unchanged. Phase 19B adds
+    # the thirteen Royalty ladder values and its two switches; Phase 20B adds
+    # the Team Harvest switch, its two knobs (its ten amounts are table rows,
+    # snapshotted from team_harvest_levels below).
+    $p17bCommissionKeys = @(
+        'commission_direct_enabled', 'commission_indirect_enabled', 'commission_requires_active_sponsor',
+        'commission_compression', 'free_registration_enabled', 'commission_indirect_max_levels',
+        'unilevel_enabled', 'unilevel_max_levels', 'unilevel_requires_active_upline',
+        'unilevel_active_threshold', 'unilevel_reversal_enabled',
+        'unilevel_hold_days', 'unilevel_release_enabled',
+        'royalty_enabled', 'royalty_pay_enabled',
+        'royalty_leader_directs', 'royalty_supervisor_leaders',
+        'royalty_manager_supervisors', 'royalty_director_managers',
+        'royalty_supervisor_quota', 'royalty_manager_quota', 'royalty_director_quota',
+        'royalty_supervisor_group_pct', 'royalty_supervisor_personal_pct',
+        'royalty_manager_group_pct', 'royalty_manager_personal_pct',
+        'royalty_director_group_pct', 'royalty_director_personal_pct',
+        'team_harvest_enabled', 'team_harvest_qualify_directs', 'team_harvest_max_levels',
+        'general_harvest_enabled', 'general_harvest_max_levels'
+    )
+
+    # The ten Team Harvest amounts post as `team_harvest_amounts[N]`; each one
+    # is snapshotted so every card save posts the ladder back unchanged.
+    $p20bAmountKeys = @(1..10 | ForEach-Object { "team_harvest_amounts[$_]" })
+    $p20bAmountLevel = @{}
+
+    foreach ($level in 1..10) {
+        $p20bAmountLevel["team_harvest_amounts[$level]"] = $level
+
+        if (-not $p20bLadderBefore.ContainsKey($level)) {
+            $p20bLadderBefore[$level] = '0.00'
+        }
+    }
+
+    foreach ($row in @(Invoke-MySql "SELECT CONCAT(level, '|', amount) FROM team_harvest_levels ORDER BY level;")) {
+        $parts = ([string] $row).Trim().Split('|')
+
+        if ($parts.Count -eq 2) {
+            $p20bLadderBefore[[int] $parts[0]] = $parts[1]
+        }
+    }
+
+    # Phase 21B: the General Harvest ladder and the board row. The checks below
+    # only read the card and send refused saves, but the snapshot is taken so a
+    # failure halfway can never leave an operator's ladder or an armed board
+    # changed by this script.
+    foreach ($row in @(Invoke-MySql "SELECT CONCAT(level, '|', amount) FROM general_harvest_levels ORDER BY level;")) {
+        $parts = ([string] $row).Trim().Split('|')
+
+        if ($parts.Count -eq 2) {
+            $p21bLadderBefore[[int] $parts[0]] = $parts[1]
+        }
+    }
+
+    foreach ($row in @(Invoke-MySql "SELECT CONCAT_WS('|', COALESCE(baseline_n, ''), COALESCE(armed_at, ''), COALESCE(armed_by, ''), settled_n) FROM general_harvest_board WHERE id = 1;")) {
+        $parts = ([string] $row).Trim().Split('|')
+
+        if ($parts.Count -eq 4) {
+            $p21bBoardBefore['baseline_n'] = $parts[0]
+            $p21bBoardBefore['armed_at']   = $parts[1]
+            $p21bBoardBefore['armed_by']   = $parts[2]
+            $p21bBoardBefore['settled_n']  = $parts[3]
+        }
+    }
+
+    $p17bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p17bToken    = Get-Csrf $p17bSettings.Body
+
+    foreach ($key in $p17bCommissionKeys) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    # P17B-T14 - the product form carries the card, the P.V. field and no
+    # direct/indirect control of any kind (D-17).
+    $p17bNewPage  = Invoke-App -Path '/admin/products/new' -Session 'admin'
+    $p17bRateRows = [regex]::Matches($p17bNewPage.Body, 'name="unilevel_levels\[\d+\]"').Count
+    Assert-That 'P17B-T14' ($p17bNewPage.Status -eq 200 -and $p17bRateRows -eq 10 `
+            -and $p17bNewPage.Body -match 'Unilevel repeat-purchase bonus' `
+            -and $p17bNewPage.Body -match 'name="pv"' `
+            -and $p17bNewPage.Body -match 'name="unilevel_base"' `
+            -and $p17bNewPage.Body -match 'app-product-unilevel\.js' `
+            -and $p17bNewPage.Body -notmatch 'direct_unilevel' `
+            -and $p17bNewPage.Body -notmatch 'indirect_unilevel') `
+        "the product form renders ten rate inputs, the P.V. field and the base select, with no direct/indirect control (inputs=$p17bRateRows)"
+
+    # P17B-T1 / QA17B-02 - create with a P.V., the reference ladder and the
+    # switch on; ten rows, 29.000% in total.
+    $p17bForm = @{
+        '_csrf'              = $adminToken
+        'name'               = $p17bName
+        'sku'                = $p17bSku
+        'price'              = '300.00'
+        'pv'                 = '250'
+        'stock'              = '50'
+        'sort_order'         = '999'
+        'status'             = 'active'
+        'unilevel_base'      = 'auto'
+        'unilevel_enabled'   = '1'
+        'unilevel_levels[1]' = '5'
+        'unilevel_levels[2]' = '5'
+        'unilevel_levels[3]' = '5'
+        'unilevel_levels[4]' = '3'
+        'unilevel_levels[5]' = '3'
+        'unilevel_levels[6]' = '2'
+        'unilevel_levels[7]' = '2'
+        'unilevel_levels[8]' = '2'
+        'unilevel_levels[9]' = '1'
+        'unilevel_levels[10]' = '1'
+    }
+
+    $p17bCreate  = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bForm
+    $p17bId      = [int] ((Invoke-MySql "SELECT id FROM products WHERE sku = '$p17bSku' LIMIT 1;" | Out-String).Trim())
+    $p17bRows    = (Invoke-MySql "SELECT COUNT(*) FROM product_unilevel_levels WHERE product_id = $p17bId;" | Out-String).Trim()
+    $p17bSum     = (Invoke-MySql "SELECT SUM(percent) FROM product_unilevel_levels WHERE product_id = $p17bId;" | Out-String).Trim()
+    $p17bProduct = (Invoke-MySql "SELECT CONCAT(pv, '|', unilevel_enabled, '|', unilevel_base) FROM products WHERE id = $p17bId;" | Out-String).Trim()
+
+    Assert-That 'P17B-T1' ($p17bCreate.Status -eq 302 -and $p17bId -gt 0 -and $p17bRows -eq '10' `
+            -and $p17bSum -eq '29.000' -and $p17bProduct -eq '250.00|1|auto') `
+        "POST /admin/products/save stores the P.V., the switch and ten ladder rows totalling 29.000% (status=$($p17bCreate.Status), id=$p17bId, rows=$p17bRows, sum=$p17bSum, pv|on|base=$p17bProduct)"
+
+    $p17bEditPage = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    Assert-That 'P17B-T1' ($p17bEditPage.Status -eq 200 -and $p17bEditPage.Body -match 'value="5"' `
+            -and $p17bEditPage.Body -match '29\.000%' -and $p17bEditPage.Body -match 'checked' `
+            -and $p17bEditPage.Body -match 'value="250.00"') `
+        'the edit form re-reads the stored ladder, the 29.000% total, the switch and the P.V.'
+
+    # P17B-T9 - the ladder change is audited once, with before and after.
+    $p17bAuditCount = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'product.unilevel.update' AND subject_id = $p17bId;" | Out-String).Trim()
+    $p17bAuditMeta  = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'product.unilevel.update' AND subject_id = $p17bId ORDER BY id DESC LIMIT 1;" | Out-String)
+    Assert-That 'P17B-T9' ($p17bAuditCount -eq '1' -and $p17bAuditMeta -match '"before"' `
+            -and $p17bAuditMeta -match '"after"' -and $p17bAuditMeta -match '"levels"') `
+        "editing the ladder writes one product.unilevel.update audit row with before/after (rows=$p17bAuditCount)"
+
+    # P17B-T3 / QA17B-03 - ten levels at 20% is 200%: refused, values kept,
+    # the stored ladder untouched.
+    $p17bOver = $p17bForm.Clone()
+    $p17bOver['product_id'] = "$p17bId"
+
+    for ($level = 1; $level -le 10; $level++) {
+        $p17bOver["unilevel_levels[$level]"] = '20'
+    }
+
+    $p17bOverSave = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bOver
+    $p17bOverForm = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    $p17bLevel4   = (Invoke-MySql "SELECT percent FROM product_unilevel_levels WHERE product_id = $p17bId AND level = 4;" | Out-String).Trim()
+
+    Assert-That 'P17B-T3' ($p17bOverSave.Status -eq 302 -and $p17bOverForm.Body -match 'cannot add up to more than 100%' `
+            -and $p17bOverForm.Body -match 'value="20"' -and $p17bLevel4 -eq '3.000') `
+        "a 200% ladder is refused with the sum error, the deleted values stay on screen and the stored 3.000% survives (level4=$p17bLevel4)"
+
+    # P17B-T6 / QA17B-04 - switch on with every level cleared is refused.
+    $p17bEmpty = $p17bForm.Clone()
+    $p17bEmpty['product_id'] = "$p17bId"
+
+    for ($level = 1; $level -le 10; $level++) {
+        $p17bEmpty["unilevel_levels[$level]"] = ''
+    }
+
+    $p17bEmptySave = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bEmpty
+    $p17bEmptyForm = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    Assert-That 'P17B-T6' ($p17bEmptySave.Status -eq 302 -and $p17bEmptyForm.Body -match 'Turn the switch off or give at least one level a rate above 0') `
+        'switching the ladder on with every level at 0 is refused'
+
+    # P17B-T7 / QA17B-05 - a P.V. base needs a P.V.
+    $p17bPvBase = $p17bForm.Clone()
+    $p17bPvBase['product_id']     = "$p17bId"
+    $p17bPvBase['pv']             = '0'
+    $p17bPvBase['unilevel_base']  = 'pv'
+
+    $p17bPvSave = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bPvBase
+    $p17bPvForm = Invoke-App -Path "/admin/products/$p17bId/edit" -Session 'admin'
+    $p17bAfterPv = (Invoke-MySql "SELECT CONCAT(pv, '|', unilevel_base) FROM products WHERE id = $p17bId;" | Out-String).Trim()
+
+    Assert-That 'P17B-T7' ($p17bPvSave.Status -eq 302 -and $p17bPvForm.Body -match 'A P\.V\. base needs a point value above 0' `
+            -and $p17bAfterPv -eq '250.00|auto') `
+        "a P.V. base with no P.V. is refused on the base field and the product keeps its P.V. and Auto base ($p17bAfterPv)"
+
+    # QA17B-08 - the form saves with JavaScript off: the preview is the only
+    # thing that is missing, and it is rendered server-side, so nothing that
+    # matters depends on the script.
+    $p17bNoJsForm = $p17bForm.Clone()
+    $p17bNoJsForm['product_id'] = "$p17bId"
+    $p17bNoJs = Invoke-App -Method 'POST' -Path '/admin/products/save' -Session 'admin' -Form $p17bNoJsForm
+    $p17bNoJsRows = (Invoke-MySql "SELECT COUNT(*) FROM product_unilevel_levels WHERE product_id = $p17bId;" | Out-String).Trim()
+    Assert-That 'P17B-T14' ($p17bNoJs.Status -eq 302 -and $p17bNoJsRows -eq '10') `
+        'the product form still saves through a plain POST (no script run)'
+
+    # P17B-T16 / T17 / QA17B-06 - the badge and the filter.
+    $p17bList = Invoke-App -Path "/admin/products?q=$p17bSku" -Session 'admin'
+    $p17bOn   = Invoke-App -Path "/admin/products?unilevel=on&q=$p17bSku" -Session 'admin'
+    $p17bOff  = Invoke-App -Path "/admin/products?unilevel=off&q=$p17bSku" -Session 'admin'
+
+    Assert-That 'P17B-T16' ($p17bList.Status -eq 200 -and $p17bList.Body -match 'Repeat bonus 29%') `
+        'the list badge reads Repeat bonus 29% for a configured product'
+
+    Assert-That 'P17B-T17' ($p17bOn.Body -match "admin/products/$p17bId/edit" `
+            -and $p17bOff.Body -notmatch "admin/products/$p17bId/edit" `
+            -and $p17bOff.Body -match 'No products match these filters') `
+        'the ?unilevel=on filter returns the product and ?unilevel=off does not'
+
+    # P17B-T18 / T19 / QA17B-07 - the Commissions card and its validation.
+    $p17bCard = $p17bSettings.Body -match 'Repeat-purchase bonus' `
+        -and $p17bSettings.Body -match 'name="unilevel_max_levels"' `
+        -and $p17bSettings.Body -match 'name="unilevel_active_threshold"' `
+        -and $p17bSettings.Body -match 'name="unilevel_enabled"' `
+        -and $p17bSettings.Body -match 'name="unilevel_requires_active_upline"' `
+        -and $p17bSettings.Body -match 'name="unilevel_reversal_enabled"' `
+        -and $p17bSettings.Body -notmatch 'unilevel_ledger_since'
+    Assert-That 'P17B-T18' $p17bCard `
+        'the Commissions card holds the five repeat-purchase keys and never the ledger baseline'
+
+    $p17bCommissionForm = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p17bCommissionForm[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p17bCommissionForm[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+
+    $p17bBadDepth = $p17bCommissionForm.Clone()
+    $p17bBadDepth['unilevel_max_levels'] = '11'
+    $p17bBadSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p17bBadDepth
+    $p17bBadPage = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p17bDepthDb = Get-SettingValue 'unilevel_max_levels'
+
+    Assert-That 'P17B-T19' ($p17bBadSave.Status -eq 302 -and $p17bBadPage.Body -match 'Upline depth must be at most 10' `
+            -and $p17bDepthDb -eq [string] $settingsSnapshot['unilevel_max_levels']) `
+        "an out-of-range depth (11) is refused and nothing is written (stored=$p17bDepthDb)"
+
+    $p17bGood = $p17bCommissionForm.Clone()
+    $p17bGood['unilevel_max_levels']       = '10'
+    # A threshold that differs from whatever is stored, so the run always
+    # produces a real change to audit (the finally block restores it).
+    $p17bThreshold = '500.50'
+    if ((Get-SettingValue 'unilevel_active_threshold') -eq $p17bThreshold) { $p17bThreshold = '500.75' }
+    $p17bGood['unilevel_active_threshold'] = $p17bThreshold
+    $p17bGood['unilevel_enabled']          = '0'
+    $p17bGoodSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p17bGood
+    $p17bStored   = (Invoke-MySql "SELECT CONCAT(
+        COALESCE(MAX(CASE WHEN key_name = 'unilevel_max_levels' THEN value END), '?'), '|',
+        COALESCE(MAX(CASE WHEN key_name = 'unilevel_active_threshold' THEN value END), '?'))
+        FROM settings WHERE key_name IN ('unilevel_max_levels', 'unilevel_active_threshold');" | Out-String).Trim()
+    $p17bSettingsAudit = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'settings.update' AND id > $p17bAuditStart AND meta_json LIKE '%unilevel_active_threshold%' ORDER BY id DESC LIMIT 1;" | Out-String)
+
+    Assert-That 'P17B-T19' ($p17bGoodSave.Status -eq 302 -and $p17bStored -eq "10|$p17bThreshold" `
+            -and $p17bSettingsAudit -match 'unilevel_active_threshold') `
+        "the card round-trips a valid depth and threshold and audits the change (stored=$p17bStored)"
+
+    # P17B-T20 / QA17B-09 - the configured product is on but the global
+    # master is off. 17C's hook stamps the order as "decided, nothing
+    # due" (a date and a zero total) and still writes no award.
+    $p17bAwardsBefore = (Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim()
+    $p17bLedgerBefore = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('unilevel', 'unilevel_reversal');" | Out-String).Trim()
+
+    Invoke-App -Method 'POST' -Path "/admin/wallets/$cartMemberId/credit" -Session 'admin' `
+        -Form @{ '_csrf' = $adminToken; 'amount' = '500.00'; 'note' = 'Smoke repeat order funds' } | Out-Null
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $memberCartToken; 'product_id' = "$p17bId"; 'quantity' = '1' } | Out-Null
+
+    $p17bCheckoutPage  = Invoke-App -Path '/checkout' -Session 'member'
+    $p17bCheckoutToken = Get-Csrf $p17bCheckoutPage.Body
+    $p17bIdem          = ''
+    if ($p17bCheckoutPage.Body -match 'name="idempotency_key"\s+value="([0-9a-f]{32})"') { $p17bIdem = $matches[1] }
+
+    $p17bPlace = Invoke-App -Method 'POST' -Path '/checkout' -Session 'member' -Form @{
+        '_csrf'             = $p17bCheckoutToken
+        'billing_name'      = 'Smoke Buyer'
+        'billing_phone'     = '0917 000 0000'
+        'shipping_name'     = 'Smoke Buyer'
+        'shipping_phone'    = '0917 000 0000'
+        'shipping_address'  = '12 Smoke Street'
+        'shipping_barangay' = 'Poblacion'
+        'shipping_city'     = 'Makati'
+        'shipping_province' = 'Metro Manila'
+        'shipping_postal'   = '1200'
+        'notes_member'      = 'Smoke repeat order'
+        'payment_method'    = 'ewallet'
+        'terms'             = '1'
+        'idempotency_key'   = $p17bIdem
+    }
+
+    $p17bOrderId = 0
+    if ($p17bPlace.Location -match '/orders/(\d+)$') { $p17bOrderId = [int]$matches[1] }
+
+    $p17bOrderStatus = (Invoke-MySql "SELECT status FROM shop_orders WHERE id = $p17bOrderId;" | Out-String).Trim()
+    $p17bOrderStamp  = (Invoke-MySql "SELECT CONCAT(COALESCE(DATE_FORMAT(unilevel_processed_at, '%Y-%m-%d'), 'NULL'), '|', unilevel_total) FROM shop_orders WHERE id = $p17bOrderId;" | Out-String).Trim()
+    $p17bAwardsAfter = (Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim()
+    $p17bUnilevelLedger = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type IN ('unilevel', 'unilevel_reversal');" | Out-String).Trim()
+
+    Assert-That 'P17B-T20' ($p17bPlace.Status -eq 302 -and $p17bOrderId -gt 0 -and $p17bOrderStatus -eq 'paid' `
+            -and $p17bOrderStamp -match '^\d{4}-\d{2}-\d{2}\|0\.00$' -and $p17bAwardsAfter -eq $p17bAwardsBefore `
+            -and $p17bUnilevelLedger -eq $p17bLedgerBefore) `
+        "a paid order with the global stream off is stamped with a zero total and writes no award (order=$p17bOrderId, status=$p17bOrderStatus, stamp|total=$p17bOrderStamp, awards=$p17bAwardsBefore->$($p17bAwardsAfter), ledger=$p17bLedgerBefore->$($p17bUnilevelLedger))"
+
+    # ---- Phase 19B: the Royalty ladder configuration -------------------
+    # The ladder card, its cross-field validation and the derived rank
+    # column. 19B moves no money: every check here reads a page or sends a
+    # refused save, so there is nothing to restore beyond the snapshot.
+    $p19bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p19bFieldCount = [regex]::Matches($p19bSettings.Body,
+        'name="royalty_(leader_directs|supervisor_leaders|manager_supervisors|director_managers|supervisor_quota|manager_quota|director_quota|supervisor_group_pct|supervisor_personal_pct|manager_group_pct|manager_personal_pct|director_group_pct|director_personal_pct)"').Count
+
+    Assert-That 'P19B-T1' ($p19bSettings.Status -eq 200 `
+            -and $p19bSettings.Body -match 'Royalty bonus' `
+            -and $p19bSettings.Body -match 'name="royalty_enabled"' `
+            -and $p19bSettings.Body -match 'name="royalty_pay_enabled"' `
+            -and $p19bFieldCount -eq 13 `
+            -and $p19bSettings.Body -match 'data-royalty-ladder' `
+            -and $p19bSettings.Body -match 'data-royalty-rank="supervisor"' `
+            -and $p19bSettings.Body -match '3\.000%' `
+            -and $p19bSettings.Body -match '8\.000%' `
+            -and $p19bSettings.Body -match '25\.000%' `
+            -and $p19bSettings.Body -notmatch 'name="royalty_ledger_since"') `
+        "the Commissions card renders the Royalty sub-block, thirteen inputs and the saved ladder (status=$($p19bSettings.Status), numeric inputs=$p19bFieldCount)"
+
+    # A Manager quota below the Supervisor quota is a field error and
+    # writes nothing.
+    $p19bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p19bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p19bBadSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    $p19bBadSave['royalty_supervisor_quota'] = '500000.00'
+    $p19bBadSave['royalty_manager_quota']    = '400000.00'
+
+    $p19bQuotaBefore = Get-SettingValue 'royalty_manager_quota'
+    $p19bBadResult = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p19bBadSave
+    $p19bBadPage   = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p19bQuotaAfter = Get-SettingValue 'royalty_manager_quota'
+
+    Assert-That 'P19B-T6' ($p19bBadResult.Status -eq 302 `
+            -and $p19bBadPage.Body -match 'The Manager quota cannot be below the Supervisor quota' `
+            -and $p19bQuotaAfter -eq $p19bQuotaBefore) `
+        "a Manager quota below the Supervisor quota is refused and nothing is written (stored=$p19bQuotaAfter)"
+
+    # Every member row carries a derived rank badge and the directory
+    # shows the distribution. The demo tree is all Members and Leaders, so
+    # only the structure is asserted, never a live count.
+    $p19bMembers = Invoke-App -Path '/admin/members' -Session 'admin'
+    Assert-That 'P19B-T23' ($p19bMembers.Status -eq 200 `
+            -and $p19bMembers.Body -match '<th>Rank</th>' `
+            -and $p19bMembers.Body -match 'data-rank-distribution' `
+            -and $p19bMembers.Body -match 'data-rank-count="member"' `
+            -and $p19bMembers.Body -match 'data-rank-count="director"' `
+            -and $p19bMembers.Body -match 'ranked \(Supervisor\+\)' `
+            -and $p19bMembers.Body -match 'badge bg-label-(secondary|info|primary|warning|success)">(Member|Leader|Supervisor|Manager|Director)<') `
+        "the member directory renders the Rank column and the derived distribution (status=$($p19bMembers.Status))"
+
+    # ---- Phase 20B: the Team Harvest configuration ----------------------
+    # The ladder card, its sum guard and the generated 3x10 matrix. 20B moves
+    # no money and writes no position: every check here reads the card or
+    # sends a refused save, so the stored ladder is never rewritten.
+    $p20bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p20bInputs   = [regex]::Matches($p20bSettings.Body, 'name="team_harvest_amounts\[\d+\]"').Count
+
+    Assert-That 'P20B-T1' ($p20bSettings.Status -eq 200 `
+            -and $p20bSettings.Body -match 'Team Harvest bonus' `
+            -and $p20bSettings.Body -match 'name="team_harvest_enabled"' `
+            -and $p20bSettings.Body -match 'name="team_harvest_qualify_directs"' `
+            -and $p20bSettings.Body -match 'name="team_harvest_max_levels"' `
+            -and $p20bInputs -eq 10 `
+            -and $p20bSettings.Body -match 'value="1000.00"' `
+            -and $p20bSettings.Body -match 'value="3500000.00"' `
+            -and $p20bSettings.Body -match 'data-team-harvest-table' `
+            -and $p20bSettings.Body -match 'data-team-harvest-state="unseeded"' `
+            -and $p20bSettings.Body -match 'bin/harvest_queue_seed.php' `
+            -and $p20bSettings.Body -match '5,095,000.00' `
+            -and $p20bSettings.Body -notmatch 'team_harvest_ledger_since') `
+        "the Commissions card renders the Team Harvest sub-block, ten amount inputs and the unseeded strip (status=$($p20bSettings.Status), inputs=$p20bInputs)"
+
+    # The generated matrix is Appendix A: slots 3/9/27 ... 59,049, thresholds
+    # 3/12/39 ... 88,572 and PHP 5,095,000.00 in total.
+    Assert-That 'P20B-T11' ($p20bSettings.Body -match 'data-team-harvest-slots="1">3' `
+            -and $p20bSettings.Body -match 'data-team-harvest-slots="10">59,049' `
+            -and $p20bSettings.Body -match 'data-team-harvest-threshold="1">3' `
+            -and $p20bSettings.Body -match 'data-team-harvest-threshold="10">88,572' `
+            -and $p20bSettings.Body -match '5,095,000.00') `
+        'the Team Harvest ladder table renders Appendix A slots, thresholds and the cumulative total'
+
+    # Three levels at the per-level ceiling total PHP 30,195,000.00: a `sum`
+    # field error, and neither the settings nor the ten rows may move.
+    $p20bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p20bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p20bBadSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    $p20bBadSave['team_harvest_amounts[8]']  = '10000000.00'
+    $p20bBadSave['team_harvest_amounts[9]']  = '10000000.00'
+    $p20bBadSave['team_harvest_amounts[10]'] = '10000000.00'
+
+    $p20bLadderBeforeText = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM team_harvest_levels;" | Out-String).Trim()
+    $p20bBadResult        = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p20bBadSave
+    $p20bBadPage          = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p20bLadderAfterText  = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM team_harvest_levels;" | Out-String).Trim()
+
+    Assert-That 'P20B-T4' ($p20bBadResult.Status -eq 302 `
+            -and $p20bBadPage.Body -match 'cannot exceed' `
+            -and $p20bLadderAfterText -eq $p20bLadderBeforeText) `
+        "a Team Harvest ladder over the PHP 25M ceiling is refused and the stored ladder is unchanged (sum|rows=$p20bLadderAfterText)"
+
+    # ---- Phase 21B: the General Harvest configuration --------------------
+    # The shared-board card, its generated ladder and position table, the
+    # four-state strip and the sum guard. 21B moves no money and writes no
+    # award: every check here reads the card or sends a refused save, so the
+    # stored ladder and the board row are never rewritten.
+    $p21bSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p21bInputs   = [regex]::Matches($p21bSettings.Body, 'name="general_harvest_amounts\[\d+\]"').Count
+    $p21bAwardsBefore = (Invoke-MySql 'SELECT COUNT(*) FROM general_harvest_awards;' | Out-String).Trim()
+    $p21bLedgerBefore = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';" | Out-String).Trim()
+    $p21bBoardBeforeText = (Invoke-MySql "SELECT CONCAT_WS('|', COALESCE(baseline_n, 'none'), COALESCE(armed_at, 'none'), settled_n) FROM general_harvest_board WHERE id = 1;" | Out-String).Trim()
+
+    # The card prints the stored ladder, whatever it is: a development database
+    # whose amounts an operator has cleared must still pass, so the two stored
+    # cells are compared with the snapshot rather than with Appendix A.
+    $p21bAmount1  = if ($p21bLadderBefore.ContainsKey(1)) { [double] $p21bLadderBefore[1] } else { 0 }
+    $p21bAmount10 = if ($p21bLadderBefore.ContainsKey(10)) { [double] $p21bLadderBefore[10] } else { 0 }
+    $p21bStored1  = '{0:N2}' -f $p21bAmount1
+    $p21bStored10 = '{0:N2}' -f $p21bAmount10
+
+    Assert-That 'P21B-T1' ($p21bSettings.Status -eq 200 `
+            -and $p21bSettings.Body -match 'General Harvest bonus' `
+            -and $p21bSettings.Body -match 'name="general_harvest_enabled"' `
+            -and $p21bSettings.Body -match 'name="general_harvest_max_levels"' `
+            -and $p21bInputs -eq 10 `
+            -and $p21bSettings.Body -match ('data-general-harvest-stored="1">[^<]*' + [regex]::Escape($p21bStored1)) `
+            -and $p21bSettings.Body -match ('data-general-harvest-stored="10">[^<]*' + [regex]::Escape($p21bStored10)) `
+            -and $p21bSettings.Body -match 'data-general-harvest-table' `
+            -and $p21bSettings.Body -match 'data-general-harvest-positions' `
+            -and $p21bSettings.Body -match 'data-general-harvest-state="unarmed"' `
+            -and $p21bSettings.Body -match 'bin/general_harvest_arm.php' `
+            -and $p21bSettings.Body -match '8,381,000.00' `
+            -and $p21bSettings.Body -match '25,000,000.00' `
+            -and $p21bSettings.Body -notmatch 'name="general_harvest_arm') `
+        "the Commissions card renders the General Harvest sub-block, ten amount inputs, both generated tables and the unarmed strip (status=$($p21bSettings.Status), inputs=$p21bInputs)"
+
+    # The generated ladder is Appendix A: slots 3 / 59,049, apex thresholds
+    # 4 / 88,573 and the position table's first and last cell (§4.5).
+    Assert-That 'P21B-T22' ($p21bSettings.Body -match 'data-general-harvest-slots="1">3' `
+            -and $p21bSettings.Body -match 'data-general-harvest-slots="10">59,049' `
+            -and $p21bSettings.Body -match 'data-general-harvest-apex="1">4</td>' `
+            -and $p21bSettings.Body -match 'data-general-harvest-apex="10">88,573</td>' `
+            -and $p21bSettings.Body -match 'data-general-harvest-position-cell="1:1">4</td>' `
+            -and $p21bSettings.Body -match 'data-general-harvest-position-cell="6:4">526</td>' `
+            -and $p21bSettings.Body -match '8,381,000.00') `
+        'the General Harvest ladder table renders Appendix A slots, thresholds and the position table matches the reference'
+
+    # Three levels at the per-level ceiling total PHP 30,401,000.00: a `sum`
+    # field error, and neither the settings, the two ladders nor the board may
+    # move.
+    $p21bBadSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p21bBadSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p21bBadSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    foreach ($level in $p21bLadderBefore.Keys) { $p21bBadSave["general_harvest_amounts[$level]"] = [string] $p21bLadderBefore[$level] }
+    $p21bBadSave['general_harvest_amounts[8]']  = '10000000.00'
+    $p21bBadSave['general_harvest_amounts[9]']  = '10000000.00'
+    $p21bBadSave['general_harvest_amounts[10]'] = '10000000.00'
+
+    $p21bLadderBeforeText = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM general_harvest_levels;" | Out-String).Trim()
+    $p21bBadResult        = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p21bBadSave
+    $p21bBadPage          = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+    $p21bLadderAfterText  = (Invoke-MySql "SELECT CONCAT(SUM(amount), '|', COUNT(*)) FROM general_harvest_levels;" | Out-String).Trim()
+
+    Assert-That 'P21B-T4' ($p21bBadResult.Status -eq 302 `
+            -and $p21bBadPage.Body -match 'cannot exceed' `
+            -and $p21bBadPage.Body -match 'Level 1 amount|general_harvest_amounts' `
+            -and $p21bLadderAfterText -eq $p21bLadderBeforeText) `
+        "a General Harvest ladder over the PHP 25M ceiling is refused and the stored ladder is unchanged (sum|rows=$p21bLadderAfterText)"
+
+    # The depth is one small integer: 11 is a field error and the stored value
+    # survives (P21B-T9's refusal, from the outside).
+    $p21bDepthSave = @{ '_csrf' = $p17bToken; 'section' = 'commissions' }
+    foreach ($key in $p17bCommissionKeys) { $p21bDepthSave[$key] = [string] $settingsSnapshot[$key] }
+    foreach ($key in $p20bAmountKeys) { $p21bDepthSave[$key] = [string] $p20bLadderBefore[$p20bAmountLevel[$key]] }
+    foreach ($level in $p21bLadderBefore.Keys) { $p21bDepthSave["general_harvest_amounts[$level]"] = [string] $p21bLadderBefore[$level] }
+    $p21bDepthSave['general_harvest_max_levels'] = '11'
+
+    $p21bDepthResult = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p21bDepthSave
+    $p21bDepthAfter  = (Invoke-MySql "SELECT value FROM settings WHERE key_name = 'general_harvest_max_levels';" | Out-String).Trim()
+    $p21bDepthPage   = Invoke-App -Path '/admin/settings#settings-commissions' -Session 'admin'
+
+    Assert-That 'P21B-T9' ($p21bDepthResult.Status -eq 302 `
+            -and $p21bDepthPage.Body -match 'must be at most 10' `
+            -and $p21bDepthAfter -eq [string] $settingsSnapshot['general_harvest_max_levels']) `
+        "a General Harvest depth of 11 is refused and the stored depth survives (depth=$p21bDepthAfter)"
+
+    # No award, no queue movement and no General Harvest wallet row: 21B has no
+    # writer (P21B-T21's inert state, from the outside). The block compares
+    # before and after rather than against zero, so a database that a later
+    # phase has already armed still passes.
+    $p21bAwards   = (Invoke-MySql 'SELECT COUNT(*) FROM general_harvest_awards;' | Out-String).Trim()
+    $p21bLedger   = (Invoke-MySql "SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'general_harvest';" | Out-String).Trim()
+    $p21bBoardRow = (Invoke-MySql "SELECT CONCAT_WS('|', COALESCE(baseline_n, 'none'), COALESCE(armed_at, 'none'), settled_n) FROM general_harvest_board WHERE id = 1;" | Out-String).Trim()
+
+    Assert-That 'P21B-T21' ($p21bAwards -eq $p21bAwardsBefore `
+            -and $p21bLedger -eq $p21bLedgerBefore `
+            -and $p21bBoardRow -eq $p21bBoardBeforeText) `
+        "the General Harvest card writes no award, no wallet row and no board state (awards=$p21bAwards, ledger=$p21bLedger, board=$p21bBoardRow)"
+
+    # ---- Phase 20G: the release walk -------------------------------------
+    # The stream adds no route, so the walk is one pass over the pages that
+    # already existed: the settings card, the fourth ledger tab, the members
+    # directory and its filter, the reports block and CSV, the member
+    # statement, the dashboard tile and the genealogy badge. Then it proves
+    # the registration hook by registering a sponsor's third direct. The
+    # finally block restores everything this block writes.
+    $p20gAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    # P20G-T1 - the settings card still owns the ten amounts and the strip.
+    $p20gSettings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    Assert-That 'P20G-T1' ($p20gSettings.Status -eq 200 `
+            -and $p20gSettings.Body -match 'Team Harvest bonus' `
+            -and $p20gSettings.Body -match 'data-team-harvest-table' `
+            -and $p20gSettings.Body -match 'data-team-harvest-state="unseeded"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_enabled"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_qualify_directs"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_max_levels"' `
+            -and $p20gSettings.Body -match 'name="team_harvest_amounts\[10\]"' `
+            -and $p20gSettings.Body -match '5,095,000.00') `
+        "GET /admin/settings renders the Team Harvest card, ten amounts and the unseeded strip (status=$($p20gSettings.Status))"
+
+    # P20G-T2 - the fourth ledger tab and its five regions. It is a query
+    # parameter on a route that already existed: /team-harvest stays a 404.
+    $p20gLedger  = Invoke-App -Path '/admin/commissions?ledger=team_harvest' -Session 'admin'
+    $p20gNoRoute = Invoke-App -Path '/team-harvest' -Session 'guest'
+    Assert-That 'P20G-T2' ($p20gLedger.Status -eq 200 `
+            -and $p20gLedger.Body -match 'Team Harvest ledger' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-header"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-stats"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-levels"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-rows"' `
+            -and $p20gLedger.Body -match 'data-live-region="team-harvest-pagination"' `
+            -and $p20gLedger.Body -match 'No level has completed yet' `
+            -and $p20gLedger.Body -match 'name="ledger" value="team_harvest"' `
+            -and $p20gNoRoute.Status -eq 404) `
+        "the fourth ledger tab renders its five regions and /team-harvest is still 404 (status=$($p20gLedger.Status)/$($p20gNoRoute.Status))"
+
+    # P20G-T3 - the three older tabs keep their regions and render no Team
+    # Harvest region (the 20E regression, from the outside).
+    $p20gPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $p20gRepeat  = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
+    $p20gRoyalty = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'admin'
+    Assert-That 'P20G-T3' ($p20gPackage.Status -eq 200 -and $p20gRepeat.Status -eq 200 -and $p20gRoyalty.Status -eq 200 `
+            -and $p20gPackage.Body -match 'Commission ledger' `
+            -and $p20gPackage.Body -match 'data-live-region="commission-rows"' `
+            -and $p20gRepeat.Body -match 'Repeat-purchase ledger' `
+            -and $p20gRepeat.Body -match 'data-live-region="repeat-rows"' `
+            -and $p20gRoyalty.Body -match 'Royalty bonus' `
+            -and $p20gRoyalty.Body -match 'data-live-region="commission-royalty-rows"' `
+            -and $p20gPackage.Body -notmatch 'data-live-region="team-harvest-' `
+            -and $p20gRepeat.Body -notmatch 'data-live-region="team-harvest-' `
+            -and $p20gRoyalty.Body -notmatch 'data-live-region="team-harvest-') `
+        "the package, repeat and Royalty tabs keep their regions and render no Team Harvest region (status=$($p20gPackage.Status)/$($p20gRepeat.Status)/$($p20gRoyalty.Status))"
+
+    # P20G-T4 - the directory's Harvest column, queue card and filter.
+    $p20gMembers = Invoke-App -Path '/admin/members' -Session 'admin'
+    Assert-That 'P20G-T4' ($p20gMembers.Status -eq 200 `
+            -and $p20gMembers.Body -match '<th>Harvest</th>' `
+            -and $p20gMembers.Body -match 'data-live-region="member-harvest"' `
+            -and $p20gMembers.Body -match 'Team Harvest queue' `
+            -and $p20gMembers.Body -match 'name="harvest"' `
+            -and $p20gMembers.Body -match 'In the Harvest queue' `
+            -and $p20gMembers.Body -match 'Not qualified') `
+        "GET /admin/members renders the Harvest column, the queue card and the three filter states (status=$($p20gMembers.Status))"
+
+    # P20G-T5 - both filter values answer 200 and keep their selection.
+    $p20gHarvestYes = Invoke-App -Path '/admin/members?harvest=yes' -Session 'admin'
+    $p20gHarvestNo  = Invoke-App -Path '/admin/members?harvest=no' -Session 'admin'
+    Assert-That 'P20G-T5' ($p20gHarvestYes.Status -eq 200 -and $p20gHarvestNo.Status -eq 200 `
+            -and $p20gHarvestYes.Body -match 'value="yes" selected' `
+            -and $p20gHarvestNo.Body -match 'value="no" selected' `
+            -and $p20gHarvestYes.Body -match 'data-live-region="member-rows"') `
+        "?harvest=yes|no answer 200 and keep the selected state (status=$($p20gHarvestYes.Status)/$($p20gHarvestNo.Status))"
+
+    # P20G-T6 - the reports block and its export menu.
+    $p20gReports = Invoke-App -Path '/admin/reports' -Session 'admin'
+    Assert-That 'P20G-T6' ($p20gReports.Status -eq 200 `
+            -and $p20gReports.Body -match 'data-live-region="report-team-harvest"' `
+            -and $p20gReports.Body -match 'Team Harvest bonus' `
+            -and $p20gReports.Body -match 'type=team_harvest') `
+        "GET /admin/reports renders the Team Harvest block and offers its export (status=$($p20gReports.Status))"
+
+    # P20G-T7 - the reports CSV and the one audit row it writes.
+    $p20gReportCsv   = Invoke-App -Path '/admin/reports/export?type=team_harvest' -Session 'admin'
+    $p20gExportAudit = [int] ((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'report.export' AND id > $p20gAuditStart;" | Out-String).Trim())
+    Assert-That 'P20G-T7' ($p20gReportCsv.Status -eq 200 `
+            -and $p20gReportCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p20gReportCsv.Body -match 'Scope,"Award id","Credited at",Member,Position,Level,"Teammates \(n\)",Threshold,Amount,Status,"Wallet reference"' `
+            -and $p20gExportAudit -eq 1) `
+        "the Team Harvest report CSV carries the scoped header and writes one audit row (status=$($p20gReportCsv.Status), audit=$p20gExportAudit)"
+
+    # P20G-T8 - a member who is not qualified reads the gate, not a matrix.
+    $p20gMemberTab = Invoke-App -Path '/earnings?ledger=team_harvest' -Session 'member'
+    Assert-That 'P20G-T8' ($p20gMemberTab.Status -eq 200 `
+            -and $p20gMemberTab.Body -match 'Your Team Harvest bonus' `
+            -and $p20gMemberTab.Body -match 'You are not qualified yet: 0 of 3 direct members\.' `
+            -and $p20gMemberTab.Body -match 'data-live-region="earnings-team-progress"' `
+            -and $p20gMemberTab.Body -notmatch 'data-live-region="earnings-team-matrix"') `
+        "GET /earnings?ledger=team_harvest shows an unqualified member the gate and no matrix (status=$($p20gMemberTab.Status))"
+
+    # P20G-T9 - the registration hook: a sponsor with no directs is created,
+    # then three direct member registrations queue them at the next position.
+    $p20gSponsor = 'smoke_harvest_' + (Get-Random -Minimum 100000 -Maximum 999999)
+    $p20gUsers  += $p20gSponsor
+    $p20gRegPage  = Invoke-App -Path '/register' -Session 'p20g'
+    $p20gRegToken = Get-Csrf $p20gRegPage.Body
+    $p20gSponsorPost = Invoke-App -Method 'POST' -Path '/register' -Session 'p20g' -Form @{
+        '_csrf'            = $p20gRegToken
+        'mode'             = 'standard'
+        'sponsor'          = ''
+        'username'         = $p20gSponsor
+        'email'            = "$p20gSponsor@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $p20gSponsorId = [int] ((Invoke-MySql "SELECT id FROM users WHERE username = '$p20gSponsor';" | Out-String).Trim())
+
+    # Seed the baseline for this check only: without it the hook is inert by
+    # design (20C Rule 2), and with it a third direct must queue the sponsor.
+    Invoke-MySql "UPDATE settings SET value = NOW() WHERE key_name = 'team_harvest_ledger_since';" | Out-Null
+
+    $p20gDirectPosts = @()
+    foreach ($p20gIndex in 1..3) {
+        $p20gDirect = $p20gSponsor + '_d' + $p20gIndex
+        $p20gUsers += $p20gDirect
+        $p20gDirectPage  = Invoke-App -Path '/register' -Session ('p20g' + $p20gIndex)
+        $p20gDirectToken = Get-Csrf $p20gDirectPage.Body
+        $p20gDirectPosts += Invoke-App -Method 'POST' -Path '/register' -Session ('p20g' + $p20gIndex) -Form @{
+            '_csrf'            = $p20gDirectToken
+            'mode'             = 'standard'
+            'sponsor'          = $p20gSponsor
+            'username'         = $p20gDirect
+            'email'            = "$p20gDirect@example.com"
+            'password'         = $memberPassword
+            'password_confirm' = $memberPassword
+            'terms'            = '1'
+        }
+    }
+
+    $p20gQueueRow = (Invoke-MySql "SELECT CONCAT(id, '|', user_id, '|', directs_at_qualification, '|', baseline_n, '|', teammates, '|', source) FROM harvest_queue WHERE user_id = $p20gSponsorId;" | Out-String).Trim()
+    $p20gParts    = $p20gQueueRow.Split('|')
+    $p20gPosition = 0
+    if ($p20gParts.Count -ge 6) { $p20gPosition = [int] $p20gParts[0] }
+    $p20gQueueOk = $p20gPosition -gt $p20gQueueStart `
+        -and $p20gParts.Count -ge 6 `
+        -and $p20gParts[1] -eq [string] $p20gSponsorId `
+        -and $p20gParts[2] -eq '3' `
+        -and $p20gParts[3] -eq '0' `
+        -and $p20gParts[4] -eq '0' `
+        -and $p20gParts[5] -eq 'registration'
+    Assert-That 'P20G-T9' ($p20gSponsorPost.Status -eq 302 `
+            -and $p20gDirectPosts.Count -eq 3 `
+            -and $p20gDirectPosts[2].Status -eq 302 `
+            -and $p20gQueueOk) `
+        "three direct registrations queue the sponsor at the next position (sponsor=$p20gSponsorId, position=$p20gPosition, row=$p20gQueueRow)"
+
+    # P20G-T10 - a fourth direct changes nothing: one row, one position.
+    $p20gFourth = $p20gSponsor + '_d4'
+    $p20gUsers += $p20gFourth
+    $p20gFourthPage  = Invoke-App -Path '/register' -Session 'p20g4'
+    $p20gFourthToken = Get-Csrf $p20gFourthPage.Body
+    $p20gFourthPost  = Invoke-App -Method 'POST' -Path '/register' -Session 'p20g4' -Form @{
+        '_csrf'            = $p20gFourthToken
+        'mode'             = 'standard'
+        'sponsor'          = $p20gSponsor
+        'username'         = $p20gFourth
+        'email'            = "$p20gFourth@example.com"
+        'password'         = $memberPassword
+        'password_confirm' = $memberPassword
+        'terms'            = '1'
+    }
+    $p20gQueueRowAfter = (Invoke-MySql "SELECT CONCAT(id, '|', user_id, '|', directs_at_qualification, '|', baseline_n, '|', teammates, '|', source) FROM harvest_queue WHERE user_id = $p20gSponsorId;" | Out-String).Trim()
+    $p20gQueueCount    = [int] ((Invoke-MySql "SELECT COUNT(*) FROM harvest_queue WHERE user_id = $p20gSponsorId;" | Out-String).Trim())
+    Assert-That 'P20G-T10' ($p20gFourthPost.Status -eq 302 `
+            -and $p20gQueueCount -eq 1 `
+            -and $p20gQueueRowAfter -eq $p20gQueueRow) `
+        "a fourth direct leaves one queue row at the same position (rows=$p20gQueueCount, row=$p20gQueueRowAfter)"
+
+    # P20G-T11 - the admin surfaces read the stored position: the directory
+    # row and the member panel.
+    $p20gAdminQueue  = Invoke-App -Path ('/admin/members?harvest=yes&q=' + $p20gSponsor) -Session 'admin'
+    $p20gAdminMember = Invoke-App -Path ('/admin/members/' + $p20gSponsorId) -Session 'admin'
+    Assert-That 'P20G-T11' ($p20gAdminQueue.Status -eq 200 -and $p20gAdminMember.Status -eq 200 `
+            -and $p20gPosition -gt 0 `
+            -and $p20gAdminQueue.Body -match ('#' + $p20gPosition + '</a>') `
+            -and $p20gAdminMember.Body -match ('Position #' + $p20gPosition) `
+            -and $p20gAdminMember.Body -match 'Teammates' `
+            -and $p20gAdminMember.Body -match 'Levels paid') `
+        "the directory and the member panel read the stored position #$p20gPosition (status=$($p20gAdminQueue.Status)/$($p20gAdminMember.Status))"
+
+    # P20G-T12 - the member surfaces: the statement's position and matrix,
+    # the dashboard tile and the genealogy badge.
+    $p20gStatement = Invoke-App -Path '/earnings?ledger=team_harvest' -Session 'p20g'
+    $p20gDashboard = Invoke-App -Path '/dashboard' -Session 'p20g'
+    $p20gGenealogy = Invoke-App -Path '/genealogy' -Session 'p20g'
+    Assert-That 'P20G-T12' ($p20gStatement.Status -eq 200 -and $p20gDashboard.Status -eq 200 -and $p20gGenealogy.Status -eq 200 `
+            -and $p20gStatement.Body -match ('Harvest position #' + $p20gPosition) `
+            -and $p20gStatement.Body -match 'data-live-region="earnings-team-matrix"' `
+            -and $p20gStatement.Body -match 'data-level="10"' `
+            -and $p20gDashboard.Body -match 'data-live-region="dashboard-team-harvest"' `
+            -and $p20gDashboard.Body -match 'not currently paying' `
+            -and $p20gGenealogy.Body -match ('Harvest #' + $p20gPosition) `
+            -and $p20gGenealogy.Body -match '<th>Harvest</th>') `
+        "the member statement, dashboard tile and genealogy badge show position #$p20gPosition (status=$($p20gStatement.Status)/$($p20gDashboard.Status)/$($p20gGenealogy.Status))"
+
+    # ---- Phase 19D: the admin Royalty ledger ----------------------------
+    $p19dAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    # P19D-T1 / QA19D-01 - the third tab renders its five regions, the
+    # closed-month cards, the filters and the labelled open-month preview.
+    $p19dLedger = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'admin'
+    Assert-That 'P19D-T1' ($p19dLedger.Status -eq 200 `
+            -and $p19dLedger.Body -match 'Royalty bonus' `
+            -and $p19dLedger.Body -match 'Royalty ledger' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-header"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-stats"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-periods"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-rows"' `
+            -and $p19dLedger.Body -match 'data-live-region="commission-royalty-pagination"' `
+            -and $p19dLedger.Body -match 'One award per member per closed month' `
+            -and $p19dLedger.Body -match 'name="ledger" value="royalty"' `
+            -and $p19dLedger.Body -match 'name="period"' `
+            -and $p19dLedger.Body -match 'If this month closed now') `
+        "GET /admin/commissions?ledger=royalty renders the third tab, its five regions and the preview (status=$($p19dLedger.Status))"
+
+    # P19D-T2 / T3 - the two existing tabs have not moved.
+    $p19dPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $p19dRepeat  = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
+    Assert-That 'P19D-T2' ($p19dPackage.Status -eq 200 `
+            -and $p19dPackage.Body -match 'Commission ledger' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-header"' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-stats"' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-rows"' `
+            -and $p19dPackage.Body -match 'data-live-region="commission-pagination"' `
+            -and $p19dPackage.Body -match 'id="commissionDetail"' `
+            -and $p19dPackage.Body -notmatch 'commission-royalty-') `
+        "the package tab keeps its four regions and drawer and never renders the Royalty regions (status=$($p19dPackage.Status))"
+
+    Assert-That 'P19D-T3' ($p19dRepeat.Status -eq 200 `
+            -and $p19dRepeat.Body -match 'Repeat-purchase ledger' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-header"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-stats"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-periods"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-rows"' `
+            -and $p19dRepeat.Body -match 'data-live-region="repeat-pagination"' `
+            -and $p19dRepeat.Body -notmatch 'commission-royalty-') `
+        "the repeat tab keeps its five regions and never renders the Royalty regions (status=$($p19dRepeat.Status))"
+
+    # P19D-T10 / T11 - the ledger CSV has the Appendix C.5 columns and one
+    # `royalty.export` audit row.
+    $p19dCsv = Invoke-App -Path '/admin/commissions/export?ledger=royalty' -Session 'admin'
+    $p19dCsvHeader = 'Period,Member,"Full name",Rank,"Group sales","Personal sales",Quota,"Group %","Personal %",Amount,Status,Reason,"Evaluated at","Paid at","Ledger id"'
+    $p19dExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'royalty.export' AND id > $p19dAuditStart;" | Out-String).Trim()
+
+    Assert-That 'P19D-T10' ($p19dCsv.Status -eq 200 `
+            -and $p19dCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p19dCsv.Body -match [regex]::Escape($p19dCsvHeader)) `
+        "GET /admin/commissions/export?ledger=royalty returns the Appendix C.5 CSV (status=$($p19dCsv.Status))"
+
+    Assert-That 'P19D-T11' ($p19dExportAudit -eq '1') `
+        "the Royalty export writes exactly one royalty.export audit row (rows=$p19dExportAudit)"
+
+    # P19D-T15 - the reports desk and the dashboard carry the Royalty cards.
+    $p19dReports   = Invoke-App -Path '/admin/reports' -Session 'admin'
+    $p19dDashboard = Invoke-App -Path '/dashboard' -Session 'admin'
+    Assert-That 'P19D-T15' ($p19dReports.Status -eq 200 `
+            -and $p19dReports.Body -match 'data-live-region="report-royalty"' `
+            -and $p19dReports.Body -match 'data-live-region="report-royalty-ranks"' `
+            -and $p19dReports.Body -match 'data-live-region="report-royalty-periods"' `
+            -and $p19dReports.Body -match 'type=royalty' `
+            -and $p19dDashboard.Status -eq 200 `
+            -and $p19dDashboard.Body -match 'Royalty paid') `
+        "the reports page renders the Royalty cards and the dashboard carries the KPI (reports=$($p19dReports.Status), dashboard=$($p19dDashboard.Status))"
+
+    # P19D-T18 - a member is refused the ledger and its export.
+    $p19dMember    = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'other'
+    $p19dMemberCsv = Invoke-App -Path '/admin/commissions/export?ledger=royalty' -Session 'other'
+    Assert-That 'P19D-T18' ($p19dMember.Status -eq 403 -and $p19dMember.Body -match 'Access denied' `
+            -and $p19dMemberCsv.Status -eq 403) `
+        "a member is refused the Royalty ledger and its export (page=$($p19dMember.Status), csv=$($p19dMemberCsv.Status))"
+
+    # ---- Phase 19E: the member-facing Royalty surfaces -------------------
+    $p19eRan        = $true
+    $p19eAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    foreach ($key in @('royalty_enabled', 'royalty_pay_enabled')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) { $settingsSnapshot[$key] = Get-SettingValue $key }
+    }
+
+    # P19E-T1 / QA19E-01 - the third pill, the title, the rank card, the
+    # counters, the rows and the pagination all render for a member.
+    $p19eTab = Invoke-App -Path '/earnings?ledger=royalty' -Session 'member'
+    Assert-That 'P19E-T1' ($p19eTab.Status -eq 200 `
+            -and $p19eTab.Body -match 'Your Royalty bonus' `
+            -and $p19eTab.Body -match 'Royalty is paid once a month, after the month closes' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-rank"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-stats"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-header"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-rows"' `
+            -and $p19eTab.Body -match 'data-live-region="earnings-royalty-pagination"' `
+            -and $p19eTab.Body -match 'name="ledger" value="royalty"' `
+            -and $p19eTab.Body -match 'Your rank' `
+            -and $p19eTab.Body -match 'Direct members') `
+        "GET /earnings?ledger=royalty renders the third tab, the rank card and its five regions (status=$($p19eTab.Status))"
+
+    # P19E-T2 / T3 - the two older member tabs have not moved and never
+    # render a Royalty region.
+    $p19ePackage = Invoke-App -Path '/earnings' -Session 'member'
+    $p19eRepeat  = Invoke-App -Path '/earnings?ledger=repeat' -Session 'member'
+    Assert-That 'P19E-T2' ($p19ePackage.Status -eq 200 `
+            -and $p19ePackage.Body -match 'data-live-region="earnings-stats"' `
+            -and $p19ePackage.Body -match 'data-live-region="earnings-levels"' `
+            -and $p19ePackage.Body -match 'data-live-region="earnings-rows"' `
+            -and $p19ePackage.Body -match 'id="commissionDetail"' `
+            -and $p19ePackage.Body -notmatch 'earnings-royalty-') `
+        "the package statement keeps its regions, filters and drawer and renders no Royalty region (status=$($p19ePackage.Status))"
+    Assert-That 'P19E-T3' ($p19eRepeat.Status -eq 200 `
+            -and $p19eRepeat.Body -match 'data-live-region="earnings-repeat-stats"' `
+            -and $p19eRepeat.Body -match 'data-live-region="earnings-repeat-levels"' `
+            -and $p19eRepeat.Body -match 'data-live-region="earnings-repeat-rows"' `
+            -and $p19eRepeat.Body -notmatch 'earnings-royalty-') `
+        "the repeat statement keeps its five regions and renders no Royalty region (status=$($p19eRepeat.Status))"
+
+    # P19E-T12 - the member CSV carries the Appendix C.6 columns and the
+    # member export writes no audit row (plan §15.1).
+    $p19eCsv       = Invoke-App -Path '/earnings/export?ledger=royalty' -Session 'member'
+    $p19eCsvHeader = 'Period,Rank,"Group sales","Personal sales",Quota,"Group %","Personal %",Amount,Status,Reason,"Paid at"'
+    $p19eExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE id > $p19eAuditStart AND action = 'royalty.export';" | Out-String).Trim()
+    Assert-That 'P19E-T12' ($p19eCsv.Status -eq 200 `
+            -and $p19eCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p19eCsv.Body -match [regex]::Escape($p19eCsvHeader) `
+            -and $p19eCsv.Headers['content-disposition'] -match 'royalty-statement_' `
+            -and $p19eExportAudit -eq '0') `
+        "GET /earnings/export?ledger=royalty returns the Appendix C.6 CSV and writes no audit row (status=$($p19eCsv.Status), audit=$p19eExportAudit)"
+
+    # P19E-T13 - the dashboard tile appears while the stream is on and a
+    # member has no history, and is hidden when the stream is off with no
+    # history (plan §9 Rule 5).
+    $p19eRoyaltyBefore = Get-SettingValue 'royalty_enabled'
+    Set-SettingValue 'royalty_enabled' '1'
+    $p19eTileOn  = Invoke-App -Path '/dashboard' -Session 'member'
+    Set-SettingValue 'royalty_enabled' '0'
+    $p19eTileOff = Invoke-App -Path '/dashboard' -Session 'member'
+    Set-SettingValue 'royalty_enabled' $p19eRoyaltyBefore
+    Assert-That 'P19E-T13' ($p19eTileOn.Status -eq 200 `
+            -and $p19eTileOn.Body -match 'data-live-region="dashboard-royalty"' `
+            -and $p19eTileOn.Body -match 'Paid all-time' `
+            -and $p19eTileOn.Body -match 'earnings\?ledger=royalty' `
+            -and $p19eTileOff.Status -eq 200 `
+            -and $p19eTileOff.Body -notmatch 'data-live-region="dashboard-royalty"') `
+        "the Royalty tile renders while the stream is on and hides when it is off with no history (on=$($p19eTileOn.Status), off=$($p19eTileOff.Status))"
+
+    # P19E-T14 / QA19E-09 - phone-safe: the three pills wrap (the Phase 17E
+    # rule) and the monthly money columns step aside below 768 px, so the
+    # statement never scrolls sideways at 390 px.
+    $p19eCss = Invoke-App -Path '/assets/css/commissions.css' -Session 'member'
+    Assert-That 'P19E-T14' ($p19eCss.Status -eq 200 `
+            -and $p19eCss.Body -match '\.commission-tabs\s*\{[^}]*flex-wrap:\s*wrap' `
+            -and $p19eCss.Body -match '\.commission-col-gs' `
+            -and $p19eCss.Body -match '\.commission-col-quota' `
+            -and $p19eTab.Body -match 'Package commissions' `
+            -and $p19eTab.Body -match 'Repeat-purchase bonus' `
+            -and $p19eTab.Body -match '>\s*<i class="icon-base bx bx-crown me-1"></i>\s*Royalty') `
+        "the third pill wraps with the others and the monthly columns collapse on a phone (css=$($p19eCss.Status))"
+
+    # ---- Phase 19F: the Royalty close's operations surface --------------
+    # The URL entry must be the same job as the CLI (plan 19F Rule 1): the
+    # doctor reports the clocks/tables/settings/lock/wallet, and the dry run
+    # returns the CLI's JSON shape plus the operations block. Both URLs are
+    # loopback-trusted, so no key is needed on the development machine.
+    $p19fDoctor = Invoke-App -Path '/cron/royalty_month_close.php?doctor=1'
+    Assert-That 'P19F-T1' ($p19fDoctor.Status -eq 200 `
+            -and $p19fDoctor.Body -match 'EcoWealth Royalty month close' `
+            -and $p19fDoctor.Body -match 'clocks\s+agree' `
+            -and $p19fDoctor.Body -match 'timezone\s+Asia/Manila' `
+            -and $p19fDoctor.Body -match 'royalty_periods, royalty_awards present' `
+            -and $p19fDoctor.Body -match '16/16 present; ladder valid' `
+            -and $p19fDoctor.Body -match 'last paid' `
+            -and $p19fDoctor.Body -match 'lock\s+free' `
+            -and $p19fDoctor.Body -match 'Royalty reconcile clean' `
+            -and $p19fDoctor.Body -match '\(writable\)') `
+        "GET /cron/royalty_month_close.php?doctor=1 reports the clocks, tables, settings, lock and wallet (status=$($p19fDoctor.Status))"
+
+    $p19fDryRaw = Invoke-App -Path '/cron/royalty_month_close.php?dry-run=1&json=1'
+    $p19fDry    = $null
+    try { $p19fDry = ($p19fDryRaw.Body | Out-String) | ConvertFrom-Json } catch { }
+    Assert-That 'P19F-T2' ($p19fDryRaw.Status -eq 200 -and $null -ne $p19fDry `
+            -and $p19fDry.ok -eq $true -and $p19fDry.trigger -eq 'http' `
+            -and $p19fDry.http_status -eq 200 -and $p19fDry.exit_code -eq 0 `
+            -and $p19fDry.dry_run -eq $true `
+            -and $null -ne $p19fDry.periods -and $null -ne $p19fDry.award `
+            -and $null -ne $p19fDry.operations -and $null -ne $p19fDry.operations.open) `
+        "GET /cron/royalty_month_close.php?dry-run=1&json=1 returns the CLI's dry-run payload and the operations block (status=$($p19fDryRaw.Status), award=$($p19fDry.award), open=$($p19fDry.operations.open))"
+
+    # P19F-T13 / QA19F-06 - the Operations panel on the Royalty tab is
+    # read-only: state, months and the runbook command, never a close button.
+    $p19fPanel = Invoke-App -Path '/admin/commissions?ledger=royalty' -Session 'admin'
+    $p19fOpsHtml = ''
+    if ($p19fPanel.Status -eq 200 -and $p19fPanel.Body -match '(?s)data-live-region="commission-royalty-ops".*?</div>\s*</div>\s*</div>') {
+        $p19fOpsHtml = $matches[0]
+    }
+    Assert-That 'P19F-T13' ($p19fPanel.Status -eq 200 `
+            -and $p19fPanel.Body -match 'data-live-region="commission-royalty-ops"' `
+            -and $p19fPanel.Body -match 'Open month' `
+            -and $p19fPanel.Body -match 'not closable yet' `
+            -and $p19fPanel.Body -match 'Last final month' `
+            -and $p19fPanel.Body -match 'Pending periods' `
+            -and $p19fPanel.Body -match 'Awaiting payment' `
+            -and $p19fPanel.Body -match 'Royalty earning' `
+            -and $p19fPanel.Body -match 'Last close' `
+            -and $p19fOpsHtml -notmatch 'Run close') `
+        "GET /admin/commissions?ledger=royalty renders the read-only Operations panel (status=$($p19fPanel.Status), panel=$([bool]($p19fOpsHtml -ne '')))"
+
+    # ---- Phase 17D: the admin repeat-purchase ledger ---------------------
+    $p17dRan        = $true
+    $p17dAuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+
+    # P17D-T2 / QA17D-01 - the repeat tab renders its counters, period card,
+    # filters, Lvl column and empty state; the package ledger has not moved.
+    # A disposable copy that already ran the manual QA keeps its awards, so
+    # the empty state is asserted on a clean ledger and the populated rows
+    # region on a copy that has history — both are the same screen.
+    $p17dRepeat = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'admin'
+    $p17dPackage = Invoke-App -Path '/admin/commissions' -Session 'admin'
+    $p17dAnyAwards = [int]((Invoke-MySql 'SELECT COUNT(*) FROM unilevel_awards;' | Out-String).Trim())
+    $p17dRowsOrEmpty = if ($p17dAnyAwards -eq 0) {
+        $p17dRepeat.Body -match 'No repeat-purchase bonus has been paid'
+    } else {
+        $p17dRepeat.Body -match 'data-live-region="repeat-rows"'
+    }
+    Assert-That 'P17D-T2' ($p17dRepeat.Status -eq 200 `
+            -and $p17dRepeat.Body -match 'Repeat-purchase ledger' `
+            -and $p17dRepeat.Body -match 'data-live-region="repeat-stats"' `
+            -and $p17dRepeat.Body -match 'data-live-region="repeat-periods"' `
+            -and $p17dRepeat.Body -match 'data-live-region="repeat-rows"' `
+            -and $p17dRepeat.Body -match '<th scope="col">Lvl</th>' `
+            -and $p17dRepeat.Body -match 'name="product_id"' `
+            -and $p17dRepeat.Body -match 'name="ledger" value="repeat"' `
+            -and $p17dRowsOrEmpty `
+            -and $p17dRepeat.Body -notmatch 'direct_unilevel' `
+            -and $p17dRepeat.Body -notmatch 'indirect_unilevel') `
+        "GET /admin/commissions?ledger=repeat renders the repeat ledger, filters and empty/populated state (status=$($p17dRepeat.Status), awards=$p17dAnyAwards)"
+
+    Assert-That 'P17D-T1' ($p17dPackage.Status -eq 200 `
+            -and $p17dPackage.Body -match 'Commission ledger' `
+            -and $p17dPackage.Body -match 'data-live-region="commission-rows"' `
+            -and $p17dPackage.Body -notmatch 'Repeat-purchase ledger' `
+            -and $p17dPackage.Body -notmatch 'data-live-region="repeat-') `
+        "the package tab keeps its own ledger and never renders the repeat regions (status=$($p17dPackage.Status))"
+
+    # P17D-T8 - the repeat CSV downloads with the documented columns and
+    # writes an `unilevel.export` audit row.
+    $p17dCsv = Invoke-App -Path '/admin/commissions/export?ledger=repeat' -Session 'admin'
+    $p17dCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered,"Hold days","Released at"'
+    $p17dExportAudit = (Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'unilevel.export' AND id > $p17dAuditStart;" | Out-String).Trim()
+    Assert-That 'P17D-T8' ($p17dCsv.Status -eq 200 `
+            -and $p17dCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p17dCsv.Body -match [regex]::Escape($p17dCsvHeader) `
+            -and $p17dExportAudit -eq '1') `
+        "GET /admin/commissions/export?ledger=repeat returns the repeat CSV and audits unilevel.export (status=$($p17dCsv.Status), audit=$p17dExportAudit)"
+
+    # P17D-T15 - the repeat ledger stays admin-only.
+    $p17dMember = Invoke-App -Path '/admin/commissions?ledger=repeat' -Session 'other'
+    $p17dMemberCsv = Invoke-App -Path '/admin/commissions/export?ledger=repeat' -Session 'other'
+    Assert-That 'P17D-T15' ($p17dMember.Status -eq 403 -and $p17dMember.Body -match 'Access denied' `
+            -and $p17dMemberCsv.Status -eq 403) `
+        "a member is refused the repeat ledger and its export (page=$($p17dMember.Status), csv=$($p17dMemberCsv.Status))"
+
+    # P17D-T12 / T13 - the reports page carries the four repeat cards and
+    # the new export, and the dashboard carries the 30-day KPI.
+    $p17dReports = Invoke-App -Path '/admin/reports' -Session 'admin'
+    $p17dDashboard = Invoke-App -Path '/dashboard' -Session 'admin'
+    $p17dReportCsv = Invoke-App -Path '/admin/reports/export?type=unilevel&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    Assert-That 'P17D-T12' ($p17dReports.Status -eq 200 `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel"' `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel-levels"' `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel-products"' `
+            -and $p17dReports.Body -match 'data-live-region="report-unilevel-periods"' `
+            -and $p17dReports.Body -match 'type=unilevel' `
+            -and $p17dDashboard.Status -eq 200 `
+            -and $p17dDashboard.Body -match 'Repeat bonus \(30 d\)') `
+        "the reports page renders the four repeat cards and the dashboard KPI reads 30 days (reports=$($p17dReports.Status), dashboard=$($p17dDashboard.Status))"
+
+    Assert-That 'P17D-T13' ($p17dReportCsv.Status -eq 200 `
+            -and $p17dReportCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p17dReportCsv.Body -match 'Award,Date,Order,Buyer,Recipient,Product,Level') `
+        "GET /admin/reports/export?type=unilevel returns the repeat ledger CSV (status=$($p17dReportCsv.Status))"
+
+    # ---- Phase 17E: the member-facing repeat-purchase views --------------
+    # The stream is on for this block (17B left it off); the finally block
+    # restores the setting from the snapshot it took before the run.
+    Set-SettingValue 'unilevel_enabled' '1'
+
+    # P17E-T1 / QA17E-01 - the product page renders the ten-level Team
+    # chain panel, the per-unit amounts on the P.V. base, the 29.000%
+    # total and the monthly-minimum note.
+    $p17eProduct = Invoke-App -Path "/shop/$p17bId" -Session 'member'
+    Assert-That 'P17E-T1' ($p17eProduct.Status -eq 200 `
+            -and $p17eProduct.Body -match 'data-bonus-panel' `
+            -and $p17eProduct.Body -match 'Level 1<' `
+            -and $p17eProduct.Body -match 'Level 10<' `
+            -and $p17eProduct.Body -match 'Bonus base' `
+            -and $p17eProduct.Body -match 'Your direct recruit' `
+            -and $p17eProduct.Body -match 'Your Team chain' `
+            -and $p17eProduct.Body -match 'Total up to 29\.000%' `
+            -and $p17eProduct.Body -match 'Your own purchase does not pay you' `
+            -and $p17eProduct.Body -match 'monthly minimum' `
+            -and $p17eProduct.Body -match 'when that order is paid' `
+            -and $p17eProduct.Body -notmatch 'sponsor chain' `
+            -and $p17eProduct.Body -notmatch 'direct_unilevel' `
+            -and $p17eProduct.Body -notmatch 'indirect_unilevel') `
+        "GET /shop/{configured} renders the ten-level Team chain panel and the minimum note (status=$($p17eProduct.Status))"
+
+    # P17E-T2 - with the global stream off the panel is absent: a promise
+    # that cannot pay is never rendered.
+    Set-SettingValue 'unilevel_enabled' '0'
+    $p17eProductOff = Invoke-App -Path "/shop/$p17bId" -Session 'member'
+    Set-SettingValue 'unilevel_enabled' '1'
+    Assert-That 'P17E-T2' ($p17eProductOff.Status -eq 200 `
+            -and $p17eProductOff.Body -notmatch 'data-bonus-panel' `
+            -and $p17eProductOff.Body -notmatch 'Repeat-purchase bonus') `
+        "the global master off removes the product panel (status=$($p17eProductOff.Status))"
+
+    # P17E-T3 - the catalogue badge says "up to", never "you will earn".
+    $p17eCatalog = Invoke-App -Path "/shop?q=$p17bSku" -Session 'member'
+    Assert-That 'P17E-T3' ($p17eCatalog.Status -eq 200 `
+            -and $p17eCatalog.Body -match 'Up to 29% repeat bonus' `
+            -and $p17eCatalog.Body -match 'product-card-bonus') `
+        "GET /shop?q={sku} renders the Up to 29% repeat bonus badge (status=$($p17eCatalog.Status))"
+
+    # P17E-T4 / QA17E-02 - two units in the cart preview exactly twice the
+    # panel's per-unit total, and the line says the money is paid when the
+    # order is paid and pivots to the reader's own Team chain. "rebate"
+    # appears nowhere on this page.
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id JOIN users u ON u.id = c.user_id WHERE u.username = '$memberUsername';" | Out-Null
+    $p17eCartToken = Get-Csrf $p17eProduct.Body
+    Invoke-App -Method 'POST' -Path '/cart/add' -Session 'member' `
+        -Form @{ '_csrf' = $p17eCartToken; 'product_id' = "$p17bId"; 'quantity' = '2' } | Out-Null
+
+    $p17eCheckout = Invoke-App -Path '/checkout' -Session 'member'
+    Assert-That 'P17E-T4' ($p17eCheckout.Status -eq 200 `
+            -and $p17eCheckout.Body -match 'data-bonus-preview' `
+            -and $p17eCheckout.Body -match 'Up to [^<]{0,4}145\.00 is earned by the members above you' `
+            -and $p17eCheckout.Body -match 'when this order is paid' `
+            -and $p17eCheckout.Body -match 'Team chain' `
+            -and $p17eCheckout.Body -match 'monthly minimum' `
+            -and $p17eCheckout.Body -notmatch 'sponsor chain' `
+            -and $p17eCheckout.Body -notmatch 'rebate' `
+            -and $p17eCheckout.Body -notmatch 'cashback') `
+        "GET /checkout previews the 2-unit ladder at 145.00 in the Team chain voice (status=$($p17eCheckout.Status))"
+
+    # P17E-T8 / T10 - the earnings tabs: the repeat tab carries its own
+    # regions and no "as buyer" figure; the package tab is unchanged.
+    $p17eRepeat    = Invoke-App -Path '/earnings?ledger=repeat' -Session 'member'
+    $p17ePackage   = Invoke-App -Path '/earnings' -Session 'member'
+    Assert-That 'P17E-T8' ($p17eRepeat.Status -eq 200 `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-stats"' `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-status"' `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-levels"' `
+            -and $p17eRepeat.Body -match 'data-live-region="earnings-repeat-rows"' `
+            -and $p17eRepeat.Body -match 'Your Active status' `
+            -and $p17eRepeat.Body -match 'Repeat-purchase by level' `
+            -and $p17eRepeat.Body -match 'Team chain' `
+            -and $p17eRepeat.Body -notmatch 'sponsor chain' `
+            -and $p17eRepeat.Body -match 'name="ledger" value="repeat"' `
+            -and $p17eRepeat.Body -notmatch 'As buyer') `
+        "GET /earnings?ledger=repeat renders the repeat tab without an as-buyer stat (status=$($p17eRepeat.Status))"
+
+    Assert-That 'P17E-T10' ($p17ePackage.Status -eq 200 `
+            -and $p17ePackage.Body -match 'data-live-region="earnings-stats"' `
+            -and $p17ePackage.Body -match 'data-live-region="earnings-levels"' `
+            -and $p17ePackage.Body -notmatch 'data-live-region="earnings-repeat-') `
+        "the package tab keeps its regions and never renders a repeat region (status=$($p17ePackage.Status))"
+
+    # P17E-T9 / QA17E-05 - the member's repeat CSV uses the documented
+    # columns; the export is scoped to the session member.
+    $p17eCsv = Invoke-App -Path '/earnings/export?ledger=repeat&level=1&status=credited' -Session 'member'
+    $p17eCsvHeader = 'Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered,"Hold days","Released at"'
+    Assert-That 'P17E-T9' ($p17eCsv.Status -eq 200 `
+            -and $p17eCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p17eCsv.Body -match [regex]::Escape($p17eCsvHeader)) `
+        "GET /earnings/export?ledger=repeat returns the member's repeat CSV (status=$($p17eCsv.Status))"
+
+    # P17E-T12 / QA17E-08 - the dashboard tile and the membership paragraph
+    # read the current Active status and offer no action.
+    $p17eDashboard  = Invoke-App -Path '/dashboard' -Session 'member'
+    $p17eMembership = Invoke-App -Path '/membership' -Session 'member'
+    Assert-That 'P17E-T12' ($p17eDashboard.Status -eq 200 `
+            -and $p17eDashboard.Body -match 'data-live-region="dashboard-earnings"' `
+            -and $p17eDashboard.Body -match 'Repeat-purchase bonus' `
+            -and $p17eDashboard.Body -match 'Active for ' `
+            -and $p17eMembership.Status -eq 200 `
+            -and $p17eMembership.Body -match 'data-live-region="membership-repeat"' `
+            -and $p17eMembership.Body -match 'Repeat-purchase bonus') `
+        "the dashboard tile and the membership paragraph read the Active status (dashboard=$($p17eDashboard.Status), membership=$($p17eMembership.Status))"
+
+    # ---- Phase 17F: the month-close job over HTTP ------------------------
+    # The web entry must be the same job as the CLI: the doctor reports the
+    # same environment facts and the dry run returns the same JSON shape,
+    # with nothing written (17F Rule 12). Both URLs are loopback-trusted.
+    $p17fDoctor = Invoke-App -Path '/cron/unilevel_month_close.php?doctor=1'
+    Assert-That 'P17F-T10' ($p17fDoctor.Status -eq 200 `
+            -and $p17fDoctor.Body -match 'unilevel month close' `
+            -and $p17fDoctor.Body -match 'clocks\s+agree' `
+            -and $p17fDoctor.Body -match 'timezone\s+Asia/Manila' `
+            -and $p17fDoctor.Body -match 'threshold\s+' `
+            -and $p17fDoctor.Body -match 'last closed' `
+            -and $p17fDoctor.Body -match 'pending' `
+            -and $p17fDoctor.Body -match 'lock\s+free' `
+            -and $p17fDoctor.Body -match '\(writable\)') `
+        "GET /cron/unilevel_month_close.php?doctor=1 reports the clocks, threshold, periods and storage (status=$($p17fDoctor.Status))"
+
+    $p17fDryRaw = Invoke-App -Path '/cron/unilevel_month_close.php?dry-run=1&json=1'
+    $p17fDry    = $null
+    try { $p17fDry = ($p17fDryRaw.Body | Out-String) | ConvertFrom-Json } catch { }
+    $p17fPeriods = 0
+    if ($null -ne $p17fDry -and $null -ne $p17fDry.periods) { $p17fPeriods = @($p17fDry.periods).Count }
+    Assert-That 'P17F-T11' ($p17fDryRaw.Status -eq 200 -and $null -ne $p17fDry `
+            -and $p17fDry.ok -eq $true -and $p17fDry.trigger -eq 'http' `
+            -and $p17fDry.dry_run -eq $true `
+            -and $null -ne $p17fDry.would_close -and $null -ne $p17fDry.threshold `
+            -and $p17fPeriods -eq [int] $p17fDry.would_close) `
+        "GET /cron/unilevel_month_close.php?dry-run=1&json=1 returns the CLI's dry-run payload (status=$($p17fDryRaw.Status), would_close=$($p17fDry.would_close), threshold=$($p17fDry.threshold))"
+
+    # ---- Phase 18: the repeat-purchase release job over HTTP ------------
+    # The web entry must be the same job as the CLI: the doctor reports the
+    # kill switch, the snapshotted hold window, the pending picture and the
+    # lock, and the dry run returns the CLI's JSON shape without writing.
+    $p18Doctor = Invoke-App -Path '/cron/unilevel_release.php?doctor=1'
+    Assert-That 'P18-T30' ($p18Doctor.Status -eq 200 `
+            -and $p18Doctor.Body -match 'repeat-purchase release' `
+            -and $p18Doctor.Body -match 'release enabled' `
+            -and $p18Doctor.Body -match 'hold days' `
+            -and $p18Doctor.Body -match 'pending' `
+            -and $p18Doctor.Body -match 'undelivered' `
+            -and $p18Doctor.Body -match 'cancelled due' `
+            -and $p18Doctor.Body -match 'lock\s+free' `
+            -and $p18Doctor.Body -match '\(writable\)') `
+        "GET /cron/unilevel_release.php?doctor=1 reports the switch, hold, pending picture and lock (status=$($p18Doctor.Status))"
+
+    $p18DryRaw = Invoke-App -Path '/cron/unilevel_release.php?dry-run=1&json=1'
+    $p18Dry    = $null
+    try { $p18Dry = ($p18DryRaw.Body | Out-String) | ConvertFrom-Json } catch { }
+    $p18Ids = 0
+    if ($null -ne $p18Dry -and $null -ne $p18Dry.ids) { $p18Ids = @($p18Dry.ids).Count }
+    Assert-That 'P18-T29' ($p18DryRaw.Status -eq 200 -and $null -ne $p18Dry `
+            -and $p18Dry.ok -eq $true -and $p18Dry.trigger -eq 'http' `
+            -and $p18Dry.dry_run -eq $true `
+            -and $null -ne $p18Dry.candidates -and $null -ne $p18Dry.hold_days `
+            -and $p18Ids -eq [int] $p18Dry.candidates) `
+        "GET /cron/unilevel_release.php?dry-run=1&json=1 returns the CLI's dry-run payload (status=$($p18DryRaw.Status), candidates=$($p18Dry.candidates), hold=$($p18Dry.hold_days))"
+
+    # The member wallet and payout pages carry the escrow presentation.
+    $p18Wallet = Invoke-App -Path '/wallet' -Session 'member'
+    Assert-That 'P18-T18' ($p18Wallet.Status -eq 200 `
+            -and $p18Wallet.Body -match 'data-live-region="member-wallet-buckets"') `
+        "GET /wallet renders the wallet buckets region (status=$($p18Wallet.Status))"
+
+    $p18Payouts = Invoke-App -Path '/payouts' -Session 'member'
+    Assert-That 'P18-T19' ($p18Payouts.Status -eq 200 `
+            -and $p18Payouts.Body -match 'data-live-region="payout-balance"' `
+            -and $p18Payouts.Body -match 'data-live-region="payout-request"') `
+        "GET /payouts renders the balance and request regions (status=$($p18Payouts.Status))"
+
+    # ---- Phase 15: hardening, reports, settings, audit and launch ------
+    $p15Ran = $true
+    $p15AuditStart = [int] ((Invoke-MySql 'SELECT COALESCE(MAX(id), 0) FROM audit_log;' | Out-String).Trim())
+    $p15Brand = 'Smoke Brand Co'
+
+    foreach ($key in @(
+            'site_name', 'site_tagline', 'ewallet_transfer_fee', 'ewallet_min_transfer',
+            'ewallet_transfer_daily_limit', 'ewallet_transfer_weekly_limit', 'commission_direct_enabled')) {
+        if (-not $settingsSnapshot.ContainsKey($key)) {
+            $settingsSnapshot[$key] = Get-SettingValue $key
+        }
+    }
+
+    # P15-T2 — the shared response headers reach every surface.
+    $p15Guest   = Invoke-App -Path '/login' -Session 'guest'
+    $p15Headers = $p15Guest.Headers
+    $p15HeaderOk = $p15Guest.Status -eq 200 `
+        -and $p15Headers['x-content-type-options'] -eq 'nosniff' `
+        -and $p15Headers['x-frame-options'] -eq 'DENY' `
+        -and $p15Headers['content-security-policy'] -match "frame-ancestors 'none'" `
+        -and $p15Headers['referrer-policy'] -eq 'strict-origin-when-cross-origin' `
+        -and $p15Headers['permissions-policy'] -match 'camera=\(\)' `
+        -and $p15Headers['x-robots-tag'] -match 'noindex'
+    Assert-That 'P15-T2' $p15HeaderOk `
+        "security headers are sent on a public page (nosniff=$($p15Headers['x-content-type-options']), frame=$($p15Headers['x-frame-options']))"
+
+    # A PHP file dropped into uploads/ is refused by the directory policy.
+    $p15ProbeRelative = 'uploads/proofs/smoke-probe-' + (Get-Random -Minimum 1000 -Maximum 9999) + '.php'
+    $p15ProbeAbsolute = Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'public') ($p15ProbeRelative -replace '/', '\')
+    Set-Content -Path $p15ProbeAbsolute -Value '<?php echo "executed";' -Encoding ASCII
+    $p15Probe = Invoke-App -Path ('/' + $p15ProbeRelative)
+    Remove-Item $p15ProbeAbsolute -Force -ErrorAction SilentlyContinue
+    Assert-That 'P15-T2' ($p15Probe.Status -eq 403 -and $p15Probe.Body -notmatch 'executed') `
+        "uploads/ refuses to execute PHP (status=$($p15Probe.Status))"
+
+    # Guards: guests bounce to /login, members get the branded 403.
+    $p15GuestAdmin   = Invoke-App -Path '/admin/reports'
+    $p15MemberReports = Invoke-App -Path '/admin/reports' -Session 'other'
+    $p15MemberAudit   = Invoke-App -Path '/admin/audit' -Session 'other'
+    $p15MemberExport  = Invoke-App -Path '/admin/reports/export?type=sales' -Session 'other'
+    $p15GuestExpired  = Invoke-App -Path '/admin/audit' -Session 'guest'
+    Assert-That 'P15-T2' ($p15MemberReports.Status -eq 403 -and $p15MemberReports.Body -match 'Access denied' `
+            -and $p15MemberAudit.Status -eq 403 -and $p15MemberExport.Status -eq 403 `
+            -and $p15GuestAdmin.Status -eq 302 -and $p15GuestAdmin.Location -match '/login' `
+            -and $p15GuestExpired.Status -eq 302) `
+        "reports and audit stay admin-only (member=$($p15MemberReports.Status), guest=$($p15GuestAdmin.Status))"
+
+    # P15-T8 — the error pages are branded, never a stack trace.
+    $p15NotFound = Invoke-App -Path '/phase-15-no-such-page'
+    Assert-That 'P15-T8' ($p15NotFound.Status -eq 404 -and $p15NotFound.Body -match 'Page not found' `
+            -and $p15NotFound.Body -notmatch 'Stack trace' -and $p15NotFound.Body -notmatch 'Fatal error') `
+        "an unknown URL renders the branded 404 (status=$($p15NotFound.Status))"
+
+    # P15-T7 — the settings page saves the new cards, validates pairs and audits.
+    $p15Settings = Invoke-App -Path '/admin/settings' -Session 'admin'
+    $p15SettingsOk = $p15Settings.Status -eq 200 `
+        -and $p15Settings.Body -match 'name="site_name"' `
+        -and $p15Settings.Body -match 'name="commission_direct_enabled"' `
+        -and $p15Settings.Body -match 'name="ewallet_transfer_fee"' `
+        -and $p15Settings.Body -match 'Maintenance mode'
+
+    $p15SettingsToken = Get-Csrf $p15Settings.Body
+    $p15Save = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'            = $p15SettingsToken
+        'section'          = 'general'
+        'site_name'        = $p15Brand
+        'site_tagline'     = 'Smoke tagline'
+        'maintenance_mode' = '0'
+    }
+    $p15BrandSaved = (Get-SettingValue 'site_name') -eq $p15Brand
+
+    $p15GuestBrand = Invoke-App -Path '/login' -Session 'guest'
+    $p15BrandRendered = $p15GuestBrand.Body -match [regex]::Escape($p15Brand)
+
+    $p15ClientSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                        = $p15SettingsToken
+        'section'                      = 'transfers'
+        'ewallet_transfer_fee'         = '7.50'
+        'ewallet_min_transfer'         = '60.00'
+        'ewallet_transfer_daily_limit' = '4100.00'
+        'ewallet_transfer_weekly_limit' = '9000.00'
+    }
+    $p15ClientSaved = (Get-SettingValue 'ewallet_transfer_fee') -eq '7.50' `
+        -and (Get-SettingValue 'ewallet_transfer_daily_limit') -eq '4100.00' `
+        -and (Get-SettingValue 'ewallet_min_transfer') -eq '60.00'
+
+    $p15BadLimits = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form @{
+        '_csrf'                        = $p15SettingsToken
+        'section'                      = 'transfers'
+        'ewallet_transfer_fee'         = '7.50'
+        'ewallet_min_transfer'         = '60.00'
+        'ewallet_transfer_daily_limit' = '500.00'
+        'ewallet_transfer_weekly_limit' = '100.00'
+    }
+    $p15LimitError = Invoke-App -Path '/admin/settings#settings-transfers' -Session 'admin'
+    $p15BadRefused = (Get-SettingValue 'ewallet_transfer_daily_limit') -eq '4100.00' `
+        -and $p15LimitError.Body -match 'cannot be below the daily limit'
+
+    # Phase 19B: the Commissions card also owns the thirteen Royalty ladder
+    # values and its two switches, so the card save has to carry them too.
+    # They are posted back unchanged here.
+    $p15RoyaltyKeys = @(
+        'royalty_enabled', 'royalty_pay_enabled',
+        'royalty_leader_directs', 'royalty_supervisor_leaders',
+        'royalty_manager_supervisors', 'royalty_director_managers',
+        'royalty_supervisor_quota', 'royalty_manager_quota', 'royalty_director_quota',
+        'royalty_supervisor_group_pct', 'royalty_supervisor_personal_pct',
+        'royalty_manager_group_pct', 'royalty_manager_personal_pct',
+        'royalty_director_group_pct', 'royalty_director_personal_pct'
+    )
+    $p15RoyaltyValues = @{}
+    foreach ($key in $p15RoyaltyKeys) { $p15RoyaltyValues[$key] = Get-SettingValue $key }
+
+    $p15CommissionForm = @{
+        '_csrf'                            = $p15SettingsToken
+        'section'                          = 'commissions'
+        'commission_indirect_max_levels'   = '10'
+        'commission_indirect_enabled'      = '1'
+        'commission_requires_active_sponsor' = '1'
+        'free_registration_enabled'        = '1'
+        # Phase 17B: the card also owns the repeat-purchase block, so a card
+        # save has to carry it (the two commission switches stay unticked on
+        # purpose, which is what this check proves).
+        'unilevel_max_levels'              = '10'
+        'unilevel_active_threshold'        = '500'
+        'unilevel_enabled'                 = '0'
+        'unilevel_requires_active_upline'  = '1'
+        'unilevel_reversal_enabled'        = '1'
+        # Phase 18: the card also owns the escrow hold and the release switch.
+        'unilevel_hold_days'               = '7'
+'unilevel_release_enabled'         = '1'
+        # Phase 20B: the card also owns the Team Harvest switch and its two
+        # small integers. The ten amounts are table rows and are not posted
+        # here - the controller keeps the stored ladder when they are absent.
+        'team_harvest_enabled'             = '0'
+        'team_harvest_qualify_directs'     = [string] (Get-SettingValue 'team_harvest_qualify_directs')
+        'team_harvest_max_levels'          = [string] (Get-SettingValue 'team_harvest_max_levels')
+        # Phase 21B: the card also owns the General Harvest switch and its
+        # payable depth. The ten amounts are table rows; like the Team Harvest
+        # ones they are not posted here, and the controller keeps the stored
+        # ladder when they are absent.
+        'general_harvest_enabled'          = [string] (Get-SettingValue 'general_harvest_enabled')
+        'general_harvest_max_levels'       = [string] (Get-SettingValue 'general_harvest_max_levels')
+    }
+    foreach ($key in $p15RoyaltyKeys) { $p15CommissionForm[$key] = [string] $p15RoyaltyValues[$key] }
+
+    $p15CommissionSave = Invoke-App -Method 'POST' -Path '/admin/settings' -Session 'admin' -Form $p15CommissionForm
+    $p15CommissionsOff = (Get-SettingValue 'commission_direct_enabled') -eq '0'
+
+    $p15SettingsAudit = (Invoke-MySql "SELECT meta_json FROM audit_log WHERE action = 'settings.update' AND id > $p15AuditStart AND meta_json LIKE '%site_name%' ORDER BY id DESC LIMIT 1;" | Out-String)
+    Assert-That 'P15-T7' ($p15SettingsOk -and $p15Save.Status -eq 302 -and $p15BrandSaved -and $p15BrandRendered `
+            -and $p15ClientSave.Status -eq 302 -and $p15ClientSaved -and $p15BadRefused `
+            -and $p15CommissionSave.Status -eq 302 -and $p15CommissionsOff `
+            -and $p15SettingsAudit -match 'site_name') `
+        "each settings card saves, audits and is effective (brand=$p15BrandSaved, rendered=$p15BrandRendered, limits=$p15ClientSaved, refused=$p15BadRefused)"
+
+    # P15 — the reports desk renders every report and the health widget.
+    $p15Reports = Invoke-App -Path '/admin/reports' -Session 'admin'
+    $p15ReportsOk = $p15Reports.Status -eq 200 `
+        -and $p15Reports.Body -match 'Sales by day' `
+        -and $p15Reports.Body -match 'Commissions by level' `
+        -and $p15Reports.Body -match 'Payout register' `
+        -and $p15Reports.Body -match 'Registration-code revenue' `
+        -and $p15Reports.Body -match 'Finance health' `
+        -and $p15Reports.Body -match 'All clear' `
+        -and $p15Reports.Body -match 'type=sales'
+    Assert-That 'P15-T1' $p15ReportsOk `
+        "the reports desk renders every report and the reconciliation widget (status=$($p15Reports.Status))"
+
+    $p15Window = Invoke-App -Path '/admin/reports?from=2026-01-05&to=2026-01-10' -Session 'admin'
+    Assert-That 'P15-T1' ($p15Window.Status -eq 200 -and $p15Window.Body -match '6 days' `
+            -and $p15Window.Body -match 'value="2026-01-05"') `
+        "the report window is applied and echoed (status=$($p15Window.Status))"
+
+    # P15-T3 — a heavy report stays inside the launch budget.
+    $p15Timer = & curl.exe -s -o NUL -w '%{time_total}' --cookie $script:Jars['admin'] --cookie-jar $script:Jars['admin'] "$base/admin/reports"
+    $p15Seconds = 0.0
+    [void][double]::TryParse((($p15Timer -join '').Trim()), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref] $p15Seconds)
+    Assert-That 'P15-T3' ($p15Seconds -gt 0 -and $p15Seconds -lt 2.0) `
+        ("the reports page answers in {0:N3}s (budget 2.000s)" -f $p15Seconds)
+
+    # P15-T1 / T4 — the CSV exports match their report and are audited.
+    $p15SalesCsv = Invoke-App -Path '/admin/reports/export?type=sales&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15CommCsv = Invoke-App -Path '/admin/reports/export?type=commissions&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15WalletCsv = Invoke-App -Path '/admin/reports/export?type=wallet&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15PayoutCsv = Invoke-App -Path '/admin/reports/export?type=payouts&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15CodeCsv = Invoke-App -Path '/admin/reports/export?type=codes&from=2026-01-01&to=2026-01-31' -Session 'admin'
+    $p15ExportAudit = [int] ((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'report.export' AND id > $p15AuditStart;" | Out-String).Trim())
+
+    Assert-That 'P15-T1' ($p15SalesCsv.Status -eq 200 -and $p15SalesCsv.Headers['content-type'] -match 'text/csv' `
+            -and $p15SalesCsv.Body -match 'Date,Orders,Sales' `
+            -and $p15CommCsv.Status -eq 200 -and $p15CommCsv.Body -match 'Level,Type,Awards' `
+            -and $p15WalletCsv.Status -eq 200 -and $p15WalletCsv.Body -match 'Ledger,Date,Member' `
+            -and $p15PayoutCsv.Status -eq 200 -and $p15PayoutCsv.Body -match 'Request,"Requested at",Member' `
+            -and $p15CodeCsv.Status -eq 200 -and $p15CodeCsv.Body -match 'ID,Code,Package' `
+            -and $p15ExportAudit -ge 5) `
+        "the five CSV exports download and are audited (sales=$($p15SalesCsv.Status), audit=$p15ExportAudit)"
+
+    # P15-T12 — the audit desk lists the settings change and the exports.
+    $p15AuditPage = Invoke-App -Path '/admin/audit' -Session 'admin'
+    $p15AuditFiltered = Invoke-App -Path '/admin/audit?action=settings.update' -Session 'admin'
+    Assert-That 'P15-T12' ($p15AuditPage.Status -eq 200 -and $p15AuditPage.Body -match 'Audit log' `
+            -and $p15AuditFiltered.Status -eq 200 -and $p15AuditFiltered.Body -match 'settings.update' `
+            -and $p15AuditFiltered.Body -notmatch 'No audit entries match') `
+        "the audit desk lists and filters the run's actions (all=$($p15AuditPage.Status), filtered=$($p15AuditFiltered.Status))"
+
+    # P15-T2 — a money form is rate-limited before it touches a service.
+    $p15TransferPage  = Invoke-App -Path '/wallet/transfer' -Session 'other'
+    $p15TransferToken = Get-Csrf $p15TransferPage.Body
+    $p15Blocked = $null
+
+    for ($p15Attempt = 1; $p15Attempt -le 11; $p15Attempt++) {
+        $attempt = Invoke-App -Method 'POST' -Path '/wallet/transfer' -Session 'other' -Form @{
+            '_csrf'     = $p15TransferToken
+            'recipient' = 'juan'
+            'amount'    = '1.00'
+            'password'  = 'WrongPassword1'
+            'note'      = 'smoke throttle'
+        }
+
+        if ($p15Attempt -le 10) {
+            $p15Blocked = $attempt
+        } else {
+            $p15LastAttempt = $attempt
+        }
+    }
+
+    $p15ThrottleFlash = Invoke-App -Path '/wallet/transfer' -Session 'other'
+    Assert-That 'P15-T2' ($p15LastAttempt.Status -eq 302 -and $p15ThrottleFlash.Body -match 'Too many transfer attempts') `
+        "the transfer form is rate-limited (last=$($p15LastAttempt.Status), flash=$($p15ThrottleFlash.Body -match 'Too many transfer attempts'))"
+
+    Invoke-MySql "DELETE ci FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.user_id IN ($cartMemberId);" | Out-Null
+
+    # ---- IR-4: web installer (standalone, locked/non-empty in this app) --
+    # The smoke app runs against an already-populated database, so
+    # install.php must show its refusal state and never offer the form.
+    # The assertion also covers the lock: a GET or a POST must not create
+    # or replace storage/install.lock (plan IR-4-T7).
+    $installLockPath   = Join-Path (Split-Path -Parent $PSScriptRoot) 'storage\install.lock'
+    $installLockBefore = Test-Path $installLockPath
+
+    $installPage = Invoke-App -Path '/install.php'
+    $installSafe = $installPage.Body -notmatch '(?i)(DB_PASS|SQLSTATE|mysql:host|password_hash|Admin@123|Super@123)'
+    $installRefused = $installPage.Status -eq 200 `
+        -and $installPage.Body -match '(?i)already installed' `
+        -and $installPage.Body -notmatch 'Install details' `
+        -and $installPage.Body -notmatch 'Installation complete'
+
+    Assert-That 'IR4-T1' ($installRefused -and $installSafe) `
+        "GET /install.php refuses an installed tree with no form and no secret (status=$($installPage.Status), refused=$installRefused, safe=$installSafe)"
+
+    $installHeadersOk = $installPage.Headers.ContainsKey('x-content-type-options') `
+        -and $installPage.Headers['x-content-type-options'] -match 'nosniff' `
+        -and $installPage.Headers.ContainsKey('x-frame-options') `
+        -and $installPage.Headers['x-frame-options'] -match 'DENY' `
+        -and $installPage.Headers.ContainsKey('referrer-policy') `
+        -and $installPage.Headers.ContainsKey('cache-control') `
+        -and $installPage.Headers['cache-control'] -match 'no-store'
+
+    Assert-That 'IR4-T2' $installHeadersOk `
+        "install.php sends nosniff, frame-deny, referrer-policy and no-store"
+
+    $installLockAfterGet = Test-Path $installLockPath
+    Assert-That 'IR4-T3' ($installLockAfterGet -eq $installLockBefore) `
+        "GET /install.php does not create or replace storage/install.lock (before=$installLockBefore, after=$installLockAfterGet)"
+
+    # No CSRF token: a reachable form would refuse before any SQL; the
+    # installed tree refuses at the state gate. Either way nothing runs.
+    $installPost = Invoke-App -Method POST -Path '/install.php' -Form @{ confirm = 'INSTALL'; admin_username = 'admin' }
+    $installPostSafe = $installPost.Body -notmatch 'Installation complete' `
+        -and $installPost.Body -match '(?i)(already installed|session expired|Nothing was written)'
+    $installLockAfterPost = Test-Path $installLockPath
+
+    Assert-That 'IR4-T4' ($installPost.Status -eq 200 -and $installPostSafe -and $installLockAfterPost -eq $installLockBefore) `
+        "a POST without a CSRF token runs nothing and leaves the lock unchanged (status=$($installPost.Status))"
+
+    $installCss = Invoke-App -Path '/assets/css/db-tools.css'
+    Assert-That 'IR4-T5' ($installCss.Status -eq 200 -and $installCss.Body -match '\.dbt-body' -and $installCss.Body -match '\.dbt-card') `
+        "the shared db-tools.css is served (status=$($installCss.Status))"
+
+    # ---- IR-6: reset web console (guards and refusals; no reset here) ----
+    # The smoke app runs in development against the QA database, so the
+    # console is visible. A successful reset would wipe the database this
+    # run is using, so the checks stop at the refusals: the guest redirect,
+    # the member 403, the admin form, and three POSTs that must write nothing.
+    $resetMembersBefore = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE role = 'member';" | Out-String).Trim())
+    $resetOrdersBefore  = [int]((Invoke-MySql "SELECT COUNT(*) FROM shop_orders;" | Out-String).Trim())
+    $resetAuditBefore   = [int]((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'system.db_reset';" | Out-String).Trim())
+
+    $resetGuest = Invoke-App -Path '/reset.php'
+    Assert-That 'IR6-T1' ($resetGuest.Status -eq 302 -and $resetGuest.Location -match '/login$') `
+        "GET /reset.php as guest -> 302 login (got $($resetGuest.Status) $($resetGuest.Location))"
+
+    $resetMember = Invoke-App -Path '/reset.php' -Session 'member'
+    Assert-That 'IR6-T2' ($resetMember.Status -eq 403 -and $resetMember.Body -match 'Access denied') `
+        "GET /reset.php as a member -> 403 (got $($resetMember.Status))"
+
+    $resetAdmin  = Invoke-App -Path '/reset.php' -Session 'admin'
+    $resetToken  = Get-Csrf $resetAdmin.Body
+    $resetSafe   = $resetAdmin.Body -notmatch '(?i)(Admin@123|Super@123|DB_PASS|mysql:host|password_hash|SQLSTATE)'
+    $resetFormOk = $resetAdmin.Status -eq 200 `
+        -and $resetAdmin.Body -match 'What will be cleared' `
+        -and $resetAdmin.Body -match 'data-reset-form' `
+        -and $resetAdmin.Body -match 'Type <code>RESET</code>' `
+        -and $resetAdmin.Body -match 'name="backup_ack"' `
+        -and $resetToken -ne ''
+    Assert-That 'IR6-T3' ($resetFormOk -and $resetSafe) `
+        "GET /reset.php as admin -> 200 with the preview, form, RESET phrase and no secret (status=$($resetAdmin.Status), safe=$resetSafe)"
+
+    $resetWrong = Invoke-App -Method 'POST' -Path '/reset.php' -Session 'admin' -Form @{
+        '_csrf'          = $resetToken
+        'confirm'        = 'WRONG'
+        'backup_ack'     = '1'
+        'keep_catalogue' = '1'
+        'keep_audit'     = '1'
+        'code_qty'       = '0'
+    }
+    $resetWrongOk = $resetWrong.Status -eq 200 `
+        -and $resetWrong.Body -match 'Nothing was reset' `
+        -and $resetWrong.Body -match 'Type RESET exactly'
+
+    $resetNoAck = Invoke-App -Method 'POST' -Path '/reset.php' -Session 'admin' -Form @{
+        '_csrf'          = $resetToken
+        'confirm'        = 'RESET'
+        'keep_catalogue' = '1'
+        'keep_audit'     = '1'
+        'code_qty'       = '0'
+    }
+    $resetNoAckOk = $resetNoAck.Status -eq 200 -and $resetNoAck.Body -match 'Tick the backup acknowledgement'
+
+    $resetNoCsrf = Invoke-App -Method 'POST' -Path '/reset.php' -Session 'admin' -Form @{
+        'confirm'        = 'RESET'
+        'backup_ack'     = '1'
+        'keep_catalogue' = '1'
+        'keep_audit'     = '1'
+        'code_qty'       = '0'
+    }
+    $resetNoCsrfOk = $resetNoCsrf.Status -eq 200 `
+        -and $resetNoCsrf.Body -match 'session expired' `
+        -and $resetNoCsrf.Body -match 'Nothing was reset'
+
+    $resetMembersAfter = [int]((Invoke-MySql "SELECT COUNT(*) FROM users WHERE role = 'member';" | Out-String).Trim())
+    $resetOrdersAfter  = [int]((Invoke-MySql "SELECT COUNT(*) FROM shop_orders;" | Out-String).Trim())
+    $resetAuditAfter   = [int]((Invoke-MySql "SELECT COUNT(*) FROM audit_log WHERE action = 'system.db_reset';" | Out-String).Trim())
+    $resetUnchanged    = $resetMembersAfter -eq $resetMembersBefore `
+        -and $resetOrdersAfter -eq $resetOrdersBefore `
+        -and $resetAuditAfter -eq $resetAuditBefore
+
+    Assert-That 'IR6-T4' ($resetWrongOk -and $resetNoAckOk -and $resetNoCsrfOk -and $resetUnchanged) `
+        ("wrong phrase, missing ack and missing CSRF run nothing (members {0}->{1}, orders {2}->{3}, audit {4}->{5})" -f `
+            $resetMembersBefore, $resetMembersAfter, $resetOrdersBefore, $resetOrdersAfter, $resetAuditBefore, $resetAuditAfter)
+
+    $resetCss = Invoke-App -Path '/assets/css/db-tools.css'
+    Assert-That 'IR6-T5' ($resetCss.Status -eq 200 `
+            -and $resetCss.Body -match '\.dbt-console-grid' `
+            -and $resetCss.Body -match '\.dbt-dot--red' `
+            -and $resetCss.Body -match '\.dbt-chip') `
+        "the reset console stylesheet is served with its new classes (status=$($resetCss.Status))"
+
+    # ---- P1-T11: maintenance mode ---------------------------------------
+    $maintenanceBefore = Get-SettingValue 'maintenance_mode'
+    Set-SettingValue 'maintenance_mode' '1'
+
+    $maintGuest = Invoke-App -Path '/shop'
+    $retryAfter = ''
+    if ($maintGuest.Headers.ContainsKey('retry-after')) { $retryAfter = [string] $maintGuest.Headers['retry-after'] }
+    Assert-That 'P1-T11' ($maintGuest.Status -eq 503 -and $retryAfter -eq '3600' -and $maintGuest.Body -match 'maintenance') `
+        "guest sees the 503 page with Retry-After: 3600 (got $($maintGuest.Status), retry=$retryAfter)"
+
+    $maintAdmin = Invoke-App -Path '/admin' -Session 'admin'
+    Assert-That 'P1-T11' ($maintAdmin.Status -eq 200) `
+        "admin bypasses maintenance mode (got $($maintAdmin.Status))"
+
+    Set-SettingValue 'maintenance_mode' $maintenanceBefore
+} finally {
+    # Always put the database back the way we found it.
+    try { Set-SettingValue 'maintenance_mode' $maintenanceBefore } catch { }
+    foreach ($key in $settingsSnapshot.Keys) {
+        try { Set-SettingValue $key ([string] $settingsSnapshot[$key]) } catch { }
+    }
+    # Phase 20B: the Team Harvest ladder (ten table rows, not settings).
+    foreach ($level in $p20bLadderBefore.Keys) {
+        try { Set-LadderAmount ([int] $level) ([string] $p20bLadderBefore[$level]) } catch { }
+    }
+    # Phase 21B: the General Harvest ladder and the board singleton (the board
+    # is never deleted — it is reset to exactly the row this run found).
+    foreach ($level in $p21bLadderBefore.Keys) {
+        try { Set-GhLadderAmount ([int] $level) ([string] $p21bLadderBefore[$level]) } catch { }
+    }
+    if ($p21bBoardBefore.ContainsKey('settled_n')) {
+        try {
+            $baseline = if ([string]::IsNullOrWhiteSpace([string] $p21bBoardBefore['baseline_n'])) { 'NULL' } else { [string] $p21bBoardBefore['baseline_n'] }
+            $armedAt  = if ([string]::IsNullOrWhiteSpace([string] $p21bBoardBefore['armed_at'])) { 'NULL' } else { "'" + [string] $p21bBoardBefore['armed_at'] + "'" }
+            $armedBy  = if ([string]::IsNullOrWhiteSpace([string] $p21bBoardBefore['armed_by'])) { 'NULL' } else { [string] $p21bBoardBefore['armed_by'] }
+            Invoke-MySql "UPDATE general_harvest_board SET baseline_n = $baseline, armed_at = $armedAt, armed_by = $armedBy, settled_n = $([int] $p21bBoardBefore['settled_n']) WHERE id = 1;" | Out-Null
+        } catch { }
+    }
+    # Phase 20G: the release walk put the baseline back, deleted its queue
+    # row, its throw-away members and the audit rows it wrote.
+    try { Set-SettingValue 'team_harvest_ledger_since' $p20gBaselineBefore } catch { }
+    foreach ($p20gName in $p20gUsers) {
+        try { Invoke-MySql "DELETE FROM users WHERE username = '$p20gName';" | Out-Null } catch { }
+    }
+    try {
+        Invoke-MySql "DELETE FROM harvest_queue WHERE id > $p20gQueueStart;" | Out-Null
+        if ($p20gAuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p20gAuditStart AND action IN ('report.export', 'member.register', 'team_harvest.export');" | Out-Null
+        }
+    } catch { }
+    try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE user_id = $cartMemberId;" | Out-Null } } catch { }
+    try { if ($selfOrderId -gt 0) { Invoke-MySql "DELETE FROM shop_orders WHERE id = $selfOrderId;" | Out-Null } } catch { }
+    try {
+        # The orders and activations are gone, so any proof file without a
+        # row is an orphan this run (or an earlier aborted run) left behind.
+        $knownProofs = @{}
+        foreach ($relative in @(Invoke-MySql "SELECT file_path FROM shop_payment_proofs;")) {
+            $knownProofs[([string] $relative).Trim()] = $true
+        }
+        foreach ($relative in @(Invoke-MySql "SELECT proof_path FROM activations WHERE proof_path IS NOT NULL;")) {
+            $knownProofs[([string] $relative).Trim()] = $true
+        }
+        $proofDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs'
+        Get-ChildItem -Path $proofDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.Name -ne '.gitkeep' -and -not $knownProofs.ContainsKey('uploads/proofs/' + $_.Name)) {
+                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
+    try { if ($cartMemberId -gt 0) { Invoke-MySql "DELETE FROM audit_log WHERE action = 'wallet.topup' AND subject_id = $cartMemberId;" | Out-Null } } catch { }
+    # Phase 9 fixtures: member accounts first (activations cascade), then codes.
+    foreach ($p9Name in $p9Users) {
+        try { Invoke-MySql "DELETE FROM users WHERE username = '$p9Name';" | Out-Null } catch { }
+    }
+    try { if ($p9CodeStart -gt 0) { Invoke-MySql "DELETE FROM reg_codes WHERE id > $p9CodeStart;" | Out-Null } } catch { }
+    # Phase 10: the awards this run paid to demo members, their ledger rows and
+    # the balances they moved. Without this every smoke run would inflate juan's
+    # wallet by 1,000.
+    try {
+        Invoke-MySql "DELETE FROM commissions WHERE id > $p10CommissionStart;" | Out-Null
+        Invoke-MySql "DELETE FROM ewallet_ledger WHERE id > $p10LedgerStart AND ref_type = 'commission';" | Out-Null
+
+        foreach ($walletName in $p10WalletSnapshot.Keys) {
+            $walletParts = ([string] $p10WalletSnapshot[$walletName]).Split('|')
+            if ($walletParts.Count -eq 2) {
+                Invoke-MySql "UPDATE users SET ewallet_balance = $($walletParts[0]), withdrawable_balance = $($walletParts[1]) WHERE username = '$walletName';" | Out-Null
+            }
+        }
+    } catch { }
+    try { Invoke-MySql "DELETE FROM users WHERE username = '$memberUsername';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE FROM users WHERE username = '$otherUsername';" | Out-Null } catch { }
+    # Phase 12: the transfer, its ledger legs, its audit rows, and every limit
+    # counter the reset cron zeroed during the run. The flag (not the id) decides
+    # whether the block ran: an empty table starts at id 0.
+    try {
+        if ($p12Ran) {
+            Invoke-MySql "DELETE FROM ewallet_ledger WHERE ref_type = 'transfer' AND id > $p12LedgerStart;" | Out-Null
+            Invoke-MySql "DELETE FROM ewallet_transfers WHERE id > $p12TransferStart;" | Out-Null
+        }
+        if ($p12AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p12AuditStart AND action = 'wallet.transfer';" | Out-Null
+        }
+        foreach ($counterName in $p12CounterSnapshot.Keys) {
+            $counterParts = ([string] $p12CounterSnapshot[$counterName]).Split('|')
+            if ($counterParts.Count -eq 2) {
+                Invoke-MySql "UPDATE users SET ewallet_sent_today = $($counterParts[0]), ewallet_sent_this_week = $($counterParts[1]) WHERE username = '$counterName';" | Out-Null
+            }
+        }
+    } catch { }
+    # Phase 13: the payout requests, their ledger legs (hold + refund) and their
+    # audit rows. The wallets were put back by the Phase 10 snapshot above, so
+    # only the rows this run added are removed here.
+    try {
+        if ($p13Ran) {
+            Invoke-MySql "DELETE FROM ewallet_ledger WHERE id > $p13LedgerStart AND (ref_type = 'payout' OR (ref_type = 'refund' AND note LIKE 'Payout request #%'));" | Out-Null
+            Invoke-MySql "DELETE FROM payout_requests WHERE id > $p13PayoutStart;" | Out-Null
+        }
+        if ($p13AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p13AuditStart AND action LIKE 'payout.%';" | Out-Null
+        }
+    } catch { }
+    # Phase 14: the S-Login sessions and their audit rows. No member data is
+    # touched; the sessions point at demo accounts only.
+    try {
+        if ($p14Ran) {
+            Invoke-MySql "DELETE FROM impersonation_log WHERE id > $p14LogStart;" | Out-Null
+        }
+        if ($p14AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p14AuditStart AND action LIKE 'slogin.%';" | Out-Null
+        }
+    } catch { }
+    # Phase 17B: the ladder and settings audit rows this run wrote (the
+    # products and the order are removed by the SMOKE-% and member cleanups).
+    try {
+        if ($p17bRan -and $p17bAuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p17bAuditStart AND action IN ('product.unilevel.update', 'settings.update');" | Out-Null
+        }
+    } catch { }
+    try { Invoke-MySql "DELETE ci FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE p.sku LIKE 'SMOKE-%';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE FROM products WHERE sku LIKE 'SMOKE-%';" | Out-Null } catch { }
+    try { Invoke-MySql "DELETE FROM packages WHERE name LIKE 'Smoke Package%';" | Out-Null } catch { }
+    # Phase 15: report-export and settings-change audit rows created here.
+    try {
+        if ($p15Ran -and $p15AuditStart -gt 0) {
+            Invoke-MySql "DELETE FROM audit_log WHERE id > $p15AuditStart AND action IN ('report.export', 'settings.update');" | Out-Null
+        }
+    } catch { }
+    # Phase 15: any upload probe this run left behind.
+    try {
+        Invoke-MySql "DELETE FROM audit_log WHERE action = 'settings.update' AND id > $p15AuditStart;" | Out-Null
+        Get-ChildItem -Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'public\uploads\proofs') -Filter 'smoke-probe-*.php' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch { }
+    Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host ''
+Write-Host ("Passed: {0}   Failed: {1}" -f $script:Passed, $script:Failures) -ForegroundColor Cyan
+Write-Host ''
+
+if ($script:Failures -eq 0) { exit 0 } else { exit 1 }

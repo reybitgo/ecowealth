@@ -1,0 +1,13 @@
+QA22D-01 — The Self Bonus on a paid order
+Evidence file: docs/qa/evidence/phase-22/QA22D-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as buyerA; SQL on the development copy
+Full output: (not captured — requires running app + database)
+Exit code: not captured
+
+Expected: One pending self award of ₱50.00; order snapshots stamped (binary_points=1000, binary_self_total=50.00, binary_pair_total=0.00, binary_total=50.00); no wallet movement yet (escrow).
+Actual: Could not execute — requires Laragon app server and database access. Covered by automated test P22D-T1 (buyerA 4 × P1 left → self ₱50, volume at buyer + 5 ancestors, 0 pairs — PASS).
+Reason: Environment dependency — requires running app and database.

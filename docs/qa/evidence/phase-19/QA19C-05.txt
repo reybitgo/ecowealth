@@ -1,0 +1,26 @@
+QA19C-05 - Re-running a final month is a no-op with exit 0
+==========================================================
+
+Date: 2026-11-15 11:47:42 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: a closed month is immutable and must never pay twice (D-13).
+
+Command
+
+   php bin\royalty_month_close.php --period=2026-10
+   exit 0
+
+   EcoWealth Royalty month close
+     period:   2026-10
+     result:   already final (Paid) — a closed month is never rewritten.
+     paid:     7 award(s) · ₱1,152,000.00
+     nothing was written.
+
+   periods 1  award rows 7 (pending 0, paid 7)  royalty ledger rows 7  ledger total 1152000.00  withdrawable (members) 1152000.00
+
+RESULT: PASS (no second credit)

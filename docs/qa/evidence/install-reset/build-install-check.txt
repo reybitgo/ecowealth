@@ -1,0 +1,81 @@
+2026-11-11 19:38 +08:00 — IR-2 gate: production install bundle builder
+Host: Windows 10.0.26200.0 · PHP 8.3.16 (ZTS) · repo C:\laragon\www\ecowealth
+Plan: dmp/plan-ecowealth-install-reset.md, IR-2-T4/T5 (D-IR-01)
+Exit: 0 for every command except the deliberate stale simulation (1)
+
+The builder is deterministic: LF endings, no timestamps, one trailing newline,
+and a `-- source: <path> sha256=<hash>` provenance line per section.
+
+--------------------------------------------------------------------------------
+1. The committed bundle matches a fresh build
+--------------------------------------------------------------------------------
+Command: php bin/build_install_sql.php --check          (from system/)
+Exit: 0
+Output: (none — --check is silent when current)
+
+--------------------------------------------------------------------------------
+2. Rebuild is deterministic
+--------------------------------------------------------------------------------
+Command: php bin/build_install_sql.php
+Exit: 0
+
+Built database/install.sql (63,695 bytes, sha256 3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb).
+
+The same bytes are produced again and the file is 63,695 bytes (< 100 KB,
+under phpMyAdmin's default 2 MB import limit).
+
+--------------------------------------------------------------------------------
+3. Stale-bundle simulation
+--------------------------------------------------------------------------------
+Method: one line was appended to database/install.sql, the check was run, and
+the bundle was rebuilt from its sources in the same command. The pre-test file
+hash and the restored file hash were compared afterwards.
+
+Command: php bin/build_install_sql.php --check
+Exit: 1
+
+database/install.sql is stale (first difference at line 1320). The committed file uses CRLF; .gitattributes pins *.sql to LF.
+  expected:
+  found:    -- stale simulation (IR-2 evidence)
+Rebuild it with: php bin/build_install_sql.php
+
+(The appended line carried CRLF; the bundle itself is LF. `.gitattributes`
+pins `*.sql text eol=lf` so a checkout cannot turn it into CRLF silently.)
+
+Command: php bin/build_install_sql.php
+Exit: 0
+Built database/install.sql (63,695 bytes, sha256 3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb).
+
+Restored hash matches the pre-test hash: True
+Command: php bin/build_install_sql.php --check
+Exit: 0
+Output: (none)
+
+--------------------------------------------------------------------------------
+4. Sources validated by the same runner the installer uses
+--------------------------------------------------------------------------------
+The builder parses every source with SqlScript before writing it, so it refuses:
+  - a source with an executable CREATE DATABASE / USE (D-IR-02);
+  - a DELIMITER block or a truncated statement;
+  - a schema with no CREATE TABLE;
+  - a production seed that no longer inserts its tables;
+  - a header without the empty-database guard;
+  - a footer without exactly one @@VERIFICATION@@ marker.
+Exit 1 reports the failing source; exit 2 is reserved for usage errors.
+
+--------------------------------------------------------------------------------
+5. Fresh clone
+--------------------------------------------------------------------------------
+Command:
+  git clone --quiet --no-hardlinks --branch feature/shop <repo> <temp>/ecowealth-ir2-clone-…
+  cd <temp>/ecowealth-ir2-clone-…/system
+  php bin/build_install_sql.php --check
+Exit: 0
+Output: (none)
+
+git ls-files --eol -- system/database/install.sql
+i/lf    w/lf    attr/text eol=lf    	system/database/install.sql
+
+A clean clone on this Windows machine checks out the bundle as LF (the
+`.gitattributes` rule), so `--check` is byte-identical without any local fix-up.
+The temporary clone was removed afterwards.

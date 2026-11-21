@@ -1,0 +1,266 @@
+EcoWealth — IR-0 baseline record
+================================
+Phase      : IR-0 — Contract, baseline and safety rails
+Captured   : 2026-11-11 18:24–18:35 +08:00 (Asia/Manila)
+Repository : C:\laragon\www\ecowealth
+Commit     : 0ced89e0ce6c1b2d1f7a90768d66b8dd5f08b081 (short 0ced89e)
+Commit msg : "admin menu nav tabs" · 2026-11-11 12:37:17 +0800
+Branch     : feature/shop
+APP_PHASE  : 15
+APP_ENV    : development
+Worktree   : clean at capture, except the untracked plan document
+             dmp/plan-ecowealth-install-reset.md
+
+This file is the reference point for every IR-phase rollback. It is evidence, not a
+reproducible build: the counts below describe one specific database on one specific
+machine. The reproduction commands in §9 regenerate the same measurements.
+
+Evidence set
+------------
+  baseline.txt        (this file) — starting-point record
+  baseline-suite.log             — full `php tests/run.php` output (ANSI colour stripped)
+  db-backup.txt                  — dump command, checksum, restore drill
+  README.md                      — naming convention for the later IR-4/IR-6/IR-8 evidence
+
+
+1. Environment
+--------------
+OS             : Microsoft Windows 11 Home Single Language (10.0.26200)
+PHP            : 8.3.16 (cli), ZTS Visual C++ 2019 x64, 64-bit
+PHP build      : Jan 14 2025 20:10:08
+php.ini        : C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.ini
+PHP extensions : PDO, pdo_mysql, mysqli, mbstring, fileinfo, gd, json, openssl, curl
+MySQL          : 8.4.3 (MySQL Community Server - GPL) at 127.0.0.1:3306
+mysqldump      : 8.4.3 (Win64 x86_64)
+sql_mode       : ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,
+                 ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+lower_case_table_names : 1  (Windows: table names are case-insensitive; IR-1's
+                 information_schema comparisons must expect the reported lower-case form)
+server charset : utf8mb4 / utf8mb4_0900_ai_ci (server default; schemas are created
+                 utf8mb4_unicode_ci)
+server time_zone : SYSTEM ("Malay Peninsula Standard Time"); the app pins DB_TIMEZONE +08:00
+Web server     : Apache (Laragon); app at http://localhost/ecowealth/system/
+
+
+2. Database
+-----------
+Schema      : ecowealth_sneat (utf8mb4 / utf8mb4_unicode_ci)
+Size        : 2.36 MB (data + indexes)
+Tables      : 27
+Migrations  : 19 (database/migrations/001…019)
+Roles       : 2 staff (admin, superadmin) + 24 members = 26 users
+
+Exact row counts, all 27 tables (COUNT(*), 2026-11-11 18:26 +08:00):
+
+  table                   rows
+  ----------------------  -----
+  activations               15
+  addresses                  1
+  audit_log               1814
+  cart_items               107
+  carts                    177
+  commissions               12
+  ewallet_admin_topups       7
+  ewallet_ledger            48
+  ewallet_transfers          3
+  impersonation_log          4
+  live_revisions          1814
+  package_levels            36
+  package_products          12
+  packages                   4
+  payout_requests            2
+  products                  10
+  reg_codes                 19
+  remember_tokens            0
+  settings                  45
+  shop_invoice_items        10
+  shop_invoices              8
+  shop_order_events         66
+  shop_order_items          18
+  shop_orders               16
+  shop_payment_proofs        9
+  shop_shipments             4
+  users                     26
+  ----------------------  -----
+  TOTAL (27 tables)       4287
+
+This is a working QA database, not a fresh install: it carries 10 products / 4 packages /
+36 levels / 12 contents / 24 members / 16 orders accumulated by Phases 1–15. A fresh
+install.sql target is expected to carry 7 products / 2 packages / 18 levels / 10 contents
+and zero members, orders, codes and ledger rows (plan §6.2). The dump in §5 is the
+protected copy of this state.
+
+Other schemas present (not touched by this baseline):
+  ecowealth_sneat_test            — rebuilt by tests/bootstrap.php on every run
+  ecowealth_sneat_migration_test  — rebuilt by MigrationTest
+  ecowealth_sneat_migtest         — legacy grant, not used by the suite
+Not yet provisioned (IR-1-T4 will create them once, as an admin account):
+  ecowealth_sneat_tool_a_test, ecowealth_sneat_tool_b_test
+
+
+3. Seed-parity snapshot (F-01 reproduced)
+-----------------------------------------
+The plan's F-01 finding is present in this baseline:
+
+  settings rows, development schema        : 45
+  settings rows, fresh schema.sql + seeds  : 44
+  commission_ledger_since, development     : 1
+  commission_ledger_since, seeds           : 0
+
+Migration 012 adds the key; seeds/001_settings.sql does not, so a fresh install and an
+upgraded install diverge. IR-2 fixes this in the seed (and the 48-key total includes the
+three install metadata keys from the bundle footer).
+
+
+4. Authoritative source checksums (for the IR-2 drift/parity work)
+------------------------------------------------------------------
+SHA-256 of the files install.sql is generated from:
+
+  51939b3c3cb67dfd42dd2ba7aab0b748294c15109c288182cbe30a46ddf6e1e2  database/schema.sql   (42,536 bytes)
+  21fc945b574a40f12236053e2724412258fb8c9d2654ae8d9321e1e6d61c418d  seeds/001_settings.sql   (3,020 bytes)
+  177f855441bdf908e4aa04da48b4424d55177d6eb239a25916bd8a4e45d82196  seeds/002_accounts.sql   (1,102 bytes)
+  61eaecb1e56c921dc206b9057ec677b2f65f6160c4365cc0a7afa21f37d340be  seeds/003_products.sql   (2,537 bytes)
+  6c23b3cc3125590349d1ee3132e8858b2d2a2da63606bf727f0ece6206ce1609  seeds/004_packages.sql   (4,549 bytes)
+  c3a49cc1b018922f7dc3301957a33d71a057ba62e93527f2b58ab1032321225c  seeds/005_demo_tree.sql  (7,859 bytes)
+
+seeds/005_demo_tree.sql is demo-only and is never part of the production bundle (D-IR-03).
+
+
+5. Backup
+---------
+  file      : backups/pre-install-reset-20261111.sql  (git-ignored via .gitignore:23)
+  bytes     : 588,383
+  sha256    : 8d89eab790d667ab309b93b6f75cc6be77cbb19b779383152370c83d988ea80a
+  mysqldump : --single-transaction --routines --triggers --no-tablespaces
+              --set-gtid-purged=OFF --default-character-set=utf8mb4
+  exit      : 0
+  restore   : ecowealth_sneat_restore_test rebuilt and imported (exit 0), 27 tables,
+              4,287/4,287 rows, identical table list and column counts; scratch schema
+              dropped afterwards.
+
+Full transcript: docs/qa/evidence/install-reset/db-backup.txt.
+
+
+6. Test suite (IR-0 gate)
+-------------------------
+Command : php tests/run.php        (from system/)
+Run     : 2026-11-11 18:24:40 → 18:29:49 +08:00
+Header  : EcoWealth test suite
+          PHP 8.3.16 · schema ecowealth_sneat_test · phase 15
+Result  : Cases: 724   Passed: 724   Failed: 0
+          All good.
+Exit    : 0
+Log     : docs/qa/evidence/install-reset/baseline-suite.log
+
+Per-group case counts (64 groups):
+
+  AdminActivationLiveTest   6    MemberOrderLiveTest       7
+  AdminCodeLiveTest         5    MemberProfileLiveTest     7
+  AdminCommissionLiveTest   5    MemberWalletLiveTest      4
+  AdminConfirmTest          4    MembershipTest           31
+  AdminDashboardLiveTest    3    MembershipViewTest       24
+  AdminMemberLiveTest       7    MigrationTest            18
+  AdminOrderLiveTest       11    OrderTest                17
+  AdminPackageLiveTest      4    OrderViewTest            15
+  AdminSettingsLiveTest     4    PackageTest              22
+  AdminWalletLiveTest       8    PackageViewTest           7
+  AuditLogTest              8    ParityTest                8
+  CartLiveTest              6    PaymentDetailsTest        6
+  CartTest                 21    PaymentTest              21
+  CartViewTest             17    PaymentViewTest          15
+  CommissionIndirectTest   14    PayoutLiveTest            9
+  CommissionTest           17    PayoutTest               22
+  CommissionViewTest        9    PayoutViewTest           12
+  CronTest                  8    ProductTest              25
+  FulfilmentTest           11    ProductViewTest          11
+  FulfilmentViewTest       16    ReportTest               14
+  HardeningTest             8    ReportViewTest            7
+  ImpersonationTest        17    RouterTest               11
+  ImpersonationViewTest     6    SLoginLiveTest            6
+  InvoiceTest               9    SettingsPageTest          8
+  LaunchTest                9    SettingsTest              8
+  LiveTest                 10    ShopLiveTest              8
+  MemberDashboardLiveTest   7    SkeletonTest             31
+  MemberEarningsLiveTest    4    TransferLiveTest          6
+  MemberGenealogyLiveTest   6    TransferTest             18
+  MemberMembershipLiveTest  7    TransferViewTest          9
+                                 UploadTest                7
+                                 ViewTest                 15
+                                 WalletTest               18
+                                 WalletViewTest           10
+                                 ---------------------------
+                                 Total                   724
+
+
+7. Contract freeze (IR-0-T3)
+-----------------------------
+Decisions D-IR-01 … D-IR-18: reviewed, accepted unchanged.
+Destination names (plan §5.2): reviewed, accepted unchanged. Frozen from IR-1 onward:
+
+  system/app/Core/DbTarget.php                       system/app/Core/SqlScript.php
+  system/app/Core/DbToolAccess.php                   system/app/Services/DatabaseToolException.php
+  system/app/Services/DatabaseInstaller.php          system/app/Services/DatabaseResetService.php
+  system/app/Services/DemoDataService.php            system/database/install.sql
+  system/database/install/header.sql                 system/database/install/footer.sql
+  system/bin/build_install_sql.php                   system/bin/db_install.php
+  system/bin/db_reset.php                            system/public/install.php
+  system/public/reset.php                            system/public/assets/css/db-tools.css
+  system/tests/Cases/{SqlScript,DbTarget,InstallSql,SeedParity,Install,DbReset,DbToolAccess}Test.php
+  docs/qa/phase-16-install-reset.md                  docs/qa/evidence/install-reset/
+
+Also frozen:
+  - CLI flags and exit codes: plan Appendix C (build_install_sql, db_install, db_reset).
+  - Report shape: version 1, keys in plan Appendix D; JSON is one document on STDOUT.
+  - Install lock: storage/install.lock (JSON keys in Appendix D; no secrets).
+  - Config constants: INSTALL_KEY (IR-3) and DB_RESET_ENABLED (default false, IR-6).
+  - Web tools are standalone files at public/install.php and public/reset.php; no routes.
+  - Test scratch schemas: ecowealth_sneat_tool_a_test / _b_test (IR-1).
+  - Evidence file names: fixed by docs/qa/evidence/install-reset/README.md.
+
+Sign-off is recorded in the plan document under "IR-0 sign-off — contract freeze".
+Any rename or flag change after this point needs a new decision entry and a re-run of IR-0.
+
+
+8. Deviations from the plan's expected baseline
+-----------------------------------------------
+IR-0-F1 — case count 724, not 722.
+  Plan §1.3/§2.3/IR-0 expects 722 cases. The actual suite at 0ced89e reports 724/724/0.
+  Reason: commit 0ced89e ("admin menu nav tabs") added 2 SettingsPageTest cases after the
+  plan's baseline was taken; docs/phase-log.md records "Suite 722 → 724". Nothing failed.
+  Action: record 724 as the true baseline; IR-2/IR-8 must use "724 existing cases", not
+  722. Stale "722" strings in system/README.md:944 and docs/qa/README.md:59 are IR-8
+  documentation work; historical QA evidence (phase-15) is not rewritten.
+
+IR-0-F2 — the development schema is not a fresh install.
+  It holds Phase 1–15 QA data (10 products, 4 packages, 36 levels, 12 contents, 24
+  members, 16 orders, 19 codes, 1,814 audit rows). Expected; protected by the §5 dump.
+  IR-5/IR-6 must exercise the reset on a scratch `_test` schema, never on this one
+  (D-IR-16).
+
+IR-0-F3 — scratch tool schemas are not provisioned yet.
+  ecowealth_sneat_tool_a_test / _b_test do not exist. The developer account has ALL on
+  individual schemas only and cannot CREATE DATABASE, so IR-1-T4's root provisioning
+  step is a real prerequisite, not a formality.
+
+
+9. Reproduction commands
+------------------------
+  cd C:\laragon\www\ecowealth\system
+  php -v
+  php tests\run.php
+  git rev-parse --short HEAD
+
+  # MySQL version + table count
+  mysql -u <user> -p -e "SELECT VERSION(); SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ecowealth_sneat';"
+
+  # Backup (password via an option file, never on the command line)
+  mysqldump --single-transaction --routines --triggers --no-tablespaces \
+    --default-character-set=utf8mb4 ecowealth_sneat > backups/pre-install-reset-<date>.sql
+
+  # Restore drill
+  mysql -e "CREATE DATABASE ecowealth_sneat_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+  mysql ecowealth_sneat_restore_test < backups/pre-install-reset-<date>.sql
+  mysql -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='ecowealth_sneat_restore_test'"
+
+Note: tool binaries live at C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\ on this machine and
+are not on PATH.

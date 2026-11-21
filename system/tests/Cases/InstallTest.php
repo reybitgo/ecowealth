@@ -1,0 +1,939 @@
+<?php
+declare(strict_types=1);
+
+/* ==============================================================
+ *  InstallTest — the installer engine, CLI + web (plan IR-3-T8, IR-4-T7)
+ *
+ *  Every case runs the production DatabaseInstaller against the
+ *  pre-provisioned scratch schema ecowealth_sneat_tool_a_test (and
+ *  tool_b_test where one schema is already in use). Nothing here
+ *  touches ecowealth_sneat, ecowealth_sneat_test or their grants.
+ *
+ *      preflight    the check table, a missing schema, --create-database
+ *      install      42 tables, 89 settings, 2 staff, 7/2/18/10, the lock
+ *      credentials  the §6.8 policy, enforced before any SQL
+ *      refusals     locked / not_empty, with the lock never overwritten
+ *      guard        a table appearing mid-import is translated, not raw
+ *      production   INSTALL_KEY required; the comparison itself
+ *      report       the JSON shape, no password and no key inside
+ *      web channel  install_channel/lock record 'web' (IR-4)
+ *      web page     standalone, SQL-free, never writes config.local.php
+ *      demo         with_demo seeds the tree and verifies it (IR-7)
+ *
+ *  The lock lives under STORAGE_PATH (tests/bootstrap.php pins it to a
+ *  temp folder), so a case never leaves state in system/storage and
+ *  every case deletes the lock before it runs and after it finishes.
+ * ============================================================== */
+
+$appRoot     = dirname(__DIR__, 2);
+$installPath = $appRoot . '/database/install.sql';
+
+/** A service bound to the application's configured MySQL account. */
+$installer = static fn (string $env = APP_ENV): DatabaseInstaller
+    => new DatabaseInstaller(DbTarget::fromConfig(), null, $env);
+
+/** Remove the install lock (the temp one the harness points at). */
+$clearLock = static function (): void {
+    $path = DatabaseInstaller::lockPath();
+
+    if (is_file($path)) {
+        @unlink($path);
+    }
+};
+
+/**
+ * A complete, valid option set for one target schema.
+ *
+ * @param array<string,array<string,string>> $staff role => fields to override
+ * @return array<string,mixed>
+ */
+$options = static function (string $database, array $staff = [], array $extra = []): array {
+    $base = [
+        'database'   => $database,
+        'admin'      => [
+            'username' => 'admin',
+            'email'    => 'owner@example.com',
+            'password' => 'AdminPassw0rd!23',
+        ],
+        'superadmin' => [
+            'username' => 'superadmin',
+            'email'    => 'owner+super@example.com',
+            'password' => 'SuperPassw0rd!23',
+        ],
+        'site_name'  => 'EcoWealth InstallTest',
+        'channel'    => 'cli',
+    ];
+
+    foreach ($staff as $role => $fields) {
+        $base[$role] = array_replace($base[$role], $fields);
+    }
+
+    return array_replace($base, $extra);
+};
+
+/** The check table as key => check. */
+$byKey = static function (array $preflight): array {
+    $indexed = [];
+
+    foreach ($preflight['checks'] as $check) {
+        $indexed[(string) $check['key']] = $check;
+    }
+
+    return $indexed;
+};
+
+return [
+    'preflight lists every check and passes on an empty scratch schema' => function () use ($installer, $clearLock, $byKey): void {
+        $clearLock();
+        [, $database] = test_scratch_database('tool_a');
+
+        $preflight = $installer()->preflight($database);
+        $checks    = $byKey($preflight);
+
+        assert_same($database, $preflight['database']);
+
+        foreach ([
+            'php', 'ext_pdo_mysql', 'ext_fileinfo', 'ext_mbstring', 'ext_json', 'config_local',
+            'server', 'database_name', 'database_exists', 'database_empty', 'install_sql',
+            'storage', 'lock_dir', 'install_lock', 'install_key',
+        ] as $key) {
+            assert_true(isset($checks[$key]), 'preflight carries the "' . $key . '" check');
+        }
+
+        assert_true($checks['database_exists']['ok'], 'the scratch schema exists');
+        assert_true($checks['database_empty']['ok'], 'the scratch schema starts empty');
+        assert_true($checks['install_sql']['ok'], 'database/install.sql parses');
+        assert_contains('73 statements', $checks['install_sql']['detail']);
+        assert_true($checks['install_lock']['ok'], 'no lock is present');
+        assert_true($preflight['ok'], 'the whole preflight passes');
+        assert_false(DatabaseInstaller::isLocked(), 'preflight writes no lock');
+    },
+
+    'a missing database is reported with a hint and never created' => function () use ($installer, $clearLock, $byKey): void {
+        $clearLock();
+
+        $missing = 'ecowealth_sneat_install_missing_test';
+        $target  = DbTarget::fromConfig();
+
+        if ($target->exists($missing)) {
+            fail('Fixture problem: ' . $missing . ' must not exist before this case.');
+        }
+
+        $preflight = $installer()->preflight($missing);
+        $checks    = $byKey($preflight);
+
+        assert_false($preflight['ok']);
+        assert_false($checks['database_exists']['ok']);
+        assert_contains('does not exist', $checks['database_exists']['detail']);
+        assert_contains('--create-database', $checks['database_exists']['hint']);
+
+        /* Empty is "not checked" (a pass) — one problem, not two. */
+        assert_true($checks['database_empty']['ok']);
+
+        assert_false($target->exists($missing), 'preflight never creates a database');
+        assert_false(DatabaseInstaller::isLocked(), 'preflight never writes a lock');
+
+        /* With --create-database the same target is installable, still
+         * without creating it. */
+        $willCreate = $installer()->preflight($missing, true, null, true);
+        $checks     = $byKey($willCreate);
+
+        assert_true($checks['database_exists']['ok']);
+        assert_contains('will be created', $checks['database_exists']['detail']);
+        assert_true($checks['database_empty']['ok']);
+        assert_false($target->exists($missing), 'even --check --create-database creates nothing');
+    },
+
+    'a fresh install produces 42/89/2/7/2/18/10 and a valid lock' => function () use ($installer, $clearLock, $options, $appRoot): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database));
+
+            assert_true($report['ok'], 'the install reports ok');
+            assert_same('db_install', $report['tool']);
+            assert_same(DatabaseInstaller::REPORT_VERSION, $report['version']);
+            assert_same('install', $report['mode']);
+            assert_same($database, $report['database']);
+            assert_same('cli', $report['channel']);
+
+            assert_same(42, $report['counts']['tables_created']);
+            assert_same(89, $report['counts']['settings_rows']);
+            assert_same(2, $report['counts']['staff_rows']);
+            assert_same(0, $report['counts']['members_rows']);
+            assert_same(7, $report['counts']['products_rows']);
+            assert_same(2, $report['counts']['packages_rows']);
+            assert_same(18, $report['counts']['levels_rows']);
+            assert_same(10, $report['counts']['contents_rows']);
+            assert_same(10, $report['counts']['team_harvest_levels_rows']);
+            assert_same(10, $report['counts']['general_harvest_levels_rows']);
+            assert_same(1, $report['counts']['general_harvest_board_rows']);
+            assert_same(0, $report['counts']['codes_rows']);
+
+            /* The database itself, not just the report. */
+            assert_count(42, test_table_list($pdo, $database));
+            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
+
+            /* Phase 21: the board ships unarmed (21A Rule 4). */
+            $board = $pdo->query('SELECT baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board')
+                ->fetch(PDO::FETCH_ASSOC);
+            assert_true($board !== false, 'the board singleton exists after a fresh install');
+            assert_null($board['baseline_n'], 'a fresh install has no go-live baseline');
+            assert_null($board['armed_at']);
+            assert_null($board['armed_by']);
+            assert_same(0, (int) $board['settled_n']);
+            assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
+            assert_same(
+                '8381000.00',
+                number_format((float) $pdo->query('SELECT SUM(amount) FROM general_harvest_levels')->fetchColumn(), 2, '.', ''),
+                'the full General Harvest ladder is ₱8,381,000.00'
+            );
+            assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_awards')->fetchColumn());
+
+            /* Both operator passwords really authenticate. */
+            foreach ([
+                'admin' => 'AdminPassw0rd!23',
+                'superadmin' => 'SuperPassw0rd!23',
+            ] as $role => $password) {
+                $statement = $pdo->prepare('SELECT username, member_status, is_active, password_hash
+                                              FROM users WHERE role = ? LIMIT 1');
+                $statement->execute([$role]);
+                $user = $statement->fetch();
+
+                assert_true($user !== false, 'the ' . $role . ' row exists');
+                assert_same($role, $user['username']);
+                assert_same('active', $user['member_status']);
+                assert_same(1, (int) $user['is_active']);
+                assert_true(password_verify($password, (string) $user['password_hash']), $role . ' signs in');
+            }
+
+            /* The metadata the installer owns. */
+            $settings = $pdo->query(
+                "SELECT key_name, value FROM settings
+                  WHERE key_name IN ('site_name','install_version','install_channel','install_completed_at')"
+            )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+            assert_same('EcoWealth InstallTest', $settings['site_name']);
+            assert_same('1.0.0', $settings['install_version']);
+            assert_same('cli', $settings['install_channel']);
+            assert_same(1, preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) $settings['install_completed_at']));
+
+            /* The lock (plan Appendix D). */
+            assert_true(DatabaseInstaller::isLocked(), 'the lock file exists');
+
+            $lockPath = DatabaseInstaller::lockPath();
+            assert_same(
+                rtrim(str_replace('\\', '/', (string) STORAGE_PATH), '/') . '/install.lock',
+                $lockPath,
+                'the lock honours STORAGE_PATH so a test never writes into system/storage'
+            );
+
+            $lock = DatabaseInstaller::readLock();
+            assert_true($lock !== null, 'the lock is valid JSON');
+
+            assert_same($database, $lock['database']);
+            assert_same('1.0.0', $lock['app_version']);
+            assert_same('cli', $lock['channel']);
+            assert_same(['admin', 'superadmin'], $lock['staff']);
+            assert_same(64, strlen((string) $lock['install_sql_sha256']));
+            assert_same(
+                SqlScript::fromFile($appRoot . '/database/install.sql')->checksum(),
+                $lock['install_sql_sha256'],
+                'the lock records the bundle checksum'
+            );
+            assert_same(1, preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', (string) $lock['installed_at']));
+
+            /* The report carries the lock's own JSON, never a password. */
+            assert_same($lock, $report['lock']['contents']);
+            assert_true($report['lock']['written']);
+
+            $json = (string) json_encode($report);
+            assert_not_contains('AdminPassw0rd!23', $json);
+            assert_not_contains('SuperPassw0rd!23', $json);
+
+            /* A preflight on the installed schema now reports both refusals. */
+            $after = $installer()->preflight($database);
+
+            assert_false($after['ok']);
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'P17A-T7 an award row fails the install verification and is named' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database));
+            assert_true($report['ok'], 'the clean install verifies');
+
+            /* One repeat-purchase award, reachable from the seeded rows: the
+             * install-time zero pack must catch it (a production database
+             * never starts with money in it). */
+            $staff = $pdo->query("SELECT id, role FROM users WHERE role IN ('admin','superadmin') ORDER BY id")->fetchAll();
+            assert_count(2, $staff);
+
+            $productId = (int) $pdo->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+            assert_true($productId > 0);
+
+            $pdo->exec(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                    subtotal, total, paid_at, terms_accepted_at)
+                 VALUES ('EWT-17A-VERIFY', {$staff[0]['id']}, 'paid', 'ewallet', 'Staff', 'Staff', 'Address',
+                         100.00, 100.00, NOW(), NOW())"
+            );
+            $orderId = (int) $pdo->lastInsertId();
+
+            $pdo->exec(
+                "INSERT INTO shop_order_items
+                   (order_id, product_id, product_name, quantity, unit_price, line_total, unit_base, base_total)
+                 VALUES ({$orderId}, {$productId}, 'Probe', 1, 100.00, 100.00, 100.00, 100.00)"
+            );
+            $itemId = (int) $pdo->lastInsertId();
+
+            $pdo->exec(
+                "INSERT INTO unilevel_awards
+                   (order_id, order_item_id, product_id, buyer_id, user_id, level,
+                    base_amount, rate_pct, amount, paid_at)
+                 VALUES ({$orderId}, {$itemId}, {$productId}, {$staff[0]['id']}, {$staff[1]['id']}, 1,
+                         100.00, 5.000, 5.00, NOW())"
+            );
+
+            $verify = $installer()->verify($pdo, ['database' => $database]);
+            assert_false($verify['ok'], 'a non-empty award table must fail the install verification');
+
+            $transactional = null;
+
+            foreach ($verify['checks'] as $check) {
+                if ($check['key'] === 'transactional') {
+                    $transactional = $check;
+                }
+            }
+
+            assert_not_null($transactional, 'the verification carries the transactional check');
+            assert_false($transactional['ok']);
+            assert_contains('unilevel_awards=1', (string) $transactional['detail'], 'the failing table is named');
+
+            /* Removing the award (and its order) returns the install to a
+             * clean verification: the check is wired to the table itself. */
+            $pdo->exec('DELETE FROM shop_orders WHERE id = ' . $orderId);
+
+            $again = $installer()->verify($pdo, ['database' => $database]);
+            assert_true($again['ok'], 'the clean install verifies again: ' . json_encode($again['checks']));
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'P22A-T7 a binary award row fails the install verification and is named' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database));
+            assert_true($report['ok'], 'the clean install verifies');
+
+            $staff = $pdo->query("SELECT id, role FROM users WHERE role IN ('admin','superadmin') ORDER BY id")->fetchAll();
+            assert_count(2, $staff);
+
+            $productId = (int) $pdo->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+            assert_true($productId > 0);
+
+            $pdo->exec(
+                "INSERT INTO shop_orders
+                   (order_no, user_id, status, payment_method, billing_name, shipping_name, shipping_address,
+                    subtotal, total, paid_at, terms_accepted_at)
+                 VALUES ('EWT-22A-VERIFY', {$staff[0]['id']}, 'paid', 'ewallet', 'Staff', 'Staff', 'Address',
+                         100.00, 100.00, NOW(), NOW())"
+            );
+            $orderId = (int) $pdo->lastInsertId();
+
+            $pdo->exec(
+                "INSERT INTO shop_order_items
+                   (order_id, product_id, product_name, quantity, unit_price, line_total)
+                 VALUES ({$orderId}, {$productId}, 'Probe', 1, 100.00, 100.00)"
+            );
+
+            $pdo->exec(
+                "INSERT INTO binary_awards
+                   (kind, order_id, buyer_id, user_id, side, points, pair_count, pair_points, rate_pct, amount,
+                    status, hold_days, paid_at)
+                 VALUES ('self', {$orderId}, {$staff[0]['id']}, {$staff[1]['id']}, NULL, 1000, 0, 0, 5.000, 50.00,
+                         'pending', 7, NOW())"
+            );
+
+            $verify = $installer()->verify($pdo, ['database' => $database]);
+            assert_false($verify['ok'], 'a non-empty binary award table must fail the install verification');
+
+            $transactional = null;
+
+            foreach ($verify['checks'] as $check) {
+                if ($check['key'] === 'transactional') {
+                    $transactional = $check;
+                }
+            }
+
+            assert_not_null($transactional, 'the verification carries the transactional check');
+            assert_false($transactional['ok']);
+            assert_contains('binary_awards=1', (string) $transactional['detail'], 'the failing table is named');
+
+            /* Removing the order cascades the award and the verification passes again. */
+            $pdo->exec('DELETE FROM shop_orders WHERE id = ' . $orderId);
+
+            $again = $installer()->verify($pdo, ['database' => $database]);
+            assert_true($again['ok'], 'the clean install verifies again: ' . json_encode($again['checks']));
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'a demo install seeds the tree, wallets and codes and verifies it' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database, [], ['with_demo' => true]));
+
+            assert_true(
+                $report['ok'],
+                'the demo install reports ok: ' . json_encode($report['verification']['checks'])
+            );
+
+            /* The report block (plan IR-7-T3 / Appendix D). */
+            assert_same(true, $report['demo']['installed']);
+            assert_same(5, $report['demo']['members']);
+            assert_same(3, $report['demo']['codes']);
+            assert_same(3, $report['demo']['ledger_rows']);
+            assert_same('Demo@1234', $report['demo']['credentials']);
+            assert_same(
+                ['juan' => ['balance' => '2000.00', 'withdrawable' => '1500.00']],
+                ['juan' => $report['demo']['wallets']['juan']],
+                'the report carries the funded wallet strings'
+            );
+            assert_same(true, $report['options']['with_demo']);
+
+            /* The counts the §6.5 pack prints. */
+            assert_same(5, $report['counts']['members_rows']);
+            assert_same(3, $report['counts']['codes_rows']);
+            assert_same(3, $report['counts']['ledger_rows']);
+            assert_same(42, $report['counts']['tables_created']);
+
+            /* The database itself, not just the report. */
+            $usernames = $pdo->query(
+                "SELECT username FROM users WHERE role = 'member' ORDER BY username"
+            )->fetchAll(PDO::FETCH_COLUMN);
+
+            assert_same(['david', 'juan', 'maria', 'peter', 'sarah'], $usernames);
+
+            $david = $pdo->query(
+                "SELECT member_status, package_id FROM users WHERE username = 'david'"
+            )->fetch();
+            assert_same('pending', (string) $david['member_status']);
+            assert_null($david['package_id']);
+
+            foreach (DemoDataService::WALLETS as $username => [$balance, $withdrawable]) {
+                $wallet = $pdo->query(
+                    "SELECT ewallet_balance, withdrawable_balance FROM users WHERE username = '$username'"
+                )->fetch();
+
+                assert_same($balance, number_format((float) $wallet['ewallet_balance'], 2, '.', ''), $username);
+                assert_same($withdrawable, number_format((float) $wallet['withdrawable_balance'], 2, '.', ''), $username);
+            }
+
+            $codes = $pdo->query('SELECT code, status FROM reg_codes ORDER BY code')->fetchAll(PDO::FETCH_KEY_PAIR);
+            assert_same(
+                [
+                    'DEMO-EXPD-4C9M' => 'expired',
+                    'DEMO-PKGA-2A7K' => 'unused',
+                    'DEMO-PKGB-3B8L' => 'unused',
+                ],
+                $codes
+            );
+
+            assert_same(3, (int) $pdo->query(
+                "SELECT COUNT(*) FROM ewallet_ledger
+                  WHERE ref_type = 'adjustment' AND ref_id IN (9001, 9002, 9003)"
+            )->fetchColumn());
+
+            /* The staff rename still happened after the demo import: a
+             * demo install must not skip the operator's credentials. */
+            assert_same('admin', (string) $pdo->query(
+                "SELECT username FROM users WHERE role = 'admin'"
+            )->fetchColumn());
+
+            /* verify() accepts the demo tree and carries the wallet check. */
+            $verify = $installer()->verify($pdo, [
+                'database'  => $database,
+                'with_demo' => true,
+                'admin'     => ['username' => 'admin', 'password' => 'AdminPassw0rd!23'],
+            ]);
+
+            assert_true($verify['ok'], json_encode($verify['checks']));
+
+            $keys = array_column($verify['checks'], 'key');
+            assert_true(in_array('demo_rows', $keys, true), 'verify carries the demo row check');
+            assert_true(in_array('demo_wallets', $keys, true), 'verify carries the demo wallet check');
+
+            /* DemoDataService alone has the production gate. */
+            $availability = (new DemoDataService(null, 'production'))->available($pdo, true, false);
+            assert_false($availability['ok'], 'production refuses demo data');
+            assert_contains('production', $availability['reason']);
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'demo data is refused when the tree already exists' => function (): void {
+        /* A seeded QA database already holds the five demo members and
+         * business rows: the installer-style guard (requireEmpty) must
+         * refuse instead of merging a second tree. */
+        [$pdo, $database] = test_scratch_database('tool_b');
+
+        foreach ([
+            'database/schema.sql',
+            'database/seeds/001_settings.sql',
+            'database/seeds/002_accounts.sql',
+            'database/seeds/003_products.sql',
+            'database/seeds/004_packages.sql',
+            'database/seeds/005_demo_tree.sql',
+        ] as $file) {
+            test_run_sql_file($pdo, dirname(__DIR__, 2) . '/' . $file);
+        }
+
+        $service      = new DemoDataService();
+        $availability = $service->available($pdo, true, false);
+
+        assert_false($availability['ok'], 'an existing demo tree is refused');
+        assert_contains('demo members already exist', $availability['reason']);
+        assert_same(5, (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn());
+
+        /* A missing default package refuses before any row is written. */
+        $pdo->exec("DELETE FROM package_products");
+        $pdo->exec("DELETE FROM reg_codes");
+        $pdo->exec("DELETE FROM ewallet_ledger");
+        $pdo->exec("DELETE FROM users WHERE role = 'member'");
+        $pdo->exec("DELETE FROM packages WHERE slug = 'package-b'");
+
+        $availability = $service->available($pdo, true, false);
+
+        assert_false($availability['ok'], 'a missing package is refused');
+        assert_contains('package-b', $availability['reason']);
+
+        $error = assert_throws(static fn (): array => $service->install($pdo), DatabaseToolException::class);
+        assert_same(DatabaseToolException::KIND_REFUSED, $error->kind);
+        assert_same(0, (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'member'")->fetchColumn());
+    },
+
+    'verify re-checks an installed schema and its lock' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $installer()->install($options($database));
+
+            $verify = $installer()->verify($pdo, [
+                'database'   => $database,
+                'admin'      => [
+                    'username' => 'admin',
+                    'email'    => 'owner@example.com',
+                    'password' => 'AdminPassw0rd!23',
+                ],
+                'superadmin' => [
+                    'username' => 'superadmin',
+                    'email'    => 'owner+super@example.com',
+                    'password' => 'SuperPassw0rd!23',
+                ],
+                'channel'    => 'cli',
+                'require_lock' => true,
+            ]);
+
+            assert_true($verify['ok'], 'the verified install is complete');
+
+            $keys = array_column($verify['checks'], 'key');
+
+            foreach (['tables', 'settings', 'staff', 'signin', 'members', 'catalogue', 'codes', 'transactional', 'metadata', 'lock'] as $key) {
+                assert_true(in_array($key, $keys, true), 'verify carries the "' . $key . '" check');
+            }
+
+            /* A wrong password must fail the sign-in check. */
+            $wrong = $installer()->verify($pdo, [
+                'database' => $database,
+                'admin'    => ['username' => 'admin', 'password' => 'NotThePassword!23'],
+            ]);
+
+            assert_false($wrong['ok']);
+
+            $signin = null;
+
+            foreach ($wrong['checks'] as $check) {
+                if ($check['key'] === 'signin') {
+                    $signin = $check;
+                }
+            }
+
+            assert_true($signin !== null, 'the sign-in check exists');
+            assert_false($signin['ok'], 'a wrong password fails sign-in');
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'a second run is refused by the lock and changes nothing' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [, $database] = test_scratch_database('tool_a');
+
+        try {
+            $first = $installer()->install($options($database));
+            assert_true($first['ok']);
+
+            $lockPath = DatabaseInstaller::lockPath();
+            $before   = (string) file_get_contents($lockPath);
+
+            /* Empty the schema: the refusal must come from the lock alone. */
+            test_scratch_database('tool_a');
+
+            $error = assert_throws(
+                static fn (): array => $installer()->install($options($database)),
+                DatabaseToolException::class
+            );
+
+            assert_same(DatabaseToolException::KIND_LOCKED, $error->kind);
+            assert_contains('already locked', $error->getMessage());
+            assert_contains('install.lock', (string) $error->hint);
+
+            assert_same($before, (string) file_get_contents($lockPath), 'the lock is never overwritten');
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'a non-empty database without a lock is refused as not_empty' => function () use ($installer, $clearLock, $options, $installPath): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_b');
+
+        try {
+            SqlScript::fromFile($installPath)->run($pdo);
+
+            $error = assert_throws(
+                static fn (): array => $installer()->install($options($database)),
+                DatabaseToolException::class
+            );
+
+            assert_same(DatabaseToolException::KIND_NOT_EMPTY, $error->kind);
+            assert_contains('is not empty', $error->getMessage());
+            assert_same($database, $error->context['database']);
+            assert_same(42, (int) $error->context['tables']);
+            assert_false(DatabaseInstaller::isLocked(), 'a refused install writes no lock');
+
+            /* Nothing was deleted or added: the import is untouched. */
+            assert_count(42, test_table_list($pdo, $database));
+            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'a table appearing mid-import is translated, never surfaced raw' => function () use ($installer, $clearLock, $options, $appRoot): void {
+        $clearLock();
+
+        [, $database] = test_scratch_database('tool_b');
+
+        /* Reuse the bundle's own guard, preceded by a CREATE TABLE that
+         * simulates a table appearing between the empty check and the
+         * import. Nothing in the installer may leak "1146" or "SQLSTATE". */
+        $header = (string) file_get_contents($appRoot . '/database/install/header.sql');
+        assert_same(1, preg_match('/SET @ew_present.*?DEALLOCATE PREPARE ew_guard;/s', $header, $match));
+        $guard = (string) ($match[0] ?? '');
+        assert_true($guard !== '', 'the bundle header carries the guard');
+
+        $temporary = rtrim((string) STORAGE_PATH, '/\\') . '/guard-race-' . bin2hex(random_bytes(4)) . '.sql';
+        file_put_contents($temporary, "CREATE TABLE ew_guard_race_probe (id INT NOT NULL);\n" . $guard . "\n");
+
+        try {
+            $error = assert_throws(
+                static fn (): array => $installer()->install($options($database, [], ['install_sql' => $temporary])),
+                DatabaseToolException::class
+            );
+
+            assert_same(DatabaseToolException::KIND_NOT_EMPTY, $error->kind);
+            assert_contains('stopped being empty', $error->getMessage());
+            assert_not_contains('1146', $error->getMessage());
+            assert_not_contains('SQLSTATE', $error->getMessage());
+            assert_not_contains('ecowealth_install_requires_an_empty_database', $error->getMessage());
+            assert_false(DatabaseInstaller::isLocked(), 'the refused install writes no lock');
+        } finally {
+            @unlink($temporary);
+            $clearLock();
+        }
+    },
+
+    'the password policy is enforced before any SQL runs' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        $service = $installer();
+
+        $valid = [
+            'admin'      => ['username' => 'admin', 'email' => 'owner@example.com', 'password' => 'AdminPassw0rd!23'],
+            'superadmin' => ['username' => 'superadmin', 'email' => 'owner+super@example.com', 'password' => 'SuperPassw0rd!23'],
+        ];
+
+        assert_true($service->validateStaffInput($valid)['ok'], 'the valid pair passes');
+
+        $cases = [
+            'an 8-character password' => [
+                'admin' => ['password' => 'short12x'],
+            ],
+            'a published default password' => [
+                'superadmin' => ['password' => 'Admin@123'],
+            ],
+            'a mismatched confirmation' => [
+                'admin' => ['password_confirm' => 'SomethingElse!23'],
+            ],
+            'the same username twice' => [
+                'superadmin' => ['username' => 'admin'],
+            ],
+            'the same email twice' => [
+                'superadmin' => ['email' => 'OWNER@example.com'],
+            ],
+            'an invalid username' => [
+                'admin' => ['username' => 'no spaces'],
+            ],
+            'an invalid email' => [
+                'superadmin' => ['email' => 'not-an-email'],
+            ],
+        ];
+
+        foreach ($cases as $label => $override) {
+            $input = $valid;
+
+            foreach ($override as $role => $fields) {
+                $input[$role] = array_replace($input[$role], $fields);
+            }
+
+            $result = $service->validateStaffInput($input);
+
+            assert_false($result['ok'], $label . ' must be refused');
+            assert_true($result['errors'] !== [], $label . ' reports an error');
+
+            foreach ($result['errors'] as $field => $message) {
+                assert_true(str_contains((string) $field, '.'), $label . ' names the field (' . $field . ')');
+                assert_true($message !== '', $label . ' carries a message');
+            }
+        }
+
+        /* Short password through install(): refused before anything is created. */
+        $error = assert_throws(
+            static fn (): array => $service->install($options($database, ['admin' => ['password' => 'short12x']])),
+            DatabaseToolException::class
+        );
+
+        assert_same(DatabaseToolException::KIND_USAGE, $error->kind);
+        assert_contains('not valid', $error->getMessage());
+        assert_same(0, count(test_table_list($pdo, $database)), 'refused credentials create no table');
+        assert_false(DatabaseInstaller::isLocked(), 'refused credentials write no lock');
+
+        $clearLock();
+    },
+
+    'production refuses without INSTALL_KEY and the comparison is constant time' => function () use ($installer, $clearLock, $byKey): void {
+        $clearLock();
+
+        [, $database] = test_scratch_database('tool_a');
+
+        /* The comparison itself (plan IR-4-T5): an empty expected key never
+         * matches, not even an empty submission. */
+        assert_false(DatabaseInstaller::installKeyMatches('', ''));
+        assert_false(DatabaseInstaller::installKeyMatches('some-key', ''));
+        assert_false(DatabaseInstaller::installKeyMatches('', 'some-key'));
+        assert_true(DatabaseInstaller::installKeyMatches('some-key', 'some-key'));
+        assert_false(DatabaseInstaller::installKeyMatches('some-key', 'some-kez'));
+
+        $configured = DatabaseInstaller::configuredInstallKey();
+        $production = $installer('production');
+
+        if ($configured === '') {
+            $preflight = $production->preflight($database, true, '');
+            $checks    = $byKey($preflight);
+
+            assert_false($preflight['ok']);
+            assert_false($checks['install_key']['ok']);
+            assert_contains('INSTALL_KEY is empty', $checks['install_key']['detail']);
+
+            $error = assert_throws(
+                static fn (): array => $production->install([
+                    'database'   => $database,
+                    'admin'      => ['username' => 'admin', 'email' => 'owner@example.com', 'password' => 'AdminPassw0rd!23'],
+                    'superadmin' => ['username' => 'superadmin', 'email' => 'owner2@example.com', 'password' => 'SuperPassw0rd!23'],
+                ]),
+                DatabaseToolException::class
+            );
+
+            assert_same(DatabaseToolException::KIND_REFUSED, $error->kind);
+            assert_contains('INSTALL_KEY', $error->getMessage());
+            assert_not_contains('AdminPassw0rd', $error->getMessage());
+        } else {
+            /* A server with a real key configured: the wrong and the right
+             * value must be distinguishable through preflight. */
+            $checks = $byKey($production->preflight($database, true, 'wrong-' . $configured));
+            assert_false($checks['install_key']['ok']);
+
+            $checks = $byKey($production->preflight($database, true, $configured));
+            assert_true($checks['install_key']['ok']);
+        }
+
+        /* Non-production still ignores the key (local convenience). */
+        $local = $installer('development');
+        $checks = $byKey($local->preflight($database));
+        assert_true($checks['install_key']['ok']);
+        assert_contains('not required', $checks['install_key']['detail']);
+
+        $clearLock();
+    },
+
+    'the report carries the documented JSON keys and no secret' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database));
+
+            foreach ([
+                'tool', 'version', 'ok', 'mode', 'database', 'channel', 'started_at', 'duration_ms',
+                'options', 'steps', 'counts', 'staff', 'lock', 'install_sql',
+                'verification', 'checks', 'warnings',
+            ] as $key) {
+                assert_true(array_key_exists($key, $report), 'the report has "' . $key . '"');
+            }
+
+            assert_same('db_install', $report['tool']);
+            assert_same(1, $report['version']);
+            assert_true(is_bool($report['ok']));
+            assert_true(is_int($report['duration_ms']) && $report['duration_ms'] >= 0);
+            assert_same(1, preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/', (string) $report['started_at']));
+
+            /* Steps: key, label, status, rows, ms. */
+            assert_true($report['steps'] !== []);
+
+            foreach ($report['steps'] as $step) {
+                assert_true(in_array($step['status'], ['ok', 'skip', 'fail'], true));
+                assert_true(is_int($step['ms']) && $step['ms'] >= 0);
+            }
+
+            assert_same($report['verification']['checks'], $report['checks']);
+            assert_true($report['verification']['ok']);
+
+            /* Options are redacted: usernames/emails yes, passwords never. */
+            assert_same(['admin', 'superadmin'], $report['staff']['usernames']);
+            assert_same('owner@example.com', $report['options']['admin']['email']);
+            assert_false(isset($report['options']['admin']['password']), 'the report omits the admin password');
+            assert_false(isset($report['options']['superadmin']['password']), 'the report omits the superadmin password');
+            assert_false(isset($report['options']['install_key']), 'the report omits the INSTALL_KEY');
+
+            $json = (string) json_encode($report, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            assert_not_contains('AdminPassw0rd!23', $json);
+            assert_not_contains('SuperPassw0rd!23', $json);
+
+            $decoded = json_decode($json, true);
+            assert_true(is_array($decoded), 'the report round-trips through JSON');
+            assert_same('db_install', $decoded['tool']);
+            assert_true($decoded['ok']);
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'the web channel is recorded in settings and the lock' => function () use ($installer, $clearLock, $options): void {
+        $clearLock();
+
+        [$pdo, $database] = test_scratch_database('tool_a');
+
+        try {
+            $report = $installer()->install($options($database, [], ['channel' => 'web']));
+
+            assert_true($report['ok'], 'the web-channel install reports ok');
+            assert_same('web', $report['channel']);
+            assert_same('web', $report['options']['channel']);
+
+            $channel = (string) $pdo->query(
+                "SELECT value FROM settings WHERE key_name = 'install_channel'"
+            )->fetchColumn();
+            assert_same('web', $channel, 'settings.install_channel records the web path');
+
+            $lock = DatabaseInstaller::readLock();
+            assert_true($lock !== null, 'the lock exists');
+            assert_same('web', $lock['channel'], 'the lock records the web path');
+            assert_same($database, $lock['database']);
+        } finally {
+            $clearLock();
+        }
+    },
+
+    'the installer page is standalone, SQL-free and writes no config' => function () use ($appRoot): void {
+        $page = (string) file_get_contents($appRoot . '/public/install.php');
+
+        /* It may not boot the application: no schema exists yet, so
+         * bootstrap's db()/session/require_* calls would fail. */
+        assert_contains("__DIR__ . '/../app/config.php'", $page);
+        assert_contains("__DIR__ . '/../app/helpers.php'", $page);
+        assert_contains("__DIR__ . '/../app/autoload.php'", $page);
+        assert_not_contains("'/../app/bootstrap.php'", $page, 'bootstrap.php is never required');
+        assert_same(
+            0,
+            preg_match('/^\s*require_(?:admin|superadmin)\s*\(/m', $page),
+            'no authentication guard is called from the installer'
+        );
+
+        /* The page owns its session, CSRF and gates through the shared
+         * classes rather than reimplementing them. */
+        assert_contains('DbToolAccess::INSTALL_SESSION_NAME', $page);
+        assert_contains('session_name(', $page);
+        assert_contains('csrf_field()', $page);
+        assert_contains('csrf_verify(', $page);
+        assert_contains('DbToolAccess::installKeyMatches', $page);
+        assert_contains('DbToolAccess::installPhraseMatches', $page);
+        assert_contains('SecurityHeaders::send()', $page);
+
+        /* No SQL and no schema assumptions: all work goes through the
+         * service (plan §5.1 / IR-6 exit criterion, applied here too). */
+        foreach (['INSERT INTO', 'DELETE FROM', 'UPDATE ', 'SELECT ', '->query(', '->prepare(', '->exec('] as $sql) {
+            assert_not_contains($sql, $page, 'the page contains no SQL (' . $sql . ')');
+        }
+
+        /* No secrets in the page and no way to write the config file. */
+        foreach (['Admin@123', 'Super@123', 'DB_PASS', 'file_put_contents', 'fwrite(', 'fopen('] as $secret) {
+            assert_not_contains($secret, $page, 'the page does not contain ' . $secret);
+        }
+
+        /* The key is rendered as a blank password field, never echoed. */
+        assert_contains("install_field('install_key'", $page, 'the form has a key field');
+        assert_contains("'type'         => 'password'", $page, 'the key input is a password field');
+    },
+
+    'the shared tool stylesheet exists and carries the dark shell' => function () use ($appRoot): void {
+        $cssPath = $appRoot . '/public/assets/css/db-tools.css';
+
+        assert_true(is_file($cssPath), 'public/assets/css/db-tools.css exists');
+
+        $css = (string) file_get_contents($cssPath);
+
+        foreach (['.dbt-body', '.dbt-card', '.dbt-table', '.dbt-button', '.dbt-alert', '.dbt-input', '.dbt-form'] as $selector) {
+            assert_contains($selector, $css, 'the stylesheet styles ' . $selector);
+        }
+
+        assert_contains('@media (max-width: 620px)', $css, 'the stylesheet is responsive');
+    },
+];

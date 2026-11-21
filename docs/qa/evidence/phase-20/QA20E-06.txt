@@ -1,0 +1,23 @@
+QA20E-06 - A member who has not qualified
+=========================================
+
+Date: 2026-11-16 11:35:40 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Appendix C.8: the panel states the gate instead of showing an empty matrix.
+
+A member with no directs:
+  Team Harvest A private 3×10 matrix. A level pays its amount once, when its block of qualified teammates is full — no purchases, no rank, no month. Open the ledger The Team Harvest bonus is currently off. Positions and progress are still recorded; no new award is written until the stream is switched on. The queue is not seeded, so this member holds no position yet. Nothing can pay until bin/harvest_queue_seed.php has run. Not qualified No queue position, no matrix. Not qualified: 0 of 3 direct members. They enter the queue when their third direct member registers; from that instant their matrix fills with members who qualify after them. Direct members 0 of 3 Queue position — Read-only. A level pays once, ever; a level complete before go-live is recorded and never credited. Changing the ladder affects levels that have not paid yet — every award keeps the amount it was paid at.
+
+A member with two directs:
+  Team Harvest A private 3×10 matrix. A level pays its amount once, when its block of qualified teammates is full — no purchases, no rank, no month. Open the ledger The Team Harvest bonus is currently off. Positions and progress are still recorded; no new award is written until the stream is switched on. The queue is not seeded, so this member holds no position yet. Nothing can pay until bin/harvest_queue_seed.php has run. Not qualified No queue position, no matrix. Not qualified: 2 of 3 direct members. They enter the queue when their third direct member registers; from that instant their matrix fills with members who qualify after them. Direct members 2 of 3 Queue position — Read-only. A level pays once, ever; a level complete before go-live is recorded and never credited. Changing the ladder affects levels that have not paid yet — every award keeps the amount it was paid at.
+
+Checks:
+  no directs reads 0 of 3 ......... yes
+  two reads 2 of 3 ................ yes
+  no award table for either ....... yes
+  no matrix for either ............ yes
+
+RESULT: PASS

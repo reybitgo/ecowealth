@@ -1,0 +1,13 @@
+QA22F-04 — Desktop and mobile rendering
+Evidence file: docs/qa/evidence/phase-22/QA22F-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /earnings?ledger=binary at 1440×900 and 390×844
+Full output: (not captured — requires running browser with screenshots)
+Exit code: not captured
+
+Expected: Desktop: two cards side by side; mobile: cards stack, no horizontal scroll; all numbers legible.
+Actual: Could not execute — requires Laragon app server and browser with screenshot capability at specific resolutions. Evidence file QA22F-04.png not produced (screenshot required).
+Reason: Environment dependency — browser-based screenshot check at 1440×900 and 390×844.

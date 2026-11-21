@@ -1,0 +1,38 @@
+QA17G-04 — the build reports phase 17 (plan section 11, Phase 17G)
+Date: 2026-11-12 +08:00
+Database: ecowealth_sneat (development copy)
+
+1) The runtime constant
+   Command: php -r "require 'app/config.php'; echo APP_PHASE, PHP_EOL;"
+   Result: 17
+
+2) The suite's own header (the first line of a full run; see QA17G-01-suite.txt)
+   PHP 8.3.16 · schema ecowealth_sneat_test · phase 17
+
+3) HardeningTest, filtered
+   Command: php tests/run.php Hardening
+   PHP 8.3.16 · schema ecowealth_sneat_test · phase 17
+     PASS  P15 the build reports phase 17
+   Cases: 8   Passed: 8   Failed: 0
+   All good.
+   (ReportViewTest's "APP_PHASE >= 15" case is part of the full suite, which is green.)
+
+4) Where APP_PHASE is read in the application (proves the shell renders no phase badge)
+   Command: grep APP_PHASE app
+   app/config.php:37          defined('APP_PHASE') || define('APP_PHASE', 17);
+   app/helpers.php:932        return (int) ($item['phase'] ?? 1) <= (int) APP_PHASE;
+   app/routes_inventory.php:25  *  *Port* with a phase at or below APP_PHASE has no matching route,
+   No app/views or app/layout file references it: nav_item_live() is the only reader, so there is no
+   build-phase badge anywhere in the shell for the plan's "on the dashboard badge" wording to describe.
+
+5) /dashboard as an admin over HTTP (real login, real page)
+   POST /login      -> 302 (signed in)
+   GET /dashboard   -> 200
+   Body checks: Back office badge = True; Repeat bonus (30 d) tile = True; Audit log menu item = True
+
+Conclusion: APP_PHASE is 17 in the runtime, in the suite header and in HardeningTest's assertion; the
+admin dashboard answers 200 and renders every shipped menu item. The plan's "on the dashboard badge"
+wording is amended (deviation 1 in docs/phase-log.md and Appendix G), because adding a badge would be
+a UI change, which 17G Rule 1 forbids.
+
+exit code: 0

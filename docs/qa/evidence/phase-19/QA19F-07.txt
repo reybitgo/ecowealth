@@ -1,0 +1,25 @@
+Phase 19F — Operations
+Check QA19F-07 — A second process holding the lock makes the run skip cleanly
+Prerequisite: the month paid in QA19F-05; this generator process takes CronLock('royalty_month_close') first
+Executed: 2026-11-15 15:20:45 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+Holder: the QA generator itself acquires `CronLock('royalty_month_close')` (the same flock the
+job takes) and keeps it while the CLI runs; it releases it afterwards.
+
+Lock file: C:\laragon\www\ecowealth\system/storage/locks\royalty_month_close.lock
+
+Command while the lock is held:
+
+  php bin\royalty_month_close.php
+
+Exit code: 0
+
+EcoWealth Royalty month close
+  [SKIP ] busy — another run already holds the lock.
+
+Newest log line:
+
+  [2026-11-15 15:20:45 +08:00] [SKIP ] trigger=cli skipped: another run holds C:\laragon\www\ecowealth\system/storage\locks\royalty_month_close.lock
+==============================================================================
+Asserted: exit 0, "[SKIP ] busy — another run already holds the lock.", and a [SKIP ] log line; no period or award changed.
+RESULT: PASS

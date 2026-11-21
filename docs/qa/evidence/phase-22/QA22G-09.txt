@@ -1,0 +1,13 @@
+QA22G-09 — Responsive and compact mode
+Evidence file: docs/qa/evidence/phase-22/QA22G-09.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: /genealogy?view=binary at 1440×900 and 390×844
+Full output: (not captured — requires running browser with screenshots)
+Exit code: not captured
+
+Expected: Responsive by container size; compact mode on narrow screens; printable list. Evidence file QA22G-09.png not produced (screenshot required).
+Actual: Could not execute — requires Laragon app server and browser with screenshot capability.
+Reason: Environment dependency — browser-based screenshot check.

@@ -1,0 +1,56 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-09 — The doctor is green on a clean build and red on counter drift
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:51:58 +08:00
+
+Expected: exit 0 green; exit 1 with "1 counter(s) disagree with a recount" after a hand edit; exit 0 after restoring
+==============================================================================
+Command: php bin/team_harvest_catchup.php --doctor
+
+EcoWealth Team Harvest — doctor
+  [ OK ]  clock      0 s apart (tolerance 60 s)
+  [ OK ]  tables     harvest_queue, team_harvest_levels and team_harvest_awards exist
+  [ OK ]  settings   all four present · gate 3 · depth 10
+  [ OK ]  seed       seeded (team_harvest_ledger_since = 2026-11-16 01:51:56)
+  [ OK ]  baseline   2026-11-16 01:51:56
+  [ OK ]  queue      5 position(s) · next #6 · deepest n 4
+  [ OK ]  awards     1 row(s) · ₱1,000.00 credited · 0 baseline
+  [ OK ]  drift      0 counter(s) disagree with a recount · 0 below their baseline
+  [ OK ]  reconcile  awards = wallet movements = ₱1,000.00, counters clean
+
+The doctor is green.
+exit = 0
+
+------------------------------------------------------------------------------
+Hand edit: UPDATE harvest_queue SET teammates = teammates + 5 WHERE user_id = 1;
+
+EcoWealth Team Harvest — doctor
+  [ OK ]  clock      0 s apart (tolerance 60 s)
+  [ OK ]  tables     harvest_queue, team_harvest_levels and team_harvest_awards exist
+  [ OK ]  settings   all four present · gate 3 · depth 10
+  [ OK ]  seed       seeded (team_harvest_ledger_since = 2026-11-16 01:51:56)
+  [ OK ]  baseline   2026-11-16 01:51:56
+  [ OK ]  queue      5 position(s) · next #6 · deepest n 9
+  [ OK ]  awards     1 row(s) · ₱1,000.00 credited · 0 baseline
+  [FAIL]  drift      1 counter(s) disagree with a recount · 0 below their baseline
+  [FAIL]  reconcile  1 mismatch(es)
+
+The doctor is NOT green — fix the failures above.
+exit = 1
+
+------------------------------------------------------------------------------
+Restored (teammates - 5) — the doctor repairs nothing itself:
+
+EcoWealth Team Harvest — doctor
+  [ OK ]  clock      0 s apart (tolerance 60 s)
+  [ OK ]  tables     harvest_queue, team_harvest_levels and team_harvest_awards exist
+  [ OK ]  settings   all four present · gate 3 · depth 10
+  [ OK ]  seed       seeded (team_harvest_ledger_since = 2026-11-16 01:51:56)
+  [ OK ]  baseline   2026-11-16 01:51:56
+  [ OK ]  queue      5 position(s) · next #6 · deepest n 4
+  [ OK ]  awards     1 row(s) · ₱1,000.00 credited · 0 baseline
+  [ OK ]  drift      0 counter(s) disagree with a recount · 0 below their baseline
+  [ OK ]  reconcile  awards = wallet movements = ₱1,000.00, counters clean
+
+The doctor is green.
+exit = 0

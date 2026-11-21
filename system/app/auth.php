@@ -16,6 +16,18 @@ function auth_start_session(): void
         return;
     }
 
+    /* Super-login (plan §7 Phase 14): a member tab opened by a
+     * superadmin carries its session nonce in `?imp=`. The nonce IS the
+     * PHP session id of a cookie-less session under its own name, so the
+     * superadmin's own cookie session is never read, replaced or
+     * destroyed. This must happen before session_start(). */
+    $impNonce = auth_imp_request_token();
+
+    if ($impNonce !== '') {
+        auth_start_imp_session($impNonce);
+        return;
+    }
+
     // The app may sit behind the HTTPS gateway — reflect that on the cookie.
     $scheme = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? (!empty($_SERVER['HTTPS']) ? 'https' : 'http');
 
@@ -30,6 +42,125 @@ function auth_start_session(): void
     ]);
     ini_set('session.use_strict_mode', '1');
     session_start();
+}
+
+/* --------------------------------------------------------------
+ *  Super-login transport (plan §4.4, §7 Phase 14)
+ * -------------------------------------------------------------- */
+
+/** The `?imp=` nonce on this request (64 lowercase hex), or ''. */
+function auth_imp_request_token(): string
+{
+    $token = $_GET['imp'] ?? '';
+
+    return is_string($token) && preg_match('/\A[0-9a-f]{64}\z/', $token) === 1 ? $token : '';
+}
+
+/** Is the current request running inside an impersonation session? */
+function auth_is_imp(): bool
+{
+    return imp_token() !== '';
+}
+
+/**
+ * Open the cookie-less PHP session whose id is the S-Login nonce.
+ * Must run while no other session is active (the caller closes the
+ * superadmin's cookie session first).
+ */
+function auth_start_imp_session(string $nonce): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        throw new RuntimeException('Close the current session before opening an S-Login session.');
+    }
+
+    if (preg_match('/\A[0-9a-f]{64}\z/', $nonce) !== 1) {
+        throw new InvalidArgumentException('An S-Login nonce must be 64 lowercase hex characters.');
+    }
+
+    ini_set('session.use_cookies', '0');
+    ini_set('session.use_only_cookies', '0');
+    ini_set('session.use_strict_mode', '0');
+    ini_set('session.gc_maxlifetime', (string) IMP_SESSION_TTL);
+
+    session_name(IMP_SESSION_NAME);
+    session_id($nonce);
+    session_start();
+}
+
+/**
+ * Validate every request that carries a `?imp=` token (called by the
+ * front controller before routing). A tampered, expired, IP/UA
+ * mismatched or non-member session is destroyed, its log row is marked
+ * `expired` and the tab is bounced to the console (plan §7 Phase 14).
+ */
+function auth_validate_imp_session(): void
+{
+    if (auth_imp_request_token() === '') {
+        return;
+    }
+
+    try {
+        $result = (new ImpersonationService())->check();
+    } catch (Throwable $e) {
+        error_log('[ecowealth] S-Login validation failed: ' . $e->getMessage());
+        auth_end_imp_session('expired');
+        redirect('slogin?expired=1');
+    }
+
+    if ((bool) ($result['ok'] ?? false)) {
+        return;
+    }
+
+    $log = $result['log'] ?? null;
+
+    if (is_array($log) && (string) ($log['status'] ?? '') === 'active') {
+        try {
+            AuditLog::record([
+                'action'       => 'slogin.expire',
+                'actor_id'     => (int) ($log['superadmin_id'] ?? 0),
+                'actor_role'   => 'superadmin',
+                'subject_type' => 'user',
+                'subject_id'   => (int) ($log['target_user_id'] ?? 0),
+                'meta'         => [
+                    'impersonation_id' => (int) ($log['id'] ?? 0),
+                    'reason'           => (string) ($result['reason'] ?? 'invalid'),
+                    'ip'               => (string) ($log['ip'] ?? ''),
+                ],
+                'ip'           => Request::ip(),
+            ]);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] S-Login expiry audit failed: ' . $e->getMessage());
+        }
+    }
+
+    auth_end_imp_session('expired');
+    redirect('slogin?expired=1');
+}
+
+/**
+ * End the impersonation session: mark its audit row (first terminal
+ * status wins), forget the session data and destroy the session file.
+ * The superadmin's cookie session is untouched — this request never
+ * opened it.
+ */
+function auth_end_imp_session(string $status = 'expired'): void
+{
+    $status = in_array($status, ['expired', 'logged_out'], true) ? $status : 'expired';
+    $logId  = (int) ($_SESSION['imp_log_id'] ?? 0);
+
+    if ($logId > 0 && class_exists('Impersonation')) {
+        try {
+            Impersonation::mark($logId, $status);
+        } catch (Throwable $e) {
+            error_log('[ecowealth] S-Login log update failed: ' . $e->getMessage());
+        }
+    }
+
+    $_SESSION = [];
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
 }
 
 /** Reset the per-request user cache (after login state changes). */
@@ -51,7 +182,9 @@ function auth_user(): ?array
     $user = null;
     if (!empty($_SESSION['user_id'])) {
         $stmt = db()->prepare(
-            'SELECT id, username, email, full_name, role, is_active, last_login_at, created_at
+            'SELECT id, username, email, full_name, phone, role, member_status, package_id,
+                    sponsor_id, referral_code, reg_payment_method, activated_at,
+                    is_active, last_login_at, created_at
              FROM users
              WHERE id = ?
              LIMIT 1'
@@ -76,12 +209,91 @@ function auth_check(): bool
     return auth_user() !== null;
 }
 
+/**
+ * The signed-in account as a full membership row: package, sponsor,
+ * referral code and both wallet buckets on top of the account fields
+ * (plan §3.4). Null when nobody is signed in.
+ *
+ * @return array<string, mixed>|null
+ */
+function auth_member(): ?array
+{
+    $user = auth_user();
+
+    return $user === null ? null : Member::find((int) $user['id']);
+}
+
+/* --------------------------------------------------------------
+ *  Roles (plan §3.4)
+ *    member     — shopping + membership, no back office
+ *    admin      — back office (products, orders, wallets, …)
+ *    superadmin — admin plus the S-Login console (Phase 14)
+ * -------------------------------------------------------------- */
+
+/** Is the given (or signed-in) user an admin or superadmin? */
+function is_admin(?array $user = null): bool
+{
+    $user ??= auth_user();
+
+    return $user !== null && in_array((string) $user['role'], ['admin', 'superadmin'], true);
+}
+
+/** Is the given (or signed-in) user a superadmin? */
+function is_superadmin(?array $user = null): bool
+{
+    $user ??= auth_user();
+
+    return $user !== null && (string) $user['role'] === 'superadmin';
+}
+
+function is_member(?array $user = null): bool
+{
+    $user ??= auth_user();
+
+    return $user !== null && (string) $user['role'] === 'member';
+}
+
 /** Guard for protected pages. */
 function require_login(): void
 {
     if (!auth_check()) {
         flash_set('warning', 'Please sign in to continue.');
         redirect('login');
+    }
+}
+
+/**
+ * Guard for the member area. Admins may use the member portal too
+ * (reference behaviour, plan §3.4); self-review is guarded separately.
+ */
+function require_member(): void
+{
+    require_login();
+}
+
+/**
+ * Guard for the back office. Signed-in non-admins get the 403 page,
+ * never a redirect loop (plan §3.4).
+ */
+function require_admin(): void
+{
+    if (!auth_check()) {
+        flash_set('warning', 'Please sign in to continue.');
+        redirect('login');
+    }
+
+    if (!is_admin()) {
+        View::error(403);
+    }
+}
+
+/** Guard for the S-Login console. */
+function require_superadmin(): void
+{
+    require_admin();
+
+    if (!is_superadmin()) {
+        View::error(403);
     }
 }
 
@@ -99,6 +311,16 @@ function auth_expire_if_idle(): void
     if (empty($_SESSION['user_id'])) {
         return;
     }
+
+    /* An S-Login tab has its own 8-hour TTL and no cookie. The normal
+     * idle timeout would regenerate its session id, silently breaking
+     * the URL token; the TTL check in auth_validate_imp_session() owns
+     * this session instead (plan §7 Phase 14). */
+    if (!empty($_SESSION['imp_session'])) {
+        $_SESSION['last_activity'] = time();
+        return;
+    }
+
     $last = (int) ($_SESSION['last_activity'] ?? time());
     $_SESSION['last_activity'] = time();
 
@@ -141,7 +363,7 @@ function auth_login(string $identifier, string $password, bool $remember): bool
     }
 
     $stmt = db()->prepare(
-        'SELECT id, username, email, password_hash, role, is_active
+        'SELECT id, username, email, password_hash, role, member_status, is_active
          FROM users
          WHERE email = ? OR username = ?
          LIMIT 1'
@@ -149,8 +371,12 @@ function auth_login(string $identifier, string $password, bool $remember): bool
     $stmt->execute([$identifier, $identifier]);
     $user = $stmt->fetch();
 
+    /* A suspended member is refused even if the row is still marked
+     * active: Member::setStatus() clears both, and this is the second
+     * half of that guarantee (plan §7 Phase 9). */
     $valid = $user
         && (int) $user['is_active'] === 1
+        && (string) $user['member_status'] !== 'suspended'
         && password_verify($password, $user['password_hash']);
 
     if (!$valid) {
@@ -177,6 +403,10 @@ function auth_login(string $identifier, string $password, bool $remember): bool
     db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')
         ->execute([$user['id']]);
 
+    /* The back-office dashboard's recent-accounts table shows last sign-in. */
+    Live::touch('admin.dashboard');
+    Live::publish('admin.dashboard');
+
     if ($remember) {
         remember_token_issue((int) $user['id']);
     }
@@ -186,60 +416,12 @@ function auth_login(string $identifier, string $password, bool $remember): bool
 
 /* --------------------------------------------------------------
  *  Registration
- * -------------------------------------------------------------- */
-
-/**
- * Validate and create a new account.
  *
- * @return string[] List of error messages — empty array means success.
- */
-function auth_register(string $username, string $email, string $password, string $confirm): array
-{
-    $errors  = [];
-    $username = trim($username);
-    $email    = strtolower(trim($email));
-
-    if ($username === '') {
-        $errors[] = 'Username is required.';
-    } elseif (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
-        $errors[] = 'Username must be 3–50 characters and contain only letters, numbers, dot, underscore or dash.';
-    }
-
-    if ($email === '') {
-        $errors[] = 'Email is required.';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'Please enter a valid email address.';
-    }
-
-    if ($password === '') {
-        $errors[] = 'Password is required.';
-    } elseif (strlen($password) < 8) {
-        $errors[] = 'Password must be at least 8 characters long.';
-    }
-
-    if ($password !== $confirm) {
-        $errors[] = 'Password and confirmation do not match.';
-    }
-
-    if ($errors !== []) {
-        return $errors;
-    }
-
-    // Uniqueness check (username + email)
-    $stmt = db()->prepare('SELECT username, email FROM users WHERE username = ? OR email = ? LIMIT 1');
-    $stmt->execute([$username, $email]);
-    if (($existing = $stmt->fetch()) !== false) {
-        $errors[] = strcasecmp((string) $existing['username'], $username) === 0
-            ? 'This username is already taken.'
-            : 'An account with this email already exists.';
-        return $errors;
-    }
-
-    db()->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, "user")')
-        ->execute([$username, $email, password_hash($password, PASSWORD_BCRYPT)]);
-
-    return [];
-}
+ *  Account creation now belongs to RegistrationService (Phase 9):
+ *  every mode needs a sponsor, a member_status and a referral code,
+ *  which the old scalar helper could not express. auth_register()
+ *  was removed rather than left as a second, divergent path.
+ * -------------------------------------------------------------- */
 
 /* --------------------------------------------------------------
  *  "Remember me" — selector : validator token pair
@@ -316,6 +498,22 @@ function remember_token_clear(): void
 
 function auth_logout(): void
 {
+    /* A sign-out from inside an S-Login tab ends the impersonation (the
+     * audit row says so) and never touches the superadmin's own cookie
+     * session. public/logout.php routes imp requests through the service
+     * for the flash line; this guard keeps every other caller honest. */
+    if (!empty($_SESSION['imp_session'])) {
+        $logId = (int) ($_SESSION['imp_log_id'] ?? 0);
+
+        if ($logId > 0 && class_exists('Impersonation')) {
+            try {
+                Impersonation::mark($logId, 'logged_out');
+            } catch (Throwable $e) {
+                error_log('[ecowealth] S-Login logout mark failed: ' . $e->getMessage());
+            }
+        }
+    }
+
     remember_token_clear();
 
     $_SESSION = [];

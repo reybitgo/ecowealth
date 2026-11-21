@@ -1,0 +1,13 @@
+QA22F-07 — Order card: before and after payment
+Evidence file: docs/qa/evidence/phase-22/QA22F-07.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /orders/{id}
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Unpaid order card says This order places points when it is paid; paid card shows side, points, pending self; pre-feature/off order shows honest absence message.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T13 through P22F-T15.
+Reason: Environment dependency — browser-based check.

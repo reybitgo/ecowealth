@@ -1,0 +1,97 @@
+QA17G-02 — the cold read: sections A–F, read against the build (plan section 11, Phase 17G)
+Date: 2026-11-12 +08:00
+Build: APP_PHASE = 17, suite 948 / 948, smoke 225 / 225
+Method: sections 3–14 of docs/qa/phase-17-unilevel-repeat-purchase.md were read in order, every
+command/URL was opened or run, every count was re-derived from the build and from the database, and
+every question a tester who had not read the plan would ask was written down before it was answered.
+
+Questions raised: 10.
+  - answered by the pack itself after a fix: 9 (documentation defects, fixed below)
+  - answered by the build with no change needed: 1
+
+Q1  "Sections A and B ask for a tree where no repeat-purchase UI and no stamp exist. On the final
+     tree those checks fail. Which tree am I supposed to be on?"
+    Answer: the sections are tag-scoped; each was executed at its own phase tag. Nothing in the pack
+    said so, and section A's prerequisite said "any tree that includes migration 019", which made the
+    contradiction worse.
+    FIXED  New section 2.2 "Sections A and B are tag-scoped": a table naming the three affected checks
+           (QA17A-04, QA17A-05, QA17B-09), the tag each belongs to, what changed, and the case that now
+           asserts the current behaviour; a "Later tree:" pointer under each of the three checks; and
+           section A's prerequisite now names the p17a-foundation tree.
+
+Q2  "Sections B–G all assume the same product, the same five-member chain, a funded buyer and the
+     global switch on. Where do I build that?"
+    Answer: nowhere in the pack. The sections described the fixture's *shape* and pointed at their own
+    setup transcripts, so a tester would have to reverse-engineer the recipe.
+    FIXED  New section 2.1 "The Phase 17 fixture (sections B–G)": six steps through the real UI
+           (product + reference ladder, the chain built with referral links, the e-wallet credit, the
+           Commissions block, the e-wallet order, the zero-rate/disabled/Inactive variants) plus the
+           cleanup rule and the "run on a copy if you cannot run SQL" fallback.
+
+Q3  "Section 1 says the final smoke run is 223, but the README of the QA pack says 195 and the phase
+     log says 223 for 17E and 17F. Which number should I expect?"
+    Answer: 223 was correct at the 17F tag; 17G adds the two month-close URL checks, so the release
+    count is 225. The 195 figure in docs/qa/README.md was the Phase 16 count.
+    FIXED  Section 1 now reads 948 / 225 with the whole per-tag history (including 17G); docs/qa/README.md
+           reads 948 / 225; the 17G share paragraph names the two new checks.
+
+Q4  "The release plan says the phase badge on /dashboard reads 17. I opened /dashboard and there is no
+     badge."
+    Answer: correct — this build renders no build-phase badge. APP_PHASE is read only by
+    nav_item_live(); the views contain no APP_PHASE reference. The plan's wording is inherited and
+    wrong for this codebase.
+    FIXED  The plan's section 11 acceptance line and QA17G-04 now name the three observable proofs
+           (runtime value, suite header, HardeningTest assertion); the wording change is recorded as a
+           deviation in docs/phase-log.md and Appendix G.
+
+Q5  "docs/deploy.md §5B says a fresh install prints 27 tables and 48 settings, and §16 repeats it. The
+     bundle prints 31 and 54. Is my install broken?"
+    Answer: no — the guide was stale since migration 020 (17A). The bundle and the QA checks agree on
+    31 / 54.
+    FIXED  docs/deploy.md §5B's table and prose and §16's checklist now read 31 / 54; the "27 / 48"
+           strings are gone.
+
+Q6  "docs/deploy.md §13 says 'the three jobs' and docs/runbook.md §2 lists three jobs, but the cron
+     table has four (including the month close). Which is current?"
+    Answer: four. The month close landed in 17F and the two guides were not updated (the 17F entry left
+    them to 17G).
+    FIXED  docs/deploy.md §13 now lists four jobs (and points at docs/cron.md §4); docs/runbook.md §2's
+           table gains the month close, its schedule and its catch-up note; §7's go-live line reads
+           "four jobs".
+
+Q7  "docs/runbook.md §9 says the suite is 816 cases. Is that the release count?"
+    Answer: no — 816 was the Phase 16 baseline. The release count is 948.
+    FIXED  docs/runbook.md §9 reads 948.
+
+Q8  "system/README.md's migration table ends at 019, but the database has unilevel tables. Which
+     migration created them?"
+    Answer: 020_unilevel_repeat_purchase.sql. The README's table and its directory tree were never
+    updated by 17A, and its APP_PHASE row still said 15.
+    FIXED  system/README.md gains the 020 row, the tree reads "… 020_unilevel_repeat_purchase", the
+           configuration table reads APP_PHASE 17, the quick start reads 31 / 54, and the status
+           paragraph names the release.
+
+Q9  "docs/admin-guide.md documents the repeat ledger and the reports but not the ladder card it tells
+     me to configure. Where are the P.V., the base and the ten rates explained?"
+    Answer: in system/README.md (developer text), not in the admin guide (operator text).
+    FIXED  docs/admin-guide.md §2 gains the ladder card (P.V., bonus base, the ten rates, the preset,
+           the 100% rule, the switch and the delete guard), §8 names the five repeat-purchase keys and
+           §12 adds the monthly close to the routine calendar.
+
+Q10 "docs/cron.md was written in 17F. Is it still true?"
+    Answer: yes. Section 4 documents the fourth job (schedule 00:15 on the 1st, flags, log, lock,
+    failure modes, URL and .cmd forms) and the three settings that drive it. Re-read, not changed.
+
+Documents changed by this cold read (8 files; docs/cron.md was re-read and verified, not changed):
+  docs/qa/phase-17-unilevel-repeat-purchase.md   §2.1 fixture, §2.2 tag scoping, §1 counts, section G
+  docs/qa/README.md                              title/status, Phase 17 row (57 checks, times), 948/225, coverage bullet, file map
+  docs/qa/sign-off-sheet.md                      Phase 17 section: 57 rows and the seven gate records
+  docs/phase-log.md                              the 17G release entry
+  system/README.md                               status, APP_PHASE 17, 31/54, migration 020, smoke count, 17D/17E/17F surfaces
+  docs/deploy.md                                 31/54, four jobs, the 17E/17F/17G addendum, Appendix C
+  docs/runbook.md                                four jobs, 31/54, 948 cases, the month-clock weekly check
+  docs/admin-guide.md                            the ladder card, the settings row, the monthly close
+  docs/cron.md                                   re-read and verified (Q10; no change)
+
+No product defect was found: the code was right and the documents were stale, which is exactly the
+failure mode section G exists to catch (17G Rule 1: the code wins and the documents are corrected).

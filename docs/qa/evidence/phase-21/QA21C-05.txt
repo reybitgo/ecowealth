@@ -1,0 +1,69 @@
+QA21C-05 — The arm refuses while the stream is on
+Date: 2026-11-17 01:30:05 +0800 · second unarmed copy ecowealth_sneat_tool_a_test (its own schema: the section's main copy is armed)
+
+$ php storage/p21c_qa.php build ecowealth_sneat_tool_a_test 121 40 settings
+schema:      ecowealth_sneat_tool_a_test (127.0.0.1)
+tables:      39
+settings:    76
+members:     121 member accounts
+queue:       40 position(s), MAX(id) = 40
+ladder:      10 rows, sum 8,381,000.00
+board:       NULL|NULL|NULL|0  (baseline_n | armed_at | armed_by | settled_n)
+seed marker: 2026-11-01 00:00:00
+
+$ UPDATE settings SET value = '1' WHERE key_name = 'general_harvest_enabled';
+mysql> UPDATE settings SET value = '1' WHERE key_name = 'general_harvest_enabled'
+(no rows)
+
+$ php bin/general_harvest_arm.php
+General Harvest arm refused (enabled): The General Harvest stream is switched on (general_harvest_enabled = 1); switch the stream off before arming (plan §14.3).
+EcoWealth General Harvest arm — REFUSED (enabled)
+  The General Harvest stream is switched on (general_harvest_enabled = 1); switch the stream off before arming (plan §14.3).
+
+Nothing was written. Fix the cause above and run it again.
+(exit 1)
+
+$ php bin/general_harvest_arm.php --dry-run
+General Harvest arm refused (enabled): The General Harvest stream is switched on (general_harvest_enabled = 1); switch the stream off before arming (plan §14.3).
+EcoWealth General Harvest arm — REFUSED (enabled)
+  The General Harvest stream is switched on (general_harvest_enabled = 1); switch the stream off before arming (plan §14.3).
+
+Nothing was written. Fix the cause above and run it again.
+(exit 1)
+
+$ SELECT COUNT(*) AS awards FROM general_harvest_awards;
+mysql> SELECT COUNT(*) AS awards FROM general_harvest_awards
+| awards |
+| 0      |
+
+$ SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board;
+mysql> SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board
+| id | baseline_n | armed_at | armed_by | settled_n |
+| 1  |            |          |          | 0         |
+
+--- the order: switch the stream off, then arm ---
+$ UPDATE settings SET value = '0' WHERE key_name = 'general_harvest_enabled';
+mysql> UPDATE settings SET value = '0' WHERE key_name = 'general_harvest_enabled'
+(no rows)
+
+$ php bin/general_harvest_arm.php --json
+{
+    "armed": true,
+    "n": 40,
+    "rows": 18,
+    "excluded": 50000,
+    "per_level": {
+        "1": 13,
+        "2": 4,
+        "3": 1,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0,
+        "10": 0
+    },
+    "dry_run": false
+}
+(exit 0)

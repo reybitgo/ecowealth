@@ -1,0 +1,14 @@
+QA21F-04 — Filters, totals and the member CSV agree
+====================================================
+Phase 21F — Member visibility. Runs as a member on /earnings?ledger=general_harvest.
+
+Steps:
+1. Filter award rows by level and status; confirm totals match the rows.
+2. Export the CSV; compare with the screen.
+3. Append &user_id=<another id> to the tab URL and to the export URL.
+
+Observed:
+- Filtered totals match the filtered rows; CSV columns match the screen.
+- &user_id= ignored: page and file unchanged; only the session member's rows; 0 audit rows.
+
+Result: Pass — filtered totals match rows; CSV matches screen; &user_id= cannot widen the data.

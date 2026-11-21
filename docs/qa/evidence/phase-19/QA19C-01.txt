@@ -1,0 +1,35 @@
+QA19C-01 - The section C fixture (Director, 2 Managers, 4 Supervisors, 8 Leaders)
+=================================================================================
+
+Date: 2026-11-15 11:47:41 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: the manual plan starts from a known tree with the low 2/2/2/2 thresholds so the
+     reference rates can be checked by eye.
+
+Commands
+
+   Rebuild ecowealth_sneat_tool_a_test from database/schema.sql + database/seeds/001_settings.sql;
+   set the sixteen royalty_* settings (2/2/2/2, reference quotas and rates, baseline = the
+   fixture month); create the 31 member accounts and the five paid orders; then read the
+   derived ranks (RoyaltyRank::map at the period end) and the three table counts.
+
+Expected ranks at 2/2/2/2: Director 1, Manager 2, Supervisor 4, Leader 8, Member 16
+
+Observed
+
+   member accounts at the 2026-11-01 00:00:00 cutoff: 31
+   ranks: Director 1, Manager 2, Supervisor 4, Leader 8, Member 16
+   period 2026-10  bounds [2026-10-01 00:00:00, 2026-11-01 00:00:00)
+   orders: director 100,000.00; four supervisors 1,225,000.00 each - all paid in 2026-10
+   director GS 5,000,000.00 (100,000 own + 4 x 1,225,000 downline), PS 100,000.00
+   expected: Director 515,000.00; each Manager 122,500.00; each Supervisor 98,000.00
+   expected total 1,152,000.00 across 7 awards
+
+   periods 0  award rows 0 (pending 0, paid 0)  royalty ledger rows 0  ledger total 0.00  withdrawable (members) 0.00
+
+RESULT: PASS

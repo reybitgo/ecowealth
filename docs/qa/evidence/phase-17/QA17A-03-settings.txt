@@ -1,0 +1,36 @@
+# QA17A-03 - The six settings, all off by default
+# Date: 2026-11-12 - Schema: ecowealth_sneat_qa17a
+#
+# Command: SELECT key_name, value FROM settings WHERE key_name LIKE 'unilevel%' ORDER BY key_name;
+key_name	value
+unilevel_active_threshold	500
+unilevel_enabled	0
+unilevel_ledger_since	2026-11-12 16:21:44
+unilevel_max_levels	10
+unilevel_requires_active_upline	1
+unilevel_reversal_enabled	1
+#
+# Command: SELECT COUNT(*) AS unilevel_settings ...;
+unilevel_settings
+6
+#
+# Command: SELECT COUNT(*) AS products_switched_on FROM products WHERE unilevel_enabled <> 0;
+products_switched_on
+0
+#
+# Command: SELECT COUNT(*) AS bad_base FROM products WHERE unilevel_base <> 'auto';
+bad_base
+0
+#
+# No-backfill proof 1: the migration runs no UPDATE or DELETE statement.
+#   Select-String -Path database/migrations/020_unilevel_repeat_purchase.sql -Pattern '^(UPDATE|DELETE|REPLACE)'
+#   (no match - 0 statements)
+#
+# No-backfill proof 2: a paid order carries no stamp and no bonus total.
+#   INSERT INTO shop_orders (... paid_at = NOW()) then read the two new columns
+order_no	unilevel_processed_at	unilevel_total
+EWT-QA17A-NOBACKFILL	NULL	0.00
+#
+# Result: PASS - six keys with the documented defaults; 0 products switched on;
+# every product keeps unilevel_base = 'auto'; the migration contains no UPDATE/DELETE
+# and a paid order carries no stamp or bonus total.

@@ -1,0 +1,13 @@
+QA22B-09 — Member pages show no binary content
+Evidence file: docs/qa/evidence/phase-22/QA22B-09.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /shop/{id}, /checkout, /orders/{id}, /earnings, /genealogy
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: No binary copy on any member page; no binary award or volume row.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22B-T21 (member earnings page renders no binary copy — PASS).
+Reason: Environment dependency — browser-based check.

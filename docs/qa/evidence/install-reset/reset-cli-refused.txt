@@ -1,0 +1,55 @@
+2026-11-11 22:15:27 +08:00 — IR-5 reset engine and CLI
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3 · schema ecowealth_sneat_reset_manual (scratch, created as root)
+Fixture: database/install.sql then database/seeds/005_demo_tree.sql
+         => 5 members · 2 staff · 3 demo codes · 3 ledger rows · 7 products · 2 packages
+State before the refusals: 0 members · 2 staff · 5 codes · 0 orders (from reset-cli-success.txt)
+
+Command: php bin\db_reset.php --force
+Exit: 2
+
+EcoWealth database reset
+  target : ecowealth_sneat_reset_manual at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 0 members · 2 staff · 0 orders · 0 ledger · 5 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (2 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: 2026-11-11 22:15:46 by cli
+  packages: #1 Package A (active) · #2 Package B (active)
+db_reset: --force is a non-interactive run and needs --confirm=<database>.
+  hint: Pass --confirm=ecowealth_sneat_reset_manual so the target is named explicitly, or drop --force
+  hint: and type the name at the prompt.
+
+Command: php bin\db_reset.php --force --confirm=wrong_database
+Exit: 3
+
+EcoWealth database reset
+  target : ecowealth_sneat_reset_manual at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 0 members · 2 staff · 0 orders · 0 ledger · 5 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (2 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: 2026-11-11 22:15:46 by cli
+  packages: #1 Package A (active) · #2 Package B (active)
+db_reset: The typed confirmation does not match "ecowealth_sneat_reset_manual"; nothing was deleted.
+  hint: Type the phrase exactly (the database name on the CLI, "RESET" in the development web console).
+
+Command: php bin\db_reset.php --force --confirm=ecowealth_sneat_reset_manual --demo
+Exit: 2
+
+EcoWealth database reset
+  target : ecowealth_sneat_reset_manual at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 0 members · 2 staff · 0 orders · 0 ledger · 5 codes
+  catalogue: 7 products / 2 packages (kept)
+  options: audit kept (2 rows) · codes 0 · uploads proofs deleted · demo no
+  last reset: 2026-11-11 22:15:46 by cli
+  packages: #1 Package A (active) · #2 Package B (active)
+db_reset: Demo fixtures are not available on the reset path yet.
+  hint: The demo tree (seeds/005_demo_tree.sql) is wired into the tools in plan phase IR-7. Run the
+  hint: reset without demo data and import the seed by hand on a test site if you need it now.
+
+Command: mysql -u root -e "SELECT ... FROM ecowealth_sneat_reset_manual"   (state after the refusals)
+Exit: 0
+
+members	staff	codes	orders	audit
+0	2	5	0	2

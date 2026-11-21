@@ -1,0 +1,19 @@
+QA17E-06 - the package tab keeps its regions, and the repeat tab is a live surface:
+an award arrives and the same ETag comes back as a fresh 200 with a new revision.
+URL: /earnings (HTTP 200)
+
+... om one activation and moves real wallet money. Awards are final. Export CSV Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱0.00 No awards yet This month ₱0.00 Nothing credited yet Direct referral ₱0.00 Level 1 — your personally sponsored associates Indire ...
+... ersonally sponsored associates Indirect referral ₱0.00 Levels 2–10 of the unilevel ladder Unilevel breakdown Level 1 is your direct referral; levels 2–10 are the indirect ladder. One award can be paid at every level, up to ten. 0 indirect awards · ₱0.00 Level 1 · Direct No awards ...
+... t-purchase bonus Total credited ₱0.00 No awards yet This month ₱0.00 Nothing credited yet Direct referral ₱0.00 Level 1 — your personally sponsored associates Indirect referral ₱0.00 Levels 2–10 of the unilevel ladder Unilevel breakdown Level 1 is your direct referral; levels 2–1 ...
+... Sign out Earnings Every commission comes from one activation and moves real wallet money. Awards are final. Export CSV Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱0.00 No awards yet This month ₱0.00 Nothing credited yet Direct referral ₱0.00 Level 1 — ...
+
+repeat regions on the package tab: 0
+
+feed before the order: revision 0, etag "member.earnings:816:0:dd016870f238"
+feed after the order with the old ETag: HTTP 200, revision 1
+revision moved: True
+the refreshed rows fragment carries the 25.00 award: True
+the refreshed rows fragment carries the buyer: True
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:38 Asia/Manila.

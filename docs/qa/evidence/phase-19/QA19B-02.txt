@@ -1,0 +1,39 @@
+QA19B-02 — A threshold change saves and is audited once
+=============================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP + mysql — /admin/settings, section=commissions
+
+Steps
+
+1. mysql -u root ecowealth_sneat -e "SELECT COALESCE(MAX(id), 0) FROM audit_log"
+2. Change Supervisor: downline Leaders from 10 to 3; keep every other value; press Save settings.
+3. Reload the card: the input and the saved ladder's Supervisor requirement now read 3.
+4. mysql ... -e "SELECT action, meta_json FROM audit_log WHERE id > <id> ORDER BY id"
+
+Result
+
+  QA19B-02 PASS  saved 3, re-rendered, one settings.update with before/after, no money rows
+  QA19B-02 PASS  Supervisor downline Leaders restored to 10
+
+Audit row (exactly one, written by the save)
+
+  action: settings.update
+  meta_json:
+  {"changes": {"royalty_supervisor_leaders": {"to": "3", "from": "10"}}, "section": "commissions"}
+
+The card after the save
+
+  input name="royalty_supervisor_leaders" value="3"
+  saved ladder: Supervisor requirement "Leader + 3 downline Leaders"
+
+Money untouched
+
+  royalty_periods = 0
+  royalty_awards  = 0
+  ewallet_ledger WHERE ref_type = 'royalty' = 0
+  The aggregate wallet balances and the withdrawable bucket are unchanged.
+
+The manual check then restored the value to 10 and saved again; the stored threshold is 10.
+
+RESULT: PASS

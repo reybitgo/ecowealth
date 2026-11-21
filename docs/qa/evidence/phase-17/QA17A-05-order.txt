@@ -1,0 +1,27 @@
+# QA17A-05 - A paid order pays nothing yet
+# Date: 2026-11-12 - Schema: ecowealth_sneat_test (harness rebuild; never the development copy)
+#
+# Command: php tests/tmp/p17a_order_probe.php
+#   (the probe runs the production path the checkout controller runs: WalletService::credit ->
+#    CartService::add -> OrderService::placeFromCart with payment_method = ewallet)
+#
+buyer: peter (id 5)
+buyer's sponsor: maria (id 4)
+fixture sponsor row: maria (id 4)
+sponsor wallet before: 1000.00 total / 800.00 withdrawable
+sponsor ledger rows before: 1
+unilevel_awards before: 0
+
+product: Coffee (id 1) at 300.00
+order id 1: status=paid total=300.00
+order row: EW26111200001 status=paid paid_at=2026-11-12 16:26:57 unilevel_processed_at=NULL unilevel_total=0.00
+unilevel_awards after: 0
+sponsor wallet after: 1000.00 total / 800.00 withdrawable
+sponsor ledger rows after: 1
+sponsor wallet unchanged: YES
+no award written: YES
+views naming a Phase 17 object / label: none
+#
+# Result: PASS - the order is paid, no award row is written, the order carries no
+# processed stamp and a zero bonus total, and the sponsor's wallet is byte-identical
+# before and after. No view names a Phase 17 object or label.

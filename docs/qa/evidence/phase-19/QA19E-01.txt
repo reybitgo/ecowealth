@@ -1,0 +1,50 @@
+QA19E-01 - The Royalty tab renders the pill, rank card, counters, rows and pagination
+=====================================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §9 Rules 1–4 and Appendix C.3: the member statement is the member’s view of the same monthly close the admin ledger reads.
+
+Monthly close (the same RoyaltyService the CLI calls):
+  2026-08  closed and paid   ₱159,250.00
+  2026-09  evaluated (payment paused)   ₱159,250.00
+  2026-10  closed and paid   ₱159,250.00
+
+GET /earnings?ledger=royalty  (member session qa19e_sup_ax, 200)
+  tab                  royalty
+  rank                 Supervisor (level 2)
+  directs 2   leaders in team 2   supervisors 0   managers 0
+  next rank            Manager   0 of 2
+  this month (2026-11)   personal ₱1,225,000.00   group ₱1,225,000.00   quota ₱500,000.00   progress 100%   eligible yes
+  if this month closed now   ₱98,000.00
+  counters             paid all-time ₱196,000.00   this period ₱98,000.00   awaiting ₱98,000.00   not paid 0   last paid 2026-10
+  rows                 3 closed month(s)
+
+  2026-10  Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  paid    
+  2026-09  Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  pending 
+  2026-08  Supervisor GS   1,225,000.00  PS   1,225,000.00  quota   500,000.00  3.000% / 5.000%  amount    98,000.00  paid    
+
+Markup assertions:
+  present  Your Royalty bonus
+  present  Royalty is paid once a month, after the month closes
+  present  data-live-region="earnings-royalty-rank"
+  present  data-live-region="earnings-royalty-stats"
+  present  data-live-region="earnings-royalty-header"
+  present  data-live-region="earnings-royalty-rows"
+  present  data-live-region="earnings-royalty-pagination"
+  present  name="ledger" value="royalty"
+  present  Your rank
+  present  Direct members
+  present  Leaders in your team
+  present  Supervisors in your team
+  present  Managers in your team
+  present  If this month closed now
+
+RESULT: PASS

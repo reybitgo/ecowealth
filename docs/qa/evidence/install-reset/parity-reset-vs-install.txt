@@ -1,0 +1,81 @@
+2026-11-12 06:22:00 +08:00 — IR-7 reset ≡ fresh-install parity, by natural key
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3 · schemas ecowealth_sneat_tool_a_test / ecowealth_sneat_tool_b_test (recreated per case)
+
+Command (git-ignored helper, tests/tmp/):
+
+    php tests/tmp/ir7-evidence.php parity
+    Exit: 0
+
+Case 1 — reset == fresh production install
+A: tool_a from schema.sql + seeds 001–004
+  built database/schema.sql                 30 statements
+  built database/seeds/001_settings.sql      2 statements
+  built database/seeds/002_accounts.sql      2 statements
+  built database/seeds/003_products.sql      2 statements
+  built database/seeds/004_packages.sql      7 statements
+B: tool_b from schema.sql + seeds 001–004, then a default reset
+  built database/schema.sql                 30 statements
+  built database/seeds/001_settings.sql      2 statements
+  built database/seeds/002_accounts.sql      2 statements
+  built database/seeds/003_products.sql      2 statements
+  built database/seeds/004_packages.sql      7 statements
+  reset ok=true steps=24
+  staff          MATCH (2 keys)
+  settings       MATCH (44 keys)
+  products       MATCH (7 keys)
+  packages       MATCH (2 keys)
+  levels         MATCH (18 keys)
+  contents       MATCH (10 keys)
+
+Case 2 — reset(catalogue+demo) == fresh QA install
+A: tool_a from schema.sql + seeds 001–005
+  built database/schema.sql                 30 statements
+  built database/seeds/001_settings.sql      2 statements
+  built database/seeds/002_accounts.sql      2 statements
+  built database/seeds/003_products.sql      2 statements
+  built database/seeds/004_packages.sql      7 statements
+  built database/seeds/005_demo_tree.sql    17 statements
+B: tool_b from schema.sql + seeds 001–004, then reset --reset-catalogue --demo
+  built database/schema.sql                 30 statements
+  built database/seeds/001_settings.sql      2 statements
+  built database/seeds/002_accounts.sql      2 statements
+  built database/seeds/003_products.sql      2 statements
+  built database/seeds/004_packages.sql      7 statements
+  reset ok=true demo=5 members / 3 codes / 3 ledger rows
+  staff          MATCH (2 keys)
+  settings       MATCH (44 keys)
+  products       MATCH (7 keys)
+  packages       MATCH (2 keys)
+  levels         MATCH (18 keys)
+  contents       MATCH (10 keys)
+  demo_members   MATCH (5 keys)
+  demo_codes     MATCH (3 keys)
+  demo_ledger    MATCH (3 keys)
+
+Both parity cases match on every natural key.
+
+What is compared, and what is deliberately not
+----------------------------------------------
+Compared by natural key only (D-IR-15): staff rows by username (role, email, full name,
+membership state, package/sponsor nulls, payment method, wallet counters); settings by
+key_name/value; products by sku (name, price, pv, stock, status, sort order); packages by
+slug (price, product value, direct-referral bonus, indirect switch, status, sort order);
+levels by (package slug, level); contents by (package slug, sku); the five demo members by
+username (role, status, package slug, sponsor username, referral code, balances); the
+three demo codes by code (status, type, package slug, price, expiry bucket); the three
+demo ledger rows by (username, ref_type, ref_id).
+
+Excluded by design: ids and timestamps (a re-seed continues the AUTO_INCREMENT), the
+`last_reset_at` / `last_reset_by` settings and the dynamic `commission_ledger_since`
+(each build runs `NOW()`), `audit_log` (a reset appends one `system.db_reset` row while a
+fresh build has none) and `live_revisions` (a reset bumps 18 surfaces; a fresh build has
+none). The reset build's zero-row state for every other transactional table is asserted
+by the same case in the suite.
+
+Automated counterpart (ir7-suite.log):
+
+  PASS  reset parity: a default reset equals a fresh production install
+  PASS  reset parity: a catalogue+demo reset equals a fresh QA install
+
+The suite cases additionally assert zero rows across the transactional tables, and print
+the expected/actual natural-key map when a section differs.

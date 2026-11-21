@@ -1,0 +1,42 @@
+2026-11-11 19:38 +08:00 — IR-2 gate: the empty-database guard refuses a re-import
+Host: Windows 10.0.26200.0 · PHP 8.3.16 (ZTS) · MySQL 8.4.3 · schema ecowealth_sneat_install_manual_test
+Command source: system/database/install.sql
+Exit: 1 (expected)
+
+The schema already held the 27-table install from install-sql-mysql.txt.
+
+--------------------------------------------------------------------------------
+1. Re-import the bundle
+--------------------------------------------------------------------------------
+Command:
+  mysql -u root ecowealth_sneat_install_manual_test -e "source C:/laragon/www/ecowealth/system/database/install.sql"
+Exit: 1
+
+ERROR 1146 (42S02) at line 101 in file: 'C:\laragon\www\ecowealth\system\database\install.sql': Table 'ecowealth_sneat_install_manual_test.ecowealth_install_requires_an_empty_database' doesn't exist
+
+Line 101 is the guard's EXECUTE statement in the generated header. The name of
+the missing table is the instruction; `mysql` stops before the first CREATE
+TABLE, so nothing is half-applied.
+
+--------------------------------------------------------------------------------
+2. The schema is unchanged
+--------------------------------------------------------------------------------
+Command:
+  mysql -u root -N -e "SELECT 'tables', COUNT(*) FROM information_schema.tables
+    WHERE table_schema='ecowealth_sneat_install_manual_test'
+    UNION ALL SELECT 'settings', COUNT(*) FROM ecowealth_sneat_install_manual_test.settings
+    UNION ALL SELECT 'staff', COUNT(*) FROM ecowealth_sneat_install_manual_test.users
+    WHERE role IN ('admin','superadmin');"
+Exit: 0
+
+tables	27
+settings	48
+staff	2
+
+The same refusal is asserted in the suite
+(InstallSqlTest: "a second import is refused by the guard and changes nothing"),
+including MySQL error 1146 and the unchanged 27/48/2 counts.
+
+phpMyAdmin caveat (documented in the bundle header): unless "Stop on error" is
+selected, phpMyAdmin may continue after this error. The recovery is to drop and
+recreate the schema — never to re-run the bundle over a partial import.

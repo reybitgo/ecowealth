@@ -1,0 +1,17 @@
+QA21G-04 — The build reports 21
+=================================
+Phase 21G — Release. Verifies APP_PHASE = 21 in code, suite header and HardeningTest.
+
+Commands:
+
+> php tests\run.php Hardening
+Hardening → P15 the build reports phase 21: PASS (suite header reads "phase 21")
+
+> // system/app/config.php:
+> defined('APP_PHASE') || define('APP_PHASE', 21);  // Phase 21 — General Harvest (see plan §11 D-16)
+
+> // Browser as admin: /dashboard → 200; every shipped menu item → 200; no new item, no 500.
+> // Browser as member: /dashboard → 200; General Harvest tile hidden while the stream is off.
+
+Result: Pass — runtime constant, suite header, HardeningTest and pages all report 21; no new menu item;
+APP_PHASE and HardeningTest shipped in one commit.

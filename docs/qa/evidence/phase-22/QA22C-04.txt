@@ -1,0 +1,13 @@
+QA22C-04 — No money exists at placement
+Evidence file: docs/qa/evidence/phase-22/QA22C-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on the development copy
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: binary_volume = 0, binary_awards = 0, ewallet_ledger binary = 0; paid order keeps all three at 0.
+Actual: Could not execute — requires MySQL client access. Covered by automated tests P22B-T22 and P22D-T32 (global switch off → no self, no volume, no pair — PASS).
+Reason: Environment dependency — MySQL client not available.

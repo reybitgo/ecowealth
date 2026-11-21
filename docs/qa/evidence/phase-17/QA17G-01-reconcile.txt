@@ -1,0 +1,39 @@
+QA17G-01 — the wallet reconciliation gate (plan section 11, Phase 17G)
+Date: 2026-11-12 22:58:51 +08:00
+
+Command: php bin/wallet_reconcile.php
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat (127.0.0.1)
+  accounts checked:  26
+  accounts with ledger: 10
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   8 (2,430.00)
+  skipped awards:    4
+  ledger total:      2,430.00
+  legacy credits:    2 (20,500.00) — commission movements before the award history began
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 3
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  2
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+Repeat-purchase
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  voided awards:     0
+  unilevel ledger:   0.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.
+
+exit code: 0

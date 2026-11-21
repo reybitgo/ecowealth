@@ -1,0 +1,21 @@
+QA17D-03 - cancel a paid order: voided rows, recovered amounts and the unrecovered shortfall
+POST /admin/orders/787/transition to=cancelled (HTTP 302, -> /ecowealth/system/admin/orders/787)
+Level 1 held PHP 50 from the two orders; PHP 45 was spent before the cancellation,
+so only PHP 5 of the PHP 25 award could be recovered (shortfall PHP 20).
+Order after cancellation: cancelled|0.00
+
+URL: /admin/commissions?ledger=repeat&status=voided (HTTP 200)
+--- voided rows ---
+... 5 Level 6 Level 7 Level 8 Level 9 Level 10 Status All statuses Credited Skipped Voided Product All products EcoWealth Coffee EcoWealth Immune Spice QA Sample Product Coffee Immune Booster Spirulina Serpentina Kojic Soap Stone Buster Colonics Session QA17D Coff ...
+... 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 3.000% ₱15.00 not paid Voided ₱15.00 recovered of ₱15.00 QA17D-721059 Cancelled Nov 12, 2026 8:00 PM L3 @qa17d_u3 QA17D Upline 3 QA17D-721059 @qa17d_buyer Nov 12, 2026 QA17D Coffee QA17D-COF-298918 ₱500.00 5.000% ₱25. ...
+... ipped 1 Ineligible upline — no money moved Unrecovered ₱20.00 4 voided awards — shortfall after reversal Closed months The Active snapshot behind the monthly gate. A closed month is never rewritten. 0 closed Month Members Qualified Award total Closed No month  ...
+... s 3 Uplines credited at least once Skipped 1 Ineligible upline — no money moved Unrecovered ₱20.00 4 voided awards — shortfall after reversal Closed months The Active snapshot behind the monthly gate. A closed month is never rewritten. 0 closed Month Members Q ...
+
+--- unilevel_awards after the reversal ---
+1	qa17d_u1	25.00	voided	5.00	1100
+2	qa17d_u2	25.00	voided	25.00	1101
+3	qa17d_u3	25.00	voided	25.00	1102
+4	qa17d_u4	15.00	voided	15.00	1103
+
+Captured by the automated Phase 17D QA pass (real HTTP + MySQL) - 
+DeepSeek Harness, 2026-11-12 20:00:38 Asia/Manila.

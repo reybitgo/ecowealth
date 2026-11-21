@@ -1,0 +1,34 @@
+QA20F-09 - 390 px and a 500-teammate member
+===========================================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Plan section 10's test plan: the matrix and the roster scroll inside their cards, and the roster paginates.
+
+The 500-teammate member:
+  teammates 500 · roster total 500 · one page holds 10 · matrix levels 10
+  page 2 offset 10: 10 row(s), first slot Slot 11, footer "Showing 11–20 of 500"
+
+Query budget: page 1 = 10 selects, page 2 = 10 selects (constant, never one per teammate)
+
+The scroll containers:
+  matrix table inside .table-responsive . yes
+  roster table inside .table-responsive . yes
+  rows table inside .table-responsive ... yes
+  no page-wide overflow hack ............ yes
+  no fixed table width .................. yes
+
+Checks:
+  the roster paginates ................ yes
+  the matrix stays ten levels ......... yes
+  the cost is a page's, not a team's .. yes
+  inside the plan budget (10) ......... yes
+
+RESULT: PASS

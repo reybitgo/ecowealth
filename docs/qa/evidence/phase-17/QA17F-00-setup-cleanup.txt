@@ -1,0 +1,77 @@
+QA17F-00 - the fixture the section uses, and the cleanup that follows it
+Date: 2026-11-12 22:02:21 +08:00
+Database: ecowealth_sneat @ 127.0.0.1 (the development copy; never production)
+
+WHY A FIXTURE: the development copy has no order in a completed month, and its
+unilevel_ledger_since baseline is the install month (2026-11), so a close would
+have nothing pending. QA17F-01 .. 07 need one real month to close, so one paid
+order of P600 was created in 2026-10 (above the P500 threshold, so its buyer
+qualifies) and the baseline was moved back to 2026-10-01 for the pass.
+
+State at the start of the checks (the fixture is already in place; before it the copy
+held 26 users, zero period/activity/award rows and the baseline 2026-11-12 16:27:16):
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity, (SELECT COUNT(*) FROM unilevel_awards) AS awards, (SELECT COUNT(*) FROM users) AS users, (SELECT value FROM settings WHERE key_name='unilevel_ledger_since') AS ledger_since, (SELECT value FROM settings WHERE key_name='unilevel_active_threshold') AS threshold, (SELECT value FROM settings WHERE key_name='unilevel_enabled') AS master
+periods | activity | awards | users | ledger_since | threshold | master
+------------------------------------------------------------------------
+0 | 0 | 0 | 27 | 2026-10-01 00:00:00 | 500 | 0
+(1 row)
+
+Fixture rows created (SQL against the development copy):
+  INSERT INTO users (username, ...) VALUES ('qa17f_buyer', ...)                            -> 1 row
+  INSERT INTO products ... VALUES ('QA17F-FIXTURE', 'QA17F fixture', 300.00, 250.00, 0, 5, 'active') -> 1 row
+  INSERT INTO shop_orders ... 'QA17F-2026-10-015', paid, paid_at '2026-10-15 10:00:00'    -> 1 row
+  INSERT INTO shop_order_items ... line_total 600.00, base_total 500.00, 'committed'       -> 1 row
+  UPDATE settings SET value='2026-10-01 00:00:00' WHERE key_name='unilevel_ledger_since'  -> 1 row
+
+SQL> SELECT u.id AS user_id, u.username, o.id AS order_id, o.order_no, o.status, o.paid_at, oi.line_total FROM users u JOIN shop_orders o ON o.user_id=u.id JOIN shop_order_items oi ON oi.order_id=o.id WHERE u.username='qa17f_buyer'
+user_id | username | order_id | order_no | status | paid_at | line_total
+------------------------------------------------------------------------
+837 | qa17f_buyer | 820 | QA17F-2026-10-015 | paid | 2026-10-15 10:00:00 | 600.00
+(1 row)
+
+The pass then ran QA17F-01 .. 07, one transcript each.
+
+CLEANUP after the pass - what each statement reported:
+SQL> DELETE FROM unilevel_activity WHERE period='2026-10'
+rows affected: 27
+SQL> DELETE FROM unilevel_periods WHERE period='2026-10'
+rows affected: 1
+SQL> DELETE FROM shop_orders WHERE order_no='QA17F-2026-10-015'
+rows affected: 1
+SQL> DELETE FROM products WHERE sku='QA17F-FIXTURE'
+rows affected: 1
+SQL> DELETE FROM users WHERE username='qa17f_buyer'
+rows affected: 1
+SQL> UPDATE settings SET value='2026-11-12 16:27:16' WHERE key_name='unilevel_ledger_since'
+rows affected: 1
+
+A closed period is immutable in the application, so the snapshot is removed here
+with SQL on purpose: this is a QA cleanup of a fixture, not a reopen path. The
+next scheduled run writes a fresh snapshot from the real orders.
+
+State AFTER the cleanup:
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity, (SELECT COUNT(*) FROM unilevel_awards) AS awards, (SELECT COUNT(*) FROM users) AS users, (SELECT value FROM settings WHERE key_name='unilevel_ledger_since') AS ledger_since, (SELECT value FROM settings WHERE key_name='unilevel_active_threshold') AS threshold, (SELECT value FROM settings WHERE key_name='unilevel_enabled') AS master
+periods | activity | awards | users | ledger_since | threshold | master
+------------------------------------------------------------------------
+0 | 0 | 0 | 26 | 2026-11-12 16:27:16 | 500 | 0
+(1 row)
+
+The monthly log and the lock file are operational records and stay in place:
+  system/storage/logs/unilevel_month_close-2026-11.log
+  system/storage/locks/unilevel_month_close.lock (advisory; released after every run)
+
+wallet_reconcile.php after the cleanup:
+
+  OK — every request has its hold, and every rejection its refund.
+
+Repeat-purchase
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  voided awards:     0
+  unilevel ledger:   0.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.
+
+exit code: 0

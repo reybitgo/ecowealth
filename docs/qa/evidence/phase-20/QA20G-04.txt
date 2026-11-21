@@ -1,0 +1,69 @@
+QA20G-04 - The build reports 20
+===============================
+
+Date: 2026-11-16 10:38:30 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test for the case; the development copy for the HTTP walk
+
+Why: D-15, plan §11 and the exit gate — one constant, asserted in code and visible in the suite header.
+
+1. The runtime constant
+
+   php -r "require 'app/config.php'; echo 'APP_PHASE=' . APP_PHASE;"
+   → APP_PHASE=20
+
+   app/config.php:
+     /* Phase currently under construction — controls which menu items render.
+      * Phase 20 (the Team Harvest bonus workstream) is the last one: see
+      * docs/phase-log.md for the release entry and dmp/plan-ecowealth-team-harvest.md
+      * §11 (Phase 20G — Release). The constant only labels the build; no route,
+      * menu item or permission reads it for Phase 20. */
+     defined('APP_PHASE') || define('APP_PHASE', 20);
+
+2. The case and the suite header
+
+   php tests\run.php Hardening
+     → PHP 8.3.16 · schema ecowealth_sneat_test · phase 20
+     → PASS  P15 the build reports phase 20
+     → Cases: 8   Passed: 8   Failed: 0
+     → All good. exit 0
+
+   The full-suite header (`php tests\run.php`) reads the same `phase 20`.
+
+3. The menu walk (every shipped nav item, from `app/layout/nav.php`)
+
+   As **admin** — 29 URLs, all **200**:
+     /dashboard /shop /cart /orders /packages /membership /register /genealogy /earnings /wallet
+     /wallet/transfer /payouts /profile /profile/password /admin /admin/products /admin/packages
+     /admin/orders /admin/members /admin/activations /admin/codes /admin/commissions /admin/wallets
+     /admin/payouts /admin/reports /admin/settings /admin/audit
+     /admin/commissions?ledger=team_harvest  (200, 47,149 bytes)
+     /earnings?ledger=team_harvest           (200, 29,797 bytes)
+
+   As **member juan** — 16 URLs, all **200**:
+     /dashboard /shop /cart /orders /packages /membership /register /genealogy /earnings /wallet
+     /wallet/transfer /payouts /profile /profile/password /earnings?ledger=team_harvest /dashboard
+
+   As **superadmin** — 4 URLs, all **200**: /dashboard /admin /slogin /admin/settings.
+
+   No menu item appears that Phase 19 did not ship (the highest `phase` in the nav config is 15), and
+   no URL returns a 500.
+
+4. The member tile while the stream is off and the member is not queued
+
+   juan's /dashboard → 200, and the page contains **0** occurrences of `dashboard-team-harvest`:
+   the tile is hidden, as 20F's visibility rule says (P20F-T10 / P20G-T8). An admin's /dashboard and
+   /admin/settings both answer 200.
+
+Checks:
+
+  the runtime constant is 20 ........................... yes
+  the suite header reads phase 20 ...................... yes
+  HardeningTest asserts 20 and passes .................. yes (P15, 8/8)
+  /dashboard as admin and as member .................... 200 / 200
+  every shipped menu item renders ...................... 49 / 49 URLs 200
+  no new menu item and no 500 .......................... yes
+  the member tile is hidden while the stream is off .... yes (0 occurrences)
+
+RESULT: PASS

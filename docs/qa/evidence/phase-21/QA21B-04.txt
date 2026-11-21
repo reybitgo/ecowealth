@@ -1,0 +1,30 @@
+QA21B-04 - Load reference ladder
+================================
+
+Date: 2026-11-16 18:09:12 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 1 and Appendix A — the preset is offered behind a button and never applied by itself.
+
+The preset button fills the ten inputs from each input's data-reference attribute; this
+transcript records the values it fills and the save that stores them (the real save path, with
+the ten preset values posted).
+
+  GeneralHarvestLevel::referencePreset(), as the inputs render it:
+      2000.00  4000.00  8000.00  12000.00  25000.00  100000.00  250000.00  480000.00  2500000.00  5000000.00
+  the full ladder .................... 8381000.00
+  data-reference on each input ....... 2000.00  4000.00  8000.00  12000.00  25000.00  100000.00  250000.00  480000.00  2500000.00  5000000.00
+  save errors ........................ []
+  stored ladder after the save ....... 2000.00  4000.00  8000.00  12000.00  25000.00  100000.00  250000.00  480000.00  2500000.00  5000000.00
+  the card re-reads .................. 2000.00  4000.00  8000.00  12000.00  25000.00  100000.00  250000.00  480000.00  2500000.00  5000000.00
+  the card's total badge ............. ₱8,381,000.00
+  the depth is still ................. 10
+
+Checks:
+  the preset is the reference ladder .................. yes
+  the inputs carry the preset ......................... yes
+  the save stores it and the card re-reads it ......... yes
+
+RESULT: PASS

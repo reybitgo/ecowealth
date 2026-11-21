@@ -1,0 +1,26 @@
+QA20A-06 - The wallet statement filter names Team Harvest
+=========================================================
+
+Date: 2026-11-16 10:38:36 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: 20A adds the movement kind and its label but no producer: the filter must offer it, and a clean wallet must select no rows.
+
+The member statement (rendered through WalletController::walletContext() + View::page):
+  the filter option "Team Harvest bonus" ... present
+  `ref_type=team_harvest` in the form ...... present
+  selected rows on a clean wallet .......... 0
+
+The admin monitor (rendered through AdminWalletController::monitorContext('ledger') + View::page):
+  the filter option "Team Harvest bonus" ... present
+  the request carries ref_type=team_harvest . no
+  team_harvest ledger rows in the database . 0
+
+Checks:
+  both filters list the new movement kind .. yes
+  selecting it returns no rows ............. yes
+  no award, no wallet credit, no balance ... yes (0 movements)
+
+RESULT: PASS

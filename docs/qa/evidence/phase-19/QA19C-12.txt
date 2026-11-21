@@ -1,0 +1,45 @@
+QA19C-12 - The Royalty group, the bundle check and the reconcile command are green
+==================================================================================
+
+Date: 2026-11-15 11:48:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Commands
+
+   php tests\run.php Royalty
+   exit 0
+
+     PASS  P19C-T33 a paid award without its wallet movement is a mismatch
+     PASS  P19C-T34 a royalty movement with no award is a mismatch
+     PASS  P19C-T35 a movement whose amount differs from its award is a mismatch
+     PASS  P19C-T36 a period header that disagrees with its rows is a mismatch
+     PASS  P19C-T37 period state: a pending award in a paid month fails, an unfinalised month warns
+     PASS  P19C-T46 wallet_reconcile has a Royalty section and fails only on mismatches
+     PASS  P19C-T47 a reset runs the Royalty reconcile and leaves both tables empty
+   
+   WalletTest
+     PASS  P19C the royalty movement is a labelled, withdrawable, idempotent credit
+   
+   ----------------------------------------------------------------
+   Cases: 98   Passed: 98   Failed: 0
+   All good.
+
+   php bin\build_install_sql.php --check
+   exit 0 (no output)
+
+   php bin\wallet_reconcile.php        (development copy ecowealth_sneat)
+   exit 0
+
+   Royalty
+     periods:           0 (paid 0 · evaluated 0 · skipped 0)
+     paid awards:       0 (0.00)
+     pending awards:    0 (0.00) — evaluated, not in a wallet yet
+     skipped awards:    0
+     royalty ledger:    0.00
+     OK — every paid award has its wallet movement and every period header agrees with its rows.
+
+RESULT: PASS

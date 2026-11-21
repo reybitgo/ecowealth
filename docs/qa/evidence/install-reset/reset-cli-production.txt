@@ -1,0 +1,18 @@
+2026-11-11 22:26:50 +08:00 — IR-5 production guard
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3
+Note: the local config has APP_ENV=development, so a real production database is
+not involved. The guard is exercised through the service's documented internal
+option `env` (plan §7.2) exactly as tests/Cases/DbResetTest.php does.
+
+Command: php tests/run.php "production requires an explicit allow-production"
+Exit: 0
+
+EcoWealth test suite
+PHP 8.3.16 · schema ecowealth_sneat_test · phase 15
+
+DbResetTest
+  [32mPASS[0m  production requires an explicit allow-production
+
+----------------------------------------------------------------
+Cases: 1   Passed: 1   Failed: 0
+All good.

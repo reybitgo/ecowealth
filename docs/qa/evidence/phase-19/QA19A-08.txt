@@ -1,0 +1,60 @@
+QA19A-08 — The money is untouched and the full gate is green
+=============================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+
+1. Wallet reconciliation (development copy, migrated to 023)
+
+   php bin\wallet_reconcile.php
+   exit 0
+
+   Output (summary)
+
+     EcoWealth finance reconciliation
+       database: ecowealth_sneat (127.0.0.1)
+       accounts checked: 26
+       accounts with ledger: 10
+
+     Wallets
+       OK — every wallet matches its ledger on both buckets.
+     Commissions
+       OK — every credited award has its wallet movement and the totals agree.
+     Transfers
+       OK — every transfer has its sender debit, recipient credit and fee credit.
+     Payouts
+       OK — every request has its hold, and every rejection its refund.
+     Repeat-purchase
+       OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+     All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.
+
+   19A moves no money: no `royalty` amount exists in any wallet or ledger row.
+
+2. Full PHP suite
+
+   php tests\run.php
+   exit 0
+
+   ------------------------------------------------------------------
+   Cases: 1026   Passed: 1026   Failed: 0
+   All good.
+
+   The baseline before this phase was 1,008 / 1,008; 19A adds the 18 `RoyaltyFoundationTest` cases
+   (P19A-T1 … T18).
+
+3. HTTP smoke walk
+
+   powershell -NoProfile -File tests\smoke.ps1
+   exit 0
+
+   Passed: 229   Failed: 0
+
+   19A adds no route, so the walk is unchanged at 229 checks.
+
+4. Install-bundle drift gate
+
+   php bin\build_install_sql.php --check
+   (no output) exit 0
+
+RESULT: PASS

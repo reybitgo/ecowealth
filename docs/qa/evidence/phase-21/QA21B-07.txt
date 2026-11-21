@@ -1,0 +1,37 @@
+QA21B-07 - Three registrations write no award
+=============================================
+
+Date: 2026-11-16 18:09:17 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: P21B-T21 / D-15 — 21B has no writer; Phase 20's hook may still queue a sponsor, and nothing
+else happens.
+
+Four accounts were registered through RegistrationService::register() — the web form's own path
+— on the test schema: the sponsor, then its three directs. The queue was seeded first through
+HarvestQueue::seed() so the Phase 20 hook is live (20C Rule 2). The stream switch was left on:
+21B has nothing that would read it.
+
+  seed ............................... {"ok":false,"inserted":0,"members":1}
+  queue before the directs ........... 0
+  queue after the directs ............ 1
+  the sponsor's position ............. 1
+  awards before / after .............. 0 / 0
+  general_harvest ledger rows ........ 0 / 0
+  board row before ................... {"baseline_n":null,"armed_at":null,"settled_n":0}
+  board row after .................... {"baseline_n":null,"armed_at":null,"settled_n":0}
+  wallet sum before .................. 3500.00|2700.00
+  wallet sum after ................... 3500.00|2700.00
+  queue after the cleanup ............ 0
+
+Checks:
+  the three registrations succeeded and the sponsor is queued ... yes
+  no award was written ......................................... yes
+  no General Harvest wallet row ................................ yes
+  the board row is untouched ................................... yes
+  the wallet is unchanged ...................................... yes
+  the QA members are deleted again ............................. yes
+
+RESULT: PASS

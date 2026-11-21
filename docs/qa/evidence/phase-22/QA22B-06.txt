@@ -1,0 +1,13 @@
+QA22B-06 — The readiness panel counts and links
+Evidence file: docs/qa/evidence/phase-22/QA22B-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/settings → Commissions → Product binary readiness
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Binary on, no points count matches SQL; Binary off count matches SQL; Global switch reads On/Off; Preset check reads 1,000 points per pair pays ₱100.00 at 10%; none are buttons that change settings.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22B-T19 (readiness panel shows the four counts and links to the filtered list — PASS).
+Reason: Environment dependency — browser-based check.

@@ -1,0 +1,25 @@
+QA19B-04 — Group + personal above 100% is refused
+=================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP — /admin/settings, section=commissions
+
+Steps
+
+1. Set the Supervisor group rate to 60 and the Supervisor personal rate to 50.
+2. For a clean ordering, set the Manager and Director rates to the same 60 / 50.
+3. Press Save settings.
+
+Result
+
+  QA19B-04 PASS  the 110% ladder is refused and the stored 3.000% survives
+
+Rendered error (one per paying rank)
+
+  Supervisor group + personal cannot exceed 100% (currently 110%).
+  Manager group + personal cannot exceed 100% (currently 110%).
+  Director group + personal cannot exceed 100% (currently 110%).
+
+Nothing was written: the stored Supervisor group rate is still 3.000%.
+
+RESULT: PASS

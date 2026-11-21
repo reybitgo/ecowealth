@@ -1,0 +1,229 @@
+Phase 19G — Release
+Check QA19G-05 — the release walk as an administrator and as a member
+Prerequisite: the running app at http://localhost/ecowealth/system, the development copy
+              (ecowealth_sneat, migration 023), the reference ladder stored, the stream off.
+Executed: 2026-11-15 16:25 +08:00 by the Phase 19G automated QA pass (DSH)
+==============================================================================
+
+Method. Headless Chrome (CDP, no extension) at 1440×900, one fresh profile per role:
+the walk signs in through the real /login form, opens each URL, waits for the document,
+records the HTTP status, the title, the expected markers, every console error, every
+exception, every failed request and the visible PHP error strings, and captures one
+full-height screenshot per screen. It submits nothing but the two sign-ins.
+
+| Role | URL | HTTP | Title | Markers | Console errors | Failed requests | Screenshot |
+|---|---|---:|---|---|---|---|---|
+| admin | `/admin/settings` | 200 | Settings / EcoWealth | Royalty bonus=present, Saved ladder=present | 0 | 0 | `QA19G-05-admin-settings.png` |
+| admin | `/admin/members` | 200 | Members / EcoWealth | Rank=present, Rank distribution=present | 0 | 0 | `QA19G-05-admin-members.png` |
+| admin | `/admin/commissions?ledger=royalty` | 200 | Commissions / EcoWealth | Operations=present, Royalty=present | 0 | 0 | `QA19G-05-admin-royalty.png` |
+| admin | `/admin/reports` | 200 | Reports / EcoWealth | Royalty=present | 0 | 0 | `QA19G-05-admin-reports.png` |
+| admin | `/admin/audit` | 200 | Audit log / EcoWealth | Audit=present | 0 | 0 | `QA19G-05-admin-audit.png` |
+| member | `/earnings?ledger=royalty` | 200 | Earnings / EcoWealth | Your Royalty awards=present | 0 | 0 | `QA19G-05-member-earnings-royalty.png` |
+| member | `/dashboard` | 200 | Dashboard / EcoWealth | Royalty=ABSENT | 0 | 0 | `QA19G-05-member-dashboard.png` |
+
+Observed
+--------
+admin session: Login | EcoWealth → sign-in submitted → username in page · Dashboard | EcoWealth
+  /admin/settings
+    HTTP 200 · Settings | EcoWealth · 12069 characters of body text
+    markers: "Royalty bonus" present · "Saved ladder" present
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+  /admin/members
+    HTTP 200 · Members | EcoWealth · 2147 characters of body text
+    markers: "Rank" present · "Rank distribution" present
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+  /admin/commissions?ledger=royalty
+    HTTP 200 · Commissions | EcoWealth · 2852 characters of body text
+    markers: "Operations" present · "Royalty" present
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+  /admin/reports
+    HTTP 200 · Reports | EcoWealth · 6419 characters of body text
+    markers: "Royalty" present
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+  /admin/audit
+    HTTP 200 · Audit log | EcoWealth · 2422 characters of body text
+    markers: "Audit" present
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+member session: Login | EcoWealth → sign-in submitted → username in page · Dashboard | EcoWealth
+  /earnings?ledger=royalty
+    HTTP 200 · Earnings | EcoWealth · 2082 characters of body text
+    markers: "Your Royalty awards" present
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+  /dashboard
+    HTTP 200 · Dashboard | EcoWealth · 1622 characters of body text
+    markers: "Royalty" absent
+    PHP error strings: none
+    console errors: none
+    failed requests: none
+
+Notes
+-----
+- Every one of the seven URLs answered 200, rendered its data without a PHP warning, error
+  or notice, logged no console error and made no failed request. No broken link appears on
+  the Royalty tab, the members directory, the reports desk, the audit log, the settings
+  card, the member statement or the dashboard.
+- The member dashboard shows no Royalty tile: the stream is off (`royalty_enabled = 0`) and
+  this member has no royalty history, which is exactly the documented rule (§16: "It is
+  hidden when the stream is off and the member has no history"). The tile returns with the
+  first closed month or with the stream on.
+- The Royalty tab is a fresh install's state: the operations panel reads "Up to date", the
+  open month shows the "Royalty is currently off" preview, closed months say "No Royalty
+  periods yet" and the ledger shows its "This month is not closed yet" empty state. No
+  placeholder "0" appears where a value is expected; every zero is a labelled total.
+
+Full walker output (machine record):
+
+{
+  "admin": {
+    "role": "admin",
+    "pages": [
+      {
+        "url": "/admin/settings",
+        "name": "QA19G-05-admin-settings.png",
+        "status": 200,
+        "title": "Settings | EcoWealth",
+        "path": "/ecowealth/system/admin/settings",
+        "length": 12069,
+        "markers": {
+          "Royalty bonus": true,
+          "Saved ladder": true
+        },
+        "suspicious": [],
+        "h1": "Settings",
+        "consoleErrors": [],
+        "failedRequests": []
+      },
+      {
+        "url": "/admin/members",
+        "name": "QA19G-05-admin-members.png",
+        "status": 200,
+        "title": "Members | EcoWealth",
+        "path": "/ecowealth/system/admin/members",
+        "length": 2147,
+        "markers": {
+          "Rank": true,
+          "Rank distribution": true
+        },
+        "suspicious": [],
+        "h1": "Members",
+        "consoleErrors": [],
+        "failedRequests": []
+      },
+      {
+        "url": "/admin/commissions?ledger=royalty",
+        "name": "QA19G-05-admin-royalty.png",
+        "status": 200,
+        "title": "Commissions | EcoWealth",
+        "path": "/ecowealth/system/admin/commissions?ledger=royalty",
+        "length": 2852,
+        "markers": {
+          "Operations": true,
+          "Royalty": true
+        },
+        "suspicious": [],
+        "h1": "Royalty bonus",
+        "consoleErrors": [],
+        "failedRequests": []
+      },
+      {
+        "url": "/admin/reports",
+        "name": "QA19G-05-admin-reports.png",
+        "status": 200,
+        "title": "Reports | EcoWealth",
+        "path": "/ecowealth/system/admin/reports",
+        "length": 6419,
+        "markers": {
+          "Royalty": true
+        },
+        "suspicious": [],
+        "h1": "Reports",
+        "consoleErrors": [],
+        "failedRequests": []
+      },
+      {
+        "url": "/admin/audit",
+        "name": "QA19G-05-admin-audit.png",
+        "status": 200,
+        "title": "Audit log | EcoWealth",
+        "path": "/ecowealth/system/admin/audit",
+        "length": 2422,
+        "markers": {
+          "Audit": true
+        },
+        "suspicious": [],
+        "h1": "Audit log",
+        "consoleErrors": [],
+        "failedRequests": []
+      }
+    ],
+    "consoleErrors": [],
+    "failedRequests": [],
+    "login": {
+      "title": "Login | EcoWealth",
+      "submitted": "submitted",
+      "after": "username in page · Dashboard | EcoWealth"
+    }
+  },
+  "member": {
+    "role": "member",
+    "pages": [
+      {
+        "url": "/earnings?ledger=royalty",
+        "name": "QA19G-05-member-earnings-royalty.png",
+        "status": 200,
+        "title": "Earnings | EcoWealth",
+        "path": "/ecowealth/system/earnings?ledger=royalty",
+        "length": 2082,
+        "markers": {
+          "Your Royalty awards": true
+        },
+        "suspicious": [],
+        "h1": "Your Royalty bonus",
+        "consoleErrors": [],
+        "failedRequests": []
+      },
+      {
+        "url": "/dashboard",
+        "name": "QA19G-05-member-dashboard.png",
+        "status": 200,
+        "title": "Dashboard | EcoWealth",
+        "path": "/ecowealth/system/dashboard",
+        "length": 1622,
+        "markers": {
+          "Royalty": false
+        },
+        "suspicious": [],
+        "h1": "Welcome back, Juan Dela Cruz 👋",
+        "consoleErrors": [],
+        "failedRequests": []
+      }
+    ],
+    "consoleErrors": [],
+    "failedRequests": [],
+    "login": {
+      "title": "Login | EcoWealth",
+      "submitted": "submitted",
+      "after": "username in page · Dashboard | EcoWealth"
+    }
+  },
+  "executedAt": "2026-11-15T08:25:21.591Z"
+}
+
+==============================================================================
+Asserted: the seven release URLs answer 200 as an administrator and as a member, with no
+          broken link, no PHP warning/notice, no console error, no failed request and no
+          placeholder figure; the member dashboard correctly hides the tile while the
+          stream is off and the member has no history.
+RESULT: PASS

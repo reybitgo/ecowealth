@@ -1,0 +1,41 @@
+QA19A-04 — The sixteen settings exist with the reference defaults
+=================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Database: ecowealth_sneat (migrated to 023)
+
+Command
+
+  mysql -u ecowealth -p ecowealth_sneat -e "
+    SELECT key_name, value FROM settings
+     WHERE key_name LIKE 'royalty\_%' ORDER BY key_name"
+
+Output (16 rows)
+
+  royalty_director_group_pct        10.000
+  royalty_director_managers         10
+  royalty_director_personal_pct     15.000
+  royalty_director_quota            5000000
+  royalty_enabled                   0
+  royalty_leader_directs            10
+  royalty_ledger_since              2026-11-15 08:18:55
+  royalty_manager_group_pct         5.000
+  royalty_manager_personal_pct      10.000
+  royalty_manager_quota             1000000
+  royalty_manager_supervisors       10
+  royalty_pay_enabled               1
+  royalty_supervisor_group_pct      3.000
+  royalty_supervisor_leaders        10
+  royalty_supervisor_personal_pct   5.000
+  royalty_supervisor_quota          500000
+
+Checks against plan §13.4
+
+  royalty_enabled              = 0        the earning stream ships OFF (D-14)
+  royalty_pay_enabled          = 1        the payment pause ships on
+  thresholds                   = 10/10/10/10
+  quotas                       = 500000 / 1000000 / 5000000
+  group/personal rates         = 3/5, 5/10, 10/15 (three decimals)
+  royalty_ledger_since         = a YYYY-MM-DD HH:MM:SS MySQL datetime
+
+RESULT: PASS

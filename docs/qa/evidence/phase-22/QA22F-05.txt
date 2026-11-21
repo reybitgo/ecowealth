@@ -1,0 +1,13 @@
+QA22F-05 — Copy guard: no upline, sponsor, Team chain, level
+Evidence file: docs/qa/evidence/phase-22/QA22F-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /earnings?ledger=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: No ancestor username, no upline, no sponsor, no Team chain, no Level N in the binary tab; Left team, Right team, your points, pairs present.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22I-T4 (copy guard: member binary tab names no upline, sponsor or team chain — PASS).
+Reason: Environment dependency — browser-based check.

@@ -1,0 +1,25 @@
+QA20A-05 - Three direct registrations do not create a queue row
+===============================================================
+
+Date: 2026-11-16 10:38:35 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: the 20C Rule 2 contract — the registration hook is inert until the seed writes the baseline, so a build that ships unseeded can queue nobody.
+
+The three direct registrations went through RegistrationService (the web form's own path):
+  sponsor row (status|role|sponsor_id) .. active|member|1
+  directs the sponsor now holds ......... 3
+  harvest_queue rows .................... 0
+  team_harvest_awards rows .............. 0
+  team_harvest ledger rows .............. 0
+  team_harvest_ledger_since ............. '' (unseeded)
+
+Checks:
+  the sponsor has the three directs ...... yes
+  the queue stays empty ................. yes
+  no award and no money ................. yes
+  the baseline stays empty .............. yes
+
+RESULT: PASS

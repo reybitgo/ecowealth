@@ -1,0 +1,26 @@
+QA17F-02 - the dry run lists the months it would close and writes nothing
+Date: 2026-11-12 22:02:26 +08:00
+Database: ecowealth_sneat @ 127.0.0.1
+
+Row counts BEFORE:
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity, (SELECT COUNT(*) FROM unilevel_awards) AS awards
+periods | activity | awards
+------------------------------------------------------------------------
+0 | 0 | 0
+(1 row)
+
+Command: php bin/unilevel_month_close.php --dry-run
+EcoWealth unilevel month close (dry run — nothing is written)
+  database:    ecowealth_sneat (127.0.0.1)
+  threshold:   ₱500.00 personal purchases
+  would close: 1
+  2026-10  members 27  qualified 1  award_total ₱0.00
+
+exit code: 0
+
+Row counts AFTER:
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity, (SELECT COUNT(*) FROM unilevel_awards) AS awards
+periods | activity | awards
+------------------------------------------------------------------------
+0 | 0 | 0
+(1 row)

@@ -1,0 +1,13 @@
+QA22B-01 — The product edit card renders off by default
+Evidence file: docs/qa/evidence/phase-22/QA22B-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/products/{id}/edit
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: The card renders with the switch off; points readout matches P.V.; no per-product pair controls; no binary award/volume/wallet row.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22B-T1 (binary_enabled = 1 with pv = 250 saves and re-reads on — PASS), P22B-T15 (product form renders the binary card, no per-product rates — PASS).
+Reason: Environment dependency — browser-based check.

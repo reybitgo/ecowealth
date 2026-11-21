@@ -1,0 +1,35 @@
+QA19B-06 — The member directory shows the Rank column and the distribution
+===========================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP — http://localhost/ecowealth/system/admin/members
+Session: signed in as admin
+
+Steps
+
+1. Open /admin/members.
+2. Confirm the table header has Rank between Status and Wallet.
+3. Confirm every row carries a rank badge.
+4. Confirm the Rank distribution strip under the five counters.
+
+Result
+
+  QA19B-06 PASS  Rank header=True, rank badges=10, distribution=True
+
+Rendered structure
+
+  <th>Rank</th> is present between <th>Status</th> and <th class="text-end">Wallet</th>
+  Rows render <span class="badge bg-label-{tone}">Member|Leader|Supervisor|Manager|Director</span>
+  A row with no rank renders an em dash, never a guessed "Member".
+  <div data-rank-distribution> carries:
+    data-rank-count="member"      Member N
+    data-rank-count="leader"      Leader N
+    data-rank-count="supervisor"  Supervisor N
+    data-rank-count="manager"     Manager N
+    data-rank-count="director"    Director N
+    "<N> ranked (Supervisor+) · ranks derive from the sponsor tree"
+
+The distribution is exclusive per rank; Member + Leader + Supervisor + Manager + Director equals
+the number of ranked member accounts, and ranked is Supervisor + Manager + Director.
+
+RESULT: PASS

@@ -1,0 +1,25 @@
+QA19D-05 - The member page shows the Royalty panel with rank, progress and history
+==================================================================================
+
+Date: 2026-11-15 12:59:18 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19d-admin (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts, the QA19C-01 orders
+         (Director 100,000; each Supervisor 1,225,000), a prior month below quota and a
+         current-month Director purchase for the preview; the real RoyaltyService close.
+
+Why: Plan §8, §14.11: the admin panel is the reference for field meanings and uses the same read as the member card.
+
+GET /admin/members/9  (the fixture Director)
+  rank Director   quota progress 100%   met: yes
+  this month: personal ₱6,000,000.00   group ₱6,000,000.00   quota ₱5,000,000.00
+  downline: 2 direct · 14 Leaders · 6 Supervisors · 2 Managers
+  next rank:  — 0 of 0
+  paid all time ₱515,000.00   last paid 2026-10 ₱515,000.00
+  last six awards:
+    2026-10  Director   ₱515,000.00  paid      paid 2026-11-15 12:59:18
+    2026-09  Director        ₱0.00  skipped   paid —
+  panel markup: member-royalty region present, quota bar present, Paid all time present, history rows 2
+
+RESULT: PASS

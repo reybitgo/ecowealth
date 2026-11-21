@@ -21,6 +21,9 @@
     <script src="<?= e(url('assets/js/main.js')) ?>"></script>
     <!-- Page JS -->
     <script src="<?= e(url('assets/js/pages-auth.js')) ?>"></script>
+<?php foreach ((array) ($auth_page_js ?? []) as $auth_js): ?>
+    <script src="<?= e(asset_url((string) $auth_js)) ?>"></script>
+<?php endforeach; ?>
   </body>
 </html>
 <!-- beautify ignore:end -->

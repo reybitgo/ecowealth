@@ -1,0 +1,16 @@
+# QA17B-04 - Switching on with every level cleared is refused
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# Command: POST /admin/products/save with product_id=2181, unilevel_enabled=1 and
+#          all ten unilevel_levels[1..10] empty
+#   -> 302 /ecowealth/system/admin/products/2181/edit
+#
+# GET /admin/products/2181/edit:
+#   message : Turn the switch off or give at least one level a rate above 0.
+#
+# SELECT COUNT(*) FROM product_unilevel_levels WHERE product_id = 2181 AND percent > 0;
+#   levels above 0% : 10  (the previous ladder is still stored)
+#
+# Expected: the "Turn the switch off or give at least one level a rate above 0."
+#           error and an unchanged ladder.
+# Result: PASS

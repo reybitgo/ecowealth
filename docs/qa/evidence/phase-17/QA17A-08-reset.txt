@@ -1,0 +1,33 @@
+# QA17A-08 - A development reset keeps the ladder and empties the money
+# Date: 2026-11-12 - Schema: ecowealth_sneat_qa17a_reset (schema.sql + seeds 001-005, then one row in each Phase 17 table)
+#
+# Before the reset:  ladder=1 awards=1 activity=1 periods=1 orders=1
+# Command: ECO_DB_NAME=ecowealth_sneat_qa17a_reset php bin/db_reset.php --force --confirm=ecowealth_sneat_qa17a_reset --json
+# exit: 0   ok: True
+#
+# Verification checks (12/12):
+#   members=True  0 member row(s) (expected 0)
+#   zero_transactional=True  0 rows across 22 tables (all zero)
+#   staff=True  2 staff, balances zero, package/sponsor null, active
+#   catalogue=True  7 products, 2 packages, 18 levels, 10 contents (kept: unchanged from the snapshot)
+#   codes=True  0 code row(s) (expected 0)
+#   audit=True  1 system.db_reset row(s) (expected 1)
+#   wallets=True  WalletService::reconcile clean
+#   commissions=True  CommissionService::reconcile clean
+#   transfers=True  TransferService::reconcile clean
+#   payouts=True  PayoutService::reconcile clean
+#   live=True  18 of 18 standard surfaces (existing incremented, missing at 1)
+#   auto_increment=True  20 counter(s) at 1
+#
+# Steps of interest:
+#   unilevel: status=ok deleted=3 rows=
+#   auto_increment: status=ok deleted= rows=20
+#   verify: status=ok deleted= rows=12
+#
+# After the reset:
+awards	activity	periods	ladder	orders	unilevel_settings
+0	0	0	1	0	6
+#
+# Result: PASS - the three money tables are empty, the ladder row and the six
+# settings survive, and every verification check (including the four finance
+# reconciliations) is green.

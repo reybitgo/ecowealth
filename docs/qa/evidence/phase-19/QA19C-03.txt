@@ -1,0 +1,49 @@
+QA19C-03 - --evaluate-only writes the award rows and the header, and no wallet money
+====================================================================================
+
+Date: 2026-11-15 11:47:41 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19c-money
+Scratch schema: ecowealth_sneat_tool_a_test
+Fixture: plan section 16.2 A - 31 member accounts (1 Director, 2 Managers, 4 Supervisors,
+         8 Leaders, 16 directs), thresholds 2/2/2/2, reference quotas and rates.
+
+Why: evaluation and payment are separate, so a month can be reviewed before money moves.
+
+Command
+
+   php bin\royalty_month_close.php --period=2026-10 --evaluate-only
+   exit 0
+
+   EcoWealth Royalty month close
+     database:  ecowealth_sneat_tool_a_test (127.0.0.1)
+     enabled:   yes
+     payments:  on
+     closed:    0 — evaluated only; payment was not run (--evaluate-only)
+     periods:   2026-10
+     awards:    7 written · 0 skipped
+     paid:      0 award(s) · ₱0.00
+     duration:  68ms
+     log:       C:\laragon\www\ecowealth\system/storage\logs\royalty_month_close-2026-11.log
+
+Award rows
+
+   2026-10  qa_director    rank 4  GS   5000000.00  PS    100000.00  quota   5000000.00  10.000/15.000  amount    515000.00  pending  
+   2026-10  qa_mgr_a       rank 3  GS   2450000.00  PS         0.00  quota   1000000.00  5.000/10.000  amount    122500.00  pending  
+   2026-10  qa_mgr_b       rank 3  GS   2450000.00  PS         0.00  quota   1000000.00  5.000/10.000  amount    122500.00  pending  
+   2026-10  qa_sup_a1      rank 2  GS   1225000.00  PS   1225000.00  quota    500000.00  3.000/5.000  amount     98000.00  pending  
+   2026-10  qa_sup_a2      rank 2  GS   1225000.00  PS   1225000.00  quota    500000.00  3.000/5.000  amount     98000.00  pending  
+   2026-10  qa_sup_b1      rank 2  GS   1225000.00  PS   1225000.00  quota    500000.00  3.000/5.000  amount     98000.00  pending  
+   2026-10  qa_sup_b2      rank 2  GS   1225000.00  PS   1225000.00  quota    500000.00  3.000/5.000  amount     98000.00  pending  
+
+Header
+
+   period 2026-10  status evaluated  enabled 1  as_of 2026-11-01 00:00:00  evaluated_at 2026-11-15 11:47:41
+   members 31  leaders 8  supervisors 4  managers 2  directors 1
+   award_count 7  paid_count 0  skipped_count 0  award_total 1152000.00  paid_total 0.00  note -
+
+Money
+
+   periods 1  award rows 7 (pending 7, paid 0)  royalty ledger rows 0  ledger total 0.00  withdrawable (members) 0.00
+
+RESULT: PASS

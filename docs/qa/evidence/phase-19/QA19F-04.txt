@@ -1,0 +1,108 @@
+Phase 19F — Operations
+Check QA19F-04 — A dry run shows the month and leaves every table untouched
+Prerequisite: the §16.2 A tree on ecowealth_sneat_tool_a_test (one Supervisor at the ₱500,000 quota, 2026-10)
+Executed: 2026-11-15 15:20:44 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+Fixture: ecowealth_sneat_tool_a_test, ladder 2/2/2/2, quotas 500k/1M/5M, rates 3/5 · 5/10 · 10/15,
+baseline 2026-10-01 00:00:00; one ₱500,000.00 paid order for qa19f_sup in 2026-10.
+
+Counts BEFORE (royalty_periods / royalty_awards / royalty ledger / royalty audit):
+  0 / 0 / 0 / 0
+
+Command:
+
+  php bin\royalty_month_close.php --period=2026-10 --dry-run --json
+
+Exit code: 0
+
+{
+    "ok": true,
+    "trigger": "cli",
+    "dry_run": true,
+    "periods": [
+        "2026-10"
+    ],
+    "closed": 0,
+    "award": 1,
+    "paid": 1,
+    "amount": 40000,
+    "skipped": 0,
+    "status": "evaluated",
+    "paused": false,
+    "results": [
+        {
+            "period": "2026-10",
+            "as_of": "2026-11-01 00:00:00",
+            "enabled": true,
+            "eligible": 1,
+            "paid_members": 1,
+            "skipped": 0,
+            "award_total": 40000,
+            "paid_total": 0,
+            "pending": 1,
+            "pending_total": 40000,
+            "rank_counts": {
+                "member": 4,
+                "leader": 2,
+                "supervisor": 1,
+                "manager": 0,
+                "director": 0
+            },
+            "awards": [
+                {
+                    "period": "2026-10",
+                    "user_id": 1,
+                    "rank_level": 2,
+                    "directs": 2,
+                    "downline_rank_count": 2,
+                    "team_size": 6,
+                    "group_volume": "500000.00",
+                    "personal_volume": "500000.00",
+                    "quota": "500000.00",
+                    "group_pct": "3.000",
+                    "personal_pct": "5.000",
+                    "amount": "40000.00",
+                    "status": "pending",
+                    "reason": null
+                }
+            ],
+            "header": null,
+            "status": "evaluated"
+        }
+    ],
+    "duration_ms": 56,
+    "log": "C:\\Users\\reybi\\AppData\\Local\\Temp\\qa19f-logs-6ee39210\\royalty_month_close-2026-11.log",
+    "operations": {
+        "open": "2026-11",
+        "baseline": "2026-10",
+        "last_final": null,
+        "last_paid": null,
+        "pending": [
+            "2026-10"
+        ],
+        "evaluated": [],
+        "next": {
+            "period": "2026-10",
+            "action": "close"
+        },
+        "switches": {
+            "earn": true,
+            "pay": true
+        },
+        "last_close_at": null,
+        "counts": {
+            "periods": 0,
+            "awards": 0,
+            "pending_rows": 0,
+            "pending_total": 0,
+            "paid_all_time": 0
+        }
+    },
+    "exit_code": 0
+}
+
+Counts AFTER:
+  0 / 0 / 0 / 0
+==============================================================================
+Asserted: exit 0; the JSON lists 2026-10 with 1 award and ₱40,000.00; every count is identical before and after.
+RESULT: PASS

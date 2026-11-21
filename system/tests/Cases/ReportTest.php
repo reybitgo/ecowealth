@@ -1,0 +1,715 @@
+<?php
+declare(strict_types=1);
+
+/* ==============================================================
+ *  ReportTest — the Phase 15 reporting read model and CSV builder
+ *  (plan §7 Phase 15, §6.8)
+ *
+ *  Every case seeds the rows it asserts on (inside the harness
+ *  transaction, rolled back afterwards), so the numbers do not
+ *  depend on what another test left behind.
+ * ============================================================== */
+
+/** A paid order with one line, for report fixtures. */
+$paidOrder = static function (
+    int $userId,
+    float $total,
+    string $status = 'paid',
+    ?string $paidAt = null,
+    string $productName = 'Coffee',
+    int $quantity = 1,
+    ?string $sku = 'COF-1'
+): int {
+    /* A real catalogue row so the item is a genuine order line; the
+     * helper's own line values are then overwritten with the fixture's. */
+    $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+    $orderId = test_order($userId, [['product_id' => $productId, 'quantity' => $quantity]], $status, [
+        'total'    => $total,
+        'subtotal' => $total,
+        'paid_at'  => $paidAt ?? date('Y-m-d H:i:s'),
+    ]);
+
+    db()->prepare(
+        'UPDATE shop_order_items
+            SET product_name = ?, product_sku = ?, quantity = ?, unit_price = ?, line_total = ?
+          WHERE order_id = ?'
+    )->execute([$productName, $sku, $quantity, $total, $total, $orderId]);
+
+    return $orderId;
+};
+
+/**
+ * One repeat-purchase award on a real order line (Phase 17D fixtures).
+ *
+ * @param array<string, mixed> $overrides
+ * @return array<string, mixed> the ids and the stored row
+ */
+$unilevelAward = static function (array $overrides = []): array {
+    static $seq = 0;
+    $seq++;
+
+    $buyer     = test_user('rep_ua_buyer_' . $seq . '_' . bin2hex(random_bytes(2)));
+    $recipient = test_user('rep_ua_rec_' . $seq . '_' . bin2hex(random_bytes(2)));
+    $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+    $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+        'paid_at' => date('Y-m-d H:i:s'),
+        'total'   => '100.00',
+    ]);
+    $itemId = (int) db()->query(
+        'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+    )->fetchColumn();
+
+    $values = $overrides + [
+        'order_id'      => $orderId,
+        'order_item_id' => $itemId,
+        'product_id'    => $productId,
+        'buyer_id'      => (int) $buyer['id'],
+        'user_id'       => (int) $recipient['id'],
+        'level'         => 1,
+        'base_amount'   => 500.00,
+        'rate_pct'      => 5.0,
+        'amount'        => 25.00,
+        'status'        => 'credited',
+        'paid_at'       => date('Y-m-d H:i:s'),
+    ];
+
+    $id = UnilevelAward::create($values);
+
+    return $values + ['id' => $id, 'product_id' => $productId];
+};
+
+/**
+ * One royalty period header + its award rows (Phase 19D report fixtures).
+ *
+ * @param list<array{user:array<string, mixed>, rank:int, gs?:float, ps?:float,
+ *                   amount?:float, status?:string, reason?:string}> $drafts
+ */
+$royaltyPeriod = static function (string $period, array $drafts, string $status = 'evaluated'): void {
+    $quotas    = [RoyaltyRank::SUPERVISOR => 500000.0, RoyaltyRank::MANAGER => 1000000.0, RoyaltyRank::DIRECTOR => 5000000.0];
+    $groups    = [RoyaltyRank::SUPERVISOR => 3.0, RoyaltyRank::MANAGER => 5.0, RoyaltyRank::DIRECTOR => 10.0];
+    $personals = [RoyaltyRank::SUPERVISOR => 5.0, RoyaltyRank::MANAGER => 10.0, RoyaltyRank::DIRECTOR => 15.0];
+
+    $awardTotal = 0.0;
+    $paidTotal  = 0.0;
+    $paidCount  = 0;
+    $skipCount  = 0;
+
+    foreach ($drafts as $draft) {
+        $draftStatus = (string) ($draft['status'] ?? 'pending');
+
+        if ($draftStatus === 'skipped') {
+            $skipCount++;
+            continue;
+        }
+
+        $rank   = (int) $draft['rank'];
+        $amount = isset($draft['amount'])
+            ? (float) $draft['amount']
+            : round((float) ($draft['gs'] ?? 0) * (float) ($groups[$rank] ?? 0) / 100
+                + (float) ($draft['ps'] ?? 0) * (float) ($personals[$rank] ?? 0) / 100, 2);
+
+        $awardTotal += $amount;
+
+        if ($draftStatus === 'paid') {
+            $paidTotal += $amount;
+            $paidCount++;
+        }
+    }
+
+    [$start, $end] = RoyaltyPeriod::bounds($period);
+
+    db()->prepare(
+        'INSERT INTO royalty_periods
+           (period, status, enabled, evaluated_at, evaluated_by, paid_at, paid_by, as_of,
+            leader_directs, supervisor_leaders, manager_supervisors, director_managers,
+            quota_supervisor, quota_manager, quota_director,
+            group_pct_supervisor, personal_pct_supervisor,
+            group_pct_manager, personal_pct_manager,
+            group_pct_director, personal_pct_director,
+            members_count, leaders_count, supervisors_count, managers_count, directors_count,
+            award_count, paid_count, skipped_count, award_total, paid_total, note)
+         VALUES (?, ?, 1, ?, NULL, ?, NULL, ?, 10, 10, 10, 10,
+                 500000.00, 1000000.00, 5000000.00,
+                 3.000, 5.000, 5.000, 10.000, 10.000, 15.000,
+                 ?, 0, 0, 0, 0, ?, ?, ?, ?, ?, NULL)'
+    )->execute([
+        $period,
+        $status,
+        $start,
+        $status === 'paid' ? $start : null,
+        $end,
+        max(1, count($drafts)),
+        count($drafts),
+        $paidCount,
+        $skipCount,
+        number_format(round($awardTotal, 2), 2, '.', ''),
+        number_format(round($paidTotal, 2), 2, '.', ''),
+    ]);
+
+    foreach ($drafts as $draft) {
+        $draftStatus = (string) ($draft['status'] ?? 'pending');
+        $rank        = (int) $draft['rank'];
+        $amount      = isset($draft['amount'])
+            ? (float) $draft['amount']
+            : round((float) ($draft['gs'] ?? 0) * (float) ($groups[$rank] ?? 0) / 100
+                + (float) ($draft['ps'] ?? 0) * (float) ($personals[$rank] ?? 0) / 100, 2);
+
+        $awardId = RoyaltyAward::create([
+            'period'          => $period,
+            'user_id'         => (int) $draft['user']['id'],
+            'rank_level'      => $rank,
+            'group_volume'    => $draft['gs'] ?? 0.0,
+            'personal_volume' => $draft['ps'] ?? 0.0,
+            'quota'           => $quotas[$rank] ?? 0.0,
+            'group_pct'       => $groups[$rank] ?? 0.0,
+            'personal_pct'    => $personals[$rank] ?? 0.0,
+            'amount'          => $draftStatus === 'skipped' ? 0.0 : $amount,
+            'status'          => $draftStatus === 'skipped' ? 'skipped' : 'pending',
+            'reason'          => $draftStatus === 'skipped' ? (string) ($draft['reason'] ?? RoyaltyAward::REASON_QUOTA) : null,
+        ]);
+
+        if ($draftStatus === 'paid') {
+            RoyaltyAward::markPaid($awardId, 300000 + $awardId);
+        }
+    }
+};
+
+return [
+    /* ---------- Window maths -------------------------------------- */
+
+    'P15 the report window defaults to 30 days and is inclusive' => function (): void {
+        $range = ReportService::range(null, null);
+
+        assert_same(date('Y-m-d'), $range['to']);
+        assert_same(30, $range['days']);
+        assert_same(date('Y-m-d', strtotime('-29 days')), $range['from']);
+
+        $single = ReportService::range('2026-03-01', '2026-03-01');
+        assert_same(1, $single['days']);
+        assert_same('Mar 1, 2026', $single['label']);
+    },
+
+    'P15 the report window swaps a reversed range and caps a long one' => function (): void {
+        $swapped = ReportService::range('2026-03-31', '2026-03-01');
+        assert_same('2026-03-01', $swapped['from']);
+        assert_same('2026-03-31', $swapped['to']);
+        assert_same(31, $swapped['days']);
+
+        /* Invalid input falls back to the default window. */
+        $invalid = ReportService::range('not-a-date', '2026-13-40');
+        assert_same(date('Y-m-d'), $invalid['to']);
+
+        /* More than a year is shortened to the last 366 days ending at `to`. */
+        $long = ReportService::range('2020-01-01', '2026-11-11');
+        assert_same(ReportService::MAX_DAYS, $long['days']);
+        assert_same('2025-11-11', $long['from']);
+    },
+
+    /* ---------- Sales ------------------------------------------------- */
+
+    'P15 sales today, in the window and all time count paid orders only' => function () use ($paidOrder): void {
+        $user = test_user('rep_sales', 'member');
+
+        $paidOrder((int) $user['id'], 300.00, 'paid', date('Y-m-d H:i:s'));
+        $paidOrder((int) $user['id'], 500.00, 'delivered', date('Y-m-d H:i:s'));
+        $paidOrder((int) $user['id'], 999.00, 'cancelled', date('Y-m-d H:i:s'));
+        $paidOrder((int) $user['id'], 400.00, 'payment_review', null);
+
+        $today = Report::salesToday();
+        assert_same(2, $today['orders'], 'cancelled and unpaid orders are not sales');
+        assert_same(800.0, $today['amount']);
+        assert_same(400.0, $today['average']);
+
+        $last30 = Report::salesLast30();
+        assert_true($last30['orders'] >= 2);
+        assert_true($last30['amount'] >= 800.0);
+
+        $range = Report::paidBetween(date('Y-m-d'), date('Y-m-d'));
+        assert_same(2, $range['orders']);
+        assert_same(800.0, $range['amount']);
+
+        $all = Report::salesAllTime();
+        assert_true($all['orders'] >= 2);
+    },
+
+    'P15 sales by day zero-fills every day in the window' => function () use ($paidOrder): void {
+        $user = test_user('rep_days', 'member');
+        $day  = date('Y-m-d', strtotime('-3 days'));
+
+        $paidOrder((int) $user['id'], 250.00, 'paid', $day . ' 10:00:00');
+
+        $days = Report::salesByDay(date('Y-m-d', strtotime('-4 days')), date('Y-m-d'));
+
+        assert_count(5, $days);
+        assert_same(date('Y-m-d', strtotime('-4 days')), $days[0]['day']);
+        assert_same(0, $days[0]['orders']);
+
+        $target = null;
+        foreach ($days as $row) {
+            if ($row['day'] === $day) {
+                $target = $row;
+            }
+        }
+
+        assert_not_null($target);
+        assert_same(1, $target['orders']);
+        assert_same(250.0, $target['amount']);
+    },
+
+    'P15 orders by status keep the lifecycle order' => function (): void {
+        $user = test_user('rep_status', 'member');
+        test_order((int) $user['id'], [], 'pending');
+
+        $rows  = Report::ordersByStatus();
+        $order = array_map(static fn (array $row): string => $row['status'], $rows);
+
+        assert_same(
+            [
+                'pending', 'payment_review', 'payment_failed', 'paid', 'packing',
+                'ready_to_ship', 'shipped', 'delivered', 'completed', 'cancelled',
+            ],
+            $order
+        );
+
+        $pending = $rows[0];
+        assert_true($pending['count'] >= 1);
+    },
+
+    'P15 top products rank paid lines and exclude unpaid orders' => function () use ($paidOrder): void {
+        $user = test_user('rep_top', 'member');
+
+        $paidOrder((int) $user['id'], 900.00, 'paid', date('Y-m-d H:i:s'), 'Coffee', 3);
+        $paidOrder((int) $user['id'], 500.00, 'delivered', date('Y-m-d H:i:s'), 'Spirulina', 1);
+        $paidOrder((int) $user['id'], 100.00, 'payment_review', null, 'Kojic Soap', 9);
+
+        $top = Report::topProducts(date('Y-m-d'), date('Y-m-d'), 5);
+
+        assert_true($top !== [], 'paid lines must produce at least one row');
+        assert_same('Coffee', $top[0]['name']);
+        assert_same(3, $top[0]['units']);
+        assert_same(900.0, $top[0]['amount']);
+        assert_not_contains('Kojic Soap', (string) json_encode($top), 'unpaid lines are not sales');
+    },
+
+    'P15 sales by method groups paid orders' => function () use ($paidOrder): void {
+        $user = test_user('rep_method', 'member');
+
+        $paidOrder((int) $user['id'], 300.00);
+        $paidOrder((int) $user['id'], 200.00);
+
+        $rows = Report::salesByMethod(date('Y-m-d'), date('Y-m-d'));
+        $byMethod = [];
+
+        foreach ($rows as $row) {
+            $byMethod[$row['method']] = $row;
+        }
+
+        assert_true(isset($byMethod['ewallet']), 'the fixture orders are e-wallet orders');
+        assert_true($byMethod['ewallet']['orders'] >= 2);
+        assert_true($byMethod['ewallet']['amount'] >= 500.0);
+    },
+
+    /* ---------- Commissions ------------------------------------------ */
+
+    'P15 commissions by level separate credited from skipped' => function (): void {
+        $user   = test_user('rep_comm', 'member');
+        $source = test_user('rep_comm_src', 'member');
+        $pkg    = Package::findBySlug('package-a') ?? [];
+        $activationId = Activation::create([
+            'user_id'        => (int) $user['id'],
+            'package_id'     => (int) $pkg['id'],
+            'amount'         => (float) $pkg['price'],
+            'payment_method' => 'code',
+            'status'         => 'approved',
+        ]);
+
+        Commission::create([
+            'user_id' => (int) $user['id'], 'type' => 'direct_referral', 'amount' => 500.00,
+            'level' => 1, 'source_user_id' => (int) $source['id'],
+            'package_id' => (int) $pkg['id'], 'activation_id' => $activationId,
+            'status' => 'credited',
+        ]);
+        Commission::create([
+            'user_id' => (int) $user['id'], 'type' => 'indirect_referral', 'amount' => 100.00,
+            'level' => 2, 'source_user_id' => (int) $source['id'],
+            'package_id' => (int) $pkg['id'], 'activation_id' => $activationId,
+            'status' => 'credited',
+        ]);
+        Commission::create([
+            'user_id' => (int) $user['id'], 'type' => 'indirect_referral', 'amount' => 50.00,
+            'level' => 3, 'source_user_id' => (int) $source['id'],
+            'package_id' => (int) $pkg['id'], 'activation_id' => $activationId,
+            'status' => 'skipped', 'reason' => 'inactive upline',
+        ]);
+
+        $levelRows = Report::commissionsByLevel(date('Y-m-d'), date('Y-m-d'));
+        $byLevel   = [];
+
+        foreach ($levelRows as $row) {
+            $byLevel['L' . $row['level'] . ':' . $row['type']] = $row;
+        }
+
+        assert_same(500.0, $byLevel['L1:direct_referral']['amount'] ?? null);
+        assert_same(100.0, $byLevel['L2:indirect_referral']['amount'] ?? null);
+        assert_same(1, $byLevel['L3:indirect_referral']['skipped'] ?? null);
+
+        $summary = Report::commissionSummary(date('Y-m-d'), date('Y-m-d'));
+        assert_true($summary['amount'] >= 600.0);
+        assert_true($summary['count'] >= 2);
+        assert_true($summary['skipped'] >= 1);
+        assert_true($summary['recipients'] >= 1);
+    },
+
+    /* ---------- Wallets and payouts ---------------------------------- */
+
+    'P15 the wallet float equals the sum of both buckets' => function (): void {
+        $expected = db()->query(
+            'SELECT COUNT(*) AS accounts,
+                    COALESCE(SUM(ewallet_balance), 0) AS float_total,
+                    COALESCE(SUM(withdrawable_balance), 0) AS withdrawable
+               FROM users'
+        )->fetch();
+
+        $float = Report::walletFloat();
+
+        assert_same((int) $expected['accounts'], $float['accounts']);
+        assert_same(round((float) $expected['float_total'], 2), $float['float']);
+        assert_same(round((float) $expected['withdrawable'], 2), $float['withdrawable']);
+        assert_true($float['withdrawable'] <= $float['float']);
+    },
+
+    'P15 the wallet statement export rows are ordered and member-scoped' => function (): void {
+        $juan = test_user('juan', 'member');
+
+        db()->prepare(
+            "INSERT INTO ewallet_ledger
+               (user_id, type, amount, balance_after, withdrawable_after, ref_type, ref_id, note)
+             VALUES (?, 'credit', 10.00, 10.00, 10.00, 'adjustment', 91001, 'Report fixture')"
+        )->execute([(int) $juan['id']]);
+
+        $rows = Report::walletRows(date('Y-m-d'), date('Y-m-d'));
+
+        assert_true($rows !== []);
+        $previous = 0;
+        $found    = false;
+
+        foreach ($rows as $row) {
+            assert_true((int) $row['id'] > $previous, 'rows are ordered by id');
+            $previous = (int) $row['id'];
+
+            if ((string) $row['username'] === (string) $juan['username']) {
+                $found = true;
+            }
+        }
+
+        assert_true($found, 'the member fixture movement is in the export');
+    },
+
+    'P15 the payout summary separates held, completed and rejected' => function (): void {
+        $user = test_user('rep_payout', 'member');
+
+        $insert = static function (int $userId, string $status, float $amount, float $fee): void {
+            db()->prepare(
+                'INSERT INTO payout_requests
+                   (user_id, amount, payout_method, payout_account, service_fee_pct,
+                    service_fee_amount, status, requested_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())'
+            )->execute([$userId, $amount, 'gcash', '09170000000', 5.00, $fee, $status]);
+        };
+
+        $insert((int) $user['id'], 'pending', 500.00, 25.00);
+        $insert((int) $user['id'], 'completed', 300.00, 15.00);
+        $insert((int) $user['id'], 'rejected', 200.00, 10.00);
+
+        $summary = Report::payoutSummary(date('Y-m-d'), date('Y-m-d'));
+        $byStatus = [];
+
+        foreach ($summary['by_status'] as $row) {
+            $byStatus[$row['status']] = $row;
+        }
+
+        assert_same(1, $byStatus['pending']['count'] ?? null);
+        assert_same(1, $byStatus['completed']['count'] ?? null);
+        assert_same(1, $byStatus['rejected']['count'] ?? null);
+        assert_true($summary['held'] >= 500.0);
+        assert_true($summary['held_requests'] >= 1);
+        assert_true($summary['completed_amount'] >= 300.0);
+        assert_true($summary['completed_fees'] >= 15.0);
+        assert_true($summary['by_method'] !== []);
+    },
+
+    /* ---------- Registration codes ------------------------------------ */
+
+    'P15 code revenue counts issued, redeemed and expired codes' => function (): void {
+        $rows = Report::codeRevenue();
+        $byPackage = [];
+
+        foreach ($rows as $row) {
+            $byPackage[$row['package']] = $row;
+        }
+
+        assert_true(isset($byPackage['Package A']), 'Package A is seeded');
+        assert_true($byPackage['Package A']['issued'] >= 2, 'two demo Package A codes');
+        assert_true($byPackage['Package A']['unused'] >= 1);
+        assert_true($byPackage['Package A']['expired'] >= 1);
+        assert_same(0, $byPackage['Package A']['used'], 'nothing redeemed in a fresh fixture');
+        assert_true($byPackage['Package A']['issued_value'] > 0);
+    },
+
+    /* ---------- CSV exports ------------------------------------------- */
+
+    'P15 each export builds a filename, header and rows' => function (): void {
+        $range = ReportService::range(date('Y-m-d'), date('Y-m-d'));
+        $service = new ReportService();
+
+        foreach (array_keys(ReportService::EXPORTS) as $type) {
+            $export = $service->export($type, $range);
+
+            assert_same('ecowealth_' . $type . '_' . $range['from'] . '_' . $range['to'] . '.csv', $export['filename']);
+            assert_true($export['header'] !== [], $type . ' has a header');
+            assert_true(is_array($export['rows']), $type . ' has rows');
+
+            foreach ($export['rows'] as $row) {
+                assert_same(count($export['header']), count($row), $type . ' row width matches the header');
+            }
+        }
+    },
+
+    'P15 an unknown export type is refused' => function (): void {
+        $range = ReportService::range(null, null);
+
+        assert_throws(
+            static fn () => (new ReportService())->export('everything', $range),
+            InvalidArgumentException::class
+        );
+    },
+
+    /* ---------- Repeat-purchase bonus (Phase 17D) --------------------- */
+
+    'P17D-T12 the summary counts credited money, skips and the unrecovered shortfall' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $award = $unilevelAward(['level' => 2, 'amount' => 15.00]);
+        $unilevelAward(['level' => 3, 'amount' => 25.00, 'status' => 'skipped', 'reason' => 'recipient account is disabled']);
+
+        /* A paid-then-reversed award: it is not credited money any more,
+         * but its shortfall is visible. */
+        $voided = $unilevelAward(['level' => 4, 'amount' => 25.00]);
+        UnilevelAward::void((int) $voided['id'], ['reversed_amount' => 10.00]);
+
+        $today = Report::unilevelSummary(date('Y-m-d'), date('Y-m-d'));
+
+        assert_same(40.0, $today['amount']);
+        assert_same(2, $today['count']);
+        assert_same(1, $today['skipped']);
+        assert_same(1, $today['voided']);
+        assert_same(15.0, $today['unrecovered']);
+        assert_same(2, $today['recipients'], 'two uplines are still credited');
+        assert_same(40.0, $today['all_time']);
+        assert_same(40.0, $today['this_month']);
+
+        /* A window that predates every award reports zeros, not the total. */
+        $old = Report::unilevelSummary('2020-01-01', '2020-01-31');
+        assert_same(0.0, $old['amount']);
+        assert_same(0, $old['count']);
+        assert_same(0, $old['skipped']);
+    },
+
+    'P17D-T12 the repeat report groups by level and by product' => function () use ($unilevelAward): void {
+        $one = $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 1, 'amount' => 25.00, 'product_id' => $one['product_id']]);
+        $unilevelAward(['level' => 2, 'amount' => 15.00, 'product_id' => $one['product_id']]);
+        $unilevelAward(['level' => 2, 'amount' => 25.00, 'status' => 'skipped', 'reason' => 'not Active']);
+
+        $byLevel = Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d'));
+
+        assert_count(2, $byLevel);
+        assert_same(1, $byLevel[0]['level']);
+        assert_same(2, $byLevel[0]['count']);
+        assert_same(50.0, $byLevel[0]['amount']);
+        assert_same(0, $byLevel[0]['skipped']);
+        assert_same(2, $byLevel[1]['level']);
+        assert_same(1, $byLevel[1]['count']);
+        assert_same(15.0, $byLevel[1]['amount']);
+        assert_same(1, $byLevel[1]['skipped']);
+
+        $byProduct = Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d'));
+
+        assert_true($byProduct !== []);
+        assert_same($one['product_id'], $byProduct[0]['product_id']);
+        assert_same(3, $byProduct[0]['count']);
+        assert_same(65.0, $byProduct[0]['amount']);
+        assert_same(1, $byProduct[0]['skipped']);
+    },
+
+    'P17D-T12 the period card reads the closed months newest first' => function (): void {
+        foreach ([['2026-09', 12, 7, 1234.56], ['2026-10', 15, 9, 2000.00]] as [$period, $members, $qualified, $award]) {
+            db()->prepare(
+                'INSERT INTO unilevel_periods
+                   (period, closed_at, closed_by, threshold, members_total, qualified_count, award_total)
+                 VALUES (?, NOW(), NULL, 500.00, ?, ?, ?)'
+            )->execute([$period, $members, $qualified, $award]);
+        }
+
+        $periods = Report::unilevelByPeriod(6);
+
+        assert_count(2, $periods);
+        assert_same('2026-10', (string) $periods[0]['period']);
+        assert_same(15, (int) $periods[0]['members_total']);
+        assert_same(9, (int) $periods[0]['qualified_count']);
+        assert_same(2000.0, round((float) $periods[0]['award_total'], 2));
+        assert_same('2026-09', (string) $periods[1]['period']);
+    },
+
+    'P17D-T13 the repeat export is offered and writes the ledger columns' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 2, 'amount' => 15.00]);
+
+        assert_true(isset(ReportService::EXPORTS['unilevel']));
+        assert_same('Repeat-purchase bonus', ReportService::EXPORTS['unilevel']);
+
+        $range  = ReportService::range(date('Y-m-d'), date('Y-m-d'));
+        $export = (new ReportService())->export('unilevel', $range);
+
+        assert_same('ecowealth_unilevel_' . $range['from'] . '_' . $range['to'] . '.csv', $export['filename']);
+        assert_same(UnilevelAward::csvHeader(), $export['header']);
+        assert_count(2, $export['rows']);
+
+        foreach ($export['rows'] as $row) {
+            assert_count(count($export['header']), $row, 'every export row matches the header');
+        }
+    },
+
+    'P17D-T12 the dashboard KPI reads the repeat money of the last 30 days' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 2, 'amount' => 15.00]);
+
+        $dashboard = (new ReportService())->dashboard();
+
+        assert_true(isset($dashboard['unilevel']));
+        assert_same(40.0, $dashboard['unilevel']['amount']);
+        assert_same(2, $dashboard['unilevel']['count']);
+        assert_same(2, $dashboard['unilevel']['recipients']);
+    },
+
+    /* ---------- Phase 18: the escrow figures in the repeat report ------ */
+
+    'P18-T46 the repeat report keeps credited money separate from the pending liability' => function () use ($unilevelAward): void {
+        $unilevelAward(['level' => 1, 'amount' => 25.00]);
+        $unilevelAward(['level' => 1, 'amount' => 15.00, 'status' => 'pending']);
+        $unilevelAward(['level' => 2, 'amount' => 10.00, 'status' => 'pending']);
+        $unilevelAward(['level' => 2, 'amount' => 5.00, 'status' => 'cancelled']);
+
+        $summary = Report::unilevelSummary(date('Y-m-d'), date('Y-m-d'));
+
+        assert_same(25.0, (float) $summary['amount'], 'credited money only');
+        assert_same(1, (int) $summary['count']);
+        assert_same(25.0, (float) $summary['pending_amount']);
+        assert_same(2, (int) $summary['pending_count']);
+        assert_same(1, (int) $summary['cancelled_count']);
+        assert_same(0.0, (float) $summary['unrecovered'], 'a cancelled award is never a shortfall');
+
+        $byLevel = Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d'));
+        $level1  = $byLevel[0];
+
+        assert_same(1, (int) $level1['level']);
+        assert_same(1, (int) $level1['count'], 'the credited row');
+        assert_same(25.0, (float) $level1['amount']);
+        assert_same(1, (int) $level1['pending_count'], 'the pending row is counted separately');
+        assert_same(15.0, (float) $level1['pending_amount']);
+
+        $byProduct = Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d'));
+
+        assert_true($byProduct !== []);
+        assert_same(2, (int) $byProduct[0]['pending_count'], 'the product card counts pending rows');
+        assert_same(25.0, (float) $byProduct[0]['pending_amount']);
+    },
+
+    /* ---------- Phase 19D: the royalty report reads ------------------- */
+
+    'P19D the royalty report reads award periods, ranks, months and the payout ratio' => function () use ($royaltyPeriod): void {
+        $period = RoyaltyPeriod::previous(RoyaltyPeriod::periodOf());
+        $prior  = RoyaltyPeriod::previous($period);
+
+        $director   = test_user('rep_roy_director');
+        $manager    = test_user('rep_roy_manager');
+        $supervisor = test_user('rep_roy_supervisor');
+
+        $royaltyPeriod($period, [
+            ['user' => $director, 'rank' => RoyaltyRank::DIRECTOR, 'gs' => 5000000, 'ps' => 100000, 'status' => 'paid'],
+            ['user' => $manager, 'rank' => RoyaltyRank::MANAGER, 'gs' => 2450000, 'status' => 'paid'],
+            ['user' => $supervisor, 'rank' => RoyaltyRank::SUPERVISOR, 'gs' => 410000, 'status' => 'skipped', 'reason' => RoyaltyAward::REASON_QUOTA],
+        ], 'paid');
+
+        $royaltyPeriod($prior, [
+            ['user' => $supervisor, 'rank' => RoyaltyRank::SUPERVISOR, 'gs' => 600000, 'amount' => 18000.00, 'status' => 'pending'],
+        ], 'evaluated');
+
+        /* A paid sale in the paid month, so the ratio has a denominator. */
+        $buyer     = test_user('rep_roy_buyer');
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+        $start     = substr(RoyaltyPeriod::bounds($period)[0], 0, 10);
+        $last      = date('Y-m-d', (int) strtotime(substr(RoyaltyPeriod::bounds($period)[1], 0, 10) . ' -1 day'));
+        $priorFrom = substr(RoyaltyPeriod::bounds($prior)[0], 0, 10);
+
+        test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+            'paid_at'  => $start . ' 12:00:00',
+            'subtotal' => '1000000.00',
+            'total'    => '1000000.00',
+        ]);
+
+        $summary = Report::royaltySummary($priorFrom, $last);
+
+        assert_same(637500.0, (float) $summary['paid'], 'the two paid awards');
+        assert_same(18000.0, (float) $summary['pending']);
+        assert_same(655500.0, (float) $summary['awarded']);
+        assert_same(2, (int) $summary['paid_rows']);
+        assert_same(1, (int) $summary['pending_rows']);
+        assert_same(3, (int) $summary['recipients']);
+        assert_same(2, (int) $summary['paid_recipients']);
+        assert_same(1, (int) $summary['skipped']);
+        assert_same(318750.0, (float) $summary['average']);
+        assert_same(2, (int) $summary['periods']);
+        assert_same(1000000.0, (float) $summary['paid_sales']);
+        assert_same(63.8, (float) $summary['payout_ratio'], 'royalty paid ÷ paid sales, one decimal');
+        assert_same(637500.0, (float) $summary['paid_this_month'], 'both paid awards were credited now');
+
+        /* A window that predates every period reports zeros. */
+        $old = Report::royaltySummary('2020-01-01', '2020-01-31');
+        assert_same(0.0, (float) $old['paid']);
+        assert_same(0, (int) $old['periods']);
+        assert_same(0.0, (float) $old['payout_ratio']);
+
+        /* The rank table is zero-filled and highest rank first. */
+        $ranks = Report::royaltyByRank($priorFrom, $last);
+        assert_count(3, $ranks);
+        assert_same([RoyaltyRank::DIRECTOR, RoyaltyRank::MANAGER, RoyaltyRank::SUPERVISOR], array_column($ranks, 'rank'));
+        assert_same(['Director', 'Manager', 'Supervisor'], array_column($ranks, 'name'));
+        assert_same(515000.0, (float) $ranks[0]['paid']);
+        assert_same(1, (int) $ranks[0]['recipients']);
+        assert_same(122500.0, (float) $ranks[1]['paid']);
+        assert_same(0.0, (float) $ranks[2]['paid']);
+        assert_same(18000.0, (float) $ranks[2]['pending']);
+        assert_same(1, (int) $ranks[2]['skipped']);
+
+        /* The month card is newest first and carries the stored counts. */
+        $months = Report::royaltyByPeriod(6);
+        assert_count(2, $months);
+        assert_same(
+            ['period', 'status', 'award_count', 'paid_count', 'skipped_count', 'award_total', 'paid_total'],
+            array_keys($months[0])
+        );
+        assert_same($period, $months[0]['period']);
+        assert_same('paid', $months[0]['status']);
+        assert_same(3, $months[0]['award_count']);
+        assert_same(2, $months[0]['paid_count']);
+        assert_same(637500.0, $months[0]['award_total']);
+        assert_same($prior, $months[1]['period']);
+
+        $ratio = Report::royaltyPayoutRatio($priorFrom, $last);
+        assert_same(637500.0, $ratio['royalty']);
+        assert_same(1000000.0, $ratio['sales']);
+        assert_same(63.8, $ratio['ratio']);
+    },
+];

@@ -1,0 +1,37 @@
+QA21A-05 - Three registrations write no General Harvest row
+===========================================================
+
+Date: 2026-11-16 12:52:33 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (working tree, 21A)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: 21A ships no board writer. Phase 20's hook may still queue the sponsor, but nothing may
+create a general_harvest_awards row or a general_harvest wallet movement.
+
+All registrations went through RegistrationService::register() — the web form's own path.
+
+Stage 1 — the queue is unseeded (the shipped default; the 20C hook is inert, 20C Rule 2):
+  three directs under qa21a_unseeded_sponsor
+  team_harvest_ledger_since ......... '' (unseeded)
+  harvest_queue rows ................ 0
+  general_harvest_awards rows ....... 0
+  general_harvest ledger rows ....... 0
+
+Stage 2 — the queue is seeded through HarvestQueue::seed(), then three directs under
+qa21a_sponsor:
+  seeded candidates / rows inserted . 2 / 2
+  harvest_queue rows after the seed . 2
+  team_harvest_ledger_since ......... 2026-11-16 12:52:32
+  qa21a_sponsor position ............ #3
+  harvest_queue rows ................ 3
+  general_harvest_awards rows ....... 0
+  general_harvest ledger rows ....... 0
+
+Checks:
+  the unseeded hook queues nobody ............... yes
+  a third direct queues the sponsor ............ yes
+  no award is written in either stage .......... yes
+  no General Harvest money is written .......... yes
+
+RESULT: PASS

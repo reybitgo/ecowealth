@@ -1,0 +1,26 @@
+QA20B-05 — Enabling an all-zero ladder is refused
+=================================================
+
+Date: 2026-11-15 22:10:29 (Asia/Manila)
+Where: applySection('commissions', ...) — all ten amounts cleared, first with the switch off, then on.
+
+Steps
+
+1. Post the card with all ten amounts blank and the switch off (accepted).
+2. Post the same with the switch on.
+3. Read the stored switch and the ladder total.
+
+Result
+
+  QA20B-05 PASS  the cleared ladder saves with the switch off
+  QA20B-05 PASS  the enabled all-zero ladder is refused on the switch
+  QA20B-05 PASS  the stored switch is still 0
+  QA20B-05 PASS  the ten rows are 0.00 after the refusal (₱0.00)
+
+The rendered error (switch field)
+
+  Turn the switch off or give at least one level an amount above zero.
+
+The ladder was then restored to the reference preset by the end of the run.
+
+RESULT: PASS

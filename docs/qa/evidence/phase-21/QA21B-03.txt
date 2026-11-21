@@ -1,0 +1,28 @@
+QA21B-03 - The PHP 25M sum ceiling
+==================================
+
+Date: 2026-11-16 18:09:12 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21b-configuration (working tree, 21B)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rule 3 — the ₱25,000,000.00 ceiling is a typo guard, refused as a `sum` field error and never
+clamped.
+
+Three levels at the per-level ceiling (₱10,000,000.00 each) were posted through the real save
+path; each amount is legal on its own.
+
+  errors ............................. {"general_harvest_amounts.sum":"The ten amounts total \u20b130,401,000.00 \u2014 the full ladder cannot exceed \u20b125,000,000.00. Lower a level instead of saving this ladder."}
+  the sum message .................... The ten amounts total ₱30,401,000.00 — the full ladder cannot exceed ₱25,000,000.00. Lower a level instead of saving this ladder.
+  settings changes ................... []
+  general_ladder ..................... NULL
+  stored level 8 / 9 / 10 ............ 480000.00 / 2500000.00 / 5000000.00
+  audit rows written ................. 0
+
+Checks:
+  the typed total is named ............................ yes
+  nothing was written ................................. yes
+  the stored ladder is unchanged ...................... yes
+  no audit row ........................................ yes
+
+RESULT: PASS

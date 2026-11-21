@@ -1,0 +1,90 @@
+QA21A-02 - Apply migration 025 twice to a p21-start schema
+==========================================================
+
+Date: 2026-11-16 12:51:11 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (working tree, 21A)
+Schema: ecowealth_sneat_tool_b_test (scratch)
+
+Step 1 - build a p21-start schema from the previous tag's bundle, not the current one:
+  drop / create ecowealth_sneat_tool_b_test
+  git show p20g-release:system/database/install.sql | mysql ecowealth_sneat_tool_b_test
+  exit 0
+
+Step 2 - the previous shape (36 tables / 77 settings, no general% table):
+  tables_created = 36   settings_rows = 77
+  SHOW TABLES LIKE 'general%' -> (no row)
+
+Step 3 - apply the migration:
+  mysql ecowealth_sneat_tool_b_test < database/migrations/025_general_harvest.sql
+  exit 0
+
+Step 4 - SHOW TABLES LIKE 'general%':
++--------------------------------------------------+
+| Tables_in_ecowealth_sneat_tool_b_test (general%) |
++--------------------------------------------------+
+| general_harvest_awards                           |
+| general_harvest_board                            |
+| general_harvest_levels                           |
++--------------------------------------------------+
+
+Step 5 - run step 3 again (the second run):
+  exit 0
+
+Step 6-8 - the counts after BOTH runs are identical, and the documented column lists:
++----------------+---------------+-----------+--------------+----------+-------------+
+| tables_created | settings_rows | gh_levels | ladder_total | gh_board | gh_settings |
++----------------+---------------+-----------+--------------+----------+-------------+
+|             39 |            79 |        10 |   8381000.00 |        1 |           2 |
++----------------+---------------+-----------+--------------+----------+-------------+
+
++------------+------------------+------+-----+-------------------+-----------------------------------------------+
+| Field      | Type             | Null | Key | Default           | Extra                                         |
++------------+------------------+------+-----+-------------------+-----------------------------------------------+
+| id         | tinyint unsigned | NO   | PRI | NULL              |                                               |
+| baseline_n | int unsigned     | YES  |     | NULL              |                                               |
+| armed_at   | datetime         | YES  |     | NULL              |                                               |
+| armed_by   | int unsigned     | YES  | MUL | NULL              |                                               |
+| settled_n  | int unsigned     | NO   |     | 0                 |                                               |
+| updated_at | timestamp        | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
++------------+------------------+------+-----+-------------------+-----------------------------------------------+
+
++-------------+-----------------------------+------+-----+-------------------+-------------------+
+| Field       | Type                        | Null | Key | Default           | Extra             |
++-------------+-----------------------------+------+-----+-------------------+-------------------+
+| id          | int unsigned                | NO   | PRI | NULL              | auto_increment    |
+| seq         | int unsigned                | NO   | MUL | NULL              |                   |
+| user_id     | int unsigned                | NO   | MUL | NULL              |                   |
+| level       | tinyint unsigned            | NO   | MUL | NULL              |                   |
+| threshold_n | int unsigned                | NO   |     | NULL              |                   |
+| n_at_award  | int unsigned                | NO   |     | NULL              |                   |
+| amount      | decimal(12,2)               | NO   |     | NULL              |                   |
+| status      | enum('credited','baseline') | NO   | MUL | credited          |                   |
+| ledger_id   | int unsigned                | YES  | MUL | NULL              |                   |
+| credited_at | datetime                    | NO   | MUL | NULL              |                   |
+| created_at  | timestamp                   | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++-------------+-----------------------------+------+-----+-------------------+-------------------+
+
++----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------+-----+---------+-------+
+| Field    | Type                                                                                                                                                                       | Null | Key | Default | Extra |
++----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------+-----+---------+-------+
+| ref_type | enum('commission','payout','transfer','topup','registration','shop_order','adjustment','refund','unilevel','unilevel_reversal','royalty','team_harvest','general_harvest') | NO   | MUL | NULL    |       |
++----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+------+-----+---------+-------+
+
+The board singleton after both runs:
++----+------------+----------+----------+-----------+
+| id | baseline_n | armed_at | armed_by | settled_n |
++----+------------+----------+----------+-----------+
+|  1 |       NULL | NULL     |     NULL |         0 |
++----+------------+----------+----------+-----------+
+
+Checks:
+  the p21-start schema carries no general% table ......... yes
+  three tables after the first run ....................... yes
+  the second run exits 0 ................................ yes
+  39 tables / 79 settings / 10 ladder rows / 1 board row . yes
+  the ladder total is 8381000.00 ......................... yes
+  the board row is still (1, NULL, NULL, NULL, 0) ........ yes
+  the enum ends 'team_harvest','general_harvest' ......... yes
+
+RESULT: PASS

@@ -1,0 +1,89 @@
+QA17F-06 - the web entry answers the same payload as the CLI from localhost, and refuses a remote caller
+Date: 2026-11-12 22:02:49 +08:00
+Database: ecowealth_sneat @ 127.0.0.1
+
+1) GET http://localhost/ecowealth/system/cron/unilevel_month_close.php?doctor=1
+HTTP 200
+EcoWealth unilevel month close — doctor
+  php            8.3.16 (apache2handler)
+  timezone       Asia/Manila · 2026-11-12 22:02:49 +08:00
+  database       ecowealth_sneat @ 127.0.0.1
+  db now         2026-11-12 22:02:49 (session +08:00)
+  clocks         agree (0s)
+  period now     2026-11 — the current month is never closed implicitly
+  threshold      ₱500.00 personal purchases
+  ledger since   2026-10-01 00:00:00
+  last closed    2026-10
+  pending        none (nothing to close — 2026-10 is already closed)
+  members        27 accounts get a snapshot row
+  enabled        no — periods still close (the switch gates payouts, not the close)
+  lock           free · C:\laragon\www\ecowealth\system/storage\locks\unilevel_month_close.lock
+  log            C:\laragon\www\ecowealth\system/storage\logs\unilevel_month_close-2026-11.log (writable)
+  cron key       not set (loopback only)
+  storage        C:\laragon\www\ecowealth\system/storage
+
+
+2) GET http://localhost/ecowealth/system/cron/unilevel_month_close.php?json=1 (loopback)
+HTTP 200
+{
+    "ok": true,
+    "trigger": "http",
+    "dry_run": false,
+    "closed": 0,
+    "periods": [],
+    "members": 0,
+    "qualified": 0,
+    "award_total": 0,
+    "threshold": 500,
+    "duration_ms": 8,
+    "log": "C:\\laragon\\www\\ecowealth\\system/storage\\logs\\unilevel_month_close-2026-11.log",
+    "results": []
+}
+
+
+3) The same payload from the CLI for the same database
+{
+    "ok": true,
+    "trigger": "cli",
+    "dry_run": false,
+    "closed": 0,
+    "periods": [],
+    "members": 0,
+    "qualified": 0,
+    "award_total": 0,
+    "threshold": 500,
+    "duration_ms": 10,
+    "log": "C:\\laragon\\www\\ecowealth\\system/storage\\logs\\unilevel_month_close-2026-11.log",
+    "results": []
+}
+
+Number agreement (web vs CLI):
+  closed: web=0 cli=0 -> same
+  members: web=0 cli=0 -> same
+  qualified: web=0 cli=0 -> same
+  award_total: web=0 cli=0 -> same
+  threshold: web=500 cli=500 -> same
+
+4) A non-loopback caller without CRON_KEY is refused
+GET http://155.16.10.22/ecowealth/system/cron/unilevel_month_close.php
+Forbidden
+HTTP 403
+
+5) The log file and the lock folder
+log file: C:\laragon\www\ecowealth\system\storage\logs\unilevel_month_close-2026-11.log (2778 bytes)
+[2026-11-12 22:02:26 +08:00] [INFO ] dry-run trigger=cli would_close=1 periods=2026-10
+[2026-11-12 22:02:31 +08:00] [OK   ] trigger=cli closed=1 period=2026-10 members=27 qualified=1 award_total=0.00 duration=32ms
+[2026-11-12 22:02:36 +08:00] [INFO ] trigger=cli closed=0 period=- members=0 qualified=0 award_total=0.00 duration=12ms
+[2026-11-12 22:02:37 +08:00] [INFO ] trigger=cli closed=0 period=- members=0 qualified=0 award_total=0.00 duration=12ms
+[2026-11-12 22:02:43 +08:00] [INFO ] trigger=cli closed=0 period=2026-10 reason=already-closed
+[2026-11-12 22:02:43 +08:00] [ERROR] trigger=cli refused period=2026-12 reason=not-complete
+[2026-11-12 22:02:44 +08:00] [ERROR] trigger=cli refused period=2026-11 reason=not-complete
+[2026-11-12 22:02:49 +08:00] [INFO ] trigger=http closed=0 period=- members=0 qualified=0 award_total=0.00 duration=8ms
+[2026-11-12 22:02:49 +08:00] [INFO ] trigger=cli closed=0 period=- members=0 qualified=0 award_total=0.00 duration=10ms
+
+lock folder: C:\laragon\www\ecowealth\system\storage\locks
+.gitkeep
+order_autocomplete.lock
+reset_transfer_limits.lock
+shop_expire.lock
+unilevel_month_close.lock

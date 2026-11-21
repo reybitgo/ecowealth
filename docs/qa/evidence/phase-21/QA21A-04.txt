@@ -1,0 +1,36 @@
+QA21A-04 - The pages that must not have changed
+===============================================
+
+Date: 2026-11-16 12:52:29 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p21-start (working tree, 21A)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: 21A ships data only. The settings card is 21B's and the board panel is 21E's; a view that
+rendered either in this phase would mean the phase crept.
+
+The three pages were rendered through the real controllers and View::page() on the test schema:
+
+  /admin/settings  (AdminSettingsController::settingsContext())
+      bytes ............................. 139207
+      "General Harvest" occurrences ... 0
+  /admin/members   (AdminMemberController::listContext())
+      bytes ............................. 54067
+      "General Harvest" occurrences ... 0
+  /admin/members/{id} (AdminMemberController::memberContext())
+      bytes ............................. 44740
+      "General Harvest" occurrences ... 0
+
+Positive control: the page still carries the Team Harvest panel, so the absence of General
+Harvest is a decision and not an empty render ............ yes
+
+Note: the same absence is asserted at the source level by P21A-T16 — no file under app/views
+mentions the feature in 21A.
+
+Checks:
+  no General Harvest block on the settings page ....... yes
+  no General Harvest column/card on the member list ... yes
+  no board panel on the member page .................. yes
+  the pages still render (bytes > 0) ................. yes
+
+RESULT: PASS

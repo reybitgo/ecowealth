@@ -1,0 +1,174 @@
+# Phase 11 QA — Indirect referral commissions (levels 2–10)
+
+| | |
+|---|---|
+| **Phase** | 11 — the unilevel ladder, the earnings level breakdown and the commission CSV exports |
+| **Plan reference** | `dmp/plan-ecowealth-cart-system.md` §6.2–6.6, §6.8, §7 Phase 11 |
+| **App URL** | `http://localhost/ecowealth/system/` |
+| **Accounts** | `admin / Admin@123` · `juan`, `maria`, `peter`, `sarah`, `david` / `Demo@1234` |
+| **Checks** | 10 (QA11-01 … QA11-10) |
+| **Time** | 35–45 minutes |
+| **Evidence folder** | `docs/qa/evidence/phase-11/` |
+
+## What this phase is meant to prove
+
+When an associate activates a package, the **whole sponsor chain** is paid: the direct sponsor at level 1
+(₱500 on Package A, ₱600 on Package B), then every eligible upline at levels 2–10 using the **source
+package's** ladder (Package A: ₱100, ₱50, ₱40, ₱30, ₱20, ₱10, ₱5, ₱5, ₱5; Package B is 20% higher
+throughout). Every award is one row, one wallet credit and one
+ledger row, written in the same transaction as the activation.
+
+Six rules matter most:
+
+1. **Source package prices the ladder.** Package B pays a **premium ladder**: 20% more than
+   Package A at every level, because the more expensive package carries a stronger upgrade incentive.
+2. **No compression.** An inactive or package-less upline is *skipped* and its level is consumed; deeper
+   uplines continue and keep their own level amounts.
+3. **Switches.** `packages.indirect_enabled = 0` or `settings.commission_indirect_enabled = 0` pays the
+   direct leg only; `commission_indirect_max_levels` caps the walk (2–10).
+4. **Exactly once.** The activation stamp and the `(type, source, recipient, level)` unique key make a
+   replay impossible; a skipped award is never paid later.
+5. **The whole ladder is visible.** The member's Earnings page shows a level breakdown (levels 1–10) and a
+   filtered "Unilevel statement" CSV; the admin ledger filters by type/level and exports its own CSV.
+6. **Money still reconciles.** `php bin\wallet_reconcile.php` exits 0 after the suite.
+
+**Already proven automatically:**
+
+- P11-T1 ten-deep chain: levels 1–10 paid exactly per matrix (₱765 total, ten ledger rows) ·
+  P11-T2 an eleventh ancestor earns nothing · P11-T3 an ineligible level 2 is skipped, levels 3–4 still
+  pay · P11-T4 Package B pays its 20% premium matrix · P11-T5 package/global/depth switches · P11-T6 replay pays
+  nothing · P11-T7 a zero level writes no row · P11-T8 wallet credits equal the award rows ·
+  P11-T9 the page renders the level breakdown and live region · P11-T10 admin type/level filters and
+  export · P11-T11 the 10-hop walk stays within 20 queries · P11-T12 the workflow example (Juan ₱900,
+  Peter ₱1,000, Maria ₱1,500 directs + ₱200 level-2 = ₱1,700).
+- `CommissionIndirectTest` (14 cases), the updated `CommissionTest`/`CommissionViewTest`/
+  `MemberEarningsLiveTest`, `MigrationTest`, `RouterTest` and `SettingsTest` — **560 cases in total**.
+- The HTTP smoke script walks a real code registration under `peter`: peter ₱500, maria ₱100, juan ₱50,
+  the company root skipped at level 4; it also checks the level breakdown, both CSV exports and the admin
+  filter — **143 checks**.
+- The headless browser pass captured the screens in `docs/qa/evidence/phase-11/`.
+
+> **Before you start:** Phases 1–10 should be signed off, the demo tree must be seeded
+> (`database/seeds/005_demo_tree.sql`) and migrations `014_indirect_commissions.sql` +
+> `015_package_b_premium_ladder.sql` applied. The automated
+> suites must be green: `php tests\run.php` → **560 cases**;
+> `powershell -NoProfile -File tests\smoke.ps1` → **143 checks**. Note juan/maria/peter's wallet balances
+> before you start — the checks below move real demo money, so the last check restores them.
+
+---
+
+## A. The ladder
+
+### QA11-01 — A code registration under `peter` pays direct, two indirect levels and skips the root
+
+| | |
+|---|---|
+| **Steps** | 1. Sign in as `admin`, open **Codes**, issue one Package A registration code (₱4,498). 2. Open the register page in a private window, choose **Registration code**, sponsor `peter`, paste the code, complete the form. 3. Open **Commissions** as admin and filter **Type = Indirect referral**. 4. Confirm the filtered rows below. 5. Clear the Type filter (or set it to **Direct referral**) and find peter's level-1 award. |
+| **Expected** | With **Type = Indirect referral**, exactly **three** rows appear: level 2 maria **credited ₱100**; level 3 juan **credited ₱50**; level 4 admin **skipped ₱40** (company root has no package). **Peter does not appear in this filtered view** — his award is the level-1 **direct referral**, so it is visible with the Type filter cleared (or set to Direct referral) as **peter credited ₱500**. Across the full ledger the new member produced four awards: peter +₱500 direct, maria +₱100 indirect, juan +₱50 indirect, admin skipped; admin's wallet is unchanged. |
+| **Evidence** | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
+
+### QA11-02 — The member sees the level breakdown
+
+| | |
+|---|---|
+| **Steps** | 1. Open `/earnings` as `juan`. 2. Read the **Unilevel breakdown** card. 3. Click **Export CSV**. |
+| **Expected** | Level 1 shows his directs, Level 3 shows the new ₱50 award and the card totals update. The CSV downloads with one row per award (level, type, source, package, amount, status, activation, ledger). |
+| **Evidence** | `phase-11/member-earnings.png` |
+
+## B. The rules
+
+### QA11-03 — Package B pays a premium ladder over Package A
+
+| | |
+|---|---|
+| **Steps** | 1. Activate a new member under a three-deep chain using Package B. 2. Compare the amounts with QA11-01 (Package A). |
+| **Expected** | Level 1 **₱600**, level 2 **₱120**, level 3 **₱60** — exactly 20% above Package A at every level. The full B ladder is ₱600 direct + ₱318 indirect = **₱918**, against A's ₱765; the higher price carries a stronger referral incentive. |
+
+### QA11-04 — An inactive upline consumes its level
+
+| | |
+|---|---|
+| **Steps** | 1. Suspend (or leave pending with no package) the level-2 member of a four-deep chain. 2. Activate the bottom member with Package A. 3. Open the ledger filtered to **Skipped**. |
+| **Expected** | Level 2 has a `skipped` row with its ₱100 and the reason; levels 3 (₱50) and 4 (₱40) are still credited. No money moves for the skipped level. |
+
+### QA11-05 — Switches and depth
+
+| | |
+|---|---|
+| **Steps** | 1. Deactivate Package A's **Indirect enabled** toggle, activate another member, check the awards. 2. Re-enable it, set `commission_indirect_max_levels` to 3 (SQL or the Phase 15 settings page when available), activate a five-deep chain. |
+| **Expected** | Package off: direct only. Depth 3: levels 1–3 only; levels 4–5 get no row and no money. |
+
+### QA11-06 — A replay pays nothing twice
+
+| | |
+|---|---|
+| **Steps** | 1. Approve an activation once. 2. Return to the activation queue and try to approve it again (or replay the completion in the console). |
+| **Expected** | The second attempt is refused; the award rows, ledger rows and wallet balances are unchanged. |
+
+### QA11-07 — A zero level writes no row
+
+| | |
+|---|---|
+| **Steps** | 1. Edit Package A so level 3 is ₱0. 2. Activate a four-deep chain. |
+| **Expected** | No level-3 row; levels 1, 2 and 4 still pay their own amounts. |
+
+## C. Reporting and safety
+
+### QA11-08 — Admin filters and CSV export
+
+| | |
+|---|---|
+| **Steps** | 1. Open **Commissions**, filter **Type = Indirect referral**, then **Level = 3**. 2. Click **Export CSV**. 3. Open the file. |
+| **Expected** | The table shows only the matching rows; the CSV has the same rows with recipient, source, package, amount, status and ledger columns. A member opening the admin export gets **403**. |
+
+### QA11-09 — A member cannot read or export another member's awards
+
+| | |
+|---|---|
+| **Steps** | 1. Sign in as `maria` and open `/earnings`. 2. Try `/admin/commissions` and `/admin/commissions/export`. 3. Try `/earnings/export` as a guest. |
+| **Expected** | Maria sees only her own awards and her own CSV; the admin pages return 403; the guest is redirected to login. |
+
+### QA11-10 — Finance reconciliation and cleanup
+
+| | |
+|---|---|
+| **Steps** | 1. Run `php bin\wallet_reconcile.php`. 2. Check the wallet balances against the original notes. 3. If you used the smoke/fixture scripts, run their cleanup. |
+| **Expected** | Exit 0: wallets and commissions reconcile. Demo balances are back where they started. |
+
+---
+
+## Sign-off
+
+All ten checks were re-run on 2026-11-09 and pass: the automated suites were green, the wallet
+reconciliation was clean and the five evidence screenshots were re-checked against the expected rows.
+
+| Check | Result | Evidence file |
+|---|---|---|
+| QA11-01 | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger.png`, `phase-11/admin-ledger-indirect.png` |
+| QA11-02 | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/member-earnings.png` |
+| QA11-03 | ☑ Pass ☐ Fail ☐ Blocked | `automated: P11-T4` |
+| QA11-04 | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-skipped.png` |
+| QA11-05 | ☑ Pass ☐ Fail ☐ Blocked | `automated: P11-T5` |
+| QA11-06 | ☑ Pass ☐ Fail ☐ Blocked | `automated: P11-T6` |
+| QA11-07 | ☑ Pass ☐ Fail ☐ Blocked | `automated: P11-T7` |
+| QA11-08 | ☑ Pass ☐ Fail ☐ Blocked | `phase-11/admin-ledger-level3.png` |
+| QA11-09 | ☑ Pass ☐ Fail ☐ Blocked | `automated: smoke P11-T9/T10` |
+| QA11-10 | ☑ Pass ☐ Fail ☐ Blocked | `automated: wallet_reconcile` |
+
+| | |
+|---|---|
+| **Tester** | Automated QA pass — DeepSeek Harness (DSH) |
+| **Date** | 2026-11-09 |
+| **Result** | ☑ Pass ☐ Fail ☐ Blocked |
+| **Automated** | **561 / 561** PHP cases · **143 / 143** smoke checks · `php bin\wallet_reconcile.php` → **exit 0**, no mismatches |
+| **Notes** | 10 / 10 checks passed, 0 failed, 0 blocked. |
+
+The evidence screenshots were checked row by row: the indirect ledger shows maria ₱100 at level 2 and
+juan ₱50 at level 3 while admin's ₱40 at level 4 is **skipped** with “recipient has no package”; the
+skipped view lists five skipped rows; the level-3 filter reports “3 rows”; the member earnings page
+shows the full levels 1–10 breakdown and the ₱200 indirect total. Smoke **P11-T12** pins the exact
+per-registration row count (4 awards — 3 indirect, 1 skipped) and **P11-T4** the Package B premium
+ladder. The PHP suite counts 561 cases today because a genealogy-pagination case landed after the
+phase-11 tag; the phase-11 baseline was 560, and the suite remains all-green.
+
+Tester: Automated QA pass — DeepSeek Harness (DSH)  ·  Date: 2026-11-09  ·  Signature: DSH

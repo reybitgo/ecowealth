@@ -1,0 +1,16 @@
+# QA17B-05 - A P.V. base needs a P.V.
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# 1. POST /admin/products/save with product_id=2181, pv=0 and unilevel_base=pv
+#    -> 302 /ecowealth/system/admin/products/2181/edit
+#    GET /admin/products/2181/edit: A P.V. base needs a point value above 0 — set the P.V. or choose Auto.
+#    SELECT pv, unilevel_base FROM products WHERE id = 2181;  ->  250.00 | auto
+#
+# 2. POST /admin/products/save with the same pv=0 and unilevel_base=auto
+#    -> 302 /ecowealth/system/admin/products  (accepted)
+#    SELECT pv, unilevel_base, unilevel_enabled FROM products WHERE id = 2181;
+#      ->  0.00 | auto | 1
+#
+# Expected: the base is refused while the P.V. is 0, and Auto is accepted with
+#           the price as the base.
+# Result: PASS

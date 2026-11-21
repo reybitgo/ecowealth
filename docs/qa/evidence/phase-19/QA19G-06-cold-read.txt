@@ -1,0 +1,87 @@
+Phase 19G — Release
+Check QA19G-06 — the cold read of §12 and the admin guide against the build
+Prerequisite: the 19G tree; a reviewer who did not write the feature; the shipped views, controllers,
+              models and services; the shared documents
+Executed: 2026-11-15 by the Phase 19G cold-read pass (DSH)
+==============================================================================
+
+Method
+
+Two independent review passes were run in a fresh context, each with the build as the only
+authority:
+
+  1. The behaviour/copy read — plan §12 (the normative contract) and Appendix C (the copy deck)
+     against RoyaltyService, RoyaltyRank, RoyaltyPeriod, RoyaltyAward, RoyaltyOps, the controllers
+     and the views; then docs/admin-guide.md §16 and the seven release URLs against what those
+     views render.
+  2. The count read — every table/settings/migration/job/case/smoke/APP_PHASE claim in
+     system/README.md, docs/deploy.md, docs/runbook.md, docs/cron.md, docs/install-reset.md,
+     docs/admin-guide.md, docs/qa/README.md, docs/qa/sign-off-sheet.md and
+     docs/qa/phase-19-royalty.md against the build.
+
+The lead verified every reported finding against the source before fixing it; the findings below are
+the verified set. A finding that could not be reproduced is listed as such at the end.
+
+Findings and dispositions
+
+| # | The document said (file:line) | The build does (file:line) | Severity | Disposition |
+|---:|---|---|---|---|
+| 1 | `docs/admin-guide.md:686-689` and `dmp/plan-ecowealth-royalty.md:3927`: the member rank card shows the quota and "If this month closed now: ₱X"; the admin panel uses "the same engine read … so the two can never promise different amounts" | A ₱0 quota is legal (`AdminSettingsController` allows `gte:0`) and the engine treats it as met (`RoyaltyService::statusFor`, `group >= quota`; 100 % progress), but the member card (`_royalty_rank.php:76`) and the admin panel (`_royalty.php:74`) tested `quota > 0 &&` first, so they rendered "below the ₱0.00 quota" / "not met yet" and projected ₱0.00 | **major** | **Fixed in code** in the two owning-phase views (19E / 19D): `$quotaMet = $group >= $quota` and `$met = $group >= $quota`. Regression cases `P19G-T9` (member card: projection ₱800.00, "Quota met") and `P19G-T10` (admin panel: "… quota — met.") pin the engine's rule. See deviation rows 1 and 4. |
+| 2 | `docs/admin-guide.md:666`: "Ledger id is the ledger row that paid it (`—` for a skipped row)" | The screen renders `—` for a skipped row (`_royalty_rows.php`), but the CSV leaves the cell empty (`AdminCommissionController.php:606`), which a spreadsheet reads as blank | minor | **Fixed in docs**: the guide now says the screen shows `—` and the CSV leaves it empty. |
+| 3 | `docs/admin-guide.md:572`: the credit is visible in the wallet statement "with its ledger id" | `wallet_statement.php` renders date, type, source and amount; the source cell shows "Royalty bonus" plus `RoyaltyAward::walletNote()` ("Royalty bonus — 2026-10 — Supervisor"). No ledger id is selected or printed | minor | **Fixed in docs**: the guide now names the month-and-rank note, not a ledger id. |
+| 4 | `docs/cron.md:577`, `:608-610`: "The five jobs run from Laragon on Windows", "The five launchers" | Six runners and six `.cmd` files exist, including `royalty_month_close`; the §5 Task Scheduler block never registered the Royalty close | minor | **Fixed in docs**: "six", the Royalty `schtasks` block at 00:30 added, and the six `.cmd` launchers listed with a Royalty example. |
+| 5 | `docs/runbook.md:653`: go-live "Cron scheduled and verified (five jobs, §2)" | Six jobs, and §2's own table lists the Royalty close | minor | **Fixed in docs**: "six jobs". |
+| 6 | `docs/deploy.md:1400-1404`: the 19A addendum said "no application code reads any of it until 19B/19C", "the full Phase 19 addendum is written at 19G", and its counts table read `33 / 73 / five / 17` | `APP_PHASE` 19; six jobs; 19B–19F read and write the objects; the guide ended at the 19A addendum | minor | **Fixed in docs**: the addendum is now the full Phase 19 addendum (`33 / 73 / six / 19`, the cron entries, the enablement steps, the verification pack) and the document-status table has the 19G row. |
+| 7 | `docs/admin-guide.md:234`: "Finance health — the seven invariants" | `HealthService` runs eight sections (wallets, commissions, awards, royalty, transfers, payouts, orders, stock); the reports view renders and counts all eight | minor | **Fixed in docs**: "the eight invariants (including the Royalty stream)". |
+| 8 | `docs/cron.md:891-892`: "Every period header **and every award row** stores the thresholds, quotas and rates" | Award rows store the quota and the two rates (`023_royalty_bonus.sql:97-114`), but the four thresholds exist only on the header (`:58-70`) | minor | **Fixed in docs**: the header stores the thresholds, quotas and rates; every award row stores the quota and the two rates it was priced with. |
+| 9 | `docs/cron.md:983`: "`closed` counts the months that reached a final status" | `--evaluate-only` incremented `closed` only when the evaluation's status was `skipped`; an enabled month whose every row was skipped finalises `paid` at evaluation, so the run logged `closed=0 … status=paid` | minor | **Fixed in code** (19F job file): the branch now counts any `RoyaltyPeriod::FINAL` status, and the `cron.md` sentence now spells out the evaluation-time case. Regression case `P19G-T12`. |
+| 10 | `docs/cron.md:987`: "A log write failure warns on stderr and never fails the run"; `docs/deploy.md:874-875`: "If those are not writable, the job exits with an error" | `CronLog::write()` returns `false` on a failed write and `royalty_close_write_log()` ignored it — the run was silently log-less. A **lock** failure is fatal (`exit 2`); a **log** failure is not | minor | **Fixed in code** (19F job file): the failure now writes `[ecowealth] [WARN ] the Royalty log could not be written …; the run continued.` through `error_log` (stderr on the CLI, the server log under Apache), and `deploy.md` now distinguishes the lock from the log. Regression case `P19G-T11`. |
+| 11 | `dmp/plan-ecowealth-royalty.md:3708-3711` (Appendix A): "The settings card offers a **Restore reference defaults** action (client-side prefill only until saved)" | The card renders the switches, the thirteen inputs and the Saved ladder; no restore action or handler exists anywhere under `system/` | minor | **Fixed in docs**: Appendix A and C.1 now describe the shipped card (the reference preset is the seeded value; `QA19B-05` restores it by hand). Recorded as a deviation (no restore action ships). |
+| 12 | `dmp/plan-ecowealth-royalty.md:3962` (C.7): `royalty stream off` is **displayed** as "Royalty was off for this month"; `docs/admin-guide.md:637` promises "a note on the header" | The note is stored on the header (`RoyaltyService` line 200) but no view reads `royalty_periods.note`; the period badges are `RoyaltyPeriod::STATUS_BADGES` ("Evaluated", "Paid", "Skipped") | cosmetic | **Fixed in docs**: C.7 now says the note is the header/audit record and the page vocabulary is **Skipped**. Recorded as a deviation. |
+| 13 | `dmp/plan-ecowealth-royalty.md:3899-3906` (C.1): the card carries the exact ladder note "Leader is a rank, not a royalty rank…" and the warning "A Director's own purchase earns 25%… Review the plan economics before enabling." | The card's paragraph ends "Leader is not a paying rank." and the **Saved ladder** carries the 25.000% own-purchase column with its own note; neither exact sentence exists in `system/` | cosmetic | **Fixed in docs**: C.1 now quotes the shipped paragraph and Saved-ladder note. Recorded as a deviation. |
+| 14 | `docs/cron.md:881-882`: "`--evaluate-only` is the review window … The runbook (§2) says how long that window should be" | The runbook gave no duration and its drill never ran `--evaluate-only` | cosmetic | **Fixed in docs**: runbook §2 gains **The review window (optional)** — evaluate-only, read the ledger, `--pay-only`, keep it to a day or two and never past the next close. |
+| 15 | `dmp/plan-ecowealth-royalty.md:1957-1958` (§12): "if corrupt data produces a negative GS/PS, clamp to 0 **and log**" | The engine clamps with `max(0, …)` (`RoyaltyService::volumes()` and `collect()`) but emits no log line; the stored columns make the branch unreachable | cosmetic | **Fixed in docs**: §12 now says the clamp is unreachable because every stored volume is non-negative. Recorded as a deviation (no log line added to the money path at release). |
+
+Count and build facts found by the second pass
+
+The count read produced 46 stale-or-imprecise claims across nine documents. Every one was verified and
+corrected in its own document; the full list is in the phase record's documentation section. The groups:
+
+- **Job counts:** five → six in `system/README.md` (the sentence, the job table and the log list),
+  `docs/cron.md` §5 (the sentence, the `schtasks` block, the six launchers) and `docs/runbook.md`
+  (§7 go-live).
+- **Release counts:** 948 cases / 225 smoke → **1,162 / 248** in `system/README.md`, `docs/runbook.md`
+  §9, `docs/qa/README.md` and `docs/qa/sign-off-sheet.md`; `APP_PHASE` 17 → **19** in
+  `system/README.md` (status paragraph and constants table), `docs/deploy.md` and the plan's status
+  line; migrations 001–020 → **001–023** in `system/README.md` and `docs/runbook.md`.
+- **Install/reset counts:** the representative reset transcript moved to the current 23 delete groups,
+  **14** verification checks (with the repeat-purchase and Royalty reconciliations), **24** business
+  tables and **21** AUTO_INCREMENT counters; the seed line moved from 45 to **70** settings.
+- **Royalty surfaces:** `docs/qa/README.md` and `docs/qa/phase-19-royalty.md` moved from
+  "sections A–F, 54 checks, written so far" to **sections A–G, 60 checks, final**; the
+  `docs/qa/sign-off-sheet.md` totals and the final-decision table gained Phase 19 lines; the evidence
+  index gained the seven `QA19G-*` rows.
+- **Reports desk:** "five CSV exports" → **seven**; "the seven invariants" → **eight**;
+  `wallet_reconcile` "five sections" → **six**.
+
+Unverified items and their disposition
+
+| Item | Why it was not a finding |
+|---|---|
+| The ledger's period dropdown lists the newest 24 headers (and the dashboard's all-time figure reads up to 120), so "any closed month"/"every month"/"all-time" could overstate on a very long-lived install. | Verified: the limits are real (`RoyaltyPeriod::periods(24)` / `periods(120)`), so the **wording** was corrected — the guide now says "the newest 24 monthly headers". The limits themselves are a design choice, not a defect. |
+| `RoyaltyService::evaluate()` calls `RoyaltyRank::ladder()` twice per run, while §12.6.3 says "read the settings ladder once". | Verified: `ladder()` reads through the per-request settings cache, so the second call is a memory read, not a second query. No defect; no change. |
+
+Result after the fixes
+
+- The findings table is empty of open items: 15 findings, 3 fixed in code in their owning phases (with
+  four regression cases) and 12 fixed in the shared documents, one of which (the restore action) is a
+  recorded deviation of the plan itself.
+- The residual list is empty; the deviation log carries the four plan/document corrections and the
+  three code-defect rows.
+
+==============================================================================
+Asserted: an independent reviewer read plan §12, Appendix C and the admin guide against the build and
+          every claim that did not match was fixed — in code where the shipped surface contradicted
+          the engine (the ₱0 quota, the silent log failure, the `closed` count) and in the shared
+          documents everywhere else; the residual findings list is empty.
+RESULT: PASS

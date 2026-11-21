@@ -1,0 +1,578 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/* ==============================================================
+ *  EcoWealth — finance reconciliation command (plan §6.8, §7 Phase 5,
+ *  10, 12, 13 and 19)
+ *
+ *      php bin/wallet_reconcile.php [--json]
+ *
+ *  Seven read-only reports:
+ *
+ *    1. Wallets — both buckets recomputed from `ewallet_ledger`.
+ *    2. Commissions — every credited award against its wallet movement
+ *       (plan §6.8: SUM(credited) = SUM(ledger ref_type='commission'),
+ *       one ledger row per award, no orphan ledger rows).
+ *    3. Transfers — every transfer row against its three ledger legs
+ *       (sender debit of amount + fee, recipient credit of amount, fee
+ *       credit to the primary admin) plus orphan transfer ledger rows.
+ *    4. Payouts — every withdrawal request against its hold (one debit
+ *       at request time) and, for a rejected request, its refund (one
+ *       credit), plus orphan payout/refund ledger rows.
+ *    5. Repeat-purchase — every credited/voided award against its
+ *       `unilevel` credit, every reversal against `unilevel_reversal`,
+ *       the order headline totals and the idempotency stamp
+ *       (plan §14.11). Phase 18 adds the escrow states: pending and
+ *       cancelled awards must have NO wallet movement, a cancelled row
+ *       must carry no reversal money, and a pending award on a
+ *       cancelled order is a mismatch. A stuck release is printed as a
+ *       warning — a delay is not a books error.
+ *    6. Royalty — every paid award against its `royalty` credit, the
+ *       period headers' counters and totals against their award rows,
+ *       the money anchor's rank/volume sanity, and the corrupt-tree
+ *       warning (plan §14.12). A period waiting for finalisation is a
+ *       warning, never a failure.
+ *    7. Team Harvest — every credited level award against its
+ *       `team_harvest` credit, every baseline row against the rule that
+ *       it was never paid, orphan movements, the counter drift against
+ *       a from-scratch recount and the ladder's ten rows (plan §14.13).
+ *       The stream being off or unseeded is a warning, never a failure.
+ *    8. General Harvest — every credited award against its
+ *       `general_harvest` credit, every baseline row against the rule that
+ *       it was never paid, orphan movements, the per-level prefix against
+ *       `qFor(L, settled_n)`, the closed-form identity
+ *       `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)`,
+ *       and the ladder's ten priced rows. The stream being off or
+ *       unarmed is a warning, never a failure.
+ *    9. Product binary — every credited/voided award against its `binary`
+ *       credit, every reversal against `binary_reversal`, the order headline
+ *       totals and the idempotency stamp (plan §16.10). A stuck release is a
+ *       warning — a delay is not a books error.
+ *
+ *  Nothing is repaired: a mismatch means a balance or an award was
+ *  written outside its service and needs a human looking at it.
+ *
+ *  Exit codes:  0 = clean, 1 = mismatches or invariant violations,
+ *               2 = the command could not run.
+ * ============================================================== */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit('Not found');
+}
+
+$root = dirname(__DIR__);
+
+require_once $root . '/app/config.php';
+require_once $root . '/app/helpers.php';
+require_once $root . '/app/autoload.php';
+require_once $root . '/app/database.php';
+
+date_default_timezone_set(APP_TIMEZONE);
+
+$options = getopt('', ['json', 'help']);
+
+if (isset($options['help'])) {
+    echo "Usage: php bin/wallet_reconcile.php [--json]\n\n";
+    echo "Recomputes ewallet_balance / withdrawable_balance from the ledger and\n";
+    echo "checks every commission award against its wallet movement. Read-only.\n";
+    echo "Exit 0 when clean, 1 when not.\n";
+    exit(0);
+}
+
+try {
+    $wallets      = (new WalletService())->reconcile();
+    $commissions  = (new CommissionService())->reconcile();
+    $transfers    = (new TransferService())->reconcile();
+    $payouts      = (new PayoutService())->reconcile();
+    $unilevel     = (new UnilevelService())->reconcile();
+    $royalty      = (new RoyaltyService())->reconcile();
+    $teamHarvest  = (new TeamHarvestService())->reconcile();
+    $generalHarvest = (new GeneralHarvestService())->reconcile();
+    $binary       = (new BinaryService())->reconcile();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Reconciliation failed: ' . $e->getMessage() . PHP_EOL);
+    exit(2);
+}
+
+$ok = $wallets['ok'] && $commissions['ok'] && $transfers['ok'] && $payouts['ok']
+    && $unilevel['ok'] && $royalty['ok'] && $teamHarvest['ok'] && $generalHarvest['ok']
+    && $binary['ok'];
+
+$format = static fn (mixed $value): string => $value === null
+    ? '—'
+    : number_format((float) $value, 2, '.', ',');
+
+if (isset($options['json'])) {
+    echo json_encode(
+        [
+            'database'    => DB_NAME,
+            'ok'          => $ok,
+        ] + $wallets + [
+            'commissions'  => $commissions,
+            'transfers'    => $transfers,
+            'payouts'      => $payouts,
+            'unilevel'     => $unilevel,
+            'royalty'      => $royalty,
+            'team_harvest' => $teamHarvest,
+            'general_harvest' => $generalHarvest,
+            'binary'       => $binary,
+        ],
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    ) . PHP_EOL;
+
+    exit($ok ? 0 : 1);
+}
+
+echo 'EcoWealth finance reconciliation', PHP_EOL;
+printf("  database:          %s (%s)%s", DB_NAME, DB_HOST, PHP_EOL);
+printf("  accounts checked:  %d%s", $wallets['checked'], PHP_EOL);
+printf("  accounts with ledger: %d%s", $wallets['ledger_users'], PHP_EOL);
+echo PHP_EOL;
+
+echo 'Wallets', PHP_EOL;
+
+if ($wallets['ok']) {
+    echo '  OK — every wallet matches its ledger on both buckets.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($wallets['mismatches']) + count($wallets['violations']), PHP_EOL);
+
+    foreach ($wallets['mismatches'] as $mismatch) {
+        $parts = [];
+
+        if (($mismatch['expected'] ?? null) !== null || ($mismatch['actual'] ?? null) !== null) {
+            $parts[] = 'total ledger ' . $format($mismatch['expected'] ?? null)
+                . ' vs wallet ' . $format($mismatch['actual'] ?? null);
+        }
+
+        if (($mismatch['expected_withdrawable'] ?? null) !== null || ($mismatch['actual_withdrawable'] ?? null) !== null) {
+            $parts[] = 'withdrawable ledger ' . $format($mismatch['expected_withdrawable'] ?? null)
+                . ' vs wallet ' . $format($mismatch['actual_withdrawable'] ?? null);
+        }
+
+        printf(
+            "  - user #%d @%s [%s]: %s%s",
+            (int) $mismatch['user_id'],
+            (string) $mismatch['username'],
+            (string) $mismatch['kind'],
+            implode('; ', $parts),
+            PHP_EOL
+        );
+    }
+
+    foreach ($wallets['violations'] as $violation) {
+        printf(
+            "  - user #%d @%s [invariant]: %s (total %s / withdrawable %s)%s",
+            (int) $violation['user_id'],
+            (string) $violation['username'],
+            (string) $violation['reason'],
+            $format($violation['balance']),
+            $format($violation['withdrawable']),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+echo 'Commissions', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $commissions['credited_rows'],
+    $format($commissions['credited_total']),
+    PHP_EOL
+);
+printf("  skipped awards:    %d%s", $commissions['skipped_rows'], PHP_EOL);
+printf("  ledger total:      %s%s", $format($commissions['ledger_total']), PHP_EOL);
+
+if (($commissions['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy credits:    %d (%s) — commission movements before the award history began%s",
+        $commissions['legacy_rows'],
+        $format($commissions['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($commissions['ok']) {
+    echo '  OK — every credited award has its wallet movement and the totals agree.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($commissions['mismatches']), PHP_EOL);
+
+    foreach ($commissions['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'Transfers', PHP_EOL;
+printf("  transfers checked: %d%s", $transfers['checked'], PHP_EOL);
+
+if (($transfers['orphans'] ?? 0) > 0) {
+    printf(
+        "  orphan legs:       %d — a transfer row is gone but its ledger legs remain (an account was deleted)%s",
+        $transfers['orphans'],
+        PHP_EOL
+    );
+}
+
+if ($transfers['ok']) {
+    echo '  OK — every transfer has its sender debit, recipient credit and fee credit.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($transfers['mismatches']), PHP_EOL);
+
+    foreach ($transfers['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] transfer #%d: %s%s",
+            (string) $mismatch['kind'],
+            (int) $mismatch['transfer_id'],
+            (string) $mismatch['message'],
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'Payouts', PHP_EOL;
+printf("  requests checked:  %d%s", $payouts['checked'], PHP_EOL);
+printf("  held by open requests: %s%s", $format($payouts['held']), PHP_EOL);
+
+if (($payouts['orphans'] ?? 0) > 0) {
+    printf(
+        "  orphan legs:       %d — a payout row is gone but its ledger legs remain (an account was deleted)%s",
+        $payouts['orphans'],
+        PHP_EOL
+    );
+}
+
+if ($payouts['ok']) {
+    echo '  OK — every request has its hold, and every rejection its refund.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($payouts['mismatches']), PHP_EOL);
+
+    foreach ($payouts['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] payout #%d: %s%s",
+            (string) $mismatch['kind'],
+            (int) $mismatch['payout_id'],
+            (string) $mismatch['message'],
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'Repeat-purchase', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $unilevel['credited_rows'],
+    $format($unilevel['credited_total']),
+    PHP_EOL
+);
+printf(
+    "  pending awards:    %d (%s) — earned, not in a wallet yet%s",
+    $unilevel['pending_rows'] ?? 0,
+    $format($unilevel['pending_total'] ?? 0),
+    PHP_EOL
+);
+printf(
+    "  cancelled awards:  %d (%s) — order cancelled before release, never paid%s",
+    $unilevel['cancelled_rows'] ?? 0,
+    $format($unilevel['cancelled_total'] ?? 0),
+    PHP_EOL
+);
+printf("  skipped awards:    %d%s", $unilevel['skipped_rows'], PHP_EOL);
+printf("  voided awards:     %d%s", $unilevel['voided_rows'], PHP_EOL);
+printf("  awarded total:     %s (pending + credited)%s", $format($unilevel['awarded_total'] ?? 0), PHP_EOL);
+printf("  unilevel ledger:   %s%s", $format($unilevel['ledger_total']), PHP_EOL);
+printf("  reversals:         %s%s", $format($unilevel['reversal_total']), PHP_EOL);
+
+/* A stuck release is an operational warning, not a mismatch: it must
+ * never turn a clean reconciliation into exit 1 (plan §16.6). */
+if (($unilevel['stuck_pending'] ?? 0) > 0) {
+    printf(
+        "  warning:           %d pending award(s) have been due for more than 48 hours — check the release job%s",
+        (int) $unilevel['stuck_pending'],
+        PHP_EOL
+    );
+}
+
+if (($unilevel['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy movements:  %d (%s) — repeat-purchase movements before the award history began%s",
+        $unilevel['legacy_rows'],
+        $format($unilevel['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($unilevel['ok']) {
+    echo '  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($unilevel['mismatches']), PHP_EOL);
+
+    foreach ($unilevel['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'Royalty', PHP_EOL;
+printf(
+    "  periods:           %d (paid %d · evaluated %d · skipped %d)%s",
+    $royalty['periods'],
+    $royalty['paid_periods'],
+    $royalty['evaluated_periods'],
+    $royalty['skipped_periods'],
+    PHP_EOL
+);
+printf(
+    "  paid awards:       %d (%s)%s",
+    $royalty['paid_rows'],
+    $format($royalty['paid_total']),
+    PHP_EOL
+);
+printf(
+    "  pending awards:    %d (%s) — evaluated, not in a wallet yet%s",
+    $royalty['pending_rows'],
+    $format($royalty['pending_total']),
+    PHP_EOL
+);
+printf("  skipped awards:    %d%s", $royalty['skipped_rows'], PHP_EOL);
+printf("  royalty ledger:    %s%s", $format($royalty['ledger_total']), PHP_EOL);
+
+/* A month waiting for finalisation and an unreachable branch are
+ * operational warnings, not books errors: they must never turn a clean
+ * reconciliation into exit 1 (plan §14.12). */
+foreach ($royalty['warnings'] ?? [] as $warning) {
+    printf(
+        "  warning:           [%s] %s%s",
+        (string) $warning['kind'],
+        (string) $warning['message'],
+        PHP_EOL
+    );
+}
+
+if (($royalty['cycle_members'] ?? 0) > 0) {
+    printf(
+        "  corrupt tree:      %d member account(s) unreachable from a root — check sponsor_id%s",
+        (int) $royalty['cycle_members'],
+        PHP_EOL
+    );
+}
+
+if (($royalty['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy movements:  %d (%s) — royalty movements before the award history began%s",
+        $royalty['legacy_rows'],
+        $format($royalty['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($royalty['ok']) {
+    echo '  OK — every paid award has its wallet movement and every period header agrees with its rows.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($royalty['mismatches']), PHP_EOL);
+
+    foreach ($royalty['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'Team Harvest', PHP_EOL;
+printf(
+    "  queued positions:  %d%s",
+    $teamHarvest['queued'],
+    PHP_EOL
+);
+printf(
+    "  credited awards:   %d (%s)%s",
+    $teamHarvest['credited_rows'],
+    $format($teamHarvest['credited_total']),
+    PHP_EOL
+);
+printf(
+    "  baseline awards:   %d (%s) — complete before go-live, never paid%s",
+    $teamHarvest['baseline_rows'],
+    $format($teamHarvest['baseline_total']),
+    PHP_EOL
+);
+printf("  team_harvest ledger: %s%s", $format($teamHarvest['ledger_total']), PHP_EOL);
+printf(
+    "  counter drift:     %d row(s) · %d below the baseline%s",
+    $teamHarvest['drift'],
+    $teamHarvest['violations'],
+    PHP_EOL
+);
+
+/* The switch being off and the queue being unseeded are operational
+ * states, not books errors: they must never turn a clean reconciliation
+ * into exit 1 (plan §14.13). */
+foreach ($teamHarvest['warnings'] ?? [] as $warning) {
+    printf(
+        "  warning:           [%s] %s%s",
+        (string) $warning['kind'],
+        (string) $warning['message'],
+        PHP_EOL
+    );
+}
+
+if ($teamHarvest['ok']) {
+    echo '  OK — every credited award has its wallet movement, every baseline row is unpaid,'
+        . ' and the counters agree with a recount.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($teamHarvest['mismatches']), PHP_EOL);
+
+    foreach ($teamHarvest['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'General Harvest', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $generalHarvest['credited_rows'] ?? 0,
+    $format($generalHarvest['credited_total'] ?? 0),
+    PHP_EOL
+);
+printf(
+    "  baseline awards:   %d (%s)%s",
+    $generalHarvest['baseline_rows'] ?? 0,
+    $format($generalHarvest['baseline_total'] ?? 0),
+    PHP_EOL
+);
+printf("  general_harvest ledger: %s%s", $format($generalHarvest['ledger_total'] ?? 0), PHP_EOL);
+
+/* The switch being off and the board being unarmed are operational
+ * states, not books errors: they must never turn a clean reconciliation
+ * into exit 1 (plan D-10, D-19). */
+foreach ($generalHarvest['warnings'] ?? [] as $warning) {
+    printf(
+        "  warning:           [%s] %s%s",
+        (string) $warning['kind'],
+        (string) $warning['message'],
+        PHP_EOL
+    );
+}
+
+if ($generalHarvest['ok']) {
+    echo '  OK — every credited award has its wallet movement, every baseline row is unpaid,'
+        . ' and the closed form agrees.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($generalHarvest['mismatches']), PHP_EOL);
+
+    foreach ($generalHarvest['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+echo 'Product binary', PHP_EOL;
+printf(
+    "  credited awards:   %d (%s)%s",
+    $binary['credited_rows'],
+    $format($binary['credited_total']),
+    PHP_EOL
+);
+printf(
+    "  pending awards:    %d (%s) — earned, not in a wallet yet%s",
+    $binary['pending_rows'] ?? 0,
+    $format($binary['pending_total'] ?? 0),
+    PHP_EOL
+);
+printf(
+    "  cancelled awards:  %d (%s) — order cancelled before release, never paid%s",
+    $binary['cancelled_rows'] ?? 0,
+    $format($binary['cancelled_total'] ?? 0),
+    PHP_EOL
+);
+printf("  voided awards:     %d%s", $binary['voided_rows'], PHP_EOL);
+printf(
+    "  awarded total:     %s (pending + credited)%s",
+    $format($binary['ever_credited_total']),
+    PHP_EOL
+);
+printf("  binary ledger:     %s%s", $format($binary['ledger_total']), PHP_EOL);
+printf("  reversals:         %s%s", $format($binary['reversal_total']), PHP_EOL);
+
+if (($binary['legacy_rows'] ?? 0) > 0) {
+    printf(
+        "  legacy movements:  %d (%s) — product-binary movements before the award history began%s",
+        (int) $binary['legacy_rows'],
+        $format($binary['legacy_total']),
+        PHP_EOL
+    );
+}
+
+if ($binary['ok']) {
+    echo '  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.', PHP_EOL;
+} else {
+    printf("  %d problem(s):%s", count($binary['mismatches']), PHP_EOL);
+
+    foreach ($binary['mismatches'] as $mismatch) {
+        printf(
+            "  - [%s] %s (expected %s, actual %s)%s",
+            (string) $mismatch['kind'],
+            (string) $mismatch['message'],
+            $format($mismatch['expected'] ?? null),
+            $format($mismatch['actual'] ?? null),
+            PHP_EOL
+        );
+    }
+}
+
+echo PHP_EOL;
+
+if ($ok) {
+    echo 'All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty,'
+        . ' team-harvest, general-harvest and product-binary awards reconcile.', PHP_EOL;
+    exit(0);
+}
+
+echo 'No automatic repair was attempted. Inspect these records before touching money.', PHP_EOL;
+exit(1);

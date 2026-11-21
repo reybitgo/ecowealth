@@ -1,0 +1,79 @@
+IR-0-T2 — pre-work database dump and restore drill
+===================================================
+Captured : 2026-11-11 18:25–18:27 +08:00 (Asia/Manila)
+Host     : Windows 11 (10.0.26200) · Laragon · PHP 8.3.16 · MySQL 8.4.3
+Source   : ecowealth_sneat (development database, 27 tables, 4,287 rows)
+Purpose  : protect the developer database before any IR phase writes code.
+
+Dump
+----
+Command (credentials supplied through a temporary --defaults-extra-file; the password is
+never written in this record or printed by the tools):
+
+  mysqldump --defaults-extra-file=<temp> --single-transaction --routines --triggers \
+    --no-tablespaces --set-gtid-purged=OFF --default-character-set=utf8mb4 \
+    --result-file=backups/pre-install-reset-20261111.sql ecowealth_sneat
+
+mysqldump version : 8.4.3
+Exit code         : 0
+File              : backups/pre-install-reset-20261111.sql (git-ignored via .gitignore:23)
+Size              : 588,383 bytes
+SHA-256           : 8d89eab790d667ab309b93b6f75cc6be77cbb19b779383152370c83d988ea80a
+First line        : -- MySQL dump 10.13  Distrib 8.4.3, for Win64 (x86_64)
+Last line         : -- Dump completed on 2026-11-11 18:25:28
+Executable DDL    : 0 CREATE DATABASE, 0 USE (single-schema dump; the importer selects the schema)
+Definer clauses   : 0 (schema has no routines, triggers or views)
+
+Restore drill
+-------------
+Scratch schema    : ecowealth_sneat_restore_test (name ends in _test — the D-IR-16 rule)
+Method            : DROP + CREATE the schema, then `mysql <schema> --execute="source <dump>"`
+
+  create schema exit : 0
+  import exit        : 0
+  SHOW TABLES        : 27
+  settings rows      : 45
+  users rows         : 26
+
+Table-by-table comparison, source vs restore (exact COUNT(*)):
+
+source tables : 27
+restore tables: 27
+table list identical: YES
+  activations                15     15  ok
+  addresses                   1      1  ok
+  audit_log                1814   1814  ok
+  cart_items                107    107  ok
+  carts                     177    177  ok
+  commissions                12     12  ok
+  ewallet_admin_topups        7      7  ok
+  ewallet_ledger             48     48  ok
+  ewallet_transfers           3      3  ok
+  impersonation_log           4      4  ok
+  live_revisions           1814   1814  ok
+  package_levels             36     36  ok
+  package_products           12     12  ok
+  packages                    4      4  ok
+  payout_requests             2      2  ok
+  products                   10     10  ok
+  reg_codes                  19     19  ok
+  remember_tokens             0      0  ok
+  settings                   45     45  ok
+  shop_invoice_items         10     10  ok
+  shop_invoices               8      8  ok
+  shop_order_events          66     66  ok
+  shop_order_items           18     18  ok
+  shop_orders                16     16  ok
+  shop_payment_proofs         9      9  ok
+  shop_shipments              4      4  ok
+  users                      26     26  ok
+rows compared: 4287 across 27 tables; mismatches: 0
+column counts identical: YES
+
+Scratch schema dropped after the drill: exit 0.
+
+Conclusion
+----------
+The dump is complete and restores faithfully: 27/27 tables, 4,287/4,287 rows, identical table
+list and column counts. The dump is retained at backups/pre-install-reset-20261111.sql as the
+rollback point for IR-1…IR-8 (git-ignored; never upload it anywhere).

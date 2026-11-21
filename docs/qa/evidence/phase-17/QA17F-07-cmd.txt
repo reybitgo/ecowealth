@@ -1,0 +1,40 @@
+QA17F-07 - the Windows launcher runs and reports the same as the CLI
+Date: 2026-11-12 22:02:53 +08:00
+PHP_EXE set: (not set - the launcher falls back to php on PATH)
+
+A) cmd /c bin\unilevel_month_close.cmd --dry-run (UTF-8 console)
+EcoWealth unilevel month close (dry run — nothing is written)
+  database:    ecowealth_sneat (127.0.0.1)
+  threshold:   ₱500.00 personal purchases
+  would close: nothing to close — 2026-10 is already closed
+
+exit code: 0
+
+B) cmd /c bin\unilevel_month_close.cmd --doctor
+EcoWealth unilevel month close — doctor
+  php            8.3.16 (cli)
+  timezone       Asia/Manila · 2026-11-12 22:02:54 +08:00
+  database       ecowealth_sneat @ 127.0.0.1
+  db now         2026-11-12 22:02:54 (session +08:00)
+  clocks         agree (0s)
+  period now     2026-11 — the current month is never closed implicitly
+  threshold      ₱500.00 personal purchases
+  ledger since   2026-10-01 00:00:00
+  last closed    2026-10
+  pending        none (nothing to close — 2026-10 is already closed)
+  members        27 accounts get a snapshot row
+  enabled        no — periods still close (the switch gates payouts, not the close)
+  lock           free · C:\laragon\www\ecowealth\system/storage\locks\unilevel_month_close.lock
+  log            C:\laragon\www\ecowealth\system/storage\logs\unilevel_month_close-2026-11.log (writable)
+  cron key       not set (loopback only)
+  storage        C:\laragon\www\ecowealth\system/storage
+
+exit code: 0
+
+C) The same command through the CLI, for comparison
+EcoWealth unilevel month close (dry run — nothing is written)
+  database:    ecowealth_sneat (127.0.0.1)
+  threshold:   ₱500.00 personal purchases
+  would close: nothing to close — 2026-10 is already closed
+
+exit code: 0

@@ -1,0 +1,13 @@
+QA22D-05 — The daily pair cap bounds one member's day
+Evidence file: docs/qa/evidence/phase-22/QA22D-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on a scratch schema
+Full output: (not captured — requires scratch database)
+Exit code: not captured
+
+Expected: Cap is per recipient per Asia/Manila day; excess carries to the next day.
+Actual: Could not execute — requires scratch database. Covered by automated tests P22D-T17 through P22D-T20 (daily cap — all PASS).
+Reason: Environment dependency — requires scratch database.

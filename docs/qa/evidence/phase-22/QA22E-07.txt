@@ -1,0 +1,13 @@
+QA22E-07 — The reports page and the dashboard tile
+Evidence file: docs/qa/evidence/phase-22/QA22E-07.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/reports and the admin dashboard
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Five binary cards match the ledger totals; type=binary range CSV carries binary rows; Product binary (30 d) tile shows last-30-days total.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22E-T14, P22E-T15 (PASS in BinaryReportTest).
+Reason: Environment dependency — browser-based check.

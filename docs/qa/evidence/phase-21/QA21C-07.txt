@@ -1,0 +1,27 @@
+QA21C-07 — The member's wallet shows no General Harvest movement
+Date: 2026-11-17 01:30:36 +0800 · schema ecowealth_sneat_tool_b_test · member qa21c_m1 (queue position #1 = node 0)
+
+$ SELECT u.id, u.username, u.ewallet_balance, u.withdrawable_balance FROM users u JOIN harvest_queue q ON q.user_id = u.id WHERE q.id = 1;
+mysql> SELECT u.id, u.username, u.ewallet_balance, u.withdrawable_balance FROM users u JOIN harvest_queue q ON q.user_id = u.id WHERE q.id = 1
+| id | username | ewallet_balance | withdrawable_balance |
+| 1  | qa21c_m1 | 0.00            | 0.00                 |
+
+$ SELECT level, seq, amount, status, ledger_id FROM general_harvest_awards WHERE seq = 0 ORDER BY level;   (node 0 holds three baseline rows)
+mysql> SELECT level, seq, amount, status, ledger_id FROM general_harvest_awards WHERE seq = 0 ORDER BY level
+| level | seq | amount  | status   | ledger_id |
+| 1     | 0   | 2000.00 | baseline |           |
+| 2     | 0   | 4000.00 | baseline |           |
+| 3     | 0   | 8000.00 | baseline |           |
+
+$ SELECT COUNT(*) AS statement_rows FROM ewallet_ledger WHERE user_id = 1;   (what /wallet would list)
+mysql> SELECT COUNT(*) AS statement_rows FROM ewallet_ledger WHERE user_id = 1
+| statement_rows |
+| 0              |
+
+$ SELECT COUNT(*) AS gh_statement_rows FROM ewallet_ledger WHERE user_id = 1 AND ref_type = 'general_harvest';
+mysql> SELECT COUNT(*) AS gh_statement_rows FROM ewallet_ledger WHERE user_id = 1 AND ref_type = 'general_harvest'
+| gh_statement_rows |
+| 0                 |
+
+The member's statement is the ewallet_ledger: it has no row for the baseline, so /wallet lists no
+General Harvest movement and the two balances are unchanged — the money does not exist yet (21D pays).

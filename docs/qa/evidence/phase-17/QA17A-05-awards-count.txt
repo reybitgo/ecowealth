@@ -1,0 +1,17 @@
+# QA17A-05 - unilevel_awards count on the development copy (migrated at 17A)
+# Date: 2026-11-12 - Schema: ecowealth_sneat
+#
+# Command: SELECT COUNT(*) AS awards FROM unilevel_awards;
+awards
+0
+#
+# Command: SELECT COUNT(*) AS stamped FROM shop_orders WHERE unilevel_processed_at IS NOT NULL;
+stamped
+0
+#
+# Command: SELECT COUNT(*) AS non_zero_total FROM shop_orders WHERE unilevel_total <> 0;
+non_zero_total
+0
+#
+# Result: PASS - the development copy has never written a repeat-purchase row:
+# no award, no processed order and no non-zero bonus total.

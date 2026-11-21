@@ -1,0 +1,45 @@
+# QA17A-02 - The four altered tables and the extended wallet enum
+# Date: 2026-11-12 - Schema: ecowealth_sneat_qa17a
+#
+# Command: SHOW COLUMNS FROM products LIKE 'unilevel%';
+Field	Type	Null	Key	Default	Extra
+unilevel_enabled	tinyint(1)	NO		0	
+unilevel_base	enum('auto','price','pv')	NO		auto	
+#
+# Command: SHOW COLUMNS FROM shop_order_items LIKE '%base%';
+Field	Type	Null	Key	Default	Extra
+unit_base	decimal(12,2)	YES		NULL	
+base_total	decimal(12,2)	YES		NULL	
+#
+# Command: SHOW COLUMNS FROM shop_orders LIKE 'unilevel%';
+Field	Type	Null	Key	Default	Extra
+unilevel_processed_at	datetime	YES	MUL	NULL	
+unilevel_total	decimal(12,2)	NO		0.00	
+#
+# Command: SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type';
+Field	Type	Null	Key	Default	Extra
+ref_type	enum('commission','payout','transfer','topup','registration','shop_order','adjustment','refund','unilevel','unilevel_reversal')	NO	MUL	NULL	
+#
+# Command: the new columns in ordinal position (products 5-8, items 8-9, orders 27-28)
+TABLE_NAME	ORDINAL_POSITION	COLUMN_NAME
+products	6	pv
+products	7	unilevel_enabled
+products	8	unilevel_base
+products	9	stock
+shop_order_items	8	line_total
+shop_order_items	9	unit_base
+shop_order_items	10	base_total
+shop_order_items	11	reservation_state
+shop_orders	27	paid_at
+shop_orders	28	unilevel_processed_at
+shop_orders	29	unilevel_total
+shop_orders	30	packed_at
+#
+# Command: SHOW INDEX FROM shop_orders (Phase 17 keys only)
+INDEX_NAME	NON_UNIQUE	SEQ_IN_INDEX	COLUMN_NAME
+idx_orders_unilevel	1	1	unilevel_processed_at
+idx_orders_user_paid	1	1	user_id
+idx_orders_user_paid	1	2	paid_at
+#
+# Result: PASS - both columns sit directly after pv / line_total / paid_at, the enum
+# ends 'unilevel','unilevel_reversal', and both order indexes exist.

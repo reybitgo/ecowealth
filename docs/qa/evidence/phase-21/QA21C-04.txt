@@ -1,0 +1,28 @@
+QA21C-04 — A second arm is refused, and nothing moves
+Date: 2026-11-17 01:29:53 +0800 · schema ecowealth_sneat_tool_b_test (already armed)
+
+$ php bin/general_harvest_arm.php
+General Harvest arm refused (armed): The General Harvest board was already armed on 2026-11-17 01:29:30; there is no --force. The baseline is irreversible — a business reset is the only way to start a new network's history (plan §12.6).
+EcoWealth General Harvest arm — REFUSED (armed)
+  The General Harvest board was already armed on 2026-11-17 01:29:30; there is no --force. The baseline is irreversible — a business reset is the only way to start a new network's history (plan §12.6).
+
+Nothing was written. Fix the cause above and run it again.
+(exit 1)
+
+$ php bin/general_harvest_arm.php --dry-run
+General Harvest arm refused (armed): The General Harvest board was already armed on 2026-11-17 01:29:30; there is no --force. The baseline is irreversible — a business reset is the only way to start a new network's history (plan §12.6).
+EcoWealth General Harvest arm — REFUSED (armed)
+  The General Harvest board was already armed on 2026-11-17 01:29:30; there is no --force. The baseline is irreversible — a business reset is the only way to start a new network's history (plan §12.6).
+
+Nothing was written. Fix the cause above and run it again.
+(exit 1)
+
+$ SELECT COUNT(*) AS rows_, SUM(amount) AS amount FROM general_harvest_awards;
+mysql> SELECT COUNT(*) AS rows_, SUM(amount) AS amount FROM general_harvest_awards
+| rows_ | amount   |
+| 18    | 50000.00 |
+
+$ SELECT id, baseline_n, armed_at, armed_by, settled_n, updated_at FROM general_harvest_board;
+mysql> SELECT id, baseline_n, armed_at, armed_by, settled_n FROM general_harvest_board
+| id | baseline_n | armed_at            | armed_by | settled_n |
+| 1  | 40         | 2026-11-17 01:29:30 |          | 40        |

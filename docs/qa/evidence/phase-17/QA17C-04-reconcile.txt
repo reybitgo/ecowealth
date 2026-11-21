@@ -1,0 +1,12 @@
+QA17C-04 — reconciliation (automated pass, ecowealth_sneat_test)
+
+Repeat-purchase
+  credited awards:   4 (90.00)
+  skipped awards:    0
+  voided awards:     0
+  unilevel ledger:   90.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+Exit code: 0 (in-process check; the real CLI exit codes are proven by P17C-T32).
+

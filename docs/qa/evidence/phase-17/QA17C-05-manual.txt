@@ -1,0 +1,19 @@
+QA17C-05 — a GCash order pays only after verification (automated pass)
+
+Before verification: order status=pending, unilevel_processed_at=NULL, awards=0
+After proof upload: order status=payment_review, awards=0
+After admin verification:
+status | unilevel_processed_at | unilevel_total
+-----------------------------------------------
+paid   | 2026-11-12 18:35:30   | 90.00         
+
+Awards:
+level | user_id | amount | status  
+---------------------------------
+1     | 14      | 25.00  | credited
+2     | 15      | 25.00  | credited
+3     | 16      | 25.00  | credited
+4     | 17      | 15.00  | credited
+
+Expected: 0 before, still 0 at payment_review, then four credited rows totalling 90.00; a second verify is refused.
+

@@ -1,0 +1,28 @@
+QA19E-06 - With Royalty off the history stays and the promise surfaces change
+=============================================================================
+
+Date: 2026-11-15 13:35:49 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p19e-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: plan section 16.2 A at thresholds 2/2/2/2 - 31 member accounts plus one fresh
+         member; three completed months and the open month, each carrying a 1,225,000
+         order for qa19e_sup_ax, plus a 200,000 order cancelled before its close; the
+         real RoyaltyService close/evaluate/pay. qa19e_sup_ax is the signed-in member.
+
+Why: Plan §9 Rule 5: past months remain the member’s money; the projection and the next-rank call to action are marked off.
+
+royalty_enabled = 0
+  enabled in the card  0
+  paid all-time        ₱196,000.00   (history is still the member’s money)
+  rows                 3
+  statement markup:
+    present  Royalty is currently off
+    present  Past months stay in your history
+    absent  If this month closed now
+  dashboard tile:
+    present  the tile (history exists)
+    present  Royalty is currently off
+    absent  If this month closed now
+
+RESULT: PASS

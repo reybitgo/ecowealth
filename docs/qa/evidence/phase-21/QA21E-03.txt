@@ -1,0 +1,14 @@
+QA21E-03 — A row links to its member, panel and wallet movement
+================================================================
+Phase 21E — Admin visibility. Runs as admin on the ledger tab.
+
+Steps:
+1. Click a credited row's member link on /admin/commissions?ledger=general_harvest.
+2. /admin/members/{id} opens with the General Harvest panel showing the same node, position and money.
+3. Click the wallet link → the movement row.
+
+Observed:
+- Member panel shows position, node, settled state, ten-cell grid and awards table matching the ledger row.
+- Wallet link opens the member's statement filtered to that ref_id.
+
+Result: Pass — award → member → ledger row walkable in one click each; panel and movement match the row.

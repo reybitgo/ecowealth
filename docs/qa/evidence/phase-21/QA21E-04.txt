@@ -1,0 +1,15 @@
+QA21E-04 — CSV export matches the screen and is audited
+========================================================
+Phase 21E — Admin visibility. Runs on the ledger tab, then /admin/audit.
+
+Steps:
+1. Apply a filter (level 3, or status Before go-live on fixture F).
+2. Download the CSV; compare columns and values with the screen.
+3. Open System → Audit log; find the general_harvest.export row.
+
+Observed:
+- CSV: header row plus one row per filtered award; columns match the screen plus ref_type/ref_id.
+- Export with no rows → header-only file plus one audit row.
+- Exactly one general_harvest.export audit row carrying tab, filters and row count.
+
+Result: Pass — exported columns and values match the screen; one general_harvest.export audit row.

@@ -1,0 +1,43 @@
+Phase 19G — Release
+Check QA19G-01 — the build reports Phase 19
+Prerequisite: the repository at the 19G tree, PHP 8.3 CLI, the test harness on ecowealth_sneat_test
+Executed: 2026-11-15 16:24:49 +08:00 by the Phase 19G automated QA pass (DSH)
+==============================================================================
+
+Command (from system/):
+
+  Select-String -Path app\config.php -Pattern 'APP_PHASE', 'Phase 19'
+
+Output:
+  34: * Phase 19 (the Royalty bonus workstream) is the last one: see
+  36: * §11 (Phase 19G — Release). The constant only labels the build; no route,
+  37: * menu item or permission reads it for Phase 19. */
+  38: defined('APP_PHASE') || define('APP_PHASE', 19);
+
+The constant and the comment above it (system/app/config.php, lines 33–38):
+
+  /* Phase currently under construction — controls which menu items render.
+   * Phase 19 (the Royalty bonus workstream) is the last one: see
+   * docs/phase-log.md for the release entry and dmp/plan-ecowealth-royalty.md
+   * §11 (Phase 19G — Release). The constant only labels the build; no route,
+   * menu item or permission reads it for Phase 19. */
+  defined('APP_PHASE') || define('APP_PHASE', 19);
+
+The harness prints the phase it is testing:
+
+  php tests\run.php Hardening
+
+  EcoWealth test suite
+  PHP 8.3.16 · schema ecowealth_sneat_test · phase 19
+
+  Cases: 8   Passed: 8   Failed: 0
+
+The one case that pins the constant (system/tests/Cases/HardeningTest.php):
+
+  'P15 the build reports phase 19' => function (): void {
+      assert_same(19, APP_PHASE);
+
+==============================================================================
+Asserted: APP_PHASE is 19, the config comment names Phase 19 and dmp/plan-ecowealth-royalty.md §11
+          (Phase 19G — Release), and the P15 Hardening case asserts assert_same(19, APP_PHASE).
+RESULT: PASS

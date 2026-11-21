@@ -1,0 +1,213 @@
+{
+    "tool": "db_install",
+    "version": 1,
+    "ok": true,
+    "mode": "install",
+    "database": "ecowealth_sneat_install_cli_test",
+    "channel": "cli",
+    "started_at": "2026-11-11T20:44:15+08:00",
+    "duration_ms": 3316,
+    "options": {
+        "database": "ecowealth_sneat_install_cli_test",
+        "create_database": false,
+        "site_name": "EcoWealth CLI Manual",
+        "with_demo": false,
+        "channel": "cli",
+        "install_sql": "database/install.sql",
+        "install_key_set": false,
+        "admin": {
+            "username": "admin",
+            "email": "owner@example.com"
+        },
+        "superadmin": {
+            "username": "superadmin",
+            "email": "owner+super@example.com"
+        }
+    },
+    "steps": [
+        {
+            "key": "lock",
+            "label": "Advisory lock acquired",
+            "status": "ok",
+            "rows": 0,
+            "ms": 1
+        },
+        {
+            "key": "create_database",
+            "label": "Database already exists",
+            "status": "skip",
+            "rows": 0,
+            "ms": 9
+        },
+        {
+            "key": "guard",
+            "label": "Target schema is empty",
+            "status": "ok",
+            "rows": 0,
+            "ms": 6
+        },
+        {
+            "key": "bundle",
+            "label": "Import database/install.sql",
+            "status": "ok",
+            "rows": 54,
+            "ms": 2567
+        },
+        {
+            "key": "staff",
+            "label": "Set both staff accounts",
+            "status": "ok",
+            "rows": 2,
+            "ms": 345
+        },
+        {
+            "key": "settings",
+            "label": "Write the install metadata",
+            "status": "ok",
+            "rows": 4,
+            "ms": 8
+        },
+        {
+            "key": "verify",
+            "label": "Verify the installation",
+            "status": "ok",
+            "rows": 9,
+            "ms": 344
+        },
+        {
+            "key": "lock_file",
+            "label": "Write the install lock",
+            "status": "ok",
+            "rows": 1,
+            "ms": 6
+        }
+    ],
+    "counts": {
+        "tables_created": 27,
+        "settings_rows": 48,
+        "staff_rows": 2,
+        "members_rows": 0,
+        "products_rows": 7,
+        "packages_rows": 2,
+        "levels_rows": 18,
+        "contents_rows": 10,
+        "codes_rows": 0,
+        "ledger_rows": 0
+    },
+    "staff": {
+        "reset": false,
+        "usernames": [
+            "admin",
+            "superadmin"
+        ],
+        "accounts": [
+            {
+                "username": "admin",
+                "email": "owner@example.com",
+                "role": "admin"
+            },
+            {
+                "username": "superadmin",
+                "email": "owner+super@example.com",
+                "role": "superadmin"
+            }
+        ]
+    },
+    "lock": {
+        "path": "storage/install.lock",
+        "written": true,
+        "contents": {
+            "installed_at": "2026-11-11T20:44:18+08:00",
+            "database": "ecowealth_sneat_install_cli_test",
+            "app_version": "1.0.0",
+            "install_sql_sha256": "3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb",
+            "staff": [
+                "admin",
+                "superadmin"
+            ],
+            "channel": "cli"
+        },
+        "error": null
+    },
+    "install_sql": {
+        "path": "database/install.sql",
+        "sha256": "3e94fd28554294a051e43d88d8837c95a5d8aafb210121ae3caaf949764897bb",
+        "bytes": 63695
+    },
+    "verification": {
+        "ok": true,
+        "checks": [
+            {
+                "key": "tables",
+                "label": "Tables",
+                "ok": true,
+                "detail": "27 of 27 tables",
+                "hint": "The schema is incomplete: drop it and re-run the install bundle."
+            },
+            {
+                "key": "settings",
+                "label": "Settings",
+                "ok": true,
+                "detail": "48 of 48 settings",
+                "hint": "The bundle seeds 45 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php."
+            },
+            {
+                "key": "staff",
+                "label": "Staff accounts",
+                "ok": true,
+                "detail": "admin (admin), superadmin (superadmin)",
+                "hint": "Both staff rows must exist and be able to sign in (member_status = active, is_active = 1)."
+            },
+            {
+                "key": "signin",
+                "label": "Staff sign-in",
+                "ok": true,
+                "detail": "2 passwords verified",
+                "hint": "The stored password_hash must verify the password the operator chose; re-run the install with the same credentials or reset the password from the application."
+            },
+            {
+                "key": "members",
+                "label": "Members",
+                "ok": true,
+                "detail": "0 of 0 members",
+                "hint": "A production install seeds no members; demo data is an explicit import (seeds/005_demo_tree.sql)."
+            },
+            {
+                "key": "catalogue",
+                "label": "Catalogue",
+                "ok": true,
+                "detail": "7 products / 2 packages / 18 levels / 10 contents",
+                "hint": "Expected 7 / 2 / 18 / 10; rebuild the bundle from seeds 003–004."
+            },
+            {
+                "key": "codes",
+                "label": "Registration codes",
+                "ok": true,
+                "detail": "0 of 0 codes",
+                "hint": "A production install seeds no registration codes."
+            },
+            {
+                "key": "transactional",
+                "label": "No transactional rows",
+                "ok": true,
+                "detail": "every shop, wallet, membership and session table is empty",
+                "hint": "A fresh install contains no orders, ledger rows, codes, carts, proofs or sessions. Drop the schema and re-import the bundle; do not delete rows by hand."
+            },
+            {
+                "key": "metadata",
+                "label": "Install metadata",
+                "ok": true,
+                "detail": "version 1.0.0 · channel cli · 2026-11-11 20:44:18",
+                "hint": "Re-run the install (the footer writes install_version/install_channel/install_completed_at)."
+            },
+            {
+                "key": "lock",
+                "label": "Install lock",
+                "ok": true,
+                "detail": "storage/install.lock records the install into ecowealth_sneat_install_cli_test",
+                "hint": "Delete the lock and re-run the installer only if you intend to wipe the database."
+            }
+        ]
+    },
+    "warnings": []
+}

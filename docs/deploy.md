@@ -1,0 +1,2003 @@
+# Deploying EcoWealth to shared hosting (Hostinger)
+
+> **Status: current.** This guide covers the **Phase 21 build released at 21G plus Phase 22B configuration**: 42 tables,
+> 89 settings, migrations `001`–`026`, ten Team Harvest and ten General Harvest ladder rows (plus the
+> unarmed General Harvest board row), six scheduled jobs and the live-update layer. The Phase 20F/20G,
+> Phase 21 and Phase 22B addenda at the end are the migration/upgrade notes for the Team Harvest bonus,
+> the General Harvest bonus and the Product binary configuration; the go-live order itself lives once, in
+> [`runbook.md`](runbook.md). Hostinger's hPanel labels can change; the steps stay the same.
+>
+> Verified against the local build (PHP 8.3.16, MySQL 8.4.3). Hostinger's current
+> LiteSpeed/Apache + PHP 8.3 plans meet the same requirements.
+
+This guide is written for a complete beginner. You do **not** need SSH, Node.js, npm,
+React, Next.js, Composer, WebSockets or a background daemon. EcoWealth is a plain
+PHP 8 + MySQL application, and the live updates are browser-side JavaScript plus normal
+HTTP requests.
+
+---
+
+## Contents
+
+1. [What you need](#1-what-you-need)
+2. [What you do not need](#2-what-you-do-not-need)
+3. [Choose where the app will live](#3-choose-where-the-app-will-live)
+4. [Create the database](#4-create-the-database)
+5. [Import the database](#5-import-the-database)
+6. [Upload the files](#6-upload-the-files)
+7. [Create `config.local.php`](#7-create-configlocalphp)
+8. [Set the PHP version and extensions](#8-set-the-php-version-and-extensions)
+9. [Set folder permissions](#9-set-folder-permissions)
+10. [Enable SSL](#10-enable-ssl)
+11. [Test the deployment](#11-test-the-deployment)
+12. [Secure and clean up](#12-secure-and-clean-up)
+13. [Optional: cron jobs](#13-optional-cron-jobs)
+14. [Updating the app later](#14-updating-the-app-later)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Final checklist](#16-final-checklist)
+
+---
+
+## 1. What you need
+
+| Item | Requirement |
+|---|---|
+| Hosting | Hostinger shared hosting (any plan with PHP 8.1+ and MySQL) |
+| PHP | **8.1 or newer**; 8.3 recommended |
+| PHP extensions | `pdo_mysql`, `fileinfo`, `mbstring` (Hostinger enables these by default) |
+| Database | MySQL 8.x or a current MariaDB with `utf8mb4` |
+| Web server | Apache 2.4 or LiteSpeed with `.htaccess` / `mod_rewrite` (Hostinger) |
+| Domain | A domain or subdomain pointed at Hostinger |
+| Local backup | Your current database export **and** your `system/public/uploads/` folder |
+
+You will use only these Hostinger hPanel areas:
+
+- **Files → File Manager** — upload and edit files.
+- **Databases → MySQL Databases** — create the database and user.
+- **Databases → phpMyAdmin** — import the SQL.
+- **Advanced → PHP Configuration** — set the PHP version and limits.
+- **Security → SSL** — enable HTTPS.
+- **Advanced → Cron Jobs** — optional scheduled jobs.
+- **Advanced → Error Log** — read PHP errors.
+
+---
+
+## 2. What you do not need
+
+| Tool | Needed? | Why |
+|---|---|---|
+| Node.js / npm / yarn | **No** | No build step, no bundler, no `package.json`. |
+| React / Next.js | **No** | The UI is server-rendered PHP with plain JavaScript. |
+| Composer | **No** | The app uses a small custom autoloader. |
+| SSH | **No** | File Manager + phpMyAdmin cover everything. |
+| WebSocket / SSE / Redis / queue | **No** | Live updates use browser `BroadcastChannel` plus a 30-second HTTP poll. |
+| A permanent background process | **No** | Each request is ordinary PHP. |
+| A cron job for live updates | **No** | Cron is only for shop expiry, order auto-complete, the transfer-limit reset, the unilevel month close, the repeat-purchase release and the Royalty month close. |
+
+In deployment terms, the live-update feature adds two new artifacts you must not forget:
+
+- one static script, `public/assets/js/app-live.js` (loaded by the footer on every page),
+  plus the per-page hooks it calls (`admin-dashboard.js`, `admin-live.js`);
+- one small table: `live_revisions` (one row per page surface).
+
+Everything else ships as part of the application files. There is no separate service to
+install or keep alive.
+
+---
+
+## 3. Choose where the app will live
+
+The application folder is the folder that contains `app/`, `public/`, `storage/`,
+`database/` and `bin/`. In this repository that folder is `system/`.
+
+Pick **one** of these layouts. The steps below use `<app>` for the application folder
+and `<app-url>` for the browser URL. Substitute the values from your chosen row.
+
+| Layout | What you upload | Where | App URL (`<app-url>`) | `<app>` on the server |
+|---|---|---|---|---|
+| **A — recommended** | The **contents** of the project folder | `public_html/ecowealth/` | `https://example.com/ecowealth/system` | `public_html/ecowealth/system` |
+| **B — app at `/system/`** | The contents of the project folder | `public_html/` | `https://example.com/system` | `public_html/system` |
+| **C — app at the domain root** | The contents of `system/` | `public_html/` | `https://example.com` | `public_html` |
+
+Layout A keeps the local URL shape (`/ecowealth/system/`) and the landing page at
+`/ecowealth/`. Layout C gives the cleanest app-only URL but does not deploy the static
+landing page. For most users, **Layout A** is the easiest to reason about.
+
+The app detects its own base URL. Do **not** hard-code `APP_BASE_URL`.
+
+> **Do not point the domain at `<app>/app` or `<app>/storage`.** The public front door is
+> `<app>/public/`. The included `.htaccess` pair forwards requests there. If your plan lets
+> you set a custom document root (usually for a subdomain), point it at `<app>/public`
+> instead; then the `.htaccess` forwarding is not needed.
+
+---
+
+## 4. Create the database
+
+1. Sign in to Hostinger hPanel.
+2. Open **Databases → MySQL Databases**.
+3. Create a new database. Hostinger will show a name such as `u123456_ecowealth`.
+4. Create a database user, or use the user Hostinger offers. Note:
+   - **DB host** — usually `localhost` (sometimes a hostname such as `mysql.hostinger.com`).
+   - **DB name** — e.g. `u123456_ecowealth`.
+   - **DB user** — e.g. `u123456_ecowealth`.
+   - **DB password** — the one you set.
+5. Make sure the user is attached to the database with all privileges on that database.
+
+Write these four values down. You will put them in `config.local.php` in
+[Step 7](#7-create-configlocalphp).
+
+The app does not use a table prefix. Do not add one.
+
+---
+
+## 5. Import the database
+
+You have two paths. Pick the one that matches your situation.
+
+### 5A. Moving your existing site (recommended if you already have data)
+
+1. On your local machine, open phpMyAdmin (`http://localhost/phpmyadmin`).
+2. Select your local database (`ecowealth_sneat`).
+3. Choose **Export → Quick → SQL → Go** and save the `.sql` file.
+4. On Hostinger, open **Databases → phpMyAdmin**, select the new database, and choose
+   **Import**.
+5. Choose the `.sql` file and click **Import**.
+
+Your current local database already includes the `live_revisions` table, because the
+live-update migration was applied locally. It also includes your products, members,
+orders, wallets and settings.
+
+If the export contains `CREATE DATABASE` or `USE` lines and Hostinger's database has a
+different name, the import may complain. Re-export with **Custom** and uncheck
+**Add CREATE DATABASE / USE statement**, or remove those lines from the `.sql` file
+before importing.
+
+### 5B. Fresh install
+
+You have two paths on shared hosting. **A** is the phpMyAdmin import; **B** is the
+browser installer for an owner who wants to choose the staff passwords instead of using
+the published defaults. Both import the same bundle into the same empty schema.
+
+#### 5B-A. Import `install.sql` through phpMyAdmin
+
+Import **one file**, `database/install.sql`, through phpMyAdmin:
+
+1. Select the new **empty** database in phpMyAdmin.
+2. Choose **Import** → choose `<app>/database/install.sql` → select **Stop on error** →
+   **Go**.
+3. Read the output at the bottom. A correct import prints the verification pack:
+
+   | Tables | Settings | Staff | Members | Products | Packages | Levels | Contents | Codes |
+   |---:|---:|---:|---:|---:|---:|---:|---:|---:|
+   | 39 | 79 | 2 | 0 | 7 | 2 | 18 | 10 | 0 |
+
+The bundle creates the schema, the 79 settings, both staff accounts, the seven starter
+products, the two packages, the ten Team Harvest ladder rows, the ten General Harvest ladder rows
+and the unarmed General Harvest board row in one pass. It contains no
+`CREATE DATABASE` or `USE`, so it installs into whichever schema you selected.
+
+It is **fresh-install only**: a non-empty schema is refused by a guard
+(`ERROR 1146` naming `ecowealth_install_requires_an_empty_database`) before any table is
+created. If phpMyAdmin was allowed to continue after that error, drop the database and
+recreate it rather than re-running the bundle.
+
+Do **not** import `<app>/database/seeds/005_demo_tree.sql` on a production site, and never
+pass `--with-demo` / tick the demo option when the environment is production: both
+installers and the reset console refuse it. The seed creates the demo sponsor tree
+(`juan`, `maria`, `peter`, `sarah`, `david`), demo wallets and sample registration codes
+(`DEMO-*`). Import it only on a test site; the go-live checklist (§12) checks that no demo
+user or `DEMO-%` code survived.
+
+The staff accounts start with the published defaults (`admin` / `Admin@123`,
+`superadmin` / `Super@123`). Change both passwords immediately after the first sign-in
+(§12).
+
+`database/install.sql` is generated from `database/schema.sql` + seeds 001–004. When those
+sources change, rebuild it with `php bin/build_install_sql.php` (and check it with
+`--check`); never hand-edit the bundle.
+
+#### 5B-B. Install through the web installer (guided credentials, no SSH)
+
+Use this path when you want to choose the staff passwords in a browser instead of
+importing the bundle and then changing the published defaults. It imports the same
+`install.sql`, verifies the result and writes `storage/install.lock`.
+
+1. Create the **empty** database and user in hPanel (Step 4). The web installer never
+   creates a database: shared hosting usually grants `ALL` on one prefixed schema but not
+   the global `CREATE DATABASE` privilege.
+2. Upload the application **without** your local `app/config.local.php`, then create the
+   production one (Step 7) with `APP_ENV=production`, the database credentials,
+   `APP_URL`, and a new line:
+
+   ```php
+   define('INSTALL_KEY', 'paste-at-least-32-random-characters-here');
+   ```
+
+   The key must be non-empty in production; the page refuses to run without it. Keep it
+   in a password manager, not in the repository.
+3. Open `https://example.com/ecowealth/system/install.php`.
+4. Read the preflight table. Every row must pass; the form stays disabled until it does.
+   If "INSTALL_KEY" is red, the constant is missing from `config.local.php`.
+5. Enter the site name, both staff usernames/emails/passwords, the `INSTALL_KEY`, and
+   type `INSTALL`. Submit.
+6. The success page lists the created accounts (**never their passwords**), the
+   verification counts and the lock path. It does not print the key or the DSN.
+7. **Delete `public/install.php` immediately**, remove `INSTALL_KEY` from
+   `config.local.php` (or rotate it), and sign in with the admin account.
+8. Reopening the URL before deleting it shows "already installed": the lock and the
+   non-empty schema both refuse a second run.
+
+| Limit | What to do |
+|---|---|
+| `max_execution_time` below 30 s | The page asks PHP for 120 s; if the host ignores it, install through phpMyAdmin (5B-A) instead. |
+| The page says the database does not exist | Create it in hPanel first; the web installer never creates one. |
+| The page says the database is not empty | It is a fresh-install tool. Drop/recreate the schema (after a backup), or upgrade the existing database with migrations. |
+| A WAF blocks `install.php` | Use phpMyAdmin + 5B-A and delete the file. |
+| You lost the lock or need to re-install | Delete `storage/install.lock`, drop/recreate the database, then install again. Treat this as a change window. |
+
+> **Never leave `install.php` online after go-live.** It refuses a second run, but it is a
+> tool, not a page: delete it together with `reset.php` and confirm both URLs return 404
+> (§12).
+
+### 5C. If your dump is older than the live-update change
+
+Run this migration once through phpMyAdmin, after the base dump:
+
+```
+<app>/database/migrations/013_live_revisions.sql
+```
+
+You can confirm the table exists by running this in phpMyAdmin:
+
+```sql
+SHOW TABLES LIKE 'live_revisions';
+```
+
+If the table is missing, the pages still work, but the live-update client switches
+itself off and the feed returns an error. Do not skip this table.
+
+If the dump is older than Phase 14, apply **every missing migration** in
+`<app>/database/migrations/` in numeric order (for example `012_commissions.sql`,
+`013_live_revisions.sql`, `014_indirect_commissions.sql`, `015_package_b_premium_ladder.sql`,
+`016_transfers.sql`, `017_payouts.sql`, `018_impersonation.sql`, `019_audit_and_reporting.sql`,
+`020_unilevel_repeat_purchase.sql`, `021_unilevel_bonus_escrow.sql`,
+`022_shop_cancel_toggle.sql`, then `023_royalty_bonus.sql`), not just the newest one.
+
+> **Import size limit:** if phpMyAdmin says the file is too large, export as `.sql.gz`
+> (gzip) and import the `.sql.gz`, or split the dump. Hostinger's phpMyAdmin accepts
+> gzipped SQL.
+
+### Import order matters
+
+`database/install.sql` is self-contained: schema, settings, accounts, catalogue and
+packages are concatenated in dependency order, so a fresh install is one import. Existing
+databases never import the bundle — apply `database/migrations/NNN_*.sql` in numeric order
+instead (schema first in a fresh path, migrations in an upgrade).
+
+### 5D. CLI installer (only if your host gives you SSH)
+
+Most shared plans have no SSH — use 5B-A (phpMyAdmin) or 5B-B (the web installer). If yours does, `bin/db_install.php`
+imports the same bundle, replaces both seeded passwords with ones you choose, verifies the
+result and writes `storage/install.lock`:
+
+```bash
+# 1. preflight: every check, no writes, nothing created
+php bin/db_install.php --check
+
+# 2. install (the database must be empty)
+php bin/db_install.php --database=u123456_ecowealth --force \
+  --admin-user=admin --admin-email=owner@example.com --admin-password-stdin \
+  --superadmin-user=superadmin --superadmin-email=owner+super@example.com \
+  --superadmin-password-stdin --site-name="EcoWealth"
+```
+
+Each `--…-password-stdin` reads one line from standard input (admin first), so no password
+lands in the shell history. Without `--force` the command asks you to type the database
+name first; `--force` skips only that confirmation, never the preflight.
+
+| Exit | Meaning |
+|---:|---|
+| 0 | installed and verified |
+| 1 | a preflight check or the verification failed |
+| 2 | a flag or a credential is wrong (usage) |
+| 3 | refused: the schema is non-empty, an install lock exists, or the production key is missing/wrong |
+
+On a `production` site the command also requires `INSTALL_KEY` in `config.local.php` and a
+matching `--key=…` (or `ECO_INSTALL_KEY`). `--json` prints one machine-readable report
+instead of the human tables.
+
+> **After the install:** change both staff passwords, then delete `bin/db_install.php` and
+> `database/install.sql` from the server (§12). `storage/install.lock` is proof of the
+> guided install — keep it. Removing the lock is the only way to install into that tree
+> again, so treat deleting it as "wipe and re-install".
+
+---
+
+## 6. Upload the files
+
+### 6A. Prepare what to upload
+
+Upload the application, not every local folder. **Do not upload**:
+
+| Folder / file | Why |
+|---|---|
+| `.git/` | Contains repository history; never expose it. |
+| `backups/` | May contain database dumps or secrets. |
+| `dmp/` | The old reference application; not part of the production site. |
+| `system/tests/` | Developer tests; not needed on the server. |
+| `docs/` | Documentation; keep it local (optional). |
+| `system/tests/tmp/` | Test scratch files. |
+| any `*.log` | Local logs. |
+| your local `system/app/config.local.php` | Contains local database credentials; replace it with the host version. |
+
+You **do** need the hidden `.htaccess` files:
+
+- `<app>/.htaccess`
+- `<app>/public/.htaccess`
+- `<app>/public/uploads/.htaccess`
+- `<app>/storage/.htaccess`
+
+If your ZIP or FTP client hides dotfiles, the app will be missing its rewrite rules or
+its upload protection. Check after uploading.
+
+**Install/reset tool files.** A *first* install may also upload `database/install.sql` (for
+5B-A), and/or `public/install.php` (for 5B-B) with `bin/db_install.php` if you use 5D. They are
+temporary: delete them from the server after the install (§12). A site that installs through
+phpMyAdmin does not need `install.php` or `bin/db_install.php` at all. Never upload
+`public/reset.php` to a production site.
+
+### 6B. Upload with File Manager
+
+1. In hPanel, open **Files → File Manager**.
+2. Open `public_html` (or the folder for your subdomain/addon domain).
+3. Create the folder for your chosen layout:
+   - Layout A: create `public_html/ecowealth/`.
+   - Layout B: use `public_html/`.
+   - Layout C: use `public_html/`.
+4. Upload a ZIP of the chosen files.
+5. Right-click the ZIP → **Extract**.
+6. Delete the ZIP after extraction.
+7. Open **Show hidden files** in File Manager and confirm the `.htaccess` files are
+   present.
+
+**ZIP pitfall:** if your ZIP contains a top-level `ecowealth/` folder, extract it directly
+in `public_html/`. If it contains the files at the root, extract it inside
+`public_html/ecowealth/`. You want `public_html/ecowealth/index.html`, **not**
+`public_html/ecowealth/ecowealth/index.html`. For Layout C, you want
+`public_html/app/`, **not** `public_html/system/app/`.
+
+If you use FTP/FileZilla instead, enable **Force showing hidden files** before uploading.
+
+### 6C. Check the result
+
+For Layout A, the server should look like this:
+
+```
+public_html/
+└── ecowealth/
+    ├── index.html                 (landing page)
+    ├── assets/                    (landing page assets)
+    ├── .htaccess                  (marketing cache rules)
+    └── system/
+        ├── .htaccess              (forwards to public/)
+        ├── app/
+        │   ├── config.php
+        │   └── config.local.php   (you create this in Step 7)
+        ├── public/
+        │   ├── .htaccess
+        │   ├── index.php
+        │   ├── assets/
+        │   └── uploads/
+        │       ├── .htaccess
+        │       ├── products/
+        │       ├── packages/
+        │       └── proofs/
+        ├── database/
+        ├── storage/
+        └── bin/
+```
+
+For Layout C, the contents of `system/` sit directly in `public_html/`:
+
+```
+public_html/
+├── .htaccess
+├── app/
+├── public/
+├── database/
+├── storage/
+└── bin/
+```
+
+---
+
+## 7. Create `config.local.php`
+
+The file is at:
+
+```
+<app>/app/config.local.php
+```
+
+It is git-ignored, so a fresh Git clone will not contain it. If you uploaded your local
+copy, replace its contents.
+
+Create or edit the file with Hostinger's File Manager (right-click → **Edit**):
+
+```php
+<?php
+
+declare(strict_types=1);
+
+/* ---------- Production environment ---------- */
+define('APP_ENV', 'production');
+define('APP_URL', 'https://example.com');
+
+/* ---------- Hostinger database ---------- */
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'u123456_ecowealth');
+define('DB_USER', 'u123456_ecowealth');
+define('DB_PASS', 'paste-the-database-password-here');
+
+/* ---------- Optional ---------- */
+// define('DB_PORT', 3306);                 // only if Hostinger gives a non-default port
+// define('APP_TIMEZONE', 'Asia/Manila');   // change only if the business is elsewhere
+// define('DB_TIMEZONE', '+08:00');         // keep aligned with APP_TIMEZONE
+// define('CRON_KEY', 'a-long-random-string'); // only for the URL cron form
+// define('INSTALL_KEY', 'a-long-random-string'); // only for a guided installer (CLI or install.php)
+```
+
+### What each value means
+
+| Constant | What to put |
+|---|---|
+| `APP_ENV` | `production`. This hides debug detail and uses the friendly error pages. |
+| `APP_URL` | The **origin only**: `https://example.com`, not `https://example.com/ecowealth/system`. The install prefix is detected automatically. |
+| `DB_HOST` | Usually `localhost`. Use the value Hostinger shows. |
+| `DB_NAME` | The full Hostinger database name, including the `u123456_` prefix. |
+| `DB_USER` | The full database user name. |
+| `DB_PASS` | The database password. |
+| `DB_PORT` | Leave it out unless Hostinger shows a custom port. |
+| `APP_TIMEZONE` | Defaults to `Asia/Manila`. Change only if the business runs elsewhere. |
+| `DB_TIMEZONE` | Defaults to `+08:00`. Keep it aligned with `APP_TIMEZONE`. |
+| `CRON_KEY` | Optional. Required only if you use the **URL** cron form. |
+| `INSTALL_KEY` | Optional. Required only if you run a guided installer on a production site: `bin/db_install.php` (SSH) or `public/install.php` (browser, §5B-B). At least 32 random characters. Both installers refuse to run in production when it is empty, and neither ever prints, stores or returns it. |
+| `DB_RESET_ENABLED` | **Leave absent or `false`.** The reset console (`public/reset.php`) is a development/QA tool; in production it is a branded 404 unless this is explicitly `true`, and even then it requires a superadmin and the database name. If you ever enable it for an approved change window, delete `public/reset.php` and set it back to `false` immediately afterwards (§12). |
+
+> **About `DB_NAME`:** the [repository README](../system/README.md) says a local
+> `config.local.php` should not define `DB_NAME`, because the local test runner switches
+> to `ecowealth_sneat_test` when `APP_ENV=test`. On the production server you are not
+> running that test runner, so
+> defining the real Hostinger name here is the simplest option. If you ever run
+> `php tests/run.php` on the server, use a separate test configuration or the
+> `ECO_DB_NAME` environment variable instead.
+
+Do **not** define `APP_BASE_URL`; the app detects it from the request.
+Do **not** set `APP_DEBUG=true` on production. It is derived from `APP_ENV`.
+
+### Check the file permissions
+
+`config.local.php` should be readable by PHP but not writable by the world. `644` is
+normal. It lives outside `public/`, and the rewrite rules prevent it from being served.
+
+---
+
+## 8. Set the PHP version and extensions
+
+1. In hPanel, open **Advanced → PHP Configuration** (the label may be **PHP Options**).
+2. Select **PHP 8.3** (or the newest 8.1+ version available).
+3. Confirm these extensions are enabled:
+   - `pdo_mysql`
+   - `fileinfo`
+   - `mbstring`
+4. If product images or payment proofs fail to upload, raise the upload limits:
+   - `upload_max_filesize` = `10M`
+   - `post_max_size` = `12M`
+   - `memory_limit` = `256M` (128M is usually enough)
+   - `max_execution_time` = `60`
+
+The application caps uploads at 5 MB (`UPLOAD_MAX_BYTES`). The PHP limits must be larger
+than the app cap, otherwise PHP rejects the file before the app sees it.
+
+Hostinger's PHP 8.3 build normally has all three extensions. If one is missing, enable
+it in the PHP configuration or ask Hostinger support.
+
+---
+
+## 9. Set folder permissions
+
+The app needs to write runtime files in two places:
+
+| Folder | Why |
+|---|---|
+| `<app>/storage/` | Cron logs and locks. |
+| `<app>/public/uploads/` | Product/package images and payment proofs. |
+
+In Hostinger File Manager:
+
+1. Right-click `<app>/storage` → **Permissions**.
+2. Set directories to **755** (try **775** only if PHP still cannot write).
+3. Do the same for:
+   - `<app>/storage/logs`
+   - `<app>/storage/locks`
+   - `<app>/public/uploads`
+   - `<app>/public/uploads/products`
+   - `<app>/public/uploads/packages`
+   - `<app>/public/uploads/proofs`
+4. Files should normally be **644**.
+
+The upload code creates the `products`, `packages` and `proofs` subfolders if the parent
+is writable, but creating them yourself avoids surprises.
+
+**Do not use 777.** Hostinger runs PHP as your account user, so 755 is normally enough.
+
+Keep the guard files:
+
+- `<app>/public/uploads/.htaccess` — disables PHP execution in uploaded files.
+- `<app>/storage/.htaccess` — denies web access to logs and locks.
+
+If these are missing, re-upload them.
+
+---
+
+## 10. Enable SSL
+
+1. In hPanel, open **Security → SSL**.
+2. Install the free SSL certificate for your domain/subdomain.
+3. Enable **Force HTTPS**.
+4. Set `APP_URL` to the `https://` origin in `config.local.php`.
+
+HTTPS is strongly recommended:
+
+- the session cookie is marked `Secure` when the request is HTTPS;
+- browser clipboard features require a secure context;
+- live updates work on HTTP too, but HTTPS avoids mixed-content and cookie warnings.
+
+If you use Cloudflare in front of Hostinger, set the SSL mode to **Full (strict)**.
+Do not enable full-page caching for the admin pages (for example `/system/admin/*` or
+`/admin/*`) or for the live feed.
+
+---
+
+## 11. Test the deployment
+
+Open `<app-url>` in a browser. Work through this list in order.
+
+### 11.1 The page loads
+
+- [ ] The login page appears.
+- [ ] CSS and JavaScript load (the page is styled, not plain text).
+- [ ] The browser console has no red errors.
+- [ ] `https://` is active.
+
+If the page is unstyled, the app is probably at a different URL than you think, or the
+`.htaccess` files are missing. Check the browser's Network tab for 404s on
+`/assets/...`.
+
+### 11.2 Sign in
+
+Fresh install:
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `Admin@123` | admin |
+| `superadmin` | `Super@123` | superadmin |
+
+If you imported your existing database, use your existing credentials.
+
+- [ ] You reach the dashboard.
+- [ ] The sidebar shows the admin or member menu.
+- [ ] You can open **Products** (`<app-url>/admin/products`).
+
+### 11.3 Check the catalogue
+
+- [ ] The product list loads.
+- [ ] The stats cards show numbers.
+- [ ] A product's Edit page opens.
+- [ ] Uploading a product image works (no "folder not writable" error).
+- [ ] Saving the product works and the change appears in the list.
+
+### 11.4 Check live updates
+
+1. Open `<app-url>/admin/products` in **two browser tabs**.
+2. Toggle a product's status in one tab.
+3. The other tab should update within about a second, without a refresh.
+4. If you hide one tab and change the status in the other, the hidden tab should update
+   when you switch back to it.
+5. Edit a product and save. The list in the other tab should update when the save lands.
+6. Open `<app-url>/admin/orders` in two tabs and open one order in each. Upload a proof
+   as the member, then verify it in the first tab: the second order page should show the
+   new status and review pane without a refresh. Type into a note field in that second
+   tab first; the page must keep the typed value and show the "another administrator
+   updated this order" banner instead of replacing the form.
+7. Open `<app-url>/admin/wallets` in two tabs and open one member's wallet in each. Credit
+   the wallet from the first tab: the second tab's monitor and wallet page should update
+   without a refresh. Type into a ledger filter in the second tab first; its statement
+   card must keep the typed filter and show the stale banner instead of replacing it.
+8. Sign in as that member in another browser, open `<app-url>/dashboard`, then top their
+   wallet up from the admin wallet page. The member's E-wallet KPI and card should update
+   on the next poll (within 30 seconds) without a reload.
+9. Open `<app-url>/admin/members` in two tabs and suspend a member from one. The other
+   tab's row, status counters and "joined this week" badge should update. Open that
+   member's page in a second tab and top up their wallet from the monitor: the balance
+   and wallet summary should update without a reload.
+10. Open `<app-url>/admin/activations` in two tabs. Type a rejection reason in one but do
+    not submit; approve or reject a different request in the other tab. The first tab must
+    keep the typed reason and show the stale banner instead of replacing the row.
+11. Open `<app-url>/admin/codes` and `<app-url>/admin/commissions` in two tabs each. Generate
+    a code batch in one codes tab and approve an activation in a commissions tab: the other
+    tab of the same page should update without a refresh.
+12. Sign in as a pending member in two browser tabs, both on `<app-url>/membership`. Submit
+    a manual proof in one tab: the other tab should show the "activation in progress"
+    notice without a reload. Type into the registration-code field first; the typed code
+    must survive the refresh and the stale banner must explain why the forms were kept.
+13. Approve that member's activation as the administrator: the member's open `/membership`
+    tab should switch from the forms/notice to the active-associate state on its next poll.
+14. Open `<app-url>/shop` in two tabs as a member. Edit a product's price or stock in the
+    back office: the other tab's card and its "left"/"Sold out" badge should update without
+    a refresh. Place an order from a product page and check that the catalogue availability
+    drops on the other tab.
+15. Open one product in two tabs. Change the product's status to inactive: the other tab
+    should swap the card for the "no longer available" state; restore it and the card comes
+    back. Open the quick-view modal after a catalogue refresh and confirm it still opens
+    (the grid was replaced, not the modal).
+16. Sign in as a member with orders and open `<app-url>/orders` in two tabs. Pack or ship
+    one of that member's orders from the admin desk: the history row's status should update
+    without a refresh.
+17. Open one order in two tabs. Type a proof reference in one but do not submit; upload a
+    proof or cancel the order in the other tab. The first tab must keep the typed value and
+    show the stale banner. Submit a proof and check that the "Payment attempts" card appears
+    live in the other tab.
+18. Sign in as a member and open `<app-url>/wallet` in two tabs. Credit the wallet from the
+    admin monitor (or let a commission land): the three bucket cards and the statement
+    should update on the next poll without a reload. Type into a ledger filter in one tab
+    first; the statement card must keep the typed filter and show the stale banner.
+19. Open `<app-url>/earnings` in two tabs and approve an activation that pays the member:
+    the summary cards, the award count and the rows should update without a refresh. A
+    skipped award must reveal the "was skipped" notice live.
+20. Open `<app-url>/genealogy` in two tabs. Register a new member under the signed-in
+    member (or approve an activation in their downline): the "in team" badges, the
+    direct-recruit count and rows, and the team-by-level cards should update without a
+    reload. A status change in the downline should also update the row's status badge.
+21. Open `<app-url>/profile` in two tabs. Save an address in one: the other tab's address
+    book should update without a reload. Type a new full name or payout account in the
+    second tab first; the form must keep the typed value and show the stale banner
+    instead of being replaced.
+22. Open `<app-url>/checkout` and `<app-url>/profile` in two tabs. Add an address on the
+    profile tab: the checkout tab's saved-address card should appear or update without a
+    reload, while the delivery form keeps whatever was typed.
+23. Open `<app-url>/admin/packages` in two tabs and `<app-url>/packages` in a member tab.
+    Edit a package's price or toggle its status in one admin tab: the other admin tab's
+    counters and row, and the member's package card, should update without a refresh.
+24. Open `<app-url>/admin/settings` in two tabs. Change the receiving accounts in one:
+    the other tab's card should update on its next poll. Type into a different card first;
+    the typed value must survive and the stale banner must appear instead of replacing it.
+25. Open `<app-url>/checkout` in two tabs (with items in the cart). Change a quantity in
+    the cart tab: the other checkout tab's order summary should re-price without a
+    reload. Top up the wallet: the e-wallet option and balance note should update; if a
+    payment method was typed/selected first, the card is held and the banner explains why.
+26. Open `<app-url>/cart` in two tabs (with lines in the cart). Change a quantity or remove
+    a line in one tab: the other tab's table, totals and checkout button should update
+    without a reload. Type a different quantity in one tab and change the cart in the
+    other: the typed quantity must survive and the stale banner must appear. Add a product
+    from `<app-url>/shop` in a third tab and change a product's price/stock in the back
+    office: the cart tab should re-render its lines and badges, and its drawer/badge should
+    follow. Close the shop as an administrator: the closed notice should appear live.
+27. Open `<app-url>/dashboard` in two tabs as a member. Top up the wallet, place an order
+    for that member, or approve their activation: the header status pill, KPI row, E-wallet
+    card, membership card, recent-orders card and earnings card should update without a
+    refresh, while the greeting and the referral card (with its copy button) stay
+    untouched. Register a new member under them: the team/earnings figures should move on
+    the next poll.
+28. Open `<app-url>/checkout` with a repeat-purchase product in the cart, then open
+    `<app-url>/admin/settings#settings-commissions` in another tab and toggle
+    **Repeat-purchase bonus enabled** (save the card). Switch back to the checkout tab:
+    the "up to … is paid to the members above you" preview must disappear, and return
+    when the switch is saved on again, without a reload. If the browser did not receive
+    the tab-to-tab signal, wait for the 30-second poll.
+
+If the page works but live updates do not:
+
+- Check that `live_revisions` exists (Step 5C).
+- In the browser Network tab, the feed request should return JSON with `"ok":true`.
+- Check the browser console for errors.
+- Make sure the admin pages are not being cached by LiteSpeed/Cloudflare.
+- The 30-second fallback poll means a change can take up to 30 seconds if the browser
+  did not receive the tab-to-tab signal.
+
+### 11.5 Check the server log
+
+Open **Advanced → Error Log** in hPanel. Fix any repeated PHP warnings/errors before
+go-live. A one-off warning during the first request is still worth reading.
+
+### 11.6 Check the database
+
+Open phpMyAdmin → select the database → **SQL** and run the verification pack from
+`dmp/plan-ecowealth-install-reset.md` Appendix E, or at least these queries:
+
+```sql
+-- 1. 39 tables and 79 settings on a fresh production install
+SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
+       (SELECT COUNT(*) FROM settings)                                                 AS settings_rows,
+       (SELECT COUNT(*) FROM users WHERE role IN ('admin','superadmin'))               AS staff_rows,
+       (SELECT COUNT(*) FROM users WHERE role = 'member')                              AS members_rows,
+       (SELECT COUNT(*) FROM products)                                                 AS products_rows,
+       (SELECT COUNT(*) FROM packages)                                                 AS packages_rows,
+       (SELECT COUNT(*) FROM package_levels)                                           AS levels_rows,
+       (SELECT COUNT(*) FROM package_products)                                         AS contents_rows,
+       (SELECT COUNT(*) FROM reg_codes)                                                AS codes_rows;
+
+-- 2. No demo leakage: both must be 0
+SELECT COUNT(*) AS demo_users FROM users
+ WHERE username IN ('juan','maria','peter','sarah','david');
+SELECT COUNT(*) AS demo_codes FROM reg_codes WHERE code LIKE 'DEMO-%';
+
+-- 3. Install/reset metadata and the live surfaces
+SELECT key_name, value FROM settings
+ WHERE key_name IN ('install_version','install_channel','install_completed_at',
+                    'last_reset_at','last_reset_by')
+ ORDER BY key_name;
+SELECT COUNT(*) AS surfaces FROM live_revisions;
+SHOW TABLES LIKE 'live_revisions';
+
+-- 4. The two Harvest ladders and the unarmed General Harvest board
+SELECT COUNT(*), SUM(amount) FROM team_harvest_levels;      -- 10, 5095000.00
+SELECT COUNT(*), SUM(amount) FROM general_harvest_levels;   -- 10, 8381000.00
+SELECT * FROM general_harvest_board;                        -- 1, NULL, NULL, NULL, 0
+```
+
+A fresh production install prints **39 / 79 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `live_revisions`
+is empty after a static `install.sql` import; it may hold a row for `admin.products` after the
+first product change, and a reset leaves 18 standard surfaces. Record the output with the
+go-live evidence (§12).
+
+---
+
+## 12. Secure and clean up
+
+The example URLs below use Layout A (`/ecowealth/system/`). Adjust the path if you chose
+another layout.
+
+Before calling the site live:
+
+- [ ] Delete `public/install.php`; confirm `https://example.com/ecowealth/system/install.php`
+      returns 404 (not the installer page).
+- [ ] Delete `public/reset.php`; confirm `https://example.com/ecowealth/system/reset.php`
+      returns 404 (the branded page, not the console). A production site keeps
+      `DB_RESET_ENABLED` absent or `false`, so even a forgotten file answers 404; deletion is
+      the second lock. If the console was enabled for a change window, set the constant back to
+      `false` in the same step.
+- [ ] Delete `database/install.sql` from the server (and `bin/db_install.php` if it was
+      uploaded); a static import needs neither at runtime.
+- [ ] Confirm `storage/install.lock` exists when a guided installer (CLI or web) was used and
+      cannot be read over the web (`https://example.com/ecowealth/system/storage/install.lock`
+      must be 403/404). A **static** `install.sql` import has no lock file — that is expected:
+      the populated schema and the deleted tools are the guard. Then remove `INSTALL_KEY` from
+      `config.local.php` (or rotate it).
+- [ ] Confirm `DB_RESET_ENABLED` is absent or `false` in `config.local.php`.
+- [ ] Change the `admin` password. Use **Profile → Change password**.
+- [ ] Sign in as `superadmin` and change that password too. Neither password may still be a
+      documented default (`Admin@123`, `Super@123`): a fresh `install.sql` import seeds both,
+      so this step is mandatory on that path.
+- [ ] Confirm no demo data leaked into production:
+      `SELECT COUNT(*) FROM users WHERE username IN ('juan','maria','peter','sarah','david');`
+      and `SELECT COUNT(*) FROM reg_codes WHERE code LIKE 'DEMO-%';` must both return `0`.
+- [ ] Run the verification pack (§11.6) and file its output: 39 tables, 79 settings, 2 staff,
+      0 members, 7 products, 2 packages, 18 levels, 10 contents, 10 Team Harvest ladder rows,
+      10 General Harvest ladder rows, 1 unarmed General Harvest board row, 0 codes.
+- [ ] Replace demo products/packages with real catalogue data.
+- [ ] Keep `APP_ENV=production` and do not enable `APP_DEBUG`.
+- [ ] Remove `system/tests/`, `docs/`, `dmp/` and `backups/` from the server if they
+      were uploaded by mistake.
+- [ ] Confirm `config.local.php` is not web-accessible (`https://example.com/ecowealth/system/app/config.local.php`
+      should be a 404, not the file contents).
+- [ ] Confirm `https://example.com/ecowealth/system/storage/logs/` is denied.
+- [ ] Confirm `https://example.com/ecowealth/system/public/uploads/` does not execute PHP.
+- [ ] Export a database backup and download a copy of `public/uploads/` **after** the checklist.
+- [ ] Re-run `php bin/wallet_reconcile.php` if the host gives you SSH; exit `0`.
+- [ ] If you use the URL cron form, set a long random `CRON_KEY`.
+
+### Remove the demo data
+
+If demo fixtures were installed for testing (`--with-demo`, the installer checkbox, a reset
+with `--demo`, or a manual `005_demo_tree.sql` import), do not leave the demo accounts and
+wallets on the production site. A reset **without** `--demo` clears them together with
+every other member row; the alternative is to rebuild the database from `schema.sql` +
+seeds **without** `005_demo_tree.sql`, then import only the real data. Deleting demo rows by
+hand is possible but easy to get wrong because of foreign keys.
+
+---
+
+## 13. Optional: cron jobs
+
+**Live updates do not need cron.** Skip this section if you only care about the live
+product list.
+
+The scheduled jobs are for:
+
+- shop payment expiry (`bin/shop_expire.php`);
+- order auto-complete (`bin/order_autocomplete.php`);
+- transfer-limit reset (`bin/reset_transfer_limits.php`) — once a day, just after midnight;
+- unilevel month close (`bin/unilevel_month_close.php`) — **00:15 on the first of the month**; it
+  snapshots the previous month for the repeat-purchase Active rule and pays no money;
+- repeat-purchase release (`bin/unilevel_release.php`) — **hourly at :20**; it credits due `pending`
+  repeat-purchase awards to the uplines' withdrawable wallets after delivery + the hold window;
+- Royalty month close (`bin/royalty_month_close.php`) — **00:30 on the first of the month**; it
+  evaluates the completed month and pays the rank-gated Royalty bonus to the withdrawable wallets;
+- optionally `bin/wallet_reconcile.php` for a manual reconciliation audit.
+
+The full guide, access rules, logs and troubleshooting are in [cron.md](cron.md).
+
+Hostinger gives you two ways to run them. The examples below use Layout A
+(`/ecowealth/system/`); substitute your own `<app>` path and `<app-url>`.
+
+### 13A. CLI cron (recommended)
+
+In hPanel → **Advanced → Cron Jobs**, create a job with a command like:
+
+```cron
+15,45 * * * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/shop_expire.php --limit=200 >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+```
+
+The two monthly jobs go in as their own entries; the 15-minute gap is operational tidiness (the two
+closes are independent, but the log files read in order):
+
+```cron
+15 0 1 * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/unilevel_month_close.php >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+30 0 1 * * /usr/bin/php /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/bin/royalty_month_close.php --max-batches=20 >> /home/uXXXXXX/domains/example.com/public_html/ecowealth/system/storage/logs/cron.out 2>&1
+```
+
+`--max-batches=20` bounds the Royalty run's wall time; a month that needs more is left `evaluated` and
+the next monthly run finishes it. Before the first 1st, run
+`php <app>/bin/royalty_month_close.php --doctor`; it must be green. Then **enable Royalty at a month
+boundary**: with `royalty_enabled = 0` the job still runs and records a **skipped** month, which can
+never be paid later. To make the month that just ended the first paid month, switch it on **before** the
+00:30 close on the 1st; to make the new month the first, wait until after that close. See
+[cron.md](cron.md) §7 and `docs/runbook.md` §2.
+
+Adapt the absolute path to your `<app>` folder. Hostinger's hPanel may offer a PHP
+binary picker; choose the PHP 8.3 binary if so.
+
+### 13B. URL cron (no SSH)
+
+1. Add a long random key to `<app>/app/config.local.php`:
+
+   ```php
+   define('CRON_KEY', 'a-long-random-string');
+   ```
+
+2. Create the cron job with a URL:
+
+   ```cron
+   15,45 * * * * curl -s "https://example.com/ecowealth/system/cron/shop_expire.php?key=a-long-random-string" > /dev/null
+   ```
+
+3. Open the same URL in a browser with `?doctor=1` first. The doctor output tells you
+   whether the database, time zone, log folder and lock are healthy.
+
+The URL form puts the key in the access log. Prefer the CLI form if your plan provides
+it.
+
+### Cron folder permissions
+
+The cron writes to `<app>/storage/logs/` and `<app>/storage/locks/`. If the **lock** folder is not
+writable the job cannot run and exits with an error; if only the **log** folder is not writable the run
+continues and warns through PHP's error log (stderr on the CLI), so the money is never blocked by a log
+problem. See [Step 9](#9-set-folder-permissions).
+
+---
+
+## 14. Updating the app later
+
+Before any update:
+
+1. Export the database.
+2. Download `<app>/public/uploads/` (product images and proofs).
+3. Keep a copy of `<app>/app/config.local.php` somewhere safe.
+
+Then:
+
+1. Upload the changed application files.
+2. **Do not overwrite** `config.local.php` or `public/uploads/`.
+3. Apply any new migration files in `<app>/database/migrations/` in numeric order,
+   through phpMyAdmin.
+4. If a new phase adds a new table, confirm it with `SHOW TABLES`.
+5. Clear Hostinger/LiteSpeed cache and, if available, PHP OPcache.
+6. Re-test login, the product list, an image upload and the two-tab live update.
+7. Check the error log.
+
+The repository's [phase log](phase-log.md) records migrations and behavior changes. The
+[live-updates guide](live-updates.md) explains how to add live regions to future pages.
+
+---
+
+## 15. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| 500 error on every page | PHP < 8.1, missing extension, `.htaccess` ignored, bad DB credentials | Set PHP 8.3; enable `pdo_mysql`/`fileinfo`/`mbstring`; check the error log; test `config.local.php`. |
+| 404 on `/admin/products` or other clean URLs | `.htaccess` missing or `mod_rewrite` off | Re-upload the `.htaccess` files; enable hidden files in File Manager/FTP; Hostinger LiteSpeed should honor them. |
+| Page loads but CSS/JS are missing | Wrong install folder, wrong URL, missing rewrite | Check `<app-url>` includes the right subfolder; open `<app-url>/assets/css/app.css` directly; confirm `.htaccess`. |
+| "Database connection failed" | Wrong host/name/user/password, user not attached to DB | Copy the values from hPanel exactly; Hostinger usually uses `localhost`; make sure the user has privileges on the DB. |
+| Login fails or "user not found" | Accounts seed not imported, or wrong database | Import `002_accounts.sql`; confirm the `users` table has rows; clear cookies. |
+| "The upload folder is not writable" | `public/uploads/` permissions | Set `public/uploads` and its subfolders to 755/775; create `products`, `packages`, `proofs`; keep the `.htaccess`. |
+| "The file is too large" | PHP `upload_max_filesize`/`post_max_size` too low | Set 10M/12M in PHP Configuration; the app cap is 5 MB. |
+| Live updates do not happen | Missing `live_revisions`, feed returns HTML/404, page cache, browser console error | Run migration 013; check the Network request for `X-Live: 1` returns JSON; exclude admin pages from cache; wait 30s for the fallback poll. |
+| Feed returns 500 | `live_revisions` missing or DB error | Check the error log; run `SHOW TABLES LIKE 'live_revisions'`; import `013_live_revisions.sql`. |
+| Live updates work in one tab but not another | The other tab is hidden | Switch to it; it refreshes once on visibility. |
+| Cron returns 403 | URL cron has no/wrong `CRON_KEY`, or the caller is not loopback | Use the CLI cron, or add `?key=...` matching `CRON_KEY`. |
+| Cron says storage not writable | `storage/logs` or `storage/locks` permissions | Set them to 755/775. |
+| Site shows a blank page | PHP fatal, debug off | Check **Advanced → Error Log**; temporarily set `APP_DEBUG=true` **only** while debugging, then set it back. |
+| 403 Forbidden for the whole site | A deny rule from a misplaced `.htaccess` | Check that `storage/.htaccess` is not in `public_html`; keep each `.htaccess` in its own folder. |
+| "Session expired" repeatedly | HTTPS/HTTP mismatch, `APP_URL` wrong, cookie blocked | Use HTTPS everywhere; set `APP_URL` to the `https://` origin; clear cookies. |
+| phpMyAdmin import fails | File too large or contains `CREATE DATABASE`/`USE` | Import a `.sql.gz`, or remove the `CREATE DATABASE`/`USE` lines and select the target DB first. |
+
+### Where to find errors
+
+- **Hostinger hPanel → Advanced → Error Log** — PHP errors.
+- **File Manager → `error_log`** — sometimes a per-folder log.
+- **Browser DevTools → Console/Network** — JavaScript, missing assets, the live feed.
+- **`<app>/storage/logs/`** — cron job logs, not web errors.
+
+---
+
+## 16. Final checklist
+
+- [ ] Database created; user attached; credentials recorded.
+- [ ] Database imported (existing dump, or `database/install.sql` for a fresh install).
+- [ ] `live_revisions` table exists.
+- [ ] Application uploaded to the chosen layout.
+- [ ] The required `.htaccess` files are present.
+- [ ] `config.local.php` created with Hostinger DB credentials and `APP_ENV=production`.
+- [ ] `APP_URL` set to the HTTPS origin.
+- [ ] PHP 8.3 selected; `pdo_mysql`, `fileinfo`, `mbstring` enabled.
+- [ ] `storage/` and `public/uploads/` writable.
+- [ ] SSL installed and HTTPS forced.
+- [ ] Login works; admin dashboard opens.
+- [ ] Product list opens; image upload and save work.
+- [ ] Two-tab live update works.
+- [ ] Default passwords changed; no demo users (`juan`, `maria`, `peter`, `sarah`, `david`)
+      and no `DEMO-%` codes (the two queries in §12 return `0`).
+- [ ] `public/install.php` and `public/reset.php` deleted; both tool URLs return 404, and
+      `database/install.sql` removed from the server.
+- [ ] `INSTALL_KEY` removed from `config.local.php`; `storage/install.lock` present when a
+      guided installer was used (absent for a static import).
+- [ ] `DB_RESET_ENABLED` absent or `false`.
+- [ ] Verification pack (§11.6) run and filed: 33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0.
+- [ ] Database and uploads backed up **after** the checklist.
+- [ ] Error log reviewed.
+- [ ] Optional cron jobs created and tested with `--doctor`; `wallet_reconcile.php` exits 0.
+
+---
+
+## Appendix A — Path reference
+
+Replace `<app>` with the folder from [Step 3](#3-choose-where-the-app-will-live).
+
+| What | Path / URL |
+|---|---|
+| App folder | `<app>` (contains `app/`, `public/`, `storage/`) |
+| Config | `<app>/app/config.local.php` |
+| Schema | `<app>/database/schema.sql` |
+| Install bundle | `<app>/database/install.sql` (generated; delete after a production install) |
+| Seeds | `<app>/database/seeds/` |
+| Migrations | `<app>/database/migrations/` |
+| CLI installer / reset | `<app>/bin/db_install.php`, `<app>/bin/db_reset.php` (delete after go-live) |
+| Web installer / reset console | `<app>/public/install.php`, `<app>/public/reset.php` (delete after go-live) |
+| Install lock | `<app>/storage/install.lock` (guided installs; never web-readable) |
+| Cron scripts | `<app>/bin/` |
+| Runtime storage | `<app>/storage/` |
+| Uploads | `<app>/public/uploads/` |
+| Public front door | `<app>/public/index.php` |
+| App URL | `<app-url>` |
+| Login URL | `<app-url>/login` |
+| Products URL | `<app-url>/admin/products` |
+| Live feed | Same as the page URL, requested with `X-Live: 1` |
+
+## Appendix B — Quick reference: what not to upload
+
+| Path | Reason |
+|---|---|
+| `.git/` | Repository history and secrets. |
+| `backups/` | Database dumps and local backups. |
+| `dmp/` | The old reference application. |
+| `system/tests/` | Developer tests; not needed in production. |
+| `docs/` | Documentation; optional and better kept local. |
+| local `system/app/config.local.php` | Local DB credentials; replace with the host version. |
+| `*.log`, `system/storage/logs/*` | Local runtime logs. |
+| `system/tests/tmp/` | Test scratch files. |
+
+## Appendix C — Document status
+
+| Date | Change |
+|---|---|
+| 2026-11-07 | Initial preliminary guide for the Phase 10 build plus live updates. |
+| 2026-11-08 | Phase 11: add migration 014 and note the indirect-commission settings. |
+| 2026-11-11 | Phases 12–15: migrations 015–019, transfer/payout settings, S-Login, and the Phase 15 hardening/reports addendum below. |
+| 2026-11-12 | Install/reset workstream (IR-1 … IR-8): §5B becomes the one-file `install.sql` bundle plus the key-gated web installer and the optional CLI installer; §6 lists the temporary tool files; §7 documents `INSTALL_KEY` and `DB_RESET_ENABLED`; §11.6 is the verification pack; §12/§16 add tool deletion, lock, key, demo, default-password and verification checks. |
+| 2026-11-12 | Phase 17 (17A → 17G): migration 020 and the six repeat-purchase settings (§Phase 17 addendum), the money engine and the admin surfaces (§Phase 17C/17D addendum), the member surfaces and the fourth cron job (§Phase 17E/17F/17G addendum); §5B and §16 now read 31 tables / 54 settings, §13 names the four jobs, and `APP_PHASE` is 17. |
+| 2026-11-14 | Live update: the checkout page follows the shared `config` revision, so saving **Repeat-purchase bonus enabled** on `/admin/settings` removes or restores the preview line on an open checkout without a reload; §11.4 adds check 28. |
+| 2026-11-14 | Phase 18 (post-17 point release): migration `021` (the escrow columns, the `pending`/`cancelled` states, two indexes and the two settings), the fifth cron job (`bin/unilevel_release.php`), and the §Phase 18 addendum; §5B and §12 now read **31 tables / 56 settings**, §13 names **five** jobs, and `APP_PHASE` stays **17**. |
+| 2026-11-14 | Order-cancellation kill switch: migration `022` adds `shop_cancel_enabled`, **off by default**, exposed as **Settings → Shop → Enable Cancel of Order**. While it is off, no member or administrator can cancel an order, so no wallet refund and no repeat-purchase escrow reversal runs; automatic expiry keeps its own switch. §5B and §12 now read **31 tables / 57 settings**. |
+| 2026-11-15 | Phase 19A (Royalty foundation): migration `023` adds the two Royalty money tables (`royalty_periods`, `royalty_awards`), the `royalty` wallet movement and the sixteen settings, with the stream **off** by default. §5B and §12 now read **33 tables / 73 settings**. |
+| 2026-11-15 | Phase 19F (Royalty operations): the sixth cron job (`bin/royalty_month_close.php` at 00:30 on the 1st, `--max-batches=20`), its URL entry, its Windows launcher, the `--doctor` report and the operations panel on the Royalty tab. §13 names the two monthly entries and the enable-at-a-month-boundary rule; no schema change. |
+| 2026-11-15 | Phase 19G (Royalty release): `APP_PHASE` **19**; the Phase 19 addendum at the end of this guide is complete (migration `023`, the counts **33 / 73 / six / 19**, the cron entries, the enablement steps and the verification pack); the document-status header is current. No schema change. |
+| 2026-11-15 | Phase 20A/20B (Team Harvest foundation and configuration): migration `024` adds `harvest_queue`, `team_harvest_levels`, `team_harvest_awards`, the `team_harvest` wallet movement and four settings (stream **off**, queue unseeded); §5B and §12 now read **36 tables / 77 settings**, and the ten ladder amounts are table rows. No route, no cron entry. |
+| 2026-11-16 | Phase 20C/20D/20E (the queue, the money engine and the admin visibility): the registration hook, the one-time seed, the on-demand catch-up/doctor, the fourth commissions tab, the member panel, the reports block and the dashboard KPI; the two jobs are **not** cron entries. No schema change. |
+| 2026-11-16 | Phase 20F/20G (the member visibility and the release): the fourth `/earnings` tab, the dashboard tile and the genealogy badge; `APP_PHASE` **20**; the QA pack is signed (A–G, 58 checks) and the smoke walk is **263** checks. Counts **36 / 77 / 10 / 20**. No schema change. |
+| 2026-11-16 | Phase 21A (General Harvest foundation): migration `025` adds `general_harvest_levels`, `general_harvest_board`, `general_harvest_awards`, the `general_harvest` wallet movement, two settings (stream **off**) and the ten ladder rows plus the unarmed board row; §5B and §11.6 now read **39 tables / 79 settings**. No route, no cron entry. |
+| 2026-11-16 | Phase 21B (General Harvest configuration and arithmetic): the *General Harvest bonus* sub-block on `/admin/settings` → Commissions, the generated ladder and position tables, the four-state strip, the calculator, the two models (`GeneralHarvestLevel`, `GeneralHarvestBoard`) and the `general_harvest.ladder.update` audit row. No schema change, no route, no cron entry. |
+| 2026-11-16 | Phase 21C (General Harvest baseline): the CLI-only one-time arm (`bin/general_harvest_arm.php` + `.cmd`), `GeneralHarvestAward` (read + baseline write), `GeneralHarvestService` / `GeneralHarvestException`, the `general_harvest.arm` audit row, the board armed at `N₀` (`baseline_n = settled_n = N₀`) and one `baseline` row per block already full, at all ten levels. **No money moves**, no schema change, no route, no cron entry. |
+| 2026-11-18 | Phase 22B (Product binary configuration and readiness): the **Product binary** sub-block on `/admin/settings` → Commissions (nine keys, four toggles, master off), the product edit card (`binary_enabled`, the P.V.-to-points readout, the `Binary N pts` badge, the `?binary=on|off` filter), the read-only **Product binary readiness** panel, and the `binary`/`binary_reversal` wallet filter entries already present from 22A. Migration 026 (22A) already shipped the schema; 22B adds **no schema, no route, no money**. Counts **42 tables / 89 settings**. |
+
+---
+
+## Phase 15 addendum — hardening, reports and the audit desk
+
+The launch build adds **no new hosting requirement**. Everything below is PHP, an index or a page.
+
+### Migration 019
+
+Apply `database/migrations/019_audit_and_reporting.sql` after `018`. It adds the report indexes
+(`shop_orders.paid_at`, `audit_log.action`, `commissions.level`, …) and re-creates `audit_log` if a
+very old install skipped it. Applying it twice is a no-op; every `ALTER` is guarded by an
+`information_schema` lookup.
+
+### Security headers
+
+Every PHP response now carries the shared headers from `app/Core/SecurityHeaders.php` (sent from the
+bootstrap): `X-Content-Type-Options`, `X-Frame-Options: DENY`, a CSP with `frame-ancestors 'none'`,
+`Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `X-Robots-Tag` and, only over
+TLS, HSTS. An Apache front end must not strip them; a proxy that rewrites headers should preserve
+them.
+
+A strict content policy is deliberately not used: the EcoWealth layout ships inline theme and page
+scripts, so a nonce-based policy is a later frontend task (documented in the class).
+
+### Uploads and errors
+
+- `public/uploads/.htaccess` denies every script extension and switches the PHP engine off. Verify
+  after deployment: a `.php` file placed under `uploads/proofs/` must answer **403**.
+- In production (`APP_DEBUG` off) PHP error display is forced off by the bootstrap; error pages stay
+  branded and never show a trace. `error_log` keeps the detail.
+- `.gitignore` keeps `config.local.php`, `backups/`, uploads, logs and locks out of the repository.
+
+### New pages to smoke-test after an upgrade
+
+| Page | Expect |
+|---|---|
+| `/admin/reports` | every report + the **Finance health** card; CSV export menu |
+| `/admin/reports/export?type=sales` | `text/csv` download |
+| `/admin/audit` | the append-only audit list with filters |
+| `/admin/settings` | eight independently saving cards (General, Shop, Accounts, Payouts, Windows, Fulfilment, Commissions, Transfers); the Commissions card carries the **General Harvest bonus** sub-block |
+
+### Cron
+
+The six jobs and their Windows Task Scheduler registration are documented in
+[`cron.md`](cron.md) (§1–§4, §6 and §7; the Task Scheduler block is §5). Register them once on the host;
+a missed run only ever makes a limit stricter, never wider.
+
+### Backups
+
+A real backup → restore drill was executed for the launch gate; the commands and the recorded result
+are in [`runbook.md` §3](runbook.md). Take a dump before applying `022` and before any later
+migration.
+
+### Go-live
+
+Use the checklist in [`runbook.md` §7](runbook.md); it extends this guide's §16 with the health,
+headers, uploads, cron and restore checks.
+
+
+When a later phase adds a migration, a cron job or a new hosting requirement, update
+[Step 5](#5-import-the-database), [Step 8](#8-set-the-php-version-and-extensions),
+[Step 13](#13-optional-cron-jobs) and the checklist above.
+
+---
+
+## Phase 17 addendum — the repeat-purchase bonus settings
+
+Migration `020_unilevel_repeat_purchase.sql` (Phase 17A) adds four tables, four columns, two indexes,
+ten `ewallet_ledger.ref_type` values in total and **six settings**. Phase 17B makes **five** of them
+editable on `/admin/settings` → **Commissions** → *Repeat-purchase bonus*:
+
+| Key | Default | Shown as |
+|---|---|---|
+| `unilevel_enabled` | `0` | **Repeat-purchase bonus enabled** — the global master switch |
+| `unilevel_max_levels` | `10` | **Upline depth** (1–10) |
+| `unilevel_requires_active_upline` | `1` | **Require the monthly Active rule** |
+| `unilevel_active_threshold` | `500` | **Monthly personal-purchase minimum** (₱) |
+| `unilevel_reversal_enabled` | `1` | **Reverse awards when a paid order is cancelled** |
+
+The sixth key, `unilevel_ledger_since`, is a reconciliation baseline written by the migration and is
+never rendered or editable.
+
+> **Phase 18 adds two more repeat-purchase keys** (`unilevel_hold_days`, `unilevel_release_enabled`), so
+> the current build has **eight** `unilevel%` settings and seven editable controls. See the
+> [Phase 18 addendum](#phase-18-addendum--repeat-purchase-bonus-escrow-post-17-point-release).
+
+The **per-product** half is configured on the product form: **Point value (P.V.)** in *Pricing &
+stock*, then the *Unilevel repeat-purchase bonus* card (bonus base, ten rates, the per-product switch).
+A new product is pre-filled with the reference ladder 5/5/5/3/3/2/2/2/1/1 but its switch is **off**;
+a product that existed before the migration reads 0% everywhere. Nothing is enabled by default and
+**no money moves until Phase 17C** ships the engine: a paid order still writes no award row and no
+`ref_type = 'unilevel'` ledger row.
+
+Upgrade checklist additions:
+
+- [ ] Apply migration `020` (it is additive and re-runnable), or import the regenerated
+      `install.sql` on an empty schema.
+- [ ] Confirm the six keys: `SELECT key_name, value FROM settings WHERE key_name LIKE 'unilevel%';`
+      — six rows, `unilevel_enabled = 0`.
+- [ ] Open a product's edit page and confirm the *Unilevel repeat-purchase bonus* card renders and
+      saves (P.V., base, ten rates). Nothing is paid, whatever is configured.
+- [ ] Leave `unilevel_enabled` at `0` until operations deliberately enables the stream. The operating procedure is `docs/runbook.md` §4 (weekly checks, reading the ledger, a failed reconcile, reversing a payout) and the monthly snapshot is `docs/cron.md` §4.
+
+---
+
+## Phase 17C/17D addendum — the money engine and the admin visibility
+
+**No new hosting requirement and no schema change.** The upgrade above is the only database work;
+17C and 17D are PHP and pages.
+
+Phase 17C ships the engine: a paid order (e-wallet checkout or a verified manual payment) pays the
+product ladder to the buyer's sponsor chain once, writes one `unilevel` wallet credit per award, and
+best-effort reverses them when an administrator cancels the order (`unilevel_reversal`). The wallet
+statements show both movement kinds, and `bin/wallet_reconcile.php` gains a **Repeat-purchase**
+section whose failure changes the exit code — keep it in the daily check.
+
+Phase 17D is read-only and needs no configuration:
+
+| Surface | What it shows |
+|---|---|
+| `/admin/commissions?ledger=repeat` | every repeat-purchase award: filters, six counters, the closed-month history, CSV export |
+| `/admin/orders/{id}` | the order's repeat-purchase card: awards, statuses, shortfall, and the three "no bonus" explanations |
+| `/admin/reports` | four cards (window summary, by level, by product, closed months) and a `type=unilevel` CSV |
+| `/dashboard` | a **Repeat bonus (30 d)** KPI |
+
+New **audit actions** to recognise on `/admin/audit` (in addition to the Phase 17B
+`product.unilevel.update`):
+
+| Action | Written by |
+|---|---|
+| `unilevel.export` | the repeat-purchase CSV download, with the filters and row count in its meta |
+| `report.export` (with `type = unilevel`) | the reports-desk range export |
+
+Award reversals are recorded on the order's own audit/timeline through `order.cancel`; the award rows
+themselves keep their history and only the reversal columns change. Phase 17D offers no button that
+writes an award, a wallet row or a period — the ledger is an audit surface.
+
+Post-upgrade smoke check:
+
+- [ ] Sign in as an admin and open `/admin/commissions?ledger=repeat` — the page renders with **zero**
+      rows and names the two switches in its empty state.
+- [ ] Open any paid order: the repeat-purchase card appears under the payment panel.
+- [ ] Open `/admin/reports` — the four repeat cards render; the export menu offers
+      **Repeat-purchase bonus**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 and reports the **Repeat-purchase** section.
+- [ ] `unilevel_enabled` stays `0` until operations signs the stream off/on deliberately.
+
+---
+
+## Phase 17E/17F/17G addendum — the member surfaces, the month close and the release
+
+**No new hosting requirement and no schema change.** The database work is migration `020` (the Phase 17
+addendum above); 17E is PHP and templates, 17F is three files on the existing cron plumbing, and 17G is
+the build constant plus the documentation.
+
+### The member surfaces (17E)
+
+Read-only and scoped to the session member; nothing here can pay, claim or change a bonus.
+
+| Surface | What a member sees |
+|---|---|
+| `/shop/{id}` | the ten-level *Repeat-purchase bonus* panel in the Team chain voice: the per-unit level incomes on the product's bonus base, the **Up to 29%** total, the monthly minimum and the sentence that the member's own purchase does not pay them |
+| `/shop` | the **Up to 29% repeat bonus** badge on a configured card |
+| `/checkout` | one preview line: "up to ₱X is paid to the members above you when this order is paid", then the Team chain pivot |
+| `/orders/{id}` | the order's total paid to the members above — never which member received what |
+| `/earnings?ledger=repeat` | the member's own awards, the Team chain by level (1–10), the two-clock Active panel, filters and a 13-column CSV |
+| `/dashboard` · `/membership` | the repeat-purchase tile and the one-sentence Active paragraph, both in the Team chain voice |
+
+The panel, the badge and the preview disappear while the global master or the product's ladder is off;
+the earnings tab stays reachable because a disabled stream can still have history. The package earnings
+tab is unchanged.
+
+### The month close (17F)
+
+A fourth cron job, `bin/unilevel_month_close.php` (`00:15` on the first, Asia/Manila), with the same
+guarded URL (`/system/cron/unilevel_month_close.php`) and Windows launcher
+(`bin/unilevel_month_close.cmd`) as the other three. It snapshots the previous calendar month for the
+Active rule and **pays no money**, so it has no kill switch: periods must close even while
+`unilevel_enabled = 0`.
+
+```bash
+php bin/unilevel_month_close.php --doctor     # both clocks, threshold, closed/pending months, lock, log
+php bin/unilevel_month_close.php --dry-run    # what would close; writes nothing
+php bin/unilevel_month_close.php              # close every pending month, oldest first
+php bin/unilevel_month_close.php --period=2026-10 --json
+```
+
+A closed period is immutable (there is no reopen); a future or current month is refused; a second run
+is `closed=0`; the log is `storage/logs/unilevel_month_close-YYYY-MM.log`, one line per run. Full flags,
+access rules and failure modes: [`cron.md` §4](cron.md).
+
+Upgrade checks:
+
+- [ ] Register the fourth cron entry (or the `.cmd` Task Scheduler line) from [`cron.md` §4](cron.md).
+- [ ] `php bin/unilevel_month_close.php --doctor` — `clocks agree`, threshold ₱500, the expected
+      closed/pending list, a free lock and a writable log; exit 0.
+- [ ] `php bin/unilevel_month_close.php --dry-run` — the months it would close, and no new row in
+      `unilevel_periods` / `unilevel_activity`.
+- [ ] A member's `/earnings?ledger=repeat` and a configured product's panel render; with
+      `unilevel_enabled = 0` the panel, badge and checkout line are gone.
+- [ ] `php bin/wallet_reconcile.php` exits 0 and reports the **Repeat-purchase** section.
+
+### The release (17G)
+
+`APP_PHASE` is **17** in `app/config.php` (D-15) and `HardeningTest` asserts it; the build reports
+`phase 17` in the suite header. The release re-runs every gate:
+
+```bash
+php tests/run.php                          # 948 cases, 0 failed, exit 0
+php bin/build_install_sql.php --check      # exit 0: the bundle matches its sources
+php bin/wallet_reconcile.php               # exit 0, five sections
+powershell -NoProfile -File tests/smoke.ps1  # 225 checks, 0 failed
+```
+
+After the upgrade the install verification pack (§11.6) read **31 / 54 / 2 / 0 / 7 / 2 / 18 / 10 / 0**
+at that release (it reads **31 / 56** from migration `021` on; see the Phase 18 addendum below), and the
+QA pack is finalised at 57 checks in
+[`qa/phase-17-unilevel-repeat-purchase.md`](qa/phase-17-unilevel-repeat-purchase.md).
+
+---
+
+## Phase 18 addendum — repeat-purchase bonus escrow (post-17 point release)
+
+This ships as **Phase 18 — repeat-purchase escrow**, a **post-17 point release**: `APP_PHASE` stays
+**17** (do not change it, and do not expect a phase chip in the footer). The feature is delivered on the
+Phase 17 build; it adds no route, no page and no table.
+
+### Migration 021
+
+Apply `database/migrations/021_unilevel_bonus_escrow.sql` after `020`. It is **additive and
+re-runnable** (every step is guarded by an `information_schema` check):
+
+| Change | Detail |
+|---|---|
+| `unilevel_awards.hold_days` | `SMALLINT UNSIGNED NOT NULL DEFAULT 0` — the per-award release delay, snapshotted at payment |
+| `unilevel_awards.credited_at` | `DATETIME NULL` — when the wallet was actually credited |
+| `unilevel_awards.status` | enum becomes `pending, credited, skipped, voided, cancelled`; the default becomes **`pending`** |
+| Indexes | `idx_unilevel_user_status (user_id, status)`, `idx_unilevel_order_status (order_id, status)` |
+| Backfill | `credited_at = created_at` for rows already `credited`/`voided`; `hold_days = 0` for every existing row |
+| Settings | `unilevel_hold_days` = `7`, `unilevel_release_enabled` = `1` |
+
+**No new table, no change to `ewallet_ledger`, `users`, `shop_orders` or `payout_requests`.**
+
+**No retroactive lock.** Existing `credited` awards stay credited and withdrawable; existing `voided`
+and `skipped` rows keep their status; no `pending` row is created for an order paid before the
+migration. The new hold applies to awards created after it.
+
+### Counts after 021
+
+| Tables | Settings | Cron jobs | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **31** | **56** | **five** | **17** |
+
+The two new keys are `unilevel_hold_days` (`7`, range 0–365) and `unilevel_release_enabled` (`1`).
+Together with the six Phase 17 keys that makes **eight** `unilevel%` settings; `unilevel_ledger_since`
+remains the never-rendered baseline, so the **Commissions → Repeat-purchase bonus** card shows seven
+editable controls.
+
+### Verification commands and expected counts
+
+Run these after applying `021` (adapt the paths to your install):
+
+```bash
+php bin/build_install_sql.php --check        # exit 0: the bundle matches schema.sql + seeds
+php bin/wallet_reconcile.php                 # exit 0, five sections; the Repeat-purchase section now reports pending/cancelled
+php bin/unilevel_release.php --doctor        # clocks, both settings, pending, oldest, due, undelivered, stuck, cancelled_due, lock, log
+php bin/unilevel_release.php --dry-run       # the candidates; writes nothing, credits nothing
+```
+
+```sql
+-- 1. Fresh install or migrated database: 31 tables and 56 settings.
+SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()) AS tables_created,
+       (SELECT COUNT(*) FROM settings)                                                 AS settings_rows;
+
+-- 2. The two new keys exist with the documented defaults.
+SELECT key_name, value FROM settings
+ WHERE key_name IN ('unilevel_hold_days','unilevel_release_enabled')
+ ORDER BY key_name;                                   -- 7 · 1
+
+-- 3. The escrow column and states exist.
+SHOW COLUMNS FROM unilevel_awards
+ WHERE Field IN ('hold_days','credited_at','status');
+-- status: enum('pending','credited','skipped','voided','cancelled'), default 'pending'
+
+-- 4. No retroactive lock: after 021 every pre-existing award is still credited (or voided/skipped).
+SELECT status, COUNT(*) FROM unilevel_awards GROUP BY status;
+-- expected on a Phase 17 database: pending 0, credited/voided/skipped unchanged
+```
+
+A fresh `install.sql` import prints **31 / 56 / 2 / 0 / 7 / 2 / 18 / 10 / 0** at this stage.
+
+### Two-stage rollout (plan §25.1)
+
+The change ships safely in two stages:
+
+**Stage 1 — infrastructure, no behaviour change.** Apply migration `021`; the settings keys, the model
+columns/statuses, the release job itself, the reconcile/CSV/report fields, and the tests/docs that do
+not depend on pending rows. On this stage every award is still `credited` from the old code, so
+`unilevel_release.php --dry-run` must report **0 candidates**. Deploy to staging/dev and confirm that.
+
+**Stage 2 — behaviour and the A++ presentation.** `onOrderPaid()` writes `pending`; cancellation
+cancels pending awards; the member wallet/dashboard/earnings/order and payout reminder surfaces and the
+admin pending states go live; the release cron is enabled; the QA v2 E4/E5 checks run. After Stage 2
+the first live paid order is pending and the first release credits it.
+
+Why: the migration and job are additive and backward-compatible; a bug in the release job is found
+before any award is pending; and a Stage 2 rollback can leave the release job and the pending
+cancellation path running.
+
+### Rollback
+
+- **Schema is additive; there is no down migration.** Do not drop `hold_days`/`credited_at` or narrow
+  the enum: the release history is in those columns.
+- **Pause releases:** set `unilevel_release_enabled = 0`. Pending awards stay pending, no money moves,
+  and they release on the first run after the switch is back on.
+- **Never revert the cancellation path.** `reverseForOrder()` must keep cancelling pending awards
+  *before* the `unilevel_reversal_enabled` check; reverting it would leave a cancelled order's awards
+  releasable and release them later.
+- **A Stage 2 code rollback** may revert `onOrderPaid()` to immediate credit if genuinely necessary;
+  awards already pending still release correctly. Do not delete award, ledger or order rows.
+- **Do not hand-edit award rows** to repair a release. Fix the cause, re-run the job, and read
+  `--doctor` / `bin/wallet_reconcile.php`.
+
+### Upgrade checklist
+
+- [ ] Back up the database.
+- [ ] Apply `021` (or import the regenerated bundle on an empty schema).
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `SELECT key_name, value FROM settings WHERE key_name LIKE 'unilevel%';` — **eight** rows.
+- [ ] `php bin/unilevel_release.php --dry-run` — 0 candidates on a Stage 1 database.
+- [ ] `php bin/wallet_reconcile.php` exits 0, and the **Repeat-purchase** section names pending and
+      cancelled rows.
+- [ ] Register the fifth cron entry (`20 * * * *`, `--limit=200`) from [`cron.md` §6](cron.md), or the
+      `.cmd` Task Scheduler line.
+- [ ] Set `unilevel_hold_days` to the business value (default `7`) and confirm
+      `unilevel_release_enabled = 1`.
+- [ ] Run the QA v2 E4/E5/E6 checks on a disposable copy.
+- [ ] Verify the first live pending award and its release.
+
+---
+
+## Phase 18 follow-up — order-cancellation kill switch
+
+Migration `022_shop_cancel_toggle.sql` adds one setting and no table. It is additive and re-runnable:
+an existing database that predates it gets the safe default, never the old open behaviour.
+
+| Key | Default | Label | Meaning |
+|---|---:|---|---|
+| `shop_cancel_enabled` | `0` | **Enable Cancel of Order** (Settings → **Shop**) | `0`: no member or administrator can cancel an order, so no wallet refund and no repeat-purchase escrow reversal is issued. `1`: the normal cancellation/refund path is open. |
+
+Automatic expiry is unaffected: it keeps its own `shop_expiry_enabled` switch and still closes overdue
+**unpaid** orders. An order cancelled while the switch is off is refused with the `cancel_disabled`
+reason by both `OrderService::cancelByMember()` and `PaymentService::cancelByAdmin()`; when the switch
+is on, the escrow contract in the Phase 18 addendum still applies (pending awards are always
+cancelled, credited ones follow `unilevel_reversal_enabled`).
+
+### Counts after 022
+
+| Tables | Settings | Cron jobs | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **31** | **57** | **five** | **17** |
+
+The bundle is **58 statements, 74,387 bytes**, sha256
+`f340e25796a5026d596d607cd77d8022e9aaa79b92df5c94d46d45632542f1cb`; a fresh import prints
+**31 / 57 / 2 / 0 / 7 / 2 / 18 / 10 / 0**.
+
+### Upgrade checklist (022)
+
+- [ ] Back up the database.
+- [ ] Apply `022_shop_cancel_toggle.sql` after `021`.
+- [ ] `SELECT value FROM settings WHERE key_name = 'shop_cancel_enabled';` — **0** on an upgraded
+      database unless an operator explicitly turned it on.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] Open **Admin → Settings → Shop** and confirm **Enable Cancel of Order** is present and unchecked.
+- [ ] Confirm an order page offers no **Cancel order** form while it is unchecked.
+
+---
+
+## Phase 19 addendum — the Royalty bonus (19A → 19G)
+
+The Phase 19 workstream adds a **rank-gated monthly bonus**: Supervisor/Manager/Director earn one award
+per **closed calendar month** on their group sales, paid into the withdrawable e-wallet by a monthly
+job. It ships **off** (`royalty_enabled = 0`), so a fresh install or an upgraded database pays nothing
+until an operator turns it on. The release adds **no new hosting requirement**: two tables, sixteen
+settings, one wallet movement kind, one cron job and read-only pages on routes that already existed.
+
+### Migration 023 (19A)
+
+`023_royalty_bonus.sql` is additive and re-runnable. It adds the two money tables
+(`royalty_periods` with the natural `period` key, `royalty_awards` with `UNIQUE (period, user_id)` and
+its CHECKs), appends `royalty` to `ewallet_ledger.ref_type` (guarded by an `information_schema` probe)
+and inserts the sixteen `royalty_*` settings with the reference defaults. From 19B/19C the
+configuration card, the rank engine, the close job, the admin ledger and the member statement read and
+write those objects; from 19F the scheduled job runs them unattended.
+
+### Counts after the Phase 19 build
+
+| Tables | Settings | Cron jobs | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **33** | **73** | **six** | **19** |
+
+The bundle is **60 statements, 82,518 bytes**, sha256
+`026c6755032fb7ab98fc6accb9e26550de3eea9cda2d066235e2967fb6e5eb50`; a fresh import prints
+**33 / 73 / 2 / 0 / 7 / 2 / 18 / 10 / 0**. `php bin/build_install_sql.php --check` exits 0.
+
+### What the release adds to the server
+
+- **Storage**: one more monthly log (`storage/logs/royalty_month_close-YYYY-MM.log`) and one more
+  advisory lock (`storage/locks/royalty_month_close.lock`). Both live outside `public/`.
+- **Cron**: the sixth job (§13) — `bin/royalty_month_close.php` at **00:30 on the 1st** with
+  `--max-batches=20`, plus its guarded URL entry and its Windows launcher.
+- **Growth**: one `royalty_periods` row per month and one `royalty_awards` row per paying member per
+  month. Nothing is written for the open month.
+- **Nothing else**: no new route, no new PHP extension, no queue, no daemon, no external service.
+
+### Enabling Royalty
+
+1. **Settings → Commissions → Royalty bonus**: check the ladder and the two switches. The four
+   thresholds, three quotas and six rates ship at the reference preset (10/10/10/10, 500k/1M/5M,
+   3/5 · 5/10 · 10/15); a save is validated as a whole and audited.
+2. Run `php bin/royalty_month_close.php --doctor` — exit 0 on a healthy install.
+3. Turn **Enable the Royalty bonus** on **before the 00:30 close on the 1st** of the month that should
+   be the first paid one. A month closed while the stream is off is recorded `skipped` and can never be
+   paid later; a month left `evaluated` (payments paused, or a batch ceiling reached) stays payable.
+4. Optionally review a month before its money moves: `--period=YYYY-MM --evaluate-only`, read the
+   ledger, then `--period=YYYY-MM --pay-only` (the runbook's review window).
+
+### Verification after the upgrade
+
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `php bin/royalty_month_close.php --doctor` exits **0** and prints the clocks, both tables, the
+      16/16 settings, the baseline, both switches and the wallet reconcile.
+- [ ] `php bin/wallet_reconcile.php` exits 0 and prints its **sixth** section, Royalty.
+- [ ] `php tests/run.php` is green (**1,162 / 1,162**) and `powershell -File tests/smoke.ps1` reports
+      **248 / 248**.
+- [ ] **Admin**: `/admin/settings` (the Royalty sub-block and the saved ladder), `/admin/members` (the
+      Rank column and distribution), `/admin/commissions?ledger=royalty` (the operations panel and the
+      ledger), `/admin/reports` (the Royalty cards and CSV), `/admin/audit` — all render.
+- [ ] **Member**: `/earnings?ledger=royalty` and `/dashboard` render as the member; no console error.
+- [ ] `php bin/royalty_month_close.php --dry-run` lists the months it would close and writes nothing.
+
+### Upgrade checklist (023 + Phase 19)
+
+- [ ] Back up the database.
+- [ ] Apply `023_royalty_bonus.sql` after `022` (a second run is a no-op).
+- [ ] `SHOW TABLES LIKE 'royalty%'` — exactly two rows.
+- [ ] `SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'` — the enum ends with `'royalty'`.
+- [ ] `SELECT COUNT(*) FROM settings WHERE key_name LIKE 'royalty\_%'` — sixteen rows, and
+      `royalty_enabled = 0`.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (its Royalty section reads zero on a fresh upgrade).
+- [ ] The Royalty cron entry is registered (or the URL entry is called by it) and the first run
+      appears in `storage/logs/royalty_month_close-YYYY-MM.log`.
+
+---
+
+## Phase 20A/20B addendum — the Team Harvest bonus foundation and its configuration
+
+The Phase 20 workstream adds a **flat amount per completed level** of a member's private 3×10 matrix.
+Phase **20A** ships the schema, the wallet vocabulary, the four settings and the ten reference amounts
+with no reader; Phase **20B** ships the configuration card that writes them. **Nothing pays yet**: the
+queue and its seed job are 20C, the award engine is 20D. The release adds **no new hosting
+requirement**: three tables, four settings and one settings card on a route that already existed.
+
+### Migration 024 (20A)
+
+`024_team_harvest.sql` is additive and re-runnable (every `CREATE TABLE` is `IF NOT EXISTS`, the enum
+change is guarded by an `information_schema` probe, and both inserts are `ON DUPLICATE KEY UPDATE
+… = …` so a re-run never overwrites an operator's amount). It adds:
+
+| Object | What it is |
+|---|---|
+| `harvest_queue` | one row per qualified member; `id` **is** the position (20C writes it) |
+| `team_harvest_levels` | the ten configured amounts, levels 1–10 (20B writes it) |
+| `team_harvest_awards` | the money ledger, one row per (member, level) (20D writes it) |
+| `ewallet_ledger.ref_type` | gains `'team_harvest'` |
+| four settings | see the table below |
+| ten ladder rows | the reference amounts |
+
+### The four settings (20A ships them, 20B edits three)
+
+| Key | Default | What it decides |
+|---|---|---|
+| `team_harvest_enabled` | `0` | The one switch. Off writes no award; positions are still recorded. |
+| `team_harvest_qualify_directs` | `3` | Direct **member** accounts needed to enter the queue, 1–10. |
+| `team_harvest_max_levels` | `10` | The deepest level that may pay, 1–10; amounts above it are kept. |
+| `team_harvest_ledger_since` | `''` | **Not** an operator field. The seed job's timestamp; empty means the queue is unseeded (D-04), and the settings card names that state. |
+
+The ten amounts are **not** settings: they are the ten rows of `team_harvest_levels`, seeded at
+**₱1,000 / 2,000 / 4,000 / 6,000 / 12,000 / 50,000 / 120,000 / 200,000 / 1,200,000 / 3,500,000**
+(₱5,095,000.00 in total). The card validates them as a whole — 0.00–10,000,000.00 each with two
+decimals, no more than ₱25,000,000.00 in total, and never an enabled stream on an all-zero ladder.
+
+### Counts after the Phase 20A build
+
+| Tables | Settings | Ladder rows | `APP_PHASE` |
+|---:|---:|---:|---:|
+| **36** | **77** | **10** | **19** |
+
+The bundle is **64 statements, 89,851 bytes**; a fresh import prints
+**36 / 77 / 2 / 0 / 7 / 2 / 18 / 10 / 0 / 10**. `php bin/build_install_sql.php --check` exits 0. A
+migration-built database (no `install_*` metadata rows) reads **74** settings; the three metadata rows
+a fresh install adds make 77.
+
+### What 20B adds to the server
+
+- **One card** on the existing `/admin/settings` page (*Commissions → Team Harvest bonus*): the
+  switch, the gate, the depth and the ten amounts, plus a generated ladder table and a four-state
+  status strip.
+- **One script**, `public/assets/js/app-team-harvest.js`: the live cumulative/total preview and the
+  *Load reference ladder* / *Clear* buttons. Progressive enhancement only — with JavaScript off the
+  form saves and validates exactly the same.
+- **Two audit actions**: `team_harvest.ladder.update` (the ten amounts and the three knobs, before and
+  after) and the tenant-wide `settings.update` for each changed key. Both are written inside the same
+  transaction as the rows they describe.
+- **Nothing else**: no new route, no cron entry, no queue row, no award, no wallet movement, no new PHP
+  extension.
+
+### After deploying 20A/20B
+
+1. Apply `024_team_harvest.sql` (a second run is a no-op).
+2. Open **Settings → Commissions → Team Harvest bonus**. The strip should read **Not seeded** and the
+   ladder should show the ten reference amounts. The switch is **off**.
+3. Set the amounts you actually intend to pay, then decide the gate and the depth. The card shows the
+   **full-ladder total** (the per-member maximum) and the ₱25,000,000.00 ceiling beside the inputs.
+4. Leave the switch **off** until 20C has seeded the queue and 20D can pay. The strip names the seed
+   job at every step, and turning the switch on does not pay anything by itself.
+
+### Verification after the upgrade
+
+- [ ] `SHOW TABLES LIKE 'team\_harvest%'` — three rows; `SHOW TABLES LIKE 'harvest\_queue'` — one.
+- [ ] `SELECT key_name, value FROM settings WHERE key_name LIKE 'team\_harvest\_%'` — **four** rows,
+      `team_harvest_enabled = 0`, `team_harvest_ledger_since = ''`.
+- [ ] `SELECT COUNT(*), SUM(amount) FROM team_harvest_levels` — **10 / 5095000.00**.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (no `team_harvest` row exists yet).
+- [ ] `/admin/settings` renders the Team Harvest sub-block with the strip **Not seeded** and no
+      console error; `php tests/run.php` is green and `powershell -File tests/smoke.ps1` passes.
+
+### Upgrade checklist (024 + 20B)
+
+- [ ] Back up the database.
+- [ ] Apply `024_team_harvest.sql` after `023` (a second run is a no-op).
+- [ ] The three tables exist; the enum ends `'royalty','team_harvest'`.
+- [ ] The four settings exist with their defaults; the ten ladder rows hold the reference amounts.
+- [ ] `php bin/build_install_sql.php --check` exits 0.
+- [ ] The card renders, saves the ladder, refuses the two ceilings and names the seed job.
+
+### Rollback (20B)
+
+Turn **Enable the Team Harvest bonus** off and revert the code. The ladder rows and the four settings
+may stay: they are inert, nothing reads them until 20C/20D, and a later attempt can reuse them. No
+money exists to reverse.
+---
+
+## Phase 20C/20D/20E addendum — the queue, the money engine and the admin visibility
+
+**No new hosting requirement and no schema change.** 20C writes positions, 20D pays the ladder and 20E is
+read-only: 20E is PHP and templates on pages that already existed. `APP_PHASE` stays **19** until 20G,
+the smoke suite stays **251** checks (the stream adds no route) and `routes.php` /
+`routes_inventory.php` are untouched.
+
+### The two jobs (20C/20D) — neither is a cron entry
+
+| Job | When | Writes |
+|---|---|---|
+| `php bin/harvest_queue_seed.php` (+ `--dry-run`, `--by-id`, `--force`, `--rebuild --apply`, `--json`) | **once**, at go-live, before the switch is turned on | the queue rows, their counters and their `baseline_n`, plus `team_harvest_ledger_since` |
+| `php bin/team_harvest_catchup.php` (+ `--dry-run`, `--member=ID`, `--doctor`, `--json`) | on demand, after the switch is turned on or a counter is repaired | awards and their wallet credits (a dry run writes nothing) |
+
+There is **no schedule** for either: this stream has no month and no close. A browser cannot trigger
+them; the money run is CLI-only.
+
+### What 20E adds to the server
+
+Nothing but templates and reads. Five admin surfaces, all on existing routes:
+
+| Surface | What it shows |
+|---|---|
+| `/admin/commissions?ledger=team_harvest` | the fourth ledger tab: six counters, the ten-level distribution, filters (member, level, status, dates) and a CSV with the Appendix C.5 columns |
+| `/admin/members` | the **Harvest** column (the stored position, `#N`), the **Team Harvest queue** card and the `?harvest=yes\|no` filter |
+| `/admin/members/{id}` | the member's Team Harvest panel: position, qualified at, teammates, levels paid, the next level, the baseline state and the award rows |
+| `/admin/reports` | the Team Harvest block (window counters, the queue, the ten levels, the months) and a `type=team_harvest` CSV |
+| `/dashboard` | a **Team Harvest (30 d)** KPI with the open liability it implies |
+
+The ledger is an **audit surface**: no admin page writes an award, a wallet row or a queue row. A
+`baseline` row (complete before go-live) is counted in its own tile and never inside a paid total; every
+*Credited* figure counts `status = 'credited'` only.
+
+### New audit actions to recognise on `/admin/audit`
+
+| Action | Written by |
+|---|---|
+| `harvest.seed` | the go-live seed job: the gate, the order, the rows inserted, the baseline instant and the money the baseline excludes |
+| `harvest.queue.repair` | `harvest_queue_seed.php --rebuild --apply`: the positions it appended and the counters it repaired, before/after |
+| `team_harvest.catchup` | the on-demand catch-up job: the members evaluated and the levels it wrote |
+| `team_harvest.export` | **20E's** ledger CSV download, with the tab, the filters and the row count in its meta |
+| `report.export` (with `type = team_harvest`) | the reports-desk range export, with the window and the row count |
+
+### After deploying 20E
+
+1. Nothing to migrate and nothing to configure: the pages read the tables 20A created.
+2. Follow the go-live order in `docs/runbook.md` (the one owner of the sequence) and use
+   `/admin/members` (the queue card) to confirm the positions exist before the switch is turned on.
+3. The ledger tab is the operator's first screen: it names the two Go-live lines (*Seeded* / *Not seeded*,
+   *Paying* / *Switched off*) and the open liability, labelled *not yet paid*.
+
+### Verification after the upgrade
+
+- [ ] `/admin/commissions?ledger=team_harvest` renders with the empty state *No level has completed yet*
+      and the header warns **The queue is not seeded** on a fresh database.
+- [ ] `/admin/members` shows the **Harvest** column and the queue card; `?harvest=yes` filters to the
+      queued members.
+- [ ] `/admin/members/{id}` renders the panel for a member who has not qualified as
+      *Not qualified: n of 3 direct members*.
+- [ ] `/admin/reports` renders the Team Harvest block and the export menu offers **Team Harvest bonus**.
+- [ ] `/dashboard` shows the **Team Harvest (30 d)** KPI.
+- [ ] `php bin/wallet_reconcile.php` exits 0; `php bin/build_install_sql.php --check` exits 0.
+
+### Rollback (20E)
+
+Revert the seven new views, the six modified ones and the five PHP files (the two controllers, `Member`,
+`Report`, `ReportService`). The fourth tab disappears and every other page returns to its 20D shape. **No
+data is touched**: nothing in 20D or in the jobs reads anything 20E writes, and 20E writes nothing but its
+own export audit rows.
+
+---
+
+## Phase 20F/20G addendum — the member visibility and the release
+
+**No new hosting requirement and no schema change.** 20F is read-only templates and controller reads on
+the member pages that already existed; 20G changes the phase constant, the smoke walk and the documents.
+`routes.php` and `routes_inventory.php` stay untouched, and this stream adds **no cron entry** (see
+[`cron.md`](cron.md), *Streams with no scheduled job*).
+
+### What 20F adds to the server
+
+Three member surfaces, all on existing routes:
+
+| Surface | What it shows |
+|---|---|
+| `/earnings?ledger=team_harvest` | the fourth tab: position and gate sentence, the five counters, the whole 3×10 matrix with each level's state and amount, the progress card, the paginated teammate roster, the level rows with their wallet links, the two exclusions and the purchases footnote, the FAQ and the Appendix C.6 CSV |
+| `/dashboard` | the **Team Harvest** tile: the position (or the gate), the next level's progress, what has already reached the wallet and the recorded-before-go-live count; hidden only while the stream is off and the member has neither a position nor history |
+| `/genealogy` | the reader's **Harvest #N** badge, a **Harvest** column on the direct recruits and the same badge in the team-by-level card; `—` for a member who has not qualified |
+
+A member's tab is scoped to the session member: `&user_id=` is ignored by both the page and the file,
+and the CSV writes **no** audit row (Appendix C.6, plan §10 Rule 11). The matrix never promises a date
+or an amount the engine would not pay — a level above the configured depth reads *Complete — not paying
+at this depth*.
+
+### The release (20G)
+
+- `APP_PHASE` is **20**; `HardeningTest` asserts it, and no route, menu item or permission reads it for
+  Phase 20.
+- The smoke walk is **263** checks: the twelve new Phase 20 checks cover the settings card, the fourth
+  ledger tab, the three unchanged tabs, the directory and its filter, the reports block and CSV, the
+  unqualified and queued member statements, the dashboard tile, the genealogy badge and the
+  registration hook (a third direct queues its sponsor at the next position; a fourth changes nothing).
+- The QA pack is signed: `docs/qa/phase-20-team-harvest.md` sections A–G, **58 / 58** checks, evidence
+  in `docs/qa/evidence/phase-20/`.
+
+### Go-live order
+
+Do **not** copy it here: [`runbook.md`](runbook.md) §*Team Harvest go-live order* is the one owner of
+the sequence. The settings card and the queue card show the state between its steps.
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → **1,320 / 1,320**; `powershell -File tests/smoke.ps1` → **263 / 263**.
+- [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **36 tables / 77
+      settings / 10 ladder rows**, the stream **off** and the queue **unseeded**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 with the Team Harvest section; `php
+      bin/team_harvest_catchup.php --doctor` exits 0 on a seeded copy.
+- [ ] `/admin/settings` shows the Team Harvest card with the strip **Not seeded**; `/admin/members`
+      shows the Harvest column, the queue card and the `?harvest=` filter; `?ledger=team_harvest` on
+      `/admin/commissions`, `/earnings` and `/genealogy` renders the fourth tab/badge on the demo tree.
+- [ ] For a queued member, `/earnings?ledger=team_harvest` shows the position and the ten-level matrix;
+      a member with no position reads the gate and no matrix.
+
+### Rollback (20F/20G)
+
+Revert the seven new member views, the seven modified ones, `DashboardController`/`EarningsController`/
+`GenealogyController` and the two additive model filters (`Wallet::ref_id`, the `HarvestQueue` optional
+parameters); then revert `APP_PHASE` to 19. No data changes: 20F writes nothing, and 20G writes only the
+phase constant and the test/docs. The queue, the awards and the ladder stay exactly as 20D left them.
+
+---
+
+## Phase 21 addendum — the General Harvest bonus (21A → 21F, release at 21G)
+
+**No new hosting requirement.** Phase 21 adds one more bonus on the Harvest queue Phase 20 built: one
+**shared 3-ary board** for the whole network, where a member's node is their queue position minus one
+and a node's level-`L` block is the next `3^L` positions in that same queue. Three things follow that an
+operator must know before deploying it:
+
+1. **The trigger is the whole network's qualified count (`N`), not the member's team.** A block is
+    filled by whoever took those queue positions, so a registration anywhere can complete a block for a
+    member anywhere — including a complete stranger. That is the plan, not a defect.
+2. **The board's liability is a closed form** — `Σ_L amount(L) · floor((N − (3^L − 1)/2) / 3^L)` —
+    which is why every report and reconcile check has an exact independent expectation.
+3. **Arming is a separate, irreversible act** (21C) and **is not reachable from any page**. The stream
+    ships **off and unarmed**, so a fresh install pays nothing.
+
+### Migration `025` (21A)
+
+Apply `database/migrations/025_general_harvest.sql` after `024` on an existing site, or import the
+regenerated `install.sql` on a fresh one. It adds:
+
+- `general_harvest_levels` — the ten amounts (a **catalogue** table: kept by a business reset);
+- `general_harvest_board` — the singleton `id = 1`: `baseline_n`, `armed_at`, `armed_by`, `settled_n`;
+- `general_harvest_awards` — the money ledger, `UNIQUE (seq, level)`, `ledger_id` deliberately not an FK;
+- `general_harvest` on `ewallet_ledger.ref_type` (13 movement kinds now);
+- two settings, `general_harvest_enabled = '0'` and `general_harvest_max_levels = '10'`;
+- the ten reference ladder rows (₱2,000 … ₱5,000,000, **₱8,381,000.00** in total) and the **unarmed**
+  board row `(1, NULL, NULL, NULL, 0)`.
+
+It is additive and re-runnable: a second run never overwrites an operator's amount, never re-inserts a
+setting and **never re-arms a board**. There is no backfill — the baseline is recorded by 21C's arm job,
+on demand, with a dry run.
+
+### The card (21B)
+
+**Settings → Commissions → General Harvest bonus**, below the Team Harvest block. One form, one save:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Enable the General Harvest bonus** | **off** | Off writes no award. Nothing pays until the board is armed (21C). |
+| **Levels that pay** | 10 | 1–10. Levels above it complete on the board and are marked *not paying at this depth*; their amounts are kept. |
+| **Level 1 … 10 amounts** | ₱2,000 … ₱5,000,000 | Money, two decimals, at most ₱10,000,000 each and ₱25,000,000 in total. Blank and 0 are the same value. |
+
+The card also renders two **generated** tables (the ladder and positions #1–#6 × levels 1–4), a
+four-state strip and an "if the queue reaches N" calculator. It writes no award, no wallet row, no queue
+row and no board state. It **freezes the ten amounts** once the board is armed; only a business reset
+can change them afterwards.
+
+Every moved ladder writes one `general_harvest.ladder.update` audit row (switch, depth and the ten
+amounts, before and after) plus the tenant-wide `settings.update` row for the keys that moved.
+
+### Arming the baseline (21C)
+
+The arm is the stream's **one irreversible decision** and a **CLI-only** act: it is not a page, not a
+button and not a cron entry. It records `N₀` (the queue length at that instant) and one `baseline` row
+for every block that was already full, at all ten levels, then arms the board
+(`baseline_n = settled_n = N₀`). **It pays nothing.** The order is **configure → arm (dry run) → arm →
+enable**, and the arm refuses while the stream is on:
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+php bin\general_harvest_arm.php --dry-run   # read N0, the rows and the excluded amount
+php bin\general_harvest_arm.php             # record the baseline, in one transaction
+php bin\wallet_reconcile.php                # exit 0 — the arm moves no money
+```
+
+Read the dry run: it prints `N₀`, the number of `baseline` rows and the excluded amount
+(`boardTotal(N₀)`) — exactly what the network had already earned and will never be paid. A second arm is
+refused (`armed`; there is no `--force`), as are a stream that is switched on (`enabled`), an unseeded
+queue (`unseeded`), a level priced at zero (`invalid_ladder`) and a queue hole (`not_gapless`). Every
+refusal writes nothing. The resulting board row reads `(1, <N₀>, <instant>, NULL, <N₀>)`; the job is
+audited as `general_harvest.arm`. The full drill is in
+[`runbook.md`](runbook.md) → *General Harvest go-live order, part 1*.
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → **≥ 1,478 / ≥ 1,478**; `powershell -File tests/smoke.ps1` → **268 / 268**.
+- [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **39 tables / 79
+      settings / 10 Team Harvest ladder rows / 10 General Harvest ladder rows / 1 unarmed board row**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 with a **General Harvest** section reporting paid,
+      baseline, rows and no mismatch (21D).
+- [ ] `php bin/general_harvest_catchup.php --doctor` exits 0 (21D).
+- [ ] `/admin/settings` → Commissions shows the **General Harvest bonus** card: the reference amounts,
+      the switch off, the depth 10, both generated tables and the strip **Not armed** naming
+      `bin/general_harvest_arm.php`.
+- [ ] `SELECT * FROM general_harvest_board;` → one row `(1, NULL, NULL, NULL, 0)` before the arm.
+- [ ] `/admin/commissions?ledger=general_harvest` renders the ledger tab, stats, filters and rows
+      (21E); `/admin/members` shows the `GH` column and the board card (21E).
+- [ ] `/earnings?ledger=general_harvest` renders the earnings tab and the ten-block card (21F);
+      `/dashboard` shows the General Harvest tile and `/genealogy` the board badge (21F).
+- [ ] At go-live, the dry run and the real arm print the same `N₀`, row count and excluded amount, and
+      every written row is `baseline` with `ledger_id NULL`.
+
+## Phase 22B addendum — Product binary configuration and readiness
+
+**No new hosting requirement.** Phase 22B configures the Product binary stream on the existing
+`/admin/settings` page (Commissions card) and the existing product edit page. It **adds no schema** (migration
+026 already shipped the three tables, the altered columns, the extended enum and the ten settings in 22A) and
+**no route** (the single placement route is 22C's). The stream ships **off** and **pays nothing** until 22D.
+
+### Migration `026` (22A — already applied)
+
+Apply `database/migrations/026_product_binary.sql` after `025` on an existing site, or import the regenerated
+`install.sql` on a fresh one. It adds:
+
+- `binary_nodes` — one row per member: `user_id` (PK), `upline_id`, `side`, `depth`, `path`, `state` and the cached balance columns;
+- `binary_volume` — the append-only signed points ledger;
+- `binary_awards` — the escrowed money ledger (`kind` `self`/`pair`);
+- `binary_position`, `binary_processed_at`, `binary_points`, `binary_self_total`, `binary_pair_total`, `binary_total` on `shop_orders`;
+- `unit_points`, `points_total` on `shop_order_items`;
+- `products.binary_enabled`;
+- `binary` and `binary_reversal` on `ewallet_ledger.ref_type` (15 movement kinds now);
+- ten `binary_*` settings, all off or at the reference preset.
+
+It is additive, idempotent and re-runnable: a second run never duplicates a setting and never touches a row.
+
+### The card (22B)
+
+**Settings → Commissions → Product binary**, below the General Harvest block. One form, one save:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Product binary enabled** | **off** | Master switch. Off renders the offer nowhere and pays nothing (D-16). |
+| **Self Bonus %** | `5.000` | % of the order's points paid to the buyer once per order (0 disables it). |
+| **Points per pair** | `1000` | Points needed on each side for one pair (1–1,000,000; 0 refused). |
+| **Pair value %** | `10.000` | % of the matched point value paid per pair (0 still accumulates). |
+| **Pairs per day per member** | `20` | Daily cap per recipient (0 = unlimited). |
+| **Release delay after delivery** | `7` | Days before a pending award becomes withdrawable (snapshotted at payment). |
+| **Require the monthly Active rule** | **on** | Pair recipients must be Active for the month. |
+| **Release Product binary awards** | **on** | The shared `--stream=binary` release job may credit them (22H). |
+| **Reverse awards when a paid order is cancelled** | **on** | Credited awards are clawed back best effort on cancellation (22D). |
+
+`binary_ledger_since` (the reconciliation baseline) is never rendered.
+
+### The product card (22B)
+
+`/admin/products/{id}/edit` gains the **Product binary** card after the *Unilevel repeat-purchase bonus* card:
+the switch flags the product, the readout shows `P.V. → N points per unit` (`ROUND(pv)`), and the self/pair
+sentence names the global preset. A switch-on product with `pv = 0` is refused (*Give the product a P.V. or
+turn its binary switch off.*). The list badge reads `Binary N pts` (on) or nothing (off), and `?binary=on|off`
+splits the list. There is **no** per-product pair size, pair rate or self rate (D-09).
+
+### Readiness panel (22B)
+
+The same card gains a read-only **Product binary readiness** panel with four counts:
+
+- **Binary on, no points** — products flagged on with `pv = 0` (link: `/admin/products?binary=on`);
+- **Binary off** — products with the switch off (link: `/admin/products?binary=off`);
+- **Global switch** — On / *The stream is off. Nothing is paid.*;
+- **Preset check** — *1,000 points per pair pays ₱100.00 at 10%.* (recomputed when the pair values change).
+
+None of the four is a button; each links to the filtered product list (Rule 12).
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → **≥ 1,530 / ≥ 1,530**; `powershell -File tests/smoke.ps1` → **278 / 278**.
+- [ ] `php bin/build_install_sql.php --check` exits 0; a fresh install reports **42 tables / 89 settings**.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (this phase moves no money).
+- [ ] `/admin/settings` → Commissions shows the **Product binary** card: the nine keys, master first, the four
+      toggles, and the readiness panel with the four counts.
+- [ ] `/admin/products/{id}/edit` shows the **Product binary** card: the switch off, the readout at the P.V.,
+      no per-product rate input.
+- [ ] `/admin/products?binary=on` and `?binary=off` split the list; each row's badge reads `Binary N pts` or nothing.
+- [ ] `SELECT key_name, value FROM settings WHERE key_name LIKE 'binary\_%';` — **10** rows, `binary_enabled = '0'`.
+- [ ] `SELECT COUNT(*) FROM products WHERE binary_enabled <> 0;` — **0**.
+- [ ] Placing and paying an order writes **zero** `binary_awards`, `binary_volume` and `binary` wallet rows (P22B-T22).
+
+### Rollback (22B)
+
+Turn every product's switch off (`binary_enabled = 0`) and set `binary_enabled = '0'`, then revert the code.
+The settings and the product flags may stay: they are inert, no tree exists yet, and no money has moved.
+
+### Money engine (21D)
+
+The settlement pays every newly-complete block once, into the node holder's withdrawable wallet,
+honouring the baseline, the depth cap and the once-ever rule. `bin/general_harvest_catchup.php`
+settles a bounded backlog (default 500 positions per transaction) with `--dry-run`, `--limit`,
+`--member`, `--doctor`, `--json` and `--quiet`; `wallet_reconcile.php` gains an eighth section that
+proves `Σ credited = boardTotal(settled_n) − boardTotal(baseline_n)` against the ledger and the
+wallet. The stream stays off until an operator switches it on after the arm; the catch-up and doctor
+run on demand, never on a cron schedule.
+
+### Admin visibility (21E)
+
+Read-only admin surfaces over rows 21D writes:
+
+- `/admin/commissions?ledger=general_harvest` — the fifth commissions ledger tab: stats tiles
+  (credited, baseline, open liability, unsettled positions), the ten-row level distribution, filters
+  (level, status, dates, member, search), paginated rows with wallet links, and the
+  `general_harvest.export` CSV audit row.
+- `/admin/members` — the `GH` column (`N / 10` credited levels for node holders), the `?board=paid\|none`
+  filter, and the board card with the frontier and the open liability.
+- `/admin/members/{id}` — the member's board panel: position, node, settled state, the ten-cell grid,
+  the next level with its `N`, and the awards table.
+- `/admin/reports` — the General Harvest block (paid, by-level split, bands, board summary) and the
+  `type=general_harvest` range CSV.
+
+### Member visibility (21F)
+
+Read-only member surfaces, scoped to the session member:
+
+- `/earnings?ledger=general_harvest` — the fifth earnings tab: position, `N`, ten blocks with
+  `#from–#to` ranges, filled-of-slots and amount, the progress card, the paginated block roster
+  (Direct / In your team / Outside your team per D-20), award rows with wallet links, and the member
+  CSV export.
+- `/dashboard` — the General Harvest tile: paid total, position and the next block's progress.
+- `/genealogy` — the reader's position/node badge and each queued downline member's position; `—`
+  for unqualified members.
+
+The copy rules hold verbatim: the network sentence, the position gap ("needs the queue to reach N"),
+the purchases / rank / Active footnote, "before go-live" baseline labels, and no forbidden words
+("spillover", "passive", "guaranteed", "unlimited", "matrix scheme", "binary", "cycle").
+
+### Rollback (21A–21F)
+
+Turn the switch off (`general_harvest_enabled = 0`) and revert the code. The ladder rows, the board
+row, the baseline rows and the two settings may stay: they are inert, and the baseline is a correct
+record of what was already earned at go-live, so a later attempt can reuse it. No money exists to
+reverse while nothing has been credited. Any `credited` awards already written are real money and a
+code rollback does not delete them — the ledger remains reconcilable because `wallet_reconcile.php`
+reads the tables, not the code path. To abandon the stream entirely before anything is paid,
+`UPDATE general_harvest_board SET baseline_n = NULL, armed_at = NULL, armed_by = NULL, settled_n = 0`
+and `TRUNCATE general_harvest_awards`; delete the three tables only with a matching `down` decision —
+dropping `general_harvest_awards` would erase the record of every node and award.
+
+## Phase 22H addendum — Operations (health checks and the release job)
+
+Phase 22H adds no schema, no route and no page. It adds **four read-only health checks** to the admin
+reports desk (`/admin/reports`), a **link from the Product binary readiness panel to the health panel**,
+and the **binary stream flag on the shared release job** (`bin/unilevel_release.php`). Nothing here moves
+money; every check is read-only.
+
+### CLI surface
+
+The release job already runs hourly at `:20` (cron.md §5). Phase 22H adds `--stream` so one job can serve
+both money engines without a second schedule:
+
+| Flag | Effect |
+|---|---|
+| `--stream=unilevel` | credit due repeat-purchase awards only (the historical default) |
+| `--stream=binary` | credit due Product binary awards only |
+| `--stream=all` | credit both streams in one run (the cron default) |
+
+The cron entry and the Windows task keep using `--stream=all` (or the default), so **no second cron
+schedule is introduced**. A second `unilevel_release` cron for binary alone would break the
+one-job-per-stream rule.
+
+| Entry | Command |
+|---|---|
+| Hostinger cron | `20 * * * * php system/bin/unilevel_release.php --stream=all --limit=200` |
+| Windows task | `EcoWealth - unilevel release` — hourly at `:20`, `--stream=all --limit=200` |
+
+### The four health checks (read-only)
+
+`/admin/reports` renders the health widget. Phase 22H appends four sections, each with a `pass`/`warn`
+state and a one-line remedy:
+
+| Check | What it proves | Remedy |
+|---|---|---|
+| **Product binary readiness** | master switch on, no flagged product earns 0 points, every member has a node | turn the switch on, set a P.V. or switch the product off, place unplaced members |
+| **Product binary points** | every cached node balance equals the append-only ledger | `bin/binary_audit.php --fix` |
+| **Product binary escrow** | pending award count, worth and oldest age | `bin/unilevel_release.php --stream=binary` after delivery + hold |
+| **Product binary release job** | the last `unilevel_release` run ran `stream=binary` without error | `--doctor`, then `--dry-run`, then the real run |
+
+The readiness panel in **Settings → Commissions → Product binary** now ends with **Open the health panel**,
+which opens `/admin/reports` (read-only). Nothing on that page changes a setting.
+
+### Verification after the upgrade
+
+- [ ] `php tests/run.php` → green; `powershell -File tests/smoke.ps1` → 278 / 278.
+- [ ] `php bin/unilevel_release.php --doctor` → green (lock, log folder, both switches).
+- [ ] `php bin/unilevel_release.php --stream=binary --dry-run` → lists due binary awards, credits nothing.
+- [ ] `php bin/binary_audit.php --check` → exit 0 (no drift).
+- [ ] `/admin/reports` health widget shows 12 checks, all passing; the four binary sections render with
+      remedies.
+- [ ] `/admin/settings` → Commissions → Product binary → **Open the health panel** opens `/admin/reports`.
+- [ ] `php bin/wallet_reconcile.php` exits 0 (this phase moves no money).
+
+### Rollback (22H)
+
+Remove the four health sections (revert `system/app/Services/HealthService.php`), remove the readiness
+panel link (revert `system/app/views/admin/settings/_commissions.php`), and revert the code. The stream
+settings stay inert; no money has moved and no schema existed to drop.

@@ -1,0 +1,58 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-05 — The plan's ladder is paid exactly
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:55:15 +08:00
+
+Expected: fixture A root 7,000.00 · each child 3,000.00 · each grandchild 1,000.00 · fixture B root 13,000.00 · network 25,000.00 in 18 rows for 13 members
+==============================================================================
+The 121-account fixture is not buildable by hand, so the plan's numbers are
+proved by the named cases; `php tests/run.php TeamHarvestEngine` prints them.
+
+EcoWealth test suite
+PHP 8.3.16 · schema ecowealth_sneat_test · phase 19
+
+TeamHarvestEngineTest
+  PASS  P20D-T1 a full level-1 block pays 1,000 once at n = 3
+  PASS  P20D-T2 fixture A root completes levels 1-3 for 7,000
+  PASS  P20D-T3 fixture A children complete levels 1-2 for 3,000 each
+  PASS  P20D-T4 fixture A grandchildren earn level 1 only, never a partial level 2
+  PASS  P20D-T5 a member with no teammates earns nothing and is not an error
+  PASS  P20D-T6 fixture B root completes levels 1-4 for 13,000
+  PASS  P20D-T7 fixture A pays 25,000 across 13 members in 18 rows
+  PASS  P20D-T8 earnedFor is the pure per-member ladder function
+  PASS  P20D-T9 the wallet statement shows one Team Harvest credit per award
+  PASS  P20D-T10 every credited award carries its ledger reference and instants
+  PASS  P20D-T11 a second evaluation of the same member writes nothing
+  PASS  P20D-T12 a replayed qualification writes nothing and reports replayed
+  PASS  P20D-T13 a duplicate (member, level) insert is refused by the unique anchor
+  PASS  P20D-T14 levels complete at the baseline are recorded, never paid
+  PASS  P20D-T15 the baseline member is paid 4,000, never 7,000
+  PASS  P20D-T16 a member at the baseline of 39 has levels 1-3 baselined and pays nothing
+  PASS  P20D-T17 a member who qualified after the seed has no baseline and credits normally
+  PASS  P20D-T19 the stream off writes no award and the queue still grows
+  PASS  P20D-T22 max_levels caps the pay and marks the deeper level beyond the depth
+  PASS  P20D-T23 raising the depth pays the level once and never re-pays the earlier ones
+  PASS  P20D-T24 a ladder edit never rewrites a paid award but prices new ones
+  PASS  P20D-T25 a suspended member still earns and still cannot withdraw
+  PASS  P20D-T26 a staff account is never queued and can never be paid
+  PASS  P20D-T32 statusFor is exact for n = 0, 3, 12 and 39
+  PASS  P20D-T33 the ledger filters, pages, totals and breakdowns are exact
+  PASS  P20D-T34 three sequential evaluations write one set of rows and throw nothing
+  PASS  P20D-T35 a zero amount is a switch: no row, then it pays when raised
+  PASS  P20D-T36 no baseline row is paid, every credit has its award, the totals agree
+
+----------------------------------------------------------------
+Cases: 28   Passed: 28   Failed: 0
+All good.
+
+exit = 0
+
+------------------------------------------------------------------------------
+The scratch copy at the end of this capture holds the baseline tree of QA20D-08.
+Its credited distribution excludes the two baselined levels by design and
+shows only post-go-live money (network total 19,000.00 = 9 x 1,000 + 3 x
+2,000 + 4,000):
+level | awards | total  
+1     | 9      | 9000.00
+2     | 3      | 6000.00
+3     | 1      | 4000.00

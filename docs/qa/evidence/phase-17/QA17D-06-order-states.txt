@@ -1,0 +1,12 @@
+QA17D-06 - the order card explains an unpaid order and a pre-feature payment
+URL: /admin/orders/789 (pending)
+
+... cancels an unpaid order when that window closes. Repeat-purchase bonus No bonus Paid orders earn the repeat-purchase bonus. This order is pending . Order QA17D-470104 · processed — Fulfilment Pending Fulfilment starts once the payment is verified. Verify the p ...
+... rchase bonus No bonus Paid orders earn the repeat-purchase bonus. This order is pending . Order QA17D-470104 · processed — Fulfilment Pending Fulfilment starts once the payment is verified. Verify the payment above first. Items 1 line Item Qty Unit price Line  ...
+
+URL: /admin/orders/790 (paid, never processed)
+
+...  panel below to pack and ship it. Repeat-purchase bonus No bonus This order was paid before the repeat-purchase stream was switched on, so it earned no bonus. Orders paid after the switch are awarded once, when they are paid. Order QA17D-374359 · processed — F ...
+
+Captured by the automated Phase 17D QA pass (real HTTP + MySQL) - 
+DeepSeek Harness, 2026-11-12 20:00:39 Asia/Manila.

@@ -1,0 +1,42 @@
+# QA17B-09 - Paying an order still moves no bonus money
+# Date: 2026-11-12 - App: http://localhost/ecowealth/system - DB: ecowealth_sneat
+#
+# The check runs inside the HTTP smoke suite (system/tests/smoke.ps1, block
+# "Phase 17B"): as a real member, an e-wallet order is placed and paid for a
+# product that is fully configured - both switches on, P.V. base, the reference
+# ladder - and the database is then read back. Command:
+#
+#   powershell -NoProfile -File tests\smoke.ps1
+#
+# The run's Phase 17B lines:
+#
+P17B-T14 PASS   the product form renders ten rate inputs, the P.V. field and the base select, with no direct/indirect control (inputs=10)
+P17B-T1 PASS   POST /admin/products/save stores the P.V., the switch and ten ladder rows totalling 29.000% (status=302, id=2198, rows=10, sum=29.000, pv|on|base=250.00|1|auto)
+P17B-T1 PASS   the edit form re-reads the stored ladder, the 29.000% total, the switch and the P.V.
+P17B-T9 PASS   editing the ladder writes one product.unilevel.update audit row with before/after (rows=1)
+P17B-T3 PASS   a 200% ladder is refused with the sum error, the deleted values stay on screen and the stored 3.000% survives (level4=3.000)
+P17B-T6 PASS   switching the ladder on with every level at 0 is refused
+P17B-T7 PASS   a P.V. base with no P.V. is refused on the base field and the product keeps its P.V. and Auto base (250.00|auto)
+P17B-T14 PASS   the product form still saves through a plain POST (no script run)
+P17B-T16 PASS   the list badge reads Repeat bonus 29% for a configured product
+P17B-T17 PASS   the ?unilevel=on filter returns the product and ?unilevel=off does not
+P17B-T18 PASS   the Commissions card holds the five repeat-purchase keys and never the ledger baseline
+P17B-T19 PASS   an out-of-range depth (11) is refused and nothing is written (stored=10)
+P17B-T19 PASS   the card round-trips a valid depth and threshold and audits the change (stored=10|500.50)
+P17B-T20 PASS   a paid order for a fully configured product writes no award and moves no repeat-purchase money (order=742, status=paid, stamp|total=NULL|0.00, awards=0, ledger=0)
+#
+# The decisive line is P17B-T20: the order went to paid, its
+# unilevel_processed_at is NULL and unilevel_total is 0.00, and both
+# unilevel_awards and the repeat-purchase ledger are still empty.
+#
+# Read back after the run (the smoke suite removes the order, the product and
+# the member it created):
+#
+#   SELECT COUNT(*) FROM unilevel_awards;                                       -> 0
+#   SELECT COUNT(*) FROM ewallet_ledger
+#    WHERE ref_type IN ('unilevel','unilevel_reversal');                        -> 0
+#   SELECT COUNT(*) FROM shop_orders WHERE unilevel_processed_at IS NOT NULL;   -> 0
+#
+# Expected: no award row, no repeat-purchase wallet movement, no stamped order -
+#           Phase 17B has no hook on the payment path.
+# Result: PASS

@@ -1,0 +1,18 @@
+QA21E-05 — The member list: GH column, board card, paid filter
+===============================================================
+Phase 21E — Admin visibility. Runs as admin on /admin/members with fixture h = 3 paid.
+
+Steps:
+1. Open /admin/members.
+2. Read the GH column (3 / 10, 2 / 10, 1 / 10… for node holders; — otherwise).
+3. Read the board card: N = 40, settled 40, frontier 13 / 4 / 1, level 1 next at N = 43.
+4. Apply ?board=paid → 13 recipients; ?board=none → node holders with no credited level.
+
+Observed:
+- GH column shows credited levels out of ten for node holders; — for non-holders.
+- Board card shows N, settled, per-level frontier (rows / next seq / completing N / amount)
+  and open liability ₱0.00.
+- Paid filter survives pagination and intersects with the status filter.
+
+Result: Pass — GH column, board card frontier and open liability all correct; paid filter
+filters to the 13 recipients.

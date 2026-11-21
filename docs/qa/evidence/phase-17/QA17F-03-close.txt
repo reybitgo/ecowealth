@@ -1,0 +1,38 @@
+QA17F-03 - a real run closes the pending month and the rows are on disk
+Date: 2026-11-12 22:02:31 +08:00
+Database: ecowealth_sneat @ 127.0.0.1 (fixture: one paid order of P600 in 2026-10, QA17F-2026-10-015)
+
+Command: php bin/unilevel_month_close.php
+EcoWealth unilevel month close
+  database:    ecowealth_sneat (127.0.0.1)
+  trigger:     cli
+  threshold:   ₱500.00 personal purchases
+  closed:      1
+  periods:     2026-10
+    2026-10  members 27  qualified 1  award_total ₱0.00
+  snapshot:    27 rows · 1 qualified · ₱0.00
+  duration:    32ms
+  log:         C:\laragon\www\ecowealth\system/storage\logs\unilevel_month_close-2026-11.log
+  closed 1 period(s) · 27 members · 1 qualified · ₱0.00 in 32ms
+
+exit code: 0
+
+SQL after the run:
+SQL> SELECT period, closed_at, closed_by, threshold, members_total, qualified_count, award_total FROM unilevel_periods ORDER BY period
+period | closed_at | closed_by | threshold | members_total | qualified_count | award_total
+------------------------------------------------------------------------
+2026-10 | 2026-11-12 22:02:31 | NULL | 500.00 | 27 | 1 | 0.00
+(1 row)
+
+SQL> SELECT COUNT(*) AS activity_rows, MIN(period) AS period, SUM(qualified) AS qualified, SUM(personal_purchases) AS purchases FROM unilevel_activity WHERE period='2026-10'
+activity_rows | period | qualified | purchases
+------------------------------------------------------------------------
+27 | 2026-10 | 1 | 600.00
+(1 row)
+
+The qualified member (the fixture buyer) and the threshold in force:
+SQL> SELECT a.period, u.username, a.personal_purchases, a.qualified, a.evaluated_at FROM unilevel_activity a JOIN users u ON u.id=a.user_id WHERE a.period='2026-10' AND a.qualified=1
+period | username | personal_purchases | qualified | evaluated_at
+------------------------------------------------------------------------
+2026-10 | qa17f_buyer | 600.00 | 1 | 2026-11-12 22:02:31
+(1 row)

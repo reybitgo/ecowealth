@@ -1,0 +1,35 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-01 — A completed level pays its amount once (the 13-account live tree)
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:51:57 +08:00
+
+Expected: one credited level-1 row (threshold 3, n_at_award 3, 1,000.00), a 1,000.00 withdrawable balance and one team_harvest movement
+==============================================================================
+The tree: QA20D_Top is queued by the seed while it holds three directs (n = 0,
+baseline 0); its three directs then each receive three members through
+RegistrationService::register(), so they qualify AFTER go-live and the top
+reaches n = 3 — level 1 completes after the baseline and pays.
+
+Thirteen member accounts; four qualified positions (the top and its three
+directs). The nine grandchildren are members who do not hold the gate yet.
+
+harvest_queue (position = id):
+position | user_id | teammates | baseline_n | source      
+1        | 1       | 3         | 0          | seed        
+2        | 2       | 0         | 0          | registration
+3        | 3       | 0         | 0          | registration
+4        | 4       | 0         | 0          | registration
+
+team_harvest_awards for QA20D_Top:
+level | threshold_n | n_at_award | amount  | status   | ledger_id | credited_at        
+1     | 3           | 3          | 1000.00 | credited | 1         | 2026-11-16 01:51:57
+
+users.ewallet_balance / withdrawable_balance:
+ewallet_balance | withdrawable_balance
+1000.00         | 1000.00             
+
+ewallet_ledger (ref_type = team_harvest):
+type   | amount  | ref_type     | ref_id | note                      
+credit | 1000.00 | team_harvest | 1      | Team Harvest level 1 bonus
+
+team_harvest_enabled = 1 · team_harvest_ledger_since = 2026-11-16 01:51:56

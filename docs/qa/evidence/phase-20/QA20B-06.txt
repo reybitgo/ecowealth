@@ -1,0 +1,37 @@
+QA20B-06 — The gate and the depth
+=================================
+
+Date: 2026-11-15 22:10:29 (Asia/Manila)
+Where: applySection('commissions', ...) — gate 11, then depth 3.
+
+Steps
+
+1. Post the gate as 11 and read the error and the stored value.
+2. Post the depth as 3 and render the card.
+3. Read each ladder row's paying flag and the amounts.
+
+Result
+
+  QA20B-06 PASS  gate 11 is refused: Direct members needed to qualify must be at most 10.
+  QA20B-06 PASS  the stored gate is still 3
+  QA20B-06 PASS  depth 3 is accepted
+  QA20B-06 PASS  levels 4-10 carry the not-paid badge (7 badges)
+
+The saved ladder at depth 3
+
+  Level 1   paying=yes  stored    ₱1,000.00  Paid
+  Level 2   paying=yes  stored    ₱2,000.00  Paid
+  Level 3   paying=yes  stored    ₱4,000.00  Paid
+  Level 4   paying=no   stored    ₱6,000.00  Not paid
+  Level 5   paying=no   stored   ₱12,000.00  Not paid
+  Level 6   paying=no   stored   ₱50,000.00  Not paid
+  Level 7   paying=no   stored  ₱120,000.00  Not paid
+  Level 8   paying=no   stored  ₱200,000.00  Not paid
+  Level 9   paying=no   stored ₱1,200,000.00  Not paid
+  Level 10  paying=no   stored ₱3,500,000.00  Not paid
+
+  The amounts are kept: SUM(amount) = ₱5,095,000.00
+
+Depth restored to 10 at the end of the run.
+
+RESULT: PASS

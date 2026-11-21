@@ -1,0 +1,13 @@
+QA22C-02 — The admin placement console and the audited move route
+Evidence file: docs/qa/evidence/phase-22/QA22C-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/members/{id} (placement panel) and SQL
+Full output: (not captured — requires running browser + database)
+Exit code: not captured
+
+Expected: Empty-subtree moves succeed and are audited; non-empty/cyclic/self-parent/taken-slot moves refused; exactly one placement route (POST /admin/members/{id}/placement).
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22C-T32 through P22C-T36 (move rules — PASS) and P22C-T27 (route inventory — PASS).
+Reason: Environment dependency — browser-based check.

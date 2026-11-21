@@ -1,0 +1,56 @@
+QA17G-00 — setup, baseline and cleanup for the section-G acceptance pass (plan section 11, Phase 17G)
+Date: 2026-11-12 +08:00
+Database: ecowealth_sneat (the development copy) — the section-G pass writes no application row
+
+What the pass touches
+- The development copy is read only by section G: the four job doctors, the reconciliation, the three
+  weekly SQL queries, the month-close doctor and dry run, and the dashboard request. No fixture user,
+  product, order, award or period is created.
+- The install bundle is replayed on the throw-away schema ecowealth_sneat_qa17g (created as root, dropped
+  at the end of QA17G-05); it never touches the development copy.
+- The full suite runs on ecowealth_sneat_test (rebuilt by tests/bootstrap.php). The smoke run (executed
+  twice: a check run at 22:59 and the filed transcript at 23:06) restores every row and setting it
+  changes; both restorations are verified below.
+
+Before the pass (2026-11-12 22:50:03)
+   +-------+----------+--------+---------+----------+---------------+
+   | users | products | awards | periods | activity | repeat_ledger |
+   +-------+----------+--------+---------+----------+---------------+
+   |    26 |       10 |      0 |       0 |        0 |             0 |
+   +-------+----------+--------+---------+----------+---------------+
+   +---------------------------------+---------------------+
+   | key_name                        | value               |
+   +---------------------------------+---------------------+
+   | unilevel_active_threshold       | 500                 |
+   | unilevel_enabled                | 0                   |
+   | unilevel_ledger_since           | 2026-11-12 16:27:16 |
+   | unilevel_max_levels             | 10                  |
+   | unilevel_requires_active_upline | 1                   |
+   | unilevel_reversal_enabled       | 1                   |
+   +---------------------------------+---------------------+
+
+After the pass (2026-11-12 23:07:47)
+   +-------+----------+--------+---------+----------+---------------+
+   | users | products | awards | periods | activity | repeat_ledger |
+   +-------+----------+--------+---------+----------+---------------+
+   |    26 |       10 |      0 |       0 |        0 |             0 |
+   +-------+----------+--------+---------+----------+---------------+
+   +---------------------------------+---------------------+
+   | key_name                        | value               |
+   +---------------------------------+---------------------+
+   | unilevel_active_threshold       | 500                 |
+   | unilevel_enabled                | 0                   |
+   | unilevel_ledger_since           | 2026-11-12 16:27:16 |
+   | unilevel_max_levels             | 10                  |
+   | unilevel_requires_active_upline | 1                   |
+   | unilevel_reversal_enabled       | 1                   |
+   +---------------------------------+---------------------+
+
+Scratch schema ecowealth_sneat_qa17g after the pass: absent (dropped in QA17G-05)
+wallet_reconcile.php after the pass: exit 0 — All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.
+
+Result: the development copy holds the same rows and the same six settings before and after the pass
+(users 26, products 10, awards/periods/activity/repeat ledger 0, unilevel_enabled 0, threshold 500, depth 10);
+the scratch schema is gone and the reconciliation is clean.
+
+exit code: 0

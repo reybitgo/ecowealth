@@ -1,0 +1,38 @@
+QA21C-06 — Nothing is credited and nothing reaches the wallet
+Date: 2026-11-17 01:30:36 +0800 · schema ecowealth_sneat_tool_b_test (armed at N0 = 40)
+
+$ SELECT status, COUNT(*) AS rows_ FROM general_harvest_awards GROUP BY status;
+mysql> SELECT status, COUNT(*) AS rows_ FROM general_harvest_awards GROUP BY status
+| status   | rows_ |
+| baseline | 18    |
+
+$ SELECT COUNT(*) AS gh_ledger_rows FROM ewallet_ledger WHERE ref_type = 'general_harvest';
+mysql> SELECT COUNT(*) AS gh_ledger_rows FROM ewallet_ledger WHERE ref_type = 'general_harvest'
+| gh_ledger_rows |
+| 0              |
+
+$ SELECT COUNT(*) AS with_ledger FROM general_harvest_awards WHERE ledger_id IS NOT NULL;
+mysql> SELECT COUNT(*) AS with_ledger FROM general_harvest_awards WHERE ledger_id IS NOT NULL
+| with_ledger |
+| 0           |
+
+$ php bin/wallet_reconcile.php   (the last lines and the exit code)
+(exit 0)
+Royalty
+  periods:           0 (paid 0 · evaluated 0 · skipped 0)
+  paid awards:       0 (0.00)
+  pending awards:    0 (0.00) — evaluated, not in a wallet yet
+  skipped awards:    0
+  royalty ledger:    0.00
+  OK — every paid award has its wallet movement and every period header agrees with its rows.
+
+Team Harvest
+  queued positions:  40
+  credited awards:   0 (0.00)
+  baseline awards:   0 (0.00) — complete before go-live, never paid
+  team_harvest ledger: 0.00
+  counter drift:     0 row(s) · 0 below the baseline
+  warning:           [stream_off] the Team Harvest bonus is switched off (team_harvest_enabled = 0)
+  OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+
+All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty and team-harvest awards reconcile.

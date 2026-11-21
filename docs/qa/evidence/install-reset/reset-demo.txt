@@ -1,0 +1,172 @@
+2026-11-12 06:20:00 +08:00 — IR-7 demo fixtures: a `--demo` reset, the production refusal and the browser check
+Host: LAPTOP-C0NECL10 · PHP 8.3.16 · MySQL 8.4.3 · schema ecowealth_sneat_install_cli_test (scratch *_test)
+
+1. Prepared a clean production install in the scratch schema (git-ignored helper, tests/tmp/):
+
+    $env:ECO_DB_NAME = 'ecowealth_sneat_install_cli_test'
+    php tests/tmp/ir7-evidence.php prepare ecowealth_sneat_install_cli_test
+    Exit: 0
+    install.sql: 54 statements
+      tables      = 27
+      settings    = 48
+      staff       = 2
+      members     = 0
+      products    = 7
+      packages    = 2
+      levels      = 18
+      contents    = 10
+      codes       = 0
+      demo_codes  = 0
+      ledger      = 0
+      orders      = 0
+      audit       = 0
+      live        = 0
+
+2. The reset with the demo tree and a catalogue re-seed:
+
+    php bin/db_reset.php --force --confirm=ecowealth_sneat_install_cli_test --reset-catalogue --demo
+    Exit: 0
+
+EcoWealth database reset
+  target : ecowealth_sneat_install_cli_test at 127.0.0.1:3306 (8.4.3)
+  mode   : preview, then the typed confirmation
+  rows   : 0 members · 2 staff · 0 orders · 0 ledger · 0 codes
+  catalogue: 7 products / 2 packages (delete and re-seed)
+  options: audit kept (0 rows) · codes 0 · uploads proofs deleted · demo yes
+  last reset: never
+  packages: #1 Package A (active) · #2 Package B (active)
+
+Reset
+   OK   lock              Advisory lock acquired                             0 rows (1 ms)
+   OK   preflight         Preflight check                                    2 rows (5 ms)
+   OK   counts            Snapshot the row counts                            0 rows (61 ms)
+   OK   impersonation     S-Login sessions                                   0 deleted (1 ms)
+   OK   orders            Shop orders, payments, invoices and fulfilment     0 deleted (3 ms)
+   OK   carts             Carts and cart lines                               0 deleted (2 ms)
+   OK   addresses         Address book                                       0 deleted (1 ms)
+   OK   wallet            Wallet ledger, transfers and admin top-ups         0 deleted (8 ms)
+   OK   payouts           Payout requests                                    0 deleted (2 ms)
+   OK   commissions       Commissions and activations                        0 deleted (3 ms)
+   OK   codes             Registration codes                                 0 deleted (1 ms)
+   OK   sessions          Remember-me sessions (all users)                   0 deleted (2 ms)
+   OK   members           Member accounts                                    0 deleted (3 ms)
+   OK   staff             Reset the staff accounts                           2 rows (9 ms)
+   OK   catalogue         Reset the starter catalogue                        9 rows (51 ms)
+  SKIP  audit_clear       Keep the audit log                                 0 rows (0 ms)
+   OK   live              Bump live revisions                               18 rows (3 ms)
+   OK   settings          Write the reset metadata                           2 rows (3 ms)
+   OK   audit             Append the reset audit row                         1 rows (62 ms)
+   OK   auto_increment    Reset AUTO_INCREMENT counters                     19 rows (555 ms)
+   OK   uploads           Delete orphaned upload files                       2 rows (9 ms)
+   OK   demo              Install the demo tree                             11 rows (58 ms)
+  SKIP  codes_generate    Generate registration codes                        0 rows (6 ms)
+   OK   verify            Verify the reset                                  13 rows (243 ms)
+
+Verification
+   OK   Member accounts            5 member row(s) (expected 5)
+   OK   Business rows              5 rows across 18 tables (all zero)
+   OK   Staff accounts             2 staff, balances zero, package/sponsor null, active
+   OK   Catalogue                  7 products, 2 packages, 18 levels, 10 contents (re-seeded from 003/004)
+   OK   Registration codes         3 code row(s) (expected 3)
+   OK   Demo fixtures              5 demo members: juan, maria, peter, sarah, david; david is pending with no package; juan 2000.00/1500.00, maria 1000.00/800.00, peter 500.00/400.00; 3 of 3 adjustment rows (ref_ids 9001–9003); 3 of 3 demo codes: DEMO-EXPD-4C9M, DEMO-PKGA-2A7K, DEMO-PKGB-3B8L
+   OK   Audit trail                1 system.db_reset row(s) (expected 1)
+   OK   Wallet reconciliation      WalletService::reconcile clean
+   OK   Commission reconciliation  CommissionService::reconcile clean
+   OK   Transfer reconciliation    TransferService::reconcile clean
+   OK   Payout reconciliation      PayoutService::reconcile clean
+   OK   Live revisions             18 of 18 standard surfaces (existing incremented, missing at 1)
+   OK   AUTO_INCREMENT counters    17 counter(s) at 1 (2 table(s) hold rows, so their counter continues)
+
+  deleted: 0 rows · members 0 → 5 · orders 0 → 0 · ledger 0 → 3 · codes 0 → 3
+  catalogue: 7 products / 2 packages · audit 1 rows · live 18 surfaces · counters reset 19
+
+Demo fixtures (development/QA only)
+  members: 5 · codes: 3 · ledger rows: 3
+  sign in: juan / Demo@1234
+
+Reset complete and verified.
+  sign in: admin
+  sign in: superadmin
+  next:    sign in as admin, confirm the empty member/order lists, then delete bin/db_reset.php on a production host.
+
+3. The resulting state, read back from the database:
+
+    php tests/tmp/ir7-evidence.php counts ecowealth_sneat_install_cli_test
+    Exit: 0
+      tables      = 27
+      settings    = 50      (48 install keys + last_reset_at + last_reset_by)
+      staff       = 2
+      members     = 5
+      products    = 7
+      packages    = 2
+      levels      = 18
+      contents    = 10
+      codes       = 3
+      demo_codes  = 3
+      ledger      = 3
+      orders      = 0
+      audit       = 1
+      live        = 18
+
+    php tests/tmp/ir7-evidence.php wallets ecowealth_sneat_install_cli_test
+    Exit: 0
+      member   status         balance   withdrawable
+      david    pending           0.00           0.00
+      juan     active         2000.00        1500.00
+      maria    active         1000.00         800.00
+      peter    active          500.00         400.00
+      sarah    active            0.00           0.00
+      code DEMO-EXPD-4C9M   expired
+      code DEMO-PKGA-2A7K   unused
+      code DEMO-PKGB-3B8L   unused
+      ledger juan      2000.00 ref=adjustment#9001
+      ledger maria     1000.00 ref=adjustment#9002
+      ledger peter      500.00 ref=adjustment#9003
+
+4. The production refusal (the engine's `options['env']` seam, no production
+   database involved). It is checked before any delete, and the data is unchanged:
+
+    php tests/tmp/ir7-evidence.php production ecowealth_sneat_install_cli_test
+    Exit: 0
+    refused: kind=refused
+    message: The demo fixtures cannot be installed: Demo fixtures cannot be installed in production (APP_ENV=production). Nothing was deleted.
+    hint:    Fix the environment or the catalogue, or run the reset without --demo. A demo request never merges into an existing tree.
+    state unchanged: yes
+      tables      = 27
+      settings    = 50
+      staff       = 2
+      members     = 5
+      products    = 7
+      packages    = 2
+      levels      = 18
+      contents    = 10
+      codes       = 3
+      demo_codes  = 3
+      ledger      = 3
+      orders      = 0
+      audit       = 1
+      live        = 18
+
+   The same refusal is also asserted by the automated gate
+   (`DbResetTest` · "a demo reset is refused in production before any delete",
+   "a demo reset is refused when the default packages are missing") and by
+   `InstallTest` · "demo data is refused when the tree already exists";
+   see ir7-suite.log.
+
+5. The demo tree as an operator sees it (headless Chrome via the DevTools
+   protocol, 1440 px wide; the address bar is not part of a headless capture):
+
+    Server: php -S 127.0.0.1:8098 -t public public/router.php   (ECO_DB_NAME=ecowealth_sneat_install_cli_test)
+    Sign-in: POST /login as juan / Demo@1234 → dashboard (the documented demo password)
+
+      reset-demo-genealogy.png   GET /genealogy → "Genealogy", 4 in team / 2 levels,
+                                 Team chain juan (Package A) → maria → peter, sarah and
+                                 david (pending), referral code JUAN0001.
+      reset-demo-earnings.png    GET /earnings → "Earnings" for juan: the unilevel
+                                 breakdown and the empty awards table (the demo tree
+                                 seeds wallets and codes, not commissions).
+
+This is the IR-7 demo gate: the option only exists outside production, it runs the
+real 005_demo_tree.sql in one transaction, and a reset without `--demo` leaves no
+member, code or ledger row behind (covered by "demo codes and generated codes
+coexist and a plain reset clears both").

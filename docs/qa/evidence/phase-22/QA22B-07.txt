@@ -1,0 +1,13 @@
+QA22B-07 — The stream is on but still pays nothing
+Evidence file: docs/qa/evidence/phase-22/QA22B-07.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin + a member purchase; SQL on the development copy
+Full output: (not captured — requires running app + database)
+Exit code: not captured
+
+Expected: Card warns Orders now place points and pay awards when the money engine is live.; all three counts (binary_awards, binary_volume, ewallet_ledger binary) are 0.
+Actual: Could not execute — requires Laragon app server and database access. Covered by automated test P22B-T22 (paying an order with the switch on writes no binary row — PASS).
+Reason: Environment dependency — requires running app and database.

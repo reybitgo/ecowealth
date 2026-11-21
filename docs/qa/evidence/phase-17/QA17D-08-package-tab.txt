@@ -1,0 +1,17 @@
+QA17D-08 - the package commission ledger is unchanged
+URL: /admin/commissions (HTTP 200)
+... e the 1st Awards 8 Average ₱303.75 Skipped 4 Ineligible upline — no money moved Commission ledger Awards are immutable; a correction is a new adjustment, never an edit. 12 rows Member, source or package Type All types Direct referral Indirect referral Level Al ...
+... l 8 Level 9 Level 10 Status All statuses Credited Skipped Voided From To Filter Recipient Source Type Amount Status Activation Awarded Details @admin Sneat Administrator #227 · Nov 9, 2026 @test11 Package B Indirect referral Level 4 ₱48.00 not paid Skipped rec ...
+... 9 Level 10 Status All statuses Credited Skipped Voided From To Filter Recipient Source Type Amount Status Activation Awarded Details @admin Sneat Administrator #227 · Nov 9, 2026 @test11 Package B Indirect referral Level 4 ₱48.00 not paid Skipped recipient has ...
+... Packages Membership My membership Register My genealogy Commerce Orders Members Activations Codes Finance Commissions E-wallet monitor My e-wallet Send funds Payouts My payouts Reports System Settings Audit log My profile Change password Sign out 0 Notificatio ...
+... ipped. One row per activation, recipient and level. Export CSV E-wallet monitor Package commissions Repeat-purchase bonus Total credited ₱2,430.00 4 members paid This month ₱2,430.00 Since the 1st Awards 8 Average ₱303.75 Skipped 4 Ineligible upline — no money ...
+
+Repeat-purchase regions on the package tab: 0
+Repeat-purchase ledger heading present: False
+URL: /admin/commissions/export (HTTP 200, text/csv; charset=utf-8)
+--- CSV head ---
+Award,"Awarded at",Recipient,"Recipient name",Level,Type,Source,"Source name",Package,Amount,Status,Reason,Activation,Ledger
+181,"2026-11-09 12:55:31",admin,"Sneat Administrator",4,indirect_referral,test11,,"Package B",48.00,skipped,"recipient has no package",227,
+
+Captured by the automated Phase 17D QA pass (real HTTP + MySQL) - 
+DeepSeek Harness, 2026-11-12 20:00:40 Asia/Manila.

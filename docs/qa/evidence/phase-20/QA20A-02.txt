@@ -1,0 +1,100 @@
+Phase 20A / QA20A-02 — apply migration 024 twice to a p20-start schema
+==========================================================================
+
+Scratch schema: ecowealth_sneat_tool_a_test (recreated). The bundle is the p20-start tag's own install.sql
+(82,518 bytes, 60 statements), so the migration is proved against a real Phase 19
+database rather than a synthetic one.
+
+> mysql --defaults-extra-file=<tmp> -e "DROP DATABASE IF EXISTS ecowealth_sneat_tool_a_test; CREATE DATABASE ecowealth_sneat_tool_a_test ..."
+[exit 0]
+
+> mysql --defaults-extra-file=<tmp> --database=ecowealth_sneat_tool_a_test -e "source <p20-start install.sql>"
+tables_created	settings_rows	staff_rows	members_rows	products_rows	packages_rows	levels_rows	contents_rows	codes_rows
+33	73	2	0	7	2	18	10	0
+key_name	value
+install_channel	install.sql
+install_completed_at	2026-11-15 21:01:19
+install_version	1.0.0
+site_name	EcoWealth
+username	role	member_status	is_active
+admin	admin	active	1
+superadmin	superadmin	active	1
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW TABLES LIKE '%harvest%'"    (before the migration)
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SELECT COUNT(*) AS tables_before FROM information_schema.tables WHERE table_schema = 'ecowealth_sneat_tool_a_test'"
+tables_before
+33
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SELECT COUNT(*) AS settings_before FROM settings"
+settings_before
+73
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "source system/database/migrations/024_team_harvest.sql"   (first run)
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW TABLES LIKE '%harvest%'"    (after the first run)
+Tables_in_ecowealth_sneat_tool_a_test (%harvest%)
+harvest_queue
+team_harvest_awards
+team_harvest_levels
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "source system/database/migrations/024_team_harvest.sql"   (second run — idempotency)
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW TABLES LIKE '%harvest%'"    (after the second run)
+Tables_in_ecowealth_sneat_tool_a_test (%harvest%)
+harvest_queue
+team_harvest_awards
+team_harvest_levels
+[exit 0]
+
+Column lists (the manual gate's QA20A-02 lists):
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW COLUMNS FROM harvest_queue"
+Field	Type	Null	Key	Default	Extra
+id	int unsigned	NO	PRI	NULL	auto_increment
+user_id	int unsigned	NO	UNI	NULL	
+qualified_at	datetime	NO	MUL	NULL	
+directs_at_qualification	smallint unsigned	NO		NULL	
+teammates	int unsigned	NO	MUL	0	
+baseline_n	int unsigned	NO		0	
+source	enum('registration','seed','repair')	NO		registration	
+created_at	timestamp	NO		CURRENT_TIMESTAMP	DEFAULT_GENERATED
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW COLUMNS FROM team_harvest_awards"
+Field	Type	Null	Key	Default	Extra
+id	int unsigned	NO	PRI	NULL	auto_increment
+user_id	int unsigned	NO	MUL	NULL	
+level	tinyint unsigned	NO	MUL	NULL	
+threshold_n	int unsigned	NO		NULL	
+n_at_award	int unsigned	NO		NULL	
+amount	decimal(12,2)	NO		NULL	
+status	enum('credited','baseline')	NO	MUL	credited	
+ledger_id	int unsigned	YES	MUL	NULL	
+credited_at	datetime	NO	MUL	NULL	
+created_at	timestamp	NO		CURRENT_TIMESTAMP	DEFAULT_GENERATED
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW COLUMNS FROM team_harvest_levels"
+Field	Type	Null	Key	Default	Extra
+level	tinyint unsigned	NO	PRI	NULL	
+amount	decimal(12,2)	NO		0.00	
+updated_at	timestamp	NO		CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP
+updated_by	int unsigned	YES		NULL	
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SHOW COLUMNS FROM ewallet_ledger LIKE 'ref_type'"
+Field	Type	Null	Key	Default	Extra
+ref_type	enum('commission','payout','transfer','topup','registration','shop_order','adjustment','refund','unilevel','unilevel_reversal','royalty','team_harvest')	NO	MUL	NULL	
+[exit 0]
+
+RESULT: PASS — no harvest table before the migration; the first run created exactly
+three tables and appended 'team_harvest' last in the ledger enum; the second run
+exited 0 and changed nothing.

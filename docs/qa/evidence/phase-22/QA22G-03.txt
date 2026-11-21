@@ -1,0 +1,13 @@
+QA22G-03 — Node cards carry points, pairs and today's pairs
+Evidence file: docs/qa/evidence/phase-22/QA22G-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: /genealogy?view=binary on a node with volume
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Node cards display left/right points, pairs paid, pairs today; numbers match binary_nodes cached balances and binary_volume.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22G-T9 (subtree node card includes points and slots — PASS).
+Reason: Environment dependency — browser-based check.

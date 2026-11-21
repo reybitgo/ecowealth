@@ -1,0 +1,137 @@
+/* ==============================================================
+ *  EcoWealth — reports (Phase 15)
+ *
+ *  The admin finance desk: KPI cards, the finance-health list, the
+ *  sales chart, the per-report tables and the date-range bar.
+ *  Loaded through page_css on /admin/reports.
+ * ============================================================== */
+
+/* ---------- KPI cards ---------- */
+.report-kpi-card .report-kpi-value,
+.report-kpi-card h4 {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.report-kpi-card .avatar-initial {
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- Date range ---------- */
+.reports-range .form-label {
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+  margin-bottom: 0.35rem;
+}
+
+.reports-range .reports-range-field {
+  flex: 0 1 11rem;
+  min-width: 10rem;
+}
+
+/* ---------- Health widget ---------- */
+.report-health-list .report-health-row {
+  padding-block: 0.6rem;
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.report-health-list .report-health-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.report-health-row.is-bad {
+  background: var(--bs-danger-bg-subtle);
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.report-health-details {
+  margin-top: 0.4rem;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--bs-danger-color);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Tables ---------- */
+.report-table {
+  font-size: 0.9rem;
+}
+
+.report-table thead th {
+  white-space: nowrap;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.report-table tfoot td {
+  border-top-width: 1px;
+}
+
+/* ---------- Sales ---------- */
+.report-chart {
+  min-height: 260px;
+}
+
+.report-highlight {
+  height: 100%;
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.5rem;
+  padding: 1rem 1.1rem;
+  background: var(--bs-body-bg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Top products ---------- */
+.report-top-list .report-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-block: 0.6rem;
+  border-top: 1px solid var(--bs-border-color-translucent);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-top-list .report-top-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.report-top-rank {
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ---------- Payout methods ---------- */
+.report-method-list li + li {
+  border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 767.98px) {
+  .report-table {
+    font-size: 0.82rem;
+  }
+
+  .report-table thead th,
+  .report-table tbody td {
+    padding: 0.5rem 0.4rem;
+  }
+
+  .report-chart {
+    min-height: 220px;
+  }
+}

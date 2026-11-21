@@ -1,0 +1,105 @@
+QA17G-06 — evidence completeness and the seven gate records (plan section 11, Phase 17G)
+Date: 2026-11-12 23:04:54 +08:00
+
+1) Every check id maps to at least one file in docs/qa/evidence/phase-17/
+   QA17A-01  OK  QA17A-01-tables.txt
+   QA17A-02  OK  QA17A-02-columns.txt
+   QA17A-03  OK  QA17A-03-settings.txt
+   QA17A-04  OK  QA17A-04-admin-settings.png, QA17A-04-admin-settings.txt, QA17A-04-product-edit.png, QA17A-04-product-edit.txt
+   QA17A-05  OK  QA17A-05-awards-count.txt, QA17A-05-order.txt
+   QA17A-06  OK  QA17A-06-wallet-filter.png, QA17A-06-wallet-filter.txt, QA17A-06-wallet-reversal.png
+   QA17A-07  OK  QA17A-07-verification.txt
+   QA17A-08  OK  QA17A-08-reset.txt
+   QA17B-01  OK  QA17B-01-product-edit.txt
+   QA17B-02  OK  QA17B-02-saved-ladder.txt
+   QA17B-03  OK  QA17B-03-sum-error.txt
+   QA17B-04  OK  QA17B-04-empty-ladder.txt
+   QA17B-05  OK  QA17B-05-pv-base.txt
+   QA17B-06  OK  QA17B-06-products-list.txt
+   QA17B-07  OK  QA17B-07-settings.txt
+   QA17B-08  OK  QA17B-08-no-js.txt
+   QA17B-09  OK  QA17B-09-order.txt
+   QA17C-01  OK  QA17C-01-order.txt
+   QA17C-02  OK  QA17C-02-wallets.txt
+   QA17C-03  OK  QA17C-03-admin-wallet.txt
+   QA17C-04  OK  QA17C-04-reconcile.txt
+   QA17C-05  OK  QA17C-05-manual.txt
+   QA17C-06  OK  QA17C-06-skipped.txt
+   QA17C-07  OK  QA17C-07-reversal.txt
+   QA17C-08  OK  QA17C-08-active.txt
+   QA17C-09  OK  QA17C-09-kill-switch.txt
+   QA17C-10  OK  QA17C-10-close.txt
+   QA17D-01  OK  QA17D-01-ledger.txt
+   QA17D-02  OK  QA17D-02-filters.txt
+   QA17D-03  OK  QA17D-03-reversal.txt
+   QA17D-04  OK  QA17D-04-order-wallet.txt
+   QA17D-05  OK  QA17D-05-export.csv, QA17D-05-export.txt
+   QA17D-06  OK  QA17D-06-order-states.txt
+   QA17D-07  OK  QA17D-07-reports.txt
+   QA17D-08  OK  QA17D-08-package-tab.txt
+   QA17E-01  OK  QA17E-01-product-panel.txt
+   QA17E-02  OK  QA17E-02-checkout-preview.txt
+   QA17E-03  OK  QA17E-03-order-outcome.txt
+   QA17E-04  OK  QA17E-04-earnings-tab.txt
+   QA17E-05  OK  QA17E-05-export.csv, QA17E-05-filters-export.txt
+   QA17E-06  OK  QA17E-06-package-regression.txt
+   QA17E-07  OK  QA17E-07-buyer-view.txt
+   QA17E-08  OK  QA17E-08-dashboard-membership.txt
+   QA17E-09  OK  QA17E-09-earnings-390-full.png, QA17E-09-earnings-390.png, QA17E-09-mobile.txt, QA17E-09-product-390-full.png, QA17E-09-product-390.png
+   QA17F-01  OK  QA17F-01-doctor.txt
+   QA17F-02  OK  QA17F-02-dry-run.txt
+   QA17F-03  OK  QA17F-03-close.txt
+   QA17F-04  OK  QA17F-04-idempotent.txt
+   QA17F-05  OK  QA17F-05-period.txt
+   QA17F-06  OK  QA17F-06-web.txt
+   QA17F-07  OK  QA17F-07-cmd.txt
+   QA17G-01  OK  QA17G-01-build.txt, QA17G-01-reconcile.txt, QA17G-01-smoke.txt, QA17G-01-suite.txt
+   QA17G-02  OK  QA17G-02-cold-read.txt
+   QA17G-03  OK  QA17G-03-acceptance-table.txt
+   QA17G-04  OK  QA17G-04-phase.txt
+   QA17G-05  OK  QA17G-05-deploy.txt, QA17G-05-runbook.txt
+   QA17G-06  OK  QA17G-06-evidence.txt
+
+   ids: 57 · mapped: 57 · missing: 0
+
+2) No orphan QA17 file (every file belongs to a check, or is a shared setup transcript)
+   QA17 files: 78 · check files: 73 · shared setup transcripts: 5 · orphans: 0
+   shared: QA17A-dev-db-migration.txt
+   shared: QA17D-00-setup-cleanup.txt
+   shared: QA17E-00-setup-cleanup.txt
+   shared: QA17F-00-setup-cleanup.txt
+   shared: QA17G-00-setup-cleanup.txt
+
+3) The folder index names every section
+   17A Foundation: True
+   17B Configuration: True
+   17C Money engine: True
+   17D Admin visibility: True
+   17E Member visibility: True
+   17F Operations: True
+   17G Release: True
+
+4) The sign-off sheet carries all 57 checks and the seven gate records
+   check rows: 57 (expected 57)
+   gate rows:  7 (expected 7)
+   summary line: True
+
+5) The phase log has the seven Phase 17 entries plus the release entry
+   ## Phase 17A: True
+   ## Phase 17B: True
+   ## Phase 17C: True
+   ## Phase 17D: True
+   ## Phase 17E: True
+   ## Phase 17F: True
+   ## Phase 17G: True
+
+6) The plan's Appendix G has the seven rows, the 17G row filled
+   Appendix G rows: 7 (expected 7)
+   17G row filled: True
+
+Result: 57 / 57 check ids have evidence; the only files outside a check id are the five shared setup/cleanup
+transcripts the sections reference; the index names all seven phases; the sign-off sheet carries 57 check rows and
+the seven gate records; the phase log has the seven Phase 17 entries plus this release entry; and Appendix G
+matches the sheet with the 17G row filled.
+
+exit code: 0

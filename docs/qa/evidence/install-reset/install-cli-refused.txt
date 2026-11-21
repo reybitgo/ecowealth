@@ -1,0 +1,69 @@
+2026-11-11 20:44:07 +08:00 — IR-3 refusal: the install lock is present (re-run of the successful command)
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php bin\db_install.php --database=ecowealth_sneat_install_cli_test --force --admin-email=owner@example.com --admin-password-stdin --superadmin-email=owner+super@example.com --superadmin-password-stdin
+Exit: 3
+
+EcoWealth database installer
+  database: ecowealth_sneat_install_cli_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     install
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_install_cli_test
+  OK    Database exists      ecowealth_sneat_install_cli_test exists
+  FAIL  Database empty       the schema already holds 27 tables
+        The bundle is fresh-install only. Drop and recreate the schema (or choose another one); existing
+        databases are upgraded with database/migrations/NNN_*.sql, never with install.sql.
+  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  FAIL  Install lock         installed 2026-11-11T20:44:06+08:00 into ecowealth_sneat_install_cli_test (cli)
+        This installation is already locked. Delete storage/install.lock only if you really intend to
+        wipe the database and install from scratch.
+  OK    INSTALL_KEY          not required outside production
+
+Preflight failed — 2 checks need attention.
+db_install: preflight failed — nothing was written.
+LOCK_SHA256_BEFORE=F23BB85BC4E0674D094BD8E5DAEEE47759E87C5DBB94AEB4310BCE8FB1D362AD
+LOCK_SHA256_AFTER=F23BB85BC4E0674D094BD8E5DAEEE47759E87C5DBB94AEB4310BCE8FB1D362AD
+
+2026-11-11 20:44:07 +08:00 — IR-3 refusal: a non-empty schema with no lock
+Host: Windows 11 Home Single Language build 26200 · PHP 8.3.16 (ZTS) · MySQL 8.4.3
+Command: php bin\db_install.php --database=ecowealth_sneat_install_refused_test --force --admin-email=owner@example.com --admin-password-stdin --superadmin-email=owner+super@example.com --superadmin-password-stdin
+Exit: 3
+
+EcoWealth database installer
+  database: ecowealth_sneat_install_refused_test at 127.0.0.1:3306
+  channel:  cli
+  mode:     install
+
+Preflight
+  OK    PHP version          8.3.16
+  OK    pdo_mysql extension  loaded
+  OK    fileinfo extension   loaded
+  OK    mbstring extension   loaded
+  OK    json extension       loaded
+  OK    config.local.php     app/config.local.php is readable
+  OK    MySQL server         connected — MySQL 8.4.3
+  OK    Database name        ecowealth_sneat_install_refused_test
+  OK    Database exists      ecowealth_sneat_install_refused_test exists
+  FAIL  Database empty       the schema already holds 1 table
+        The bundle is fresh-install only. Drop and recreate the schema (or choose another one); existing
+        databases are upgraded with database/migrations/NNN_*.sql, never with install.sql.
+  OK    install.sql          database/install.sql — 54 statements, 63,695 bytes
+  OK    Storage writable     storage is writable
+  OK    Lock directory       storage is writable
+  OK    Install lock         storage/install.lock is absent
+  OK    INSTALL_KEY          not required outside production
+
+Preflight failed — 1 check needs attention.
+db_install: preflight failed — nothing was written.
+EXIT=3
+LOCK_CREATED=False

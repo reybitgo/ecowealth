@@ -6,21 +6,8 @@
                 >
                   <div class="mb-2 mb-md-0">
                     &#169;
-                    <?= date('Y') ?> — Eco-wealth login &amp; registration, made with
-                    <span class="text-danger">&#x2764;</span> using
-                    <a href="https://www.php.net" target="_blank" rel="noopener" class="footer-link">PHP <?= PHP_VERSION ?></a>
-                    &amp;
-                    <a href="https://www.mysql.com" target="_blank" rel="noopener" class="footer-link">MySQL</a>.
-                  </div>
-                  <div class="d-none d-lg-inline-block">
-                    Template by
-                    <a
-                      href="https://themeselection.com/item/sneat-bootstrap-html-admin-template/"
-                      target="_blank"
-                      rel="noopener"
-                      class="footer-link"
-                      >ThemeSelection</a
-                    >
+                    <?= date('Y') ?> <?= e(APP_NAME) ?> — <?= e(APP_TAGLINE) ?>.
+                    <span class="text-body-secondary">All rights reserved.</span>
                   </div>
                 </div>
               </div>
@@ -38,6 +25,59 @@
       <div class="drag-target"></div>
     </div>
     <!-- / Layout wrapper -->
+<?php if (($layout ?? 'member') !== 'plain' && auth_check()): ?>
+<?php
+    /* Global cart drawer (plan §5.2, Phase 4). A page view never writes:
+     * CartService::state() only reads the member's active cart. Guarded so a
+     * deploy that lands before migration 004 cannot blank every page. */
+    $cart_drawer_state = [
+        'cart'   => null,
+        'items'  => [],
+        'totals' => ['items' => 0, 'quantity' => 0, 'subtotal' => 0.0],
+    ];
+
+    try {
+        $cart_drawer_state = (new CartService())->state((int) auth_user()['id']);
+    } catch (Throwable $e) {
+        error_log('[ecowealth] cart drawer unavailable: ' . $e->getMessage());
+    }
+?>
+<?= View::partial('cart_offcanvas', ['state' => $cart_drawer_state]) ?>
+    <div
+      id="cartConfig"
+      hidden
+      data-count-url="<?= e(url('cart/count')) ?>"
+      data-add-url="<?= e(url('cart/add')) ?>"
+      data-update-url="<?= e(url('cart/update')) ?>"
+      data-remove-url="<?= e(url('cart/remove')) ?>"
+      data-cart-url="<?= e(url('cart')) ?>"
+      data-csrf="<?= e(csrf_token()) ?>"
+    ></div>
+<?php endif; ?>
+<?php
+    /* A native POST (the product create/edit form) queues its surface in
+     * the session; the landing page hands it to app-live.js, which
+     * broadcasts it to the other open tabs. */
+    $live_publish = class_exists('Live') ? Live::takePublished() : [];
+    $live_json    = json_encode($live_publish, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    if ($live_json === false) {
+        $live_json = '[]';
+    }
+?>
+    <div
+      id="liveConfig"
+      hidden
+      data-publish="<?= e($live_json) ?>"
+      data-channel="ecowealth:live:<?= e(trim(base_url(), '/')) ?>"
+    ></div>
+    <!-- Toast host + cart behaviour (Phase 4) -->
+    <div
+      id="toastContainer"
+      class="toast-container position-fixed end-0 p-3"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
     <!-- Core JS -->
     <!-- build:js assets/vendor/js/theme.js  -->
     <script src="<?= e(url('assets/vendor/libs/jquery/jquery.js')) ?>"></script>
@@ -51,6 +91,10 @@
 <?php foreach ($page_js as $js): ?>
     <script src="<?= e(asset_url($js)) ?>"></script>
 <?php endforeach; ?>
+    <!-- App JS -->
+    <script src="<?= e(asset_url('assets/js/app.js')) ?>"></script>
+    <script src="<?= e(asset_url('assets/js/app-cart.js')) ?>"></script>
+    <script src="<?= e(asset_url('assets/js/app-live.js')) ?>"></script>
     <!-- Main JS -->
     <script src="<?= e(url('assets/js/main.js')) ?>"></script>
   </body>

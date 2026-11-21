@@ -1,0 +1,75 @@
+QA19A-07 — The reset previews and empties a royalty award and period
+====================================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Scratch schema: ecowealth_sneat_tool_b_test (recreated empty)
+Working directory: C:\laragon\www\ecowealth\system
+
+Preparation
+
+  php bin\db_install.php --database=ecowealth_sneat_tool_b_test --force --json …   -> exit 0, ok
+  (the install lock was removed again before the reset; it plays no part in a reset)
+
+Fixture rows (inserted by hand, because 19C's close job does not exist yet)
+
+  INSERT INTO users (username, email, password_hash, full_name, role, member_status,
+                     referral_code, is_active)
+       VALUES ('p19a_qa_member', 'p19a_qa@test.local', 'x', 'QA Member',
+               'member', 'active', 'P19AQA01', 1);
+
+  INSERT INTO royalty_periods (period, status, enabled, evaluated_at, as_of,
+                               leader_directs, supervisor_leaders, manager_supervisors,
+                               director_managers, quota_supervisor, quota_manager,
+                               quota_director, group_pct_supervisor, personal_pct_supervisor,
+                               group_pct_manager, personal_pct_manager,
+                               group_pct_director, personal_pct_director)
+       VALUES ('2026-10', 'evaluated', 1, '2026-11-01 00:05:00', '2026-10-31 23:59:59',
+               10, 10, 10, 10, 500000, 1000000, 5000000, 3, 5, 5, 10, 10, 15);
+
+  INSERT INTO royalty_awards (period, user_id, rank_level, group_volume, personal_volume,
+                              quota, group_pct, personal_pct, amount, status)
+       VALUES ('2026-10', (SELECT id FROM users WHERE username = 'p19a_qa_member'),
+               2, 1000000, 1000, 500000, 3, 5, 30050, 'pending');
+
+  Counts before the reset: royalty_awards = 1, royalty_periods = 1.
+
+Step 1 — dry run
+
+  ECO_DB_NAME=ecowealth_sneat_tool_b_test php bin\db_reset.php --dry-run --json
+
+  exit 0, ok = true
+  counts            : royalty_awards = 1, royalty_periods = 1
+  missing_tables    : (none)
+  plan step         : key "royalty", label "Royalty bonus awards and month headers",
+                      statements = 2
+  writes            : 0
+
+Step 2 — real reset
+
+  ECO_DB_NAME=ecowealth_sneat_tool_b_test php bin\db_reset.php --force \
+      --confirm=ecowealth_sneat_tool_b_test --json
+
+  exit 0, ok = true
+  counts_after      : royalty_awards = 0, royalty_periods = 0
+  settings          : 75 rows after the reset (73 + last_reset_at + last_reset_by); the sixteen
+                      royalty_* settings survive
+  auto_increment    : reset = 21, failed = 0
+  zero_transactional: "0 rows across 24 tables (all zero)"
+  wallets           : "WalletService::reconcile clean"
+
+Step 3 — direct database checks
+
+  SELECT COUNT(*) FROM royalty_awards                 -> 0
+  SELECT COUNT(*) FROM royalty_periods                -> 0
+  SELECT COUNT(*) FROM settings WHERE key_name LIKE 'royalty\_%'  -> 16
+  information_schema auto_increment, royalty_awards   -> 1     (counter restarted)
+  information_schema auto_increment, royalty_periods  -> NULL  (no counter to touch)
+
+Notes
+
+- The reset reports a dedicated "Royalty bonus awards and month headers" step and deletes the
+  awards before their period headers (foreign key order).
+- It alters no AUTO_INCREMENT on `royalty_periods` (the natural key), and all 21 counter resets
+  succeed.
+
+RESULT: PASS

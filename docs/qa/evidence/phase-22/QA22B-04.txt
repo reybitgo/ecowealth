@@ -1,0 +1,13 @@
+QA22B-04 — The product list badge and the ?binary=on|off filter
+Evidence file: docs/qa/evidence/phase-22/QA22B-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/products?binary=on and ?binary=off
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: On-filter shows flagged products with Binary N pts; off-filter shows unflagged; filter survives pagination and combines with ?status=.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22B-T13 (admin list filters by binary on and off — PASS).
+Reason: Environment dependency — browser-based check.

@@ -1,0 +1,13 @@
+QA22C-09 — Registration placement rolls back on invalid placement
+Evidence file: docs/qa/evidence/phase-22/QA22C-09.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app + SQL on a scratch schema
+Full output: (not captured — requires running app + scratch database)
+Exit code: not captured
+
+Expected: Invalid upline → user NOT created; taken slot → user NOT created; attempted user not in users table.
+Actual: Could not execute — requires Laragon app server and scratch database. Covered by automated test P22G-T17 (slot taken → register() refuses, no user, no node — PASS).
+Reason: Environment dependency — requires running app and scratch database.

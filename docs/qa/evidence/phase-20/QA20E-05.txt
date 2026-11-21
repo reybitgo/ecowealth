@@ -1,0 +1,30 @@
+QA20E-05 - The directory's Harvest column and queue card
+========================================================
+
+Date: 2026-11-16 11:35:40 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20g-release (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+
+Why: Rules 5, 7 and 8 of plan section 9: positions are displayed, never derived; the card explains its states.
+
+Queue (SQL): [[174,"qa20e_05_root",12],[175,"qa20e_05_n1_542_1",3],[176,"qa20e_05_n1_542_2",3],[177,"qa20e_05_n1_542_3",3],[178,"qa20e_05_n2_543_1",0],[179,"qa20e_05_n2_543_2",0],[180,"qa20e_05_n2_543_3",0],[181,"qa20e_05_n2_544_1",0],[182,"qa20e_05_n2_544_2",0],[183,"qa20e_05_n2_544_3",0],[184,"qa20e_05_n2_545_1",0],[185,"qa20e_05_n2_545_2",0],[186,"qa20e_05_n2_545_3",0]]
+HarvestQueue::stats(): {"queued":13,"positions":186,"next":187,"deepest":12,"seeded":true,"baseline":"2026-11-01 00:00:00","awards":5}
+
+The root's row: Q0 @qa20e_05_root Qa20e 05 root — company Active Member #174 ₱3,000.00 ₱3,000.00 withdrawable Nov 16, 2026 11:35 AM
+The queue card (rendered member-harvest):
+  Team Harvest queue A member enters the queue when they hold 3 direct member accounts. Positions are fixed for ever; a member's team fills with qualified members who join after them. Seeded · Nov 1, 2026 12:00 AM Open the ledger Queued 13 Next position #187 Deepest team 12 teammates Open liability · not yet paid ₱0.00 5 levels paid (₱6,000.00) · 0 recorded before go-live (₱0.00 — never paid) · 0 levels across 0 members would be evaluated as complete now. Position Member Qualified at Teammates At go-live Levels paid Paid Source #174 @qa20e_05_root 16 Nov 2026 12 0 2 ₱3,000.00 registration #175 @qa20e_05_n1_542_1 16 Nov 2026 3 0 1 ₱1,000.00 registration #176 @qa20e_05_n1_542_2 16 Nov 2026 3 0 1 ₱1,000.00 registration #177 @qa20e_05_n1_542_3 16 Nov 2026 3 0 1 ₱1,000.00 registration #178 @qa20e_05_n2_543_1 16 Nov 2026 0 0 0 ₱0.00 registration #179 @qa20e_05_n2_543_2 16 Nov 2026 0 0 0 ₱0.00 registration #180 @qa20e_05_n2_543_3 16 Nov 2026 0 0 0 ₱0.00 registration #181 @qa20e_05_n2_544_1 16 Nov 2026 0 0 0 ₱0.00 registration #182 @qa20e_05_n2_544_2 16 Nov 2026 0 0 0 ₱0.00 registration #183 @qa20e_05_n2_544_3 16 Nov 2026 0 0 0 ₱0.00 registration Read-only. A position is never renumbered; a level pays once, ever. Showing the first 10 of 13 positions. Open liability is derived, never stored: it moves with every qualification.
+
+The filter (rendered member-filters):
+  All statuses Active Pending Inactive Suspended All packages No package Package A (0) Package B (0) Team Harvest: all In the Harvest queue Not qualified Filter
+
+Checks:
+  the Harvest column exists .......... yes
+  the root reads #174 ............. yes
+  the card shows the queued count .... yes
+  the card shows the next position ... 1 / next 187
+  harvest=yes rows ................... 13
+  harvest=no rows .................... 27
+  an unknown value is no filter ...... yes
+
+RESULT: PASS

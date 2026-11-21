@@ -1,0 +1,10 @@
+QA17C-09 — the global kill switch stamps but never pays (automated pass)
+
+status | unilevel_processed_at | unilevel_total
+-----------------------------------------------
+paid   | 2026-11-12 18:35:33   | 0.00          
+
+Awards for the order: 0; repeat-purchase ledger rows: 0
+After turning the master back on and re-running the hook: processed=false replayed=true; awards now: 0
+Expected: paid order, stamp set, total 0.00, 0 awards, 0 ledger rows; a re-run is 'replayed' and still writes nothing.
+

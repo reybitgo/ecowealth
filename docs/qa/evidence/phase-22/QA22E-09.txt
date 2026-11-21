@@ -1,0 +1,13 @@
+QA22E-09 — The other tabs are untouched
+Evidence file: docs/qa/evidence/phase-22/QA22E-09.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/commissions with ledger=repeat_purchase and ledger=royalty
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Repeat-purchase bonus and Royalty tabs byte-identical to p22d-money; no binary content leaked in.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22E-T1 (existing commission tabs unchanged by the Binary tab — PASS).
+Reason: Environment dependency — browser-based check.

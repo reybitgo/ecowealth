@@ -1,0 +1,13 @@
+QA22F-01 — The binary tab renders with stats, self card, both team cards
+Evidence file: docs/qa/evidence/phase-22/QA22F-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /earnings?ledger=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Product binary tab pill active; stats tile, self bonus card, Left team card, Right team card render; self card shows ₱50.00 pending; tab names no upline/sponsor/ancestor.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T1 through P22F-T3.
+Reason: Environment dependency — browser-based check.

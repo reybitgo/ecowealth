@@ -1,0 +1,13 @@
+QA22F-03 — Independent per-side roster pagination
+Evidence file: docs/qa/evidence/phase-22/QA22F-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /earnings?ledger=binary&left_page=2&left_per_page=5
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Each side paginates independently with namespaced keys; moving one side never moves the other side or the awards table.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T2, P22F-T3.
+Reason: Environment dependency — browser-based check.

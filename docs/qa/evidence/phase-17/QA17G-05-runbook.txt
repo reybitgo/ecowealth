@@ -1,0 +1,114 @@
+QA17G-05 — the runbook weekly checklist on the development copy (plan section 11, Phase 17G)
+Date: 2026-11-12 22:58:35 +08:00
+Guide followed: docs/runbook.md §1, §2, §4, §7 and §9
+
+Before — the development copy (the release baseline)
+   +-------+--------+---------+----------+---------------+
+   | users | awards | periods | activity | repeat_ledger |
+   +-------+--------+---------+----------+---------------+
+   |    26 |      0 |       0 |        0 |             0 |
+   +-------+--------+---------+----------+---------------+
+
+1) The four job doctors (runbook §2)
+
+   Command: php bin\shop_expire.php --doctor   (exit 0)
+       php                 8.3.16 (cli)
+       timezone            Asia/Manila · 2026-11-12 22:58:40 +08:00
+       expiry enabled      yes
+       lock                free · C:\laragon\www\ecowealth\system/storage\locks\shop_expire.lock
+       log                 C:\laragon\www\ecowealth\system/storage\logs\shop_expire-2026-11.log (writable)
+
+   Command: php bin\order_autocomplete.php --doctor   (exit 0)
+       php          8.3.16 (cli)
+       timezone     Asia/Manila · 2026-11-12 22:58:40 +08:00
+       enabled      yes
+       lock         free · C:\laragon\www\ecowealth\system/storage\locks\order_autocomplete.lock
+       log          C:\laragon\www\ecowealth\system/storage\logs\order_autocomplete-2026-11.log (writable)
+
+   Command: php bin\reset_transfer_limits.php --doctor   (exit 0)
+       php               8.3.16 (cli)
+       timezone          Asia/Manila · 2026-11-12 22:58:41 +08:00
+       lock              free · C:\laragon\www\ecowealth\system/storage\locks\reset_transfer_limits.lock
+       log               C:\laragon\www\ecowealth\system/storage\logs\reset_transfer_limits-2026-11.log (writable)
+
+   Command: php bin\unilevel_month_close.php --doctor   (exit 0)
+       php            8.3.16 (cli)
+       timezone       Asia/Manila · 2026-11-12 22:58:42 +08:00
+       clocks         agree (0s)
+       threshold      ₱500.00 personal purchases
+       last closed    none yet
+       pending        none (nothing to close — the ledger baseline (2026-11) is after last month (2026-10))
+       members        26 accounts get a snapshot row
+       enabled        no — periods still close (the switch gates payouts, not the close)
+
+2) Reconciliation (runbook §1 check 2 and §4)
+   Command: php bin\wallet_reconcile.php   (exit 0)
+       database:          ecowealth_sneat (127.0.0.1)
+       accounts checked:  26
+       accounts with ledger: 10
+       OK — every wallet matches its ledger on both buckets.
+       credited awards:   8 (2,430.00)
+       skipped awards:    4
+       ledger total:      2,430.00
+       legacy credits:    2 (20,500.00) — commission movements before the award history began
+       OK — every credited award has its wallet movement and the totals agree.
+       transfers checked: 3
+       OK — every transfer has its sender debit, recipient credit and fee credit.
+       requests checked:  2
+       held by open requests: 0.00
+       OK — every request has its hold, and every rejection its refund.
+     Repeat-purchase
+       credited awards:   0 (0.00)
+       skipped awards:    0
+       voided awards:     0
+       unilevel ledger:   0.00
+       reversals:         0.00
+       OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+     All good — wallets, commissions, transfers, payouts and repeat-purchase awards reconcile.
+
+3) The three repeat-purchase queries (runbook §4)
+   a) paid but undecided orders: no rows
+      
+   b) award status by period: no rows (no awards yet)
+      
+   c) unrecovered shortfalls: no rows
+      
+
+4) The month clock (runbook §4 and the 1st-of-month step)
+   Command: php bin\unilevel_month_close.php --doctor   (exit 0)
+     EcoWealth unilevel month close — doctor
+       php            8.3.16 (cli)
+       timezone       Asia/Manila · 2026-11-12 22:58:44 +08:00
+       database       ecowealth_sneat @ 127.0.0.1
+       db now         2026-11-12 22:58:44 (session +08:00)
+       clocks         agree (0s)
+       period now     2026-11 — the current month is never closed implicitly
+       threshold      ₱500.00 personal purchases
+       ledger since   2026-11-12 16:27:16
+       last closed    none yet
+       pending        none (nothing to close — the ledger baseline (2026-11) is after last month (2026-10))
+       members        26 accounts get a snapshot row
+       enabled        no — periods still close (the switch gates payouts, not the close)
+       lock           free · C:\laragon\www\ecowealth\system/storage\locks\unilevel_month_close.lock
+       log            C:\laragon\www\ecowealth\system/storage\logs\unilevel_month_close-2026-11.log (writable)
+       cron key       not set (loopback only)
+       storage        C:\laragon\www\ecowealth\system/storage
+
+   Command: php bin\unilevel_month_close.php --dry-run   (exit 0)
+     EcoWealth unilevel month close (dry run — nothing is written)
+       database:    ecowealth_sneat (127.0.0.1)
+       threshold:   ₱500.00 personal purchases
+       would close: nothing to close — the ledger baseline (2026-11) is after last month (2026-10)
+
+5) No row was written by the dry run, and nothing else moved
+   +-------+--------+---------+----------+---------------+
+   | users | awards | periods | activity | repeat_ledger |
+   +-------+--------+---------+----------+---------------+
+   |    26 |      0 |       0 |        0 |             0 |
+   +-------+--------+---------+----------+---------------+
+
+Result: the four doctors exit 0 and report their clocks, switches, locks and logs; the reconcile exits 0 with all five
+sections; the three weekly queries return no rows; the month close is pending-free (the ledger baseline is after last month)
+and its dry run writes nothing. The before/after counts are identical.
+
+exit code: 0

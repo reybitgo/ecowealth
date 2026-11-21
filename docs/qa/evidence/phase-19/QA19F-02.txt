@@ -1,0 +1,40 @@
+Phase 19F — Operations
+Check QA19F-02 — The URL entry from loopback returns the same doctor report
+Prerequisite: the running app at http://localhost/ecowealth/system and no CRON_KEY (loopback is trusted)
+Executed: 2026-11-15 15:20:42 +08:00 by the Phase 19F automated QA pass (DSH)
+==============================================================================
+Command:
+
+  curl -s -w "\nHTTP %{http_code}" "http://localhost/ecowealth/system/cron/royalty_month_close.php?doctor=1"
+
+HTTP status: 200
+
+Body:
+
+EcoWealth Royalty month close — doctor
+       php            8.3.16 (apache2handler)
+       mysql          8.4.3 (session +08:00)
+       clocks         agree (0s)
+       db_now         2026-11-15 15:20:42 (session +08:00)
+       timezone       Asia/Manila · +08:00 (MySQL session +08:00)
+       tables         royalty_periods, royalty_awards present
+       settings       16/16 present; ladder valid
+       ledger since   2026-11-15 08:18:55 → first payable 2026-12
+       enabled        royalty_enabled=0 · royalty_pay_enabled=1
+       last paid      none yet
+       last final     none yet
+       pending        none (nothing to close — the ledger baseline (2026-12) is after last month (2026-10))
+       evaluated      none
+       paid awards    every paid month has no pending award
+       counts         24 member(s) · 0 award row(s) · 0 period(s)
+       lock           free · C:\laragon\www\ecowealth\system/storage\locks\royalty_month_close.lock
+       log            C:\laragon\www\ecowealth\system/storage\logs\royalty_month_close-2026-11.log (writable)
+       wallet         Royalty reconcile clean · 0 paid row(s) · ₱0.00
+       cron key       not set (loopback only)
+       storage        C:\laragon\www\ecowealth\system/storage
+
+The doctor is green.
+
+==============================================================================
+Asserted: the URL entry answers HTTP 200 and prints the same doctor lines the CLI printed in QA19F-01 (clocks agree, Asia/Manila, both tables, 16/16 settings, lock free, wallet clean).
+RESULT: PASS

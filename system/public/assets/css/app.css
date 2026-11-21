@@ -1,0 +1,570 @@
+/* ==============================================================
+ *  EcoWealth — application polish
+ *
+ *  Loaded after demo.css on every signed-in page. Only rules that
+ *  smooth out the shared shell and the admin dashboard live here;
+ *  page-specific CSS stays in the view that needs it.
+ * ============================================================== */
+
+/* ---------- Brand ---------- */
+.app-brand-logo .app-brand-img {
+  display: block;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/*
+ * Below the 1200px layout breakpoint the menu becomes an off-canvas
+ * drawer, so there is plenty of room for the wordmark. Always show the
+ * full logo there — the compact leaf mark is only for the collapsed
+ * desktop rail. This also wins over the template's collapsed-state
+ * rules when a desktop collapse has been remembered.
+ */
+@media (max-width: 1199.98px) {
+  /* A remembered desktop collapse must not squeeze the drawer brand. */
+  #layout-menu .app-brand {
+    width: auto !important;
+  }
+
+  #layout-menu .app-brand-link {
+    flex: 0 0 auto !important;
+    margin-inline: 0 !important;
+  }
+
+  #layout-menu .app-brand-img {
+    display: block !important;
+    flex: 0 0 auto !important;
+    max-width: none !important;
+  }
+
+  #layout-menu .app-brand-img-collapsed {
+    display: none !important;
+  }
+}
+
+/* ---------- Menu ---------- */
+/* Long labels must never push the badge out of the sidebar. */
+.layout-menu .menu-link {
+  min-width: 0;
+}
+
+.layout-menu .menu-link > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-menu .menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Dashboard: welcome banner ---------- */
+.welcome-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.12);
+  background:
+    radial-gradient(120% 170% at 100% 0%, rgba(var(--bs-primary-rgb), 0.18) 0%, rgba(var(--bs-primary-rgb), 0) 58%),
+    linear-gradient(115deg, rgba(var(--bs-primary-rgb), 0.11) 0%, rgba(var(--bs-info-rgb), 0.07) 52%, rgba(var(--bs-primary-rgb), 0.02) 100%);
+}
+
+.welcome-card::after {
+  position: absolute;
+  z-index: -1;
+  inset-block-end: -6rem;
+  inset-inline-end: -4rem;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 50%;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  content: "";
+  filter: blur(6px);
+}
+
+.welcome-card .card-body {
+  position: relative;
+  z-index: 1;
+}
+
+.welcome-card .welcome-eyebrow {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------- Dashboard: KPI cards ---------- */
+.stat-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.stat-card:hover {
+  box-shadow: 0 0.5rem 1.25rem rgba(var(--bs-primary-rgb), 0.1);
+  transform: translateY(-2px);
+}
+
+.stat-card .avatar-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card .stat-value {
+  font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- List toolbars (products, packages) ---------- */
+.catalog-filter .form-control {
+  flex: 0 1 16rem;
+  width: 16rem;
+}
+
+.catalog-filter .form-select {
+  flex: 0 1 10rem;
+  width: 10rem;
+}
+
+@media (max-width: 575.98px) {
+  .catalog-filter .form-control,
+  .catalog-filter .form-select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+/* ---------- Label icon buttons ---------- */
+/*
+ * Sneat's generic `.btn-icon` rule overrides the label variant colour, so
+ * the glyph stayed gray even on the dark hover fill. Restore the variant
+ * colour and use a focus ring instead of the hover fill, so a restored
+ * focus after browser Back never leaves the action looking pressed.
+ */
+.btn-icon[class*="btn-label-"]:not(:disabled) {
+  color: var(--bs-btn-color);
+}
+
+.btn-icon[class*="btn-label-"]:not(:disabled):hover,
+.btn-icon[class*="btn-label-"]:not(:disabled):active {
+  color: var(--bs-btn-hover-color);
+}
+
+.btn-icon[class*="btn-label-"]:not(:disabled):focus-visible {
+  color: var(--bs-btn-color);
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* ---------- Admin product thumbnails ---------- */
+.admin-product-thumb {
+  display: block;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.admin-product-thumb-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(
+      circle at 50% 38%,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(var(--bs-primary-rgb), 0.05) 55%,
+      rgba(var(--bs-primary-rgb), 0.1) 100%
+    ),
+    var(--bs-gray-100, #f4f6fb);
+}
+
+.admin-product-thumb-empty img {
+  width: 26px;
+  height: auto;
+  opacity: 0.55;
+}
+
+/* Empty product-image preview in the create/edit form. */
+.admin-image-placeholder {
+  width: 4rem;
+  height: auto;
+  opacity: 0.45;
+}
+
+/* ---------- Live regions ----------
+ * Background refreshes must be noticeable but not disruptive: a short
+ * tint on only the rows that changed, plus the small status text beside
+ * the section heading. The status span collapses when empty so it never
+ * changes the header layout. */
+[data-live-status]:empty {
+  display: none;
+}
+
+@keyframes ecowealth-live-row {
+  from {
+    background-color: rgba(var(--bs-primary-rgb), 0.14);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+table tr.is-live-updated > td {
+  animation: ecowealth-live-row 1.6s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  table tr.is-live-updated > td {
+    animation: none;
+  }
+}
+
+/* ---------- Dashboard: tables ---------- */
+.dashboard-table > :not(caption) > * > * {
+  padding-block: 0.85rem;
+  vertical-align: middle;
+}
+
+.dashboard-table thead th {
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+/* ---------- Dashboard: stock meter ---------- */
+.stock-meter {
+  overflow: hidden;
+  height: 0.375rem;
+  border-radius: 999px;
+  background-color: rgba(var(--bs-secondary-rgb), 0.14);
+}
+
+.stock-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--bs-success);
+}
+
+.stock-meter.is-low > span {
+  background-color: var(--bs-warning);
+}
+
+.stock-meter.is-out > span {
+  background-color: var(--bs-danger);
+}
+
+/* ---------- Dashboard: chart shells ---------- */
+.dashboard-chart {
+  min-height: 315px;
+}
+
+.dashboard-chart-sm {
+  min-height: 220px;
+}
+
+@media (max-width: 575.98px) {
+  .dashboard-chart {
+    min-height: 260px;
+  }
+}
+
+/* ---------- Toasts (cart + live feedback, Phase 4) ----------
+ * The host sits in the top-right corner, clear of the navbar and the cart
+ * drawer's Checkout button (bottom-right). The theme ships .toast-container
+ * with a low stacking order, so raise it above the drawer/backdrop and let
+ * clicks through everywhere except a toast. */
+#toastContainer {
+  z-index: 1095;
+  top: 5rem;
+  pointer-events: none;
+}
+
+/* On wide screens, shift the host clear of the open cart drawer so the
+ * message never covers the drawer's lines, close button or Checkout CTA. */
+@media (min-width: 1200px) {
+  body:has(.offcanvas.show) #toastContainer {
+    right: 27rem !important;
+  }
+}
+
+#toastContainer .toast {
+  pointer-events: auto;
+}
+
+/* A toast reads as a small card instead of a coloured bar: a tone-tinted
+ * icon on the left, a title/message block, an optional action button, and
+ * the close control pinned to the top-right corner. Pinning the ✕ (rather
+ * than flex-centring it) keeps it out of the middle of a two-line message
+ * and gives it a predictable, clickable corner. */
+#toastContainer .app-toast {
+  position: relative;
+  width: 22rem;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.625rem;
+  background-color: var(--bs-paper-bg, var(--bs-body-bg));
+  color: var(--bs-body-color);
+  box-shadow: 0 0.75rem 1.75rem rgba(34, 48, 62, 0.16);
+}
+
+/* Tone accent down the leading edge. Tones are set by app-cart.js as
+ * data-tone; the variables keep every tone in one place. */
+#toastContainer .app-toast::before {
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 0.25rem;
+  background-color: var(--app-toast-accent, var(--bs-primary));
+  content: "";
+}
+
+#toastContainer .app-toast[data-tone="success"] {
+  --app-toast-accent: var(--bs-success);
+  --app-toast-icon-color: var(--bs-success);
+  --app-toast-icon-bg: rgba(var(--bs-success-rgb), 0.12);
+}
+
+#toastContainer .app-toast[data-tone="warning"] {
+  --app-toast-accent: var(--bs-warning);
+  --app-toast-icon-color: var(--bs-warning);
+  --app-toast-icon-bg: rgba(var(--bs-warning-rgb), 0.14);
+}
+
+#toastContainer .app-toast[data-tone="danger"] {
+  --app-toast-accent: var(--bs-danger);
+  --app-toast-icon-color: var(--bs-danger);
+  --app-toast-icon-bg: rgba(var(--bs-danger-rgb), 0.12);
+}
+
+#toastContainer .app-toast[data-tone="info"] {
+  --app-toast-accent: var(--bs-info);
+  --app-toast-icon-color: var(--bs-info);
+  --app-toast-icon-bg: rgba(var(--bs-info-rgb), 0.12);
+}
+
+/* The right padding reserves the strip the close control sits in. */
+#toastContainer .app-toast .toast-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 2.75rem 1rem 1.25rem;
+}
+
+#toastContainer .app-toast-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background-color: var(--app-toast-icon-bg, rgba(var(--bs-primary-rgb), 0.12));
+  color: var(--app-toast-icon-color, var(--bs-primary));
+  font-size: 1.125rem;
+}
+
+#toastContainer .app-toast-content {
+  min-width: 0;
+}
+
+#toastContainer .app-toast-title {
+  margin-block-end: 0.125rem;
+  color: var(--bs-heading-color);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+#toastContainer .app-toast-text {
+  color: var(--bs-secondary-color);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* A message without a title is the whole point of the card, so give it
+ * the body colour and the normal UI size instead of the caption style. */
+#toastContainer .app-toast-text:only-child {
+  color: var(--bs-body-color);
+  font-size: 0.875rem;
+}
+
+#toastContainer .app-toast-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-block-start: 0.75rem;
+}
+
+/* Pinned to the card's top-right corner with a comfortable hit area; the
+ * glyph itself stays small so the ✕ never competes with the message. */
+#toastContainer .app-toast-close {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  background-size: 0.75rem;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  opacity: 0.55;
+}
+
+#toastContainer .app-toast-close:hover,
+#toastContainer .app-toast-close:focus-visible {
+  opacity: 1;
+}
+
+/* ---------- Cart drawer + navbar badge (Phase 4) ----------
+ * Both are shell elements: app_header renders the badge and app_footer the
+ * drawer on EVERY signed-in page. Their styles therefore live here, not in
+ * shop.css (which only loads on the catalogue and cart pages) — on other
+ * pages the badge used to fall back to the theme's oversized default pill. */
+/* The theme's `.btn .badge` rule (the trigger is a btn-icon link) forces the
+ * badge back into the flow, so target it with enough specificity to keep it on
+ * the icon's corner as a compact counter. It is anchored by its LEFT edge just
+ * inside the icon's right edge: a growing count then extends into the navbar
+ * gap instead of sliding across (and hiding) the cart glyph. */
+#layout-navbar .cart-navbar-badge {
+  position: absolute;
+  top: 0.1rem;
+  right: auto;
+  left: calc(100% - 0.7rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.05rem;
+  block-size: 1.05rem;
+  padding: 0 0.3rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 999px;
+}
+
+.cart-qty-group {
+  /* Size to the three pieces instead of a fixed rem width: a fixed group left
+   * the value field too narrow for two- and three-digit quantities, so the
+   * drawer clipped them. fit-content overrides Bootstrap's .input-group 100%. */
+  width: fit-content;
+  flex-wrap: nowrap;
+}
+
+.cart-qty-group .btn {
+  flex: 0 0 auto;
+  padding-right: 0.55rem;
+  padding-left: 0.55rem;
+}
+
+.cart-qty-group input[type='number'] {
+  /* Fixed, readable field: fits 4 digits without the native spinner eating the
+   * value. The buttons keep their size, so the group grows with the digits. */
+  flex: 0 0 2.75rem;
+  width: 2.75rem;
+  min-width: 0;
+  padding-right: 0.25rem;
+  padding-left: 0.25rem;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.cart-qty-group input[type='number']::-webkit-outer-spin-button,
+.cart-qty-group input[type='number']::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.cart-drawer {
+  width: min(23rem, 100vw);
+}
+
+.cart-drawer-media {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.6rem;
+  background: var(--bs-gray-100, #f4f6fb);
+}
+
+.cart-drawer-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0.2rem;
+  object-fit: contain;
+}
+
+.cart-drawer-media-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--bs-secondary-color);
+}
+
+.cart-drawer-name {
+  display: block;
+  overflow: hidden;
+  max-width: 12rem;
+  color: var(--bs-heading-color);
+  font-size: 0.925rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cart-drawer-name:hover {
+  color: var(--bs-primary);
+}
+
+.cart-drawer-line {
+  color: var(--bs-heading-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cart-drawer-empty {
+  min-height: 60vh;
+}
+
+/* ---------- Empty states ----------
+ * The theme's .avatar is a block-level, fixed-size box with a pointer
+ * cursor. Inside a centered empty state it needs mx-auto to centre the
+ * circle, and a normal cursor because it is decorative, not an action. */
+.empty-state-avatar,
+.empty-state-avatar .avatar-initial {
+  cursor: default;
+}
+
+/* The drawer uses the shared .cart-qty-group sizing (fit-content); no narrower
+ * override here, otherwise a two-digit quantity gets clipped again. */
+
+/* ---------- Copy-to-clipboard feedback ----------
+ * The copy icon turns into a check mark and the Bootstrap tooltip reads
+ * "Copied!" for a moment (app.js). The colour is the only visual change
+ * on the button itself, so the row never shifts. */
+[data-copy].is-copied i.icon-base {
+  color: var(--bs-success);
+}

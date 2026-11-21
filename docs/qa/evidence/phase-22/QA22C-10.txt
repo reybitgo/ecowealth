@@ -1,0 +1,13 @@
+QA22C-10 — The genealogy controller's binary facts
+Evidence file: docs/qa/evidence/phase-22/QA22C-10.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /genealogy and /genealogy?view=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: /genealogy sponsor view byte-identical to p22b-configuration; /genealogy?view=binary renders binary node facts for viewer's subtree only.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22G-T31 (sponsor view regression — PASS), P22G-T4/T5 (member JSON feed / 403 — PASS).
+Reason: Environment dependency — browser-based check.

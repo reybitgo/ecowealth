@@ -1,0 +1,34 @@
+Phase 20A / QA20A-03 — the four settings and the ten ladder amounts
+==========================================================================
+
+Schema: ecowealth_sneat_tool_a_test (migrated in QA20A-02).
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SELECT key_name, value FROM settings WHERE key_name LIKE 'team\_harvest\_%' ORDER BY key_name"
+key_name	value
+team_harvest_enabled	0
+team_harvest_ledger_since	
+team_harvest_max_levels	10
+team_harvest_qualify_directs	3
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SELECT COUNT(*) AS rows_expected_10, SUM(amount) AS total_expected_5095000 FROM team_harvest_levels"
+rows_expected_10	total_expected_5095000
+10	5095000.00
+[exit 0]
+
+> mysql --database=ecowealth_sneat_tool_a_test -e "SELECT level, amount FROM team_harvest_levels ORDER BY level"
+level	amount
+1	1000.00
+2	2000.00
+3	4000.00
+4	6000.00
+5	12000.00
+6	50000.00
+7	120000.00
+8	200000.00
+9	1200000.00
+10	3500000.00
+[exit 0]
+
+RESULT: PASS — exactly four team_harvest_* settings (enabled 0, qualify 3, max
+levels 10, ledger_since empty); ten ladder rows totalling 5,095,000.00.

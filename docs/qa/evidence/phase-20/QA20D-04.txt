@@ -1,0 +1,62 @@
+EcoWealth — Phase 20D manual QA transcript
+QA20D-04 — The reconciler reports the Team Harvest section
+Database: ecowealth_sneat_tool_b_test (127.0.0.1) — scratch schema, rebuilt from database/schema.sql
+PHP: 8.3.16 · APP_PHASE: 19 · captured 2026-11-16 01:51:57 +08:00
+
+Expected: exit 0 with the Team Harvest section: 4 positions, one credited award of 1,000.00, baseline 0, drift 0
+==============================================================================
+Command: php bin/wallet_reconcile.php
+
+EcoWealth finance reconciliation
+  database:          ecowealth_sneat_tool_b_test (127.0.0.1)
+  accounts checked:  13
+  accounts with ledger: 1
+
+Wallets
+  OK — every wallet matches its ledger on both buckets.
+
+Commissions
+  credited awards:   0 (0.00)
+  skipped awards:    0
+  ledger total:      0.00
+  OK — every credited award has its wallet movement and the totals agree.
+
+Transfers
+  transfers checked: 0
+  OK — every transfer has its sender debit, recipient credit and fee credit.
+
+Payouts
+  requests checked:  0
+  held by open requests: 0.00
+  OK — every request has its hold, and every rejection its refund.
+
+Repeat-purchase
+  credited awards:   0 (0.00)
+  pending awards:    0 (0.00) — earned, not in a wallet yet
+  cancelled awards:  0 (0.00) — order cancelled before release, never paid
+  skipped awards:    0
+  voided awards:     0
+  awarded total:     0.00 (pending + credited)
+  unilevel ledger:   0.00
+  reversals:         0.00
+  OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+
+Royalty
+  periods:           0 (paid 0 · evaluated 0 · skipped 0)
+  paid awards:       0 (0.00)
+  pending awards:    0 (0.00) — evaluated, not in a wallet yet
+  skipped awards:    0
+  royalty ledger:    0.00
+  OK — every paid award has its wallet movement and every period header agrees with its rows.
+
+Team Harvest
+  queued positions:  4
+  credited awards:   1 (1,000.00)
+  baseline awards:   0 (0.00) — complete before go-live, never paid
+  team_harvest ledger: 1,000.00
+  counter drift:     0 row(s) · 0 below the baseline
+  OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+
+All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty and team-harvest awards reconcile.
+
+exit = 0

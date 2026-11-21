@@ -1,0 +1,54 @@
+QA20F-02 - The matrix card's copy
+=================================
+
+Date: 2026-11-16 09:19:25 +08:00 (Asia/Manila)
+Working directory: C:\laragon\www\ecowealth\system
+Tag under test: p20f-member (working tree)
+Schema: ecowealth_sneat_test (test harness; dropped and rebuilt by every suite run)
+Fixture: fixture A grown through TeamHarvestService::onQualified() (the registration hook's
+         own call), or the go-live baseline reconstructed by HarvestQueue::seed(). The
+         member is signed in through test_signed_in_as(); the page is rendered through
+         View::page(), exactly as the route does.
+
+Why: Rules 3, 5, 6 and 8 of plan section 10: the two exclusions and the purchases footnote appear once, verbatim, and never promise money.
+
+Fixture A's root — the copy counts:
+  the two exclusions, verbatim ..... 1 occurrence(s)
+  the purchases footnote .......... 1 occurrence(s)
+  the all-or-nothing sentence ..... 1 occurrence(s)
+  forbidden words in the page ..... none
+  a promised payment date ......... none
+
+  exclusions .. Only members who qualify after you count. Direct members who are not qualified do not count.
+  purchases ... This bonus does not depend on any purchase — yours or your teammates'.
+  all-or-none . A level pays its amount once, when its block is full — a partial block pays nothing.
+
+The ten matrix rows (level · block · state · amount):
+  L1       3 of 3       Paid                                           ₱1,000.00
+  L2       9 of 9       Paid                                           ₱2,000.00
+  L3      27 of 27      Paid                                           ₱4,000.00
+  L4       0 of 81      In progress                                    ₱6,000.00
+  L5       0 of 243     In progress                                    ₱12,000.00
+  L6       0 of 729     In progress                                    ₱50,000.00
+  L7       0 of 2,187   In progress                                    ₱120,000.00
+  L8       0 of 6,561   In progress                                    ₱200,000.00
+  L9       0 of 19,683  In progress                                    ₱1,200,000.00
+  L10      0 of 59,049  In progress                                    ₱3,500,000.00
+
+The baseline member — the two labels and the footnote:
+  teammates 12 · baseline_n 12 · levels paid 0 · earned ₱0.00 · before go-live ₱3,000.00
+  L1  Before go-live                                 ₱1,000.00
+  L2  Before go-live                                 ₱2,000.00
+  footnote ... The plan started paying on 16 Nov 2026. A level that was already complete then is recorded as Before go-live and is not paid.
+  the footnote appears 1 time(s)
+  "Before go-live" in the baseline card: 8 time(s)
+
+Checks:
+  both exclusions once ............ yes
+  purchases footnote once ......... yes
+  all-or-nothing once ............. yes
+  no forbidden word ............... yes
+  ten levels shown ................ yes
+  baseline labelled and dated ..... yes
+
+RESULT: PASS

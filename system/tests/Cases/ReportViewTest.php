@@ -1,0 +1,438 @@
+<?php
+declare(strict_types=1);
+
+/* ==============================================================
+ *  ReportViewTest — the Phase 15 reports screen and health widget
+ *  (plan §7 Phase 15, §6.8)
+ *
+ *  Renders the real template with the real service context, so the
+ *  page, its live fragments and its navigation entry are all checked
+ *  against the same data the controller builds.
+ * ============================================================== */
+
+$renderReports = static function (array $overrides = []): string {
+    $range = ReportService::rangeFromRequest();
+    $data  = (new ReportService())->page($range) + [
+        'page_title'   => 'Reports',
+        'current_nav'  => 'admin.reports',
+        'page_css'     => ['assets/css/reports.css'],
+        'page_js'      => ['assets/js/admin-reports.js'],
+        'live'         => Live::meta('admin.reports', 'test'),
+        'export_types' => ReportService::EXPORTS,
+        'export_url'   => url('admin/reports/export'),
+        'canonical'    => url('admin/reports'),
+    ];
+
+    ob_start();
+
+    try {
+        View::page('admin', 'admin/reports/index', array_merge($data, $overrides));
+    } finally {
+        $html = (string) ob_get_clean();
+    }
+
+    return $html;
+};
+
+return [
+    'P15 the reports page renders every report and its export menu' => function () use ($renderReports): void {
+        test_signed_in_as(test_user('rpt_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        assert_contains('data-live-surface="admin.reports"', $html);
+        assert_contains('Reports', $html);
+        assert_contains('Sales by day', $html);
+        assert_contains('Commissions by level', $html);
+        assert_contains('Repeat-purchase bonus', $html);
+        assert_contains('Repeat-purchase by level', $html);
+        assert_contains('Repeat-purchase by product', $html);
+        assert_contains('Royalty bonus', $html);
+        assert_contains('Royalty by rank', $html);
+        assert_contains('Royalty months', $html);
+        assert_contains('Closed months', $html);
+        assert_contains('Payout register', $html);
+        assert_contains('Registration-code revenue', $html);
+        assert_contains('Finance health', $html);
+
+        /* One export entry per report type, all carrying the window. */
+        foreach (array_keys(ReportService::EXPORTS) as $type) {
+            assert_contains('type=' . $type, $html, 'the ' . $type . ' export is offered');
+        }
+
+        /* The date window is editable and defaults to 30 days. */
+        assert_contains('name="from"', $html);
+        assert_contains('name="to"', $html);
+        assert_contains('Last 30 days', $html);
+
+        /* Chart containers and live regions. */
+        assert_contains('data-live-region="report-kpis"', $html);
+        assert_contains('data-live-region="report-health"', $html);
+        assert_contains('data-live-region="report-sales"', $html);
+        assert_contains('data-live-region="report-commissions"', $html);
+        assert_contains('data-live-region="report-payouts"', $html);
+        assert_contains('data-live-region="report-codes"', $html);
+        assert_contains('data-live-region="report-unilevel"', $html);
+        assert_contains('data-live-region="report-unilevel-levels"', $html);
+        assert_contains('data-live-region="report-unilevel-products"', $html);
+        assert_contains('data-live-region="report-unilevel-periods"', $html);
+        assert_contains('data-live-region="report-royalty"', $html);
+        assert_contains('data-live-region="report-royalty-ranks"', $html);
+        assert_contains('data-live-region="report-royalty-periods"', $html);
+        assert_contains('window.ECOWEALTH_REPORTS', $html);
+    },
+
+    'P19D the royalty cards render their empty state and the ratio line' => function () use ($renderReports): void {
+        test_signed_in_as(test_user('rpt19d_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        /* No royalty row exists in this fixture: the cards must still
+           render, with a zero ratio and the plan’s empty-state copy. */
+        assert_contains('Royalty paid ÷ paid sales', $html);
+        assert_contains('0.0%', $html);
+        assert_contains('No Royalty month has closed yet', $html);
+        assert_contains('Director', $html, 'the rank table lists every paying rank');
+        assert_contains('Supervisor', $html);
+        assert_contains('data-live-region="report-royalty"', $html);
+        assert_contains('type=royalty', $html, 'the royalty export is in the menu');
+    },
+
+    'P15 a report window comes from the query and is echoed in the form' => function () use ($renderReports): void {
+        test_signed_in_as(test_user('rpt_admin', 'admin'));
+
+        $_GET = ['from' => '2026-01-05', 'to' => '2026-01-10'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports?from=2026-01-05&to=2026-01-10';
+
+        $html = $renderReports();
+
+        assert_contains('value="2026-01-05"', $html);
+        assert_contains('value="2026-01-10"', $html);
+        assert_contains('Jan 5, 2026 – Jan 10, 2026', $html);
+        assert_contains('6 days', $html);
+    },
+
+    'P15 the reports page escapes product and member data' => function () use ($renderReports): void {
+        test_signed_in_as(test_user('rpt_admin', 'admin'));
+
+        $user = test_user('rpt_hostile', 'member');
+        $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+        $orderId = test_order((int) $user['id'], [['product_id' => $productId, 'quantity' => 1]], 'paid', [
+            'total'   => 100.00,
+            'paid_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        db()->prepare('UPDATE shop_order_items SET product_name = ?, line_total = 100.00 WHERE order_id = ?')
+            ->execute(['<script>alert("x")</script>', $orderId]);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        assert_contains('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;', $html);
+        assert_not_contains('<script>alert("x")</script>', $html);
+    },
+
+    'P15 the reports feed returns twelve fragments and chart data' => function (): void {
+        test_signed_in_as(test_user('rpt_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $controller = new AdminReportController();
+        $payload    = $controller->feedPayload(3, '"admin.reports:3:abc"', $controller->pageContext());
+
+        assert_true($payload['ok']);
+        assert_same('admin.reports', $payload['surface']);
+        assert_same(
+            [
+                'report-health',
+                'report-kpis',
+                'report-sales',
+                'report-top-products',
+                'report-commissions',
+                'report-payouts',
+                'report-codes',
+                'report-orders',
+                'report-unilevel',
+                'report-unilevel-levels',
+                'report-unilevel-products',
+                'report-unilevel-periods',
+                'report-general-harvest',
+                'report-binary',
+                'report-binary-pairs',
+                'report-binary-products',
+                'report-binary-readiness',
+            ],
+            array_keys($payload['fragments'])
+        );
+
+        assert_contains('data-live-region="report-health"', $payload['fragments']['report-health']);
+        assert_contains('Wallet balances', $payload['fragments']['report-health']);
+        assert_contains('Stock availability', $payload['fragments']['report-health']);
+        assert_contains('data-live-region="report-kpis"', $payload['fragments']['report-kpis']);
+        assert_contains('Sales in window', $payload['fragments']['report-kpis']);
+        assert_contains('data-live-region="report-sales"', $payload['fragments']['report-sales']);
+
+        /* The chart payload is three parallel arrays of the same length. */
+        $chart = $payload['data']['sales'];
+        assert_same(count($chart['labels']), count($chart['values']));
+        assert_same(count($chart['labels']), count($chart['orders']));
+        assert_same(30, count($chart['labels']), 'the default window has 30 points');
+    },
+
+    'P15 the health widget reports every invariant and passes on a clean fixture' => function (): void {
+        $health = (new HealthService())->checks();
+
+        assert_same(12, $health['totals']['checks'], '22H adds the four Product binary checks');
+        assert_same(0, $health['totals']['failing'], 'the seeded fixture reconciles');
+        assert_true($health['ok']);
+
+        $keys = array_map(static fn (array $section): string => $section['key'], $health['sections']);
+        assert_same(
+            ['wallets', 'commissions', 'awards', 'royalty', 'transfers', 'payouts', 'orders', 'stock',
+             'binary_readiness', 'binary_points', 'binary_escrow', 'binary_release_job'],
+            $keys
+        );
+
+        foreach ($health['sections'] as $section) {
+            assert_true($section['ok'], $section['key'] . ' should be clean');
+            assert_true($section['summary'] !== '', $section['key'] . ' explains itself');
+            assert_true($section['label'] !== '');
+        }
+    },
+
+    'P15 the health widget flags a broken order total' => function (): void {
+        $healthBefore = (new HealthService())->checks();
+        assert_true($healthBefore['ok']);
+
+        $user    = test_user('rpt_broken', 'member');
+        $orderId = test_order((int) $user['id'], [], 'paid', ['total' => 100.00, 'subtotal' => 100.00]);
+
+        /* The order claims ₱100 but its single line is ₱90: the exact
+         * defect invariant #4 exists to catch. */
+        db()->prepare('UPDATE shop_order_items SET line_total = 90.00 WHERE order_id = ?')->execute([$orderId]);
+
+        $health = (new HealthService())->checks();
+        $orders = null;
+
+        foreach ($health['sections'] as $section) {
+            if ($section['key'] === 'orders') {
+                $orders = $section;
+            }
+        }
+
+        assert_not_null($orders);
+        assert_false($orders['ok']);
+        assert_contains('differs', $orders['summary']);
+        assert_false($health['ok']);
+        assert_same(1, $health['totals']['failing']);
+    },
+
+    'P15 the admin menu offers Reports and the Audit log in phase 15' => function (): void {
+        assert_true(APP_PHASE >= 15, 'this build is phase 15');
+
+        $config = nav_config();
+        $items  = [];
+
+        foreach ($config['admin']['sections'] as $section) {
+            foreach ($section['items'] as $item) {
+                $items[$item['key']] = $item;
+            }
+        }
+
+        assert_true(isset($items['admin.reports']), 'Reports is in the back-office menu');
+        assert_true(isset($items['admin.audit']), 'Audit log is in the back-office menu');
+        assert_same('admin/reports', $items['admin.reports']['path']);
+        assert_same('admin/audit', $items['admin.audit']['path']);
+        assert_same('admin', $items['admin.reports']['guard']);
+        assert_same(15, $items['admin.reports']['phase']);
+        assert_true(nav_item_live($items['admin.reports']));
+        assert_true(nav_item_live($items['admin.audit']));
+
+        /* The sidebar highlights the right entry from a deep URL. */
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports?from=2026-01-01';
+        assert_same('admin.reports', nav_current_key('admin', test_user('rpt_admin', 'admin')));
+
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/audit';
+        assert_same('admin.audit', nav_current_key('admin', test_user('rpt_admin', 'admin')));
+
+        $_SERVER['REQUEST_URI'] = '/';
+    },
+
+    'P17D-T12 the four repeat cards show the fixture numbers and the dashboard KPI reads 30 days' => function () use ($renderReports): void {
+        /* Two credited awards (₱25 level 1, ₱15 level 2) and one skip. */
+        $makeAward = static function (int $level, float $amount, string $status = 'credited', string $reason = ''): int {
+            $buyer     = test_user('rptv_buyer_' . bin2hex(random_bytes(3)));
+            $recipient = test_user('rptv_rec_' . bin2hex(random_bytes(3)));
+            $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+            $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+                'paid_at' => date('Y-m-d H:i:s'),
+                'total'   => '100.00',
+            ]);
+            $itemId = (int) db()->query(
+                'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+            )->fetchColumn();
+
+            return UnilevelAward::create([
+                'order_id'      => $orderId,
+                'order_item_id' => $itemId,
+                'product_id'    => $productId,
+                'buyer_id'      => (int) $buyer['id'],
+                'user_id'       => (int) $recipient['id'],
+                'level'         => $level,
+                'base_amount'   => 500.00,
+                'rate_pct'      => $level === 1 ? 5.0 : 3.0,
+                'amount'        => $amount,
+                'status'        => $status,
+                'reason'        => $reason === '' ? null : $reason,
+                'paid_at'       => date('Y-m-d H:i:s'),
+            ]);
+        };
+
+        $makeAward(1, 25.00);
+        $makeAward(2, 15.00);
+        $makeAward(2, 25.00, 'skipped', 'recipient account is disabled');
+
+        db()->prepare(
+            'INSERT INTO unilevel_periods
+               (period, closed_at, closed_by, threshold, members_total, qualified_count, award_total)
+             VALUES (?, NOW(), NULL, 500.00, 15, 9, 2000.00)'
+        )->execute(['2026-10']);
+
+        test_signed_in_as(test_user('rptv_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $html = $renderReports();
+
+        $summary = View::capture('admin/reports/_unilevel', [
+            'unilevel' => Report::unilevelSummary(date('Y-m-d'), date('Y-m-d')),
+            'range'    => ReportService::range(null, null),
+        ]);
+        assert_contains(money(40.0), $summary);
+        assert_contains('2', $summary);
+        assert_contains('1', $summary, 'one skip is reported');
+
+        $levels = View::capture('admin/reports/_unilevel_levels', [
+            'unilevel_levels' => Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d')),
+            'range'           => ReportService::range(null, null),
+        ]);
+        assert_contains('Level 1', $levels);
+        assert_contains('Level 2', $levels);
+        assert_contains(money(25.0), $levels);
+        assert_contains(money(15.0), $levels);
+
+        $products = View::capture('admin/reports/_unilevel_products', [
+            'unilevel_products' => Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d')),
+            'range'             => ReportService::range(null, null),
+        ]);
+        assert_contains(money(40.0), $products);
+
+        $periods = View::capture('admin/reports/_unilevel_periods', [
+            'unilevel_periods' => Report::unilevelByPeriod(6),
+        ]);
+        assert_contains('Oct 2026', $periods);
+        assert_contains('15', $periods);
+        assert_contains('9', $periods);
+        assert_contains(money(2000.0), $periods);
+
+        /* The same four cards are on the page. */
+        assert_contains('data-live-region="report-unilevel"', $html);
+        assert_contains('data-live-region="report-unilevel-levels"', $html);
+        assert_contains('data-live-region="report-unilevel-products"', $html);
+        assert_contains('data-live-region="report-unilevel-periods"', $html);
+
+        /* The dashboard tile reads the last 30 days from the same read. */
+        $commerce = (new ReportService())->dashboard();
+        $tile     = View::capture('admin/dashboard/_commerce', ['commerce' => $commerce]);
+
+        assert_contains('Repeat bonus (30 d)', $tile);
+        assert_contains(money(40.0), $tile);
+        assert_contains('2 awards', $tile);
+        assert_contains('2 recipients', $tile);
+        assert_contains('admin/commissions?ledger=repeat', $tile);
+    },
+
+    'P18-T47 the report cards show the pending liability beside the credited money' => function () use ($renderReports): void {
+        $award = static function (int $level, float $amount, string $status): int {
+            $buyer     = test_user('rptv18_buyer_' . bin2hex(random_bytes(3)));
+            $recipient = test_user('rptv18_rec_' . bin2hex(random_bytes(3)));
+            $productId = (int) db()->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+
+            $orderId = test_order((int) $buyer['id'], [['product_id' => $productId]], 'paid', [
+                'paid_at' => date('Y-m-d H:i:s'),
+                'total'   => '100.00',
+            ]);
+            $itemId = (int) db()->query(
+                'SELECT id FROM shop_order_items WHERE order_id = ' . $orderId . ' LIMIT 1'
+            )->fetchColumn();
+
+            return UnilevelAward::create([
+                'order_id'      => $orderId,
+                'order_item_id' => $itemId,
+                'product_id'    => $productId,
+                'buyer_id'      => (int) $buyer['id'],
+                'user_id'       => (int) $recipient['id'],
+                'level'         => $level,
+                'base_amount'   => 500.00,
+                'rate_pct'      => 5.0,
+                'amount'        => $amount,
+                'status'        => $status,
+                'paid_at'       => date('Y-m-d H:i:s'),
+            ]);
+        };
+
+        $award(1, 25.00, 'credited');
+        $award(1, 15.00, 'pending');
+        $award(2, 10.00, 'pending');
+        $award(2, 5.00, 'cancelled');
+
+        test_signed_in_as(test_user('rptv18_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $summary = View::capture('admin/reports/_unilevel', [
+            'unilevel' => Report::unilevelSummary(date('Y-m-d'), date('Y-m-d')),
+            'range'    => ReportService::range(null, null),
+        ]);
+
+        assert_contains(money(25.0), $summary, 'the credited figure stays released money');
+        assert_contains('Pending liability', $summary);
+        assert_contains(money(25.0), $summary, 'the pending liability is shown');
+        assert_contains('Pending release', $summary);
+        assert_contains('2 awards', $summary);
+        assert_contains('Cancelled before release', $summary);
+        assert_contains('never paid; no shortfall', $summary);
+        assert_not_contains('unrecovered.', $summary, 'no shortfall when nothing was voided');
+
+        $levels = View::capture('admin/reports/_unilevel_levels', [
+            'unilevel_levels' => Report::unilevelByLevel(date('Y-m-d'), date('Y-m-d')),
+            'range'           => ReportService::range(null, null),
+        ]);
+        assert_contains('<th scope="col" class="text-end">Pending</th>', $levels);
+        assert_contains(money(25.0), $levels);
+
+        $products = View::capture('admin/reports/_unilevel_products', [
+            'unilevel_products' => Report::unilevelByProduct(date('Y-m-d'), date('Y-m-d')),
+            'range'             => ReportService::range(null, null),
+        ]);
+        assert_contains(money(25.0), $products);
+
+        /* The full page renders the same card. */
+        $html = $renderReports();
+        assert_contains('data-live-region="report-unilevel"', $html);
+        assert_contains('Pending liability', $html);
+    },
+];

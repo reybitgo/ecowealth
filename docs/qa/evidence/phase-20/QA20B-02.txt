@@ -1,0 +1,45 @@
+QA20B-02 — A real ladder change is saved and audited
+=====================================================
+
+Date: 2026-11-15 22:10:29 (Asia/Manila)
+Where: applySection('commissions', ...) with the card payload — level 1 = 1500.00, level 10 = 4000000.00 —
+       then the rendered card, team_harvest_levels and the audit log.
+
+Steps
+
+1. Post the card with level 1 = 1500.00 and level 10 = 4000000.00.
+2. Re-read the inputs and the full-ladder total.
+3. Read the newest team_harvest.ladder.update audit row.
+4. Read every ladder row's updated_by.
+
+Result
+
+  QA20B-02 PASS  the save is accepted (errors: [])
+  QA20B-02 PASS  the inputs persist 1500.00 and 4000000.00
+  QA20B-02 PASS  the full-ladder total reads ₱5,595,500.00
+  QA20B-02 PASS  one team_harvest.ladder.update audit row
+  QA20B-02 PASS  ten rows stamped updated_by = 1
+
+The rendered card after the save
+
+  level 1  = 1500.00
+  level 10 = 4000000.00
+  total    = ₱5,595,500.00
+  cumulative at level 10 = ₱5,595,500.00
+
+The audit row
+
+  action     = team_harvest.ladder.update
+  actor_id   = 1
+  changes    = levels.1, levels.10
+  level 1    = 1000.00 -> 1500.00
+  level 10   = 3500000.00 -> 4000000.00
+  before     = enabled false, gate 3, depth 10
+  after      = enabled false, gate 3, depth 10
+
+Restore
+
+  The reference ladder is posted back immediately after this check, so the next transcript
+  starts from ₱5,095,000.00; the run itself ends with the reference ladder, gate 3 and depth 10.
+
+RESULT: PASS

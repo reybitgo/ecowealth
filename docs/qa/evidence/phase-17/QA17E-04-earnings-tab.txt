@@ -1,0 +1,32 @@
+QA17E-04 - as the level-1 upline (qa17e_c), the repeat tab shows the 25.00 award in the
+rows and in the level-1 breakdown, and the two-clock panel lines up last month and this one.
+URL: /earnings?ledger=repeat (HTTP 200)
+
+... c@qa17e.test Dashboard Change password Sign out Welcome back, qa17e_c! You are signed in. Repeat-purchase bonus Every repeat-purchase award you earned as an upline. Export CSV Genealogy Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱25.00 1 award · withdr ...
+... award just now Awards 1 Levels that were credited to you Not paid 0 No level was skipped Your Active status The month that just ended decides this month; this month decides the next one. Active for November 2026 October 2026 purchases ₱0.00 Threshold ₱500.00 · not closed yet, th ...
+... s an upline. Export CSV Genealogy Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱25.00 1 award · withdrawable This month ₱25.00 Last award just now Awards 1 Levels that were credited to you Not paid 0 No level was skipped Your Active status The month that ...
+... ort CSV Genealogy Open e-wallet Package commissions Repeat-purchase bonus Total credited ₱25.00 1 award · withdrawable This month ₱25.00 Last award just now Awards 1 Levels that were credited to you Not paid 0 No level was skipped Your Active status The month that just ended deci ...
+... onus can reach you when your team buys. Repeat-purchase by level One ladder, levels 1–10. Level 1 is paid to the buyer's sponsor, level 2 to their sponsor's sponsor, and so on up the chain. 1 level award · ₱25.00 Level 1 1 award ₱25.00 Level 2 No awards yet ₱0.00 Level 3 No award ...
+... rchases only decide whether you are Active, so a bonus can reach you when your team buys. Repeat-purchase by level One ladder, levels 1–10. Level 1 is paid to the buyer's sponsor, level 2 to their sponsor's sponsor, and so on up the chain. 1 level award · ₱25.00 Level 1 1 award ₱ ...
+... e buyer's chain may be shorter than ten levels, or that product's rate at the level is 0. Your repeat-purchase awards One row per paid order line, product and level. A level is credited only when its upline is eligible and Active that month. 1 award Product, order or buyer Level ...
+... el 2 Level 3 Level 4 Level 5 Level 6 Level 7 Level 8 Level 9 Level 10 Status All statuses Credited Skipped Voided Product All products EcoWealth Coffee EcoWealth Immune Spice QA Sample Product Coffee Immune Booster Spirulina Serpentina Kojic Soap Stone Buster Colonics Session QA1 ...
+... om To Filter Date Buyer Product Level Base Rate Amount Status Order Nov 12, 2026 8:57 PM @qa17e_buyer QA17E Buyer QA17E Coffee · Level 1 · order EW26111200802 · Nov 12, 2026 QA17E Coffee QA17E-COF-520737 L1 ₱500.00 5.000% +₱25.00 Credited EW26111200802 Rows per page 5 10 15 20 25 ...
+
+the tab carries an as-buyer figure: False
+active status pill present: True
+two-clock month labels present: True
+
+--- the member's own repeat CSV (header + rows) ---
+Award,Date,Order,Buyer,Recipient,Product,Level,Base,"Rate %",Amount,Status,Reason,Recovered
+45,"2026-11-12 20:57:33",EW26111200802,qa17e_buyer,qa17e_c,"QA17E Coffee",1,500.00,5.000,25.00,credited,,0.00
+
+
+--- wallets after the order ---
+qa17e_buyer	400.00	0.00
+qa17e_c	25.00	25.00
+qa17e_b	25.00	25.00
+qa17e_a	25.00	25.00
+qa17e_boss	15.00	15.00
+
+Captured by the Phase 17E QA pass (real HTTP + MySQL + headless Chrome) - 
+DeepSeek Harness, 2026-11-12 20:57:35 Asia/Manila.

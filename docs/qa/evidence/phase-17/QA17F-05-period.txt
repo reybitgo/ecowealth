@@ -1,0 +1,47 @@
+QA17F-05 - --period on a closed month is a no-op; on a future month it is refused
+Date: 2026-11-12 22:02:43 +08:00
+Database: ecowealth_sneat @ 127.0.0.1
+
+A. Closed month (2026-10 was closed by QA17F-03)
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity
+periods | activity
+------------------------------------------------------------------------
+1 | 27
+(1 row)
+
+Command: php bin/unilevel_month_close.php --period=2026-10
+EcoWealth unilevel month close
+  period:  2026-10
+  result:  already closed — a closed period is never rewritten.
+  nothing was written.
+
+exit code: 0
+
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity
+periods | activity
+------------------------------------------------------------------------
+1 | 27
+(1 row)
+
+B. Future month (2026-12; the current month is 2026-11)
+Command: php bin/unilevel_month_close.php --period=2026-12
+EcoWealth unilevel month close
+  refused: The period 2026-12 has not finished yet — it is in the future (the current month is 2026-11); only a completed month can be closed.
+  nothing was written.
+
+exit code: 1
+
+C. The current month is refused too (2026-11 has not finished)
+Command: php bin/unilevel_month_close.php --period=2026-11
+EcoWealth unilevel month close
+  refused: The period 2026-11 has not finished yet (the current month is 2026-11); only a completed month can be closed.
+  nothing was written.
+
+exit code: 1
+
+Row counts after A, B and C:
+SQL> SELECT (SELECT COUNT(*) FROM unilevel_periods) AS periods, (SELECT COUNT(*) FROM unilevel_activity) AS activity
+periods | activity
+------------------------------------------------------------------------
+1 | 27
+(1 row)

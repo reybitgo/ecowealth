@@ -1,0 +1,35 @@
+QA19B-07 — The demo tree matches the 10-direct rule
+====================================================
+
+Date: 2026-11-15 (Asia/Manila)
+Where: Browser / HTTP + mysql — /admin/members?per_page=100
+
+Note on this copy
+
+The development copy has accumulated members from earlier manual QA (24 member accounts, not the
+five-seed shape) and the directory is paginated newest-first, so the five demo accounts sit on a
+later page. The check therefore asks for one page holding all members, locates each demo row by its
+user id, and derives the expected badge from that account's real direct count. The pristine
+five-member tree is also covered by RoyaltyAdminMemberViewTest on the isolated test schema.
+
+Steps
+
+1. mysql ... -e "SELECT u.username, COUNT(c.id) FROM users u LEFT JOIN users c ON c.sponsor_id =
+   u.id AND c.role = 'member' WHERE u.username IN ('juan','maria','peter','sarah','david')
+   GROUP BY u.id, u.username"
+2. Open /admin/members?per_page=100 and read each demo account's Rank badge.
+3. Lower Leader: direct members to 1 and save; re-open the page.
+4. Restore the threshold to 10 and save.
+
+Result
+
+  QA19B-07 PASS  defaults: juan=10directs:Leader, maria=3directs:Member, peter=1directs:Member,
+                 sarah=1directs:Member, david=0directs:Member; at leader_directs=1
+                 juan/maria/peter/sarah are Leader and david is Member; threshold restored
+  restores: leader_directs=10
+
+The badge follows the direct-count rule on every row; nobody reaches Supervisor, Manager or
+Director in this fixture under the default thresholds. No wallet, ledger, period or award row
+changes during either render.
+
+RESULT: PASS

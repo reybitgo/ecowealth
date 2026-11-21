@@ -1,0 +1,13 @@
+QA22F-02 — Left/Right team cards list the member's own team
+Evidence file: docs/qa/evidence/phase-22/QA22F-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /earnings?ledger=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Left team card lists members under c's left with own points; Right team card lists buyerB under c's right; each row shows username, status, package, own points, branch points; pair progress shows matched points and pair.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T2 through P22F-T4.
+Reason: Environment dependency — browser-based check.

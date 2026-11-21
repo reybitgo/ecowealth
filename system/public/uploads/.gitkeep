@@ -1,0 +1,8 @@
+Uploaded media lives here (created at runtime by Core/Upload.php).
+
+Sub-folders:
+  products/  product images
+  packages/  package images
+  proofs/    payment proofs (streamed through a guarded route, never linked directly)
+
+Nothing in this folder is committed — see .gitignore.

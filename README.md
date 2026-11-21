@@ -19,5 +19,54 @@ Then visit `http://localhost:8000`.
 ## Caching while editing
 `.htaccess` makes the browser revalidate every front-end file (`index.html`, CSS, JS, images and fonts) on each load, so one normal reload shows your changes — no Ctrl+F5 needed. Unchanged files still answer `304 Not Modified`, so nothing gets slower, and the `system/` application keeps its normal caching. The rule only works when the site is served by Apache (e.g. `http://ecowealth.test`); when you open `index.html` directly from disk the browser decides on its own.
 
+## Backend application (`system/`)
+
+`system/` is the EcoWealth application — plain PHP 8 + MySQL, served at
+`http://localhost/ecowealth/system/`. It is being built in phases
+(see `dmp/plan-ecowealth-cart-system.md`); **Phase 1** shipped the router, layouts, role
+guards, settings and test suite, **Phase 2** added the product catalogue and storefront,
+**Phase 3** added associate packages (price, direct bonus, the 2–10 unilevel ladder,
+contents and the member packages page), **Phase 4** the cart, **Phase 5** the dual-bucket
+e-wallet and ledger, **Phase 6** checkout and orders, **Phase 7** manual payments and the
+order lifecycle, **Phase 8** fulfilment (pack, ship with tracking, deliver, confirm) and
+printable invoices, **Phase 9** registration (standard / code / e-wallet / pending),
+registration codes, membership activation with the commission hook, the member dashboard,
+genealogy and the member/codes/activation back office, **Phase 10** direct referral
+commissions (the package's direct bonus paid to the sponsor exactly once, into the
+withdrawable e-wallet, with the member earnings statement and the admin commission ledger),
+and **Phase 11** indirect referral commissions (levels 2–10 priced by the source package,
+with the earnings level breakdown and the CSV exports), **Phase 12** member-to-member
+e-wallet transfers (password-confirmed, fee + minimum + daily/weekly limits, the reset cron,
+and the transfer log/limits on the admin wallet monitor), **Phase 13** payouts
+(withdrawals by GCash/Maya/USDT with the amount held at request time, a server-side service
+fee and ₱/USDT conversion, and the admin approve → complete/reject queue), **Phase 14**
+super-login (a superadmin opens any active member's portal through an audited, 8-hour,
+IP/UA-bound URL-token session without disturbing their own login, with a persistent member
+banner and a full impersonation audit trail), and **Phase 15** the launch build: dashboards
+with the commerce/finance roll-up, the reports desk (sales by day, commissions by level,
+wallet statement, payout register, code revenue, the Finance health widget and five CSV
+exports), the full eight-card settings page, the append-only audit desk and the finishing
+security/operations pass (headers, throttles, uploads hardening, cron docs, a restore drill
+and the runbook).
+The Phase 13 follow-up puts the withdrawal rules on the settings page (**Payout methods**:
+minimum, per-channel fee/switch, ₱/USDT rate and network fees) and makes both payout pages
+follow them live — a rate, fee or channel change reaches an open `/payouts` tab without a
+reload.
+
+The demo tree from Phase 9 (`juan`, `maria`, `peter`, `sarah`, `david`) and its
+wallets/codes are development data: every demo member signs in with `Demo@1234`, and the
+seed is removed or replaced before go-live (see the phase log).
+
+- Application notes, setup and tests: [`system/README.md`](system/README.md)
+- Deployment guide for shared hosting / Hostinger: [`docs/deploy.md`](docs/deploy.md)
+- Operations runbook (daily checks, backups/restore, incidents, go-live): [`docs/runbook.md`](docs/runbook.md)
+- Admin quick guide: [`docs/admin-guide.md`](docs/admin-guide.md)
+- Running log of decisions, migrations and test results: [`docs/phase-log.md`](docs/phase-log.md)
+
 ## Important
-This is a static frontend prototype. The simulator is not connected to a production account, database, payment gateway or live payout service. Product information and final compensation terms are not invented here; they should be added from verified official material when available.
+The landing page is still a static frontend prototype. The application behind it is real
+(login, roles, catalogue, cart, checkout, payments, fulfilment, e-wallet, membership,
+registration codes, direct + indirect referral commissions, member wallet transfers, payouts,
+super-login and the reports/audit desk as of Phase 15) but the simulator is not connected to it. Product information
+and final compensation terms are not invented here; they should be added from verified
+official material when available.

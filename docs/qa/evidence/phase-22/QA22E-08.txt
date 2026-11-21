@@ -1,0 +1,13 @@
+QA22E-08 — The member panel shows the node and balances, read-only
+Evidence file: docs/qa/evidence/phase-22/QA22E-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/members/{id} for a placed member and for a member with no node
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Binary panel shows node (upline, side, depth, path), L/R balances, pairs, points matched, personal points, pairs today vs cap, blocked-pair reasons; Not placed in the binary tree for unplaced; Open in tree disabled with tooltip.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22E-T12, P22E-T13 (PASS in AdminMemberLiveTest).
+Reason: Environment dependency — browser-based check.

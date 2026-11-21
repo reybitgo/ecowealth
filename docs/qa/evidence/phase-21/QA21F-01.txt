@@ -1,0 +1,16 @@
+QA21F-01 — The earnings tab shows position, blocks, progress and awards
+=======================================================================
+Phase 21F — Member visibility. Runs as node 0 of fixture h = 3 (position #1, N = 40).
+
+Steps:
+1. Open /earnings?ledger=general_harvest as node 0.
+2. Read position #1, N = 40, the ten blocks, the progress card, the roster page and the award rows.
+
+Observed:
+- Position #1, N = 40.
+- L3 paid ₱8,000.00; L4 "0 of 81" at ₱12,000.00 needing N = 121.
+- Ten block rows (filled of slots, each with amount), progress card, paginated roster, award rows —
+  all rendering without error.
+
+Result: Pass — position #1, N = 40, ten blocks, progress card, roster and award rows render;
+L3 paid ₱8,000.00; L4 0 of 81 at ₱12,000.00 needing N = 121.
