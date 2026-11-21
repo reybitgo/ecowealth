@@ -851,7 +851,7 @@ return [
         assert_same('placed', (string) ($node['state'] ?? ''));
     },
 
-    'P22G-T17 slot taken → validate returns a field error, no double placement' => function () use ($demoUser): void {
+    'P22G-T17 slot taken → register() refuses, no user, no node' => function () use ($demoUser): void {
         $peter = $demoUser('peter');
         assert_not_null($peter);
         $peterId = (int) $peter['id'];
@@ -875,15 +875,137 @@ return [
         ]);
         assert_not_null($first);
 
-        /* Validating the same upline/side now returns a field error. */
-        $placement = new BinaryPlacementService();
-        $errors = $placement->validate($peterId, 'left', [
-            'registrar' => null,
-            'sponsor'   => $peter,
-        ]);
-        assert_true(array_key_exists('binary_upline', $errors));
+        $beforeUsers = (int) db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
+        $beforeNodes = (int) db()->query('SELECT COUNT(*) FROM binary_nodes')->fetchColumn();
 
-        /* The winner is placed on the left; nobody else is there. */
+        /* A second registration into the same taken slot is refused through
+         * the registration path: a field error, no new user, no new node. */
+        $error = assert_throws(function () use ($service, $peter) {
+            $service->register([
+                'mode'             => 'standard',
+                'username'         => 'slotloser_' . bin2hex(random_bytes(2)),
+                'email'            => 'slotloser_' . bin2hex(random_bytes(2)) . '@test.local',
+                'full_name'        => 'Slot Loser',
+                'phone'            => '',
+                'password'         => 'Member@123',
+                'password_confirm' => 'Member@123',
+                'sponsor'          => 'peter',
+                'package_id'       => '',
+                'reg_code'         => '',
+                'terms'            => '1',
+                'binary_upline'    => 'peter',
+                'binary_position'  => 'left',
+            ]);
+        }, RegistrationException::class, 'taken slot is refused through register()');
+
+        assert_true(isset($error->fieldErrors['binary_position']), 'slot_taken names binary_position');
+        assert_false(array_key_exists('binary_upline', $error->fieldErrors));
+
+        /* Counts are unchanged: no orphan user, no stray node. */
+        assert_same($beforeUsers, (int) db()->query('SELECT COUNT(*) FROM users')->fetchColumn());
+        assert_same($beforeNodes, (int) db()->query('SELECT COUNT(*) FROM binary_nodes')->fetchColumn());
+
+        /* The winner still owns peter/left; peter's right slot is still free. */
+        $node = BinaryNode::forUser((int) $first['user_id']);
+        assert_not_null($node);
+        assert_same($peterId, (int) ($node['upline_id'] ?? 0));
+        assert_same('left', (string) ($node['side'] ?? ''));
+        assert_null(BinaryNode::slotChild($peterId, 'right', db()), 'peter/right is still free');
+    },
+
+    'P22C-T19 typed upline/side creates one user and one node' => function () use ($demoUser): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+        $peterId = (int) $peter['id'];
+
+        $beforeUsers = (int) db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
+        $beforeNodes = (int) db()->query('SELECT COUNT(*) FROM binary_nodes')->fetchColumn();
+
+        $service = new RegistrationService();
+        $result  = $service->register([
+            'mode'             => 'standard',
+            'username'         => 't19member_' . bin2hex(random_bytes(2)),
+            'email'            => 't19member_' . bin2hex(random_bytes(2)) . '@test.local',
+            'full_name'        => 'T19 Member',
+            'phone'            => '',
+            'password'         => 'Member@123',
+            'password_confirm' => 'Member@123',
+            'sponsor'          => 'peter',
+            'package_id'       => '',
+            'reg_code'         => '',
+            'terms'            => '1',
+            'binary_upline'    => 'peter',
+            'binary_position'  => 'left',
+        ]);
+
+        assert_not_null($result);
+        $userId = (int) ($result['user_id'] ?? 0);
+        assert_true($userId > 0);
+        assert_same($peterId, (int) ($result['sponsor_id'] ?? 0), 'users.sponsor_id unchanged');
+
+        /* Exactly one node under peter on the left. */
+        $node = BinaryNode::forUser($userId);
+        assert_not_null($node);
+        assert_same($peterId, (int) ($node['upline_id'] ?? 0));
+        assert_same('left', (string) ($node['side'] ?? ''));
+        assert_same('placed', (string) ($node['state'] ?? ''));
+
+        assert_same($beforeUsers + 1, (int) db()->query('SELECT COUNT(*) FROM users')->fetchColumn());
+        assert_same($beforeNodes + 1, (int) db()->query('SELECT COUNT(*) FROM binary_nodes')->fetchColumn());
+    },
+
+    'P22C-T22 taken slot refuses registration, creates no user or node' => function () use ($demoUser): void {
+        $peter = $demoUser('peter');
+        assert_not_null($peter);
+        $peterId = (int) $peter['id'];
+
+        /* Fill peter's left slot first. */
+        $service = new RegistrationService();
+        $first = $service->register([
+            'mode'             => 'standard',
+            'username' => 'slotc_' . bin2hex(random_bytes(2)),
+            'email'    => 'slotc_' . bin2hex(random_bytes(2)) . '@test.local',
+            'full_name'        => 'Slot C',
+            'phone'            => '',
+            'password'         => 'Member@123',
+            'password_confirm' => 'Member@123',
+            'sponsor'          => 'peter',
+            'package_id'       => '',
+            'reg_code'         => '',
+            'terms'            => '1',
+            'binary_upline'    => 'peter',
+            'binary_position'  => 'left',
+        ]);
+        assert_not_null($first);
+
+        $beforeUsers = (int) db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
+        $beforeNodes = (int) db()->query('SELECT COUNT(*) FROM binary_nodes')->fetchColumn();
+
+        /* A second registration into the same taken slot is refused. */
+        $error = assert_throws(function () use ($service, $peter) {
+            $service->register([
+                'mode'             => 'standard',
+                'username'         => 'slotd_' . bin2hex(random_bytes(2)),
+                'email'            => 'slotd_' . bin2hex(random_bytes(2)) . '@test.local',
+                'full_name'        => 'Slot D',
+                'phone'            => '',
+                'password'         => 'Member@123',
+                'password_confirm' => 'Member@123',
+                'sponsor'          => 'peter',
+                'package_id'       => '',
+                'reg_code'         => '',
+                'terms'            => '1',
+                'binary_upline'    => 'peter',
+                'binary_position'  => 'left',
+            ]);
+        }, RegistrationException::class, 'taken slot is a field error');
+
+        assert_true(isset($error->fieldErrors['binary_position']), 'slot_taken names binary_position');
+
+        /* No new user, no new node, the first member still owns peter/left. */
+        assert_same($beforeUsers, (int) db()->query('SELECT COUNT(*) FROM users')->fetchColumn());
+        assert_same($beforeNodes, (int) db()->query('SELECT COUNT(*) FROM binary_nodes')->fetchColumn());
+
         $node = BinaryNode::forUser((int) $first['user_id']);
         assert_not_null($node);
         assert_same($peterId, (int) ($node['upline_id'] ?? 0));
