@@ -59,7 +59,7 @@ return [
             'package_id'       => '',
             'reg_code'         => '',
             'terms'            => true,
-            'binary_position'  => 'left',
+            'binary_position'  => 'right',
         ], null);
 
         assert_same($before + 1, Live::revision(Live::GENEALOGY_TEAM), 'registration');

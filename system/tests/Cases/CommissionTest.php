@@ -13,7 +13,7 @@ declare(strict_types=1);
  * ============================================================== */
 
 /** Register a pending member under the given sponsor (username or code). */
-$pendingMember = static function (string $sponsor = 'juan'): array {
+$pendingMember = static function (string $sponsor = 'juan', string $binaryPosition = 'right', string $binaryUpline = 'peter'): array {
     $username = 'comm_' . bin2hex(random_bytes(4));
 
     $result = (new RegistrationService())->register([
@@ -28,7 +28,8 @@ $pendingMember = static function (string $sponsor = 'juan'): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
-        'binary_position'  => 'left',
+        'binary_upline'    => 'peter',
+        'binary_position'  => $binaryPosition,
     ], null);
 
     $member = Member::find((int) $result['user_id']);
@@ -185,6 +186,7 @@ return [
             'package_id'       => '',
             'reg_code'         => $batch['codes'][0],
             'terms'            => true,
+            'binary_upline'    => 'peter',
             'binary_position'  => 'left',
         ], null);
 
@@ -257,14 +259,31 @@ return [
         $juanId = (int) $juan()['id'];
 
         /* juan has a package; the award is paid. */
-        $paid = $activate($pendingMember('juan'), $pkgA());
+        $paid = $activate($pendingMember('juan', 'left'), $pkgA());
         assert_same('credited', Commission::forActivation((int) $paid['activation_id'])[0]['status']);
 
         /* Now juan loses his package: the next award is skipped. */
         db()->prepare('UPDATE users SET package_id = NULL WHERE id = ?')->execute([$juanId]);
         $balance = $wallet()->balance($juanId);
 
-        $skipped = $activate($pendingMember('juan'), $pkgA());
+        $skipped = $activate((function () use ($pkgA) {
+            $result = (new RegistrationService())->register([
+                'mode'             => 'pending',
+                'username'         => 'comm_' . bin2hex(random_bytes(4)),
+                'email'            => 'comm_' . bin2hex(random_bytes(4)) . '@test.local',
+                'full_name'        => 'Commission Test',
+                'phone'            => '',
+                'password'         => 'Member@1234',
+                'password_confirm' => 'Member@1234',
+                'sponsor'          => 'juan',
+                'package_id'       => '',
+                'reg_code'         => '',
+                'terms'            => true,
+                'binary_upline'    => 'sarah',
+                'binary_position'  => 'right',
+            ], null);
+            return Member::find((int) $result['user_id']);
+        })(), $pkgA());
         $row     = Commission::forActivation((int) $skipped['activation_id'])[0];
 
         assert_same('skipped', $row['status']);
@@ -383,7 +402,7 @@ return [
         $before = $wallet()->balance($juanId);
         $count  = Commission::countForUser($juanId, Commission::filterDefaults());
 
-        $first  = $activate($pendingMember('juan'), $pkgA());
+        $first  = $activate($pendingMember('juan', 'left'), $pkgA());
         $second = $activate($pendingMember('juan'), $pkgA());
 
         assert_same($before + 1000.0, $wallet()->balance($juanId), 'two recruits are ₱1,000');
@@ -406,8 +425,25 @@ return [
     'P10-T6 wallet and commission reconciliation stay clean' => function () use ($pendingMember, $pkgA, $activate, $directOnly): void {
         $directOnly();
         /* A credited award, a skipped one and an unrelated top-up. */
-        $activate($pendingMember('juan'), $pkgA());
-        $activate($pendingMember('david'), $pkgA());
+        $activate((function () use ($pkgA) {
+            $result = (new RegistrationService())->register([
+                'mode'             => 'pending',
+                'username'         => 'comm_' . bin2hex(random_bytes(4)),
+                'email'            => 'comm_' . bin2hex(random_bytes(4)) . '@test.local',
+                'full_name'        => 'Commission Test',
+                'phone'            => '',
+                'password'         => 'Member@1234',
+                'password_confirm' => 'Member@1234',
+                'sponsor'          => 'juan',
+                'package_id'       => '',
+                'reg_code'         => '',
+                'terms'            => true,
+                'binary_upline'    => 'sarah',
+                'binary_position'  => 'right',
+            ], null);
+            return Member::find((int) $result['user_id']);
+        })(), $pkgA());
+        $activate($pendingMember('david', 'left'), $pkgA());
 
         $adminId    = (int) test_user('comm_admin', 'admin')['id'];
         $recipient  = $pendingMember('juan');
@@ -449,9 +485,26 @@ return [
         $directOnly();
         $juanId = (int) $juan()['id'];
 
-        for ($i = 0; $i < 3; $i++) {
-            $activate($pendingMember('juan'), $pkgA());
-        }
+        $activate($pendingMember('juan', 'left'), $pkgA());    // peter's left
+        $activate($pendingMember('juan', 'right'), $pkgA());   // peter's right
+        $activate((function () use ($pkgA) {
+            $result = (new RegistrationService())->register([
+                'mode'             => 'pending',
+                'username'         => 'comm_' . bin2hex(random_bytes(4)),
+                'email'            => 'comm_' . bin2hex(random_bytes(4)) . '@test.local',
+                'full_name'        => 'Commission Test',
+                'phone'            => '',
+                'password'         => 'Member@1234',
+                'password_confirm' => 'Member@1234',
+                'sponsor'          => 'juan',
+                'package_id'       => '',
+                'reg_code'         => '',
+                'terms'            => true,
+                'binary_upline'    => 'sarah',
+                'binary_position'  => 'left',
+            ], null);
+            return Member::find((int) $result['user_id']);
+        })(), $pkgA());    // sarah's left
 
         $totals = Commission::totalsForUser($juanId);
 
@@ -506,7 +559,7 @@ return [
         $directOnly();
         $credited = $activate($pendingMember('juan'), $pkgA());
 
-        $davidMember = $pendingMember('david');
+        $davidMember = $pendingMember('david', 'left');
         $skipped     = $activate($davidMember, $pkgA());
 
         /* A row from last month, so the date filter has something to exclude. */
@@ -555,7 +608,7 @@ return [
         $mariaId = (int) $maria()['id'];
 
         $activate($pendingMember('juan'), $pkgA());
-        $activate($pendingMember('maria'), $pkgA());
+        $activate($pendingMember('maria', 'left'), $pkgA());
 
         $filters = Commission::filterDefaults();
 

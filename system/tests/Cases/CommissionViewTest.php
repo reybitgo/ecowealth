@@ -24,7 +24,7 @@ $renderView = static function (string $layout, string $template, array $data = [
 };
 
 /** Register a pending member under the given sponsor. */
-$pendingMember = static function (string $sponsor = 'juan'): array {
+$pendingMember = static function (string $sponsor = 'peter'): array {
     $username = 'cv_' . bin2hex(random_bytes(4));
 
     $result = (new RegistrationService())->register([
@@ -39,6 +39,7 @@ $pendingMember = static function (string $sponsor = 'juan'): array {
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_upline'    => 'peter',
         'binary_position'  => 'left',
     ], null);
 

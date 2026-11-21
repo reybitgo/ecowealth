@@ -241,7 +241,6 @@ final class BinaryPlacementService
     public function resolveUpline(string $identifier): ?array
     {
         $member = Member::findByUsername($identifier, $this->pdo);
-
         return $member !== null ? $member : Member::findByReferralCode($identifier, $this->pdo);
     }
 

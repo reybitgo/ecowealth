@@ -895,7 +895,7 @@ return [
                 'package_id'       => '',
                 'reg_code'         => '',
                 'terms'            => true,
-                'binary_position'  => 'left',
+                'binary_position'  => 'right',
             ], null);
 
             assert_true((int) ($result['user_id'] ?? 0) > 0, 'registration ' . $i . ' succeeded');

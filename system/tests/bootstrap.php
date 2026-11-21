@@ -692,6 +692,15 @@ function test_run_isolated(callable $case): void
     $pdo     = db();
     $started = false;
 
+    /* Isolation: registration under Phase 22C writes binary_nodes that
+     * the outer rollback does not always undo (savepoint release).
+     * Sweep any non-demo nodes so this case starts with a clean tree. */
+    try {
+        $pdo->exec("DELETE FROM binary_nodes WHERE user_id NOT IN (1,3,4,5,6,7)");
+    } catch (Throwable) {
+        /* Table may not exist in pre-22 phases; ignore. */
+    }
+
     if (!$pdo->inTransaction()) {
         $pdo->beginTransaction();
         $started = true;

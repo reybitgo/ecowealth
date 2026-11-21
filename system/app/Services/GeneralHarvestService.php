@@ -1023,8 +1023,8 @@ final class GeneralHarvestService
         $checks = [];
         $ok     = true;
 
-        $fail = static function (string $key, string $detail) use (&$checks, &$ok): void {
-            $checks[$key] = ['ok' => false, 'detail' => $detail];
+        $fail = static function (string $key, string $detail, ?int $expected = null, ?int $actual = null) use (&$checks, &$ok): void {
+            $checks[$key] = ['ok' => false, 'detail' => $detail, 'expected' => $expected, 'actual' => $actual];
             $ok = false;
         };
 
@@ -1192,7 +1192,7 @@ final class GeneralHarvestService
                 'the queue is not gapless: COUNT(*) = %d, MAX(id) = %d',
                 $queue['n'],
                 $queue['max_id']
-            ));
+            ), $queue['max_id'], $queue['n']);
         } else {
             $pass('queue_gapless', 'the queue is gapless');
         }
@@ -1288,6 +1288,8 @@ final class GeneralHarvestService
                 $mismatches[] = [
                     'kind'    => (string) $key,
                     'message' => (string) ($check['detail'] ?? ''),
+                    'expected' => $check['expected'] ?? null,
+                    'actual'   => $check['actual'] ?? null,
                 ];
             }
         }

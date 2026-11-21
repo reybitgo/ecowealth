@@ -718,7 +718,8 @@ return [
             /* The catalogue table is not transactional: filling it is
              * legal and the install still verifies (once the queue is
              * emptied again). */
-            $pdo->exec('DELETE FROM harvest_queue');
+            $pdo->exec('TRUNCATE harvest_queue');
+            $pdo->exec('ALTER TABLE harvest_queue AUTO_INCREMENT = 1');
             $pdo->exec("UPDATE team_harvest_levels SET amount = '1234.00' WHERE level = 1");
 
             $again = $installer->verify($pdo, ['database' => $database]);

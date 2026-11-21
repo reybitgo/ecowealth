@@ -18,10 +18,11 @@ $payload = static function (array $overrides = []): array {
         'phone'            => '09171234567',
         'password'         => 'Member@1234',
         'password_confirm' => 'Member@1234',
-        'sponsor'          => 'juan',
+        'sponsor'          => 'peter',
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
+        'binary_upline'    => 'peter',
         'binary_position'  => 'left',
     ];
 };
@@ -44,7 +45,7 @@ $issueCode = static function (int $quantity = 1): array {
     ], test_user('ms_code_admin', 'admin'));
 };
 
-/** Create a pending member sponsored by juan. */
+/** Create a pending member sponsored by peter. */
 $pendingMember = static function (): array {
     $result = (new RegistrationService())->register([
         'mode'             => 'pending',
@@ -54,7 +55,7 @@ $pendingMember = static function (): array {
         'phone'            => '',
         'password'         => 'Member@1234',
         'password_confirm' => 'Member@1234',
-        'sponsor'          => 'juan',
+        'sponsor'          => 'peter',
         'package_id'       => '',
         'reg_code'         => '',
         'terms'            => true,
@@ -145,7 +146,7 @@ return [
         assert_same('standard', $member['reg_payment_method']);
         assert_same('active', $result['member_status']);
         assert_same(8, strlen((string) $member['referral_code']));
-        assert_same((int) Member::findByUsername('juan')['id'], (int) $member['sponsor_id']);
+        assert_same((int) Member::findByUsername('peter')['id'], (int) $member['sponsor_id']);
         assert_null($result['activation_id']);
         assert_false($result['sponsor_defaulted']);
     },
@@ -155,8 +156,10 @@ return [
         assert_not_null($admin);
 
         $result = $members()->register($payload([
-            'mode'    => 'standard',
-            'sponsor' => '',
+            'mode'            => 'standard',
+            'sponsor'         => '',
+            'binary_upline'   => 'admin',
+            'binary_position' => 'right',
         ]), null);
 
         $member = Member::find((int) $result['user_id']);
@@ -678,8 +681,9 @@ return [
             $serviceB = new RegistrationService($pdoB);
             $blocked  = assert_throws(
                 static fn () => $serviceB->register(array_merge($base, [
-                    'username' => $second,
-                    'email'    => $second . '@test.local',
+                    'username'       => $second,
+                    'email'          => $second . '@test.local',
+                    'binary_position'=> 'right',
                 ]), null),
                 PDOException::class
             );

@@ -68,7 +68,8 @@ return [
      */
     'clean' => static function () use ($reference): void {
         db()->exec('DELETE FROM general_harvest_awards');
-        db()->exec('DELETE FROM harvest_queue');
+        db()->exec('TRUNCATE harvest_queue');
+        db()->exec('ALTER TABLE harvest_queue AUTO_INCREMENT = 1');
         db()->exec("DELETE FROM users WHERE role = 'member'");
         db()->exec(
             'UPDATE general_harvest_board

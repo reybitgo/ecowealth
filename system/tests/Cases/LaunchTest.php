@@ -14,7 +14,7 @@ declare(strict_types=1);
  */
 
 /** Register through the demo Package A code (real service path). */
-$registerWithCode = static function (string $sponsor = 'juan'): array {
+$registerWithCode = static function (string $sponsor = 'peter'): array {
     $username = 'uat_' . bin2hex(random_bytes(4));
 
     $result = (new RegistrationService())->register([

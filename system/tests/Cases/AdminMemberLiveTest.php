@@ -73,7 +73,7 @@ return [
             'phone'            => '',
             'password'         => 'Member@1234',
             'password_confirm' => 'Member@1234',
-            'sponsor'          => 'juan',
+            'sponsor'          => 'peter',
             'package_id'       => '',
             'reg_code'         => '',
             'terms'            => true,
