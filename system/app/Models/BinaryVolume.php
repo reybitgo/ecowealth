@@ -143,6 +143,42 @@ final class BinaryVolume
         return $stmt->fetchAll();
     }
 
+    /** Every volume row one activation placed, node order then side. @return list<array<string, mixed>> */
+    public static function forActivation(int $activationId, ?PDO $pdo = null): array
+    {
+        if ($activationId <= 0) {
+            return [];
+        }
+
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            'SELECT * FROM ' . self::TABLE . ' WHERE activation_id = ? ORDER BY node_user_id ASC, side ASC, id ASC'
+        );
+        $stmt->execute([$activationId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /** Sum volume points per source. @return array{order:int, activation:int} */
+    public static function sumBySource(?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $row = $pdo->query(
+            "SELECT source, COALESCE(SUM(points), 0) AS total
+               FROM " . self::TABLE . "
+              GROUP BY source"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $out = ['order' => 0, 'activation' => 0];
+        foreach ($row as $source => $total) {
+            $out[(string) $source] = (int) $total;
+        }
+
+        return $out;
+    }
+
     /** The unmatched points on one side of one node: the ledger sum. */
     public static function sumBySide(int $userId, string $side, ?PDO $pdo = null): int
     {
@@ -190,7 +226,7 @@ final class BinaryVolume
      *  Filters and pages (shared by 22E and 22F)
      * ---------------------------------------------------------- */
 
-    /** @return array{side:string, kind:string, from:string, to:string, q:string} */
+    /** @return array{side:string, kind:string, from:string, to:string, q:string, source:string} */
     public static function filterDefaults(): array
     {
         return [
@@ -199,6 +235,7 @@ final class BinaryVolume
             'from' => '',
             'to'   => '',
             'q'    => '',
+            'source' => '',
         ];
     }
 
@@ -207,7 +244,7 @@ final class BinaryVolume
      * falls back to "no filter".
      *
      * @param array<string, mixed> $raw
-     * @return array{side:string, kind:string, from:string, to:string, q:string}
+     * @return array{side:string, kind:string, from:string, to:string, q:string, source:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -221,6 +258,11 @@ final class BinaryVolume
         $kind = strtolower(trim((string) ($raw['kind'] ?? '')));
         if (in_array($kind, self::KINDS, true)) {
             $filters['kind'] = $kind;
+        }
+
+        $source = strtolower(trim((string) ($raw['source'] ?? '')));
+        if (in_array($source, self::SOURCES, true)) {
+            $filters['source'] = $source;
         }
 
         $from = self::date((string) ($raw['from'] ?? ''));
@@ -254,7 +296,7 @@ final class BinaryVolume
     /**
      * WHERE clause shared by every read.
      *
-     * @param array{side:string, kind:string, from:string, to:string, q:string} $filters
+     * @param array{side:string, kind:string, from:string, to:string, q:string, source:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(?int $userId, array $filters): array
@@ -275,6 +317,11 @@ final class BinaryVolume
         if (($filters['kind'] ?? '') !== '') {
             $where[]  = 'v.kind = ?';
             $params[] = $filters['kind'];
+        }
+
+        if (($filters['source'] ?? '') !== '') {
+            $where[]  = 'v.source = ?';
+            $params[] = $filters['source'];
         }
 
         if (($filters['from'] ?? '') !== '') {
@@ -433,10 +480,15 @@ final class BinaryVolume
      * `pair`/`reversal` are negative (§15.4's CHECK constraints enforce
      * this too, but we fail fast with a clear message).
      *
+     * `source` defaults to `'order'`; `activation_id` defaults to NULL.
+     * For an activation row, pass `source = 'activation'` and the
+     * activation id (then `order_id`/`order_item_id` must be NULL).
+     *
      * @param array{
      *   node_user_id:int, side:string, kind:string, points:int,
      *   order_id?:int|string, order_item_id?:int|string, buyer_id?:int|string,
-     *   award_id?:int|string, note?:string, created_by?:int|string
+     *   award_id?:int|string, note?:string, created_by?:int|string,
+     *   source?:string, activation_id?:int|string|null
      * } $data
      * @return int the new row id
      * @throws InvalidArgumentException when the side/kind/sign combination is invalid
@@ -480,6 +532,27 @@ final class BinaryVolume
             throw new InvalidArgumentException('A binary volume row needs a node user.');
         }
 
+        $source   = (string) ($data['source'] ?? self::sourceFromOrder());
+        if (!in_array($source, self::SOURCES, true)) {
+            throw new InvalidArgumentException('Unknown binary volume source: ' . $source);
+        }
+
+        $activationId = isset($data['activation_id']) && (int) $data['activation_id'] > 0
+            ? (int) $data['activation_id']
+            : null;
+
+        /* Source/id consistency: an activation row carries activation_id
+         * and no order refs; an order row carries order refs and no activation_id. */
+        if ($source === self::sourceFromActivation()) {
+            if ($activationId === null) {
+                throw new InvalidArgumentException('An activation volume row needs an activation_id.');
+            }
+        } else {
+            if ($activationId !== null) {
+                throw new InvalidArgumentException('An order volume row must not carry an activation_id.');
+            }
+        }
+
         $orderId   = isset($data['order_id'])   && (int) $data['order_id']   > 0 ? (int) $data['order_id']   : null;
         $orderItem = isset($data['order_item_id']) && (int) $data['order_item_id'] > 0 ? (int) $data['order_item_id'] : null;
         $buyerId   = isset($data['buyer_id'])   && (int) $data['buyer_id']   > 0 ? (int) $data['buyer_id']   : null;
@@ -489,8 +562,8 @@ final class BinaryVolume
 
         $pdo->prepare(
             'INSERT INTO ' . self::TABLE . '
-               (node_user_id, side, kind, points, order_id, order_item_id, buyer_id, award_id, note, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+               (node_user_id, side, kind, points, order_id, order_item_id, buyer_id, award_id, note, created_by, source, activation_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $nodeUserId,
             $side,
@@ -502,9 +575,35 @@ final class BinaryVolume
             $awardId,
             $note === '' ? null : mb_substr($note, 0, 160),
             $createdBy,
+            $source,
+            $activationId,
         ]);
 
         return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Insert one activation-sourced volume row. Sets `source = 'activation'`
+     * and requires `activation_id`. The caller owns the transaction.
+     *
+     * @param array{
+     *   node_user_id:int, side:string, kind:string, points:int,
+     *   buyer_id?:int|string, award_id?:int|string, note?:string,
+     *   created_by?:int|string, activation_id:int
+     * } $data
+     * @return int the new row id
+     * @throws InvalidArgumentException when the side/kind/sign combination is invalid
+     */
+    public static function createForActivation(array $data, ?PDO $pdo = null): int
+    {
+        $data['source'] = self::sourceFromActivation();
+
+        $activationId = (int) ($data['activation_id'] ?? 0);
+        if ($activationId <= 0) {
+            throw new InvalidArgumentException('createForActivation needs a positive activation_id.');
+        }
+
+        return self::create($data, $pdo);
     }
 
     /** @return list<array<string, mixed>> */
@@ -513,11 +612,13 @@ final class BinaryVolume
         return 'SELECT v.*,
                        u.username  AS node_username,
                        b.username  AS buyer_username,
-                       o.order_no  AS order_no
+                       o.order_no  AS order_no,
+                       act.id      AS activation_id_col
                   FROM ' . self::TABLE . ' v
                   JOIN users u  ON u.id = v.node_user_id
                   JOIN users b  ON b.id = v.buyer_id
-                  LEFT JOIN shop_orders o ON o.id = v.order_id';
+                  LEFT JOIN shop_orders o ON o.id = v.order_id
+                  LEFT JOIN activations act ON act.id = v.activation_id';
     }
 
     /** Does this connection's schema still carry the Phase 22A table? */

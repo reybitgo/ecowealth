@@ -63,7 +63,7 @@ final class BinaryAward
     ];
 
     /** Filter keys shared by the member tab (22F) and the admin tab (22E). */
-    public const FILTER_KEYS = ['kind', 'status', 'side', 'product_id', 'from', 'to', 'q'];
+    public const FILTER_KEYS = ['kind', 'status', 'side', 'product_id', 'from', 'to', 'q', 'source'];
 
     /** The two ledger sources a row can carry (order or activation). */
     public const SOURCES = ['order', 'activation'];
@@ -80,7 +80,7 @@ final class BinaryAward
         return 'activation';
     }
 
-    /** @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} */
+    /** @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string, source:string} */
     public const FILTER_DEFAULTS = [
         'kind'       => '',
         'status'     => '',
@@ -89,6 +89,7 @@ final class BinaryAward
         'from'       => '',
         'to'         => '',
         'q'          => '',
+        'source'     => '',
     ];
 
     /* ----------------------------------------------------------
@@ -167,6 +168,94 @@ final class BinaryAward
     }
 
     /**
+     * One award for one (activation, recipient, kind) — the activation
+     * idempotency anchor (plan §13.4).
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function forActivationEvent(int $activationId, int $userId, string $kind, ?PDO $pdo = null): ?array
+    {
+        if ($activationId <= 0 || $userId <= 0 || !in_array($kind, self::KINDS, true)) {
+            return null;
+        }
+
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            'SELECT * FROM binary_awards
+              WHERE activation_id = ? AND user_id = ? AND kind = ?
+              LIMIT 1'
+        );
+        $stmt->execute([$activationId, $userId, $kind]);
+        $row = $stmt->fetch();
+
+        return $row === false ? null : $row;
+    }
+
+    /** Every award one activation placed, in kind order then id order. @return list<array<string, mixed>> */
+    public static function forActivation(int $activationId, ?PDO $pdo = null): array
+    {
+        if ($activationId <= 0) {
+            return [];
+        }
+
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            self::select() . ' WHERE a.activation_id = ? ORDER BY a.kind ASC, a.id ASC'
+        );
+        $stmt->execute([$activationId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /** Sum credited award amounts per source. @return array{order:float, activation:float} */
+    public static function sumBySource(?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $row = $pdo->query(
+            "SELECT source,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS total
+               FROM binary_awards
+              GROUP BY source"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $out = ['order' => 0.0, 'activation' => 0.0];
+        foreach ($row as $source => $total) {
+            $out[(string) $source] = round((float) $total, 2);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Insert one activation-sourced award row. Sets `source = 'activation'`
+     * and requires `activation_id`. The caller owns the transaction.
+     *
+     * @param array{
+     *   kind:string, buyer_id:int, user_id:int,
+     *   side?:string, points?:int|string, pair_count?:int|string,
+     *   pair_points?:int|string, rate_pct?:float|string, amount:float|string,
+     *   status?:string, hold_days?:int|string, paid_at?:string,
+     *   activation_id:int
+     * } $data
+     * @return int the new award id
+     * @throws InvalidArgumentException when the row shape is invalid
+     */
+    public static function createForActivation(array $data, ?PDO $pdo = null): int
+    {
+        $data['source'] = self::sourceFromActivation();
+
+        $activationId = (int) ($data['activation_id'] ?? 0);
+        if ($activationId <= 0) {
+            throw new InvalidArgumentException('createForActivation needs a positive activation_id.');
+        }
+
+        return self::create($data, $pdo);
+    }
+
+    /**
      * The row for one (order, recipient, kind) — the unique-key shape.
      *
      * Layer 3 of the idempotency chain (plan §16.4): a retried
@@ -198,7 +287,7 @@ final class BinaryAward
      *  Filters and pages (shared by 22E and 22F)
      * ---------------------------------------------------------- */
 
-    /** @return array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} */
+    /** @return array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string, source:string} */
     public static function filterDefaults(): array
     {
         return self::FILTER_DEFAULTS;
@@ -209,7 +298,7 @@ final class BinaryAward
      * falls back to "no filter".
      *
      * @param array<string, mixed> $raw
-     * @return array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string}
+     * @return array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string, source:string}
      */
     public static function normaliseFilters(array $raw): array
     {
@@ -228,6 +317,11 @@ final class BinaryAward
         $side = strtolower(trim((string) ($raw['side'] ?? '')));
         if (in_array($side, ['left', 'right'], true)) {
             $filters['side'] = $side;
+        }
+
+        $source = strtolower(trim((string) ($raw['source'] ?? '')));
+        if (in_array($source, self::SOURCES, true)) {
+            $filters['source'] = $source;
         }
 
         $productId = trim((string) ($raw['product_id'] ?? ''));
@@ -266,7 +360,7 @@ final class BinaryAward
     /**
      * WHERE clause shared by every read.
      *
-     * @param array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
+     * @param array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string, source:string} $filters
      * @return array{0: string, 1: list<mixed>}
      */
     private static function whereFor(?int $userId, array $filters): array
@@ -292,6 +386,11 @@ final class BinaryAward
         if (($filters['side'] ?? '') !== '') {
             $where[]  = 'a.side = ?';
             $params[] = $filters['side'];
+        }
+
+        if (($filters['source'] ?? '') !== '') {
+            $where[]  = 'a.source = ?';
+            $params[] = $filters['source'];
         }
 
         if (($filters['product_id'] ?? '') !== '') {
@@ -343,7 +442,7 @@ final class BinaryAward
                FROM binary_awards a
                JOIN users u ON u.id = a.user_id
                JOIN users b ON b.id = a.buyer_id
-               JOIN shop_orders o ON o.id = a.order_id
+               LEFT JOIN shop_orders o ON o.id = a.order_id
               WHERE ' . $where
         );
         $stmt->execute($params);
@@ -745,11 +844,16 @@ final class BinaryAward
      * `pair_count > 0`, `pair_points > 0` and `points = 2 × pair_count
      * × pair_points` (schema CHECK enforces this too).
      *
+     * `source` defaults to `'order'`; `activation_id` defaults to NULL.
+     * For an activation award, pass `source = 'activation'` and the
+     * activation id (then `order_id` must be 0/NULL).
+     *
      * @param array{
      *   kind:string, order_id:int, buyer_id:int, user_id:int,
      *   side?:string, points?:int|string, pair_count?:int|string,
      *   pair_points?:int|string, rate_pct?:float|string, amount:float|string,
-     *   status?:string, hold_days?:int|string, paid_at?:string
+     *   status?:string, hold_days?:int|string, paid_at?:string,
+     *   source?:string, activation_id?:int|string|null
      * } $data
      * @return int the new award id
      * @throws InvalidArgumentException when the row shape is invalid
@@ -763,15 +867,47 @@ final class BinaryAward
             throw new InvalidArgumentException('Unknown binary award kind: ' . $kind);
         }
 
-        foreach (['order_id', 'buyer_id', 'user_id'] as $key) {
+        foreach (['buyer_id', 'user_id'] as $key) {
             if ((int) ($data[$key] ?? 0) <= 0) {
                 throw new InvalidArgumentException('A binary award needs a positive ' . $key . '.');
             }
         }
 
+        $source = (string) ($data['source'] ?? self::sourceFromOrder());
+        if (!in_array($source, self::SOURCES, true)) {
+            throw new InvalidArgumentException('Unknown binary award source: ' . $source);
+        }
+
+        /* An order award needs an order; an activation award has none. */
+        $orderId = (int) ($data['order_id'] ?? 0);
+        if ($source === self::sourceFromOrder() && $orderId <= 0) {
+            throw new InvalidArgumentException('An order award needs a positive order_id.');
+        }
+        if ($source === self::sourceFromActivation()) {
+            $orderId = null;
+        }
+
         $status = (string) ($data['status'] ?? 'pending');
         if (!in_array($status, self::STATUSES, true)) {
             throw new InvalidArgumentException('Unknown binary award status: ' . $status);
+        }
+
+        $source = (string) ($data['source'] ?? self::sourceFromOrder());
+        if (!in_array($source, self::SOURCES, true)) {
+            throw new InvalidArgumentException('Unknown binary award source: ' . $source);
+        }
+
+        $activationId = isset($data['activation_id']) && (int) $data['activation_id'] > 0
+            ? (int) $data['activation_id']
+            : null;
+
+        /* Source/id consistency: an activation award carries activation_id
+         * and no order_id; an order award carries order_id and no activation_id. */
+        if ($source === self::sourceFromActivation() && $activationId === null) {
+            throw new InvalidArgumentException('An activation award needs an activation_id.');
+        }
+        if ($source === self::sourceFromOrder() && $activationId !== null) {
+            throw new InvalidArgumentException('An order award must not carry an activation_id.');
         }
 
         $amount = round((float) ($data['amount'] ?? 0), 2);
@@ -825,11 +961,12 @@ final class BinaryAward
         $pdo->prepare(
             'INSERT INTO binary_awards
                (kind, order_id, buyer_id, user_id, side, points, pair_count,
-                pair_points, rate_pct, amount, status, hold_days, paid_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                pair_points, rate_pct, amount, status, hold_days, paid_at,
+                source, activation_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $kind,
-            (int) $data['order_id'],
+            $orderId,
             (int) $data['buyer_id'],
             (int) $data['user_id'],
             $side === '' ? null : $side,
@@ -841,6 +978,8 @@ final class BinaryAward
             $status,
             $holdDays,
             $paidAt,
+            $source,
+            $activationId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -1003,6 +1142,7 @@ final class BinaryAward
                        o.status         AS order_status,
                        o.delivered_at   AS order_delivered_at,
                        o.completed_at   AS order_completed_at,
+                       act.id           AS activation_id_col,
                        (SELECT oi.product_name
                           FROM shop_order_items oi
                          WHERE oi.order_id = o.id
@@ -1013,7 +1153,8 @@ final class BinaryAward
                   FROM binary_awards a
                   JOIN users u       ON u.id = a.user_id
                   JOIN users b       ON b.id = a.buyer_id
-                  JOIN shop_orders o ON o.id = a.order_id
+                  LEFT JOIN shop_orders o ON o.id = a.order_id
+                  LEFT JOIN activations act ON act.id = a.activation_id
                   LEFT JOIN ewallet_ledger l ON l.id = a.ledger_id';
     }
 

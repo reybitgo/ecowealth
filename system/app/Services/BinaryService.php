@@ -289,179 +289,25 @@ final class BinaryService
         }
 
         /* Eligibility resolved once for the chain, in one batch
-         * (plan §16.7, §14.10 rule 1). */
-        $period     = UnilevelCycle::periodOf($paidAt);
-        $previous   = UnilevelCycle::previous($period);
-        $requiresActive = setting_bool('binary_requires_active', true);
-        $activeMap  = $requiresActive
-            ? UnilevelCycle::activeMap(array_keys(array_combine($ids, $ids)), $period, $this->pdo)
-            : [];
-
-        /* Members resolved once for the whole chain, in one batch
-         * (plan §16.7: never a query per level). */
-        $members = [];
-        if ($ids !== []) {
-            $marks = implode(',', array_fill(0, count($ids), '?'));
-            $stmt = $this->pdo->prepare(
-                'SELECT * FROM users WHERE id IN (' . $marks . ')'
-            );
-            $stmt->execute($ids);
-            foreach ($stmt->fetchAll() as $row) {
-                $members[(int) $row['id']] = $row;
-            }
-        }
-
-        $eligibility = [];
-        foreach ($nodeList as $entry) {
-            $id = (int) ($entry['node']['user_id'] ?? 0);
-            $member = $members[$id] ?? null;
-
-            $reason = '';
-
-            if ($companyId > 0 && $id === $companyId) {
-                $reason = 'company account is not paid';
-            } elseif ($member === null || (int) ($member['is_active'] ?? 0) !== 1) {
-                $reason = 'recipient account is disabled';
-            } else {
-                $status = (string) ($member['member_status'] ?? '');
-                if ($status !== 'active') {
-                    $reason = 'recipient membership is ' . ($status === '' ? 'unknown' : $status);
-                } elseif ($requiresActive && !($activeMap[$id] ?? true)) {
-                    $reason = 'recipient is not Active for ' . $previous;
-                }
-            }
-
-            $eligibility[$id] = $reason;
-        }
+         * (plan §16.7, §14.10 rule 1). `stream = 'product'` keeps the
+         * monthly Active gate; `stream = 'package'` skips it. */
+        $eligibility = $this->eligibilityMap($nodeList, $paidAt, self::streamFromOrder(), $this->pdo);
 
         /* Write volume rows: own at the buyer's node, team at every
-         * ancestor. One row per (node, item, side, kind).
-         * The own row carries the order total; it is anchored to the
-         * first eligible item so the schema CHECK on `own` (order_item_id
-         * NOT NULL) is satisfied (plan §14.7 rule 4). */
-        $volumeRows = [];
-        $volumeRows[] = [
-            'node_user_id' => $buyerId,
-            'side'         => $buyerSide,
-            'kind'         => 'own',
-            'points'       => $points,
-            'order_id'     => $orderId,
-            'order_item_id'=> $firstItemId,
-            'buyer_id'     => $buyerId,
-            'note'         => 'Own purchase — ' . number_format($points, 0, '.', '') . ' pts on the ' . $buyerSide . ' side',
-        ];
-
-        /* Team rows: one per ancestor per side, but the unique key is
-         * (node, item, side, kind), so each order item gets its own row.
-         * We write one row per item per ancestor. */
-        foreach ($items as $item) {
-            $itemPoints = (int) ($item['points_total'] ?? 0);
-            if ($itemPoints <= 0) {
-                continue;
-            }
-
-            foreach ($ancestors as $ancestor) {
-                $depth  = (int) ($ancestor['depth'] ?? 0);
-                $side   = $depth < strlen($buyerPath)
-                    ? (($buyerPath[$depth] ?? '') === 'L' ? 'left' : 'right')
-                    : null;
-
-                if ($side === null) {
-                    continue;
-                }
-
-                $volumeRows[] = [
-                    'node_user_id' => (int) ($ancestor['user_id'] ?? 0),
-                    'side'         => $side,
-                    'kind'         => 'team',
-                    'points'       => $itemPoints,
-                    'order_id'     => $orderId,
-                    'order_item_id'=> (int) $item['id'],
-                    'buyer_id'     => $buyerId,
-                    'note'         => 'Team volume — ' . number_format($itemPoints, 0, '.', '') . ' pts from order #' . $orderId,
-                ];
-            }
-        }
-
-        /* Volume rows: one batched INSERT (one statement, not one per row;
-         * plan §16.6 — one volume batch). $volumeRows is validated by
-         * construction: side/kind come from the domain constants, points
-         * are non-zero, and own rows are anchored to the first item. */
-        if ($volumeRows !== []) {
-            $cols = [
-                'node_user_id', 'side', 'kind', 'points', 'order_id',
-                'order_item_id', 'buyer_id', 'award_id', 'note', 'created_by',
-            ];
-            $marks = [];
-            $params = [];
-            foreach ($volumeRows as $row) {
-                $marks[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-                foreach ($cols as $col) {
-                    $params[] = $row[$col] ?? null;
-                }
-            }
-            $this->pdo->prepare(
-                'INSERT INTO binary_volume (' . implode(', ', $cols) . ')
-                 VALUES ' . implode(', ', $marks)
-            )->execute($params);
-        }
-
-        /* Update the node caches: buyer's own side + every ancestor's
-         * team side. */
-        $cacheUpdates = [];
-        foreach ($volumeRows as $row) {
-            $key = (int) $row['node_user_id'] . ':' . $row['side'];
-            if (!isset($cacheUpdates[$key])) {
-                $cacheUpdates[$key] = [
-                    'user_id' => (int) $row['node_user_id'],
-                    'side'    => $row['side'],
-                    'delta'   => 0,
-                ];
-            }
-            $cacheUpdates[$key]['delta'] += (int) $row['points'];
-        }
-
-        /* Node-cache updates: one batched UPDATE (CASE per touched node,
-         * one statement, not one per node). */
-        if ($cacheUpdates !== []) {
-            $leftPairs   = [];
-            $rightPairs  = [];
-            $leftParams  = [];
-            $rightParams = [];
-            $userIds     = [];
-            foreach ($cacheUpdates as $update) {
-                $userId = (int) $update['user_id'];
-                $userIds[] = $userId;
-                if ($update['side'] === 'left') {
-                    $leftPairs[] = 'WHEN ? THEN left_points + ?';
-                    $leftParams[] = $userId;
-                    $leftParams[] = (int) $update['delta'];
-                    $rightPairs[] = 'WHEN ? THEN right_points + ?';
-                    $rightParams[] = $userId;
-                    $rightParams[] = 0;
-                } else {
-                    $leftPairs[] = 'WHEN ? THEN left_points + ?';
-                    $leftParams[] = $userId;
-                    $leftParams[] = 0;
-                    $rightPairs[] = 'WHEN ? THEN right_points + ?';
-                    $rightParams[] = $userId;
-                    $rightParams[] = (int) $update['delta'];
-                }
-            }
-            $marks = implode(',', array_fill(0, count($userIds), '?'));
-            $this->pdo->prepare(
-                'UPDATE binary_nodes
-                   SET left_points  = CASE user_id ' . implode(' ', $leftPairs) . ' ELSE left_points END,
-                       right_points = CASE user_id ' . implode(' ', $rightPairs) . ' ELSE right_points END,
-                       updated_at   = NOW()
-                 WHERE user_id IN (' . $marks . ')'
-            )->execute(array_merge($leftParams, $rightParams, $userIds));
-        }
-
-        /* Personal points for the buyer (immutability rule in 22C). */
-        $this->pdo->prepare(
-            'UPDATE binary_nodes SET personal_points = personal_points + ?, updated_at = NOW() WHERE user_id = ?'
-        )->execute([$points, $buyerId]);
+         * ancestor. `applyVolume()` writes one `team` row per ancestor
+         * per source; the package path calls it with `teamOnly = true`
+         * (no own row, no order refs). (plan §14.7 rule 4) */
+        $this->applyVolume(
+            $nodeList,
+            $items,
+            $orderId,
+            $buyerId,
+            $points,
+            self::streamFromOrder(),
+            null, /* activation_id */
+            false, /* teamOnly */
+            $this->pdo,
+        );
 
         /* Self Bonus: one per order, recipient = buyer, no Active gate
          * (D-07). A zero amount is not written (plan §14.8 rule 6). */
@@ -501,125 +347,36 @@ final class BinaryService
         $pairPoints   = (int) setting_int('binary_pair_points', 1000);
         $pairPct      = round((float) setting_float('binary_pair_pct', 10.0), 3);
         $dailyCap     = (int) setting_int('binary_daily_pair_cap', 20);
-        $perPairValue = self::pairValue(); // round(PP × pct / 100, 2)
+        $perPairValue = self::pairValue();
 
         $totalPairCount = 0;
         $totalPairAmount = 0.0;
 
         foreach ($nodeList as $entry) {
-            $recipientId = (int) ($entry['node']['user_id'] ?? 0);
-
-            /* The company root is never paid (plan §14.2 rule 7). */
-            if ($companyId > 0 && $recipientId === $companyId) {
-                continue;
-            }
-
-            /* An ineligible node pays nothing and consumes nothing
-             * (D-13): its volume waits, the next upline is evaluated
-             * on its own balances. */
-            $reason = $eligibility[$recipientId] ?? '';
-            if ($reason !== '') {
-                continue;
-            }
-
-            /* Re-read the node's current balances: ancestors() was resolved
-             * before the volume cache was updated, so $entry['node'] is
-             * stale for the points columns (plan §14.7 rule 4). */
-            $nodeRow = BinaryNode::forUser($recipientId, $this->pdo);
-            $left    = (int) ($nodeRow['left_points'] ?? 0);
-            $right   = (int) ($nodeRow['right_points'] ?? 0);
-
-            $due = min(
-                (int) floor(max(0, $left) / $pairPoints),
-                (int) floor(max(0, $right) / $pairPoints)
+            $settled = $this->settleNode(
+                $entry,
+                $orderId,
+                $buyerId,
+                $paidAt,
+                $pairPoints,
+                $pairPct,
+                $perPairValue,
+                $dailyCap,
+                $companyId,
+                $eligibility,
+                false, /* creditImmediately */
+                self::streamFromOrder(),
+                null, /* activation_id */
+                $this->pdo,
             );
 
-            if ($due <= 0) {
+            if ($settled === null) {
                 continue;
             }
 
-            $used = self::pairsToday($recipientId, $paidAt, $this->pdo);
-            $room = $dailyCap === 0 ? $due : max(0, $dailyCap - $used);
-
-            $n = min($due, $room);
-            if ($n <= 0) {
-                continue;
-            }
-
-            /* Consume n × pair_points from each side (two negative rows tied
-             * to the award — the schema requires award_id NOT NULL for pair
-             * kind, plan §14.7 rule 4). */
-            $pairAmount = round($perPairValue * $n, 2);
-
-            $pairAwardId = BinaryAward::create([
-                'kind'       => 'pair',
-                'order_id'   => $orderId,
-                'buyer_id'   => $buyerId,
-                'user_id'    => $recipientId,
-                'side'       => $entry['side'],
-                'points'     => 2 * $n * $pairPoints,
-                'pair_count' => $n,
-                'pair_points'=> $pairPoints,
-                'rate_pct'   => $pairPct,
-                'amount'     => $pairAmount,
-                'status'     => 'pending',
-                'hold_days'  => $holdDays,
-                'paid_at'    => $paidAt,
-            ], $this->pdo);
-
-            $consume = -($n * $pairPoints);
-
-            BinaryVolume::create([
-                'node_user_id' => $recipientId,
-                'side'         => 'left',
-                'kind'         => 'pair',
-                'points'       => $consume,
-                'order_id'     => $orderId,
-                'order_item_id'=> null,
-                'buyer_id'     => $buyerId,
-                'award_id'     => $pairAwardId,
-                'note'         => 'Pair consumption — ' . number_format(abs($consume), 0, '.', '') . ' pts from the left side',
-            ], $this->pdo);
-
-            BinaryVolume::create([
-                'node_user_id' => $recipientId,
-                'side'         => 'right',
-                'kind'         => 'pair',
-                'points'       => $consume,
-                'order_id'     => $orderId,
-                'order_item_id'=> null,
-                'buyer_id'     => $buyerId,
-                'award_id'     => $pairAwardId,
-                'note'         => 'Pair consumption — ' . number_format(abs($consume), 0, '.', '') . ' pts from the right side',
-            ], $this->pdo);
-
-            $awards[] = [
-                'kind'       => 'pair',
-                'user_id'    => $recipientId,
-                'points'     => 2 * $n * $pairPoints,
-                'pair_count' => $n,
-                'amount'     => $pairAmount,
-            ];
-
-            $totalPairCount += $n;
-            $totalPairAmount = round($totalPairAmount + $pairAmount, 2);
-
-            /* Update the node cache. */
-            $this->pdo->prepare(
-                'UPDATE binary_nodes
-                    SET left_points  = left_points  - ?,
-                        right_points = right_points - ?,
-                        pairs_paid   = pairs_paid   + ?,
-                        points_matched = points_matched + ?,
-                        updated_at   = NOW()
-                  WHERE user_id = ?'
-            )->execute([
-                abs($consume),
-                abs($consume),
-                $n,
-                2 * $n * $pairPoints,
-                $recipientId,
-            ]);
+            $awards[] = $settled['award'];
+            $totalPairCount += $settled['pair_count'];
+            $totalPairAmount = round($totalPairAmount + $settled['amount'], 2);
         }
 
         /* The order stamp runs last: if anything above throws, the
@@ -642,6 +399,452 @@ final class BinaryService
             'awards'    => $awards,
             'nodes'     => count($nodeList),
         ]);
+    }
+
+    /* ----------------------------------------------------------
+     *  Volume writing — shared by the order path and the package path
+     * ---------------------------------------------------------- */
+
+    /**
+     * Write `own`/`team` volume rows for one event (order or activation).
+     *
+     * For the order path (`teamOnly = false`): one `own` row at the
+     * buyer's node plus one `team` row per ancestor per eligible item.
+     * For the package path (`teamOnly = true`): no `own` row, one
+     * `team` row per ancestor for the single activation points value.
+     *
+     * All rows carry `source` and, for activation events, `activation_id`.
+     * Node caches and `personal_points` are updated in the same call.
+     *
+     * @param list<array{node:array, side:string, kind:string}> $nodeList buyer first, then ancestors
+     * @param list<array> $items order items (ignored when teamOnly)
+     * @param bool $teamOnly skip the own row and write one team row per ancestor
+     */
+    private function applyVolume(
+        array $nodeList,
+        array $items,
+        int $orderId,
+        int $buyerId,
+        int $totalPoints,
+        string $source,
+        ?int $activationId,
+        bool $teamOnly,
+        ?PDO $pdo = null,
+    ): void {
+        $pdo = $pdo ?? $this->pdo;
+
+        $volumeRows = [];
+
+        if (! $teamOnly) {
+            /* The buyer's own row, anchored to the first eligible item. */
+            $firstItemId = null;
+            foreach ($items as $item) {
+                if ((int) ($item['points_total'] ?? 0) > 0) {
+                    $firstItemId = (int) $item['id'];
+                    break;
+                }
+            }
+
+            $buyer = $nodeList[0];
+            $volumeRows[] = [
+                'node_user_id' => (int) ($buyer['node']['user_id'] ?? 0),
+                'side'         => $buyer['side'],
+                'kind'         => 'own',
+                'points'       => $totalPoints,
+                'order_id'     => $orderId,
+                'order_item_id'=> $firstItemId,
+                'buyer_id'     => $buyerId,
+                'note'         => 'Own purchase — ' . number_format($totalPoints, 0, '.', '') . ' pts on the ' . $buyer['side'] . ' side',
+                'source'       => $source,
+                'activation_id'=> $activationId,
+            ];
+        }
+
+        /* Team rows: one per ancestor. For orders, one row per item per
+         * ancestor (the unique key is (node, item, side, kind)). For
+         * activations, one row per ancestor for the single activation
+         * points value.
+         *
+         * The buyer (index 0) never receives a team row from their own
+         * activation — team-only volume pays uplines only (D-04). */
+        $ancestors = array_slice($nodeList, 1);
+        $points    = $teamOnly ? $totalPoints : 0;
+
+        foreach ($ancestors as $ancestor) {
+            /* The side each ancestor sees the buyer on was pre-computed
+             * from the buyer's path and stored in $entry['side']. Do not
+             * re-derive it from the ancestor's own path. */
+            $side = $ancestor['side'];
+            if ($side === null || !in_array($side, ['left', 'right'], true)) {
+                continue;
+            }
+
+            $itemList = $teamOnly ? [['points_total' => $totalPoints, 'id' => 0]] : $items;
+
+            foreach ($itemList as $item) {
+                $itemPoints = (int) ($item['points_total'] ?? 0);
+                if ($itemPoints <= 0) {
+                    continue;
+                }
+
+                $volumeRows[] = [
+                    'node_user_id' => (int) ($ancestor['node']['user_id'] ?? 0),
+                    'side'         => $side,
+                    'kind'         => 'team',
+                    'points'       => $itemPoints,
+                    'order_id'     => $teamOnly ? null : $orderId,
+                    'order_item_id'=> $teamOnly ? null : (int) $item['id'],
+                    'buyer_id'     => $buyerId,
+                    'note'         => 'Team volume — ' . number_format($itemPoints, 0, '.', '') . ' pts',
+                    'source'       => $source,
+                    'activation_id'=> $activationId,
+                ];
+            }
+        }
+
+        if ($volumeRows === []) {
+            return;
+        }
+
+        /* One batched INSERT. */
+        $cols = [
+            'node_user_id', 'side', 'kind', 'points', 'order_id',
+            'order_item_id', 'buyer_id', 'award_id', 'note', 'created_by',
+            'source', 'activation_id',
+        ];
+        $marks = [];
+        $params = [];
+        foreach ($volumeRows as $row) {
+            $marks[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            foreach ($cols as $col) {
+                $params[] = $row[$col] ?? null;
+            }
+        }
+        $pdo->prepare(
+            'INSERT INTO binary_volume (' . implode(', ', $cols) . ')
+             VALUES ' . implode(', ', $marks)
+        )->execute($params);
+
+        /* Node-cache updates: one batched UPDATE. */
+        $cacheUpdates = [];
+        foreach ($volumeRows as $row) {
+            $key = (int) $row['node_user_id'] . ':' . $row['side'];
+            if (!isset($cacheUpdates[$key])) {
+                $cacheUpdates[$key] = [
+                    'user_id' => (int) $row['node_user_id'],
+                    'side'    => $row['side'],
+                    'delta'   => 0,
+                ];
+            }
+            $cacheUpdates[$key]['delta'] += (int) $row['points'];
+        }
+
+        if ($cacheUpdates !== []) {
+            $leftPairs   = [];
+            $rightPairs  = [];
+            $leftParams  = [];
+            $rightParams = [];
+            $userIds     = [];
+            foreach ($cacheUpdates as $update) {
+                $userId = (int) $update['user_id'];
+                $userIds[] = $userId;
+                if ($update['side'] === 'left') {
+                    $leftPairs[] = 'WHEN ? THEN left_points + ?';
+                    $leftParams[] = $userId;
+                    $leftParams[] = (int) $update['delta'];
+                    $rightPairs[] = 'WHEN ? THEN right_points + ?';
+                    $rightParams[] = $userId;
+                    $rightParams[] = 0;
+                } else {
+                    $leftPairs[] = 'WHEN ? THEN left_points + ?';
+                    $leftParams[] = $userId;
+                    $leftParams[] = 0;
+                    $rightPairs[] = 'WHEN ? THEN right_points + ?';
+                    $rightParams[] = $userId;
+                    $rightParams[] = (int) $update['delta'];
+                }
+            }
+            $marks = implode(',', array_fill(0, count($userIds), '?'));
+            $pdo->prepare(
+                'UPDATE binary_nodes
+                   SET left_points  = CASE user_id ' . implode(' ', $leftPairs) . ' ELSE left_points END,
+                       right_points = CASE user_id ' . implode(' ', $rightPairs) . ' ELSE right_points END,
+                       updated_at   = NOW()
+                 WHERE user_id IN (' . $marks . ')'
+            )->execute(array_merge($leftParams, $rightParams, $userIds));
+        }
+
+        /* Personal points for the buyer (orders only; activations are
+         * team-only — the buyer's own activation does not earn them
+         * personal points). (immutability rule in 22C) */
+        if (! $teamOnly && $points > 0) {
+            $buyerIdNode = (int) ($nodeList[0]['node']['user_id'] ?? 0);
+            $pdo->prepare(
+                'UPDATE binary_nodes SET personal_points = personal_points + ?, updated_at = NOW() WHERE user_id = ?'
+            )->execute([$points, $buyerIdNode]);
+        }
+    }
+
+    /* ----------------------------------------------------------
+     *  Eligibility — shared by the order path and the package path
+     * ---------------------------------------------------------- */
+
+    /**
+     * Resolve eligibility for every node in a chain, in one batch.
+     *
+     * `stream = 'product'` (default): company root excluded,
+     * `is_active = 1`, membership `active`, plus the monthly Active
+     * gate when `binary_requires_active`.
+     *
+     * `stream = 'package'`: same minus the Active gate, plus the
+     * package-gate (recipient's own package must be binary_enabled
+     * when `package_binary_requires_package`).
+     *
+     * @return array<int, string> user_id => '' when eligible, reason otherwise
+     */
+    private function eligibilityMap(
+        array $nodeList,
+        string $paidAt,
+        string $stream,
+        ?PDO $pdo = null,
+    ): array {
+        $pdo = $pdo ?? $this->pdo;
+
+        $ids = array_values(array_unique(array_map(
+            static fn (array $entry): int => (int) ($entry['node']['user_id'] ?? 0),
+            $nodeList
+        )));
+
+        sort($ids);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $companyId = (int) (Member::primaryAdmin($pdo)['id'] ?? 0);
+
+        /* Members resolved once for the whole chain, in one batch. */
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare(
+            'SELECT * FROM users WHERE id IN (' . $marks . ')'
+        );
+        $stmt->execute($ids);
+        $members = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $members[(int) $row['id']] = $row;
+        }
+
+        $requiresActive = setting_bool('binary_requires_active', true);
+        $requiresPackage = setting_bool('package_binary_requires_package', true);
+
+        $eligibility = [];
+        if ($stream === self::streamFromPackage() && $requiresPackage) {
+            $packageIds = [];
+            foreach ($members as $member) {
+                $pid = (int) ($member['package_id'] ?? 0);
+                if ($pid > 0 && !isset($packageIds[$pid])) {
+                    $packageIds[$pid] = $pid;
+                }
+            }
+            $packageMap = [];
+            if ($packageIds !== []) {
+                $pmarks = implode(',', array_fill(0, count($packageIds), '?'));
+                $pstmt = $pdo->prepare(
+                    'SELECT id, binary_enabled FROM packages WHERE id IN (' . $pmarks . ')'
+                );
+                $pstmt->execute(array_values($packageIds));
+                foreach ($pstmt->fetchAll() as $prow) {
+                    $packageMap[(int) $prow['id']] = (int) ($prow['binary_enabled'] ?? 0) === 1;
+                }
+            }
+        }
+
+        if ($requiresActive) {
+            $period = UnilevelCycle::periodOf($paidAt);
+            $activeMap = UnilevelCycle::activeMap($ids, $period, $pdo);
+        } else {
+            $activeMap = [];
+        }
+
+        foreach ($nodeList as $entry) {
+            $id = (int) ($entry['node']['user_id'] ?? 0);
+            $member = $members[$id] ?? null;
+
+            $reason = '';
+
+            if ($companyId > 0 && $id === $companyId) {
+                $reason = 'company account is not paid';
+            } elseif ($member === null || (int) ($member['is_active'] ?? 0) !== 1) {
+                $reason = 'recipient account is disabled';
+            } else {
+                $status = (string) ($member['member_status'] ?? '');
+                if ($status !== 'active') {
+                    $reason = 'recipient membership is ' . ($status === '' ? 'unknown' : $status);
+                } elseif ($requiresActive && !($activeMap[$id] ?? true)) {
+                    $reason = 'recipient is not Active for ' . UnilevelCycle::previous(UnilevelCycle::periodOf($paidAt));
+                } elseif ($stream === self::streamFromPackage() && $requiresPackage) {
+                    $pid = (int) ($member['package_id'] ?? 0);
+                    if ($pid <= 0 || !($packageMap[$pid] ?? false)) {
+                        $reason = 'recipient package is not binary-enabled';
+                    }
+                }
+            }
+
+            $eligibility[$id] = $reason;
+        }
+
+        return $eligibility;
+    }
+
+    /* ----------------------------------------------------------
+     *  Pair settlement — shared by the order path and the package path
+     * ---------------------------------------------------------- */
+
+    /**
+     * Settle pairs for one node: compute due pairs, apply the daily
+     * cap, write the award and the two consumption rows, update the
+     * node cache.
+     *
+     * When `creditImmediately` is true (package path), the award is
+     * written `credited` with `hold_days = 0` and the wallet is
+     * credited inside the caller's transaction.
+     *
+     * @return null when the node pays nothing; otherwise
+     *   ['award'=>array, 'pair_count'=>int, 'amount'=>float]
+     */
+    private function settleNode(
+        array $entry,
+        int $orderId,
+        int $buyerId,
+        string $paidAt,
+        int $pairPoints,
+        float $pairPct,
+        float $perPairValue,
+        int $dailyCap,
+        int $companyId,
+        array $eligibility,
+        bool $creditImmediately,
+        string $source,
+        ?int $activationId,
+        ?PDO $pdo = null,
+    ): ?array {
+        $pdo = $pdo ?? $this->pdo;
+
+        $recipientId = (int) ($entry['node']['user_id'] ?? 0);
+
+        /* The company root is never paid (plan §14.2 rule 7). */
+        if ($companyId > 0 && $recipientId === $companyId) {
+            return null;
+        }
+
+        /* An ineligible node pays nothing and consumes nothing. */
+        $reason = $eligibility[$recipientId] ?? '';
+        if ($reason !== '') {
+            return null;
+        }
+
+        /* Re-read the node's current balances. */
+        $nodeRow = BinaryNode::forUser($recipientId, $pdo);
+        $left = (int) ($nodeRow['left_points'] ?? 0);
+        $right = (int) ($nodeRow['right_points'] ?? 0);
+
+        $due = min(
+            (int) floor(max(0, $left) / $pairPoints),
+            (int) floor(max(0, $right) / $pairPoints)
+        );
+
+        if ($due <= 0) {
+            return null;
+        }
+
+        $used = self::pairsToday($recipientId, $paidAt, $pdo);
+        $room = $dailyCap === 0 ? $due : max(0, $dailyCap - $used);
+
+        $n = min($due, $room);
+        if ($n <= 0) {
+            return null;
+        }
+
+        $pairAmount = round($perPairValue * $n, 2);
+        $status = $creditImmediately ? 'credited' : 'pending';
+        $holdDays = $creditImmediately ? 0 : (int) setting_int('binary_hold_days', 7);
+
+        $pairAwardId = BinaryAward::create([
+            'kind'       => 'pair',
+            'order_id'   => $orderId,
+            'buyer_id'   => $buyerId,
+            'user_id'    => $recipientId,
+            'side'       => $entry['side'],
+            'points'     => 2 * $n * $pairPoints,
+            'pair_count' => $n,
+            'pair_points'=> $pairPoints,
+            'rate_pct'   => $pairPct,
+            'amount'     => $pairAmount,
+            'status'     => $status,
+            'hold_days'  => $holdDays,
+            'paid_at'    => $paidAt,
+            'source'     => $source,
+            'activation_id'=> $activationId,
+        ], $pdo);
+
+        $consume = -($n * $pairPoints);
+
+        BinaryVolume::create([
+            'node_user_id' => $recipientId,
+            'side'         => 'left',
+            'kind'         => 'pair',
+            'points'       => $consume,
+            'order_id'     => $source === BinaryAward::sourceFromActivation() ? null : $orderId,
+            'order_item_id'=> null,
+            'buyer_id'     => $buyerId,
+            'award_id'     => $pairAwardId,
+            'note'         => 'Pair consumption — ' . number_format(abs($consume), 0, '.', '') . ' pts from the left side',
+            'source'       => $source,
+            'activation_id'=> $activationId,
+        ], $pdo);
+
+        BinaryVolume::create([
+            'node_user_id' => $recipientId,
+            'side'         => 'right',
+            'kind'         => 'pair',
+            'points'       => $consume,
+            'order_id'     => $source === BinaryAward::sourceFromActivation() ? null : $orderId,
+            'order_item_id'=> null,
+            'buyer_id'     => $buyerId,
+            'award_id'     => $pairAwardId,
+            'note'         => 'Pair consumption — ' . number_format(abs($consume), 0, '.', '') . ' pts from the right side',
+            'source'       => $source,
+            'activation_id'=> $activationId,
+        ], $pdo);
+
+        /* Update the node cache. */
+        $pdo->prepare(
+            'UPDATE binary_nodes
+                SET left_points  = left_points  - ?,
+                    right_points = right_points - ?,
+                    pairs_paid   = pairs_paid   + ?,
+                    points_matched = points_matched + ?,
+                    updated_at   = NOW()
+              WHERE user_id = ?'
+        )->execute([
+            abs($consume),
+            abs($consume),
+            $n,
+            2 * $n * $pairPoints,
+            $recipientId,
+        ]);
+
+        return [
+            'award'      => [
+                'kind'       => 'pair',
+                'user_id'    => $recipientId,
+                'points'     => 2 * $n * $pairPoints,
+                'pair_count' => $n,
+                'amount'     => $pairAmount,
+            ],
+            'pair_count' => $n,
+            'amount'     => $pairAmount,
+        ];
     }
 
     /* ----------------------------------------------------------
@@ -2558,6 +2761,18 @@ final class BinaryService
         $pct  = round((float) setting_float('binary_pair_pct', 10.0), 3);
 
         return round($pp * $pct / 100, 2);
+    }
+
+    /** The order-stream label used on `source` columns. */
+    public static function streamFromOrder(): string
+    {
+        return 'order';
+    }
+
+    /** The package-stream label used on `source` columns. */
+    public static function streamFromPackage(): string
+    {
+        return 'activation';
     }
 
     /**

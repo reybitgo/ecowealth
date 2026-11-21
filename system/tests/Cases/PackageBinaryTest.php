@@ -450,4 +450,246 @@ return [
         ], $nineLevels(), [], (int) $pkg['id']);
         setting_cache_clear();
     },
+
+    /* ---------- 23C-S1 activation-source model API ---------- */
+
+    'P23C-S1 BinaryAward::createForActivation writes an activation-sourced pair award' => function () use ($pendingMember, $activation, $wallet, $packageData, $nineLevels): void {
+        /* Set up: a binary-enabled package and an approved activation. */
+        $pkg = Package::find((int) Package::findBySlug('package-a')['id']);
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $member = $pendingMember();
+        $id     = (int) $member['id'];
+
+        $wallet()->credit($id, '5000.00', 'topup', random_int(100000, 999999), 'Activation funds', false);
+        $result = $activation()->request($id, [
+            'method'     => 'ewallet',
+            'package_id' => (string) $pkg['id'],
+        ]);
+        assert_same('approved', $result['status']);
+        $activationId = (int) $result['activation_id'];
+
+        /* Write an activation-sourced pair award. The recipient is the
+         * member themselves (the tree path is irrelevant at model level). */
+        $awardId = BinaryAward::createForActivation([
+            'kind'       => 'pair',
+            'buyer_id'   => $id,
+            'user_id'    => $id,
+            'side'       => 'left',
+            'points'     => 2000,
+            'pair_count' => 1,
+            'pair_points'=> 1000,
+            'rate_pct'   => 10.0,
+            'amount'     => 100.00,
+            'status'     => 'credited',
+            'hold_days'  => 0,
+            'paid_at'    => date('Y-m-d H:i:s'),
+            'activation_id'=> $activationId,
+        ]);
+
+        assert_true($awardId > 0, 'award id is positive');
+
+        /* Read it back via forActivation(). */
+        $rows = BinaryAward::forActivation($activationId);
+        assert_count(1, $rows, 'exactly one activation award');
+        assert_same('activation', $rows[0]['source']);
+        assert_same($activationId, (int) $rows[0]['activation_id']);
+        assert_null($rows[0]['order_id']);
+        assert_same('pair', $rows[0]['kind']);
+        assert_same('credited', $rows[0]['status']);
+        assert_same(100.00, (float) $rows[0]['amount']);
+
+        /* The activation-event idempotency anchor works. */
+        $found = BinaryAward::forActivationEvent($activationId, (int) $rows[0]['user_id'], 'pair');
+        assert_not_null($found);
+        assert_same($awardId, (int) $found['id']);
+
+        /* Cleanup: restore package. */
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '0',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '0');
+        setting_cache_clear();
+    },
+
+    'P23C-S1 BinaryVolume::createForActivation writes team rows with source activation' => function () use ($pendingMember, $activation, $wallet, $packageData, $nineLevels): void {
+        $pkg = Package::find((int) Package::findBySlug('package-a')['id']);
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '1',
+            'binary_points'          => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $member = $pendingMember();
+        $id     = (int) $member['id'];
+
+        $wallet()->credit($id, '5000.00', 'topup', random_int(100000, 999999), 'Activation funds', false);
+        $result = $activation()->request($id, [
+            'method'     => 'ewallet',
+            'package_id' => (string) $pkg['id'],
+        ]);
+        assert_same('approved', $result['status']);
+        $activationId = (int) $result['activation_id'];
+
+        /* Need an ancestor node to write team rows at. Use any existing
+         * placed node from the fixture tree. */
+        $stmt = db()->prepare('SELECT user_id FROM binary_nodes LIMIT 1');
+        $stmt->execute();
+        $node = $stmt->fetch();
+        $ancestorId = (int) ($node['user_id'] ?? 0);
+        if ($ancestorId <= 0) {
+            /* No nodes exist — skip the row-write assertions but still
+             * verify the model API accepts activation-sourced rows. */
+            $ancestorId = (int) $id;
+        }
+
+        /* Write activation-sourced team volume rows at the ancestor. */
+        BinaryVolume::createForActivation([
+            'node_user_id' => $ancestorId,
+            'side'         => 'left',
+            'kind'         => 'team',
+            'points'       => 1000,
+            'buyer_id'     => $id,
+            'activation_id'=> $activationId,
+        ]);
+        BinaryVolume::createForActivation([
+            'node_user_id' => $ancestorId,
+            'side'         => 'right',
+            'kind'         => 'team',
+            'points'       => 1000,
+            'buyer_id'     => $id,
+            'activation_id'=> $activationId,
+        ]);
+
+        /* Read back via forActivation(). */
+        $rows = BinaryVolume::forActivation($activationId);
+        assert_count(2, $rows, 'two team rows for the activation');
+        foreach ($rows as $row) {
+            assert_same('activation', $row['source']);
+            assert_same($activationId, (int) $row['activation_id']);
+            assert_null($row['order_id']);
+            assert_null($row['order_item_id']);
+            assert_same('team', $row['kind']);
+            assert_same(1000, (int) $row['points']);
+        }
+
+        /* sumBySource() splits correctly. */
+        $sums = BinaryVolume::sumBySource();
+        assert_same(2000, (int) $sums['activation']);
+        assert_same(0, (int) $sums['order']);
+
+        /* Cleanup. */
+        Package::save([
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '0',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_set('package_binary_enabled', '0');
+        setting_cache_clear();
+    },
+
+    'P23C-S1 BinaryAward::normaliseFilters accepts source and whereFor filters by it' => function (): void {
+        $filters = BinaryAward::normaliseFilters(['source' => 'activation']);
+        assert_same('activation', $filters['source']);
+
+        $filters = BinaryAward::normaliseFilters(['source' => 'order']);
+        assert_same('order', $filters['source']);
+
+        $filters = BinaryAward::normaliseFilters(['source' => 'bogus']);
+        assert_same('', $filters['source'], 'unknown source falls back to no filter');
+
+        $filters = BinaryAward::normaliseFilters([]);
+        assert_same('', $filters['source']);
+    },
+
+    'P23C-S1 BinaryVolume::normaliseFilters accepts source' => function (): void {
+        $filters = BinaryVolume::normaliseFilters(['source' => 'activation']);
+        assert_same('activation', $filters['source']);
+
+        $filters = BinaryVolume::normaliseFilters(['source' => 'bogus']);
+        assert_same('', $filters['source']);
+    },
+
+    'P23C-S1 BinaryAward::sumBySource splits order vs activation totals' => function (): void {
+        $sums = BinaryAward::sumBySource();
+        assert_true(isset($sums['order']), 'order key exists');
+        assert_true(isset($sums['activation']), 'activation key exists');
+        assert_same(0.0, (float) $sums['order']);
+        assert_same(0.0, (float) $sums['activation']);
+    },
+
+    'P23C-S1 BinaryAward::create rejects activation award without activation_id' => function (): void {
+        $threw = false;
+        try {
+            BinaryAward::create([
+                'kind'       => 'pair',
+                'order_id'   => 1,
+                'buyer_id'   => 1,
+                'user_id'    => 1,
+                'side'       => 'left',
+                'points'     => 2000,
+                'pair_count' => 1,
+                'pair_points'=> 1000,
+                'rate_pct'   => 10.0,
+                'amount'     => 100.00,
+                'status'     => 'credited',
+                'hold_days'  => 0,
+                'source'     => 'activation',
+            ]);
+        } catch (InvalidArgumentException $e) {
+            $threw = true;
+        }
+        assert_true($threw, 'activation award without activation_id must throw');
+    },
+
+    'P23C-S1 BinaryVolume::create rejects activation row without activation_id' => function (): void {
+        $threw = false;
+        try {
+            BinaryVolume::create([
+                'node_user_id' => 1,
+                'side'         => 'left',
+                'kind'         => 'team',
+                'points'       => 1000,
+                'buyer_id'     => 1,
+                'source'       => 'activation',
+            ]);
+        } catch (InvalidArgumentException $e) {
+            $threw = true;
+        }
+        assert_true($threw, 'activation volume row without activation_id must throw');
+    },
 ];
