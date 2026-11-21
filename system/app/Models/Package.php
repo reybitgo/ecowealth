@@ -129,16 +129,44 @@ final class Package
                FROM packages"
         )->fetch() ?: [];
 
-        return [
-            'total'    => (int) ($row['total'] ?? 0),
-            'active'   => (int) ($row['active'] ?? 0),
-            'inactive' => (int) ($row['inactive'] ?? 0),
-        ];
+    return [
+        'total'    => (int) ($row['total'] ?? 0),
+        'active'   => (int) ($row['active'] ?? 0),
+        'inactive' => (int) ($row['inactive'] ?? 0),
+    ];
+}
+
+/** Whether this package's activations place binary points (Phase 23A). */
+public static function binaryEnabled(int $packageId): bool
+{
+    if ($packageId <= 0) {
+        return false;
     }
 
-    /* ----------------------------------------------------------
-     *  Relations
-     * ---------------------------------------------------------- */
+    $stmt = db()->prepare('SELECT binary_enabled FROM packages WHERE id = ? LIMIT 1');
+    $stmt->execute([$packageId]);
+    $row = $stmt->fetch();
+
+    return $row !== false && (int) ($row['binary_enabled'] ?? 0) === 1;
+}
+
+/** The points one activation of this package contributes (Phase 23A). */
+public static function binaryPoints(int $packageId): int
+{
+    if ($packageId <= 0) {
+        return 0;
+    }
+
+    $stmt = db()->prepare('SELECT binary_points FROM packages WHERE id = ? LIMIT 1');
+    $stmt->execute([$packageId]);
+    $row = $stmt->fetch();
+
+    return (int) ($row['binary_points'] ?? 0);
+}
+
+/* ----------------------------------------------------------
+ *  Relations
+ * ---------------------------------------------------------- */
 
     /**
      * Indirect amounts for one package, always 9 keys (2 … 10),

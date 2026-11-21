@@ -341,9 +341,10 @@ final class DatabaseResetService
             ],
         ],
         [
-            /* Product binary (Phase 22A): the points ledger references
+            /* Product binary (Phase 22A / 23A): the points ledger references
              * awards and orders, so the tree's money is emptied before
-             * the orders group and before the members group. */
+             * the orders group and before the members group. Awards and
+             * volume for both sources (`order` and `activation`) live here. */
             'key'   => 'product_binary',
             'label' => 'Product binary points, awards and nodes',
             'sql'   => [

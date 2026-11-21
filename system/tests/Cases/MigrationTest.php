@@ -39,6 +39,7 @@ $migrations    = [
     $migrationDir . '024_team_harvest.sql',
     $migrationDir . '025_general_harvest.sql',
     $migrationDir . '026_product_binary.sql',
+    $migrationDir . '027_package_binary.sql',
 ];
 $fixtureFile   = __DIR__ . '/../fixtures/legacy_phase0_schema.sql';
 
@@ -1328,12 +1329,12 @@ return [
     'P21A-T3 migration 025 adds the General Harvest objects, appends the enum value and re-runs cleanly' => function () use ($buildMigrated, $migrationDir): void {
         $pdo = $buildMigrated();
 
-        /* The ordered list really carries 026, last. */
+        /* The ordered list really carries 027, last. */
         $list = array_map('basename', glob($migrationDir . '*.sql') ?: []);
         sort($list, SORT_STRING);
 
         assert_true(in_array('026_product_binary.sql', $list, true), 'migration 026 is part of the ordered list');
-        assert_same('026_product_binary.sql', end($list), '026 is the last migration');
+        assert_same('027_package_binary.sql', end($list), '027 is the last migration');
 
         /* The three tables exist and are empty except the ladder and the
          * single unarmed board row (plan 21A Rule 4). */

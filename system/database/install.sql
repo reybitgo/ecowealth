@@ -23,7 +23,7 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      42 tables · 86 settings (+3 install-time metadata = 89 on fresh install) · 2 staff accounts · 7 products
+--      42 tables · 89 settings (+3 install-time metadata = 92 on fresh install) · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
 --      10 Team Harvest level amounts · 10 General Harvest level amounts
 --      1 unarmed General Harvest board row
@@ -108,7 +108,7 @@ SET time_zone = '+08:00';
 
 -- ===========================================================================
 --  SECTION 1/7 — SCHEMA
---  source: database/schema.sql sha256=0f55517976e03bc20127ca995150b34c1cbb52d9119c119aab29876466ca2f06
+--  source: database/schema.sql sha256=6c292c89fd45f4b7563b5be70438a0f0d23bb64406dae8537ff5c5841e042aa2
 -- ===========================================================================
 
 -- =============================================================
@@ -163,6 +163,10 @@ SET time_zone = '+08:00';
 --  Phase 22 owns: binary_nodes, binary_volume, binary_awards and the
 --                'binary' / 'binary_reversal' ledger ref types
 --                (the stream is off by default).
+--  Phase 23A amends binary_volume and binary_awards so a package
+--  activation can be a second source (`source`, `activation_id`), adds
+--  packages.binary_enabled/binary_points, activations.binary_* and the
+--  three package_binary_* settings (no new table).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -396,6 +400,8 @@ CREATE TABLE IF NOT EXISTS packages (
   image                 VARCHAR(255)  NULL,
   price                 DECIMAL(12,2) NOT NULL,
   product_value         DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  binary_enabled        TINYINT(1)    NOT NULL DEFAULT 0,
+  binary_points         INT UNSIGNED  NOT NULL DEFAULT 0,
   direct_referral_bonus DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   indirect_enabled      TINYINT(1)    NOT NULL DEFAULT 1,
   description           TEXT          NULL,
@@ -843,7 +849,9 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
 CREATE TABLE IF NOT EXISTS binary_awards (
   id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   kind               ENUM('self','pair') NOT NULL,
-  order_id           INT UNSIGNED    NOT NULL,
+  source             ENUM('order','activation') NOT NULL DEFAULT 'order',
+  order_id           INT UNSIGNED    NULL,
+  activation_id      INT UNSIGNED    NULL,
   buyer_id           INT UNSIGNED    NOT NULL,
   user_id            INT UNSIGNED    NOT NULL,
   side               ENUM('left','right') NULL,
@@ -864,9 +872,11 @@ CREATE TABLE IF NOT EXISTS binary_awards (
   created_at         TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_binary_award (order_id, user_id, kind),
+  UNIQUE KEY uq_binary_award_activation (activation_id, user_id, kind),
   KEY idx_ba_user (user_id, created_at),
   KEY idx_ba_buyer (buyer_id, created_at),
   KEY idx_ba_order (order_id),
+  KEY idx_ba_activation (activation_id),
   KEY idx_ba_status (status, created_at),
   KEY idx_ba_user_status (user_id, status),
   KEY idx_ba_paid (paid_at),
@@ -876,7 +886,11 @@ CREATE TABLE IF NOT EXISTS binary_awards (
   CONSTRAINT fk_ba_user   FOREIGN KEY (user_id)  REFERENCES users (id)       ON DELETE CASCADE,
   CONSTRAINT chk_ba_amount CHECK (amount >= 0 AND reversed_amount >= 0 AND reversed_amount <= amount),
   CONSTRAINT chk_ba_self   CHECK (kind <> 'self' OR (pair_count = 0 AND points > 0)),
-  CONSTRAINT chk_ba_pair   CHECK (kind <> 'pair' OR (pair_count > 0 AND points = 2 * pair_count * pair_points))
+  CONSTRAINT chk_ba_pair   CHECK (kind <> 'pair' OR (pair_count > 0 AND points = 2 * pair_count * pair_points)),
+  CONSTRAINT chk_ba_source CHECK (
+    (source = 'order'      AND order_id IS NOT NULL AND activation_id IS NULL) OR
+    (source = 'activation' AND activation_id IS NOT NULL AND order_id IS NULL)
+  )
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -888,9 +902,11 @@ CREATE TABLE IF NOT EXISTS binary_volume (
   node_user_id  INT UNSIGNED    NOT NULL,
   side          ENUM('left','right') NOT NULL,
   kind          ENUM('own','team','pair','pair_return','reversal','adjustment') NOT NULL,
+  source        ENUM('order','activation') NOT NULL DEFAULT 'order',
   points        BIGINT          NOT NULL,
   order_id      INT UNSIGNED    NULL,
   order_item_id INT UNSIGNED    NULL,
+  activation_id INT UNSIGNED    NULL,
   buyer_id      INT UNSIGNED    NULL,
   award_id      BIGINT UNSIGNED NULL,
   note          VARCHAR(160)    NULL,
@@ -899,8 +915,10 @@ CREATE TABLE IF NOT EXISTS binary_volume (
   PRIMARY KEY (id),
   UNIQUE KEY uq_bv_line (node_user_id, order_item_id, side, kind),
   UNIQUE KEY uq_bv_award (award_id, side, kind),
+  UNIQUE KEY uq_bv_activation (node_user_id, activation_id, side, kind),
   KEY idx_bv_node (node_user_id, side, created_at),
   KEY idx_bv_order (order_id),
+  KEY idx_bv_activation (activation_id),
   KEY idx_bv_buyer (buyer_id, created_at),
   KEY idx_bv_kind (kind, created_at),
   KEY idx_bv_award (award_id),
@@ -911,12 +929,22 @@ CREATE TABLE IF NOT EXISTS binary_volume (
   CONSTRAINT fk_bv_actor FOREIGN KEY (created_by)    REFERENCES users (id)         ON DELETE SET NULL,
   CONSTRAINT fk_bv_award FOREIGN KEY (award_id)      REFERENCES binary_awards (id) ON DELETE RESTRICT,
   CONSTRAINT chk_bv_points CHECK (points <> 0),
-  CONSTRAINT chk_bv_own    CHECK (kind <> 'own'    OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
-  CONSTRAINT chk_bv_team   CHECK (kind <> 'team'   OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
+  CONSTRAINT chk_bv_own    CHECK (
+      kind <> 'own' OR (points > 0 AND award_id IS NULL AND
+        ((source = 'order' AND order_item_id IS NOT NULL) OR (source = 'activation' AND activation_id IS NOT NULL)))
+  ),
+  CONSTRAINT chk_bv_team   CHECK (
+      kind <> 'team' OR (points > 0 AND award_id IS NULL AND
+        ((source = 'order' AND order_item_id IS NOT NULL) OR (source = 'activation' AND activation_id IS NOT NULL)))
+  ),
   CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND order_item_id IS NOT NULL)),
   CONSTRAINT chk_bv_pair   CHECK (kind <> 'pair'   OR (points < 0 AND award_id IS NOT NULL)),
   CONSTRAINT chk_bv_return CHECK (kind <> 'pair_return' OR (points > 0 AND award_id IS NOT NULL)),
-  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0)
+  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0),
+  CONSTRAINT chk_bv_source CHECK (
+    (source = 'order'      AND (order_id IS NOT NULL OR order_item_id IS NOT NULL) AND activation_id IS NULL) OR
+    (source = 'activation' AND activation_id IS NOT NULL AND order_id IS NULL AND order_item_id IS NULL)
+  )
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -1096,11 +1124,15 @@ CREATE TABLE IF NOT EXISTS activations (
   reviewed_by             INT UNSIGNED  NULL,
   reviewed_at             DATETIME      NULL,
   commission_processed_at DATETIME      NULL,
+  binary_processed_at     DATETIME      NULL,
+  binary_points           BIGINT        NOT NULL DEFAULT 0,
+  binary_total            DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   created_at              TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at              TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_activations_user (user_id, status),
   KEY idx_activations_status (status, created_at),
+  KEY idx_activations_binary (binary_processed_at),
   CONSTRAINT fk_activations_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_activations_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -1571,9 +1603,22 @@ CREATE TABLE IF NOT EXISTS live_revisions (
   PRIMARY KEY (surface)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
+-- -------------------------------------------------------------
+-- Phase 23A: binary awards and volume accept a package activation
+-- as a second source. `activations` is declared earlier in this file
+-- (before binary_awards / binary_volume), so these foreign keys are
+-- added here to keep the create-table order linear; they mirror
+-- migration `027_package_binary.sql` exactly.
+-- -------------------------------------------------------------
+ALTER TABLE binary_awards
+  ADD CONSTRAINT fk_ba_activation FOREIGN KEY (activation_id) REFERENCES activations (id) ON DELETE CASCADE;
+
+ALTER TABLE binary_volume
+  ADD CONSTRAINT fk_bv_activation FOREIGN KEY (activation_id) REFERENCES activations (id) ON DELETE CASCADE;
+
 -- ===========================================================================
 --  SECTION 2/7 — SETTINGS
---  source: database/seeds/001_settings.sql sha256=e08b91182406e6ffd739e91c2273bc98ef8de7c779e68a6e1fa407d3a6f09fe7
+--  source: database/seeds/001_settings.sql sha256=4307ccc340355ab8739ffd5f2578363fdd2cf9623ef058a9293baa27cbe5d583
 -- ===========================================================================
 
 -- =============================================================
@@ -1723,6 +1768,15 @@ INSERT INTO settings (key_name, value) VALUES
   ('binary_release_enabled',           '1'),
   ('binary_reversal_enabled',          '1'),
   ('binary_ledger_since',              DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
+  -- Package binary bonus (Phase 23A). The stream ships OFF at both the
+  -- global master and the per-package level; a deployment never starts
+  -- paying by accident (D-13). `package_binary_ledger_since` marks the
+  -- instant the stream may pay, so reconciliation can separate legacy
+  -- activations from the first payable one.
+  ('package_binary_enabled',            '0'),
+  ('package_binary_requires_package',   '1'),
+  ('package_binary_ledger_since',       DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
@@ -2030,7 +2084,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=78370fc091a6864e5ff31a1e00aca520ad56578844a8dfdb4cffe6407bf0ca3c
+--  source: database/install/footer.sql sha256=a74bdd5529f2859b1294f6240fae055c3c6ba3ddee43517cfad7aaa787a05d51
 -- ===========================================================================
 
 -- ===========================================================================
@@ -2058,14 +2112,14 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=78370fc091a6864e5ff31a1e00aca520ad56578844a8dfdb4cffe6407bf0ca3c
+--  source: database/install/footer.sql sha256=a74bdd5529f2859b1294f6240fae055c3c6ba3ddee43517cfad7aaa787a05d51
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 42    settings_rows = 86 seeded (+3 install-time = 89 fresh install)    staff_rows    = 2
+--      tables_created = 42    settings_rows = 86 seeded (+3 install-time = 92 fresh install)    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --      team_harvest_levels_rows = 10

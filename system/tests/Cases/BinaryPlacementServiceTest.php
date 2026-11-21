@@ -312,10 +312,19 @@ return [
         $service->ensureRoot();
 
         $buyerAId = (int) $tree['buyerA']['id'];
+
         db()->prepare(
-            'INSERT INTO binary_volume (node_user_id, side, kind, points, created_at)
-             VALUES (?, \'left\', \'adjustment\', 1000, NOW())'
-        )->execute([$buyerAId]);
+            'INSERT INTO shop_orders
+               (order_no, user_id, status, payment_method, subtotal, shipping_fee, total,
+                billing_name, shipping_name, shipping_address, shipping_country, terms_version, terms_accepted_at)
+             VALUES (?, ?, \'paid\', \'ewallet\', 0, 0, 0, \'Test\', \'Test\', \'Test addr\', \'PH\', \'v1\', NOW())'
+        )->execute(['TEST-VOL-' . $buyerAId, $buyerAId]);
+        $orderId = (int) db()->lastInsertId();
+
+        db()->prepare(
+            'INSERT INTO binary_volume (node_user_id, side, kind, points, order_id, source, created_at)
+             VALUES (?, \'left\', \'adjustment\', 1000, ?, \'order\', NOW())'
+        )->execute([$buyerAId, $orderId]);
 
         $e = assert_throws(
             function () use ($service, $tree): void {

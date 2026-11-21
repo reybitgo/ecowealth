@@ -3260,15 +3260,37 @@ app/Services/DatabaseInstaller.php
 app/Services/DatabaseResetService.php
 app/Services/Live.php
 app/Services/OrderService.php
+app/Services/PackageBinaryException.php
+app/Services/PackageBinaryService.php
 app/Services/PaymentService.php
 app/Services/RegistrationService.php
 app/Services/ReportService.php
+app/Models/Activation.php
 app/Models/Product.php
+app/Models/Package.php
 app/Models/Report.php
+app/Services/ActivationService.php
+app/Controllers/AdminActivationController.php
+app/Controllers/AdminPackageController.php
+app/Controllers/AdminCommissionController.php
+app/Controllers/AdminMemberController.php
+app/Controllers/AdminProductController.php
+app/Controllers/AdminReportController.php
+app/Controllers/AdminSettingsController.php
+app/Controllers/CheckoutController.php
+app/Controllers/DashboardController.php
+app/Controllers/EarningsController.php
+app/Controllers/GenealogyController.php
+app/Controllers/MembershipController.php
+app/Controllers/OrderController.php
+app/Controllers/ShopController.php
 app/helpers.php                        (wallet labels)
 app/layout/nav.php                     (the tree link, if added)
 public/register.php
 app/views/**/_binary*.php              (the binary partials only)
+app/views/admin/activations/_binary*.php   (the activation binary card)
+app/views/admin/packages/_binary*.php      (the package binary card)
+app/views/member/membership/_placement*.php (the activation placement block)
 app/views/member/genealogy/_tree*.php  (the tree and the modal)
 app/routes_inventory.php               (the one extension row)
 ```

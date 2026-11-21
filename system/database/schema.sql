@@ -50,6 +50,10 @@
 --  Phase 22 owns: binary_nodes, binary_volume, binary_awards and the
 --                'binary' / 'binary_reversal' ledger ref types
 --                (the stream is off by default).
+--  Phase 23A amends binary_volume and binary_awards so a package
+--  activation can be a second source (`source`, `activation_id`), adds
+--  packages.binary_enabled/binary_points, activations.binary_* and the
+--  three package_binary_* settings (no new table).
 --  Later phases append their tables (plan §4.2, Appendix B).
 --
 --  Seed data lives in database/seeds/ so a schema import alone
@@ -283,6 +287,8 @@ CREATE TABLE IF NOT EXISTS packages (
   image                 VARCHAR(255)  NULL,
   price                 DECIMAL(12,2) NOT NULL,
   product_value         DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  binary_enabled        TINYINT(1)    NOT NULL DEFAULT 0,
+  binary_points         INT UNSIGNED  NOT NULL DEFAULT 0,
   direct_referral_bonus DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   indirect_enabled      TINYINT(1)    NOT NULL DEFAULT 1,
   description           TEXT          NULL,
@@ -730,7 +736,9 @@ CREATE TABLE IF NOT EXISTS unilevel_awards (
 CREATE TABLE IF NOT EXISTS binary_awards (
   id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   kind               ENUM('self','pair') NOT NULL,
-  order_id           INT UNSIGNED    NOT NULL,
+  source             ENUM('order','activation') NOT NULL DEFAULT 'order',
+  order_id           INT UNSIGNED    NULL,
+  activation_id      INT UNSIGNED    NULL,
   buyer_id           INT UNSIGNED    NOT NULL,
   user_id            INT UNSIGNED    NOT NULL,
   side               ENUM('left','right') NULL,
@@ -751,9 +759,11 @@ CREATE TABLE IF NOT EXISTS binary_awards (
   created_at         TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_binary_award (order_id, user_id, kind),
+  UNIQUE KEY uq_binary_award_activation (activation_id, user_id, kind),
   KEY idx_ba_user (user_id, created_at),
   KEY idx_ba_buyer (buyer_id, created_at),
   KEY idx_ba_order (order_id),
+  KEY idx_ba_activation (activation_id),
   KEY idx_ba_status (status, created_at),
   KEY idx_ba_user_status (user_id, status),
   KEY idx_ba_paid (paid_at),
@@ -763,7 +773,11 @@ CREATE TABLE IF NOT EXISTS binary_awards (
   CONSTRAINT fk_ba_user   FOREIGN KEY (user_id)  REFERENCES users (id)       ON DELETE CASCADE,
   CONSTRAINT chk_ba_amount CHECK (amount >= 0 AND reversed_amount >= 0 AND reversed_amount <= amount),
   CONSTRAINT chk_ba_self   CHECK (kind <> 'self' OR (pair_count = 0 AND points > 0)),
-  CONSTRAINT chk_ba_pair   CHECK (kind <> 'pair' OR (pair_count > 0 AND points = 2 * pair_count * pair_points))
+  CONSTRAINT chk_ba_pair   CHECK (kind <> 'pair' OR (pair_count > 0 AND points = 2 * pair_count * pair_points)),
+  CONSTRAINT chk_ba_source CHECK (
+    (source = 'order'      AND order_id IS NOT NULL AND activation_id IS NULL) OR
+    (source = 'activation' AND activation_id IS NOT NULL AND order_id IS NULL)
+  )
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -775,9 +789,11 @@ CREATE TABLE IF NOT EXISTS binary_volume (
   node_user_id  INT UNSIGNED    NOT NULL,
   side          ENUM('left','right') NOT NULL,
   kind          ENUM('own','team','pair','pair_return','reversal','adjustment') NOT NULL,
+  source        ENUM('order','activation') NOT NULL DEFAULT 'order',
   points        BIGINT          NOT NULL,
   order_id      INT UNSIGNED    NULL,
   order_item_id INT UNSIGNED    NULL,
+  activation_id INT UNSIGNED    NULL,
   buyer_id      INT UNSIGNED    NULL,
   award_id      BIGINT UNSIGNED NULL,
   note          VARCHAR(160)    NULL,
@@ -786,8 +802,10 @@ CREATE TABLE IF NOT EXISTS binary_volume (
   PRIMARY KEY (id),
   UNIQUE KEY uq_bv_line (node_user_id, order_item_id, side, kind),
   UNIQUE KEY uq_bv_award (award_id, side, kind),
+  UNIQUE KEY uq_bv_activation (node_user_id, activation_id, side, kind),
   KEY idx_bv_node (node_user_id, side, created_at),
   KEY idx_bv_order (order_id),
+  KEY idx_bv_activation (activation_id),
   KEY idx_bv_buyer (buyer_id, created_at),
   KEY idx_bv_kind (kind, created_at),
   KEY idx_bv_award (award_id),
@@ -798,12 +816,22 @@ CREATE TABLE IF NOT EXISTS binary_volume (
   CONSTRAINT fk_bv_actor FOREIGN KEY (created_by)    REFERENCES users (id)         ON DELETE SET NULL,
   CONSTRAINT fk_bv_award FOREIGN KEY (award_id)      REFERENCES binary_awards (id) ON DELETE RESTRICT,
   CONSTRAINT chk_bv_points CHECK (points <> 0),
-  CONSTRAINT chk_bv_own    CHECK (kind <> 'own'    OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
-  CONSTRAINT chk_bv_team   CHECK (kind <> 'team'   OR (points > 0 AND order_item_id IS NOT NULL AND award_id IS NULL)),
+  CONSTRAINT chk_bv_own    CHECK (
+      kind <> 'own' OR (points > 0 AND award_id IS NULL AND
+        ((source = 'order' AND order_item_id IS NOT NULL) OR (source = 'activation' AND activation_id IS NOT NULL)))
+  ),
+  CONSTRAINT chk_bv_team   CHECK (
+      kind <> 'team' OR (points > 0 AND award_id IS NULL AND
+        ((source = 'order' AND order_item_id IS NOT NULL) OR (source = 'activation' AND activation_id IS NOT NULL)))
+  ),
   CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND order_item_id IS NOT NULL)),
   CONSTRAINT chk_bv_pair   CHECK (kind <> 'pair'   OR (points < 0 AND award_id IS NOT NULL)),
   CONSTRAINT chk_bv_return CHECK (kind <> 'pair_return' OR (points > 0 AND award_id IS NOT NULL)),
-  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0)
+  CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0),
+  CONSTRAINT chk_bv_source CHECK (
+    (source = 'order'      AND (order_id IS NOT NULL OR order_item_id IS NOT NULL) AND activation_id IS NULL) OR
+    (source = 'activation' AND activation_id IS NOT NULL AND order_id IS NULL AND order_item_id IS NULL)
+  )
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------
@@ -983,11 +1011,15 @@ CREATE TABLE IF NOT EXISTS activations (
   reviewed_by             INT UNSIGNED  NULL,
   reviewed_at             DATETIME      NULL,
   commission_processed_at DATETIME      NULL,
+  binary_processed_at     DATETIME      NULL,
+  binary_points           BIGINT        NOT NULL DEFAULT 0,
+  binary_total            DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   created_at              TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at              TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_activations_user (user_id, status),
   KEY idx_activations_status (status, created_at),
+  KEY idx_activations_binary (binary_processed_at),
   CONSTRAINT fk_activations_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_activations_package FOREIGN KEY (package_id) REFERENCES packages (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
@@ -1457,5 +1489,18 @@ CREATE TABLE IF NOT EXISTS live_revisions (
   updated_at TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (surface)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Phase 23A: binary awards and volume accept a package activation
+-- as a second source. `activations` is declared earlier in this file
+-- (before binary_awards / binary_volume), so these foreign keys are
+-- added here to keep the create-table order linear; they mirror
+-- migration `027_package_binary.sql` exactly.
+-- -------------------------------------------------------------
+ALTER TABLE binary_awards
+  ADD CONSTRAINT fk_ba_activation FOREIGN KEY (activation_id) REFERENCES activations (id) ON DELETE CASCADE;
+
+ALTER TABLE binary_volume
+  ADD CONSTRAINT fk_bv_activation FOREIGN KEY (activation_id) REFERENCES activations (id) ON DELETE CASCADE;
 
 

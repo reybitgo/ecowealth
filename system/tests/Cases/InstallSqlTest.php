@@ -94,8 +94,8 @@ return [
         $harness = $keyPairs(test_pdo(['db' => DB_NAME]), 'SELECT key_name, value FROM settings ORDER BY key_name');
         $import  = $keyPairs($pdo, 'SELECT key_name, value FROM settings ORDER BY key_name');
 
-        assert_true(count($harness) >= 76, 'the harness fresh install carries at least 76 settings');
-        assert_count(89, $import, '76 seed keys + 3 install metadata keys');
+        assert_true(count($harness) >= 89, 'the harness fresh install carries at least 89 settings');
+        assert_count(92, $import, '89 seed keys + 3 install metadata keys');
 
         foreach ($harness as $key => $value) {
             assert_true(array_key_exists($key, $import), 'the import carries settings.' . $key);
@@ -103,7 +103,8 @@ return [
             if ($key === 'commission_ledger_since'
                 || $key === 'unilevel_ledger_since'
                 || $key === 'royalty_ledger_since'
-                || $key === 'binary_ledger_since') {
+                || $key === 'binary_ledger_since'
+                || $key === 'package_binary_ledger_since') {
                 continue;   // inserted with NOW() on each side; compare the shape only
             }
 
@@ -284,9 +285,9 @@ return [
         assert_same(1146, (int) $error->context['driver_code'], 'the guard names a missing table');
         assert_contains('statement', $error->getMessage());
 
-        /* Nothing after the guard ran: still 42 tables, 89 settings, 2 staff. */
+        /* Nothing after the guard ran: still 42 tables, 92 settings, 2 staff. */
         assert_count(42, test_table_list($pdo, $database));
-        assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+        assert_same(92, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
         $probe = $pdo->prepare(

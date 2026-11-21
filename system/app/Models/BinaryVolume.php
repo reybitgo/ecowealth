@@ -35,6 +35,21 @@ final class BinaryVolume
     /** The two sides a point can sit on. */
     public const SIDES = ['left', 'right'];
 
+    /** The two ledger sources a row can carry (order or activation). */
+    public const SOURCES = ['order', 'activation'];
+
+    /** Source written by every product order. */
+    public static function sourceFromOrder(): string
+    {
+        return 'order';
+    }
+
+    /** Source written by every package activation. */
+    public static function sourceFromActivation(): string
+    {
+        return 'activation';
+    }
+
     private const TABLE = 'binary_volume';
 
     /* ----------------------------------------------------------

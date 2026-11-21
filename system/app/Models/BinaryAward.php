@@ -65,6 +65,21 @@ final class BinaryAward
     /** Filter keys shared by the member tab (22F) and the admin tab (22E). */
     public const FILTER_KEYS = ['kind', 'status', 'side', 'product_id', 'from', 'to', 'q'];
 
+    /** The two ledger sources a row can carry (order or activation). */
+    public const SOURCES = ['order', 'activation'];
+
+    /** Source written by every product order. */
+    public static function sourceFromOrder(): string
+    {
+        return 'order';
+    }
+
+    /** Source written by every package activation. */
+    public static function sourceFromActivation(): string
+    {
+        return 'activation';
+    }
+
     /** @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} */
     public const FILTER_DEFAULTS = [
         'kind'       => '',

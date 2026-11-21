@@ -103,7 +103,7 @@ return [
         assert_true($checks['database_exists']['ok'], 'the scratch schema exists');
         assert_true($checks['database_empty']['ok'], 'the scratch schema starts empty');
         assert_true($checks['install_sql']['ok'], 'database/install.sql parses');
-        assert_contains('73 statements', $checks['install_sql']['detail']);
+        assert_contains('75 statements', $checks['install_sql']['detail']);
         assert_true($checks['install_lock']['ok'], 'no lock is present');
         assert_true($preflight['ok'], 'the whole preflight passes');
         assert_false(DatabaseInstaller::isLocked(), 'preflight writes no lock');
@@ -160,7 +160,7 @@ return [
             assert_same('cli', $report['channel']);
 
             assert_same(42, $report['counts']['tables_created']);
-            assert_same(89, $report['counts']['settings_rows']);
+            assert_same(92, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -174,7 +174,7 @@ return [
 
             /* The database itself, not just the report. */
             assert_count(42, test_table_list($pdo, $database));
-            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(92, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(2, (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn());
 
             /* Phase 21: the board ships unarmed (21A Rule 4). */
@@ -638,7 +638,7 @@ return [
 
             /* Nothing was deleted or added: the import is untouched. */
             assert_count(42, test_table_list($pdo, $database));
-            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(92, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         } finally {
             $clearLock();
         }

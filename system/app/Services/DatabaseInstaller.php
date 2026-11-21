@@ -135,7 +135,7 @@ final class DatabaseInstaller
     /** The expected production counts — the numbers the footer prints (plan §6.5). */
     public const EXPECTED = [
         'tables_created' => 42,
-        'settings_rows'  => 89,
+        'settings_rows'  => 92,
         'staff_rows'     => 2,
         'members_rows'   => 0,
         'products_rows'  => 7,
@@ -967,7 +967,7 @@ final class DatabaseInstaller
             'Settings',
             $counts['settings_rows'] === $expected['settings_rows'],
             $counts['settings_rows'] . ' of ' . $expected['settings_rows'] . ' settings',
-            'The bundle seeds 86 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.'
+            'The bundle seeds 89 keys plus the three install_* metadata rows; rebuild it with php bin/build_install_sql.php.',
         );
 
         /* ---- Staff rows: exactly one per role, active ---------------- */

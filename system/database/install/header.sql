@@ -23,7 +23,7 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      42 tables · 86 settings (+3 install-time metadata = 89 on fresh install) · 2 staff accounts · 7 products
+--      42 tables · 89 settings (+3 install-time metadata = 92 on fresh install) · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
 --      10 Team Harvest level amounts · 10 General Harvest level amounts
 --      1 unarmed General Harvest board row

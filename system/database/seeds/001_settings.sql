@@ -146,6 +146,15 @@ INSERT INTO settings (key_name, value) VALUES
   ('binary_reversal_enabled',          '1'),
   ('binary_ledger_since',              DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
 
+  -- Package binary bonus (Phase 23A). The stream ships OFF at both the
+  -- global master and the per-package level; a deployment never starts
+  -- paying by accident (D-13). `package_binary_ledger_since` marks the
+  -- instant the stream may pay, so reconciliation can separate legacy
+  -- activations from the first payable one.
+  ('package_binary_enabled',            '0'),
+  ('package_binary_requires_package',   '1'),
+  ('package_binary_ledger_since',       DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s')),
+
   -- Payouts (Phase 13)
   ('min_payout',                       '500'),
   ('service_fee_gcash',                '0'),

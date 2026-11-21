@@ -770,14 +770,14 @@ return [
         }
     },
 
-    'P20B-T20 the phase adds no schema: 42 tables, 86 seed settings, ten ladder rows' => function (): void {
+    'P20B-T20 the phase adds no schema: 42 tables, 89 seed settings, ten ladder rows' => function (): void {
         /* 20B is configuration only: the schema is exactly 20A's, and the
          * release phase (20G) is the one that moves APP_PHASE — this guard
          * follows the constant so it still proves the schema, not the badge.
-         * Phase 21A and Phase 22A later added tables and settings, so the guard
-         * follows the schema it lives in (42 / 86 / 10). */
+         * Phase 21A, 22A and 23A later added settings, so the guard
+         * follows the schema it lives in (42 / 89 / 10). */
         assert_same(42, count(test_table_list(test_pdo(['db' => DB_NAME]))));
-        assert_same(86, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+        assert_same(89, (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn());
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
         assert_same(22, APP_PHASE, '22I owns the release badge');
 
