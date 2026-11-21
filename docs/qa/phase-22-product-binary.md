@@ -913,6 +913,12 @@ Expected
 
 ---
 
+## 9. Section E — Phase 22E: Admin visibility (`QA22E-01` … `QA22E-09`)
+
+**Prerequisites.** Tag `p22e-admin`; migration 026 applied; the app running. All checks in this section are **read-only**: no award, volume, node or wallet row is created or modified. Expected suite count for this section: **≥ 1,668** PHP cases and **≈298** smoke checks.
+
+---
+
 ## 12. Section G — Phase 22G: The binary genealogy tree (`QA22G-01` … `QA22G-12`)
 
 **Prerequisites.** Tag `p22g-tree`; migration 026 applied; the demo tree present; the app running. All checks are **read-only for money**: no award, volume, node or wallet row is created here. Expected suite count for this section: **≥ 1,722** PHP cases and **≈298** smoke checks.

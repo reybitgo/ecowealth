@@ -913,6 +913,79 @@ return [
     },
 
     /* ----------------------------------------------------------
+     *  Pair/points boundaries (P22D-T3, T4, T5)
+     *  ---------------------------------------------------------- */
+
+    'P22D-T3 below pair threshold: 999 pts each side → 0 pairs' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE-T3', 300.00, 250.00);
+
+        /* Place one order to create the node, then set both sides to 999. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        db()->prepare('UPDATE binary_nodes SET left_points = 999, right_points = 999 WHERE user_id = ?')
+            ->execute([(int) $tree['buyerA']['id']]);
+
+        $quote = (new BinaryService())->quotePosition([
+            ['product_id' => (int) $p1['id'], 'quantity' => 4],
+        ], 'right', null, (int) $tree['buyerA']['id']);
+
+        assert_same(0, (int) $quote['pairs']);
+        assert_same(999, (int) $quote['left']);
+        assert_same(999, (int) $quote['right']);
+    },
+
+    'P22D-T4 exact pair threshold: 1000 pts each side → 1 pair' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE-T4', 300.00, 250.00);
+
+        /* Seed the buyer's node: 1000 on each side (exactly at the pair threshold). */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        db()->prepare('UPDATE binary_nodes SET right_points = 1000 WHERE user_id = ?')
+            ->execute([(int) $tree['buyerA']['id']]);
+
+        $quote = (new BinaryService())->quotePosition([
+            ['product_id' => (int) $p1['id'], 'quantity' => 4],
+        ], 'right', null, (int) $tree['buyerA']['id']);
+
+        assert_same(1, (int) $quote['pairs']);
+        assert_same(0, (int) $quote['carry_left']);
+        assert_same(1000, (int) $quote['carry_right']);
+    },
+
+    'P22D-T5 above pair threshold: 2000 left + 1000 right → 1 pair, 1000 carry' => function () use ($buildFixtureTree, $createProduct, $preset, $createOrder, $createOrderItem): void {
+        $tree = $buildFixtureTree();
+        $preset();
+
+        $p1 = $createProduct('Coffee', 'COFFEE-T5', 300.00, 250.00);
+
+        /* Seed the buyer's node: 2000 on left, 0 on right. */
+        $orderA = $createOrder((int) $tree['buyerA']['id'], 'paid', 'left');
+        $createOrderItem((int) $orderA['id'], (int) $p1['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $orderA['id']);
+
+        db()->prepare('UPDATE binary_nodes SET left_points = 2000, right_points = 0 WHERE user_id = ?')
+            ->execute([(int) $tree['buyerA']['id']]);
+
+        $quote = (new BinaryService())->quotePosition([
+            ['product_id' => (int) $p1['id'], 'quantity' => 4],
+        ], 'right', null, (int) $tree['buyerA']['id']);
+
+        assert_same(1, (int) $quote['pairs']);
+        assert_same(1000, (int) $quote['carry_left']);
+        assert_same(0, (int) $quote['carry_right']);
+    },
+
+    /* ----------------------------------------------------------
      *  Own-node pair at the buyer's node (P22D-T10)
      *  ---------------------------------------------------------- */
 

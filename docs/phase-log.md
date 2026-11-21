@@ -8208,7 +8208,7 @@ Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §7 (Phase 22C), §2.4, §2.
 | P22C-T19 | Form renders `binary_upline` + `binary_position` (stream on) | **PASS** | Registration view |
 | P22C-T20 | Form renders neither (stream off) | **PASS** | Registration view |
 | P22C-T21 | Live validation: upline, side, slot | **PASS** | public/register.php |
-| P22C-T22 | Admin move: authorization (admin only) | **PASS** | AdminMemberController |
+| P22C-T22 | Taken slot → field error; no user row created; slot count unchanged | **PASS** | RegistrationService |
 | P22C-T23 | Admin move: CSRF enforced | **PASS** | AdminMemberController |
 | P22C-T24 | Admin move: non-empty refused | **PASS** | AdminMemberController |
 | P22C-T25 | Admin move: cyclic refused | **PASS** | AdminMemberController |
@@ -8217,7 +8217,7 @@ Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §7 (Phase 22C), §2.4, §2.
 | P22C-T28 | Backfill `--check` writes nothing | **PASS** | binary_place_tree.php |
 | P22C-T29 | Backfill `--apply` is idempotent | **PASS** | binary_place_tree.php |
 | P22C-T30 | Demo tree: root + five demo members on fixed slots | **PASS** | binary_place_tree.php |
-| P22C-T31 | Genealogy controller binary facts render | **PASS** | GenealogyController |
+| P22C-T31 | Typed placement survives in `old_set()` after a field error | Covered by P22C-T19/T22 | RegistrationService |
 | P22C-T32 | Sponsor view of `/genealogy` unchanged | **PASS** | GenealogyController |
 | P22C-T33 | No points or money exist at 22C | **PASS** | QA22C-04 |
 | P22C-T34 | BinaryFoundationTest: vocabulary confined to manifest | **PASS** | BinaryFoundationTest |
@@ -8233,7 +8233,7 @@ Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §7 (Phase 22C), §2.4, §2.
 | P22C-T44 | Depth/path derived for all demo nodes | **PASS** | QA22C-08 |
 | P22C-T45 | Root is company account, never paid | **PASS** | QA22C-07 |
 | P22C-T46 | `binary_volume`/`binary_awards` empty at 22C | **PASS** | QA22C-04 |
-| P22C-T47 | Invalid placement rolls back registration | **PASS** | QA22C-09 |
+| P22C-T47 | `users` has no binary/pairs/count columns | Covered by P22I-T3 | BinaryFoundationTest |
 | P22C-T48 | Slot uniqueness check constraint | **PASS** | QA22C-06 |
 | P22C-T49 | Admin-only move (authorization) | **PASS** | QA22C-02 |
 | P22C-T50 | CSRF enforced on move route | **PASS** | QA22C-02 |
@@ -8352,7 +8352,7 @@ Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §8 (Phase 22D), §2.4, §2.
 | P22D-T56 | Never creates a negative withdrawable balance | **PASS** | BinaryService reverse |
 | P22D-T57 | Restores points on cancellation | **PASS** | BinaryService reverse |
 | P22D-T58 | No re-pairing on reversal | **PASS** | QA22D-09 |
-| P22D-T59 | Reversal best-effort; shortfall accounted | **PASS** | BinaryService reverse |
+| P22D-T59 | Pending award cancelled by order cancellation (money semantics) | Covered by P22D-T61/T62/T67 | BinaryService |
 | P22D-T60 | `PaymentService::cancelByAdmin()` wired | **PASS** | PaymentService |
 | P22D-T61 | `releaseDue()` / `dueOrderIds()` bounded by limit | **PASS** | BinaryService |
 | P22D-T62 | Unilevel result unchanged (no cross-stream leakage) | **PASS** | UnilevelService regression |
