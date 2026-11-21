@@ -549,134 +549,33 @@ final class RegistrationService
             ]);
         }
 
-        /* Try the chosen side first; if its slot is taken, fall back to
-         * the other side so a structural placement always succeeds when
-         * any slot is free. */
-        $sides = [$binaryPosition];
-        foreach (BinaryNode::SIDES as $side) {
-            if ($side !== $binaryPosition) {
-                $sides[] = $side;
-            }
+        /* Validate exactly once, place exactly once: a taken slot (or any
+         * other illegal choice) is a field error, never a silent fallback
+         * to another side, the company root, or a breadth-free slot. A
+         * refused placement rolls the whole signup back — no user, no node. */
+        $errors = $this->placement->validate($uplineId, $binaryPosition, [
+            'registrar' => $registrar,
+            'sponsor'   => $sponsor,
+        ]);
+
+        if ($errors !== []) {
+            throw RegistrationException::validation($errors);
         }
 
-        $placed = false;
-        $lastError = null;
-
-        foreach ($sides as $side) {
-            $errors = $this->placement->validate($uplineId, $side, [
+        try {
+            $this->placement->placeNew($userId, $uplineId, $binaryPosition, [
                 'registrar' => $registrar,
                 'sponsor'   => $sponsor,
+                'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
+                'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
             ]);
-
-            if ($errors === []) {
-                try {
-                    $this->placement->placeNew($userId, $uplineId, $side, [
-                        'registrar' => $registrar,
-                        'sponsor'   => $sponsor,
-                        'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
-                        'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
-                    ]);
-                    $placed = true;
-                    break;
-                } catch (BinaryException $e) {
-                    $lastError = $e;
-                }
-            } else {
-                $lastError = new RegistrationException(
-                    reset($errors),
-                    'validation',
-                    $errors
-                );
-            }
-        }
-
-        if (!$placed) {
-            /* Both sides under the chosen upline are taken. As a last
-             * resort, breadth-first search the tree from the company root
-             * for any node with a free slot. This keeps every valid
-             * registration able to place a node even when prior placements
-             * (from tests that commit the harness transaction) consumed
-             * the obvious slots. */
-            $root = BinaryNode::ensureRoot($this->pdo);
-            $rootId = (int) $root['user_id'];
-
-            if ($rootId !== $uplineId) {
-                foreach (BinaryNode::SIDES as $side) {
-                    $errors = $this->placement->validate($rootId, $side, [
-                        'registrar' => $registrar,
-                        'sponsor'   => $sponsor,
-                    ]);
-                    if ($errors === []) {
-                        try {
-                            $this->placement->placeNew($userId, $rootId, $side, [
-                                'registrar' => $registrar,
-                                'sponsor'   => $sponsor,
-                                'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
-                                'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
-                            ]);
-                            $placed = true;
-                            break;
-                        } catch (BinaryException $e) {
-                            $lastError = $e;
-                        }
-                    } else {
-                        $lastError = new RegistrationException(
-                            reset($errors),
-                            'validation',
-                            $errors
-                        );
-                    }
-                }
-            }
-
-            if (!$placed) {
-                $queue = [$rootId];
-                $visited = [$rootId => true];
-
-                while ($queue !== [] && !$placed) {
-                    $current = array_shift($queue);
-
-                    foreach (BinaryNode::SIDES as $side) {
-                        if (BinaryNode::slotChild($current, $side, $this->pdo) !== null) {
-                            continue;
-                        }
-
-                        $errors = $this->placement->validate($current, $side, [
-                            'registrar' => $registrar,
-                            'sponsor'   => $sponsor,
-                        ]);
-
-                        if ($errors === []) {
-                            try {
-                                $this->placement->placeNew($userId, $current, $side, [
-                                    'registrar' => $registrar,
-                                    'sponsor'   => $sponsor,
-                                    'placedBy'  => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
-                                    'actorId'   => $registrar === null ? (int) ($sponsor['id'] ?? 0) : (int) ($registrar['id'] ?? 0),
-                                ]);
-                                $placed = true;
-                                break 2;
-                            } catch (BinaryException $e) {
-                                $lastError = $e;
-                            }
-                        }
-                    }
-
-                    foreach (BinaryNode::children($current, $this->pdo) as $child) {
-                        $childId = (int) ($child['user_id'] ?? 0);
-                        if (!isset($visited[$childId])) {
-                            $visited[$childId] = true;
-                            $queue[] = $childId;
-                        }
-                    }
-                }
-            }
-
-            if (!$placed) {
-                throw $lastError ?? RegistrationException::validation([
-                    'binary_position' => 'No free slot under this upline.',
-                ]);
-            }
+        } catch (BinaryException $e) {
+            /* Map machine reasons to stable field errors: a taken slot
+             * names the position; every other reason names the upline. */
+            $field = $e->reason === 'slot_taken' ? 'binary_position' : 'binary_upline';
+            throw RegistrationException::validation([
+                $field => $e->getMessage(),
+            ]);
         }
     }
 

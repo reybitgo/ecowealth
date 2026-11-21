@@ -71,7 +71,11 @@ final class BinaryPlacementService
         try {
             $this->assertUplineLegal($uplineId, 0, $side, $registrar, $sponsor);
         } catch (BinaryException $e) {
-            $errors['binary_upline'] = $e->getMessage();
+            /* A taken slot names the position; every other structural
+             * failure (upline missing, cycle, depth limit, disabled
+             * upline, outside subtree) names the upline. */
+            $field = $e->reason === 'slot_taken' ? 'binary_position' : 'binary_upline';
+            $errors[$field] = $e->getMessage();
         } catch (InvalidArgumentException $e) {
             $errors['binary_position'] = $e->getMessage();
         }
