@@ -35,6 +35,9 @@ declare(strict_types=1);
  * @var array<string, mixed> $general_harvest_board
  * @var array<int, string> $general_harvest_preset
  * @var array{binary_on_zero_pv:int, binary_off:int} $binary_readiness
+ * @var list<array<string, mixed>> $package_binary_fields
+ * @var array<string, array{label:string, hint:string}> $package_binary_toggles
+ * @var array{binary_on_zero_points:int, binary_off:int} $package_binary_readiness
  */
 
 $settings          = $settings ?? [];
@@ -435,6 +438,112 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                             <a href="<?= e(url('admin/reports')) ?>" class="small text-decoration-none">
                               <i class="bx bx-compass me-1"></i> Open the health panel — the four Product binary checks render there, read-only.
                             </a>
+                          </div>
+                        </div>
+                      </div>
+
+                      <?php
+                      $packageEnabled   = (string) ($settings['package_binary_enabled'] ?? '0') === '1';
+                      $requiresPackage = (string) ($settings['package_binary_requires_package'] ?? '1') === '1';
+                      $packagePts     = (int) setting('binary_pair_points', '1000');
+                      $packagePct     = (float) setting('binary_pair_pct', '10.000');
+                      $packageValue   = round($packagePts * $packagePct / 100, 2);
+                      $packagePtsLabel = number_format((int) $packagePts, 0, '', ',');
+                      $packagePctLabel = rtrim(rtrim(number_format((float) $packagePct, 3, '.', ''), '0'), '.');
+                      ?>
+                      <hr class="my-5" />
+
+                      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <h6 class="mb-0">Package binary</h6>
+                        <span class="badge bg-label-<?= $packageEnabled ? 'success' : 'secondary' ?>"><?= $packageEnabled ? 'Configured — money engine arrives next' : 'Off — nothing pays' ?></span>
+                      </div>
+                      <p class="text-body-secondary small mb-4">
+                        When a member's package purchase is approved, its points are contributed once to the
+                        binary tree — team only, never to the buyer, never a self bonus. This card only configures
+                        the stream: the master switch must be on and each package must carry its own switch and
+                        points before anything is paid. There is no per-package pair rate, cap or hold — those
+                        are the shared global settings beside it.
+                      </p>
+
+                      <!-- Master switch first -->
+                      <div class="row g-4">
+                        <div class="col-12">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input <?= invalid_class('package_binary_enabled') ?>" type="checkbox"
+                                   role="switch" name="package_binary_enabled" value="1" id="setting-package_binary_enabled"
+                                   <?= $packageEnabled ? 'checked' : '' ?> />
+                            <label class="form-check-label" for="setting-package_binary_enabled">
+                              <?= e((string) ($package_binary_toggles['package_binary_enabled']['label'] ?? 'Package binary enabled')) ?>
+                            </label>
+                          </div>
+                          <p class="text-body-secondary small mb-0 ms-5 ps-2"><?= e((string) ($package_binary_toggles['package_binary_enabled']['hint'] ?? '')) ?></p>
+<?php if ($packageEnabled): ?>
+                          <div class="text-warning small mt-1">Activations now place points and pay pairs when the money engine is live. Turn this off to stop new package awards.</div>
+<?php endif; ?>
+<?php if (has_error('package_binary_enabled')): ?>
+                          <div class="text-danger small mt-1"><?= e(error_for('package_binary_enabled')) ?></div>
+<?php endif; ?>
+                        </div>
+                      </div>
+
+                      <div class="row g-4 mt-1">
+<?php foreach ($package_binary_toggles as $key => $toggle): ?>
+<?php $key = (string) $key; ?>
+<?php if ($key === 'package_binary_enabled'): ?>
+<?php continue; ?>
+<?php endif; ?>
+                        <div class="col-12">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input <?= invalid_class($key) ?>" type="checkbox"
+                                   role="switch" name="<?= e($key) ?>" value="1" id="setting-<?= e($key) ?>"
+                                   <?= $checked($key) ? 'checked' : '' ?> />
+                            <label class="form-check-label" for="setting-<?= e($key) ?>">
+                              <?= e((string) $toggle['label']) ?>
+                            </label>
+                          </div>
+                          <p class="text-body-secondary small mb-0 ms-5 ps-2"><?= e((string) $toggle['hint']) ?></p>
+<?php if (has_error($key)): ?>
+                          <div class="text-danger small mt-1"><?= e(error_for($key)) ?></div>
+<?php endif; ?>
+                        </div>
+<?php endforeach; ?>
+                      </div>
+
+                      <!-- Readiness panel -->
+                      <?php
+                      $packageReadiness = $package_binary_readiness ?? [];
+                      $onZeroPts  = (int) ($packageReadiness['binary_on_zero_points'] ?? 0);
+                      $pkgOff     = (int) ($packageReadiness['binary_off'] ?? 0);
+                      ?>
+                      <div class="card mt-4">
+                        <div class="card-header"><h6 class="mb-0">Package binary readiness</h6></div>
+                        <div class="card-body py-3">
+                          <div class="row g-3">
+                            <div class="col-md-3">
+                              <p class="text-body-secondary small mb-1">Binary on, no points</p>
+                              <strong class="d-block"><?= $onZeroPts ?></strong>
+                              <p class="text-body-secondary small mb-0">
+                                <?= $onZeroPts === 0 ? 'All flagged packages earn points.' : sprintf('<a href="%s">%s package(s) flagged but earn 0 points — set points or switch them off.</a>', e(url('admin/packages?binary=on')), $onZeroPts); ?>
+                              </p>
+                            </div>
+                            <div class="col-md-3">
+                              <p class="text-body-secondary small mb-1">Binary off</p>
+                              <strong class="d-block"><?= $pkgOff ?></strong>
+                              <p class="text-body-secondary small mb-0">
+                                <?= $pkgOff === 0 ? 'Every package places points.' : sprintf('<a href="%s">%s package(s) do not place points.</a>', e(url('admin/packages?binary=off')), $pkgOff); ?>
+                              </p>
+                            </div>
+                            <div class="col-md-3">
+                              <p class="text-body-secondary small mb-1">Global switch</p>
+                              <strong class="d-block"><?= $packageEnabled ? 'On' : 'Off' ?></strong>
+                              <p class="text-body-secondary small mb-0"><?= $packageEnabled ? 'The stream is live — new package activations place points.' : 'The stream is off. No activation places points.' ?></p>
+                            </div>
+                            <div class="col-md-3">
+                              <p class="text-body-secondary small mb-1">Preset check</p>
+                              <p class="text-body-secondary small mb-0">
+                                <?= e($packagePtsLabel) ?> points per pair pays <?= e(money($packageValue)) ?> at <?= e($packagePctLabel) ?>%.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>

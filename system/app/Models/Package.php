@@ -172,6 +172,28 @@ public static function binaryPoints(int $packageId): int
 }
 
 /**
+ * Readiness counts for the settings card (Phase 23B-S2): how many
+ * packages carry the binary switch on with no points (contribute
+ * nothing), and how many have it off. One query, never one per row.
+ *
+ * @return array{binary_on_zero_points:int, binary_off:int}
+ */
+public static function binaryReadinessCounts(): array
+{
+    $row = db()->query(
+        "SELECT
+            SUM(binary_enabled = 1 AND binary_points = 0) AS binary_on_zero_points,
+            SUM(binary_enabled = 0)            AS binary_off
+         FROM packages"
+    )->fetch() ?: [];
+
+    return [
+        'binary_on_zero_points' => (int) ($row['binary_on_zero_points'] ?? 0),
+        'binary_off'        => (int) ($row['binary_off'] ?? 0),
+    ];
+}
+
+/**
  * One-query status map for the package list (Phase 23B Rule 10).
  *
  * @param list<int> $packageIds

@@ -570,7 +570,7 @@ return [
         assert_contains('89 settings', $header);
         assert_contains('10 Team Harvest level amounts', $header);
         assert_contains('tables_created = 42', $footer);
-        assert_contains('settings_rows = 89', $footer);
+        assert_contains('settings_rows = 86', $footer);
         assert_contains('team_harvest_levels_rows = 10', $footer);
         assert_contains('42 tables', $bundle);
         assert_contains('89 settings', $bundle);
@@ -601,9 +601,9 @@ return [
     /* ==========================================================
      *  Fresh install (P20A-T6, P20A-T7)
      * ========================================================== */
-    'P20A-T6 a fresh install reports 42 tables, 89 settings and ten ladder rows' => function (): void {
+    'P20A-T6 a fresh install reports 42 tables, 92 settings and ten ladder rows' => function (): void {
         assert_same(42, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(89, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(92, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(10, DatabaseInstaller::EXPECTED['team_harvest_levels_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(0, DatabaseInstaller::EXPECTED['members_rows']);
@@ -644,12 +644,12 @@ return [
             );
 
             assert_same(42, $report['counts']['tables_created']);
-            assert_same(89, $report['counts']['settings_rows']);
+            assert_same(92, $report['counts']['settings_rows']);
             assert_same(10, $report['counts']['team_harvest_levels_rows']);
 
             /* The database itself, not just the report. */
             assert_count(42, test_table_list($pdo, $database));
-            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(92, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM harvest_queue')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM team_harvest_awards')->fetchColumn());

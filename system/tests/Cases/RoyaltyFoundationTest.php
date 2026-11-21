@@ -547,7 +547,7 @@ return [
         assert_contains('42 tables', $header);
         assert_contains('89 settings', $header);
         assert_contains('tables_created = 42', $footer);
-        assert_contains('settings_rows = 89', $footer);
+        assert_contains('settings_rows = 86', $footer);
         assert_contains('42 tables', $bundle);
         assert_contains('89 settings', $bundle);
 
@@ -571,9 +571,9 @@ return [
         }
     },
 
-    'P19A-T10 DatabaseInstaller expects 42 tables and 89 settings and installs them' => function (): void {
+    'P19A-T10 DatabaseInstaller expects 42 tables and 92 settings and installs them' => function (): void {
         assert_same(42, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(89, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(92, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(0, DatabaseInstaller::EXPECTED['members_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
@@ -613,7 +613,7 @@ return [
             );
 
             assert_same(42, $report['counts']['tables_created']);
-            assert_same(89, $report['counts']['settings_rows']);
+            assert_same(92, $report['counts']['settings_rows']);
             assert_same(2, $report['counts']['staff_rows']);
             assert_same(0, $report['counts']['members_rows']);
             assert_same(7, $report['counts']['products_rows']);
@@ -624,7 +624,7 @@ return [
 
             /* The database itself, not just the report. */
             assert_count(42, test_table_list($pdo, $database));
-            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(92, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM royalty_periods')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM royalty_awards')->fetchColumn());
         } finally {

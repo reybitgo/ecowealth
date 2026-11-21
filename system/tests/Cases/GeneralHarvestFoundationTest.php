@@ -535,7 +535,7 @@ return [
         assert_contains('89 settings', $header);
         assert_contains('10 General Harvest level amounts', $header);
         assert_contains('tables_created = 42', $footer);
-        assert_contains('settings_rows = 89', $footer);
+        assert_contains('settings_rows = 86', $footer);
         assert_contains('general_harvest_levels_rows = 10', $footer);
         assert_contains('general_harvest_board_rows = 1', $footer);
         assert_contains('42 tables', $bundle);
@@ -570,9 +570,9 @@ return [
     /* ==========================================================
      *  Fresh install (P21A-T6, P21A-T7)
      * ========================================================== */
-    'P21A-T6 a fresh install reports 42 tables, 89 settings, ten ladder rows and one unarmed board row' => function (): void {
+    'P21A-T6 a fresh install reports 42 tables, 92 settings, ten ladder rows and one unarmed board row' => function (): void {
         assert_same(42, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(89, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(92, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(10, DatabaseInstaller::EXPECTED['team_harvest_levels_rows']);
         assert_same(10, DatabaseInstaller::EXPECTED['general_harvest_levels_rows']);
         assert_same(1, DatabaseInstaller::EXPECTED['general_harvest_board_rows']);
@@ -615,13 +615,13 @@ return [
             );
 
             assert_same(42, $report['counts']['tables_created']);
-            assert_same(89, $report['counts']['settings_rows']);
+            assert_same(92, $report['counts']['settings_rows']);
             assert_same(10, $report['counts']['general_harvest_levels_rows']);
             assert_same(1, $report['counts']['general_harvest_board_rows']);
 
             /* The database itself, not just the report. */
             assert_count(42, test_table_list($pdo, $database));
-            assert_same(89, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
+            assert_same(92, (int) $pdo->query('SELECT COUNT(*) FROM settings')->fetchColumn());
             assert_same(10, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_levels')->fetchColumn());
             assert_same(0, (int) $pdo->query('SELECT COUNT(*) FROM general_harvest_awards')->fetchColumn());
 
@@ -1286,7 +1286,7 @@ return [
         $migrations = array_map('basename', glob($appRoot . '/database/migrations/*.sql') ?: []);
         sort($migrations, SORT_STRING);
 
-        assert_same('026_product_binary.sql', end($migrations), '026 is the newest migration');
+        assert_same('027_package_binary.sql', end($migrations), '027 is the newest migration');
         assert_same(42, count(test_table_list(test_pdo(['db' => DB_NAME]))));
         assert_same(42, count(DatabaseResetService::ALL_TABLES));
         assert_same(42, DbTarget::fromConfig()->tableCount(DB_NAME));

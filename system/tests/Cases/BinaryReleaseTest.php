@@ -29,10 +29,10 @@ return [
         $settings = (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn();
 
         assert_same(42, $tables, 'fresh install must carry 42 tables (39 + the 3 binary tables)');
-        /* Rule 4: re-measure, never copy. The plan projects 89 settings; the committed
-         * seed carries 89 (76 base + the 10 binary settings + the 3 package_binary settings).
-         * Record the measured value here and reconcile the plan figure in docs/phase-log.md (22I-S2). */
-        assert_same(89, $settings, 'fresh install must carry 89 settings (the measured release count)');
+        /* Rule 4: re-measure, never copy. The committed seed carries 92 settings
+         * (89 base + the 3 package_binary settings from Phase 23A). Record the
+         * measured value here and reconcile the plan figure in docs/phase-log.md. */
+        assert_same(92, $settings, 'fresh install must carry 92 settings (the measured release count)');
 
         assert_true(is_file(dirname(__DIR__, 2) . '/database/migrations/026_product_binary.sql'),
             'migration 026_product_binary.sql must exist');
@@ -199,7 +199,7 @@ return [
         assert_same(42, $tables, 'the database must carry 42 tables after migration 026');
 
         $settings = (int) db()->query('SELECT COUNT(*) FROM settings')->fetchColumn();
-        assert_same(89, $settings, 'fresh install carries 89 settings (measured release count)');
+        assert_same(92, $settings, 'fresh install carries 92 settings (measured release count)');
     },
 
     'P22I-T9 acceptance run: Appendix B 12 steps pass on the scratch database' => function (): void {

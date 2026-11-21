@@ -46,6 +46,9 @@ declare(strict_types=1);
  * @var array<int, string> $general_harvest_preset
  * @var list<array{key:string,label:string,rule:string,suffix:string,min:mixed,max:mixed,step:string,hint:string}> $binary_fields
  * @var array<string, array{label:string,hint:string}> $binary_toggles
+ * @var list<array<string, mixed>> $package_binary_fields
+ * @var array<string, array{label:string,hint:string}> $package_binary_toggles
+ * @var array{binary_on_zero_points:int, binary_off:int} $package_binary_readiness
  * @var list<array{key:string,label:string,rule:string,suffix:string,hint:string}> $transfer_fields
  * @var bool $shop_enabled
  * @var bool $expiry_enabled
@@ -86,6 +89,9 @@ $ghPreset         = $general_harvest_preset ?? [];
 $binaryFields     = $binary_fields ?? [];
 $binaryToggles    = $binary_toggles ?? [];
 $binaryReadiness  = $binary_readiness ?? [];
+$packageBinaryFields  = $package_binary_fields ?? [];
+$packageBinaryToggles = $package_binary_toggles ?? [];
+$packageBinaryReadiness = $package_binary_readiness ?? [];
 $transferFields   = $transfer_fields ?? [];
 $manualOpen       = (bool) ($manual_open ?? true);
 
@@ -312,6 +318,9 @@ $action = url('admin/settings');
     'binary_fields'  => $binaryFields,
     'binary_toggles' => $binaryToggles,
     'binary_readiness' => $binaryReadiness,
+    'package_binary_fields'  => $packageBinaryFields,
+    'package_binary_toggles' => $packageBinaryToggles,
+    'package_binary_readiness' => $packageBinaryReadiness,
 ]) ?>
                     <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <span class="small text-body-secondary">

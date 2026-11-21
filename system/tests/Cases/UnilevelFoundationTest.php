@@ -306,7 +306,7 @@ return [
      * ========================================================== */
     'P17A-T6 the installer and reset expectations match the schema' => function (): void {
         assert_same(42, DatabaseInstaller::EXPECTED['tables_created']);
-        assert_same(89, DatabaseInstaller::EXPECTED['settings_rows']);
+        assert_same(92, DatabaseInstaller::EXPECTED['settings_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['staff_rows']);
         assert_same(7, DatabaseInstaller::EXPECTED['products_rows']);
         assert_same(2, DatabaseInstaller::EXPECTED['packages_rows']);

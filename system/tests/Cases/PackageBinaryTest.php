@@ -26,6 +26,58 @@ $nineLevels = static fn (array $overrides = []): array => $overrides + [
     6  => '20',  7  => '10', 8  => '5',  9  => '5', 10 => '5',
 ];
 
+/** Render the settings page and return the Commissions card form markup. */
+$renderSettings = static function (array $overrides = []): string {
+    $controller = new AdminSettingsController();
+    $data       = $overrides + $controller->settingsContext() + [
+        'page_title'  => 'Settings',
+        'current_nav' => 'admin.settings',
+        'page_css'    => ['assets/css/orders.css'],
+        'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js'],
+        'live'        => Live::meta('admin.settings', 'page'),
+    ];
+
+    ob_start();
+
+    try {
+        View::page('admin', 'admin/settings/index', $data);
+    } finally {
+        $html = (string) ob_get_clean();
+    }
+
+    return $html;
+};
+
+$commissionsCard = static function () use ($renderSettings): string {
+    $pattern = '/<form\b[^>]*\bid="settings-commissions"[^>]*>(.*?)<\/form>/s';
+
+    preg_match($pattern, $renderSettings(), $m);
+
+    return $m[1] ?? '';
+};
+
+$pendingMember = static function (): array {
+    $result = (new RegistrationService())->register([
+        'mode'             => 'pending',
+        'username'         => 'pending_' . bin2hex(random_bytes(4)),
+        'email'            => 'pending_' . bin2hex(random_bytes(4)) . '@test.local',
+        'full_name'        => 'Pending Member',
+        'phone'            => '',
+        'password'         => 'Member@1234',
+        'password_confirm' => 'Member@1234',
+        'sponsor'          => 'peter',
+        'package_id'       => '',
+        'reg_code'         => '',
+        'terms'            => true,
+        'binary_position'  => 'left',
+    ], null);
+
+    return Member::find((int) $result['user_id']) ?? [];
+};
+
+$activation = static fn (): ActivationService => new ActivationService();
+$wallet     = static fn (): WalletService => new WalletService();
+
 return [
 
     /* ---------- Validation (P23B-T1 … T5) ---------- */
@@ -262,4 +314,140 @@ return [
         assert_not_contains('binary_pair', strtolower($html), 'no per-package pair rate field');
     },
 
+    /* ---------- Settings card (P23B-T11) ---------- */
+
+    'P23B-T11 settings card: master switch and qualification toggle under product binary' => function () use ($commissionsCard): void {
+        test_signed_in_as(test_user('p23b_t11_admin', 'admin'));
+
+        $html = $commissionsCard();
+
+        assert_contains('Package binary', $html, 'the package sub-block renders');
+        assert_contains('name="package_binary_enabled"', $html, 'the master switch input renders');
+        assert_contains('name="package_binary_requires_package"', $html, 'the qualification toggle input renders');
+        assert_not_contains('name="package_binary_ledger_since"', $html, 'the baseline is never rendered');
+
+        /* The package block sits under the product binary block. */
+        assert_true(
+            strpos($html, 'Product binary') < strpos($html, 'Package binary'),
+            'the product block comes before the package block'
+        );
+
+        /* Default: master off, qualification on. */
+        assert_contains('The stream is off. No activation places points.', $html);
+    },
+
+    /* ---------- Readiness panel (P23B-T13, T14) ---------- */
+
+    'P23B-T13 readiness panel shows the four counts and links to the filtered list' => function () use ($commissionsCard, $packageData, $nineLevels): void {
+        test_signed_in_as(test_user('p23b_t13_admin', 'admin'));
+
+        /* One flagged-with-points package, one flagged-off package, one misconfigured (on but 0 pts). */
+        Package::save($packageData(['name' => 'Readiness On', 'binary_enabled' => '1', 'binary_points' => '1000']), $nineLevels(), []);
+        Package::save($packageData(['name' => 'Readiness Off', 'binary_enabled' => '0', 'binary_points' => '0']), $nineLevels(), []);
+        Package::save($packageData(['name' => 'Readiness Zero', 'binary_enabled' => '1', 'binary_points' => '0']), $nineLevels(), []);
+
+        $expectedOff   = (int) db()->query("SELECT COUNT(*) FROM packages WHERE binary_enabled = 0")->fetchColumn();
+        $expectedZero  = (int) db()->query("SELECT COUNT(*) FROM packages WHERE binary_enabled = 1 AND binary_points = 0")->fetchColumn();
+
+        assert_same(1, $expectedZero, 'the direct row is the one flagged-but-zero package');
+
+        $html = $commissionsCard();
+
+        assert_contains('Package binary readiness', $html);
+        assert_contains('Binary on, no points', $html);
+        assert_contains('Binary off', $html);
+        assert_contains((string) $expectedZero, $html);
+        assert_contains((string) $expectedOff, $html);
+
+        /* Both links render. */
+        assert_contains('<a href="' . e(url('admin/packages?binary=on')) . '"', $html);
+        assert_contains('<a href="' . e(url('admin/packages?binary=off')) . '"', $html);
+
+        /* The on-link names the misconfiguration; the off-link names the rest. */
+        assert_contains('flagged but earn 0 points', $html);
+        assert_contains('do not place points', $html);
+    },
+
+    'P23B-T14 readiness preset sentence recomputes when the shared pair values change' => function () use ($commissionsCard): void {
+        test_signed_in_as(test_user('p23b_t14_admin', 'admin'));
+
+        $html = $commissionsCard();
+
+        assert_contains('1,000 points per pair pays ₱100.00 at 10%.', $html);
+
+        /* Recomputed when the pair values change. */
+        setting_set('binary_pair_points', '2000');
+        setting_set('binary_pair_pct', '7.500');
+        setting_cache_clear();
+
+        $recomputed = $commissionsCard();
+
+        assert_contains('2,000 points per pair pays ₱150.00 at 7.5%.', $recomputed);
+
+        setting_set('binary_pair_points', '1000');
+        setting_set('binary_pair_pct', '10.000');
+        setting_cache_clear();
+    },
+
+    /* ---------- No money path yet (P23B-T15) ---------- */
+
+    'P23B-T15 approving a binary-flagged package activation writes no binary row' => function () use ($pendingMember, $activation, $wallet, $packageData, $nineLevels): void {
+        test_signed_in_as(test_user('p23b_t15_admin', 'admin'));
+
+        /* Flip Package A to binary-enabled with points. */
+        $pkg = Package::find((int) Package::findBySlug('package-a')['id']);
+        Package::save([
+            'name'           => $pkg['name'],
+            'price'          => $pkg['price'],
+            'product_value'  => $pkg['product_value'],
+            'direct_referral_bonus' => $pkg['direct_referral_bonus'],
+            'status'         => $pkg['status'],
+            'sort_order'     => $pkg['sort_order'],
+            'indirect_enabled' => $pkg['indirect_enabled'],
+            'binary_enabled' => '1',
+            'binary_points'  => '1000',
+        ], $nineLevels(), [], (int) $pkg['id']);
+
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $member = $pendingMember();
+        $id     = (int) $member['id'];
+
+        $wallet()->credit($id, '5000.00', 'topup', random_int(100000, 999999), 'Activation funds', false);
+
+        /* Activate the member with Package A. */
+        $result = $activation()->request($id, [
+            'method'     => 'ewallet',
+            'package_id' => (string) $pkg['id'],
+        ]);
+
+        assert_same('approved', $result['status']);
+
+        $activationRow = Activation::find((int) $result['activation_id']);
+        assert_not_null($activationRow);
+        assert_same('approved', $activationRow['status']);
+        assert_same(0, (int) $activationRow['binary_points']);
+        assert_same('0.00', (string) $activationRow['binary_total']);
+        assert_null($activationRow['binary_processed_at']);
+
+        /* No binary rows are written anywhere. */
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . (int) $result['activation_id'])->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . (int) $result['activation_id'])->fetchColumn());
+        assert_same(0, (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'")->fetchColumn());
+
+        setting_set('package_binary_enabled', '0');
+        Package::save([
+            'name'           => $pkg['name'],
+            'price'          => $pkg['price'],
+            'product_value'  => $pkg['product_value'],
+            'direct_referral_bonus' => $pkg['direct_referral_bonus'],
+            'status'         => $pkg['status'],
+            'sort_order'     => $pkg['sort_order'],
+            'indirect_enabled' => $pkg['indirect_enabled'],
+            'binary_enabled' => '0',
+            'binary_points'  => '0',
+        ], $nineLevels(), [], (int) $pkg['id']);
+        setting_cache_clear();
+    },
 ];

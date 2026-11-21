@@ -389,11 +389,13 @@ return [
                 'binary_requires_active',
                 'binary_release_enabled',
                 'binary_reversal_enabled',
+                'package_binary_enabled',
+                'package_binary_requires_package',
             ],
             $commissions,
             'the commissions card owns the referral depth, both repeat-purchase numbers, the escrow hold, '
                 . 'the thirteen Royalty ladder values, the two Team Harvest knobs and its ten amounts, '
-                . 'and the General Harvest depth with its ten amounts'
+                . 'and the General Harvest depth with its ten amounts, and the Package binary switches'
         );
         assert_same(
             [
@@ -482,10 +484,12 @@ return [
                 'binary_requires_active',
                 'binary_release_enabled',
                 'binary_reversal_enabled',
+                'package_binary_enabled',
+                'package_binary_requires_package',
             ],
             $sectionMethod('sectionToggles', 'commissions'),
             'one switch per compensation rule, including the four repeat-purchase, two Royalty, one '
-                . 'Team Harvest and one General Harvest switch'
+                . 'Team Harvest and one General Harvest switch, plus the two Package binary switches'
         );
         assert_same([], $sectionMethod('sectionToggles', 'transfers'));
 

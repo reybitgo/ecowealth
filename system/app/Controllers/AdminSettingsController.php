@@ -702,6 +702,30 @@ final class AdminSettingsController
         ],
     ];
 
+    /**
+     * The Package binary block (Phase 23B-S2, plan §12.4).
+     *
+     * Two switches and no operator-editable fields: the master switch
+     * and the recipient-qualification toggle. `package_binary_ledger_since`
+     * is the reconciliation baseline written by migration 027 and is
+     * deliberately never rendered (plan §12.4). Every package starts
+     * `binary_enabled = 0` / `binary_points = 0`, and the master switch
+     * ships off, so deploying this phase changes no money.
+     */
+    private const PACKAGE_BINARY_FIELDS = [];
+
+    /** The Package binary switches, in display order (plan §12.4). */
+    private const PACKAGE_BINARY_TOGGLES = [
+        'package_binary_enabled' => [
+            'label' => 'Package binary enabled',
+            'hint'  => 'Off stops every package activation from placing points and paying pairs. Nothing is paid by this phase — the payment engine arrives with Phase 23C, and the switch stays off until its gate passes.',
+        ],
+        'package_binary_requires_package' => [
+            'label' => 'Require a binary package to earn package pairs',
+            'hint'  => 'On: a pair recipient must hold a package whose own binary switch is on. Off: every eligible member earns package pairs. The monthly Active rule never applies to package pairs.',
+        ],
+    ];
+
     /** The one hint every General Harvest amount input carries. */
     private const GENERAL_HARVEST_AMOUNT_HINT = 'What this level pays when its block of 3^L positions is full. Blank and 0 are the same: the level still completes but pays nothing, and it must be given an amount before it can sit inside the payable depth.';
 
@@ -821,6 +845,9 @@ final class AdminSettingsController
             'binary_fields'  => self::BINARY_FIELDS,
             'binary_toggles' => self::BINARY_TOGGLES,
             'binary_readiness' => Product::binaryReadinessCounts(),
+            'package_binary_fields'  => self::PACKAGE_BINARY_FIELDS,
+            'package_binary_toggles' => self::PACKAGE_BINARY_TOGGLES,
+            'package_binary_readiness' => Package::binaryReadinessCounts(),
             'transfer_fields'   => self::TRANSFER_FIELDS,
             'shop_enabled'      => setting_bool('shop_enabled', true),
             'cancel_enabled'    => Order::cancelEnabled(),
@@ -931,6 +958,9 @@ final class AdminSettingsController
                     'binary_fields'  => $data['binary_fields'],
                     'binary_toggles' => $data['binary_toggles'],
                     'binary_readiness' => $data['binary_readiness'],
+                    'package_binary_fields'  => $data['package_binary_fields'],
+                    'package_binary_toggles' => $data['package_binary_toggles'],
+                    'package_binary_readiness' => $data['package_binary_readiness'],
                 ]),
                 'settings-transfers' => View::capture('admin/settings/_transfers', [
                     'settings'        => $data['settings'],
@@ -1495,6 +1525,13 @@ final class AdminSettingsController
                     $keys[] = (string) $key;
                 }
             }
+
+            /* The Package binary block (Phase 23B-S2, plan §12.4): the two
+             * toggles, master first. `package_binary_ledger_since` is the
+             * reconciliation baseline and is never operator-editable. */
+            foreach (array_keys(self::PACKAGE_BINARY_TOGGLES) as $key) {
+                $keys[] = (string) $key;
+            }
         }
 
         if ($section === 'transfers') {
@@ -1524,7 +1561,8 @@ final class AdminSettingsController
                 array_keys(self::ROYALTY_TOGGLES),
                 array_keys(self::TEAM_HARVEST_TOGGLES),
                 array_keys(self::GENERAL_HARVEST_TOGGLES),
-                array_keys(self::BINARY_TOGGLES)
+                array_keys(self::BINARY_TOGGLES),
+                array_keys(self::PACKAGE_BINARY_TOGGLES)
             ),
             default      => [],
         };
@@ -2351,6 +2389,11 @@ final class AdminSettingsController
             $rules[(string) $key] = 'required|in:0,1';
         }
 
+        /* The Package binary toggles (Phase 23B-S2): simple on/off. */
+        foreach (array_keys(self::PACKAGE_BINARY_TOGGLES) as $key) {
+            $rules[(string) $key] = 'required|in:0,1';
+        }
+
         foreach (self::TRANSFER_FIELDS as $field) {
             $rules[(string) $field['key']] = (string) $field['rule'];
         }
@@ -2462,6 +2505,11 @@ final class AdminSettingsController
         }
 
         foreach (self::BINARY_TOGGLES as $key => $toggle) {
+            $labels[(string) $key] = (string) $toggle['label'];
+        }
+
+        /* The Package binary toggles (Phase 23B-S2). */
+        foreach (self::PACKAGE_BINARY_TOGGLES as $key => $toggle) {
             $labels[(string) $key] = (string) $toggle['label'];
         }
 
