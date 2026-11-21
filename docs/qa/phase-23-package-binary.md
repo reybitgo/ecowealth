@@ -185,3 +185,170 @@ Section A's schema and count claims are also asserted by the automated suite:
 | QA23A-04 | `evidence/phase-23/QA23A-04.txt` |
 | QA23A-05 | `evidence/phase-23/QA23A-05.txt` |
 | QA23A-06 | `evidence/phase-23/QA23A-06.txt` |
+
+---
+
+## Section B — Phase 23B: Configuration and readiness (`QA23B-01` … `QA23B-06`)
+
+**Status:** in progress (23B). Section B is appended by 23B-S2; sections C–G follow their phases.
+
+> **Where each check runs.** `QA23B-01` to `QA23B-05` run against the development copy at migration 027;
+> `QA23B-06` runs on a scratch schema provisioned from `system/database/install.sql`. No check touches
+> `ecowealth_sneat`.
+
+> **Notation.** `mysql` means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe` with the app
+> account; `php` means Laragon's PHP 8.3 CLI. Every command runs from `system/`.
+
+### QA23B-01 — The Package binary card renders on the package edit page
+
+| Why | 23B Rules 1–2: the switch and the points field render on every package form; the switch ships off and the points field suggests `ROUND(product_value)` but does not save itself (D-13). |
+|---|---|
+| Where | Browser: `/admin/packages/{id}/edit` (Package A) |
+| Evidence | `QA23B-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open Package A's edit page.
+2. Confirm the **Package binary** card sits after the referral ladder.
+3. Confirm the switch is **off** and the points field shows the suggested value (`ROUND(product_value)`) as a prefill/placeholder only.
+4. Confirm the live readout shows the shared preset (pair value at PP 1,000 / 10%).
+
+Expected
+
+- The card renders with exactly two inputs: the `binary_enabled` switch and the `binary_points` integer field.
+- No pair-size, pair-rate, cap or hold input exists anywhere in the HTML (P23B-T12).
+- The switch is off; nothing is persisted yet.
+
+### QA23B-02 — Saving a flagged package persists switch and points
+
+| Why | P23B-T1: `binary_enabled = 1` with `binary_points > 0` persists; the form re-reads both on re-open. |
+|---|---|
+| Where | Browser: `/admin/packages/{id}/edit` (Package A) |
+| Evidence | `QA23B-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set the switch to **on**.
+2. Set points to `1000`.
+3. Save.
+4. Re-open the package edit page.
+
+Expected
+
+- Both values persist: switch on, points `1000`.
+- The list badge on `/admin/packages` reads `Binary 1,000 pts` (P23B-T8).
+- `SELECT binary_enabled, binary_points FROM packages WHERE id = <A>` → `1`, `1000`.
+
+### QA23B-03 — Switch on with zero points is refused
+
+| Why | P23B-T2 / Rule 3: `binary_enabled = 1` with `binary_points = 0` is a configuration error, refused with a field error on `binary_points`; the row is left untouched. |
+|---|---|
+| Where | Browser: `/admin/packages/{id}/edit` (Package A, already at 1000 points) |
+| Evidence | `QA23B-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Keep the switch **on**.
+2. Clear the points field to `0`.
+3. Save.
+
+Expected
+
+- A field error on `binary_points` is shown.
+- The package keeps `binary_points = 1000` (row unchanged).
+- No `package.binary.update` audit row is written (nothing changed).
+
+### QA23B-04 — The `?binary=on|off` filter and the readiness counts
+
+| Why | P23B-T9 / T13: the list filter narrows to flagged / unflagged packages; the readiness panel's four counts match SQL and the links filter correctly. |
+|---|---|
+| Where | Browser: `/admin/packages?binary=on` and `/admin/settings` → Commissions |
+| Evidence | `QA23B-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/packages?binary=on`: confirm only Package A (flagged) appears.
+2. Open `/admin/packages?binary=off`: confirm only Package B (unflagged) appears.
+3. Open `/admin/settings` → Commissions → Package binary readiness panel.
+4. Compare the four counts against `SELECT binary_enabled, binary_points, COUNT(*) FROM packages GROUP BY binary_enabled, binary_points`.
+
+Expected
+
+- `?binary=on` returns exactly the flagged packages; `?binary=off` returns the rest; the filter survives pagination and combines with `?status=`.
+- The readiness panel shows: packages flagged with 0 points, packages with the switch off, the global switch state, and the preset sentence.
+- Each count links to the correctly filtered list; none is a button (Rule 7).
+
+### QA23B-05 — The settings card saves the master switch and the qualification toggle
+
+| Why | P23B-T11 / Rule 5: the master switch (`package_binary_enabled`) and the recipient-qualification toggle (`package_binary_requires_package`) render under the product-binary block; `package_binary_ledger_since` is never rendered. A save audits `settings.update` only when something changed. |
+|---|---|
+| Where | Browser: `/admin/settings` → Commissions → Package binary; then `/admin/audit` |
+| Evidence | `QA23B-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/settings` → Commissions.
+2. Confirm the **Package binary** sub-block sits **under** the **Product binary** block.
+3. Confirm the master switch is off and the qualification toggle is on.
+4. Confirm `package_binary_ledger_since` is **not** rendered anywhere in the card.
+5. Switch the master **on**, leave the qualification toggle **on**, save.
+6. Open `/admin/audit`: confirm a `settings.update` row for the two package binary keys with before/after.
+7. Switch the master **off**, save.
+
+Expected
+
+- The package block renders with exactly two toggles and no editable fields (no points input — points are per-package on the package form).
+- `package_binary_ledger_since` is never rendered (Rule 5).
+- Saving with the master on writes a `settings.update` audit row; saving with no change writes nothing (Rule 10).
+- Turning the master off changes no money (D-13).
+
+### QA23B-06 — An approval after 23B writes no binary row
+
+| Why | P23B-T15 / Rule: no code path reads the new columns until 23C; an approved activation still pays only the referral ladder. |
+|---|---|
+| Where | Browser: `/admin/activations/{id}/approve` (a binary-flagged package); then `mysql` |
+| Evidence | `QA23B-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Configure Package A with `binary_enabled = 1`, `binary_points = 1000`.
+2. Approve an activation of Package A (master switch on or off — either way, no engine is wired yet).
+3. Query `binary_awards`, `binary_volume` and `activations`.
+
+Expected
+
+- `SELECT COUNT(*) FROM binary_awards WHERE source = 'activation'` → `0`.
+- `SELECT COUNT(*) FROM binary_volume WHERE source = 'activation'` → `0`.
+- `activations.binary_processed_at IS NULL`, `binary_points = 0`, `binary_total = 0.00`.
+- The referral ladder pays exactly as before 23B (no regression).
+
+## What is already automated
+
+Section B's claims are also asserted by the automated suite:
+
+- `PackageBinaryTest` — P23B-T1 … T18: validation, persistence, audit, status map, list badge, filter, form defaults, settings card, readiness panel, preset sentence and the no-binary-row-on-activation guard.
+- `SettingsPageTest` — the commissions card catalogs include the two package binary keys.
+- `BinaryFoundationTest` — the Phase 22 vocabulary manifest lists the package-binary files.
+
+## Evidence index
+
+| Check | Evidence file |
+|---|---|
+| QA23A-01 | `evidence/phase-23/QA23A-01.txt` |
+| QA23A-02 | `evidence/phase-23/QA23A-02.txt` |
+| QA23A-03 | `evidence/phase-23/QA23A-03.txt` |
+| QA23A-04 | `evidence/phase-23/QA23A-04.txt` |
+| QA23A-05 | `evidence/phase-23/QA23A-05.txt` |
+| QA23A-06 | `evidence/phase-23/QA23A-06.txt` |
+| QA23B-01 | `evidence/phase-23/QA23B-01.txt` |
+| QA23B-02 | `evidence/phase-23/QA23B-02.txt` |
+| QA23B-03 | `evidence/phase-23/QA23B-03.txt` |
+| QA23B-04 | `evidence/phase-23/QA23B-04.txt` |
+| QA23B-05 | `evidence/phase-23/QA23B-05.txt` |
+| QA23B-06 | `evidence/phase-23/QA23B-06.txt` |

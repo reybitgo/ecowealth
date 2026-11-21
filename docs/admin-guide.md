@@ -1300,3 +1300,55 @@ php bin\binary_audit.php --fix
 Revert `system/app/Services/HealthService.php` (remove the four binary sections) and
 `system/app/views/admin/settings/_commissions.php` (remove the health-panel link). The stream settings
 stay inert; no money has moved and no schema existed to drop.
+
+## 26. Package binary bonus: configuration only (Phase 23B)
+
+The Package binary bonus pays an eligible upline when a member's package activation is approved:
+the package's points are contributed once to the binary tree, every eligible binary upline settles
+the pairs those points complete, and the money is credited to the withdrawable e-wallet immediately.
+
+**Phase 23B only configures the stream.** The master switch is off, no package is flagged, and
+**no money moves**. The money engine, the activation hook, the member pages and the reversal CLI
+arrive in 23C–23F.
+
+### Admin → Settings → Commissions → Package binary
+
+One sub-block under the Product binary card, one form, one `settings.update` audit:
+
+| Control | Default | Meaning |
+|---|---:|---|
+| **Package binary enabled** | **off** | Master switch. Off renders the offer nowhere and pays nothing (D-13). |
+| **Require a binary package to earn package pairs** | **on** | On: a pair recipient must hold a package whose own binary switch is on. Off: every eligible member earns package pairs. The monthly Active rule never applies to package pairs (D-08). |
+
+`package_binary_ledger_since` (the reconciliation baseline from migration 027) is never rendered.
+
+There are **no** operator-editable fields here: no pair size, pair rate, cap or hold — those are the
+shared Phase 22 values, and per-package points live on the package edit card, not here (D-06).
+
+### Packages → edit → Package binary
+
+The **Package binary** card sits after the referral ladder:
+
+- The switch flags the package for binary points.
+- The points field suggests `ROUND(product_value)` as a prefill but ships empty/0; the operator saves what they mean.
+- A switch-on package with `binary_points = 0` is refused: *"Give the package points or turn its binary switch off."*
+- Points are whole numbers, 0–1,000,000; a decimal is refused.
+- The list badge reads `Binary N pts` (on) or nothing (off), and `?binary=on|off` splits the list.
+- There is **no** per-package pair size, pair rate, cap or hold input — those are global (D-06).
+
+### Package binary readiness (read-only)
+
+The same settings card gains a **Package binary readiness** panel with four counts:
+
+1. **Packages flagged with 0 points** — packages with the switch on and `binary_points = 0`. Links to `/admin/packages?binary=on`.
+2. **Packages with the switch off** — packages not contributing to the binary. Links to `/admin/packages?binary=off`.
+3. **Global switch** — On / *The package stream is off. No activation places points.*
+4. **Preset sentence** — *One pair is 1,000 points and pays ₱100.00 at 10%. A 1,000-point activation completes one pair.* (recomputed when the shared pair values change).
+
+None of the four is a button; each links to the filtered package list (Rule 7).
+
+### The switch stays off
+
+Approving an activation of a binary-flagged package after 23B writes no `binary_awards`, no
+`binary_volume` and no `binary` wallet movement — that hook is 23C's work. Member pages show no
+package-binary content until 23E.
