@@ -30,7 +30,7 @@ All good.
 Passed: 278   Failed: 0
 ```
 
-The baseline was **1,484 / 1,484** PHP cases and **278 / 278** smoke checks at `p22-start` (the Phase 21 release gate, `p21g-release`); 22A adds **22** cases and **no** smoke check, because it adds no route and no page. The bundle reports **42 tables / 89 settings**. The only visible change of the phase is two new entries in the wallet statement filter; selecting either returns no rows until 22D.
+The baseline was **1,484 / 1,484** PHP cases and **278 / 278** smoke checks at `p22-start` (the Phase 21 release gate, `p21g-release`); 22A adds **22** cases and **no** smoke check, because it adds no route and no page. The bundle reports **42 tables / 86 settings**. The only visible change of the phase is two new entries in the wallet statement filter; selecting either returns no rows until 22D.
 
 No automated case in this phase writes a binary node, volume or award row on the development database. Section A verifies counts and *absence* of UI, plus the wallet filter.
 
@@ -142,7 +142,7 @@ Expected
 
 - Step 2: **no** `binary%` table, 39 tables, 79 settings.
 - Step 4: exactly three tables — `binary_nodes`, `binary_volume`, `binary_awards`.
-- Step 5: exit **0**, and the counts after both runs are unchanged: **42 tables, 89 settings**.
+- Step 5: exit **0**, and the counts after both runs are unchanged: **42 tables, 86 settings**.
 - Step 6: `user_id, upline_id, side, root_id, depth, path, state, left_points, right_points, left_credited, right_credited, points_matched, pairs_paid, personal_points, placed_at, placed_by, moved_at, moved_by, move_count, created_at, updated_at`.
 - Step 7: `id, node_user_id, side, kind, points, order_id, order_item_id, buyer_id, award_id, note, created_by, created_at`.
 - Step 8: `id, kind, order_id, buyer_id, user_id, side, points, pair_count, pair_points, rate_pct, amount, status, hold_days, ledger_id, credited_at, reversal_ledger_id, reversed_amount, paid_at, voided_at, void_reason, created_at`.
@@ -258,7 +258,7 @@ Steps
 
 Expected
 
-- `--check` exits **0** with no output; the header reads **42 tables · 89 settings**.
+- `--check` exits **0** with no output; the header reads **42 tables · 86 settings**.
 - The install verifies and prints `tables_created = 42`, `settings_rows = 89`, `binary_nodes_rows = 0`, `binary_volume_rows = 0`, `binary_awards_rows = 0` (and 2 staff, 0 members, 7 products, 2 packages, 18 levels, 10 contents, 0 codes).
 - The verification's transactional check passes (the binary tables are empty).
 - `wallet_reconcile.php` exits **0**; no binary section is part of the reconciler until 22H, and no binary ledger row exists.
@@ -293,7 +293,7 @@ Expected
 
 ## 6. Section B — Phase 22B: Configuration and readiness (`QA22B-01` … `QA22B-09`)
 
-**Prerequisites.** Tag `p22a-foundation`; migration 026 applied to the development copy (39 → 42 tables, 79 → 89 settings); the app running. All of these checks are **read-only for money**: no binary award, volume or wallet row may be created in this section. Expected suite count for this section: **≥ 1,530** PHP cases and **278** smoke checks.
+**Prerequisites.** Tag `p22a-foundation`; migration 026 applied to the development copy (39 → 42 tables, 79 → 86 settings); the app running. All of these checks are **read-only for money**: no binary award, volume or wallet row may be created in this section. Expected suite count for this section: **≥ 1,530** PHP cases and **278** smoke checks.
 
 ### QA22B-01 — The product edit card renders off by default
 
@@ -491,7 +491,7 @@ Expected
 
 ## 7. Section C — Phase 22C: Placement, the tree and registration (`QA22C-01` … `QA22C-10`)
 
-**Prerequisites.** Tag `p22b-configuration`; migration 026 applied to the development copy (42 tables, 89 settings); the app running. None of these checks writes money: no `binary_volume` or `binary_awards` row may be created in this section, and no award or wallet movement exists yet (the money engine is 22D). Expected suite count for this section: **≥ 1,576** PHP cases and **≈284** smoke checks.
+**Prerequisites.** Tag `p22b-configuration`; migration 026 applied to the development copy (42 tables, 86 settings); the app running. None of these checks writes money: no `binary_volume` or `binary_awards` row may be created in this section, and no award or wallet movement exists yet (the money engine is 22D). Expected suite count for this section: **≥ 1,576** PHP cases and **≈284** smoke checks.
 
 ### QA22C-01 — Every registration creates exactly one legal node
 
@@ -1548,7 +1548,7 @@ Expected
 
 ## 12. Section H — Phase 22H: Operations (`QA22H-01` … `QA22H-07`)
 
-**Prerequisites.** Tag `p22g-release` (the Phase 22G release gate); migration 026 applied to the development copy (42 tables, 89 settings); the app running. Every check in this section is **read-only for money**: no binary award, volume, node or wallet row may be created here. Expected suite count for this section: **≥ 1,720** PHP cases and **278** smoke checks.
+**Prerequisites.** Tag `p22g-release` (the Phase 22G release gate); migration 026 applied to the development copy (42 tables, 86 settings); the app running. Every check in this section is **read-only for money**: no binary award, volume, node or wallet row may be created here. Expected suite count for this section: **≥ 1,720** PHP cases and **278** smoke checks.
 
 > **Where each check runs.** `QA22H-01` through `QA22H-06` need the running application (reads the development copy). `QA22H-07` runs from `system/` in PowerShell. Nothing in this section writes money, and the health checks never change a setting (plan Rule 10).
 

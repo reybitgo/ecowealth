@@ -8022,7 +8022,7 @@ of these seven gates, because each is a new decision with its own economics.
 
 | Area | What shipped |
 |---|---|
-| **Database** | Migration `026_product_binary.sql`: `binary_nodes`, `binary_volume`, `binary_awards`; `products.binary_enabled`; `shop_orders` (`binary_position`, `binary_processed_at`, `binary_points`, `binary_self_total`, `binary_pair_total`, `binary_total`); `shop_order_items` (`unit_points`, `points_total`); `ewallet_ledger.ref_type` extended with `binary`, `binary_reversal`; ten `binary_*` settings (stream off by default). `schema.sql`, `seeds/001_settings.sql`, `install.sql` (regenerated), `install/footer.sql` (42 tables / 89 settings) updated. |
+| **Database** | Migration `026_product_binary.sql`: `binary_nodes`, `binary_volume`, `binary_awards`; `products.binary_enabled`; `shop_orders` (`binary_position`, `binary_processed_at`, `binary_points`, `binary_self_total`, `binary_pair_total`, `binary_total`); `shop_order_items` (`unit_points`, `points_total`); `ewallet_ledger.ref_type` extended with `binary`, `binary_reversal`; ten `binary_*` settings (stream off by default). `schema.sql`, `seeds/001_settings.sql`, `install.sql` (regenerated), `install/footer.sql` (42 tables / 86 settings) updated. |
 | **Code** | `DatabaseInstaller::EXPECTED` 42/89, `TRANSACTIONAL_TABLES` + `binary_awards`/`binary_volume`; `DatabaseResetService::ALL_TABLES`/`ZERO_TABLES`/`AUTO_INCREMENT_TABLES` + the three tables, `DELETE_GROUPS` product_binary group (volume → awards → nodes); `WalletService::REF_TYPES` + `binary`/`binary_reversal`; `helpers.php` `wallet_ref_label()`/`wallet_ref_icon()` (*Product binary* / `bx-git-branch`, *Product binary reversal* / `bx-undo`). No code path reads the new objects yet. |
 | **Docs** | `docs/qa/phase-22-product-binary.md` (header + section A, QA22A-01…08); `docs/qa/README.md` Phase 22 row + evidence index; `docs/qa/evidence/phase-22/README.md`; `docs/install-reset.md` reset behaviour for the three binary tables. |
 
@@ -8033,7 +8033,7 @@ of these seven gates, because each is a new decision with its own economics.
 | P22A-T3 | MigrationTest: migrated schema == fresh install (incl. binary tables + `binary`/`binary_reversal` enum) | **PASS** | MigrationTest |
 | P22A-T4 | SeedParityTest: seed 001 carries the ten binary keys | **PASS** | SeedParityTest |
 | P22A-T5 | `build_install_sql.php --check` | **PASS** | exit 0 |
-| P22A-T6 | InstallTest fresh install: 42 tables / 89 settings | covered by build_install_sql | — |
+| P22A-T6 | InstallTest fresh install: 42 tables / 86 settings | covered by build_install_sql | — |
 | P22A-T8 | DbResetTest: binary tables emptied, settings survive | **PASS** | DbResetTest |
 | P22A-T9 | WalletTest: `REF_TYPES` == live enum both directions (15 values) | **PASS** | P5-T8 |
 | P22A-T10 | `wallet_ref_label`/`wallet_ref_icon` for `binary`/`binary_reversal` | present in `helpers.php` | — |
@@ -8085,7 +8085,7 @@ A migrated database with every binary column/table/setting; a fresh-install bund
 
 ## Phase 22B — Configuration and readiness
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22b-configuration` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,530 cases · **Smoke:** ≈280 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22b-configuration` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,530 cases · **Smoke:** ≈280 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §6 (Phase 22B), §2.4 (the universal gate), §2.7.4 (slices 22B-S1–S3), §14.4 (settings), §15.2 (product column). This phase lets an operator switch the Product binary stream on, set its five money rules in one card on `/admin/settings`, flag each product for the binary, and see the readiness card. **No money moves.**
 
@@ -8165,7 +8165,7 @@ The stream is configurable but inert: the switch is off, no product is flagged, 
 
 ## Phase 22C — Placement, the tree and registration
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22c-placement` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,576 cases · **Smoke:** ≈284 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22c-placement` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,576 cases · **Smoke:** ≈284 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §7 (Phase 22C), §2.4, §2.7.5 (slices 22C-S1–S5), §14.2 (placement tree), §14.5 (placement invariants), §15.3–15.4 (node table), §17.2 (placement security). This phase builds the placement tree: the node model, registration placement, the admin placement console, the backfill tool and the move rule. **No money exists.**
 
@@ -8273,7 +8273,7 @@ The tree exists and is correct: every member has at most one node, slots are uni
 
 ## Phase 22D — Money engine
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22d-money` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,650 cases · **Smoke:** ≈288 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22d-money` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,650 cases · **Smoke:** ≈288 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §8 (Phase 22D), §2.4, §2.7.6 (slices 22D-S1–S5), §14.3 (points), §14.6 (self/pair awards), §14.7–14.9 (volume, pairing, caps), §14.11 (rounding), §16.1–16.9 (money path, escure, reversal), §17.1/17.3 (money security). This is the **only phase that moves money**: the self bonus, pair matching, points ledger, escrow, cancellation reversal and reconciliation all ship together behind the global switch (still off by default).
 
@@ -8401,7 +8401,7 @@ The money engine is complete and correct: self bonus, pair matching, points ledg
 
 ## Phase 22E — Admin visibility
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22e-admin` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,668 cases · **Smoke:** ≈290 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22e-admin` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,668 cases · **Smoke:** ≈290 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §9 (Phase 22E), §2.4, §2.7.7 (slices 22E-S1–S3), §16.2 (the engine API these pages call), §15.6 (invariants), §17.4 (member privacy). This phase shows the money to administrators: the binary ledger tab, order card, member panel, five report cards, readiness cards and CSV. **Read-only for money.**
 
@@ -8473,7 +8473,7 @@ Admin can audit every point and award from the UI. The tree navigation link stay
 
 ## Phase 22F — Member visibility
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22f-member` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,694 cases · **Smoke:** ≈293 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22f-member` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,694 cases · **Smoke:** ≈293 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §10 (Phase 22F), §2.4, §2.7.8 (slices 22F-S1–S4), §14.12 (copy rules), §16.2, §17.4 (privacy), Appendix C (copy deck). This phase shows the offer and the outcome to members: the Product binary earnings tab with Left/Right team cards, checkout position card, order card, dashboard tile and product panel. **The page names no upline.**
 
@@ -8554,7 +8554,7 @@ Members can see their own binary outcome: the earnings tab with Left/Right team 
 
 ## Phase 22G — The binary genealogy tree
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22g-tree` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,722 cases · **Smoke:** ≈298 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22g-tree` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,722 cases · **Smoke:** ≈298 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §11 (Phase 22G), §2.4, §2.7.9 (slices 22G-S1–S5), §14.2/§14.5 (tree invariants), §17.4–17.6 (privacy/security). This phase ships the d3 binary genealogy tree with in-node registration, invite links, admin explorer and the no-JS fallback. **No money moves.**
 
@@ -8642,7 +8642,7 @@ The tree is complete: responsive, accessible, usable without JS, registers membe
 
 ## Phase 22H — Operations
 
-**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22h-operations` · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** ≥1,734 cases · **Smoke:** ≈300 checks.
+**Date:** 2026-11-18 · **Branch:** `feature/product-binary` · **Tag:** `p22h-operations` · **Status:** complete · **Schema:** unchanged at **42 tables / 86 settings** · **Suite:** ≥1,734 cases · **Smoke:** ≈300 checks.
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §12 (Phase 22H), §2.4, §2.7.10 (slices 22H-S1–S3), §16.3 (release job), §16.10 (reconcile/audit), §17.3/17.6–17.7 (operations security). This phase adds operations: the release job's second stream, the points audit CLI, health checks, cron/runbook docs. **No money moves.**
 
@@ -8716,7 +8716,7 @@ Operations are complete: the release job handles both streams, the audit CLI che
 
 ## Phase 22I — Release
 
-**Date:** 2026-11-20 · **Branch:** `feature/product-binary` · **Tag:** `p22i-release` (feature tag `phase-22`) · **Status:** complete · **Schema:** unchanged at **42 tables / 89 settings** · **Suite:** 1,735 cases (measured; floor 1,734) · **Smoke:** environment-blocked (pre-existing).
+**Date:** 2026-11-20 · **Branch:** `feature/product-binary` · **Tag:** `p22i-release` (feature tag `phase-22`) not yet cut · **Status:** release candidate — gates R6–R7 open · **Schema:** unchanged at **42 tables / 86 settings (measured)** · **Suite:** 1,735 cases (projected; not verified by three consecutive green runs — R4 open) · **Smoke:** environment-blocked (pre-existing).
 
 Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §13 (Phase 22I), §2.4, §2.7.11 (slices 22I-S1–S2), §18.4–18.6, Appendix B (acceptance run), Appendix H (gate record), §20 (open questions). This phase is the release: documentation that matches the code, a QA pack a stranger can execute, `APP_PHASE 22`, a signed acceptance run and a phase log. **No behaviour change in this phase.**
 
@@ -8779,7 +8779,7 @@ Plan: `dmp/plan-ecowealth-product-binary-sliced.md` §13 (Phase 22I), §2.4, §2
 - [ ] No new PHP warning/notice/deprecation in storage/logs/ after the manual pass — pending human QA.
 - [x] QA pack sections A–I filled; evidence committed under docs/qa/evidence/phase-22/.
 - [x] `docs/phase-log.md` records the phase, tag, counts and deviations; Appendix H filled.
-- [x] All nine tags exist (`p22a-foundation` … `p22i-release`); the branch is ready for merge.
+- [ ] All nine tags exist — only `p22a-foundation` and `p22f-member` present; remaining seven (`p22b-configuration`, `p22c-placement`, `p22d-money`, `p22e-admin`, `p22g-tree`, `p22h-operations`, `p22i-release`) plus `p22-start` and `phase-22` cut at R7; branch not yet merged.
 - [x] The plan's status line and counts are final (this entry).
 - [ ] Tag `p22i-release` (feature tag `phase-22`); phase log; Appendix H filled — tag cut at the release gate.
 
@@ -8795,7 +8795,7 @@ Revert `APP_PHASE` to 21, `HardeningTest`, `BinaryReleaseTest`, and the docs. No
 
 ### Hand-off
 
-The Product binary bonus is **released**. The next compensation stream (if any) starts from `p22i-release` and must not reuse `binary_nodes`, `binary_volume` or `binary_awards` for a different grain. A change to the pair economics, the cap, the flush policy or the self bonus is a new plan, not a patch to Phase 22.
+The Product binary bonus is a **release candidate**, gated by §R7. The next compensation stream (if any) starts from `p22i-release` only after R7 certification.
 
 
 

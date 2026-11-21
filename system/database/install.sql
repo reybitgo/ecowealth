@@ -23,7 +23,7 @@
 --  This bundle creates the schema and the starter data for a NEW EcoWealth
 --  site:
 --
---      42 tables · 89 settings · 2 staff accounts · 7 products
+--      42 tables · 86 settings (+3 install-time metadata = 89 on fresh install) · 2 staff accounts · 7 products
 --      2 packages · 18 ladder levels · 10 package contents
 --      10 Team Harvest level amounts · 10 General Harvest level amounts
 --      1 unarmed General Harvest board row
@@ -2030,7 +2030,7 @@ WHERE p.slug = 'package-b'
 
 -- ===========================================================================
 --  SECTION 6/7 — INSTALL METADATA
---  source: database/install/footer.sql sha256=3cf64232415b9da661b260d7826bca0f980ae4542d899d7fa6aacee944f85741
+--  source: database/install/footer.sql sha256=78370fc091a6864e5ff31a1e00aca520ad56578844a8dfdb4cffe6407bf0ca3c
 -- ===========================================================================
 
 -- ===========================================================================
@@ -2058,14 +2058,14 @@ INSERT IGNORE INTO settings (key_name, value) VALUES
 
 -- ===========================================================================
 --  SECTION 7/7 — VERIFICATION
---  source: database/install/footer.sql sha256=3cf64232415b9da661b260d7826bca0f980ae4542d899d7fa6aacee944f85741
+--  source: database/install/footer.sql sha256=78370fc091a6864e5ff31a1e00aca520ad56578844a8dfdb4cffe6407bf0ca3c
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 --  Verification pack — run after any import (plan §6.5, Appendix E)
 --
 --  Expected on a correct production import:
---      tables_created = 42    settings_rows = 89    staff_rows    = 2
+--      tables_created = 42    settings_rows = 86 seeded (+3 install-time = 89 fresh install)    staff_rows    = 2
 --      members_rows   = 0     products_rows = 7     packages_rows = 2
 --      levels_rows    = 18    contents_rows = 10    codes_rows    = 0
 --      team_harvest_levels_rows = 10

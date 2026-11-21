@@ -36,7 +36,7 @@ result, capture evidence and sign the phase off.
 > Its evidence lives in `evidence/phase-21/`, indexed by that folder's `README.md` (sections A–G complete).
 
 > **Phase 22 is the Product binary bonus workstream** (`dmp/plan-ecowealth-product-binary-sliced.md`),
-> delivered in nine gated phases **22A → 22I** and **released**. Sections A–I are complete: **83 checks**
+> delivered in nine gated phases **22A → 22I**; release gates R6–R7 open. Sections A–I are complete: **83 checks**
 > — A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6. Its evidence lives in
 > `evidence/phase-22/`, indexed by that folder's `README.md`.
 
@@ -71,7 +71,7 @@ result, capture evidence and sign the phase off.
 | [phase-19-royalty.md](phase-19-royalty.md) | 19 — royalty rank ladder and monthly group-sales override, sections A–G, **signed** | 60 (A 8 · B 9 · C 12 · D 8 · E 9 · F 8 · G 6) | 150–205 min (A 20–30 · B 20–30 · C 45–60 · D 30–40 · E 20–25 · F 20–30 · G 15–20) |
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
 | [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
-| [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **released** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
+| [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **release candidate** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
