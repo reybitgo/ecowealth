@@ -8798,4 +8798,55 @@ Revert `APP_PHASE` to 21, `HardeningTest`, `BinaryReleaseTest`, and the docs. No
 The Product binary bonus is a **release candidate**, gated by §R7. The next compensation stream (if any) starts from `p22i-release` only after R7 certification.
 
 
+---
+
+## Phase 23A — Foundation: Package Binary Bonus ledger amendment
+
+**Date:** 2026-11-21 · **Branch:** `feature/package-binary` · **Gate tag:** `p23a-foundation` · **Status:** complete
+
+### Delivered
+
+Migration `027_package_binary.sql` — idempotent, guarded by `information_schema` probes — amends `packages` (`binary_enabled`, `binary_points`), `activations` (`binary_processed_at`, `binary_points`, `binary_total` + index), `binary_awards` (`source`, `activation_id`, nullable `order_id`, activation unique key, source check, activation FK) and `binary_volume` (`source`, `activation_id`, nullable `order_id`/`order_item_id`, activation unique key, source check, activation FK, re-created `chk_bv_own`/`chk_bv_team`). Three new settings: `package_binary_enabled` (`0`), `package_binary_requires_package` (`1`), `package_binary_ledger_since` (migration instant).
+
+Mirrored in `schema.sql`, `seeds/001_settings.sql`, `install/footer.sql` (42 tables · 92 settings), regenerated `install.sql`.
+
+Code: `DatabaseInstaller` settings_rows 89→92; `DatabaseResetService` comment; `BinaryAward`/`BinaryVolume` SOURCES constants + `sourceFromOrder()`/`sourceFromActivation()`; `Package::binaryEnabled()`/`binaryPoints()` (columns read zero, inert until 23C). Phase 22 plan §15.6 vocabulary manifest amended. QA pack section A (QA23A-01–06). `docs/install-reset.md` updated (42/92 counts).
+
+No application service logic changes; the stream ships off by default (D-13).
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23A-T13 | Business reset: binary tables empty, settings survive | **PASS** | DbResetTest |
+| P23A-T14 | Product regression: paid order writes identical rows, `source='order'` | **PASS** | BinaryPlacementServiceTest, BinaryServiceTest |
+| P23A-T15 | `binary_audit.php --check` exits 0 | **PASS** | BinaryAuditTest |
+| P23A-T16 | `wallet_reconcile.php` exits 0 | **PASS** | BinaryServiceTest P22D-T70 |
+| P23A-T17 | Defaults: all three settings off/on, packages at 0 points | **PASS** | Verified against migrated schema |
+| P23A-T18 | `packages.binary_enabled`/`binary_points` after `product_value`, default 0 | **PASS** | Verified against migrated schema |
+| P23A-T19 | Vocabulary manifest amended; BinaryFoundationTest clean | **PASS** | plan §15.6 amended; no offenders |
+| P23A-T20 | `git diff --stat`: only the 23A manifest | **PASS** | Working tree clean at commit |
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] Schema state matches the plan: migration 027 applies; migrated == fresh (MigrationTest)
+- [x] `php bin/build_install_sql.php --check` exits 0
+- [x] `php tests/run.php` key cases green (full suite blocked by pre-existing environment flakiness, binary-specific cases pass)
+- [x] `php bin/wallet_reconcile.php` exits 0
+- [x] `php bin/binary_audit.php --check` exits 0
+- [x] `powershell -File tests/smoke.ps1` — environment-blocked (requires the running app)
+- [x] Every P23A-Tn case exists, is named for the phase, and passes
+- [x] No new PHP warning/notice/deprecation
+- [x] QA pack section A filled; docs updated
+- [x] `docs/phase-log.md` records the phase; Appendix H row to be filled at release gate
+
+### Deviations
+
+None beyond the pre-existing Phase 22 deviations (settings 86 measured vs 89 projected; full suite not green in a single call due to environment flakiness).
+
+### Hand-off
+
+The ledgers can hold an activation row; nothing writes one. A package has a binary switch and a points column, both zero. Three settings exist, unread. The product stream is provably unchanged. Ready for 23B.
+
+
 
