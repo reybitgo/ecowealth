@@ -57,22 +57,26 @@ $commissionsCard = static function () use ($renderSettings): string {
 };
 
 $pendingMember = static function (): array {
-    $result = (new RegistrationService())->register([
-        'mode'             => 'pending',
-        'username'         => 'pending_' . bin2hex(random_bytes(4)),
-        'email'            => 'pending_' . bin2hex(random_bytes(4)) . '@test.local',
-        'full_name'        => 'Pending Member',
-        'phone'            => '',
-        'password'         => 'Member@1234',
-        'password_confirm' => 'Member@1234',
-        'sponsor'          => 'peter',
-        'package_id'       => '',
-        'reg_code'         => '',
-        'terms'            => true,
-        'binary_position'  => 'left',
-    ], null);
+    $name = 'pending_' . bin2hex(random_bytes(4));
+    db()->prepare(
+        'INSERT INTO users
+           (username, email, password_hash, full_name, phone, role, member_status,
+            referral_code, is_active)
+         VALUES (?, ?, ?, ?, ?, \'member\', \'pending\', ?, 1)'
+    )->execute([
+        $name,
+        $name . '@test.local',
+        password_hash('Member@1234', PASSWORD_BCRYPT),
+        'Pending Member',
+        '',
+        strtoupper(bin2hex(random_bytes(4))),
+    ]);
+    $stmt = db()->prepare(
+        'SELECT id, username, role, member_status, is_active FROM users WHERE username = ? LIMIT 1'
+    );
+    $stmt->execute([$name]);
 
-    return Member::find((int) $result['user_id']) ?? [];
+    return (array) $stmt->fetch();
 };
 
 $activation = static fn (): ActivationService => new ActivationService();
@@ -572,7 +576,8 @@ return [
             'binary_points'  => '1000',
         ], $nineLevels(), [], (int) $pkg['id']);
 
-        setting_set('package_binary_enabled', '1');
+        /* Stream off → no binary rows. The stream-on case is covered by 23C. */
+        setting_set('package_binary_enabled', '0');
         setting_cache_clear();
 
         $member = $pendingMember();
@@ -593,24 +598,26 @@ return [
         assert_same('approved', $activationRow['status']);
         assert_same(0, (int) $activationRow['binary_points']);
         assert_same('0.00', (string) $activationRow['binary_total']);
-        assert_null($activationRow['binary_processed_at']);
+        /* Phase 23C stamps every activation (even with zeros when the
+         * stream is off); previously this was null under 23B. */
+        assert_not_null($activationRow['binary_processed_at'], 'activation is stamped even when the stream is off');
 
         /* No binary rows are written anywhere. */
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . (int) $result['activation_id'])->fetchColumn());
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . (int) $result['activation_id'])->fetchColumn());
         assert_same(0, (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary'")->fetchColumn());
 
-        setting_set('package_binary_enabled', '0');
+        setting_set('package_binary_enabled', '1');
         Package::save([
-            'name'           => $pkg['name'],
-            'price'          => $pkg['price'],
-            'product_value'  => $pkg['product_value'],
-            'direct_referral_bonus' => $pkg['direct_referral_bonus'],
-            'status'         => $pkg['status'],
-            'sort_order'     => $pkg['sort_order'],
-            'indirect_enabled' => $pkg['indirect_enabled'],
-            'binary_enabled' => '0',
-            'binary_points'  => '0',
+            'name'                   => $pkg['name'],
+            'price'                  => $pkg['price'],
+            'product_value'          => $pkg['product_value'],
+            'direct_referral_bonus'  => $pkg['direct_referral_bonus'],
+            'status'                 => $pkg['status'],
+            'sort_order'             => $pkg['sort_order'],
+            'indirect_enabled'       => $pkg['indirect_enabled'],
+            'binary_enabled'         => '0',
+            'binary_points'          => '0',
         ], $nineLevels(), [], (int) $pkg['id']);
         setting_cache_clear();
     },
@@ -710,6 +717,22 @@ return [
             'binary_points'          => '1000',
         ], $nineLevels(), [], (int) $pkg['id']);
         setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        $member = $pendingMember();
+        $id     = (int) $member['id'];
+
+        $wallet()->credit($id, '5000.00', 'topup', random_int(100000, 999999), 'Activation funds', false);
+        $result = $activation()->request($id, [
+            'method'     => 'ewallet',
+            'package_id' => (string) $pkg['id'],
+        ]);
+        assert_same('approved', $result['status']);
+        $activationId = (int) $result['activation_id'];
+
+        /* Stream off so the 23C hook does not write volume rows during
+         * activation; this test only exercises the model API. */
+        setting_set('package_binary_enabled', '0');
         setting_cache_clear();
 
         $member = $pendingMember();

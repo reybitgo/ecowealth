@@ -25,6 +25,7 @@ declare(strict_types=1);
 ?>
               <div data-live-region="membership-paths" data-live-hold="dirty">
 <?php if ($can_activate && $open_activation === null): ?>
+              <?= View::capture('member/membership/_placement', ['placement_needed' => $placement_needed]) ?>
               <!-- Activation paths -->
               <div class="row g-4 mb-4">
                 <!-- 1. Registration code -->

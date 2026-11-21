@@ -187,6 +187,15 @@ final class ActivationService
                     ];
                 }
 
+                /* Phase 23C: an unplaced member activating a binary-enabled
+                 * package must be placed before complete() runs the binary
+                 * hook. Placement runs inside this transaction, before
+                 * markApproved()/complete(). */
+                $placement = $input['binary_placement'] ?? null;
+                if ($placement !== null) {
+                    $this->placeActivatingMember($userId, $placement);
+                }
+
                 Activation::markApproved($activationId, null, $this->pdo);
                 $summary = $this->complete($activationId, null);
 
@@ -424,6 +433,10 @@ final class ActivationService
          * chain inside this transaction. */
         $commissions = $this->commissions->onActivation($activationId, $this->pdo);
 
+        /* Phase 23C: the package binary hook — team volume, pairs,
+         * immediate credit — runs inside the same transaction. */
+        $binary = (new PackageBinaryService($this->pdo))->onActivation($activationId, $this->pdo);
+
         Activation::markCommissionProcessed($activationId, $this->pdo);
 
         AuditLog::record([
@@ -437,6 +450,7 @@ final class ActivationService
                 'package_id'    => $packageId,
                 'amount'        => $amount,
                 'method'        => (string) $locked['payment_method'],
+                'binary'        => $binary,
             ],
         ], $this->pdo);
 
@@ -470,6 +484,16 @@ final class ActivationService
              * and the tests can assert the award without re-reading rows. */
             'commission_credited' => round((float) ($commissions['credited'] ?? 0.0), 2),
             'commission_skipped'  => (int) ($commissions['skipped'] ?? 0),
+            /* Phase 23C: package binary outcome — points placed, pairs paid,
+             * amount credited, replay flag, reason when nothing was placed. */
+            'binary' => [
+                'processed' => (bool) ($binary['processed'] ?? false),
+                'replayed'  => (bool) ($binary['replayed'] ?? false),
+                'points'    => (int) ($binary['points'] ?? 0),
+                'pairs'     => (int) ($binary['pairs'] ?? 0),
+                'amount'    => round((float) ($binary['amount'] ?? 0.0), 2),
+                'reason'    => $binary['reason'] ?? null,
+            ],
         ];
     }
 
@@ -664,6 +688,58 @@ final class ActivationService
         $row = $stmt->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    /**
+     * Place an unplaced activating member under an upline on one side,
+     * inside the caller's transaction. Runs before complete() so the
+     * binary hook finds the member's node. Invalid placement is a field
+     * error, not a generic failure.
+     *
+     * @param array<string, mixed> $placement ['upline' => string, 'side' => string]
+     */
+    private function placeActivatingMember(int $userId, array $placement): void
+    {
+        $upline = trim((string) ($placement['upline'] ?? ''));
+        $side   = strtolower(trim((string) ($placement['side'] ?? '')));
+
+        if ($upline === '') {
+            throw ActivationException::validation([
+                'binary_upline' => 'Choose a member who places you in the binary tree.',
+            ]);
+        }
+
+        if (!in_array($side, ['left', 'right'], true)) {
+            throw ActivationException::validation([
+                'binary_position' => 'Choose left or right.',
+            ]);
+        }
+
+        $resolved = $this->resolveUpline($upline);
+        if ($resolved === null) {
+            throw ActivationException::validation([
+                'binary_upline' => 'That upline could not be found.',
+            ]);
+        }
+
+        (new BinaryPlacementService($this->pdo))->placeNew(
+            $userId,
+            (int) $resolved['id'],
+            $side,
+            [
+                'registrar' => null,
+                'sponsor'   => null,
+                'placedBy'  => $userId,
+                'actorId'   => $userId,
+            ]
+        );
+    }
+
+    /** Resolve a typed upline: username first, then referral code. */
+    private function resolveUpline(string $identifier): ?array
+    {
+        $member = Member::findByUsername($identifier, $this->pdo);
+        return $member !== null ? $member : Member::findByReferralCode($identifier, $this->pdo);
     }
 
     /**

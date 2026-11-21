@@ -80,6 +80,18 @@ final class MembershipController
         $status     = (string) $member['member_status'];
         $hasPackage = $member['package_id'] !== null;
 
+        /* Phase 23C: an unplaced member who can activate a binary-enabled
+         * package must place themselves in the tree first. */
+        $placementNeeded = false;
+        if (BinaryNode::forUser($userId) === null) {
+            foreach ($packages as $package) {
+                if ((int) ($package['binary_enabled'] ?? 0) === 1) {
+                    $placementNeeded = true;
+                    break;
+                }
+            }
+        }
+
         $packages = PackageService::publicCards();
         $minimum  = null;
 
@@ -125,6 +137,7 @@ final class MembershipController
             'open_activation'   => Activation::latestOpen($userId),
             'history'           => $history,
             'history_pager'     => $historyPager,
+            'placement_needed'  => $placementNeeded,
             'unilevel'          => $this->unilevelSummary($userId),
             'referral_link'     => absolute_url('register?ref=' . rawurlencode((string) ($member['referral_code'] ?? ''))),
             'channels'          => self::receivingAccounts(),
@@ -232,6 +245,7 @@ final class MembershipController
                     'open_activation'   => $data['open_activation'],
                     'channels'          => $data['channels'],
                     'free_registration' => $data['free_registration'],
+                    'placement_needed'  => $data['placement_needed'],
                 ]),
                 'membership-history' => View::capture('member/membership/_history', [
                     'history'       => $data['history'],
@@ -301,6 +315,18 @@ final class MembershipController
             'channel'      => strtolower(Request::string('channel')),
             'reference_no' => Request::string('reference_no'),
         ];
+
+        /* Phase 23C: an unplaced member activating a binary-enabled package
+         * must be placed before complete() runs the binary hook. Placement
+         * POST data rides in the same request and is executed inside the
+         * activation transaction, before complete(). */
+        $packageId = (int) ($input['package_id'] ?? 0);
+        if (BinaryNode::forUser($userId) === null && $packageId > 0 && Package::binaryEnabled($packageId)) {
+            $input['binary_placement'] = [
+                'upline' => Request::string('binary_upline'),
+                'side'   => strtolower(Request::string('binary_position')),
+            ];
+        }
 
         $file = $_FILES['proof'] ?? null;
 
