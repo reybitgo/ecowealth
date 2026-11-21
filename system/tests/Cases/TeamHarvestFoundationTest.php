@@ -83,6 +83,10 @@ $buildFoundation = static function () use (&$foundation, $buildStart, $migration
     /* Phase 22A appends 026 to the same chain: a fresh install now carries
      * the three Product binary tables and the extended ledger enum. */
     test_run_sql_file($pdo, $migrationDir . '026_product_binary.sql');
+    /* Phase 23A appends 027 for the same reason: schema.sql now carries the
+     * package binary columns on packages/activations and the source/activation
+     * columns on binary_awards/binary_volume. */
+    test_run_sql_file($pdo, $migrationDir . '027_package_binary.sql');
     $foundation = $pdo;
 
     return $pdo;
