@@ -1,0 +1,13 @@
+QA22A-06 — The wallet statement filter names Product binary
+Evidence file: docs/qa/evidence/phase-22/QA22A-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the member wallet statement (/wallet) and the admin wallet monitor
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Product binary and Product binary reversal appear in both filter lists; selecting either returns no rows and total reads ₱0.00.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests (wallet filter coverage in existing test suite).
+Reason: Environment dependency — browser-based check.

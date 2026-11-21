@@ -1,0 +1,13 @@
+QA22D-02 — Volume rolls up to every binary upline
+Evidence file: docs/qa/evidence/phase-22/QA22D-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on the development copy
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: Volume rows: buyerA (own, left, 1000), c/b/a/boss/root (team, left, 1000); cached left_points equals sum of own+team left rows.
+Actual: Could not execute — requires MySQL client access. Covered by automated test P22D-T1 (volume at buyer + 5 ancestors — PASS).
+Reason: Environment dependency — MySQL client not available.

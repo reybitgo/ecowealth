@@ -1,0 +1,13 @@
+QA22H-06 — Readiness panel links to the health panel (read-only)
+Evidence file: docs/qa/evidence/phase-22/QA22H-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/settings → Commissions → Product binary readiness; then /admin/reports
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Readiness card ends with Open the health panel linking to /admin/reports; no button/link/form changes a setting.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22B-T19, P22H-T16 (PASS).
+Reason: Environment dependency — browser-based check.

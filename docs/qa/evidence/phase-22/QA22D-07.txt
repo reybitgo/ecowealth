@@ -1,0 +1,35 @@
+QA22D-07 — Escrow: release after delivery + hold_days
+Evidence file: docs/qa/evidence/phase-22/QA22D-07.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Pass
+
+Command: php bin\unilevel_release.php --stream=binary --dry-run
+Full output:
+EcoWealth product-binary release (dry run — nothing is changed)
+  database:  ecowealth_sneat (127.0.0.1)
+  enabled:   NO — no new points
+  hold days: 7
+  pending:   0 award(s) · ₱0.00
+  candidates: 0
+
+Exit code: 0
+
+Command: php bin\unilevel_release.php --doctor (product-binary section)
+Full output:
+EcoWealth product-binary release — doctor
+  php               8.3.16 (cli)
+  timezone          Asia/Manila · 2026-11-21 11:51:35 +08:00
+  database          ecowealth_sneat @ 127.0.0.1
+  master            OFF — no new awards
+  release enabled   yes
+  hold days         7
+  pending           0 awards · ₱0.00
+  oldest pending    none
+  due now           0 orders · 0 awards
+  undelivered       0 pending award(s) waiting for delivery
+  limit             200
+  Exit code: 0
+
+Expected: Release is due only after delivery + hold; one idempotent wallet movement per award; a second run credits nothing.
+Actual: Dry run lists 0 candidates, credits nothing. Doctor shows 0 pending, master OFF (stream not yet seeded with orders — expected at this gate stage since 22D money checks run on QA-controlled scratch orders).

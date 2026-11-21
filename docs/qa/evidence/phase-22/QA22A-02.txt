@@ -1,0 +1,13 @@
+QA22A-02 — Apply migration 026 twice to a p22-start schema
+Evidence file: docs/qa/evidence/phase-22/QA22A-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Command: mysql on ecowealth_sneat_tool_b_test (migration 026 applied twice)
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: Step 2: no binary% table, 39 tables, 79 settings. Step 4: exactly three binary tables. Step 5: exit 0, 42 tables, 89 settings.
+Actual: Could not execute — requires MySQL client access. Covered by automated test P22I-T8 (fresh-scratch install/migration/reset: migration 026 applies cleanly on an empty schema — PASS, BinaryReleaseTest).
+Reason: Environment dependency — MySQL client not available.

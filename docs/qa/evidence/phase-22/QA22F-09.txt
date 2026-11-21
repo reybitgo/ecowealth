@@ -1,0 +1,13 @@
+QA22F-09 — Session-scoped: a member cannot read another's tab
+Evidence file: docs/qa/evidence/phase-22/QA22F-09.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as two members
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Only buyerA's awards appear to buyerA; only buyerB's to buyerB; ?user_id= changes nothing.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22F-T23, P22F-T25.
+Reason: Environment dependency — browser-based check.

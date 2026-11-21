@@ -1,0 +1,13 @@
+QA22C-01 — Every registration creates exactly one legal node
+Evidence file: docs/qa/evidence/phase-22/QA22C-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member who may register another (/register, mode standard)
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Valid placement creates exactly one node atomically with the user insert; taken slot/cycle/bad side/ineligible upline refused with no member row left behind; sponsor tree unchanged.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22C-T2 (placeNew() places/refuses — PASS), P22C-T19 (typed upline/side creates one user and one node — PASS), and P22G-T17 (slot taken → register() refuses, no user, no node — PASS).
+Reason: Environment dependency — browser-based check.

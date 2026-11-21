@@ -1,0 +1,13 @@
+QA22C-08 — Depth and path are derived correctly
+Evidence file: docs/qa/evidence/phase-22/QA22C-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on the development copy (demo tree)
+Full output: (not captured — requires MySQL client access + demo tree)
+Exit code: not captured
+
+Expected: depth = parent.depth + 1 and path = parent.path || side for every non-root node; MAX_DEPTH (100) never exceeded.
+Actual: Could not execute — requires MySQL client access and demo tree on dev copy. Covered by automated tests P22C-T12 (ancestors — PASS), P22C-T15 (pathFor on 50-deep chain — PASS).
+Reason: Environment dependency — MySQL client not available.

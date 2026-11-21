@@ -1,0 +1,13 @@
+QA22G-08 — Keyboard and ARIA behaviour
+Evidence file: docs/qa/evidence/phase-22/QA22G-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: /genealogy?view=binary with a keyboard only
+Full output: (not captured — requires running browser with keyboard navigation)
+Exit code: not captured
+
+Expected: Tree fully keyboard-navigable with ARIA semantics; Tab/arrow keys move focus; Enter expands/collapses.
+Actual: Could not execute — requires Laragon app server and browser with keyboard navigation testing.
+Reason: Environment dependency — browser-based accessibility check.

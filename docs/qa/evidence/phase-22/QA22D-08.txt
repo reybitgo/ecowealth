@@ -1,0 +1,13 @@
+QA22D-08 — Cancellation reverses pending awards
+Evidence file: docs/qa/evidence/phase-22/QA22D-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin (cancel a paid order); SQL
+Full output: (not captured — requires running app + database)
+Exit code: not captured
+
+Expected: Pending cancellation moves no money; credited cancellation voided and clawed back; volume reverses at every node.
+Actual: Could not execute — requires running app and database. Covered by automated tests P22D-T61 through P22D-T68 (cancellation/reversal — all PASS).
+Reason: Environment dependency — requires running app and database.

@@ -1,0 +1,13 @@
+QA22G-01 — Server-rendered first paint works without JavaScript
+Evidence file: docs/qa/evidence/phase-22/QA22G-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as a member — /genealogy?view=binary with JS disabled
+Full output: (not captured — requires running browser with JS disabled)
+Exit code: not captured
+
+Expected: Tree/list renders without JS (nodes, sides, depths, links, no d3, no modal); re-enabling JS d3 explorer takes over.
+Actual: Could not execute — requires Laragon app server and browser with JS disabled. Covered by automated tests P22G-T3 (no-JS list — PASS), P22G-T29 (JS off: list, register link and controls all work — PASS).
+Reason: Environment dependency — browser-based check with JavaScript disabled.

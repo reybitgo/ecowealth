@@ -1,0 +1,13 @@
+QA22B-05 — The settings card: all nine keys, toggles, validation, audit
+Evidence file: docs/qa/evidence/phase-22/QA22B-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/settings → Commissions → Product binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Nine visible binary keys, master first; binary_ledger_since absent; pair size 0 refused; self above 100 or four decimals refused; preset saves; audit desk shows before/after.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22B-T6 through P22B-T11 (all PASS in BinarySettingsTest).
+Reason: Environment dependency — browser-based check.

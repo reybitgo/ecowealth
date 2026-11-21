@@ -79,7 +79,7 @@ Every check has the same shape:
 | **Why** | the phase rule or contract the check proves |
 | **Where** | the exact shell, URL or SQL client |
 | **Evidence** | the file name under `docs/qa/evidence/phase-22/` |
-| **Result** | `☐ Pass  ☐ Fail  ☐ Blocked` — replace the box |
+| **Result** | `☐ Pass  ☐ Fail  ☑ Blocked` — replace the box |
 
 A check that produces only counts is captured as a **text transcript**, pasted into its evidence file; a check that shows a browser screen is captured as a screenshot. Section A produces only text.
 
@@ -99,7 +99,7 @@ When a check says "Expected," compare what you see against every bullet. If anyt
 |---|---|
 | Where | PowerShell + `mysqldump` |
 | Evidence | `QA22A-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -120,7 +120,7 @@ Expected
 |---|---|
 | Where | `mysql` on `ecowealth_sneat_tool_b_test` |
 | Evidence | `QA22A-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -158,7 +158,7 @@ Expected
 |---|---|
 | Where | `mysql` on `ecowealth_sneat_tool_b_test` (or the migrated development copy) |
 | Evidence | `QA22A-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -178,7 +178,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/settings`, `/admin/products/{id}/edit`, `/wallet` |
 | Evidence | `QA22A-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -204,7 +204,7 @@ Expected
 |---|---|
 | Where | a scratch schema with the migrated code (run through the order/payment path, not the browser on the development copy) |
 | Evidence | `QA22A-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -225,7 +225,7 @@ Expected
 |---|---|
 | Where | the member wallet statement (`/wallet`) and the admin wallet monitor |
 | Evidence | `QA22A-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -246,7 +246,7 @@ Expected
 |---|---|
 | Where | PowerShell on `system/` |
 | Evidence | `QA22A-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -270,7 +270,7 @@ Expected
 |---|---|
 | Where | the reset console (`bin\db_reset.php`) on a scratch schema |
 | Evidence | `QA22A-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -291,7 +291,7 @@ Expected
 
 ---
 
-## 7. Section B — Phase 22B: Configuration and readiness (`QA22B-01` … `QA22B-09`)
+## 6. Section B — Phase 22B: Configuration and readiness (`QA22B-01` … `QA22B-09`)
 
 **Prerequisites.** Tag `p22a-foundation`; migration 026 applied to the development copy (39 → 42 tables, 79 → 89 settings); the app running. All of these checks are **read-only for money**: no binary award, volume or wallet row may be created in this section. Expected suite count for this section: **≥ 1,530** PHP cases and **278** smoke checks.
 
@@ -301,7 +301,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/products/{id}/edit` |
 | Evidence | `QA22B-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -324,7 +324,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/products/{id}/edit`, then `/admin/products` |
 | Evidence | `QA22B-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -344,7 +344,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/products/{id}/edit` |
 | Evidence | `QA22B-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -365,7 +365,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/products?binary=on` and `?binary=off` |
 | Evidence | `QA22B-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -386,7 +386,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/settings` → **Commissions** → *Product binary* |
 | Evidence | `QA22B-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -411,7 +411,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/settings` → **Commissions** → *Product binary readiness* |
 | Evidence | `QA22B-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -433,7 +433,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` + a member purchase; SQL on the development copy |
 | Evidence | `QA22B-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -454,7 +454,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/products/{id}/edit` with JS disabled |
 | Evidence | `QA22B-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -474,7 +474,7 @@ Expected
 |---|---|
 | Where | the running app as a member — `/shop/{id}`, `/checkout`, `/orders/{id}`, `/earnings`, `/genealogy` |
 | Evidence | `QA22B-09.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -487,7 +487,9 @@ Expected
 - No binary copy appears on any member page.
 - No binary award or volume row exists.
 
-## 10. Section C — Phase 22C: Placement, the tree and registration (`QA22C-01` … `QA22C-10`)
+---
+
+## 7. Section C — Phase 22C: Placement, the tree and registration (`QA22C-01` … `QA22C-10`)
 
 **Prerequisites.** Tag `p22b-configuration`; migration 026 applied to the development copy (42 tables, 89 settings); the app running. None of these checks writes money: no `binary_volume` or `binary_awards` row may be created in this section, and no award or wallet movement exists yet (the money engine is 22D). Expected suite count for this section: **≥ 1,576** PHP cases and **≈284** smoke checks.
 
@@ -497,7 +499,7 @@ Expected
 |---|---|
 | Where | the running app as a member who may register another (`/register`, mode `standard`) |
 | Evidence | `QA22C-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -519,7 +521,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/members/{id}` (placement panel) and SQL |
 | Evidence | `QA22C-02.txt`, `QA22C-02-audit.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -541,7 +543,7 @@ Expected
 |---|---|
 | Where | `system/bin/binary_place_tree.php` on a scratch schema |
 | Evidence | `QA22C-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -562,7 +564,7 @@ Expected
 |---|---|
 | Where | SQL on the development copy |
 | Evidence | `QA22C-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -581,7 +583,7 @@ Expected
 |---|---|
 | Where | SQL on the development copy |
 | Evidence | `QA22C-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -599,7 +601,7 @@ Expected
 |---|---|
 | Where | SQL on a scratch schema |
 | Evidence | `QA22C-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -619,7 +621,7 @@ Expected
 |---|---|
 | Where | SQL on the development copy |
 | Evidence | `QA22C-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -636,7 +638,7 @@ Expected
 |---|---|
 | Where | SQL on the development copy (demo tree) |
 | Evidence | `QA22C-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -653,7 +655,7 @@ Expected
 |---|---|
 | Where | the running app + SQL on a scratch schema |
 | Evidence | `QA22C-09.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -671,7 +673,7 @@ Expected
 |---|---|
 | Where | the running app as a member — `/genealogy` and `/genealogy?view=binary` |
 | Evidence | `QA22C-10.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -684,7 +686,7 @@ Expected
 
 ---
 
-## 11. Section D — Phase 22D: Money engine (`QA22D-01` … `QA22D-12`)
+## 8. Section D — Phase 22D: Money engine (`QA22D-01` … `QA22D-12`)
 
 **Prerequisites.** Tag `p22c-placement`; migration 026 applied; the stream on at the preset; products flagged; placed members and the demo tree present on the development copy; the app running. **This is the only phase that moves money.** Every check runs on a scratch schema or against QA-controlled orders — never against production member balances. Expected suite count for this section: **≥ 1,650** PHP cases and **≈288** smoke checks.
 
@@ -694,7 +696,7 @@ Expected
 |---|---|
 | Where | the running app as `buyerA`; SQL on the development copy |
 | Evidence | `QA22D-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -714,7 +716,7 @@ Expected
 |---|---|
 | Where | SQL on the development copy |
 | Evidence | `QA22D-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -732,7 +734,7 @@ Expected
 |---|---|
 | Where | the running app as `buyerB`; SQL |
 | Evidence | `QA22D-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -752,7 +754,7 @@ Expected
 |---|---|
 | Where | SQL + the running app |
 | Evidence | `QA22D-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -770,7 +772,7 @@ Expected
 |---|---|
 | Where | SQL on a scratch schema |
 | Evidence | `QA22D-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -789,7 +791,7 @@ Expected
 |---|---|
 | Where | SQL on a scratch schema |
 | Evidence | `QA22D-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -807,7 +809,7 @@ Expected
 |---|---|
 | Where | `system/bin/unilevel_release.php --stream=binary` on a scratch schema |
 | Evidence | `QA22D-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -827,7 +829,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` (cancel a paid order); SQL |
 | Evidence | `QA22D-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -845,7 +847,7 @@ Expected
 |---|---|
 | Where | SQL on a scratch schema |
 | Evidence | `QA22D-09.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -863,7 +865,7 @@ Expected
 |---|---|
 | Where | the running app + SQL |
 | Evidence | `QA22D-10.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -882,7 +884,7 @@ Expected
 |---|---|
 | Where | SQL on the development copy |
 | Evidence | `QA22D-11.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -899,7 +901,7 @@ Expected
 |---|---|
 | Where | `system/bin/binary_audit.php --check` + SQL |
 | Evidence | `QA22D-12.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -917,360 +919,13 @@ Expected
 
 **Prerequisites.** Tag `p22e-admin`; migration 026 applied; the app running. All checks in this section are **read-only**: no award, volume, node or wallet row is created or modified. Expected suite count for this section: **≥ 1,668** PHP cases and **≈298** smoke checks.
 
----
-
-## 12. Section G — Phase 22G: The binary genealogy tree (`QA22G-01` … `QA22G-12`)
-
-**Prerequisites.** Tag `p22g-tree`; migration 026 applied; the demo tree present; the app running. All checks are **read-only for money**: no award, volume, node or wallet row is created here. Expected suite count for this section: **≥ 1,722** PHP cases and **≈298** smoke checks.
-
-### QA22G-01 — Server-rendered first paint works without JavaScript
-
-| Why | §11.1 / D-19: `/genealogy?view=binary` renders a semantic list and links without JS; the no-JS fallback is the usable page. |
-|---|---|
-| Where | the running app as a member — `/genealogy?view=binary` with JS disabled |
-| Evidence | `QA22G-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Disable JavaScript; open `/genealogy?view=binary`.
-2. Confirm the tree/list renders: nodes, sides, depths, links; no d3, no modal.
-3. Re-enable JavaScript; reload: confirm the d3 explorer takes over.
-
-Expected
-
-- First paint works without JS; the explorer enhances, never replaces, the server-rendered page.
-
-### QA22G-02 — d3 layout: expand/collapse, zoom, fit, search, breadcrumb
-
-| Why | §11.1–11.5: the vendored d3 v7 explorer renders server data and all controls preserve the access boundary. |
-|---|---|
-| Where | the running app — `/genealogy?view=binary` |
-| Evidence | `QA22G-02.png` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Expand/collapse a branch; confirm children appear/disappear.
-2. Zoom and fit; confirm the view scales and recenters.
-3. Search for a member; confirm only matching nodes highlight.
-4. Focus a node; confirm the breadcrumb shows the path to root.
-5. Confirm no CDN: the d3 script is served from `public/assets/`.
-
-Expected
-
-- All controls work; the d3 asset is vendored with its licence; no external network call.
-
-### QA22G-03 — Node cards carry points, pairs and today's pairs
-
-| Why | §11.2: node cards show left/right points, pairs paid and today's pairs (replacing the reference's `left_count`/`right_count`). |
-|---|---|
-| Where | `/genealogy?view=binary` on a node with volume |
-| Evidence | `QA22G-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Open a node card that has placed points: confirm left pts, right pts, pairs paid, pairs today.
-2. Confirm the numbers match `binary_nodes` cached balances and `binary_volume`.
-
-Expected
-
-- Node cards display cached points and pairs, always traceable to the ledger.
-
-### QA22G-04 — Lazy subtree loading and URL deep-link state
-
-| Why | §11.4: one query per expanded branch, capped; `?view=binary&root=&focus=` deep-links; ETag scoping. |
-|---|---|
-| Where | the running app + browser DevTools Network |
-| Evidence | `QA22G-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Expand a deep branch; confirm exactly one JSON request per new branch.
-2. Open `?view=binary&focus=<member>`; confirm that member's card is centred and the breadcrumb renders.
-3. Confirm the JSON response is privacy-scoped (no ancestor outside the viewer's subtree).
-
-Expected
-
-- Lazy loading is bounded and server-authoritative; deep links focus the right node.
-
-### QA22G-05 — In-node registration modal registers into a free slot
-
-| Why | D-26 / 22G-S4: the `+` on an empty slot opens the modal; submit goes through `register.php` / `RegistrationService` only; the first valid registration wins the slot. |
-|---|---|
-| Where | the running app as `admin` — `/genealogy?view=binary`, click `+` on an empty slot |
-| Evidence | `QA22G-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Click `+` on an empty slot under `juan`, left.
-2. Fill the registration form (username, email, password, terms) and submit.
-3. Confirm the new member exists with `binary_nodes.upline_id = juan`, `side = 'left'`.
-4. Try to register a second member into the same slot: confirm refusal (slot taken).
-
-Expected
-
-- Legal slot registration works through the canonical service; a concurrent slot winner is a normal field error.
-
-### QA22G-06 — No-JS register link and invite links
-
-| Why | D-26: the invite link (`/register?ref=…&upline=…&side=…`) is a hint; the first valid registration wins; no slot reservation. |
-|---|---|
-| Where | the running app |
-| Evidence | `QA22G-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Copy an invite link from a node card; open it with JS disabled.
-2. Confirm the registration form pre-fills the upline and side.
-3. Submit; confirm the member is placed in that slot.
-
-Expected
-
-- The no-JS link works; the slot goes to the first valid registrant, never reserved.
-
-### QA22G-07 — Live refresh preserves pan/zoom state
-
-| Why | §11.1: live refresh updates the tree without losing the user's pan/zoom/focus. |
-|---|---|
-| Where | the running app — `/genealogy?view=binary` |
-| Evidence | `QA22G-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Expand a branch, zoom, focus a node.
-2. Trigger live refresh (the app's Live revision system).
-3. Confirm pan/zoom/focus are preserved after refresh.
-
-Expected
-
-- State survives live refresh; no full-page reload.
-
-### QA22G-08 — Keyboard and ARIA behaviour
-
-| Why | §17.4–17.6: ARIA tree semantics, keyboard navigation, reduced motion. |
-|---|---|
-| Where | `/genealogy?view=binary` with a keyboard only |
-| Evidence | `QA22G-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Navigate the tree with Tab / arrow keys; confirm focus moves between nodes.
-2. Activate a node with Enter; confirm expand/collapse.
-3. Confirm ARIA labels announce node role, side and points.
-
-Expected
-
-- The tree is fully keyboard-navigable with ARIA semantics.
-
-### QA22G-09 — Responsive and compact mode
-
-| Why | §11.1: `viewBox` + container sizing; compact list mode for narrow screens; print list. |
-|---|---|
-| Where | `/genealogy?view=binary` at 1440×900 and 390×844 |
-| Evidence | `QA22G-09.png` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Screenshot at desktop: nodes side by side, controls visible.
-2. Screenshot at mobile: cards stack, compact mode, no horizontal scroll.
-3. Confirm every number remains legible at both widths.
-
-Expected
-
-- Responsive by container size; compact mode on narrow screens; printable list.
-
-### QA22G-10 — Search respects privacy
-
-| Why | §17.4: the search never surfaces a member outside the viewer's subtree. |
-|---|---|
-| Where | `/genealogy?view=binary` |
-| Evidence | `QA22G-10.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Search for a member outside the viewer's subtree: confirm no result.
-2. Search for a member inside: confirm the result highlights.
-
-Expected
-
-- Privacy-scoped search; no hint of out-of-subtree members.
-
-### QA22G-11 — The sponsor view is byte-identical
-
-| Why | Rule 2 / D-19: `/genealogy` without `?view=binary` is unchanged. |
-|---|---|
-| Where | `/genealogy` as a member |
-| Evidence | `QA22G-11.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Open `/genealogy` (no `view=binary`): confirm the sponsor-only team chain, direct-recruits table and team-by-level grid render exactly as at `p22f-member`.
-2. Confirm no binary content leaked into the sponsor view.
-
-Expected
-
-- The sponsor view is byte-identical to the pre-22G release.
-
-### QA22G-12 — Performance and query budget
-
-| Why | §17.6: hard node/depth caps, lazy branches, indexed paths; a 2,000-node performance case. |
-|---|---|
-| Where | `system/bin/binary_place_tree.php` + `/genealogy?view=binary` on a large tree |
-| Evidence | `QA22G-12.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Seed a large tree (2,000 nodes) via `binary_place_tree.php`.
-2. Open the binary view: confirm first paint under budget and no runaway queries.
-3. Confirm depth and node caps hold.
-
-Expected
-
-- The tree stays usable at scale; caps enforced.
-
----
-
-## 13. Section I — Phase 22I: Release (`QA22I-01` … `QA22I-06`)
-
-**Prerequisites.** Tag `p22h-operations`; all nine phase tags cut; `APP_PHASE === 22`; the app running. Every check in this section verifies the release record, not behaviour — 22I changes no code path. Expected suite count: **1,734** PHP cases (the floor), **≈300** smoke checks.
-
-### QA22I-01 — The QA pack: sections A–H executed on the scratch database
-
-| Why | P22I-T6: sections A–H present; every `QA22X-nn` unique; the evidence index matches the files. |
-|---|---|
-| Where | `docs/qa/phase-22-product-binary.md` + `docs/qa/evidence/phase-22/` |
-| Evidence | `QA22I-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Confirm sections A, B, C, D, E, F, G, H exist in the pack, in order.
-2. Confirm every check id is unique (`QA22A-01`…`QA22I-06`, no duplicates).
-3. Confirm every `Evidence` row names a file that exists under `docs/qa/evidence/phase-22/`.
-4. Execute every check in sections A–H on the scratch database; record Pass/Fail/Blocked per check.
-
-Expected
-
-- All sections present, all ids unique, all evidence files exist; results recorded per check.
-
-### QA22I-02 — The acceptance run: Appendix B's 12 steps
-
-| Why | P22I-T9 / QA22I-02: the twelve steps pass on a scratch database built from `p21g-release` + the branch, executed by someone who did not implement the feature. |
-|---|---|
-| Where | scratch schema + the running app |
-| Evidence | `QA22I-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-Run Appendix B's 12 steps (migration + backfill; install parity; configuration; placement at registration; checkout position; payment and escrow; a pair; the tree; member page; admin pages; release; reversal and stop). Record each step's result.
-
-Expected
-
-- 12 / 12 steps pass; evidence committed for each step.
-
-### QA22I-03 — Docs copy-paste verification
-
-| Why | P22I-T7 / QA22I-03: every command in the docs runs; every key named in the docs exists in `settings`; every route named exists. |
-|---|---|
-| Where | `system/` + SQL + the running app |
-| Evidence | `QA22I-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. `php bin\unilevel_release.php --dry-run` → exit 0, lists due awards, credits nothing.
-2. `php bin\binary_audit.php --check` → exit 0.
-3. `php bin\binary_place_tree.php --check` → `0 written`, exit 0.
-4. `php bin\wallet_reconcile.php` → exit 0.
-5. `php bin\build_install_sql.php --check` → exit 0, no output.
-6. `SELECT key_name FROM settings WHERE key_name LIKE 'binary\_%';` → exactly the ten keys named in the docs.
-7. Confirm the one placement route (`POST /admin/members/{id}/placement`) is registered.
-
-Expected
-
-- Every documented command exits 0; every documented setting key exists; the one new route exists.
-
-### QA22I-04 — Badges and phase: footer/sidebar reads 22
-
-| Why | P22I-T1 / QA22I-04: `APP_PHASE` is 22; the phase badge renders 22 on settings and reports. |
-|---|---|
-| Where | `/admin/settings`, `/admin/reports`, footer/sidebar |
-| Evidence | `QA22I-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Confirm `APP_PHASE === 22` in `system/app/config.php` and `HardeningTest`.
-2. Open `/admin/settings` → Commissions → Product binary: the phase badge reads 22.
-3. Open `/admin/reports`: the phase badge reads 22.
-
-Expected
-
-- `APP_PHASE` is 22 everywhere; the badge reads 22; `HardeningTest` is green.
-
-### QA22I-05 — The phase log: nine entries, counts, deviations, hand-off
-
-| Why | QA22I-05: `docs/phase-log.md` records all nine phases (22A–22I), the counts, the deviations and the hand-off. |
-|---|---|
-| Where | `docs/phase-log.md` |
-| Evidence | `QA22I-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Confirm nine phase-log entries exist (22A through 22I).
-2. Confirm each entry records its tag, dates, suite/smoke counts and deviations.
-3. Confirm the 22I release entry is filled.
-
-Expected
-
-- Nine complete entries; counts match the measured release values; deviations noted; hand-off recorded.
-
-### QA22I-06 — The sign-off sheet: every box ticked
-
-| Why | QA22I-06: the release owner signs the Phase 22 block; the decision is recorded. |
-|---|---|
-| Where | `docs/qa/sign-off-sheet.md` |
-| Evidence | `QA22I-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
-
-Steps
-
-1. Confirm the Phase 22 block exists in the sign-off sheet.
-2. Confirm every check row is ticked (Pass/Fail/Blocked recorded).
-3. Confirm the Final decision is ticked (Approved / Approved with notes / Rejected).
-
-Expected
-
-- The Phase 22 block is complete and signed.
-
----
-
-## 6. Cleanup
-
-Section A creates no members, no QA rows and no money. If `QA22A-05` was run on a scratch schema, drop that schema or leave it — it is disposable. Nothing on the development copy changes. Sections B–I likewise create no lasting QA data on the development copy; every money-carrying check runs on a scratch schema.
-
-**Prerequisites.** Tag `p22d-money` (the Phase 22D release gate); migration 026 applied; the Product binary awards of QA22D-01 … QA22D-03 present on the development copy; the app running. All of these checks are **read-only for money**: no controller, model or view in this phase writes an award, a volume row, a node balance or a wallet row (Rule 1). Expected suite count for this section: **≥ 1,668** PHP cases and **278** smoke checks.
-
 ### QA22E-01 — The binary ledger shows credited and pending awards
 
 | Why | P22E-T1, P22E-T2, P22E-T3: the binary ledger tab renders its header counters, its award rows and its empty state. |
 |---|---|
 | Where | the running app as `admin` — `/admin/commissions?ledger=binary` |
 | Evidence | `QA22E-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1292,7 +947,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — `/admin/commissions?ledger=binary&kind=pair`, then `&side=right` |
 | Evidence | `QA22E-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1314,7 +969,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — cancel a paid order, then reload `/admin/commissions?ledger=binary` |
 | Evidence | `QA22E-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1335,7 +990,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — click a binary ledger row's order link, then its wallet link |
 | Evidence | `QA22E-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1356,7 +1011,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — Export CSV on `/admin/commissions?ledger=binary` (or `/admin/reports?type=binary`) |
 | Evidence | `QA22E-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1377,7 +1032,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — open a `payment_review` order and an order paid before 22D |
 | Evidence | `QA22E-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1397,7 +1052,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — `/admin/reports` and the admin dashboard |
 | Evidence | `QA22E-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1419,7 +1074,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — `/admin/members/{id}` for a placed member and for a member with no node |
 | Evidence | `QA22E-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1439,7 +1094,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — `/admin/commissions` with `ledger=repeat_purchase` and `ledger=royalty` |
 | Evidence | `QA22E-09.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1453,7 +1108,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 
 ---
 
-## 9. Section F — Phase 22F: Member visibility (`QA22F-01` … `QA22F-10`)
+## 10. Section F — Phase 22F: Member visibility (`QA22F-01` … `QA22F-10`)
 
 **Prerequisites.** Tag `p22e-admin` (the Phase 22E release gate); migration 026 applied; the Product binary awards of QA22D-01 … QA22D-03 present on the development copy; the app running. All of these checks are **read-only for money**: no controller, model or view in this phase writes an award, a volume row, a node balance or a wallet row. Expected suite count for this section: **≥ 1,694** PHP cases and **278** smoke checks.
 
@@ -1463,7 +1118,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/earnings?ledger=binary` |
 | Evidence | `QA22F-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1486,7 +1141,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/earnings?ledger=binary` |
 | Evidence | `QA22F-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1509,7 +1164,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/earnings?ledger=binary&left_page=2&left_per_page=5` |
 | Evidence | `QA22F-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1530,7 +1185,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/earnings?ledger=binary` at 1440×900 and 390×844 |
 | Evidence | `QA22F-04.png` (screenshots) |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1547,11 +1202,11 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 
 ### QA22F-05 — Copy guard: no upline, sponsor, Team chain, level
 
-| Why | P22F-T6 (D-22): the binary tab names no ancestor, no upline, no sponsor, no *Team chain*, no *level*. |
+| Why | P22F-T6 (D-22): the binary tab names no ancestor, no upline, no sponsor, no *Team chain*, no *Level N*. |
 |---|---|
 | Where | the running app as a member — `/earnings?ledger=binary` |
 | Evidence | `QA22F-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1571,7 +1226,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/checkout` with a points-bearing cart |
 | Evidence | `QA22F-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1593,7 +1248,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/orders/{id}` |
 | Evidence | `QA22F-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1613,7 +1268,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as a member — `/dashboard` and `/shop/{id}` |
 | Evidence | `QA22F-08.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1634,7 +1289,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as two members |
 | Evidence | `QA22F-09.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1654,7 +1309,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` (Settings) and as a member |
 | Evidence | `QA22F-10.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 **Steps**
 
@@ -1669,7 +1324,229 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 
 ---
 
-## 8. Section H — Phase 22H: Operations (`QA22H-01` … `QA22H-07`)
+## 11. Section G — Phase 22G: The binary genealogy tree (`QA22G-01` … `QA22G-12`)
+
+**Prerequisites.** Tag `p22g-tree`; migration 026 applied; the demo tree present; the app running. All checks are **read-only for money**: no award, volume, node or wallet row is created here. Expected suite count for this section: **≥ 1,722** PHP cases and **≈298** smoke checks.
+
+### QA22G-01 — Server-rendered first paint works without JavaScript
+
+| Why | §11.1 / D-19: `/genealogy?view=binary` renders a semantic list and links without JS; the no-JS fallback is the usable page. |
+|---|---|
+| Where | the running app as a member — `/genealogy?view=binary` with JS disabled |
+| Evidence | `QA22G-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Disable JavaScript; open `/genealogy?view=binary`.
+2. Confirm the tree/list renders: nodes, sides, depths, links; no d3, no modal.
+3. Re-enable JavaScript; reload: confirm the d3 explorer takes over.
+
+Expected
+
+- First paint works without JS; the explorer enhances, never replaces, the server-rendered page.
+
+### QA22G-02 — d3 layout: expand/collapse, zoom, fit, search, breadcrumb
+
+| Why | §11.1–11.5: the vendored d3 v7 explorer renders server data and all controls preserve the access boundary. |
+|---|---|
+| Where | the running app — `/genealogy?view=binary` |
+| Evidence | `QA22G-02.png` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Expand/collapse a branch; confirm children appear/disappear.
+2. Zoom and fit; confirm the view scales and recenters.
+3. Search for a member; confirm only matching nodes highlight.
+4. Focus a node; confirm the breadcrumb shows the path to root.
+5. Confirm no CDN: the d3 script is served from `public/assets/`.
+
+Expected
+
+- All controls work; the d3 asset is vendored with its licence; no external network call.
+
+### QA22G-03 — Node cards carry points, pairs and today's pairs
+
+| Why | §11.2: node cards show left/right points, pairs paid and today's pairs (replacing the reference's `left_count`/`right_count`). |
+|---|---|
+| Where | `/genealogy?view=binary` on a node with volume |
+| Evidence | `QA22G-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Open a node card that has placed points: confirm left pts, right pts, pairs paid, pairs today.
+2. Confirm the numbers match `binary_nodes` cached balances and `binary_volume`.
+
+Expected
+
+- Node cards display cached points and pairs, always traceable to the ledger.
+
+### QA22G-04 — Lazy subtree loading and URL deep-link state
+
+| Why | §11.4: one query per expanded branch, capped; `?view=binary&root=&focus=` deep-links; ETag scoping. |
+|---|---|
+| Where | the running app + browser DevTools Network |
+| Evidence | `QA22G-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Expand a deep branch; confirm exactly one JSON request per new branch.
+2. Open `?view=binary&focus=<member>`; confirm that member's card is centred and the breadcrumb renders.
+3. Confirm the JSON response is privacy-scoped (no ancestor outside the viewer's subtree).
+
+Expected
+
+- Lazy loading is bounded and server-authoritative; deep links focus the right node.
+
+### QA22G-05 — In-node registration modal registers into a free slot
+
+| Why | D-26 / 22G-S4: the `+` on an empty slot opens the modal; submit goes through `register.php` / `RegistrationService` only; the first valid registration wins the slot. |
+|---|---|
+| Where | the running app as `admin` — `/genealogy?view=binary`, click `+` on an empty slot |
+| Evidence | `QA22G-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Click `+` on an empty slot under `juan`, left.
+2. Fill the registration form (username, email, password, terms) and submit.
+3. Confirm the new member exists with `binary_nodes.upline_id = juan`, `side = 'left'`.
+4. Try to register a second member into the same slot: confirm refusal (slot taken).
+
+Expected
+
+- Legal slot registration works through the canonical service; a concurrent slot winner is a normal field error.
+
+### QA22G-06 — No-JS register link and invite links
+
+| Why | D-26: the invite link (`/register?ref=…&upline=…&side=…`) is a hint; the first valid registration wins; no slot reservation. |
+|---|---|
+| Where | the running app |
+| Evidence | `QA22G-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Copy an invite link from a node card; open it with JS disabled.
+2. Confirm the registration form pre-fills the upline and side.
+3. Submit; confirm the member is placed in that slot.
+
+Expected
+
+- The no-JS link works; the slot goes to the first valid registrant, never reserved.
+
+### QA22G-07 — Live refresh preserves pan/zoom state
+
+| Why | §11.1: live refresh updates the tree without losing the user's pan/zoom/focus. |
+|---|---|
+| Where | the running app — `/genealogy?view=binary` |
+| Evidence | `QA22G-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Expand a branch, zoom, focus a node.
+2. Trigger live refresh (the app's Live revision system).
+3. Confirm pan/zoom/focus are preserved after refresh.
+
+Expected
+
+- State survives live refresh; no full-page reload.
+
+### QA22G-08 — Keyboard and ARIA behaviour
+
+| Why | §17.4–17.6: ARIA tree semantics, keyboard navigation, reduced motion. |
+|---|---|
+| Where | `/genealogy?view=binary` with a keyboard only |
+| Evidence | `QA22G-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Navigate the tree with Tab / arrow keys; confirm focus moves between nodes.
+2. Activate a node with Enter; confirm expand/collapse.
+3. Confirm ARIA labels announce node role, side and points.
+
+Expected
+
+- The tree is fully keyboard-navigable with ARIA semantics.
+
+### QA22G-09 — Responsive and compact mode
+
+| Why | §11.1: `viewBox` + container sizing; compact list mode for narrow screens; print list. |
+|---|---|
+| Where | `/genealogy?view=binary` at 1440×900 and 390×844 |
+| Evidence | `QA22G-09.png` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Screenshot at desktop: nodes side by side, controls visible.
+2. Screenshot at mobile: cards stack, compact mode, no horizontal scroll.
+3. Confirm every number remains legible at both widths.
+
+Expected
+
+- Responsive by container size; compact mode on narrow screens; printable list.
+
+### QA22G-10 — Search respects privacy
+
+| Why | §17.4: the search never surfaces a member outside the viewer's subtree. |
+|---|---|
+| Where | `/genealogy?view=binary` |
+| Evidence | `QA22G-10.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Search for a member outside the viewer's subtree: confirm no result.
+2. Search for a member inside: confirm the result highlights.
+
+Expected
+
+- Privacy-scoped search; no hint of out-of-subtree members.
+
+### QA22G-11 — The sponsor view is byte-identical
+
+| Why | Rule 2 / D-19: `/genealogy` without `?view=binary` is unchanged. |
+|---|---|
+| Where | `/genealogy` as a member |
+| Evidence | `QA22G-11.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Open `/genealogy` (no `view=binary`): confirm the sponsor-only team chain, direct-recruits table and team-by-level grid render exactly as at `p22f-member`.
+2. Confirm no binary content leaked into the sponsor view.
+
+Expected
+
+- The sponsor view is byte-identical to the pre-22G release.
+
+### QA22G-12 — Performance and query budget
+
+| Why | §17.6: hard node/depth caps, lazy branches, indexed paths; a 2,000-node performance case. |
+|---|---|
+| Where | `system/bin/binary_place_tree.php` + `/genealogy?view=binary` on a large tree |
+| Evidence | `QA22G-12.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Seed a large tree (2,000 nodes) via `binary_place_tree.php`.
+2. Open the binary view: confirm first paint under budget and no runaway queries.
+3. Confirm depth and node caps hold.
+
+Expected
+
+- The tree stays usable at scale; caps enforced.
+
+---
+
+## 12. Section H — Phase 22H: Operations (`QA22H-01` … `QA22H-07`)
 
 **Prerequisites.** Tag `p22g-release` (the Phase 22G release gate); migration 026 applied to the development copy (42 tables, 89 settings); the app running. Every check in this section is **read-only for money**: no binary award, volume, node or wallet row may be created here. Expected suite count for this section: **≥ 1,720** PHP cases and **278** smoke checks.
 
@@ -1681,7 +1558,7 @@ Section A creates no members, no QA rows and no money. If `QA22A-05` was run on 
 |---|---|
 | Where | the running app as `admin` — `/admin/reports` (Health card) |
 | Evidence | `QA22H-01.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -1701,7 +1578,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/reports`, plus SQL on the development copy |
 | Evidence | `QA22H-02.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -1723,7 +1600,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/reports`; SQL + `system/bin/binary_audit.php` on a scratch schema |
 | Evidence | `QA22H-03.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -1743,7 +1620,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/reports`; SQL on the development copy |
 | Evidence | `QA22H-04.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -1763,7 +1640,7 @@ Expected
 |---|---|
 | Where | `system/storage/logs/unilevel_release-YYYY-MM.log` plus `system/bin/unilevel_release.php` on a scratch schema |
 | Evidence | `QA22H-05.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -1785,7 +1662,7 @@ Expected
 |---|---|
 | Where | the running app as `admin` — `/admin/settings` → Commissions → Product binary readiness; then `/admin/reports` |
 | Evidence | `QA22H-06.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
 
 Steps
 
@@ -1805,7 +1682,7 @@ Expected
 |---|---|
 | Where | `system/bin/unilevel_release.php` on a scratch schema; crontab / Task Scheduler |
 | Evidence | `QA22H-07.txt` |
-| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -1823,6 +1700,123 @@ Expected
 
 ---
 
-## 6. Cleanup
+## 13. Section I — Phase 22I: Release (`QA22I-01` … `QA22I-06`)
 
-Section A creates no members, no QA rows and no money. If `QA22A-05` was run on a scratch schema, drop that schema or leave it — it is disposable. Nothing on the development copy changes.
+**Prerequisites.** Tag `p22h-operations`; all nine phase tags cut; `APP_PHASE === 22`; the app running. Every check in this section verifies the release record, not behaviour — 22I changes no code path. Expected suite count: **1,734** PHP cases (the floor), **≈300** smoke checks.
+
+### QA22I-01 — The QA pack: sections A–H executed on the scratch database
+
+| Why | P22I-T6: sections A–H present; every `QA22X-nn` unique; the evidence index matches the files. |
+|---|---|
+| Where | `docs/qa/phase-22-product-binary.md` + `docs/qa/evidence/phase-22/` |
+| Evidence | `QA22I-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Confirm sections A, B, C, D, E, F, G, H exist in the pack, in order.
+2. Confirm every check id is unique (`QA22A-01`…`QA22I-06`, no duplicates).
+3. Confirm every `Evidence` row names a file that exists under `docs/qa/evidence/phase-22/`.
+4. Execute every check in sections A–H on the scratch database; record Pass/Fail/Blocked per check.
+
+Expected
+
+- All sections present, all ids unique, all evidence files exist; results recorded per check.
+
+### QA22I-02 — The acceptance run: Appendix B's 12 steps
+
+| Why | P22I-T9 / QA22I-02: the twelve steps pass on a scratch database built from `p21g-release` + the branch, executed by someone who did not implement the feature. |
+|---|---|
+| Where | scratch schema + the running app |
+| Evidence | `QA22I-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+Run Appendix B's 12 steps (migration + backfill; install parity; configuration; placement at registration; checkout position; payment and escrow; a pair; the tree; member page; admin pages; release; reversal and stop). Record each step's result.
+
+Expected
+
+- 12 / 12 steps pass; evidence committed for each step.
+
+### QA22I-03 — Docs copy-paste verification
+
+| Why | P22I-T7 / QA22I-03: every command in the docs runs; every key named in the docs exists in `settings`; every route named exists. |
+|---|---|
+| Where | `system/` + SQL + the running app |
+| Evidence | `QA22I-03.txt` |
+| Result | ☑ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\unilevel_release.php --dry-run` → exit 0, lists due awards, credits nothing.
+2. `php bin\binary_audit.php --check` → exit 0.
+3. `php bin\binary_place_tree.php --check` → `0 written`, exit 0.
+4. `php bin\wallet_reconcile.php` → exit 0.
+5. `php bin\build_install_sql.php --check` → exit 0, no output.
+6. `SELECT key_name FROM settings WHERE key_name LIKE 'binary\_%';` → exactly the ten keys named in the docs.
+7. Confirm the one placement route (`POST /admin/members/{id}/placement`) is registered.
+
+Expected
+
+- Every documented command exits 0; every documented setting key exists; the one new route exists.
+
+### QA22I-04 — Badges and phase: footer/sidebar reads 22
+
+| Why | P22I-T1 / QA22I-04: `APP_PHASE` is 22; the phase badge renders 22 on settings and reports. |
+|---|---|
+| Where | `/admin/settings`, `/admin/reports`, footer/sidebar |
+| Evidence | `QA22I-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Confirm `APP_PHASE === 22` in `system/app/config.php` and `HardeningTest`.
+2. Open `/admin/settings` → Commissions → Product binary: the phase badge reads 22.
+3. Open `/admin/reports`: the phase badge reads 22.
+
+Expected
+
+- `APP_PHASE` is 22 everywhere; the badge reads 22; `HardeningTest` is green.
+
+### QA22I-05 — The phase log: nine entries, counts, deviations, hand-off
+
+| Why | QA22I-05: `docs/phase-log.md` records all nine phases (22A–22I), the counts, the deviations and the hand-off. |
+|---|---|
+| Where | `docs/phase-log.md` |
+| Evidence | `QA22I-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Confirm nine phase-log entries exist (22A through 22I).
+2. Confirm each entry records its tag, dates, suite/smoke counts and deviations.
+3. Confirm the 22I release entry is filled.
+
+Expected
+
+- Nine complete entries; counts match the measured release values; deviations noted; hand-off recorded.
+
+### QA22I-06 — The sign-off sheet: every box ticked
+
+| Why | QA22I-06: the release owner signs the Phase 22 block; the decision is recorded. |
+|---|---|
+| Where | `docs/qa/sign-off-sheet.md` |
+| Evidence | `QA22I-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☑ Blocked |
+
+Steps
+
+1. Confirm the Phase 22 block exists in the sign-off sheet.
+2. Confirm every check row is ticked (Pass/Fail/Blocked recorded).
+3. Confirm the Final decision is ticked (Approved / Approved with notes / Rejected).
+
+Expected
+
+- The Phase 22 block is complete and signed.
+
+---
+
+## 14. Cleanup
+
+Section A creates no members, no QA rows and no money. If `QA22A-05` was run on a scratch schema, drop that schema or leave it — it is disposable. Nothing on the development copy changes. Sections B–I likewise create no lasting QA data on the development copy; every money-carrying check runs on a scratch schema.

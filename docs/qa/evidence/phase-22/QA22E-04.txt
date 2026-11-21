@@ -1,0 +1,13 @@
+QA22E-04 — Every row links to its order and its wallet movement
+Evidence file: docs/qa/evidence/phase-22/QA22E-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — click a binary ledger row's order link, then its wallet link
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Clicking order link opens /admin/orders/{id} with binary card; clicking wallet link opens the wallet movement.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22E-T8 (a paid, processed order shows position, points, self, pairs and order totals — PASS).
+Reason: Environment dependency — browser-based check.

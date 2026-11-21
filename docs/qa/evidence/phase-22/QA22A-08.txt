@@ -1,0 +1,13 @@
+QA22A-08 — A business reset empties the three binary tables and keeps the ten settings
+Evidence file: docs/qa/evidence/phase-22/QA22A-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the reset console (bin\db_reset.php) on a scratch schema
+Full output: (not captured — requires scratch database)
+Exit code: not captured
+
+Expected: Dry run plans product_binary step; reset reports ok; binary tables empty; 10 settings survive.
+Actual: Could not execute — requires scratch database. Covered by automated tests (migration/reset parity tested in P22I-T8 and BinaryReleaseTest).
+Reason: Environment dependency — requires scratch database.

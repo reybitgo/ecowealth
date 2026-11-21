@@ -1,0 +1,13 @@
+QA22G-10 — Search respects privacy
+Evidence file: docs/qa/evidence/phase-22/QA22G-10.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: /genealogy?view=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Search for member outside viewer's subtree returns no result; search inside highlights the result.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22G-T10 (search outside subtree returns nothing — PASS), P22G-T20 (search scoped to viewer's subtree — PASS).
+Reason: Environment dependency — browser-based check.

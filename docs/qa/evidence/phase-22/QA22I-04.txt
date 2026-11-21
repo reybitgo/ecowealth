@@ -1,0 +1,13 @@
+QA22I-04 — Badges and phase: footer/sidebar reads 22
+Evidence file: docs/qa/evidence/phase-22/QA22I-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: /admin/settings, /admin/reports, footer/sidebar
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: APP_PHASE === 22 in config and HardeningTest; phase badge reads 22 on settings and reports; HardeningTest green.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22I-T1 (APP_PHASE is 22 in config, the constant and HardeningTest — PASS).
+Reason: Environment dependency — browser-based check.

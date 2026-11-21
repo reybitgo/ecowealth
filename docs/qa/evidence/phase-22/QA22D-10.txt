@@ -1,0 +1,13 @@
+QA22D-10 — Stream off: a paid order writes zeros
+Evidence file: docs/qa/evidence/phase-22/QA22D-10.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app + SQL
+Full output: (not captured — requires running app + database)
+Exit code: not captured
+
+Expected: Order accepted normally; binary columns zeroed; no volume or award rows.
+Actual: Could not execute — requires running app and database. Covered by automated test P22D-T32 (global switch off → no self, no volume, no pair — PASS).
+Reason: Environment dependency — requires running app and database.

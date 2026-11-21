@@ -1,0 +1,13 @@
+QA22C-05 — Placement guard: sponsor-tree facts unchanged
+Evidence file: docs/qa/evidence/phase-22/QA22C-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on the development copy
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: sponsor_id byte-identical before and after binary placement; binary upline never becomes sponsor link.
+Actual: Could not execute — requires MySQL client access. Covered by automated test P22C-T19 (users.sponsor_id unchanged — PASS).
+Reason: Environment dependency — MySQL client not available.

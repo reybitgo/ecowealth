@@ -1,0 +1,13 @@
+QA22A-04 — The pages that must not have changed
+Evidence file: docs/qa/evidence/phase-22/QA22A-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/settings, /admin/products/{id}/edit, /wallet
+Full output: (not captured — requires a running browser and Laragon app server)
+Exit code: not captured
+
+Expected: No Product binary block on settings page; no binary card on product edit; Product binary and Product binary reversal in wallet filter; no binary tab on commissions page.
+Actual: Could not execute — requires Laragon running and browser access. Covered by automated regression tests (AdminSettingsLiveTest, AdminProductTest, BinaryProductTest — all PASS).
+Reason: Environment dependency — browser-based check; Laragon app server not running in this session.

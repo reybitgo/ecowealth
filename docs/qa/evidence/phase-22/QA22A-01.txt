@@ -1,0 +1,13 @@
+QA22A-01 — Back up the development copy and confirm it is at migration 025
+Evidence file: docs/qa/evidence/phase-22/QA22A-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Command: mysqldump -u ecowealth -p --single-transaction --routines --databases ecowealth_sneat
+Full output: (not captured — MySQL client not available in this agent session; the command requires interactive password and mysqldump binary)
+Exit code: not captured
+
+Expected: The dump exists, is non-empty and lives outside the repository; 39 tables and 79 settings; SHOW TABLES returns no row.
+Actual: Could not execute — requires MySQL client access and interactive password. R0 evidence (R0-counts.txt, R0-git-status.txt, R0-wallet-reconcile.txt) exists under docs/qa/evidence/phase-22/remediation/ from the Gate R0 baseline capture.
+Reason: Environment dependency — mysqldump not available in this execution context.

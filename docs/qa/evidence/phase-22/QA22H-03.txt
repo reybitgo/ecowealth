@@ -1,0 +1,13 @@
+QA22H-03 — Points: pass on a clean fixture, fail on drift, --fix repairs
+Evidence file: docs/qa/evidence/phase-22/QA22H-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/reports; SQL + system/bin/binary_audit.php on a scratch schema
+Full output: (not captured — requires running browser + scratch database)
+Exit code: not captured
+
+Expected: Points reads pass on clean fixture; fail on drift with --fix remedy; --fix repairs; re-check passes; zero money rows after --fix.
+Actual: Could not execute — requires running browser and scratch database. CLI audit on dev copy: exit 1 ([root_count] expected exactly one root node, found 0 — see QA22D-12). Covered by automated tests P22H-T8 through P22H-T13 (all PASS in BinaryAuditTest).
+Reason: Environment dependency — requires running browser and scratch database.

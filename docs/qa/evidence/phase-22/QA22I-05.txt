@@ -1,0 +1,13 @@
+QA22I-05 — The phase log: nine entries, counts, deviations, hand-off
+Evidence file: docs/qa/evidence/phase-22/QA22I-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: docs/phase-log.md
+Full output: (not captured — requires manual verification of phase-log entries)
+Exit code: not captured
+
+Expected: Nine phase-log entries (22A through 22I); each records tag, dates, suite/smoke counts, deviations; 22I release entry filled.
+Actual: Could not execute — requires manual verification of docs/phase-log.md. Gate R6 (documentation truth pass) will reconcile phase-log entries with measured counts.
+Reason: Requires manual verification; deferred to Gate R6.

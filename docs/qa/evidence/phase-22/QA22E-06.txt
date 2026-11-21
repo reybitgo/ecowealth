@@ -1,0 +1,13 @@
+QA22E-06 — An unpaid or pre-22D order places nothing
+Evidence file: docs/qa/evidence/phase-22/QA22E-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — open a payment_review order and an order paid before 22D
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: No award or volume row for these orders; card explains why.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22E-T9 through P22E-T11 (PASS).
+Reason: Environment dependency — browser-based check.

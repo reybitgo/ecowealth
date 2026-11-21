@@ -1,0 +1,13 @@
+QA22E-02 — Filters narrow the ledger; a bad value falls back
+Evidence file: docs/qa/evidence/phase-22/QA22E-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/commissions?ledger=binary&kind=pair, then &side=right
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Each filter narrows correctly; combined filters intersect; unknown kind/status/side/product_id/user_id/date means no filter.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22E-T4 (each filter narrows the ledger and a bad value falls back — PASS).
+Reason: Environment dependency — browser-based check.

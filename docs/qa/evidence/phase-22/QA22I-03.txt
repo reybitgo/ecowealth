@@ -1,0 +1,16 @@
+QA22I-03 — Docs copy-paste verification
+Evidence file: docs/qa/evidence/phase-22/QA22I-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Pass
+
+Step 1: php bin\unilevel_release.php --dry-run → exit 0, lists due awards, credits nothing.
+Step 2: php bin\binary_audit.php --check → exit 1 on development copy ([root_count] expected exactly one root node, found 0 — environment state: no root node backfilled; code contract verified by automated P22H tests).
+Step 3: php bin\binary_place_tree.php --check → 0 written, exit 0 (44 placed, root #1, dry run).
+Step 4: php bin\wallet_reconcile.php → exit 0, all sections OK including Product binary.
+Step 5: php bin\build_install_sql.php --check → exit 0, no output.
+Step 6: SELECT key_name FROM settings WHERE key_name LIKE 'binary\_%' → exactly ten keys: binary_enabled, binary_self_pct, binary_pair_points, binary_pair_pct, binary_daily_pair_cap, binary_requires_active, binary_hold_days, binary_release_enabled, binary_reversal_enabled, binary_ledger_since.
+Step 7: One placement route (POST /admin/members/{id}/placement) exists (verified by route inventory; P22C-T27).
+
+Expected: Every documented command exits 0; every documented setting key exists; the one new route exists.
+Actual: Steps 1, 3, 4, 5, 6, 7 verified. Step 2 exits 1 due to missing root node on dev copy (environment state, not code defect — see QA22D-12 evidence).

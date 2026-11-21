@@ -1,0 +1,13 @@
+QA22B-03 — Binary on with P.V. 0 is refused
+Evidence file: docs/qa/evidence/phase-22/QA22B-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/products/{id}/edit
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Field error "Give the product a P.V. or turn its binary switch off."; product row unchanged; same refusal with JS off.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22B-T2 (binary on with pv = 0 is refused on binary_enabled — PASS).
+Reason: Environment dependency — browser-based check.

@@ -1,0 +1,13 @@
+QA22G-02 — d3 layout: expand/collapse, zoom, fit, search, breadcrumb
+Evidence file: docs/qa/evidence/phase-22/QA22G-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app — /genealogy?view=binary
+Full output: (not captured — requires running browser with screenshot)
+Exit code: not captured
+
+Expected: All controls work; d3 asset vendored from public/assets/; no external network call. Evidence file QA22G-02.png not produced (screenshot required).
+Actual: Could not execute — requires Laragon app server and browser access.
+Reason: Environment dependency — browser-based screenshot check.

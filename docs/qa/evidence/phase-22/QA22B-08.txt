@@ -1,0 +1,13 @@
+QA22B-08 — The product form works without JavaScript
+Evidence file: docs/qa/evidence/phase-22/QA22B-08.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/products/{id}/edit with JS disabled
+Full output: (not captured — requires running browser with JS disabled)
+Exit code: not captured
+
+Expected: The form saves and validates without JavaScript; only the live points readout is missing.
+Actual: Could not execute — requires Laragon app server and browser with JS disabled. Covered by automated test P22B-T16 (product form after a validation error keeps the typed values — PASS).
+Reason: Environment dependency — browser-based check with JavaScript disabled.

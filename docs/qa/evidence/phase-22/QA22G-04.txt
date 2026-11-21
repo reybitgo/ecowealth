@@ -1,0 +1,13 @@
+QA22G-04 — Lazy subtree loading and URL deep-link state
+Evidence file: docs/qa/evidence/phase-22/QA22G-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app + browser DevTools Network
+Full output: (not captured — requires running browser with DevTools)
+Exit code: not captured
+
+Expected: Exactly one JSON request per new branch; deep links focus the right node; JSON response is privacy-scoped.
+Actual: Could not execute — requires Laragon app server and browser with DevTools. Covered by automated tests P22G-T34 (first payload bounded on large tree — PASS), P22G-T8 (If-None-Match returns 304 — PASS).
+Reason: Environment dependency — browser-based network check.

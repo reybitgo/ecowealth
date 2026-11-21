@@ -1,0 +1,13 @@
+QA22C-06 — Slot uniqueness and check constraints
+Evidence file: docs/qa/evidence/phase-22/QA22C-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on a scratch schema
+Full output: (not captured — requires scratch database)
+Exit code: not captured
+
+Expected: Duplicate (upline_id, side) → PDOException 23000; NULL upline/side → check constraint fails; self-parent → check constraint fails; pair row without award_id → check constraint fails; negative own points → check constraint fails.
+Actual: Could not execute — requires scratch database. Covered by automated tests (schema constraint coverage in migration tests).
+Reason: Environment dependency — requires scratch database.

@@ -1,0 +1,13 @@
+QA22I-01 — The QA pack: sections A–H executed on the scratch database
+Evidence file: docs/qa/evidence/phase-22/QA22I-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: docs/qa/phase-22-product-binary.md + docs/qa/evidence/phase-22/
+Full output: (not captured — requires manual execution of all 77 checks in sections A–H)
+Exit code: not captured
+
+Expected: All sections A–H present in order; every check id unique; every Evidence row names a file under docs/qa/evidence/phase-22/; all checks executed and results recorded.
+Actual: QA pack structure repaired (sections A→B→C→D→E→F→G→H→I→Cleanup; headings numbered 5–14; Section E heading added; duplicate Cleanup removed). All 83 evidence files created (6 Pass, 77 Blocked pending manual execution). See QA pack §13 and this evidence index for per-check results.
+Reason: Requires manual execution by an independent tester against a running app and scratch database.

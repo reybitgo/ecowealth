@@ -1,0 +1,13 @@
+QA22B-02 — Flag a product and save; the switch persists
+Evidence file: docs/qa/evidence/phase-22/QA22B-02.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/products/{id}/edit, then /admin/products
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Switch on after re-open; badge reads Binary 250 pts; self/pair sentence names global preset.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22B-T1 (PASS) and P22B-T12 (badge reads Binary 250 pts — PASS).
+Reason: Environment dependency — browser-based check.

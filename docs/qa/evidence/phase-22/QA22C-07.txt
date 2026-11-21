@@ -1,0 +1,13 @@
+QA22C-07 — The root is the company account and is never paid
+Evidence file: docs/qa/evidence/phase-22/QA22C-07.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: SQL on the development copy
+Full output: (not captured — requires MySQL client access)
+Exit code: not captured
+
+Expected: Exactly one root node (upline_id IS NULL, side IS NULL, user_id = primary admin); no binary_volume or binary_awards row names the root as recipient.
+Actual: Could not execute — requires MySQL client access. binary_audit --check reports [root_count] expected exactly one root node, found 0 on dev copy (root not yet backfilled — see QA22D-12 evidence).
+Reason: Environment dependency — MySQL client not available; root node not backfilled on dev copy.

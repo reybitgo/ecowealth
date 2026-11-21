@@ -1,0 +1,13 @@
+QA22H-04 — Escrow: pending count, worth and oldest age
+Evidence file: docs/qa/evidence/phase-22/QA22H-04.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/reports; SQL on the development copy
+Full output: (not captured — requires running browser + database)
+Exit code: not captured
+
+Expected: Escrow reads pass with zero pending; warn names pending award count/amount/oldest age and release-job remedy.
+Actual: Could not execute — requires Laragon app server and database access. Covered by automated tests P22H-T14 (health pack — PASS).
+Reason: Environment dependency — requires running browser and database.

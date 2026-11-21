@@ -1,0 +1,13 @@
+QA22E-05 — The filtered CSV matches the screen
+Evidence file: docs/qa/evidence/phase-22/QA22E-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — Export CSV on /admin/commissions?ledger=binary
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: CSV columns match the screen; one row per filtered award; values agree with the screen; audit row records the filters.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22E-T7 (CSV export matches the screen and writes binary.export audit — PASS).
+Reason: Environment dependency — browser-based check.

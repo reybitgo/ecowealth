@@ -1,0 +1,13 @@
+QA22I-06 — The sign-off sheet: every box ticked
+Evidence file: docs/qa/evidence/phase-22/QA22I-06.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: docs/qa/sign-off-sheet.md
+Full output: (not captured — requires project-lead countersignature)
+Exit code: not captured
+
+Expected: Phase 22 block exists; every check row ticked (Pass/Fail/Blocked); Final decision ticked; project-lead row signed (Name | Signature | Date).
+Actual: Could not execute — requires project-lead countersignature (human). Sign-off sheet Phase 22 block updated with real results (see docs/qa/sign-off-sheet.md). Project-lead signature row is pending.
+Reason: Requires project-lead countersignature — cannot be completed by the implementing agent.

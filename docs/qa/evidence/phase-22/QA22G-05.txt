@@ -1,0 +1,13 @@
+QA22G-05 — In-node registration modal registers into a free slot
+Evidence file: docs/qa/evidence/phase-22/QA22G-05.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /genealogy?view=binary, click + on an empty slot
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Legal slot registration works through canonical service; concurrent slot winner is a normal field error.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22G-T13 through P22G-T16 (in-node registration — PASS).
+Reason: Environment dependency — browser-based check.

@@ -1,0 +1,37 @@
+QA22D-12 — totalsFor(), reconcile() and the engine-level audit
+Evidence file: docs/qa/evidence/phase-22/QA22D-12.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Command: php bin\binary_audit.php --check
+Full output:
+EcoWealth product-binary points audit — checked
+  php             8.3.16 (cli)
+  timezone        Asia/Manila · 2026-11-21 11:51:27 +08:00
+  database        ecowealth_sneat @ 127.0.0.1
+  db now          2026-11-21 11:51:27
+  ok              NO — 1 drift(s)
+  drift count     1
+  warning count   0
+  node            all
+  limit           200
+    [root_count] expected exactly one root node, found 0
+  exit:      1
+  duration:  107ms
+
+Exit code: 1
+
+Expected: php bin\binary_audit.php --check → exit 0; every cached node balance equals the ledger.
+Actual: exit 1 — [root_count] expected exactly one root node, found 0.
+Reason: The development copy has the binary tables (migration 026 applied) but no root node has been backfilled onto it. This is an environment state issue, not a code defect. The backfill tool (`binary_place_tree.php --apply`) builds the root + demo tree; see QA22C-03 evidence. The audit contract itself is verified by automated tests (P22H-T8 through P22H-T18 all pass; see BinaryAuditTest results).
+
+Covered by automated tests:
+- P22H-T8 binary_audit --check on a clean fixture exits 0 — PASS
+- P22H-T9 --check with a corrupted left_points exits 1 and names the node — PASS
+- P22H-T10 --fix repairs the cache; re-check exits 0; awards/volume/wallet untouched — PASS
+- P22H-T11 --check with a missing pair-consumption row exits 1 and names the award — PASS
+- P22H-T12 --check with an order stamped and no volume exits 1 and names the order — PASS
+- P22H-T13 --check with a broken path/depth exits 1 and names the node — PASS
+- P22H-T16 --json on both commands: stable keys, exit codes match Rule 5 — PASS
+- P22H-T18 --check changes no data — PASS

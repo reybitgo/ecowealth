@@ -1,0 +1,13 @@
+QA22D-03 — Pair matching consumes points and pays pairs
+Evidence file: docs/qa/evidence/phase-22/QA22D-03.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as buyerB; SQL
+Full output: (not captured — requires running app + database)
+Exit code: not captured
+
+Expected: One pair at c paying ₱100.00, pending, pair_count=1; c's left_points=0 and right_points=0; buyerB's own node did not pair.
+Actual: Could not execute — requires running app and database. Covered by automated test P22D-T2 (buyerB 4 × P1 right → self ₱50, c pairs L/R 1000 → ₱100 pair — PASS).
+Reason: Environment dependency — requires running app and database.

@@ -1,0 +1,13 @@
+QA22H-01 — The four binary health checks render on /admin/reports
+Evidence file: docs/qa/evidence/phase-22/QA22H-01.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: the running app as admin — /admin/reports (Health card)
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Health card shows twelve checks including Product binary readiness, points, escrow, release job; each renders pass/warn/fail with summary and remedy.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated tests P22H-T14 through P22H-T18 (health pack — all PASS in BinaryAuditTest).
+Reason: Environment dependency — browser-based check.

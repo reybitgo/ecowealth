@@ -1,0 +1,13 @@
+QA22G-11 — The sponsor view is byte-identical
+Evidence file: docs/qa/evidence/phase-22/QA22G-11.txt
+Date: 2026-11-21
+Tester: Kilo (automated agent)
+Result: Blocked
+
+Where: /genealogy as a member
+Full output: (not captured — requires running browser)
+Exit code: not captured
+
+Expected: Sponsor-only team chain, direct-recruits table, team-by-level grid render exactly as at p22f-member; no binary content leaked.
+Actual: Could not execute — requires Laragon app server and browser access. Covered by automated test P22G-T31 (sponsor view regression — PASS).
+Reason: Environment dependency — browser-based check.
