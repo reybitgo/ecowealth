@@ -9,14 +9,14 @@ Severity: blocker = prevents the next gate · major = must be fixed before relea
 
 | ID | Gate | Item (from §1) | Severity | Owning gate | Status |
 |----|------|----------------|----------|-------------|--------|
-| D-01 | R1 | Working tree dirty: 11 modified files + untracked gates doc; HEAD does not equal the tested state | blocker | R1 | open |
-| D-02 | R1 | `GenealogyController.php` reads undefined `$display_name` (PHP 8.3 warning, blank display name) | blocker | R1 | open |
-| D-03 | R1 | `AdminCommissionController::exportBinary()` calls `exit`, terminating the in-process test runner | blocker | R1 | open |
-| D-04 | R1 | Vocabulary manifest incomplete; ownership guard flags Phase 22's own files | blocker | R1 | open |
-| D-05 | R1 | `GeneralHarvestService::mismatches` entries lack `kind`/`message` shape | blocker | R1 | open |
-| D-06 | R1 | `_binary_rows.php` cast order `e((int)...)` breaks under strict types | blocker | R1 | open |
-| D-07 | R1 | Stray duplicate comment in `member/dashboard.php` | minor | R1 | open |
-| D-08 | R1 | Test expectations stale: `MemberOrderLiveTest`, `ProductTest`, `ReportViewTest`, `TeamHarvestAdminViewTest`, `AdminCommissionLiveTest` | blocker | R1 | open |
+| D-01 | R1 | Working tree dirty: 11 modified files + untracked gates doc; HEAD does not equal the tested state | blocker | R1 | fixed @ fa032b9 |
+| D-02 | R1 | `GenealogyController.php` reads undefined `$display_name` (PHP 8.3 warning, blank display name) | blocker | R1 | fixed @ fa032b9 |
+| D-03 | R1 | `AdminCommissionController::exportBinary()` calls `exit`, terminating the in-process test runner | blocker | R1 | fixed @ fa032b9 |
+| D-04 | R1 | Vocabulary manifest incomplete; ownership guard flags Phase 22's own files | blocker | R1 | fixed @ fa032b9 |
+| D-05 | R1 | `GeneralHarvestService::mismatches` entries lack `kind`/`message` shape | blocker | R1 | fixed @ fa032b9 |
+| D-06 | R1 | `_binary_rows.php` cast order `e((int)...)` breaks under strict types | blocker | R1 | fixed @ fa032b9 |
+| D-07 | R1 | Stray duplicate comment in `member/dashboard.php` | minor | R1 | fixed @ fa032b9 |
+| D-08 | R1 | Test expectations stale: `MemberOrderLiveTest`, `ProductTest`, `ReportViewTest`, `TeamHarvestAdminViewTest`, `AdminCommissionLiveTest` | blocker | R1 | fixed @ fa032b9 |
 | D-09 | R2 | `RegistrationService::placeBinaryNode()` falls back: opposite side → company root → BFS any free slot; taken slot silently placed elsewhere | blocker | R2 | open |
 | D-10 | R2 | `P22G-T17` exercises `validate()` directly, never `RegistrationService::register()` | blocker | R2 | open |
 | D-11 | R3 | 49 named P22 test IDs absent from `tests/Cases/` (22A: 11, 22B: 2, 22C: 20, 22D: 6, 22E: 1, 22F: 2, 22H: 1, 22I: 6) | blocker | R3 | open |
