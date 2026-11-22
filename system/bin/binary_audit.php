@@ -254,7 +254,7 @@ try {
 
         foreach ($drifts as $drift) {
             $label = (string) ($drift['kind'] ?? 'drift');
-            $target = (int) ($drift['user_id'] ?? $drift['order'] ?? $drift['volume'] ?? $drift['award'] ?? 0);
+            $target = (int) ($drift['user_id'] ?? $drift['activation'] ?? $drift['order'] ?? $drift['volume'] ?? $drift['award'] ?? 0);
             $lines[] = '    [' . $label . '] ' . (string) ($drift['message'] ?? '')
                 . ($target > 0 ? ' (target #' . $target . ')' : '');
         }
@@ -320,7 +320,7 @@ try {
 
         foreach ($drifts as $drift) {
             $label = (string) ($drift['kind'] ?? 'drift');
-            $target = (int) ($drift['user_id'] ?? $drift['order'] ?? $drift['volume'] ?? $drift['award'] ?? 0);
+            $target = (int) ($drift['user_id'] ?? $drift['activation'] ?? $drift['order'] ?? $drift['volume'] ?? $drift['award'] ?? 0);
             $lines[] = '    [' . $label . '] ' . (string) ($drift['message'] ?? '')
                 . ($target > 0 ? ' (target #' . $target . ')' : '');
         }

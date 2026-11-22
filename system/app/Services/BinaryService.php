@@ -2606,6 +2606,67 @@ final class BinaryService
          *  Package-binary activation invariants (INV-P1 … INV-P7)
          * ---------------------------------------------------------- */
 
+        /* INV-P1: activation-sourced rows reference a live activation
+         * and carry the source / activation_id contract. */
+        $activationAward = $pdo->prepare(
+            "SELECT a.id, a.user_id, a.activation_id, a.source, a.order_id, u.username
+               FROM binary_awards a
+               JOIN users u ON u.id = a.user_id
+              WHERE a.source = ?
+                AND (
+                    a.activation_id IS NULL
+                    OR a.order_id IS NOT NULL
+                    OR NOT EXISTS (SELECT 1 FROM activations ac WHERE ac.id = a.activation_id)
+                )
+              ORDER BY a.id"
+        );
+        $activationAward->execute([BinaryAward::sourceFromActivation()]);
+
+        foreach ($activationAward->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_activation_reference',
+                'award'    => (int) $row['id'],
+                'activation' => (int) ($row['activation_id'] ?? 0),
+                'user_id'  => (int) $row['user_id'],
+                'username' => (string) $row['username'],
+                'message'  => 'activation-sourced award #' . (int) $row['id']
+                    . ' references activation #' . (int) ($row['activation_id'] ?? 0)
+                    . ' that no longer exists',
+            ];
+        }
+
+        $activationVolume = $pdo->prepare(
+            "SELECT v.id, v.activation_id, v.source, v.order_id, v.order_item_id,
+                    v.node_user_id, v.side, v.kind, u.username
+               FROM binary_volume v
+               JOIN users u ON u.id = v.node_user_id
+              WHERE v.source = ?
+                AND (
+                    v.activation_id IS NULL
+                    OR v.order_id IS NOT NULL
+                    OR v.order_item_id IS NOT NULL
+                    OR NOT EXISTS (SELECT 1 FROM activations ac WHERE ac.id = v.activation_id)
+                    OR v.kind = 'own'
+                )
+              ORDER BY v.id"
+        );
+        $activationVolume->execute([BinaryVolume::sourceFromActivation()]);
+
+        foreach ($activationVolume->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_activation_volume',
+                'volume'   => (int) $row['id'],
+                'activation' => (int) ($row['activation_id'] ?? 0),
+                'node_user_id' => (int) $row['node_user_id'],
+                'username' => (string) $row['username'],
+                'message'  => 'activation-sourced volume row #' . (int) $row['id']
+                    . ' references activation #' . (int) ($row['activation_id'] ?? 0)
+                    . ' that no longer exists or breaks the source contract',
+            ];
+        }
+
         /* INV-P2: no package award is pending. */
         $pendingPkg = $pdo->prepare(
             'SELECT COUNT(*) FROM binary_awards WHERE source = ? AND status = ?'
@@ -2750,6 +2811,37 @@ final class BinaryService
                     'message'  => 'activation #' . $activationId . ' binary_total (' . number_format($stampTotal, 2) . ') differs from live pair awards (' . number_format($livePairs, 2) . ')',
                 ];
             }
+        }
+
+        /* INV-P8: no team volume row is contributed by an activation whose
+         * package is no longer binary-enabled. The package switch stops new
+         * pairs; legacy volume that outlives its package is flagged for
+         * review (never auto-repaired). */
+        $disabledPkg = $pdo->prepare(
+            "SELECT v.id, v.activation_id, v.node_user_id, v.side, v.points,
+                    p.name AS package_name, u.username
+               FROM binary_volume v
+               JOIN activations ac ON ac.id = v.activation_id
+               JOIN packages p ON p.id = ac.package_id
+               JOIN users u ON u.id = v.node_user_id
+              WHERE v.source = ? AND v.kind = 'team' AND p.binary_enabled = 0
+              ORDER BY v.id"
+        );
+        $disabledPkg->execute([BinaryVolume::sourceFromActivation()]);
+
+        foreach ($disabledPkg->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_disabled_volume',
+                'volume'   => (int) $row['id'],
+                'activation' => (int) $row['activation_id'],
+                'node_user_id' => (int) $row['node_user_id'],
+                'username' => (string) $row['username'],
+                'message'  => 'team volume row #' . (int) $row['id']
+                    . ' (activation #' . (int) $row['activation_id'] . ') was contributed by '
+                    . (string) ($row['package_name'] ?? 'package')
+                    . ', which is no longer binary-enabled',
+            ];
         }
 
         return [
