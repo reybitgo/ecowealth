@@ -280,28 +280,30 @@ final class PackageBinaryService
                 continue;
             }
 
+            /* Look up the award first so we can anchor the wallet movement
+             * to it (ref_id = award id, the wallet anchor — plan §12.8 rule 3). */
+            $award = BinaryAward::forActivationEvent($activationId, $recipientId, 'pair', $pdo);
+            if ($award === null) {
+                continue;
+            }
+
             $movement = $this->wallet->credit(
                 $recipientId,
                 $amount,
                 'binary',
-                null,
+                (int) $award['id'],
                 'Package binary pair — activation #' . $activationId,
                 true /* withdrawable — paid like the Phase 10–11 commissions */
             );
 
-            /* Link every pair award this activation paid this recipient
-             * to the wallet movement. At most one pair award per
-             * (activation, recipient) exists (unique key). */
-            $award = BinaryAward::forActivationEvent($activationId, $recipientId, 'pair', $pdo);
-            if ($award !== null) {
-                $ledgerId = (int) ($movement['ledger_id'] ?? 0);
-                if ($ledgerId > 0) {
-                    BinaryAward::linkLedger((int) $award['id'], $ledgerId, $pdo);
-                    $pdo->prepare(
-                        'UPDATE binary_awards SET credited_at = NOW()
-                          WHERE id = ? AND activation_id = ? AND status = "credited"'
-                    )->execute([(int) $award['id'], $activationId]);
-                }
+            /* Link the award to the wallet movement. */
+            $ledgerId = (int) ($movement['ledger_id'] ?? 0);
+            if ($ledgerId > 0) {
+                BinaryAward::linkLedger((int) $award['id'], $ledgerId, $pdo);
+                $pdo->prepare(
+                    'UPDATE binary_awards SET credited_at = NOW()
+                      WHERE id = ? AND activation_id = ? AND status = "credited"'
+                )->execute([(int) $award['id'], $activationId]);
             }
         }
 

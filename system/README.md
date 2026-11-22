@@ -81,6 +81,29 @@ visibility — the `?ledger=general_harvest` earnings tab, the ten-block card, t
 genealogy badge; and **21G** releases it. The stream ships **off and unarmed**, so nothing pays until
 an operator configures, arms and enables it.
 
+The sixth workstream — **Phase 22, the Product Binary Bonus**
+(`dmp/plan-ecowealth-product-binary.md`) — is **released**: one binary tree, one points ledger,
+one money ledger, one pair engine. A paid order of a binary-enabled product places `own` volume at
+the buyer's node and `team` volume at every ancestor; greedy settlement completes pairs and pays the
+uplines through escrow (`pending` → release job). **22A** added the schema and settings; **22B** the
+product binary card and the settings card; **22C** the placement contract; **22D** the money engine
+(`BinaryService` — `onOrderPaid()`, `settleNode()`, `reverseForOrder()`, `audit()`, `reconcile()`);
+**22E** and **22F** the admin and member surfaces; **22G** the release. The stream ships **off**, so
+a fresh install pays nothing until an operator configures a product and turns the master on.
+
+The seventh workstream — **Phase 23, the Package Binary Bonus**
+(`dmp/plan-ecowealth-package-binary-sliced.md`) — is **in progress**: the missing input to Phase 22's
+machine, the package sale. An approved activation of a binary-enabled package contributes
+`packages.binary_points` once, team-only (no own row, no self bonus), to every binary upline; the
+pairs those points complete are paid immediately (`credited`, no hold) to the withdrawable e-wallet.
+Same tree, same ledgers, same pair engine — the package stream is a second **input**, not a fork.
+**23A** added the ledger amendment (`source`, `activation_id`, package/activation columns, three
+settings) and migration 027; **23B** added the package binary card, the settings card and the
+readiness panel; **23C** adds the money engine (`PackageBinaryService::onActivation()` wired inside
+`ActivationService::complete()`, team-only volume, immediate credit, the qualification gate, the
+reversal CLI, source-aware reconciliation and audit). **23D–23G** add admin/member visibility,
+operations and release. The stream ships **off by default** — deploying 23A–23C changes no money.
+
 Phase 1 delivered the skeleton
 (router, layouts, roles, settings, test harness); Phase 2 added the product catalogue and storefront;
 Phase 3 adds associate packages — price, direct bonus, the 2–10 unilevel matrix, package contents,

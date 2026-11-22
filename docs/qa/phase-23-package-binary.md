@@ -352,3 +352,219 @@ Section B's claims are also asserted by the automated suite:
 | QA23B-04 | `evidence/phase-23/QA23B-04.txt` |
 | QA23B-05 | `evidence/phase-23/QA23B-05.txt` |
 | QA23B-06 | `evidence/phase-23/QA23B-06.txt` |
+
+---
+
+## Section C — Phase 23C: Money engine (`QA23C-01` … `QA23C-08`)
+
+**Status:** in progress (23C). Section C is appended by 23C-S5; sections D–G follow their phases.
+
+> **Where each check runs.** `QA23C-01` to `QA23C-08` run on a scratch schema provisioned from
+> `system/database/install.sql` with migration 027 applied, Package A flagged `binary_enabled = 1`
+> with `binary_points = 1000`, the global `package_binary_enabled = 1`, and `package_binary_requires_package = 1`.
+> The fixture tree is `admin → boss → a → b → c → {buyerA, buyerB}`. No check touches `ecowealth_sneat`.
+
+> **Notation.** `mysql` means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe`; `php` means Laragon's PHP 8.3 CLI.
+> Every command runs from `system/`.
+
+### QA23C-01 — First activation places team volume, no own row, no award
+
+| Why | P23C-T1 / Rule 6: an approved activation of a binary-enabled package places `binary_points` once, team-only, on every ancestor; no own row and no award until a pair completes. |
+|---|---|
+| Where | `mysql` + `/admin/activations/{id}/approve` (buyerA, Package A) |
+| Evidence | `QA23C-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Approve buyerA's activation of Package A (1,000 points).
+2. `SELECT * FROM binary_volume WHERE source = 'activation' ORDER BY node_user_id, side;`
+3. `SELECT COUNT(*) FROM binary_volume WHERE activation_id = <aid> AND kind = 'own';`
+4. `SELECT COUNT(*) FROM binary_awards WHERE activation_id = <aid>;`
+5. `SELECT binary_points, binary_total, binary_processed_at FROM activations WHERE id = <aid>;`
+
+Expected
+
+- Five `team` rows: c (left), b (left), a (left), boss (left), root (right) — each 1,000 points, `source = 'activation'`.
+- `kind = 'own'` count → `0`.
+- `binary_awards` count → `0` (all sides are left, no pair).
+- `binary_points = 1000`, `binary_total = 0.00`, `binary_processed_at` is not NULL.
+
+### QA23C-02 — Second activation completes one pair, ₱100 credited immediately
+
+| Why | P23C-T2 / Rule 11: buyerB (right of c) activates → c has L=1000/R=1000 → one pair, ₱100.00 credited to c's withdrawable wallet in the same transaction. |
+|---|---|
+| Where | `/admin/activations/{id}/approve` (buyerB, Package A) + `mysql` |
+| Evidence | `QA23C-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set c's package to Package A (binary-enabled) so c qualifies.
+2. Approve buyerB's activation of Package A.
+3. `SELECT id, kind, user_id, status, hold_days, source, activation_id, order_id, ledger_id, credited_at FROM binary_awards WHERE activation_id = <aidB>;`
+4. `SELECT withdrawable_balance FROM ewallet_balance WHERE user_id = <c>;`
+5. `SELECT * FROM ewallet_ledger WHERE ref_type = 'binary' AND ref_id = <award_id>;`
+6. `php bin/binary_audit.php --check`
+
+Expected
+
+- One `pair` award at c: `status = 'credited'`, `hold_days = 0`, `source = 'activation'`, `activation_id = <aidB>`, `order_id IS NULL`, `ledger_id` and `credited_at` set.
+- c's withdrawable wallet is up ₱100.00 with one `binary` ledger row (`ref_id = award.id`).
+- `binary_audit --check` exits 0.
+
+### QA23C-03 — Release job ignores credited package awards
+
+| Why | P23C-T32 / D-07: package awards are `credited` at creation; the release job must never see them as pending and must not move them again. |
+|---|---|
+| Where | `php bin/unilevel_release.php --stream=all` |
+| Evidence | `QA23C-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. After QA23C-02, note the package award's `ledger_id`.
+2. `php bin/unilevel_release.php --stream=all`
+3. `SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary' AND ref_id = <award_id>;`
+
+Expected
+
+- The release job reports no binary awards released (or releases only product awards).
+- The package award's ledger row count is still 1 — no second movement.
+- The award remains `credited`.
+
+### QA23C-04 — Non-qualified recipient: no pair, no consumption, audit names the reason
+
+| Why | P23C-T22 / Rule 10: when `package_binary_requires_package = 1`, a recipient without a binary-enabled package is skipped; volume flows but no points are consumed. |
+|---|---|
+| Where | `/admin/packages/{id}/edit` (switch c off) + `/admin/activations/` + `mysql` |
+| Evidence | `QA23C-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Switch Package A's `binary_enabled` to 0 (or put c on a non-binary package).
+2. Approve two activations of Package A (buyerA left of c, buyerB right of c).
+3. `SELECT left_points, right_points FROM binary_nodes WHERE user_id = <c>;`
+4. `SELECT COUNT(*) FROM binary_awards WHERE activation_id IN (<aidA>, <aidB>);`
+5. `php bin/binary_audit.php --check` — the blocked pair is not a drift.
+
+Expected
+
+- c still has L=1000/R=1000 (volume placed but not consumed — no pair).
+- No `binary_awards` rows for either activation.
+- The audit exits 0; `blockedMap()` names c with the package reason.
+
+### QA23C-05 — Daily cap: one pair pays, the second carries
+
+| Why | P23C-T33 / Rule 9: `binary_daily_pair_cap` bounds pairs per recipient per day; over-cap volume carries, it is not flushed. |
+|---|---|
+| Where | `/admin/settings` (cap = 1) + `/admin/activations/` + `mysql` |
+| Evidence | `QA23C-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set `binary_daily_pair_cap = 1`.
+2. Approve buyerA's and buyerB's activations (both complete a pair at c) — the first pays ₱100, the second carries.
+3. Confirm c's wallet is up exactly ₱100.00 and c's points are 0/0 after the first pair.
+4. Approve a third activation right of c the same day — no pair, points carried.
+5. Reset `binary_daily_pair_cap = 20`.
+
+Expected
+
+- Exactly one pair paid today; the second activation's points carry to the next day.
+- No points are lost (no flush).
+
+### QA23C-06 — Mixed sources: product order and package activation in one balance
+
+| Why | P23C-T42 / D-06: one tree, one balance — product volume and package volume can pair across sources, and the ledger splits them exactly. |
+|---|---|
+| Where | `/checkout` (product order) + `/admin/activations/` + `mysql` |
+| Evidence | `QA23C-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Pay a product order of a binary-enabled product that places 1,000 points left at c.
+2. Approve a package activation of Package A that places 1,000 points right at c.
+3. `SELECT source, SUM(points) FROM binary_volume WHERE node_user_id = <c> AND kind = 'team' GROUP BY source;`
+4. `SELECT id, source, amount, status FROM binary_awards WHERE user_id = <c> AND kind = 'pair';`
+
+Expected
+
+- One pair award, ₱100.00, with volume rows of both `source = 'order'` and `source = 'activation'` in c's balance.
+- The product rows carry `source = 'order'`; the package rows carry `source = 'activation'`.
+
+### QA23C-07 — Reversal: dry run, then apply, then idempotent repeat
+
+| Why | P23C-T45–T48 / D-11: the support CLI voids awards, claws back the wallet, reverses volume, and is idempotent. |
+|---|---|
+| Where | `php bin/package_binary_reverse.php --activation=<id>` (dry run, then `--apply`, then again) |
+| Evidence | `QA23C-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin/package_binary_reverse.php --activation=<aidB>` — dry run prints the award, points, wallet effect; exits 0; writes nothing.
+2. `php bin/package_binary_reverse.php --activation=<aidB> --apply` — award voided, wallet debited ₱100.00 (`binary_reversal` movement), volume reversed at every node, pair-return rows written, activation total recomputed to 0.00.
+3. `php bin/binary_audit.php --check` → exit 0.
+4. `php bin/package_binary_reverse.php --activation=<aidB> --apply` again → no change; no duplicate rows.
+
+Expected
+
+- Dry run writes nothing; apply is atomic and idempotent; the audit is clean after each step.
+
+### QA23C-08 — Zero-point and disabled packages stamp zeros, referral ladder untouched
+
+| Why | P23C-T7–T9 / Rule 5: an activation of a 0-point or disabled package (or with the global switch off) stamps zeros and places nothing; the referral ladder still pays. |
+|---|---|
+| Where | `/admin/packages/{id}/edit` + `/admin/activations/` + `mysql` |
+| Evidence | `QA23C-08.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set Package A to `binary_points = 0`, `binary_enabled = 1`; approve an activation → stamps 0/0.00, no binary rows.
+2. Set Package A to `binary_enabled = 0`, `binary_points = 1000`; approve an activation → same.
+3. Set `package_binary_enabled = 0`; approve an activation → same.
+4. Restore Package A to `binary_enabled = 1`, `binary_points = 1000`, global switch on.
+5. Confirm the referral ladder (direct + levels 2–10) paid the same amounts as before.
+
+Expected
+
+- All three cases stamp `binary_points = 0`, `binary_total = 0.00`, `binary_processed_at` not NULL.
+- `binary_awards` and `binary_volume` gain no activation-sourced rows.
+- The referral ladder is unaffected.
+
+## What is already automated
+
+Section C's claims are also asserted by the automated suite:
+
+- `PackageBinaryTest` — P23C-T1 … T50: the event and its paths, the routing and team-only rule, the qualification gate, the money/cap/wallet, idempotency, transaction safety, the product regression, reconciliation, audit, and the reversal CLI.
+- `BinaryService::audit()` — INV-P1 … INV-P7 (package-pending award, activation own row, package self award, package root award, stamped-no-volume, stamp-vs-volume, stamp-vs-total).
+
+## Evidence index
+
+| Check | Evidence file |
+|---|---|
+| QA23A-01 | `evidence/phase-23/QA23A-01.txt` |
+| QA23A-02 | `evidence/phase-23/QA23A-02.txt` |
+| QA23A-03 | `evidence/phase-23/QA23A-03.txt` |
+| QA23A-04 | `evidence/phase-23/QA23A-04.txt` |
+| QA23A-05 | `evidence/phase-23/QA23A-05.txt` |
+| QA23A-06 | `evidence/phase-23/QA23A-06.txt` |
+| QA23B-01 | `evidence/phase-23/QA23B-01.txt` |
+| QA23B-02 | `evidence/phase-23/QA23B-02.txt` |
+| QA23B-03 | `evidence/phase-23/QA23B-03.txt` |
+| QA23B-04 | `evidence/phase-23/QA23B-04.txt` |
+| QA23B-05 | `evidence/phase-23/QA23B-05.txt` |
+| QA23B-06 | `evidence/phase-23/QA23B-06.txt` |
+| QA23C-01 | `evidence/phase-23/QA23C-01.txt` |
+| QA23C-02 | `evidence/phase-23/QA23C-02.txt` |
+| QA23C-03 | `evidence/phase-23/QA23C-03.txt` |
+| QA23C-04 | `evidence/phase-23/QA23C-04.txt` |
+| QA23C-05 | `evidence/phase-23/QA23C-05.txt` |
+| QA23C-06 | `evidence/phase-23/QA23C-06.txt` |
+| QA23C-07 | `evidence/phase-23/QA23C-07.txt` |
+| QA23C-08 | `evidence/phase-23/QA23C-08.txt` |

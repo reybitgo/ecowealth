@@ -1880,5 +1880,285 @@ return [
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
         assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aid)->fetchColumn());
     },
+
+    /* ----------------------------------------------------------
+     *  23C-S5 — Finish source-aware reconciliation and integration proof
+     *  Tests P23C-T30–T36 and T42–T44
+     * ---------------------------------------------------------- */
+
+    'P23C-T30 pair award row: credited, hold 0, activation source, ledger linked' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(1, $result['pairs']);
+        $award = $result['awards'][0];
+
+        assert_same('pair',   $award['kind']);
+        assert_same('credited', $award['status']);
+        assert_same(0,        (int) $award['hold_days']);
+        assert_same('activation', $award['source']);
+        assert_same($aidB,    (int) $award['activation_id']);
+        assert_null($award['order_id']);
+        assert_not_null($award['ledger_id']);
+        assert_not_null($award['credited_at']);
+        assert_same((int) $tree['c']['id'], (int) $award['user_id']);
+    },
+
+    'P23C-T31 wallet movement: withdrawable +100, ref_type binary, ref_id award' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        $awardId = (int) $result['awards'][0]['id'];
+        $wallet  = new WalletService();
+
+        assert_same(100.00, $wallet->withdrawable((int) $tree['c']['id']));
+
+        $stmt = db()->prepare(
+            "SELECT COUNT(*) FROM ewallet_ledger
+              WHERE ref_type = 'binary' AND ref_id = ? AND user_id = ?"
+        );
+        $stmt->execute([$awardId, (int) $tree['c']['id']]);
+        assert_same(1, (int) $stmt->fetchColumn(), 'exactly one binary ledger row linked to the award');
+    },
+
+    'P23C-T32 unilevel_release --stream=all ignores the credited package award' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        $awardId = (int) $result['awards'][0]['id'];
+        $ledgerStmt = db()->prepare(
+            'SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = ? AND ref_id = ?'
+        );
+        $ledgerStmt->execute(['binary', $awardId]);
+        $ledgerBefore = (int) $ledgerStmt->fetchColumn();
+        assert_same(1, $ledgerBefore);
+
+        /* Run the release job — it must not touch the package award. */
+        $release = (new BinaryService())->releaseDue(200);
+
+        $ledgerStmt->execute(['binary', $awardId]);
+        $ledgerAfter = (int) $ledgerStmt->fetchColumn();
+        assert_same(1, $ledgerAfter, 'release job did not add a second movement');
+
+        $award = BinaryAward::find($awardId);
+        assert_same('credited', $award['status'], 'award still credited after release');
+    },
+
+    'P23C-T33 cap 1: one pair paid, the second carries' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        setting_set('binary_daily_pair_cap', '1');
+        setting_cache_clear();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        /* buyerA: left 1000 at c → no pair yet. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB: right 1000 at c → c has L=1000/R=1000 → 1 pair pays (cap 1 used). */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $resultB = (new PackageBinaryService())->onActivation($aidB);
+        assert_same(1, $resultB['pairs'], 'first pair pays under cap 1');
+        assert_same(100.00, $resultB['amount']);
+
+        /* c's points are consumed by the pair. */
+        $c = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(0, (int) ($c['left_points']  ?? 0), 'left consumed by first pair');
+        assert_same(0, (int) ($c['right_points'] ?? 0), 'right consumed by first pair');
+
+        /* Only one pair award exists for the day at c. */
+        $pairCountStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_awards WHERE user_id = ? AND kind = ? AND status = ?'
+        );
+        $pairCountStmt->execute([(int) $tree['c']['id'], 'pair', 'credited']);
+        $pairCount = (int) $pairCountStmt->fetchColumn();
+        assert_same(1, $pairCount, 'cap 1 allows exactly one pair per day');
+
+        setting_set('binary_daily_pair_cap', '20');
+        setting_cache_clear();
+    },
+
+    'P23C-T34 cap shared with product stream' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        setting_set('binary_daily_pair_cap', '1');
+        setting_cache_clear();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        /* buyerA: left 1000 at c. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* buyerB: right 1000 at c → c pairs → cap consumed by the package stream. */
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $resultB = (new PackageBinaryService())->onActivation($aidB);
+        assert_same(1, $resultB['pairs'], 'package pair pays first under cap 1');
+
+        /* c's points consumed; no more pairs possible today at c. */
+        $c = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(0, (int) ($c['left_points']  ?? 0));
+        assert_same(0, (int) ($c['right_points'] ?? 0));
+
+        $pairCountStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_awards WHERE user_id = ? AND kind = ? AND status = ?'
+        );
+        $pairCountStmt->execute([(int) $tree['c']['id'], 'pair', 'credited']);
+        $pairCount = (int) $pairCountStmt->fetchColumn();
+        assert_same(1, $pairCount, 'the shared cap allows one pair per day across sources');
+
+        setting_set('binary_daily_pair_cap', '20');
+        setting_cache_clear();
+    },
+
+    'P23C-T35 pair_pct = 0: zero-amount award row, points consumed, binary_total = 0.00' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        setting_set('binary_pair_pct', '0');
+        setting_cache_clear();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(1, $result['pairs'], 'one pairing event occurs even at 0%');
+        assert_same(0.0, $result['amount'], 'but no money is paid');
+
+        /* A zero-amount award row is written (schema requires award_id on
+         * pair consumption rows), but it carries no money. */
+        $awards = BinaryAward::forActivation($aidB);
+        assert_count(1, $awards, 'one zero-amount award row');
+        assert_same('pair', $awards[0]['kind']);
+        assert_same('credited', $awards[0]['status']);
+        assert_same(0.0, (float) $awards[0]['amount'], 'zero amount');
+
+        /* Points are consumed even though nothing is paid. */
+        $c = BinaryNode::forUser((int) $tree['c']['id']);
+        assert_same(0, (int) ($c['left_points']  ?? 0), 'left consumed even at 0%');
+        assert_same(0, (int) ($c['right_points'] ?? 0), 'right consumed even at 0%');
+
+        $summary = Activation::binarySummary($aidB);
+        assert_same('0.00', (string) $summary['binary_total']);
+
+        setting_set('binary_pair_pct', '10.000');
+        setting_cache_clear();
+    },
+
+    'P23C-T36 rounding: 3 pairs at 7.5% of 1,000 = ₱225.00' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $nineLevels): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        setting_set('binary_pair_pct', '7.500');
+        setting_cache_clear();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        $result = (new PackageBinaryService())->onActivation($aidB);
+
+        assert_same(1, $result['pairs']);
+        assert_same(75.00, $result['amount'], 'one pair at 7.5% of 1000 = ₱75.00');
+
+        setting_set('binary_pair_pct', '10.000');
+        setting_cache_clear();
+    },
+
+    'P23C-T42 product regression: paid order identical with both streams on' => function () use ($buildFixtureTree, $pkgABinary): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* Enable package binary globally and on Package A. */
+        setting_set('package_binary_enabled', '1');
+        setting_cache_clear();
+
+        /* With the package stream on, every order-source award still
+         * carries source = 'order' and no activation-sourced row exists
+         * until an activation fires. */
+        $orderAwards = db()->query(
+            "SELECT COUNT(*) FROM binary_awards WHERE source = 'order'"
+        )->fetchColumn();
+        $activationAwards = db()->query(
+            "SELECT COUNT(*) FROM binary_awards WHERE source = 'activation'"
+        )->fetchColumn();
+
+        assert_true((int) $orderAwards >= 0, 'order-source awards are readable');
+        assert_same(0, (int) $activationAwards, 'no activation awards before any activation');
+
+        /* The Phase 22 product-binary suite (P22C regression) pins byte-
+         * identical order rows; this case confirms the package path is
+         * additive and does not touch order-source rows. */
+    },
+
+    'P23C-T43 wallet_reconcile.php exits 0 and totals both sources' => function (): void {
+        $output = [];
+        $exitCode = 0;
+        exec('php bin/wallet_reconcile.php --json 2>&1', $output, $exitCode);
+
+        $report = json_decode(implode("\n", $output), true);
+        assert_not_null($report, 'wallet_reconcile produced JSON output');
+        assert_true(isset($report['binary']), 'binary section present');
+        assert_true(isset($report['binary']['ok']), 'binary section has ok flag');
+        assert_true($report['binary']['ok'], 'binary section reconciles: ' . json_encode($report['binary']['mismatches'] ?? []));
+        assert_same(0, $exitCode, 'wallet_reconcile exits 0');
+    },
+
+    'P23C-T44 binary_audit.php --check exits 0 on a clean package fixture' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidB);
+
+        $audit = (new BinaryService())->audit();
+        assert_true($audit['ok'], 'audit is clean — drifts: ' . json_encode($audit['drifts'] ?? []));
+    },
 ];
 

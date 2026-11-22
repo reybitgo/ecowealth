@@ -766,26 +766,27 @@ final class BinaryService
         }
 
         $pairAmount = round($perPairValue * $n, 2);
+
         $status = $creditImmediately ? 'credited' : 'pending';
         $holdDays = $creditImmediately ? 0 : (int) setting_int('binary_hold_days', 7);
 
         $pairAwardId = BinaryAward::create([
-            'kind'       => 'pair',
-            'order_id'   => $orderId,
-            'buyer_id'   => $buyerId,
-            'user_id'    => $recipientId,
-            'side'       => $entry['side'],
-            'points'     => 2 * $n * $pairPoints,
-            'pair_count' => $n,
-            'pair_points'=> $pairPoints,
-            'rate_pct'   => $pairPct,
-            'amount'     => $pairAmount,
-            'status'     => $status,
-            'hold_days'  => $holdDays,
-            'paid_at'    => $paidAt,
-            'source'     => $source,
-            'activation_id'=> $activationId,
-        ], $pdo);
+                'kind'       => 'pair',
+                'order_id'   => $orderId,
+                'buyer_id'   => $buyerId,
+                'user_id'    => $recipientId,
+                'side'       => $entry['side'],
+                'points'     => 2 * $n * $pairPoints,
+                'pair_count' => $n,
+                'pair_points'=> $pairPoints,
+                'rate_pct'   => $pairPct,
+                'amount'     => $pairAmount,
+                'status'     => $status,
+                'hold_days'  => $holdDays,
+                'paid_at'    => $paidAt,
+                'source'     => $source,
+                'activation_id'=> $activationId,
+            ], $pdo);
 
         $consume = -($n * $pairPoints);
 
@@ -2597,6 +2598,156 @@ final class BinaryService
                 $drifts[] = [
                     'kind'     => 'root_owner',
                     'message'  => 'the root node is not the company account',
+                ];
+            }
+        }
+
+        /* ----------------------------------------------------------
+         *  Package-binary activation invariants (INV-P1 … INV-P7)
+         * ---------------------------------------------------------- */
+
+        /* INV-P2: no package award is pending. */
+        $pendingPkg = $pdo->prepare(
+            'SELECT COUNT(*) FROM binary_awards WHERE source = ? AND status = ?'
+        );
+        $pendingPkg->execute([BinaryAward::sourceFromActivation(), 'pending']);
+        $pendingPkgCount = (int) $pendingPkg->fetchColumn();
+
+        if ($pendingPkgCount > 0) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_pending_award',
+                'count'    => $pendingPkgCount,
+                'message'  => $pendingPkgCount . ' package-binary award(s) are pending — package awards are credited at creation, never pending',
+            ];
+        }
+
+        /* INV-P7: no activation writes an own row. */
+        $ownActivation = $pdo->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE source = ? AND kind = ?'
+        );
+        $ownActivation->execute([BinaryVolume::sourceFromActivation(), 'own']);
+        $ownActivationCount = (int) $ownActivation->fetchColumn();
+
+        if ($ownActivationCount > 0) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_own_row',
+                'count'    => $ownActivationCount,
+                'message'  => $ownActivationCount . ' activation-sourced own row(s) exist — package volume is team-only',
+            ];
+        }
+
+        /* INV-P6: no activation award names the activating member or the company root. */
+        $companyId2 = (int) (Member::primaryAdmin($pdo)['id'] ?? 0);
+
+        $selfAward = $pdo->prepare(
+            "SELECT COUNT(*) FROM binary_awards a
+              JOIN activations act ON act.id = a.activation_id
+             WHERE a.source = ? AND a.kind = ? AND a.user_id = act.user_id"
+        );
+        $selfAward->execute([BinaryAward::sourceFromActivation(), 'pair']);
+        $selfAwardCount = (int) $selfAward->fetchColumn();
+
+        if ($selfAwardCount > 0) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_self_award',
+                'count'    => $selfAwardCount,
+                'message'  => $selfAwardCount . ' package pair award(s) name the activating member as recipient',
+            ];
+        }
+
+        if ($companyId2 > 0) {
+            $rootPkgAward = $pdo->prepare(
+                'SELECT COUNT(*) FROM binary_awards
+                  WHERE source = ? AND kind = ? AND user_id = ?'
+            );
+            $rootPkgAward->execute([BinaryAward::sourceFromActivation(), 'pair', $companyId2]);
+            $rootPkgAwardCount = (int) $rootPkgAward->fetchColumn();
+
+            if ($rootPkgAwardCount > 0) {
+                $ok = false;
+                $drifts[] = [
+                    'kind'     => 'package_root_award',
+                    'count'    => $rootPkgAwardCount,
+                    'message'  => $rootPkgAwardCount . ' package pair award(s) name the company root as recipient',
+                ];
+            }
+        }
+
+        /* INV-P3: every activation-sourced team row carries exactly
+         * `activations.binary_points` points. */
+        $pointsMismatch = $pdo->prepare(
+            "SELECT v.id, v.activation_id, v.node_user_id, v.side, v.points, a.binary_points
+               FROM binary_volume v
+               JOIN activations a ON a.id = v.activation_id
+              WHERE v.source = ? AND v.kind = 'team'
+                AND v.points <> a.binary_points
+              ORDER BY v.id"
+        );
+        $pointsMismatch->execute([BinaryVolume::sourceFromActivation()]);
+
+        foreach ($pointsMismatch->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_volume_points',
+                'volume'   => (int) $row['id'],
+                'activation' => (int) $row['activation_id'],
+                'node_user_id' => (int) $row['node_user_id'],
+                'side'     => (string) $row['side'],
+                'points'   => (int) $row['points'],
+                'expected' => (int) $row['binary_points'],
+                'message'  => 'volume row #' . (int) $row['id'] . ' (activation #' . (int) $row['activation_id'] . ') has ' . (int) $row['points'] . ' pts but activation binary_points is ' . (int) $row['binary_points'],
+            ];
+        }
+
+        /* INV-P5: a stamp with binary_points > 0 must have team volume rows. */
+        $stampedNoVolume = $pdo->query(
+            "SELECT a.id, a.user_id, a.binary_points
+               FROM activations a
+              WHERE a.binary_processed_at IS NOT NULL
+                AND a.binary_points > 0
+                AND NOT EXISTS (SELECT 1 FROM binary_volume v
+                                 WHERE v.activation_id = a.id AND v.kind = 'team')
+              ORDER BY a.id"
+        );
+
+        foreach ($stampedNoVolume->fetchAll() as $row) {
+            $ok = false;
+            $drifts[] = [
+                'kind'     => 'package_stamped_no_volume',
+                'activation' => (int) $row['id'],
+                'user_id'  => (int) $row['user_id'],
+                'points'   => (int) $row['binary_points'],
+                'message'  => 'activation #' . (int) $row['id'] . ' is stamped with ' . (int) $row['binary_points'] . ' points but has no team volume row',
+            ];
+        }
+
+        /* INV-P4: activation binary_total equals the sum of live credited pair awards. */
+        $stampVsTotal = $pdo->query(
+            "SELECT a.id, a.binary_total,
+                    COALESCE(SUM(CASE WHEN aw.kind = 'pair' AND aw.status = 'credited' THEN aw.amount ELSE 0 END), 0) AS live_pairs
+               FROM activations a
+               LEFT JOIN binary_awards aw ON aw.activation_id = a.id AND aw.kind = 'pair'
+              WHERE a.binary_processed_at IS NOT NULL
+              GROUP BY a.id, a.binary_total
+              ORDER BY a.id"
+        );
+
+        foreach ($stampVsTotal->fetchAll() as $row) {
+            $activationId = (int) $row['id'];
+            $stampTotal   = round((float) $row['binary_total'], 2);
+            $livePairs    = round((float) $row['live_pairs'], 2);
+
+            if (number_format($stampTotal, 2, '.', '') !== number_format($livePairs, 2, '.', '')) {
+                $ok = false;
+                $drifts[] = [
+                    'kind'     => 'package_total_mismatch',
+                    'activation' => $activationId,
+                    'stamp'    => $stampTotal,
+                    'live'     => $livePairs,
+                    'message'  => 'activation #' . $activationId . ' binary_total (' . number_format($stampTotal, 2) . ') differs from live pair awards (' . number_format($livePairs, 2) . ')',
                 ];
             }
         }
