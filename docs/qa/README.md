@@ -76,7 +76,7 @@ result, capture evidence and sign the phase off.
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
 | [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
 | [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **release candidate** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
-| [phase-23-package-binary.md](phase-23-package-binary.md) | 23A — Package binary bonus foundation, sections A–F | 42 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5) | 90–120 min per section |
+| [phase-23-package-binary.md](phase-23-package-binary.md) | 23 — Package binary bonus, sections A–G, **release candidate** | 46 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4) | 90–120 min per section |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -92,8 +92,8 @@ its screenshots and terminal transcripts in `evidence/install-reset/`, indexed b
 `evidence/unilevel-product/`. Phase 20 keeps its transcripts in `evidence/phase-20/`, indexed by
 that folder's `README.md`; Phase 21 keeps all 58 checks' transcripts in `evidence/phase-21/`,
 indexed by that folder's `README.md` (sections A–G complete); Phase 22 keeps its 83 section A–I transcripts in `evidence/phase-22/`, indexed by that folder's
-`README.md`; Phase 23A keeps its 6 section A transcripts in `evidence/phase-23/`, indexed by that
-folder's `README.md`.
+`README.md`; Phase 23 keeps its section A transcripts (6) in `evidence/phase-23/`, indexed by that
+folder's `README.md`; section G (`QA23G-01` … `QA23G-04`) evidence is captured by 23G-S2.
 
 ---
 

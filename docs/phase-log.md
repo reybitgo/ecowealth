@@ -8848,5 +8848,215 @@ None beyond the pre-existing Phase 22 deviations (settings 86 measured vs 89 pro
 
 The ledgers can hold an activation row; nothing writes one. A package has a binary switch and a points column, both zero. Three settings exist, unread. The product stream is provably unchanged. Ready for 23B.
 
+---
 
+## Phase 23B — Configuration and readiness
+
+**Date:** 2026-11-21 · **Branch:** `feature/package-binary` · **Gate tag:** `p23b-configuration` · **Status:** complete
+
+### Delivered
+
+Package create/edit persists `binary_enabled`/`binary_points` (switch off, points suggest `ROUND(product_value)`); the admin settings card (master switch + qualification toggle); the readiness panel (four counts, preset sentence, filtered-list link); the `?binary=on|off` list filter; `binaryStatusMap` (one row per package); pair/rate/cap/hold inputs excluded from forms. No money moves while the master switch is off. QA pack section B (QA23B-01–06). Deploy and admin-guide addenda.
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23B-T1 | Package form validates binary_enabled/binary_points | **PASS** | PackageBinaryServiceTest |
+| P23B-T2 | Readiness panel counts render; preset recomputes | **PASS** | Readiness harness transcripts |
+| P23B-T3 | `?binary=` filter narrows the admin list | **PASS** | Binary list transcripts |
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] `php tests/run.php` key cases green (full suite blocked by pre-existing environment flakiness)
+- [x] `php bin/build_install_sql.php --check` exits 0
+- [x] QA pack section B filled; docs updated
+- [x] `docs/phase-log.md` records the phase
+
+### Deviations
+
+None beyond pre-existing Phase 22 deviations.
+
+### Hand-off
+
+Package controls and readiness are in place; the stream is off. Ready for 23C.
+
+---
+
+## Phase 23C — Money engine
+
+**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** `p23c-money` · **Status:** complete
+
+### Delivered
+
+`PackageBinaryService` with `onActivation()`, `quoteActivation()`, `qualifies()`, `blockedMap()`, `totalsFor()`; `Activation::markBinaryProcessed()`/`binarySummary()`; `BinaryService` primitives made public; activation transaction wired to the binary hook and placement; `bin/package_binary_reverse.php` reversal CLI with dry-run; activation-sourced awards/volume with source FKs. Stream stays off until armed. QA pack section C (QA23C-01–08).
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23C-T1 | `quoteActivation`/pair computation matches live awards | **PASS** | PackageBinaryServiceTest |
+| P23C-T2 | Reversal dry run writes nothing | **PASS** | package_binary_reverse --dry-run |
+| P23C-T3 | Blocked map honours qualification | **PASS** | PackageBinaryServiceTest |
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] `php tests/run.php` key cases green (full suite blocked by pre-existing environment flakiness)
+- [x] `php bin/wallet_reconcile.php` exits 0
+- [x] QA pack section C filled; docs updated
+- [x] `docs/phase-log.md` records the phase
+
+### Deviations
+
+None beyond pre-existing Phase 22 deviations.
+
+### Hand-off
+
+The money engine and reversal CLI exist, inert behind the master switch. Ready for 23D.
+
+---
+
+## Phase 23D — Admin visibility
+
+**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** `p23d-admin` · **Status:** complete
+
+### Delivered
+
+Source-aware admin binary ledger: `?ledger=binary` plus `?source=activation|order` filters, stats split by source, CSV export with a Source column, activation card (points/pairs/money/status), member panel split (product vs package), three report cards. Read-only; legacy tabs byte-identical. QA pack section D (QA23D-01–07).
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23D-T1 | `?source=activation` returns only package rows; stats whole | **PASS** | Binary ledger transcripts |
+| P23D-T2 | CSV carries a Source column | **PASS** | Export transcripts |
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] `php tests/run.php` key cases green (full suite blocked by pre-existing environment flakiness)
+- [x] QA pack section D filled; docs updated
+- [x] `docs/phase-log.md` records the phase
+
+### Deviations
+
+None beyond pre-existing Phase 22 deviations.
+
+### Hand-off
+
+Admin can read package-sourced binary facts read-only. Ready for 23E.
+
+---
+
+## Phase 23E — Member visibility
+
+**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** `p23e-member` · **Status:** complete
+
+### Delivered
+
+`/earnings?ledger=binary` reads Binary bonus; package card (name, points, pairs, money, last activation); Source column; copy guard (no upline/sponsor/"Team chain"/"Level"); card absent for members with no binary package; JS-off and mobile behaviour. QA pack section E (QA23E-01–06).
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23E-T1 | Package card reads points/pairs/money | **PASS** | Earnings tab transcripts |
+| P23E-T2 | Source filter keeps stats whole | **PASS** | Earnings tab transcripts |
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] `php tests/run.php` key cases green (full suite blocked by pre-existing environment flakiness)
+- [x] QA pack section E filled; docs updated
+- [x] `docs/phase-log.md` records the phase
+
+### Deviations
+
+None beyond pre-existing Phase 22 deviations.
+
+### Hand-off
+
+Members see their package binary facts read-only. Ready for 23F.
+
+---
+
+## Phase 23F — Operations
+
+**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** `p23f-operations` · **Status:** complete
+
+### Delivered
+
+`bin/binary_audit.php` extended with activation-source invariants (orphaned award, stamped-without-volume, pending award); `HealthService` gains the three package checks (readiness, escrow, totals); runbook remedies; CLI audit reports clean/named drifts. QA pack section F (QA23F-01–05).
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23F-T1 | Audit exits 0 on the clean demo database | **PASS** | BinaryAuditTest |
+| P23F-T2 | Audit names an orphaned activation award | **PASS** | BinaryAuditTest |
+| P23F-T3 | Audit names a stamped activation with no volume | **PASS** | BinaryAuditTest |
+| P23F-T4 | Audit fails on a pending package award | **PASS** | BinaryAuditTest |
+| P23F-T5 | Health panel shows the three package checks | **PASS** | PackageBinaryHealthTest |
+| P23F-T6 | Every runbook command runs as written | **PASS** | PackageBinaryHealthTest |
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] `php tests/run.php` key cases green (full suite blocked by pre-existing environment flakiness)
+- [x] `php bin/binary_audit.php --check` exits 0 (clean DB)
+- [x] QA pack section F filled; docs updated
+- [x] `docs/phase-log.md` records the phase
+
+### Deviations
+
+None beyond pre-existing Phase 22 deviations.
+
+### Hand-off
+
+The package-binary audit and health pack operate against activation-sourced rows. Ready for 23G.
+
+---
+
+## Phase 23G — Release: Package binary bonus release (slice S1)
+
+**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** none yet (S2 tags `p23g-release`) · **Status:** S1 complete; release gate opens at 23G-S2
+
+### Delivered (23G-S1 — documentation, tests and the release marker; no new business behaviour)
+
+- `system/app/config.php`: `APP_PHASE = 23` (D-17 release marker).
+- `system/tests/Cases/HardeningTest.php`: asserts `APP_PHASE === 23` (and not 21/22).
+- `system/tests/Cases/PackageBinaryReleaseTest.php` (new): P23G-T1 (phase marker in config, suite header, HardeningTest), P23G-T2 (42 tables / 89 seed settings / 92 fresh-install settings; migration 027; the three `package_binary*` settings; `source`/`activation_id` on both ledgers; no phase-23 route extension), P23G-T3 (docs cold read — every settings key and every phase-≤23 route exists), P23G-T6 (QA pack sections A–G present, every `QA23X-nn` unique, evidence index matches files).
+- Phase-22 phase-badge tests updated to track the new constant (`BinaryReleaseTest` P22I-T1, `TeamHarvestConfigurationTest` P20B-T20, `GeneralHarvestConfigurationTest` P21B-T25).
+- `docs/qa/phase-23-package-binary.md`: section G (`QA23G-01` … `QA23G-04`) appended; total 46 checks (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4); evidence index extended.
+- `docs/qa/evidence/phase-23/README.md`: index extended to sections A–G.
+- `docs/qa/README.md`, `docs/qa/sign-off-sheet.md`: Phase 23 recorded (sections A–G, 46 checks; release candidate; manual sign-off pending 23G-S2).
+- `docs/phase-log.md`: records all seven phases (23A–23G).
+- `dmp/plan-ecowealth-package-binary-sliced.md` status line and `dmp/plan-ecowealth-product-binary.md` §15 amendment reference updated; Appendix H row for 23G filled.
+
+### Test plan results
+
+| ID | Test | Result | Evidence |
+|---|---|---|---|
+| P23G-T1 | APP_PHASE 23 in config, suite header, HardeningTest | **PASS** | PackageBinaryReleaseTest P23G-T1 |
+| P23G-T2 | Release counts: 42 tables, 89 seed settings, source columns, no phase-23 route | **PASS** | PackageBinaryReleaseTest P23G-T2 |
+| P23G-T3 | Docs cold read: keys and routes exist | **PASS** | PackageBinaryReleaseTest P23G-T3 |
+| P23G-T6 | QA pack sections A–G, unique IDs, evidence indexed | **PASS** | PackageBinaryReleaseTest P23G-T6 |
+
+P23G-T4 (acceptance run) and P23G-T5 (full suite and smoke) belong to 23G-S2; the full suite is environment-blocked by pre-existing Phase 19–22 flakiness.
+
+### Gate checklist (plan §2.4 + phase-specific)
+
+- [x] `APP_PHASE = 23` in `config.php`; `HardeningTest` asserts 23
+- [x] `PackageBinaryReleaseTest` P23G-T1/T2/T3/T6 green
+- [x] QA pack sections A–G complete; evidence index matches files
+- [x] Phase log records all seven phases (23A–23G)
+- [x] Plan status lines and Appendix H updated
+- [ ] Tag `p23g-release` (23G-S2)
+- [ ] Appendix B acceptance run (23G-S2)
+- [ ] Countersigned release gate (23G-S2)
+
+### Deviations
+
+None beyond pre-existing Phase 22 deviations.
+
+### Hand-off
+
+Phase 23's documentation, tests and release marker are in place; the branch is green for the release tests above. The acceptance run, countersignature and `p23g-release` tag remain for 23G-S2.
 

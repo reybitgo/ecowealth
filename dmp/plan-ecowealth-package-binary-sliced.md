@@ -1,7 +1,6 @@
 # Plan — Package Binary Bonus (one-time pairing on package activation)
 
-**Phase 23** of the EcoWealth member system · **Status: planned** — no code written; the plan is the gate
-record until 23A opens.
+**Phase 23** of the EcoWealth member system · **Status: implemented through 23F; 23G-S1 complete** — code written through migration `027`; `APP_PHASE = 23` set in `system/app/config.php`; `HardeningTest` asserts 23; `PackageBinaryReleaseTest` P23G-T1/T2/T3/T6 green; the plan is the gate record until the 23G release gate certifies `p23g-release`.
 **Delivery model:** **seven gated phases, 23A → 23G.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it.
 **Date:** 15 November 2026 · **Target:** `http://localhost/ecowealth/system/`

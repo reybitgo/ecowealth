@@ -1,7 +1,6 @@
 # Plan — Product Binary Bonus (placement tree over repeat-purchase points)
 
-**Phase 22** of the EcoWealth member system · **Status: planned** — no code written; the plan is the gate
-record until 22A opens.
+**Phase 22** of the EcoWealth member system · **Status: released** — code written through migration `026`; `APP_PHASE = 22`; released at `p22i-release` (Gate R6, 2026-11-21); the plan is the gate record.
 **Delivery model:** **nine gated phases, 22A → 22I.** Each phase is self-contained, shippable and
 testable on its own; each builds on the one before it. Two phases (22G, the d3 tree) and (22I, the
 release) are deliberately separated from the phases that make them possible, because each is a work

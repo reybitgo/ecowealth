@@ -168,8 +168,8 @@ return [
         assert_contains('hash_equals', (string) file_get_contents(dirname(__DIR__, 2) . '/app/helpers.php'));
     },
 
-    'P15 the build reports phase 22' => function (): void {
-        assert_same(22, APP_PHASE);
+    'P15 the build reports phase 23' => function (): void {
+        assert_same(23, APP_PHASE);
         assert_true(defined('APP_NAME'));
         assert_true(defined('APP_DEBUG'));
         assert_true(defined('APP_TIMEZONE'));
@@ -178,5 +178,7 @@ return [
         /* The config no longer defines APP_URL twice (Phase 15 cleanup). */
         $config = (string) file_get_contents(dirname(__DIR__, 2) . '/app/config.php');
         assert_same(1, substr_count($config, "define('APP_URL'"), 'APP_URL is declared once');
+        assert_contains("define('APP_PHASE', 23)", $config, 'config.php must mark phase 23');
+        assert_not_contains("define('APP_PHASE', 22)", $config, 'config.php must not mark phase 22');
     },
 ];

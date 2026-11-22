@@ -11,15 +11,16 @@ declare(strict_types=1);
  * ============================================================== */
 
 return [
-    'P22I-T1 APP_PHASE is 22 in config, the constant and HardeningTest' => function (): void {
+    'P22I-T1 APP_PHASE is 23 in config, the constant and HardeningTest' => function (): void {
         $root   = dirname(__DIR__, 2) . '/app';
         $config = (string) file_get_contents($root . '/config.php');
 
-        assert_contains("define('APP_PHASE', 22)", $config, 'config.php must mark phase 22');
-        assert_same(22, APP_PHASE, 'APP_PHASE constant must be 22');
+        assert_contains("define('APP_PHASE', 23)", $config, 'config.php must mark phase 23');
+        assert_same(23, APP_PHASE, 'APP_PHASE constant must be 23');
 
         $hardening = (string) file_get_contents(dirname(__DIR__, 2) . '/tests/Cases/HardeningTest.php');
-        assert_contains("assert_same(22, APP_PHASE)", $hardening, 'HardeningTest must assert phase 22');
+        assert_contains("assert_same(23, APP_PHASE)", $hardening, 'HardeningTest must assert phase 23');
+        assert_not_contains("assert_same(22, APP_PHASE)", $hardening, 'HardeningTest must not assert phase 22');
         assert_not_contains("assert_same(21, APP_PHASE)", $hardening, 'HardeningTest must not assert phase 21');
     },
 

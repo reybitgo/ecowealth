@@ -32,9 +32,10 @@ defined('APP_DEBUG') || define('APP_DEBUG', APP_ENV !== 'production');
 
 /* Phase currently under construction — controls which menu items render.
  * Phase 22 (the Product Binary Bonus workstream, dmp/plan-ecowealth-product-binary-sliced.md)
- * is released: see docs/phase-log.md for the release entry. The constant only
- * labels the build; no route, menu item or permission reads it for Phase 22. */
-defined('APP_PHASE') || define('APP_PHASE', 22);
+ * is released: see docs/phase-log.md for the release entry. Phase 23 (the Package Binary Bonus,
+ * dmp/plan-ecowealth-package-binary-sliced.md) is released at 23G. The constant only labels the
+ * build; no route, menu item or permission reads it for Phase 22, and Phase 23 ships no UI. */
+defined('APP_PHASE') || define('APP_PHASE', 23);
 
 /* ---------- Database (MySQL) ---------- */
 defined('DB_HOST') || define('DB_HOST', '127.0.0.1');

@@ -1,12 +1,12 @@
 # EcoWealth — Phase 23A QA: Foundation (`QA23A-01` … `QA23A-06`)
 
-This document holds **sections A–F** of the Phase 23 QA pack. Phase 23 is the Package Binary Bonus,
+This document holds **sections A–G** of the Phase 23 QA pack. Phase 23 is the Package Binary Bonus,
 delivered in gated phases **23A → 23G**.
 
-**Status:** sections A–E appended by their phases; section F (`QA23F-01` … `QA23F-05`, 5 checks) appended
-by 23F-S2. The gate opens at 23G.
+**Status:** sections A–F appended by their phases; section G (`QA23G-01` … `QA23G-04`, 4 checks) appended
+by 23G-S1 and executed by 23G-S2 (the acceptance run). The release gate opens at 23G-S2.
 
-> **42 checks in total** — A 6 · B 6 · C 8 · D 7 · E 6 · F 5.
+> **46 checks in total** — A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4.
 
 > **Where each check runs.** `QA23A-01` takes the backup on the development copy; `QA23A-02`, `03`,
 > `04`, `05` and `06` run on scratch schemas provisioned from `system/database/install.sql`. No check
@@ -1025,6 +1025,87 @@ Expected
 - The escrow check reads `pass: no pending package awards — package money is credited immediately.`
 - The totals check reads `pass: every stamped package activation's binary_total matches its live pair awards.`
 
+## Section G â€” Phase 23G: Release (`QA23G-01` â€¦ `QA23G-04`)
+
+**Status:** written by 23G-S1; executed by 23G-S2 (the acceptance run and sign-off). No check touches
+`ecowealth_sneat`.
+
+### QA23G-01 â€” Execute the QA pack on the scratch database
+
+| Why | P23G-T6 / Rule 4: the QA pack Aâ€“G is complete, every check carries a unique ID and its evidence is indexed. | Where | Terminal + browser on a scratch schema | Evidence | `QA23G-01.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `docs\qa\phase-23-package-binary.md` and confirm sections Aâ€“G are all present.
+2. Confirm every check ID `QA23A-01` â€¦ `QA23G-04` appears exactly once.
+3. Confirm `docs\qa\evidence\phase-23\README.md` lists every check's evidence file.
+
+Expected
+
+- All seven sections render; the check total reads 46 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4).
+- Every `QA23X-nn` ID is unique.
+- The evidence index lists `QA23A-01` … `QA23G-04`.
+
+---
+
+### QA23G-02 â€” The acceptance run (Appendix B)
+
+| Why | P23G-T4 / Rule 2: the cold read and the 10-step acceptance run are mandatory before sign-off. | Where | Scratch database provisioned from `system/database\install.sql` with migration 027 applied | Evidence | `QA23G-02.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Provision a scratch schema from `install.sql`, apply migration 027, configure a binary-enabled package (PKA = 1,000 points), place the fixture tree and approve two activations (one per leg).
+2. Run Appendix B's 10 steps: migration, install parity, configuration, first activation, first pair, qualification block, member page, admin pages, product stream regression, reversal and stop.
+3. Record the pass/fail of each step.
+
+Expected
+
+- All 10 acceptance steps pass.
+- Migration re-runs idempotently; `build_install_sql --check` exits 0; `wallet_reconcile` and `binary_audit --check` exit 0.
+- A paid shop order writes product-sourced rows identical to before 23C (`source = 'order'`).
+- Switching `package_binary_enabled` off makes a new activation stamp zeros.
+
+---
+
+### QA23G-03 â€” The docs copy-paste
+
+| Why | P23G-T3 / Rule 3: every command, key and route named in the docs must exist and run. | Where | Terminal: `system/` | Evidence | `QA23G-03.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\binary_audit.php --check` â€” exits 0.
+2. `php bin\wallet_reconcile.php` â€” exits 0.
+3. `php bin\package_binary_reverse.php --activation=<id> --dry-run` â€” prints without writing.
+4. `php bin\build_install_sql.php --check` â€” exits 0.
+
+Expected
+
+- Every command runs and exits 0 (the reversal dry run writes nothing).
+- Every settings key named in `docs\` exists in the `settings` table (the 3 `package_binary*` keys plus the shared binary keys).
+- Every route named in `docs\` and `app\routes_inventory.php` is registered (no phase-23 route is added).
+
+---
+
+### QA23G-04 â€” The phase log, the sign-off sheet and the badges
+
+| Why | P23G-T1 / Rule 5: the release note names the Phase 22 plan amendment and APP_PHASE === 23. | Where | `docs\phase-log.md`, `docs\qa\sign-off-sheet.md`, `system\app\config.php`, `system\tests\Cases\HardeningTest.php` | Evidence | `QA23G-04.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Confirm `APP_PHASE = 23` in `config.php` and that `HardeningTest` asserts 23.
+2. Confirm `docs\phase-log.md` records all seven phases (23A â€“ 23G) with tags, counts and deviations.
+3. Confirm `docs\qa\sign-off-sheet.md` carries a Phase 23 block.
+4. Confirm `dmp\plan-ecowealth-package-binary-sliced.md` status line names the release and `dmp\plan-ecowealth-product-binary.md` is amended as required.
+
+Expected
+
+- `APP_PHASE === 23`; `HardeningTest` asserts 23.
+- The phase log has seven entries; Appendix H's 23G row is filled.
+- The sign-off sheet carries a Phase 23 block.
+- Both plan status lines are consistent with the released code.
+
+---
+
 ## What is already automated
 
 Section F's claims are also asserted by the automated suite:
@@ -1074,4 +1155,8 @@ Section F's claims are also asserted by the automated suite:
 | QA23F-03 | `evidence/phase-23/QA23F-03.txt` |
 | QA23F-04 | `evidence/phase-23/QA23F-04.txt` |
 | QA23F-05 | `evidence/phase-23/QA23F-05.txt` |
+| QA23G-01 | `evidence/phase-23/QA23G-01.txt` |
+| QA23G-02 | `evidence/phase-23/QA23G-02.txt` |
+| QA23G-03 | `evidence/phase-23/QA23G-03.txt` |
+| QA23G-04 | `evidence/phase-23/QA23G-04.txt` |
 
