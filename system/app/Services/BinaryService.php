@@ -2364,11 +2364,11 @@ final class BinaryService
               WHERE side NOT IN ('left','right')
                  OR kind NOT IN ('own','team','pair','pair_return','reversal','adjustment')
                  OR points = 0
-                 OR (kind IN ('own','team') AND (points <= 0 OR order_item_id IS NULL))
+                 OR (kind IN ('own','team') AND (points <= 0 OR (order_item_id IS NULL AND source <> 'activation')))
                  OR (kind IN ('own','team') AND award_id IS NOT NULL)
                  OR (kind = 'pair' AND (points >= 0 OR award_id IS NULL))
                  OR (kind = 'pair_return' AND (points <= 0 OR award_id IS NULL))
-                 OR (kind = 'reversal' AND (points >= 0 OR order_item_id IS NULL))
+                 OR (kind = 'reversal' AND (points >= 0 OR (order_item_id IS NULL AND source <> 'activation')))
               ORDER BY id"
         );
 

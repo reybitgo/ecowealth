@@ -214,9 +214,34 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @has := (SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS
   WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_bv_team');
+SET @sql := IF(@has > 0,
+  'ALTER TABLE binary_volume DROP CHECK chk_bv_team',
+  'DO 0');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has := (SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_bv_team');
 SET @sql := IF(@has = 0,
   'ALTER TABLE binary_volume ADD CONSTRAINT chk_bv_team CHECK (
     kind <> ''team'' OR (points > 0 AND award_id IS NULL AND
+      ((source = ''order'' AND order_item_id IS NOT NULL) OR (source = ''activation'' AND activation_id IS NOT NULL)))
+  )',
+  'DO 0');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- chk_bv_rev must also accept activation-sourced reversal rows (order_item_id IS NULL) --
+SET @has := (SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_bv_rev');
+SET @sql := IF(@has > 0,
+  'ALTER TABLE binary_volume DROP CHECK chk_bv_rev',
+  'DO 0');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has := (SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_bv_rev');
+SET @sql := IF(@has = 0,
+  'ALTER TABLE binary_volume ADD CONSTRAINT chk_bv_rev CHECK (
+    kind <> ''reversal'' OR (points < 0 AND
       ((source = ''order'' AND order_item_id IS NOT NULL) OR (source = ''activation'' AND activation_id IS NOT NULL)))
   )',
   'DO 0');

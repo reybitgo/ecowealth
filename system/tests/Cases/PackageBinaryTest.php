@@ -1620,7 +1620,265 @@ return [
         }
         assert_true($threw, 'duplicate activation award violates uq_binary_award_activation');
     },
+
+    /* ----------------------------------------------------------
+     *  23C-S4 — Support-only activation reversal
+     *  Tests P23C-T45–T50
+     * ---------------------------------------------------------- */
+
+    'P23C-T45 dry run prints the reversal plan and writes nothing' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $walletTopup): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidB);
+
+        $walletTopup((int) $tree['c']['id'], '5000.00');
+
+        $beforeAwards = (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aidB)->fetchColumn();
+        $beforeVolume = (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aidB)->fetchColumn();
+        $beforeLedger = (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary_reversal'")->fetchColumn();
+
+        $result = (new PackageBinaryService())->reverseActivation($aidB, ['apply' => false]);
+
+        assert_same(false, $result['applied']);
+        assert_same(true, $result['dry_run']);
+        assert_same(1, $result['voided']);
+        assert_same(100.00, $result['recovered']);
+        assert_same(0.0, $result['shortfall']);
+        assert_same(2000, $result['pair_returned']);
+        assert_same(5000, $result['points_reversed']);
+
+        assert_same($beforeAwards, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aidB)->fetchColumn());
+        assert_same($beforeVolume, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aidB)->fetchColumn());
+        assert_same($beforeLedger, (int) db()->query("SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = 'binary_reversal'")->fetchColumn());
+
+        $awards = BinaryAward::forActivation($aidB);
+        assert_count(1, $awards);
+        assert_same('credited', $awards[0]['status']);
+    },
+
+    'P23C-T46 apply voids the award, claws back, reverses volume, recomputes the stamp' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $walletTopup): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidB);
+
+        $walletTopup((int) $tree['c']['id'], '5000.00');
+
+        $awardBefore = BinaryAward::forActivation($aidB);
+        assert_count(1, $awardBefore);
+        $awardId = (int) $awardBefore[0]['id'];
+
+        $wallet = new WalletService();
+        $walletBefore = $wallet->withdrawable((int) $tree['c']['id']);
+
+        $result = (new PackageBinaryService())->reverseActivation($aidB, ['apply' => true]);
+
+        assert_same(true, $result['applied']);
+        assert_same(false, $result['dry_run']);
+        assert_same(1, $result['voided']);
+        assert_same(100.00, $result['recovered']);
+        assert_same(0.0, $result['shortfall']);
+
+        $award = BinaryAward::find($awardId);
+        assert_same('voided', $award['status']);
+        assert_same(100.00, (float) $award['reversed_amount']);
+        assert_not_null($award['reversal_ledger_id']);
+
+        $walletAfter = $wallet->withdrawable((int) $tree['c']['id']);
+        assert_same($walletBefore - 100.00, $walletAfter);
+
+        $reversalLedgerStmt = db()->prepare(
+            'SELECT COUNT(*) FROM ewallet_ledger WHERE ref_type = ? AND ref_id = ?'
+        );
+        $reversalLedgerStmt->execute(['binary_reversal', $awardId]);
+        $reversalLedger = (int) $reversalLedgerStmt->fetchColumn();
+        assert_same(1, $reversalLedger, 'one binary_reversal ledger row');
+
+        $reversalVolumeStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $reversalVolumeStmt->execute([$aidB, 'reversal']);
+        $reversalVolume = (int) $reversalVolumeStmt->fetchColumn();
+        assert_same(5, $reversalVolume, 'five reversal rows for buyerB');
+
+        $pairReturnVolumeStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $pairReturnVolumeStmt->execute([$aidB, 'pair_return']);
+        $pairReturnVolume = (int) $pairReturnVolumeStmt->fetchColumn();
+        assert_same(2, $pairReturnVolume, 'two pair_return rows for c');
+
+        $summary = Activation::binarySummary($aidB);
+        assert_same('0.00', (string) $summary['binary_total']);
+    },
+
+    'P23C-T47 spent wallet: partial clawback, shortfall recorded, no negative balance' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $walletTopup): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidB);
+
+        $wallet = new WalletService();
+        $wallet->debit((int) $tree['c']['id'], 100.00, 'binary_reversal', null, 'Spend before reversal', true);
+
+        $result = (new PackageBinaryService())->reverseActivation($aidB, ['apply' => true]);
+
+        assert_same(1, $result['voided']);
+        assert_same(0.0, $result['recovered']);
+        assert_same(100.00, $result['shortfall']);
+
+        assert_true($wallet->balance((int) $tree['c']['id']) >= 0, 'balance is not negative');
+        assert_true($wallet->withdrawable((int) $tree['c']['id']) >= 0, 'withdrawable is not negative');
+
+        $awards = BinaryAward::forActivation($aidB);
+        assert_count(1, $awards);
+        assert_same('voided', $awards[0]['status']);
+        assert_same(0.0, (float) $awards[0]['reversed_amount']);
+    },
+
+    'P23C-T48 reversal twice: the second is a no-op, no duplicate rows' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $walletTopup): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['c']['id']]);
+
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        $aidB = $createApprovedActivation((int) $tree['buyerB']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidB);
+
+        $walletTopup((int) $tree['c']['id'], '5000.00');
+
+        $result1 = (new PackageBinaryService())->reverseActivation($aidB, ['apply' => true]);
+        assert_same(true, $result1['applied']);
+        assert_same(false, $result1['replayed']);
+
+        $reversalRows1Stmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $reversalRows1Stmt->execute([$aidB, 'reversal']);
+        $reversalRows1 = (int) $reversalRows1Stmt->fetchColumn();
+        assert_same(5, $reversalRows1);
+
+        $result2 = (new PackageBinaryService())->reverseActivation($aidB, ['apply' => true]);
+        assert_same(true, $result2['replayed']);
+        assert_same(0, $result2['voided']);
+        assert_same(0.0, $result2['recovered']);
+        assert_same(0.0, $result2['shortfall']);
+
+        $reversalRows2Stmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $reversalRows2Stmt->execute([$aidB, 'reversal']);
+        $reversalRows2 = (int) $reversalRows2Stmt->fetchColumn();
+        assert_same(5, $reversalRows2, 'no duplicate reversal rows');
+
+        $pairReturnRowsStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $pairReturnRowsStmt->execute([$aidB, 'pair_return']);
+        $pairReturnRows = (int) $pairReturnRowsStmt->fetchColumn();
+        assert_same(2, $pairReturnRows, 'no duplicate pair_return rows');
+    },
+
+    'P23C-T49 pair return restores points consumed by a later activation, audit clean' => function () use ($buildFixtureTree, $pkgABinary, $createApprovedActivation, $walletTopup): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        /* a is the pair recipient, so a must carry a binary-enabled package. */
+        db()->prepare('UPDATE users SET package_id = ?, member_status = "active", is_active = 1 WHERE id = ?')
+            ->execute([$pkgId, (int) $tree['a']['id']]);
+
+        /* buyerA places left 1000 at a, b, c and root/boss. */
+        $aidA = $createApprovedActivation((int) $tree['buyerA']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidA);
+
+        /* sideR places right 1000 at a → pair at a, consumes buyerA's left points, ₱100 to a. */
+        $aidSideR = $createApprovedActivation((int) $tree['sideR']['id'], $pkgId);
+        (new PackageBinaryService())->onActivation($aidSideR);
+
+        $walletTopup((int) $tree['a']['id'], '5000.00');
+
+        /* a has no points left (pair consumed them). */
+        $a = BinaryNode::forUser((int) $tree['a']['id']);
+        assert_same(0, (int) ($a['left_points'] ?? 0));
+        assert_same(0, (int) ($a['right_points'] ?? 0));
+
+        /* Reverse sideR's activation — its right points at a were paired with buyerA's left. */
+        $result = (new PackageBinaryService())->reverseActivation($aidSideR, ['apply' => true]);
+
+        assert_same(true, $result['applied']);
+        assert_same(1, $result['voided']);
+        assert_same(100.00, $result['recovered']);
+
+        /* Pair return rows restore a's consumed points. */
+        $pairReturnRowsStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $pairReturnRowsStmt->execute([$aidSideR, 'pair_return']);
+        $pairReturnRows = (int) $pairReturnRowsStmt->fetchColumn();
+        assert_same(2, $pairReturnRows, 'two pair_return rows for a');
+
+        /* Reversal rows negate sideR's team volume. */
+        $reversalRowsStmt = db()->prepare(
+            'SELECT COUNT(*) FROM binary_volume WHERE activation_id = ? AND kind = ?'
+        );
+        $reversalRowsStmt->execute([$aidSideR, 'reversal']);
+        $reversalRows = (int) $reversalRowsStmt->fetchColumn();
+        assert_same(3, $reversalRows, 'three reversal rows for sideR (root, boss, a)');
+
+        /* The audit is clean: every live pair award has its rows, balances match. */
+        $audit = (new BinaryService())->audit();
+        assert_true($audit['ok'], 'audit is clean after reversal — drifts: ' . json_encode($audit['drifts'] ?? []));
+    },
+
+    'P23C-T50 reversal of a never-approved activation is refused' => function () use ($buildFixtureTree, $pkgABinary): void {
+        $tree = $buildFixtureTree();
+        $pkgId = $pkgABinary();
+
+        $aid = Activation::create([
+            'user_id'        => (int) $tree['buyerA']['id'],
+            'package_id'     => $pkgId,
+            'amount'         => '1000.00',
+            'payment_method' => 'ewallet',
+            'status'         => 'pending_payment',
+        ]);
+
+        $threw = false;
+        try {
+            (new PackageBinaryService())->reverseActivation($aid, ['apply' => true]);
+        } catch (PackageBinaryException $e) {
+            $threw = true;
+            assert_same('not_approved', $e->reason);
+        }
+        assert_true($threw, 'reversing a never-approved activation must throw');
+
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_volume WHERE activation_id = ' . $aid)->fetchColumn());
+        assert_same(0, (int) db()->query('SELECT COUNT(*) FROM binary_awards WHERE activation_id = ' . $aid)->fetchColumn());
+    },
 ];
-
-
 

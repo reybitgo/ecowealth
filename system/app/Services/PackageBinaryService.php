@@ -202,6 +202,25 @@ final class PackageBinaryService
             $pdo,
         );
 
+        /* Keep left_credited/right_credited in sync with the ledger (INV-3):
+         * these cached columns are only repaired by auditFix(), so the
+         * service must maintain them when it writes volume. */
+        $this->pdo->prepare(
+            'UPDATE binary_nodes n
+               JOIN (
+                 SELECT node_user_id,
+                        SUM(CASE WHEN side = "left"  AND kind IN ("own","team") AND points > 0 THEN points ELSE 0 END) AS lc,
+                        SUM(CASE WHEN side = "right" AND kind IN ("own","team") AND points > 0 THEN points ELSE 0 END) AS rc
+                 FROM binary_volume
+                 WHERE activation_id = ?
+                 GROUP BY node_user_id
+               ) v ON v.node_user_id = n.user_id
+               SET n.left_credited  = n.left_credited  + v.lc,
+                   n.right_credited = n.right_credited + v.rc,
+                   n.updated_at   = NOW()
+             WHERE n.user_id = v.node_user_id'
+        )->execute([$activationId]);
+
         /* Layer 7: pair settlement, parent → root. */
         $pairPoints   = (int) setting_int('binary_pair_points', 1000);
         $pairPct      = round((float) setting_float('binary_pair_pct', 10.0), 3);
@@ -622,6 +641,301 @@ final class PackageBinaryService
     }
 
     /* ----------------------------------------------------------
+     *  Reversal — support only, dry run by default
+     * ---------------------------------------------------------- */
+
+    /**
+     * Reverse one activation's package binary awards, volume and wallet
+     * credits. One transaction per activation, idempotent, never re-pairs.
+     *
+     * Options:
+     *   apply  bool  default false — dry run writes nothing
+     *   reason string — audit/reversal reason
+     *
+     * @return array{
+     *   activation_id:int, applied:bool, dry_run:bool, replayed:bool, reason?:string,
+     *   voided:int, recovered:float, shortfall:float, points_reversed:int,
+     *   pair_returned:int, awards:list<array<string, mixed>>, nodes:int
+     * }
+     * @throws PackageBinaryException when the activation was never approved
+     */
+    public function reverseActivation(int $activationId, array $options = [], ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? $this->pdo;
+
+        $apply  = (bool) ($options['apply'] ?? false);
+        $reason = mb_substr(trim((string) ($options['reason'] ?? 'Activation reversed')), 0, 160);
+        $dryRun = !$apply;
+
+        $activation = $this->lockActivation($activationId, $pdo);
+        if ($activation === null) {
+            throw new RuntimeException('Activation #' . $activationId . ' does not exist.');
+        }
+
+        /* Idempotency: reversal rows already exist for this activation. */
+        $alreadyStmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM binary_volume
+              WHERE activation_id = ? AND kind = ? AND source = ?'
+        );
+        $alreadyStmt->execute([
+            $activationId,
+            BinaryVolume::KINDS[3],
+            BinaryVolume::sourceFromActivation(),
+        ]);
+        $alreadyReversed = (int) $alreadyStmt->fetchColumn();
+
+        if ($alreadyReversed > 0) {
+            return $this->reverseResult($activationId, true, true, 0, 0.0, 0.0, 0, 0, [], 'already_reversed', $dryRun);
+        }
+
+        $awards = BinaryAward::forActivation($activationId, $pdo);
+        $credited = array_values(array_filter($awards, fn (array $a): bool => (string) ($a['status'] ?? '') === 'credited'));
+
+        /* T50: a never-approved activation paid nothing — refuse. */
+        if ($credited === [] && (string) ($activation['status'] ?? '') !== 'approved') {
+            throw PackageBinaryException::notApproved();
+        }
+
+        if ($credited === []) {
+            return $this->reverseResult($activationId, true, false, 0, 0.0, 0.0, 0, 0, [], null, $dryRun);
+        }
+
+        if ($dryRun) {
+            $wouldRecover = 0.0;
+            $wouldShortfall = 0.0;
+            $wouldPairPoints = 0;
+            $wouldTeamPoints = 0;
+            $plan = [];
+
+            foreach ($credited as $award) {
+                $userId = (int) $award['user_id'];
+                $amount = round((float) $award['amount'], 2);
+                $take = round(min($amount, $this->wallet->withdrawable($userId)), 2);
+                $wouldRecover = round($wouldRecover + $take, 2);
+                $wouldShortfall = round($wouldShortfall + max(0.0, round($amount - $take, 2)), 2);
+
+                if ((string) $award['kind'] === 'pair') {
+                    $wouldPairPoints += (int) $award['pair_count'] * (int) $award['pair_points'];
+                }
+
+                $plan[] = [
+                    'award_id' => (int) $award['id'],
+                    'user_id' => $userId,
+                    'kind' => (string) $award['kind'],
+                    'amount' => $amount,
+                    'would_recover' => $take,
+                    'would_shortfall' => max(0.0, round($amount - $take, 2)),
+                ];
+            }
+
+            $teamRows = array_values(array_filter(
+                BinaryVolume::forActivation($activationId, $pdo),
+                fn (array $r): bool => (string) ($r['kind'] ?? '') === 'team'
+            ));
+
+            foreach ($teamRows as $row) {
+                $wouldTeamPoints += (int) $row['points'];
+            }
+
+            return $this->reverseResult($activationId, false, false, count($credited), $wouldRecover, $wouldShortfall, $wouldTeamPoints, $wouldPairPoints * 2, $plan, null, $dryRun);
+        }
+
+        /* Apply — lock nodes and recipients ascending to avoid deadlocks. */
+        $teamRows = array_values(array_filter(
+            BinaryVolume::forActivation($activationId, $pdo),
+            fn (array $r): bool => (string) ($r['kind'] ?? '') === 'team'
+        ));
+
+        $nodeIds = array_values(array_unique(array_map(
+            static fn (array $r): int => (int) ($r['node_user_id'] ?? 0),
+            $teamRows
+        )));
+        sort($nodeIds);
+
+        if ($nodeIds !== []) {
+            $marks = implode(',', array_fill(0, count($nodeIds), '?'));
+            $pdo->prepare(
+                'SELECT * FROM binary_nodes WHERE user_id IN (' . $marks . ') ORDER BY user_id ASC FOR UPDATE'
+            )->execute($nodeIds);
+        }
+
+        $recipientIds = array_values(array_unique(array_map(
+            static fn (array $a): int => (int) ($a['user_id'] ?? 0),
+            $credited
+        )));
+        sort($recipientIds);
+
+        if ($recipientIds !== []) {
+            $marks = implode(',', array_fill(0, count($recipientIds), '?'));
+            $pdo->prepare(
+                'SELECT * FROM users WHERE id IN (' . $marks . ') ORDER BY id ASC FOR UPDATE'
+            )->execute($recipientIds);
+        }
+
+        $voided = 0;
+        $recovered = 0.0;
+        $shortfall = 0.0;
+        $pointsReversed = 0;
+        $pairReturned = 0;
+
+        foreach ($credited as $award) {
+            $awardId = (int) $award['id'];
+            $userId = (int) $award['user_id'];
+            $amount = round((float) $award['amount'], 2);
+
+            $take = round(min($amount, $this->wallet->withdrawable($userId)), 2);
+            $take = max(0.0, $take);
+
+            $reversalLedgerId = null;
+            $recoveredNow = 0.0;
+
+            if ($take > 0) {
+                try {
+                    $movement = $this->wallet->debit(
+                        $userId,
+                        $take,
+                        'binary_reversal',
+                        $awardId,
+                        'Package binary reversal — activation #' . $activationId,
+                        true
+                    );
+                    $reversalLedgerId = (int) ($movement['ledger_id'] ?? 0);
+                    $recoveredNow = $take;
+                } catch (Throwable $e) {
+                    error_log(sprintf(
+                        '[ecowealth] package binary reversal for award #%d recovered nothing: %s',
+                        $awardId,
+                        $e->getMessage()
+                    ));
+                    $recoveredNow = 0.0;
+                }
+            }
+
+            if ((string) $award['kind'] === 'pair') {
+                $pairCount = (int) ($award['pair_count'] ?? 0);
+                $pp = (int) ($award['pair_points'] ?? 0);
+                $pts = $pairCount * $pp;
+
+                if ($pts > 0) {
+                    foreach (['left', 'right'] as $side) {
+                        BinaryVolume::create([
+                            'node_user_id' => $userId,
+                            'side' => $side,
+                            'kind' => 'pair_return',
+                            'points' => $pts,
+                            'order_id' => null,
+                            'order_item_id' => null,
+                            'buyer_id' => (int) ($award['buyer_id'] ?? 0),
+                            'award_id' => $awardId,
+                            'note' => 'Pair return — voided award #' . $awardId,
+                            'source' => BinaryVolume::sourceFromActivation(),
+                            'activation_id' => $activationId,
+                        ], $pdo);
+                    }
+
+                    $this->pdo->prepare(
+                        'UPDATE binary_nodes
+                            SET left_points = left_points + ?, right_points = right_points + ?,
+                                pairs_paid = pairs_paid - ?, points_matched = points_matched - ?,
+                                updated_at = NOW()
+                          WHERE user_id = ?'
+                    )->execute([
+                        $pts,
+                        $pts,
+                        $pairCount,
+                        2 * $pairCount * $pp,
+                        $userId,
+                    ]);
+
+                    $pairReturned += $pts * 2;
+                }
+            }
+
+            BinaryAward::void($awardId, [
+                'reversal_ledger_id' => $reversalLedgerId,
+                'reversed_amount' => $recoveredNow,
+                'void_reason' => $reason,
+            ], $pdo);
+
+            $recovered = round($recovered + $recoveredNow, 2);
+            $shortfall = round($shortfall + max(0.0, round($amount - $recoveredNow, 2)), 2);
+            $voided++;
+        }
+
+        /* Reverse every team row of this activation. */
+        foreach ($teamRows as $row) {
+            $nodeId = (int) $row['node_user_id'];
+            $side = (string) $row['side'];
+            $points = (int) $row['points'];
+
+            BinaryVolume::create([
+                'node_user_id' => $nodeId,
+                'side' => $side,
+                'kind' => 'reversal',
+                'points' => -$points,
+                'order_id' => null,
+                'order_item_id' => null,
+                'buyer_id' => (int) ($row['buyer_id'] ?? 0),
+                'award_id' => null,
+                'note' => 'Reversal — package activation #' . $activationId,
+                'source' => BinaryVolume::sourceFromActivation(),
+                'activation_id' => $activationId,
+            ], $pdo);
+
+            $column = $side === 'left' ? 'left_points' : 'right_points';
+            $this->pdo->prepare(
+                'UPDATE binary_nodes
+                    SET ' . $column . ' = ' . $column . ' - ?, updated_at = NOW()
+                  WHERE user_id = ?'
+            )->execute([$points, $nodeId]);
+
+            $pointsReversed += $points;
+        }
+
+        /* Recompute the activation total from live (credited) pair awards. */
+        $liveTotal = 0.0;
+        $liveAwards = BinaryAward::forActivation($activationId, $pdo);
+        foreach ($liveAwards as $award) {
+            if ((string) ($award['kind'] ?? '') === 'pair' && (string) ($award['status'] ?? '') === 'credited') {
+                $liveTotal = round($liveTotal + (float) ($award['amount'] ?? 0), 2);
+            }
+        }
+
+        $this->stampActivation(
+            $activationId,
+            (int) ($activation['binary_points'] ?? 0),
+            $liveTotal,
+            $pdo
+        );
+
+        /* Audit. */
+        AuditLog::record([
+            'action' => 'package_binary.reverse',
+            'actor_id' => null,
+            'actor_role' => 'system',
+            'subject_type' => 'activation',
+            'subject_id' => $activationId,
+            'meta' => [
+                'activation_id' => $activationId,
+                'awards' => $voided,
+                'amount' => number_format($recovered, 2, '.', ''),
+                'shortfall' => number_format($shortfall, 2, '.', ''),
+                'reason' => $reason,
+            ],
+        ], $pdo);
+
+        $userId = (int) ($activation['user_id'] ?? 0);
+        Live::touch('admin.dashboard');
+        Live::touch('admin.activations');
+        Live::touchMember($userId);
+        Live::touchMembership($userId);
+        Live::touchMemberWallet($userId);
+        Live::touchMemberDashboard($userId);
+
+        return $this->reverseResult($activationId, true, false, $voided, $recovered, $shortfall, $pointsReversed, $pairReturned, [], null, false);
+    }
+
+    /* ----------------------------------------------------------
      *  Feature switches (static)
      * ---------------------------------------------------------- */
 
@@ -678,6 +992,36 @@ final class PackageBinaryService
             'awards'        => [],
             'nodes'         => 0,
             'reason'        => null,
+        ];
+    }
+
+    /** The common reversal return shape. */
+    private function reverseResult(
+        int $activationId,
+        bool $applied,
+        bool $replayed,
+        int $voided,
+        float $recovered,
+        float $shortfall,
+        int $pointsReversed,
+        int $pairReturned,
+        array $plan,
+        ?string $reason,
+        bool $dryRun
+    ): array {
+        return [
+            'activation_id' => $activationId,
+            'applied' => $applied,
+            'dry_run' => $dryRun,
+            'replayed' => $replayed,
+            'reason' => $reason,
+            'voided' => $voided,
+            'recovered' => $recovered,
+            'shortfall' => $shortfall,
+            'points_reversed' => $pointsReversed,
+            'pair_returned' => $pairReturned,
+            'awards' => $plan,
+            'nodes' => 0,
         ];
     }
 }

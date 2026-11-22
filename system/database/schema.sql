@@ -824,7 +824,9 @@ CREATE TABLE IF NOT EXISTS binary_volume (
       kind <> 'team' OR (points > 0 AND award_id IS NULL AND
         ((source = 'order' AND order_item_id IS NOT NULL) OR (source = 'activation' AND activation_id IS NOT NULL)))
   ),
-  CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND order_item_id IS NOT NULL)),
+  CONSTRAINT chk_bv_rev    CHECK (kind <> 'reversal' OR (points < 0 AND
+      ((source = 'order' AND order_item_id IS NOT NULL) OR (source = 'activation' AND activation_id IS NOT NULL))
+  )),
   CONSTRAINT chk_bv_pair   CHECK (kind <> 'pair'   OR (points < 0 AND award_id IS NOT NULL)),
   CONSTRAINT chk_bv_return CHECK (kind <> 'pair_return' OR (points > 0 AND award_id IS NOT NULL)),
   CONSTRAINT chk_bv_adj    CHECK (kind <> 'adjustment' OR points <> 0),
