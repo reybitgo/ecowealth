@@ -1075,3 +1075,23 @@ Both take their own lock, write one log line per run and audit their writes; nei
 entry, because a browser cannot be trusted with a money run. The go-live order and the incident drills
 live in [`runbook.md`](runbook.md) §*Team Harvest go-live order* and §*Team Harvest award and reconcile
 drill*. The reconciliation (`wallet_reconcile.php`) is the weekly check, not a job to schedule.
+
+---
+
+## Package binary (Phase 23) — no release job
+
+The package binary stream adds **no cron entry and no release job** (D-14, rule 5).
+
+| Job | When | Why it is not scheduled |
+|---|---|---|
+| `bin/package_binary_reverse.php` | **on demand**, support only | reverses one activation; dry run by default, never automatic |
+| `bin/binary_audit.php` | **on demand**, read-only | reports drifts, never repairs awards, wallets or volume |
+
+A package activation pays **immediately**: the award is `credited` at creation, the wallet movement is
+written inside the activation's transaction, and the release job (`bin/unilevel_release.php`) ignores
+activation-sourced awards because they are never `pending`. There is nothing to hold, nothing to release
+and nothing to schedule.
+
+The reversal CLI and the audit are run by hand from the runbook ([`runbook.md`](runbook.md)
+§*Package binary operations*), never from a schedule. `wallet_reconcile.php` already counts both
+sources (`order` and `activation`) in its binary section.

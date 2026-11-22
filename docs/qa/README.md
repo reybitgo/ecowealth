@@ -76,7 +76,7 @@ result, capture evidence and sign the phase off.
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
 | [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
 | [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **release candidate** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
-| [phase-23-package-binary.md](phase-23-package-binary.md) | 23A — Package binary bonus foundation, **section A only** (in progress) | 6 (QA23A-01 … QA23A-06) | 90–120 min |
+| [phase-23-package-binary.md](phase-23-package-binary.md) | 23A — Package binary bonus foundation, sections A–F | 42 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5) | 90–120 min per section |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
@@ -669,8 +669,9 @@ docs/qa/
 ├── phase-19-royalty.md                 ← manual checks for Phase 19 (sections A–G, 60 checks)
 ├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–G, signed)
 ├── phase-21-general-harvest.md        ← manual checks for Phase 21 (sections A–C so far; D–G appended by their phases)
+├── phase-23-package-binary.md           ← manual checks for Phase 23 (sections A–F, in progress)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + phase-21/ + unilevel-escrow/)
+├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + phase-21/ + phase-23/ + unilevel-escrow/)
 ```
 

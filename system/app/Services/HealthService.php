@@ -57,6 +57,9 @@ final class HealthService
             $this->binaryPoints(),
             $this->binaryEscrow(),
             $this->binaryRelease(),
+            $this->binaryPackageReadiness(),
+            $this->binaryPackageEscrow(),
+            $this->binaryPackageTotals(),
         ];
 
         $failing = 0;
@@ -744,6 +747,177 @@ final class HealthService
             );
         } catch (Throwable $e) {
             return $this->failed('binary_release_job', 'Product binary release job', $e);
+        }
+    }
+
+    /* ----------------------------------------------------------
+     *  Package binary stream (Phase 23)
+     * ---------------------------------------------------------- */
+
+    /**
+     * Package readiness: is the master switch on, are flagged packages
+     * earning points, and does every flagged package have points?
+     * Read-only, never changes a setting.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryPackageReadiness(): array
+    {
+        try {
+            $streamOn  = PackageBinaryService::enabled();
+            $requires  = PackageBinaryService::requiresPackage();
+            $zeroPv    = (int) db()->query(
+                'SELECT COUNT(*) FROM packages WHERE binary_enabled = 1 AND binary_points = 0'
+            )->fetchColumn();
+            $flagged   = (int) db()->query(
+                'SELECT COUNT(*) FROM packages WHERE binary_enabled = 1'
+            )->fetchColumn();
+
+            $details = [];
+            $warn    = false;
+
+            if (!$streamOn) {
+                $warn = true;
+                $details[] = 'The package binary master switch is off (Settings → Commissions → Package binary). Turn it on before any package activation pays.';
+            }
+            if ($zeroPv > 0) {
+                $warn = true;
+                $details[] = sprintf(
+                    '%d package(s) are flagged for the binary but earn 0 points — set binary_points or switch them off.',
+                    $zeroPv
+                );
+            }
+
+            if (!$streamOn) {
+                $summary = 'warn: Package binary is off — no package activation pays.';
+            } elseif ($warn) {
+                $summary = 'warn: package stream is on, but ' . count($details) . ' item(s) need attention.';
+            } else {
+                $qualified = $requires ? $flagged : $flagged;
+                $summary = sprintf(
+                    'pass: package stream on; %d package(s) flagged and earning.',
+                    $qualified
+                );
+            }
+
+            return $this->section(
+                'binary_package_readiness',
+                'Package binary readiness',
+                true,
+                $summary,
+                $details,
+                'admin/packages'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_package_readiness', 'Package binary readiness', $e);
+        }
+    }
+
+    /**
+     * Package escrow: how many pending package awards exist. Package awards
+     * are `credited` at creation (immediate credit), so a pending package
+     * award is a failure, not a warning. Read-only.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryPackageEscrow(): array
+    {
+        try {
+            if (!BinaryAward::tableExists(db())) {
+                return $this->section(
+                    'binary_package_escrow',
+                    'Package binary escrow',
+                    true,
+                    'pass: no binary awards table yet (the money engine is not installed).',
+                    [],
+                    'admin/commissions?ledger=binary'
+                );
+            }
+
+            $row = db()->query(
+                "SELECT COUNT(*) AS pending_count,
+                        COALESCE(SUM(amount), 0) AS pending_total
+                   FROM binary_awards
+                  WHERE source = 'activation' AND status = 'pending'"
+            )->fetch() ?: [];
+
+            $pending = (int) ($row['pending_count'] ?? 0);
+            $total   = round((float) ($row['pending_total'] ?? 0), 2);
+
+            $details = [];
+
+            if ($pending === 0) {
+                $summary = 'pass: no pending package awards — package money is credited immediately.';
+            } else {
+                $summary = sprintf(
+                    'fail: %d pending package award(s) worth ₱%s — package awards are never pending; reverse or re-stamp the activation.',
+                    $pending,
+                    number_format($total, 2, '.', ',')
+                );
+                $details[] = sprintf(
+                    '%d pending package award(s) totalling ₱%s exist; they must not be paid by a release job and must be corrected.',
+                    $pending,
+                    number_format($total, 2, '.', ',')
+                );
+            }
+
+            return $this->section(
+                'binary_package_escrow',
+                'Package binary escrow',
+                $pending === 0,
+                $summary,
+                $details,
+                'admin/commissions?ledger=binary&source=activation'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_package_escrow', 'Package binary escrow', $e);
+        }
+    }
+
+    /**
+     * Package totals: does every stamped activation's binary_total equal the
+     * sum of its live credited pair awards? Delegates to BinaryService::audit()
+     * INV-P4; never repairs.
+     *
+     * @return array<string, mixed>
+     */
+    private function binaryPackageTotals(): array
+    {
+        try {
+            $audit  = (new BinaryService())->audit();
+            $drifts = (array) ($audit['drifts'] ?? []);
+
+            $totalDrifts = array_values(array_filter($drifts, static function (array $d): bool {
+                return (string) ($d['kind'] ?? '') === 'package_total_mismatch';
+            }));
+
+            $ok = $totalDrifts === [];
+
+            if ($ok) {
+                $summary = 'pass: every stamped package activation\'s binary_total matches its live pair awards.';
+                $details = [];
+            } else {
+                $summary = 'fail: ' . count($totalDrifts) . ' package activation total(s) disagree with their live awards — run `bin/binary_audit.php --check` to see the drifts.';
+                $details = [];
+                foreach (array_slice($totalDrifts, 0, self::DETAIL_LIMIT) as $drift) {
+                    $details[] = sprintf(
+                        '[%s] %s',
+                        (string) ($drift['kind'] ?? 'drift'),
+                        (string) ($drift['message'] ?? '')
+                    );
+                }
+            }
+
+            return $this->section(
+                'binary_package_totals',
+                'Package binary totals',
+                $ok,
+                $summary,
+                $details,
+                'admin/reports'
+            );
+        } catch (Throwable $e) {
+            return $this->failed('binary_package_totals', 'Package binary totals', $e);
         }
     }
 

@@ -1,12 +1,12 @@
 # EcoWealth — Phase 23A QA: Foundation (`QA23A-01` … `QA23A-06`)
 
-This document is section **A only** of Phase 23A — Foundation. Phase 23A is a foundation release:
-it adds the package-binary schema columns, the three `package_binary_*` settings, the idempotent
-migration `027_package_binary.sql`, and the shared `source`/`activation_id` vocabulary. It moves no
-money, ships no settings card and no member panel. Everything it adds is inert until Phase 23C wires
-the engine.
+This document holds **sections A–F** of the Phase 23 QA pack. Phase 23 is the Package Binary Bonus,
+delivered in gated phases **23A → 23G**.
 
-**Status:** in progress (23A). Sections B–G are appended by their phases; the gate opens at 23G.
+**Status:** sections A–E appended by their phases; section F (`QA23F-01` … `QA23F-05`, 5 checks) appended
+by 23F-S2. The gate opens at 23G.
+
+> **42 checks in total** — A 6 · B 6 · C 8 · D 7 · E 6 · F 5.
 
 > **Where each check runs.** `QA23A-01` takes the backup on the development copy; `QA23A-02`, `03`,
 > `04`, `05` and `06` run on scratch schemas provisioned from `system/database/install.sql`. No check
@@ -190,7 +190,7 @@ Section A's schema and count claims are also asserted by the automated suite:
 
 ## Section B — Phase 23B: Configuration and readiness (`QA23B-01` … `QA23B-06`)
 
-**Status:** in progress (23B). Section B is appended by 23B-S2; sections C–G follow their phases.
+**Status:** complete (23B). Section B appended by 23B-S2; sections C–F follow their phases.
 
 > **Where each check runs.** `QA23B-01` to `QA23B-05` run against the development copy at migration 027;
 > `QA23B-06` runs on a scratch schema provisioned from `system/database/install.sql`. No check touches
@@ -357,7 +357,7 @@ Section B's claims are also asserted by the automated suite:
 
 ## Section C — Phase 23C: Money engine (`QA23C-01` … `QA23C-08`)
 
-**Status:** in progress (23C). Section C is appended by 23C-S5; sections D–G follow their phases.
+**Status:** complete (23C). Section C appended by 23C-S5; sections D–F follow their phases.
 
 > **Where each check runs.** `QA23C-01` to `QA23C-08` run on a scratch schema provisioned from
 > `system/database/install.sql` with migration 027 applied, Package A flagged `binary_enabled = 1`
@@ -573,7 +573,7 @@ Section C's claims are also asserted by the automated suite:
 
 ## Section D — Phase 23D: Admin visibility (`QA23D-01` … `QA23D-07`)
 
-**Status:** in progress (23D). Section D is appended by 23D-S2; sections E–F follow their phases.
+**Status:** complete (23D). Section D appended by 23D-S2; sections E–F follow their phases.
 
 > **Where each check runs.** `QA23D-01` to `QA23D-07` run against the development copy at migration 027,
 > with at least one package flagged `binary_enabled = 1` with `binary_points > 0` and at least one
@@ -776,7 +776,7 @@ Section D's claims are also asserted by the automated suite:
 
 ## Section E — Phase 23E: Member visibility (`QA23E-01` … `QA23E-06`)
 
-**Status:** not started. Section E is appended by 23E-S2; Section F follows in 23F.
+**Status:** complete (23E). Section E appended by 23E-S2; Section F follows in 23F.
 
 > **Where each check runs.** `QA23E-01` to `QA23E-06` run against the development copy at migration 027,
 > with at least one package flagged `binary_enabled = 1` with `binary_points > 0` and at least one
@@ -907,4 +907,171 @@ Expected
 - No horizontal scroll at 390 px.
 - Without JavaScript, the source filter submits a normal GET and paginates server-side.
 - All cards render without JavaScript hydration.
+
+---
+
+## Section F — Phase 23F: Operations (`QA23F-01` … `QA23F-05`)
+
+**Status:** complete (23F). Section F appended by 23F-S2; the gate opens at 23G.
+
+> **Where each check runs.** `QA23F-01` runs on the development copy; `QA23F-02` to `QA23F-05`
+> run on a scratch schema provisioned from `system/database/install.sql` with migration 027 applied.
+> No check touches `ecowealth_sneat`.
+
+> **Notation.** `mysql` means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe`; `php` means
+> Laragon's PHP 8.3 CLI. Every command runs from `system/`.
+
+### QA23F-01 — The audit is clean on the demo database
+
+| Why | P23F-T1 / Rule 1: `bin/binary_audit.php --check` exits 0 on the development copy with no package drifts. |
+|---|---|
+| Where | Terminal: `system/` |
+| Evidence | `QA23F-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. `php bin\binary_audit.php --check`
+2. Note the exit code and the drift count.
+
+Expected
+
+- Exit code `0`.
+- `drift_count` is `0` (or the only drifts are pre-existing product-binary drifts unrelated to packages).
+- The log line in `system\storage\logs\binary_audit-YYYY-MM.log` reads `stream=binary audit=check ... ok=clean`.
+
+### QA23F-02 — The audit names an orphaned activation award
+
+| Why | P23F-T2 / INV-P1: an activation-sourced award whose activation was deleted is flagged by name. |
+|---|---|
+| Where | `mysql` + `php bin\binary_audit.php --check --json` on a scratch schema |
+| Evidence | `QA23F-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Provision a scratch schema from `install.sql` with migration 027 applied.
+2. Insert one activation of a binary-enabled package, place its team volume, and add one credited
+   activation-sourced pair award naming it.
+3. Delete the activation row (FK cascade off) while keeping the award.
+4. `php bin\binary_audit.php --check --json`
+
+Expected
+
+- Exit code `1`.
+- A drift of kind `package_activation_reference` names the orphaned award and the missing activation.
+- `ok` is `false`.
+
+### QA23F-03 — The audit names a stamped activation with no volume
+
+| Why | P23F-T3 / INV-P5: a stamp with `binary_points > 0` but no team volume row is a failure. |
+|---|---|
+| Where | `mysql` + `php bin\binary_audit.php --check --json` on a scratch schema |
+| Evidence | `QA23F-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Provision a scratch schema as in QA23F-02.
+2. Insert one approved activation of a binary-enabled package and stamp `binary_processed_at`,
+   `binary_points = 1000`, `binary_total = 0.00` — but write no `binary_volume` rows.
+3. `php bin\binary_audit.php --check --json`
+
+Expected
+
+- Exit code `1`.
+- A drift of kind `package_stamped_no_volume` names the stamped activation.
+- `ok` is `false`.
+
+### QA23F-04 — A pending package audit is a failure
+
+| Why | P23F-T4 / INV-P2: no package award may be `pending`; the audit fails on it. |
+|---|---|
+| Where | `mysql` + `php bin\binary_audit.php --check --json` on a scratch schema |
+| Evidence | `QA23F-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Provision a scratch schema as in QA23F-02.
+2. Insert one credited activation-sourced pair award, then update its `status` to `pending`.
+3. `php bin\binary_audit.php --check --json`
+
+Expected
+
+- Exit code `1`.
+- A drift of kind `package_pending_award` reports at least one pending award.
+- `ok` is `false`.
+
+### QA23F-05 — The health panel shows the three package checks
+
+| Why | P23F-T5 / Rule 2: every check has a runbook remedy; the three package checks render on the health card. |
+|---|---|
+| Where | Browser: **Admin → Reports** (Health card) |
+| Evidence | `QA23F-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Sign in as admin. Open **Admin → Reports**.
+2. Confirm the health card lists **Package binary readiness**, **Package binary escrow** and
+   **Package binary totals** beside the product-binary checks.
+3. Confirm each reads `pass` (on a clean database), with the package summary lines shown below it.
+
+Expected
+
+- All three sections render with `ok = true` (or `warn` on readiness when the master switch is off,
+  which is expected on a fresh install).
+- The escrow check reads `pass: no pending package awards — package money is credited immediately.`
+- The totals check reads `pass: every stamped package activation's binary_total matches its live pair awards.`
+
+## What is already automated
+
+Section F's claims are also asserted by the automated suite:
+
+- `PackageBinaryHealthTest` — P23F-T5 (the three package health checks pass clean, warn on 0-point
+  packages, fail on drift) and P23F-T6 (every runbook command runs as written).
+
+## Evidence index
+
+| Check | Evidence file |
+|---|---|
+| QA23A-01 | `evidence/phase-23/QA23A-01.txt` |
+| QA23A-02 | `evidence/phase-23/QA23A-02.txt` |
+| QA23A-03 | `evidence/phase-23/QA23A-03.txt` |
+| QA23A-04 | `evidence/phase-23/QA23A-04.txt` |
+| QA23A-05 | `evidence/phase-23/QA23A-05.txt` |
+| QA23A-06 | `evidence/phase-23/QA23A-06.txt` |
+| QA23B-01 | `evidence/phase-23/QA23B-01.txt` |
+| QA23B-02 | `evidence/phase-23/QA23B-02.txt` |
+| QA23B-03 | `evidence/phase-23/QA23B-03.txt` |
+| QA23B-04 | `evidence/phase-23/QA23B-04.txt` |
+| QA23B-05 | `evidence/phase-23/QA23B-05.txt` |
+| QA23B-06 | `evidence/phase-23/QA23B-06.txt` |
+| QA23C-01 | `evidence/phase-23/QA23C-01.txt` |
+| QA23C-02 | `evidence/phase-23/QA23C-02.txt` |
+| QA23C-03 | `evidence/phase-23/QA23C-03.txt` |
+| QA23C-04 | `evidence/phase-23/QA23C-04.txt` |
+| QA23C-05 | `evidence/phase-23/QA23C-05.txt` |
+| QA23C-06 | `evidence/phase-23/QA23C-06.txt` |
+| QA23C-07 | `evidence/phase-23/QA23C-07.txt` |
+| QA23C-08 | `evidence/phase-23/QA23C-08.txt` |
+| QA23D-01 | `evidence/phase-23/QA23D-01.txt` |
+| QA23D-02 | `evidence/phase-23/QA23D-02.txt` |
+| QA23D-03 | `evidence/phase-23/QA23D-03.txt` |
+| QA23D-04 | `evidence/phase-23/QA23D-04.txt` |
+| QA23D-05 | `evidence/phase-23/QA23D-05.txt` |
+| QA23D-06 | `evidence/phase-23/QA23D-06.txt` |
+| QA23D-07 | `evidence/phase-23/QA23D-07.txt` |
+| QA23E-01 | `evidence/phase-23/QA23E-01.txt` |
+| QA23E-02 | `evidence/phase-23/QA23E-02.txt` |
+| QA23E-03 | `evidence/phase-23/QA23E-03.txt` |
+| QA23E-04 | `evidence/phase-23/QA23E-04.txt` |
+| QA23E-05 | `evidence/phase-23/QA23E-05.txt` |
+| QA23E-06 | `evidence/phase-23/QA23E-06.txt` |
+| QA23F-01 | `evidence/phase-23/QA23F-01.txt` |
+| QA23F-02 | `evidence/phase-23/QA23F-02.txt` |
+| QA23F-03 | `evidence/phase-23/QA23F-03.txt` |
+| QA23F-04 | `evidence/phase-23/QA23F-04.txt` |
+| QA23F-05 | `evidence/phase-23/QA23F-05.txt` |
 

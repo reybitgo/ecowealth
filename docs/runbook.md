@@ -966,6 +966,94 @@ database dump before investigating further.
 
 ---
 
+## 6. Package binary operations (Phase 23F)
+
+The package binary stream pays immediately — an award is `credited` at creation, inside the activation's
+transaction, and the release job never sees it. There is no scheduled job, no hold and no escrow. The
+operational envelope is three read-only commands plus the support-only reversal CLI:
+
+| Command | What it does | Guard |
+|---|---|---|
+| `bin/binary_audit.php --check` | reports activation-source drifts, never repairs money | read-only |
+| `bin/binary_audit.php --fix` | recomputes node cache columns only | cache-only |
+| `bin/package_binary_reverse.php --activation=ID` | dry run by default; `--apply` performs the reversal | idempotent |
+
+### A package activation paid nothing
+
+A member or support says an approved activation of a binary-enabled package placed no points and paid
+no pairs.
+
+1. **Is the stream on?** `package_binary_enabled` must be `1` on **Admin → Settings → Commissions**.
+   Off pays nothing and stamps zeros (D-13).
+2. **Is the package flagged?** `packages.binary_enabled = 1` and `binary_points > 0` on
+   **Admin → Packages → the package**. Off or zero points means nothing to place — the activation page
+   shows the reason.
+3. **Is the member placed?** An unplaced member cannot complete a binary-enabled activation; the page
+   blocks it. A direct call with no node stamps zeros and writes no volume.
+4. **Did the hook run?** `activations.binary_processed_at IS NULL` means `PackageBinaryService::onActivation()`
+   never ran for this activation. Re-approve (the hook fires inside `complete()`); a replayed activation
+   returns `replayed` and moves nothing.
+5. **Did a pair complete?** `binary_points` may be stamped with `binary_total = 0.00` when every ancestor
+   is on the same side — no pair formed yet. The member's team needs activations on the opposite side.
+6. **Check the health panel:** **Admin → Reports** — **Package binary readiness**, **Package binary escrow**
+   and **Package binary totals** must all be `pass`. `fail` names the drift; `warn` names a 0-point package
+   or the master switch being off.
+7. **Check the audit:** `php bin\binary_audit.php --check` — exit 0. A drift names the activation and the
+   row kind (`package_stamped_no_volume`, `package_total_mismatch`, etc.).
+
+### Reverse a package activation
+
+Support reverses an activation that was approved by mistake. Dry run first, always.
+
+```powershell
+cd C:\laragon\www\ecowealth\system
+
+# 1. Preview — writes nothing, changes nothing.
+php bin\package_binary_reverse.php --activation=<id>
+
+# 2. Read the preview: awards voided, wallet recovered, shortfall, pair points returned,
+#    volume reversed. The shortfall is what the wallet could not return.
+
+# 3. Apply — one transaction, atomic.
+php bin\package_binary_reverse.php --activation=<id> --apply
+
+# 4. Prove it: the audit must be clean.
+php bin\binary_audit.php --check
+exit 0
+```
+
+**What the reversal does:** voids each `credited` award, debits `min(amount, withdrawable)` as a
+`binary_reversal` movement (best effort; any shortfall is recorded on the award), writes `pair_return`
+rows for the consumed pair points, writes `reversal` rows for every `team` volume row, recomputes the
+activation's `binary_total`, and audits `package_binary.reverse`.
+
+**Rules:** idempotent — a second run finds the awards already voided and changes nothing. Dry run by
+default — `--apply` is required to write. No in-app route exists (D-11); there is no post-approval cancel
+in the app.
+
+### The audit reports a package drift
+
+`php bin\binary_audit.php --check` exits 1 and names package drifts.
+
+| Drift kind | What it means | Remedy |
+|---|---|---|
+| `package_activation_reference` | an activation-sourced award or volume row names a missing activation | restore the activation or delete the orphan row by hand (the audit never repairs awards) |
+| `package_stamped_no_volume` | `binary_processed_at` is set but no team volume exists | re-run the activation's hook, or re-approve; never stamp by hand |
+| `package_pending_award` | a package award is `pending` | package awards are never pending; reverse or re-stamp the activation |
+| `package_own_row` | an activation wrote an `own` volume row | team-only by design; remove the row by hand and re-check |
+| `package_self_award` | a package pair award names the activating member | the buyer never earns from their own package; void the award by hand |
+| `package_root_award` | a package pair award names the company root | the root is never paid; void the award by hand |
+| `package_volume_points` | a team row's points differ from the activation's `binary_points` | the points changed after placement; recompute or reverse and re-approve |
+| `package_total_mismatch` | `activations.binary_total` differs from live credited pair awards | reverse and re-approve, or correct the stamp with a one-off script |
+| `package_disabled_volume` | team volume from a package that is no longer binary-enabled | legacy volume stays; the switch stops new pairs |
+
+`--fix` repairs **only** node cache columns (`left_points`/`right_points`). It never touches awards,
+wallets or volume. If a drift is not a cache drift, it is a data problem: restore from backup or apply a
+one-off developer script with its own approval — never `UPDATE binary_awards`, `UPDATE binary_volume` or
+`UPDATE activations` by hand.
+
+---
+
 ## 7. Go-live checklist (plan §9.6)
 
 - [ ] Production database created and migrated to `023`; `schema.sql` matches. A fresh install
@@ -1041,6 +1129,7 @@ matrix by environment is in `dmp/plan-ecowealth-install-reset.md` §11.4.
 | Audit | **Admin → Audit log**, filter by action/subject/actor/date |
 | S-Login audit | **Admin → S-Login console**, **Admin → Audit log** (`slogin.*`) |
 | Product binary health | **Admin → Reports** (Health card): **Product binary readiness**, **Product binary points**, **Product binary escrow**, **Product binary release job** — each reports `pass`/`warn`/`fail` with a one-line remedy |
+| Package binary health | **Admin → Reports** (Health card): **Package binary readiness**, **Package binary escrow**, **Package binary totals** — readiness `pass`/`warn`, escrow `pass`/`fail` (package awards are never `pending`), totals `pass`/`fail` vs `BinaryService::audit()` |
 | Binary points drift | `php bin\binary_audit.php --check` — exit 0; `--fix` repairs the caches without touching awards, volume or wallets |
 | Binary release job | `php bin\unilevel_release.php --doctor` → green; `--stream=binary --dry-run` previews due awards; `errors=0` in `system/storage/logs/unilevel_release-YYYY-MM.log` |
 
