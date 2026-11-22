@@ -75,7 +75,18 @@ $hasFilters = (string) $filters['status'] !== ''
                         <td>
                           <?= status_badge((string) $activation['status']) ?>
 <?php if ((string) $activation['status'] === 'rejected' && (string) ($activation['reject_reason'] ?? '') !== ''): ?>
-                          <div class="member-meta activation-note"><?= e((string) $activation['reject_reason']) ?></div>
+                          <div class="member-meta activation-note"><?= e((string) ($activation['reject_reason'] ?? '')) ?></div>
+<?php endif; ?>
+<?php
+    $binaryPoints = (int) ($activation['binary_points'] ?? 0);
+    $binaryTotal  = (float) ($activation['binary_total'] ?? 0);
+    $processedAt  = (string) ($activation['binary_processed_at'] ?? '');
+    if ($processedAt !== '' || $binaryPoints > 0 || $binaryTotal > 0.0): ?>
+                          <div class="member-meta activation-note">
+                            Binary: <?= e(number_format($binaryPoints, 0, '.', '')) ?> pts ·
+                            <?= e(money($binaryTotal)) ?> ·
+                            <?= $processedAt !== '' ? e(date('M j', (int) strtotime($processedAt))) : 'not processed' ?>
+                          </div>
 <?php endif; ?>
                         </td>
                         <td class="text-nowrap">

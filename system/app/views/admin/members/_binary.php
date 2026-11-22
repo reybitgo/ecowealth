@@ -28,6 +28,10 @@ declare(strict_types=1);
  * } $binary
  * @var array<string,mixed> $member
  * @var int                 $member_id
+ *
+ * Source split (plan 23D): product vs package points/pairs/earnings,
+ * computed from the volume and award rows already loaded; qualification
+ * state from the member's package.
  */
 
 if (!$binary['has_node']): ?>
@@ -85,6 +89,54 @@ if ($placedById > 0) {
     $pbRow = Member::find($placedById);
     $placedByName = $pbRow !== null ? (string) ($pbRow['full_name'] ?? $pbRow['username']) : '#' . $placedById;
 }
+
+/* ---- Source split: product vs package (plan 23D) ---- */
+$productPoints = 0;
+$packagePoints = 0;
+$productPairs  = 0;
+$packagePairs  = 0;
+$productEarned = 0.0;
+$packageEarned = 0.0;
+
+foreach ($volume as $vrow) {
+    if ((string) ($vrow['kind'] ?? '') !== 'team') {
+        continue;
+    }
+    $points = (int) ($vrow['points'] ?? 0);
+    if ($points <= 0) {
+        continue;
+    }
+    if ((string) ($vrow['source'] ?? '') === 'activation') {
+        $packagePoints += $points;
+    } else {
+        $productPoints += $points;
+    }
+}
+
+foreach ($awards as $arow) {
+    if ((string) ($arow['kind'] ?? '') !== 'pair') {
+        continue;
+    }
+    $status = (string) ($arow['status'] ?? '');
+    if (!in_array($status, ['pending', 'credited'], true)) {
+        continue;
+    }
+    $amount = (float) ($arow['amount'] ?? 0);
+    if ((string) ($arow['source'] ?? '') === 'activation') {
+        $packagePairs += (int) ($arow['pair_count'] ?? 0);
+        $packageEarned = round($packageEarned + $amount, 2);
+    } else {
+        $productPairs  += (int) ($arow['pair_count'] ?? 0);
+        $productEarned = round($productEarned + $amount, 2);
+    }
+}
+
+/* Qualification: does this member hold a binary-enabled package? */
+$memberPackageId = (int) ($member['package_id'] ?? 0);
+$qualified       = $memberPackageId > 0 && Package::binaryEnabled($memberPackageId);
+$qualifiedLabel  = $qualified
+    ? 'Binary package — earns package pairs'
+    : 'No binary package — package activations place no points here';
 ?>
                   <div class="card mb-4" data-live-region="member-binary">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -193,12 +245,69 @@ if ($placedById > 0) {
                           <div class="card card-small text-body-secondary">
                             <div class="card-body py-2">
                               <div class="small text-uppercase text-body-secondary">Room today</div>
-                              <div class="fw-semibold"><?= e(number_format(max(0, $dailyCap - $pairsToday), 0, '.', '')) ?></div>
+                          <div class="fw-semibold"><?= e(number_format(max(0, $dailyCap - $pairsToday), 0, '.', '')) ?></div>
                             </div>
                           </div>
                         </div>
                       </div>
 
+                      <!-- Source split: product vs package (plan 23D) -->
+                      <div class="row g-3 mb-3">
+                        <div class="col-xl-3 col-sm-6">
+                          <div class="card card-small text-body-secondary">
+                            <div class="card-body py-2">
+                              <div class="small text-uppercase text-body-secondary">Product points</div>
+                              <div class="fw-semibold"><?= e(number_format($productPoints, 0, '.', '')) ?> pts</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-xl-3 col-sm-6">
+                          <div class="card card-small text-body-secondary">
+                            <div class="card-body py-2">
+                              <div class="small text-uppercase text-body-secondary">Package points</div>
+                              <div class="fw-semibold"><?= e(number_format($packagePoints, 0, '.', '')) ?> pts</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-xl-3 col-sm-6">
+                          <div class="card card-small text-body-secondary">
+                            <div class="card-body py-2">
+                              <div class="small text-uppercase text-body-secondary">Product pairs</div>
+                              <div class="fw-semibold"><?= $productPairs ?></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-xl-3 col-sm-6">
+                          <div class="card card-small text-body-secondary">
+                            <div class="card-body py-2">
+                              <div class="small text-uppercase text-body-secondary">Package pairs</div>
+                              <div class="fw-semibold"><?= $packagePairs ?></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="row g-3 mb-3">
+                        <div class="col-xl-6 col-sm-12">
+                          <div class="card card-small text-body-secondary">
+                            <div class="card-body py-2">
+                              <div class="small text-uppercase text-body-secondary">Product earned</div>
+                              <div class="fw-semibold"><?= e(money($productEarned)) ?></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-xl-6 col-sm-12">
+                          <div class="card card-small text-body-secondary">
+                            <div class="card-body py-2">
+                              <div class="small text-uppercase text-body-secondary">Package earned</div>
+                              <div class="fw-semibold"><?= e(money($packageEarned)) ?></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <div class="small text-uppercase text-body-secondary mb-1">Package qualification</div>
+                        <span class="badge bg-label-<?= $qualified ? 'success' : 'secondary' ?>"><?= e($qualifiedLabel) ?></span>
+                      </div>
 <?php if ($blocked !== []): ?>
                       <div class="mb-3">
                         <div class="small text-uppercase text-body-secondary mb-1">Blocked pairs in your subtree</div>
@@ -244,13 +353,14 @@ if ($placedById > 0) {
                                     <th scope="col" style="width:14%" class="text-end">Side</th>
                                     <th scope="col" class="text-end" style="width:14%">Kind</th>
                                     <th scope="col" class="text-end" style="width:16%">Points</th>
+                                    <th scope="col" class="text-end" style="width:12%">Source</th>
                                     <th scope="col">Order</th>
                                   </tr>
                                 </thead>
                                 <tbody>
 <?php if ($volume === []): ?>
                                   <tr>
-                                    <td colspan="5" class="text-body-secondary text-center py-2">No volume rows yet.</td>
+                                    <td colspan="6" class="text-body-secondary text-center py-2">No volume rows yet.</td>
                                   </tr>
 <?php else: ?>
 <?php foreach (array_slice($volume, 0, 8) as $row): ?>
@@ -266,6 +376,9 @@ if ($placedById > 0) {
                                     </td>
                                     <td class="text-end text-nowrap small fw-semibold">
                                       <?= e(number_format((int) ($row['points'] ?? 0), 0, '.', '')) ?> pts
+                                    </td>
+                                    <td class="text-end text-nowrap small">
+                                      <?= e((string) ($row['source'] ?? 'order') === 'activation' ? 'Package' : 'Product') ?>
                                     </td>
                                     <td class="text-body-secondary small">
                                       #<?= (int) ($row['order_id'] ?? 0) ?>
@@ -291,13 +404,14 @@ if ($placedById > 0) {
                                     <th scope="col" style="width:14%" class="text-end">Kind</th>
                                     <th scope="col" class="text-end" style="width:16%">Amount</th>
                                     <th scope="col">Status</th>
+                                    <th scope="col" class="text-end" style="width:12%">Source</th>
                                     <th scope="col" class="text-end" style="width:18%">Order</th>
                                   </tr>
                                 </thead>
                                 <tbody>
 <?php if ($awards === []): ?>
                                   <tr>
-                                    <td colspan="5" class="text-body-secondary text-center py-2">No award rows yet.</td>
+                                    <td colspan="6" class="text-body-secondary text-center py-2">No award rows yet.</td>
                                   </tr>
 <?php else: ?>
 <?php foreach (array_slice($awards, 0, 8) as $row): ?>
@@ -317,6 +431,9 @@ if ($placedById > 0) {
                                     </td>
                                     <td class="text-nowrap small">
                                       <?= status_badge($awardStatus, BinaryAward::STATUS_BADGES) ?>
+                                    </td>
+                                    <td class="text-end text-nowrap small">
+                                      <?= e((string) ($row['source'] ?? 'order') === 'activation' ? 'Package' : 'Product') ?>
                                     </td>
                                     <td class="text-body-secondary small text-end">
                                       #<?= (int) ($row['order_id'] ?? 0) ?>

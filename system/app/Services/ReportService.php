@@ -35,6 +35,7 @@ final class ReportService
         'team_harvest' => 'Team Harvest bonus',
         'general_harvest' => 'General Harvest bonus',
         'binary'       => 'Product binary bonus',
+        'package_binary' => 'Package binary bonus',
         'wallet'       => 'Wallet statement',
         'payouts'      => 'Payout register',
         'codes'        => 'Registration codes',
@@ -287,6 +288,9 @@ final class ReportService
             'binary_products' => Report::binaryByProduct($range['from'], $range['to'], 6),
             'binary_top_nodes'=> Report::binaryTopNodes(6),
             'binary_readiness'=> Report::binaryReadiness(),
+            'package_binary'     => Report::packageBinarySummary($range['from'], $range['to']),
+            'package_binary_by_package' => Report::packageBinaryByPackage($range['from'], $range['to'], 6),
+            'package_binary_by_activation' => Report::packageBinaryByActivation($range['from'], $range['to'], 6),
             'wallet'        => Report::walletFloat(),
             'payouts'       => Report::payoutSummary($range['from'], $range['to']),
             'codes'         => Report::codeRevenue(),
@@ -315,6 +319,7 @@ final class ReportService
             'team_harvest' => $this->teamHarvestExport($from, $to),
             'general_harvest' => $this->generalHarvestExport($from, $to),
             'binary'          => $this->binaryExport($from, $to),
+            'package_binary'  => $this->packageBinaryExport($from, $to),
             'wallet'       => $this->walletExport($from, $to),
             'payouts'      => $this->payoutExport($from, $to),
             'codes'        => $this->codesExport($from, $to),
@@ -721,6 +726,55 @@ final class ReportService
     public static function binaryColumns(array $row): array
     {
         return BinaryAward::csvRows([$row])[0];
+    }
+
+    /**
+     * The Package binary report CSV for a window: per-package rows and
+     * per-activation rows in one file, told apart by a `Scope` column.
+     *
+     * @return array{filename:string, header:list<string>, rows:list<list<string>>}
+     */
+    private function packageBinaryExport(string $from, string $to): array
+    {
+        $byPackage = Report::packageBinaryByPackage($from, $to, 100);
+        $byActivation = Report::packageBinaryByActivation($from, $to, 100);
+
+        $out = [];
+
+        foreach ($byPackage as $row) {
+            $out[] = [
+                'Package',
+                (string) $row['package'],
+                '',
+                (string) $row['activations'],
+                (string) $row['points_placed'] . ' pts',
+                (string) $row['pairs'],
+                self::decimal($row['amount']),
+                (string) $row['recipients'],
+            ];
+        }
+
+        foreach ($byActivation as $row) {
+            $out[] = [
+                'Activation',
+                '#' . (string) $row['activation_id'],
+                (string) $row['username'],
+                (string) $row['package'],
+                (string) $row['points'] . ' pts',
+                (string) $row['pairs'],
+                self::decimal($row['amount']),
+                (string) $row['status'],
+            ];
+        }
+
+        return [
+            'filename' => self::filename('package_binary', ['from' => $from, 'to' => $to]),
+            'header'   => [
+                'Scope', 'Package / activation', 'Member', 'Package',
+                'Activations', 'Points placed', 'Pairs', 'Amount', 'Recipients / status',
+            ],
+            'rows'     => $out,
+        ];
     }
 
     /** @return array{filename:string, header:list<string>, rows:list<list<string>>} */

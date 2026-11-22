@@ -46,6 +46,9 @@ declare(strict_types=1);
  * @var list<array{product_id:int, product:string, points_placed:int, awards:int, self_total:float, pair_total:float}> $binary_products
  * @var list<array{user_id:int, username:string, personal_points:int, left_points:int, right_points:int, pairs_paid:int}> $binary_top_nodes
  * @var array{stream_on:bool, products_on_no_points:int, products_off:int, members_unplaced:int, members_total:int} $binary_readiness
+ * @var array{amount:float, count:int, cancelled:int, cancelled_total:float, voided:int, voided_total:float, unrecovered:float, recipients:int, all_time:float, this_month:float, pending_amount:float, pending_count:int, points_placed:int, activations:int} $package_binary
+ * @var list<array{package_id:int, package:string, activations:int, points_placed:int, pairs:int, amount:float, recipients:int}> $package_binary_by_package
+ * @var list<array{activation_id:int, user_id:int, username:string, package:string, points:int, pairs:int, amount:float, status:string, processed_at:?string}> $package_binary_by_activation
  * @var array{accounts:int, float:float, withdrawable:float, credited_today:float, debited_today:float, movements_today:int} $wallet
  * @var array{by_status:list<array{status:string,count:int,amount:float,fees:float}>, by_method:list<array{method:string,count:int,amount:float}>, held:float, held_requests:int, completed_amount:float, completed_fees:float} $payouts
  * @var list<array<string, mixed>> $codes
@@ -293,6 +296,21 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
                 <div class="col-12">
 <?= View::capture('admin/reports/_binary_readiness', [
     'binary_readiness' => $binary_readiness,
+]) ?>
+                </div>
+              </div>
+
+              <div class="row g-6 mb-6">
+                <div class="col-12 col-xl-6">
+<?= View::capture('admin/reports/_binary_packages', [
+    'package_binary_by_package' => $package_binary_by_package,
+    'range'                     => $range,
+]) ?>
+                </div>
+                <div class="col-12 col-xl-6">
+<?= View::capture('admin/reports/_binary_activations', [
+    'package_binary_by_activation' => $package_binary_by_activation,
+    'range'                        => $range,
 ]) ?>
                 </div>
               </div>

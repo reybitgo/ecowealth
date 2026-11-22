@@ -112,5 +112,26 @@ $live = $live ?? [
                 </div>
 
 <?= View::capture('admin/activations/_pagination', ['pager' => $pager]) ?>
-              </div>
+
+<?php
+/* Activation binary cards (plan 23D-S2): show the package binary outcome
+ * for activations that have been processed. Read-only — PackageBinaryService
+ * only reads. */
+$binaryCards = [];
+foreach ($activations as $activation) {
+    if ((string) ($activation['binary_processed_at'] ?? '') !== '' || (int) ($activation['binary_points'] ?? 0) > 0) {
+        $binary = (new PackageBinaryService())->totalsFor((int) $activation['id']);
+        if ($binary['points'] > 0 || $binary['pairs'] > 0 || $binary['amount'] > 0.0) {
+            $binaryCards[] = ['activation' => $activation, 'binary' => $binary];
+        }
+    }
+}
+?>
+<?php foreach ($binaryCards as $card): ?>
+<?= View::capture('admin/activations/_binary', [
+    'activation' => $card['activation'],
+    'binary'     => $card['binary'],
+    'wallet_url' => url('admin/wallets'),
+]) ?>
+<?php endforeach; ?>
             </div>

@@ -1953,6 +1953,206 @@ final class Report
         ];
     }
 
+    /**
+     * Package binary headline counters for a window of activation-sourced awards.
+     *
+     * Reads `binary_awards` where `source = 'activation'` and `kind = 'pair'`,
+     * plus `binary_volume` where `source = 'activation'` and `kind = 'team'`.
+     * Points and money are shown side by side, never added together (plan Rule 4).
+     *
+     * @return array{
+     *   amount:float, count:int, cancelled:int, cancelled_total:float,
+     *   voided:int, voided_total:float, unrecovered:float, recipients:int,
+     *   all_time:float, this_month:float, pending_amount:float,
+     *   pending_count:int, points_placed:int, activations:int
+     * }
+     */
+    public static function packageBinarySummary(string $from, string $to, ?PDO $pdo = null): array
+    {
+        $pdo = $pdo ?? db();
+
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) AS count,
+                    COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS amount,
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_count,
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending_amount,
+                    COUNT(CASE WHEN status = 'cancelled' THEN 1 END) AS cancelled,
+                    COALESCE(SUM(CASE WHEN status = 'cancelled' THEN amount ELSE 0 END), 0) AS cancelled_total,
+                    COUNT(CASE WHEN status = 'voided' THEN 1 END) AS voided,
+                    COALESCE(SUM(CASE WHEN status = 'voided' THEN amount ELSE 0 END), 0) AS voided_total,
+                    COALESCE(SUM(CASE WHEN status = 'voided'
+                                       THEN amount - reversed_amount ELSE 0 END), 0) AS unrecovered,
+                    COUNT(DISTINCT user_id) AS recipients,
+                    COUNT(DISTINCT activation_id) AS activations
+               FROM binary_awards
+              WHERE source = 'activation' AND kind = 'pair'
+                AND created_at >= ? AND created_at < ?"
+        );
+        $stmt->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $row = $stmt->fetch() ?: [];
+
+        $totals = $pdo->query(
+            "SELECT COALESCE(SUM(CASE WHEN status = 'credited' THEN amount ELSE 0 END), 0) AS all_time,
+                    COALESCE(SUM(CASE WHEN status = 'credited'
+                                       AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                                      THEN amount ELSE 0 END), 0) AS this_month
+               FROM binary_awards
+              WHERE source = 'activation' AND kind = 'pair'"
+        )->fetch() ?: [];
+
+        $points = $pdo->prepare(
+            "SELECT COALESCE(SUM(points), 0) AS points_placed
+               FROM binary_volume
+              WHERE source = 'activation' AND kind = 'team'
+                AND created_at >= ? AND created_at < ?"
+        );
+        $points->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+        $pts = $points->fetch() ?: [];
+
+        return [
+            'amount'           => round((float) ($row['amount'] ?? 0), 2),
+            'count'            => (int) ($row['count'] ?? 0),
+            'cancelled'        => (int) ($row['cancelled'] ?? 0),
+            'cancelled_total'  => round((float) ($row['cancelled_total'] ?? 0), 2),
+            'voided'           => (int) ($row['voided'] ?? 0),
+            'voided_total'     => round((float) ($row['voided_total'] ?? 0), 2),
+            'unrecovered'      => round((float) ($row['unrecovered'] ?? 0), 2),
+            'recipients'       => (int) ($row['recipients'] ?? 0),
+            'all_time'         => round((float) ($totals['all_time'] ?? 0), 2),
+            'this_month'       => round((float) ($totals['this_month'] ?? 0), 2),
+            'pending_amount'   => round((float) ($row['pending_amount'] ?? 0), 2),
+            'pending_count'    => (int) ($row['pending_count'] ?? 0),
+            'points_placed'    => (int) ($pts['points_placed'] ?? 0),
+            'activations'      => (int) ($row['activations'] ?? 0),
+        ];
+    }
+
+    /**
+     * Package binary per package in a window: points placed, pairs paid,
+     * money credited, activations — biggest points first.
+     *
+     * @return list<array{
+     *   package_id:int, package:string, activations:int, points_placed:int,
+     *   pairs:int, amount:float, recipients:int
+     * }>
+     */
+    public static function packageBinaryByPackage(string $from, string $to, int $limit = 8, ?PDO $pdo = null): array
+    {
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(50, $limit));
+
+        $fromTs = $from . ' 00:00:00';
+        $toTs   = self::dayAfter($to) . ' 00:00:00';
+
+        /* Points placed per package, from the volume ledger joined to activations. */
+        $points = [];
+        $stmt = $pdo->prepare(
+            "SELECT a.package_id AS package_id, p.name AS package,
+                    COALESCE(SUM(v.points), 0) AS points_placed,
+                    COUNT(DISTINCT a.id) AS activations
+               FROM binary_volume v
+               JOIN activations a ON a.id = v.activation_id
+               JOIN packages p ON p.id = a.package_id
+              WHERE v.source = 'activation' AND v.kind = 'team'
+                AND v.created_at >= ? AND v.created_at < ?
+              GROUP BY a.package_id, p.name"
+        );
+        $stmt->execute([$fromTs, $toTs]);
+        foreach ($stmt->fetchAll() as $row) {
+            $pid = (int) $row['package_id'];
+            $points[$pid] = [
+                'package_id'   => $pid,
+                'package'      => (string) $row['package'],
+                'points_placed'=> (int) $row['points_placed'],
+                'activations'  => (int) $row['activations'],
+                'pairs'        => 0,
+                'amount'       => 0.0,
+                'recipients'   => 0,
+            ];
+        }
+
+        /* Awards per package, joined through activations. */
+        $stmt = $pdo->prepare(
+            "SELECT a.package_id AS package_id,
+                    COUNT(*) AS pairs,
+                    COALESCE(SUM(CASE WHEN aw.status = 'credited' THEN aw.amount ELSE 0 END), 0) AS amount,
+                    COUNT(DISTINCT aw.user_id) AS recipients
+               FROM binary_awards aw
+               JOIN activations a ON a.id = aw.activation_id
+              WHERE aw.source = 'activation' AND aw.kind = 'pair'
+                AND aw.created_at >= ? AND aw.created_at < ?
+              GROUP BY a.package_id"
+        );
+        $stmt->execute([$fromTs, $toTs]);
+        foreach ($stmt->fetchAll() as $row) {
+            $pid = (int) $row['package_id'];
+            if (isset($points[$pid])) {
+                $points[$pid]['pairs']   = (int) $row['pairs'];
+                $points[$pid]['amount']  = round((float) $row['amount'], 2);
+                $points[$pid]['recipients'] = (int) $row['recipients'];
+            }
+        }
+
+        $rows = array_values($points);
+        usort($rows, static fn (array $a, array $b): int =>
+            $b['points_placed'] <=> $a['points_placed']
+            ?: ($b['pairs'] <=> $a['pairs'])
+            ?: strcmp($a['package'], $b['package']));
+
+        return array_slice($rows, 0, $limit);
+    }
+
+    /**
+     * Package binary per activation in a window: points placed, pairs paid,
+     * money credited — newest first.
+     *
+     * @return list<array{
+     *   activation_id:int, user_id:int, username:string, package:string,
+     *   points:int, pairs:int, amount:float, status:string, processed_at:?string
+     * }>
+     */
+    public static function packageBinaryByActivation(string $from, string $to, int $limit = 8, ?PDO $pdo = null): array
+    {
+        $pdo   = $pdo ?? db();
+        $limit = max(1, min(50, $limit));
+
+        $rows = $pdo->prepare(
+            "SELECT a.id AS activation_id, a.user_id AS user_id, u.username AS username,
+                    p.name AS package, a.status AS status, a.binary_processed_at AS processed_at,
+                    COALESCE(SUM(CASE WHEN v.kind = 'team' THEN v.points ELSE 0 END), 0) AS points,
+                    COUNT(DISTINCT CASE WHEN aw.kind = 'pair' AND aw.status IN ('pending','credited') THEN aw.id END) AS pairs,
+                    COALESCE(SUM(CASE WHEN aw.kind = 'pair' AND aw.status = 'credited' THEN aw.amount ELSE 0 END), 0) AS amount
+               FROM activations a
+               JOIN users u ON u.id = a.user_id
+               JOIN packages p ON p.id = a.package_id
+               LEFT JOIN binary_volume v ON v.activation_id = a.id AND v.source = 'activation' AND v.kind = 'team'
+               LEFT JOIN binary_awards aw ON aw.activation_id = a.id AND aw.source = 'activation' AND aw.kind = 'pair'
+              WHERE a.binary_processed_at IS NOT NULL
+                AND a.binary_processed_at >= ? AND a.binary_processed_at < ?
+              GROUP BY a.id, a.user_id, u.username, p.name, a.status, a.binary_processed_at
+              ORDER BY a.binary_processed_at DESC, a.id DESC
+              LIMIT " . $limit
+        );
+        $rows->execute([$from . ' 00:00:00', self::dayAfter($to) . ' 00:00:00']);
+
+        $out = [];
+        foreach ($rows->fetchAll() as $row) {
+            $out[] = [
+                'activation_id' => (int) $row['activation_id'],
+                'user_id'       => (int) $row['user_id'],
+                'username'      => (string) $row['username'],
+                'package'       => (string) $row['package'],
+                'points'        => (int) $row['points'],
+                'pairs'         => (int) $row['pairs'],
+                'amount'        => round((float) $row['amount'], 2),
+                'status'        => (string) $row['status'],
+                'processed_at'  => $row['processed_at'] === null ? null : (string) $row['processed_at'],
+            ];
+        }
+
+        return $out;
+    }
+
     /* ----------------------------------------------------------
      *  Internals
      * ---------------------------------------------------------- */

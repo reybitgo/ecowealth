@@ -1352,3 +1352,76 @@ None of the four is a button; each links to the filtered package list (Rule 7).
 Approving an activation of a binary-flagged package after 23B writes no `binary_awards`, no
 `binary_volume` and no `binary` wallet movement — that hook is 23C's work. Member pages show no
 package-binary content until 23E.
+
+## 27. Package binary admin visibility (Phase 23D)
+
+Phase 23D makes every package point and package award visible in the back office — read-only, no
+money writes. Three surfaces gain the package stream: the binary ledger, the member panel, and the
+reports desk.
+
+### Admin → Commissions → Product binary (`?ledger=binary`)
+
+The binary ledger tab gains a **Source** column between Side and Points. Every row reads
+**Repeat purchase** (product orders) or **Package activation** (approved activations). A Source
+filter above the table narrows to one source; an unknown value silently shows all.
+
+The headline stats add two tiles beside the Phase 22 cards:
+
+| Tile | What it shows |
+|---|---|
+| **Package pairs** | Pairs paid from package activations · money credited |
+| **Package points** | Points placed by package activations |
+
+The CSV export (`Export CSV`) gains the **Source** column and is audited as `binary.export`
+with the filters and row count. Product-sourced rows are byte-identical to Phase 22 — the Source
+column is additive, nothing else changes.
+
+### Admin → Members → `{id}` → Product binary panel
+
+The member's binary panel now splits by source:
+
+| Split | What it means |
+|---|---|
+| **Product points / Package points** | Points placed on this member's node, from product orders vs package activations |
+| **Product pairs / Package pairs** | Pairs paid to this member, split by the stream that produced them |
+| **Product earned / Package earned** | Money credited to this member's wallet, split by source |
+
+The **Recent volume** and **Recent awards** tables each gain a **Source** column reading *Product* or
+*Package*. A **Package qualification** badge reads *Binary package — earns package pairs* when the
+member holds a package with `binary_enabled = 1`, otherwise *No binary package — package
+activations place no points here*.
+
+### Admin → Activations
+
+Each activation row in the queue now shows its binary outcome when processed:
+`Binary: N pts · ₱m.m0 · Mmm d` (points placed, money paid, processed date). Below the table,
+every processed activation renders a **Package binary** card:
+
+- Points placed and pairs paid
+- Amount paid (₱)
+- Volume rows and award rows
+- Processed date and activation status
+- Wallet links on each pair award row (`#<ledger_id>`)
+
+A 0-point, disabled-package or stream-off activation shows *Nothing placed* with the reason
+(stream off / package disabled / not placed / not approved).
+
+### Admin → Reports
+
+The reports desk gains two package-binary cards below the Product binary readiness card:
+
+| Card | What it shows |
+|---|---|
+| **Package binary — by package** | Per package: activations, points placed, pairs paid, amount credited, recipients |
+| **Package binary — by activation** | Per activation: member, package, points placed, pairs paid, amount credited, status, processed date |
+
+Exporting **Package binary bonus** produces a CSV with a `Scope` column distinguishing `Package`
+rows from `Activation` rows — both sources included, matching the ledger exactly.
+
+### What did not change
+
+- No new route, no new table, no new cron (D-14/D-15).
+- The product stream's awards, volume and wallet rows are byte-identical to `p22i-release`.
+- No member-facing change (23E covers that).
+- Nothing here writes an award, volume or wallet row — it is all read-only over `binary_awards`
+  and `binary_volume` (Rule 1).

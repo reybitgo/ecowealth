@@ -568,3 +568,210 @@ Section C's claims are also asserted by the automated suite:
 | QA23C-06 | `evidence/phase-23/QA23C-06.txt` |
 | QA23C-07 | `evidence/phase-23/QA23C-07.txt` |
 | QA23C-08 | `evidence/phase-23/QA23C-08.txt` |
+
+---
+
+## Section D — Phase 23D: Admin visibility (`QA23D-01` … `QA23D-07`)
+
+**Status:** in progress (23D). Section D is appended by 23D-S2; sections E–F follow their phases.
+
+> **Where each check runs.** `QA23D-01` to `QA23D-07` run against the development copy at migration 027,
+> with at least one package flagged `binary_enabled = 1` with `binary_points > 0` and at least one
+> approved activation of that package. No check touches `ecowealth_sneat`.
+
+> **Notation.** `mysql` means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe`; `php` means
+> Laragon's PHP 8.3 CLI. Every command runs from `system/`.
+
+### QA23D-01 — The Source column and the source-aware stats
+
+| Why | P23D-T1 / Rule 2: every row in `/admin/commissions?ledger=binary` carries a Source column; the stats split credited/pending and pairs/points by source. |
+|---|---|
+| Where | Browser: `/admin/commissions?ledger=binary` |
+| Evidence | `QA23D-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions?ledger=binary`.
+2. Confirm the table header has a **Source** column between Side and Points.
+3. Confirm order-source rows read **Repeat purchase** and activation-source rows read **Package activation**.
+4. Confirm the stats cards show **Package pairs** and **Package points** beside the product-sourced cards.
+
+Expected
+
+- The Source column header renders and every row shows `Repeat purchase` or `Package activation` (never `—` when both sources exist).
+- The Package pairs card reads `n pairs · ₱m.m0 credited`; the Package points card reads `n pts`.
+- Product-sourced cards keep their Phase 22 values (byte-identical except the added Source column).
+
+### QA23D-02 — The source filter narrows and falls back
+
+| Why | P23D-T2 / Rule 6: `?source=activation` shows only activation rows; `?source=order` shows only order rows; `?source=` shows all; an unknown value falls back to all. |
+|---|---|
+| Where | Browser: `/admin/commissions?ledger=binary&source=activation` then `&source=order` then `&source=bogus` |
+| Evidence | `QA23D-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions?ledger=binary&source=activation`: confirm only Package activation rows appear.
+2. Open `/admin/commissions?ledger=binary&source=order`: confirm only Repeat purchase rows appear.
+3. Open `/admin/commissions?ledger=binary&source=`: confirm all rows appear.
+4. Open `/admin/commissions?ledger=binary&source=bogus`: confirm all rows appear (silent fallback).
+
+Expected
+
+- The filter dropdown selects the chosen source; the table rows match it exactly.
+- An unknown `source` value silently returns all rows — no error, no empty state.
+
+### QA23D-03 — The activation card shows the package binary outcome
+
+| Why | P23D-T5 / Rule 8: an activation's card shows points placed, pairs paid, money credited, status and wallet links; a 0-point package explains why nothing was placed. |
+|---|---|
+| Where | Browser: `/admin/activations` (queue) — look for activations with binary data |
+| Evidence | `QA23D-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Approve an activation of a binary-enabled package (QA23C-01/QA23C-02 setup).
+2. Open `/admin/activations`: find the activation in the queue.
+3. Confirm the row shows `Binary: N pts · ₱m.m0 · Mmm d` (points, total, processed date).
+4. Below the table, confirm the **Package binary** card renders:
+   - Points placed, pairs paid, amount paid, volume rows, award rows, processed at, activation status.
+   - Wallet links on each pair award row (`#<ledger_id>`).
+5. Open an activation of a 0-point or disabled package: the card says *Nothing placed* with the reason.
+
+Expected
+
+- Processed activations show a Package binary card with points, pairs, money and wallet links.
+- A 0-point/disabled/stream-off activation shows *Nothing placed* with the reason (stream off / package disabled / not placed).
+- Every pair award row links to its wallet movement.
+
+### QA23D-04 — The member panel split by source
+
+| Why | P23D-T6 / Rule 4: the admin member panel shows product vs package points/pairs/earnings side by side, plus the qualification state. |
+|---|---|
+| Where | Browser: `/admin/members/{id}` — a member with both product and package binary activity |
+| Evidence | `QA23D-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/members/{id}` for a member who has received both product pairs and package pairs.
+2. Confirm the Product binary panel shows a source split: **Product points** / **Package points**, **Product pairs** / **Package pairs**, **Product earned** / **Package earned**.
+3. Confirm the Recent volume table has a **Source** column reading *Product* or *Package*.
+4. Confirm the Recent awards table has a **Source** column reading *Product* or *Package*.
+5. Confirm the **Package qualification** badge reads *Binary package — earns package pairs* or *No binary package — package activations place no points here*.
+
+Expected
+
+- The split numbers match `SELECT source, SUM(points) FROM binary_volume WHERE node_user_id = ? GROUP BY source` and the equivalent award query.
+- Volume rows show `Package` when `source = 'activation'`, `Product` otherwise.
+- The qualification badge matches `Package::binaryEnabled(member.package_id)`.
+
+### QA23D-05 — The CSV export carries Source and activation id
+
+| Why | P23D-T4 / Rule 5: the export header has a Source column; activation rows carry their activation number. |
+|---|---|
+| Where | Browser: `/admin/commissions/export?ledger=binary&source=activation` |
+| Evidence | `QA23D-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions/export?ledger=binary&source=activation`.
+2. Confirm the CSV header has **Source** as a column.
+3. Confirm every data row shows `activation` in the Source column.
+4. Confirm `binary.export` audit row is written with the tab, filters and row count (`/admin/audit`).
+
+Expected
+
+- The CSV header contains `Source`; every data row's Source is `activation` (or `order` when filtered that way).
+- The audit desk shows a `binary.export` row for this download.
+
+### QA23D-06 — The reports desk shows the three package cards
+
+| Why | P23D-T7: `/admin/reports` shows Package binary summary, by-package and by-activation cards; totals match SQL; the range CSV includes both sources. |
+|---|---|
+| Where | Browser: `/admin/reports` — the Package binary section at the bottom |
+| Evidence | `QA23D-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/reports`: scroll to the Package binary section (below Product binary readiness).
+2. Confirm three cards: **Package binary — by package**, **Package binary — by activation**, and the summary figures.
+3. Confirm the numbers match `mysql` queries against `binary_awards`/`binary_volume` with `source = 'activation'`.
+4. Export `Package binary bonus` CSV: confirm rows for both `Package` and `Activation` scopes.
+
+Expected
+
+- The by-package card lists each flagged package with activations, points placed, pairs paid, amount, recipients.
+- The by-activation card lists each processed activation with member, package, points, pairs, amount, status.
+- The CSV has a `Scope` column distinguishing `Package` rows from `Activation` rows.
+
+### QA23D-07 — Other tabs unchanged
+
+| Why | P23D-T1 / Rule 2: the source column is additive; every other tab (package commissions, repeat, royalty, team harvest, general harvest) is byte-identical to `p22i-release`. |
+|---|---|
+| Where | Browser: `/admin/commissions` and each other tab |
+| Evidence | `QA23D-07.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/admin/commissions` (package tab): unchanged from Phase 22.
+2. Open `/admin/commissions?ledger=repeat`: unchanged.
+3. Open `/admin/commissions?ledger=royalty`: unchanged.
+4. Open `/admin/commissions?ledger=team_harvest`: unchanged.
+5. Open `/admin/commissions?ledger=general_harvest`: unchanged.
+6. Open `/admin/activations`: unchanged except activation rows now show binary points/total when processed.
+
+Expected
+
+- Every tab except binary renders exactly as at `p22i-release`; no CSS, HTML or behaviour change outside the binary tab.
+- Activation rows show binary data only when `binary_processed_at` is set; no new columns appear on other tabs.
+
+## What is already automated
+
+Section D's claims are also asserted by the automated suite:
+
+- `AdminCommissionLiveTest` — P23D-T5 (activation card), T6 (member panel split), T7 (report cards), T9 (audit/reconcile unchanged).
+- `BinaryService::audit()` — INV-P1 … INV-P7 still pass; `binary_audit --check` exits 0.
+- `wallet_reconcile.php` — exits 0; the binary section totals both sources.
+
+## Evidence index
+
+| Check | Evidence file |
+|---|---|
+| QA23A-01 | `evidence/phase-23/QA23A-01.txt` |
+| QA23A-02 | `evidence/phase-23/QA23A-02.txt` |
+| QA23A-03 | `evidence/phase-23/QA23A-03.txt` |
+| QA23A-04 | `evidence/phase-23/QA23A-04.txt` |
+| QA23A-05 | `evidence/phase-23/QA23A-05.txt` |
+| QA23A-06 | `evidence/phase-23/QA23A-06.txt` |
+| QA23B-01 | `evidence/phase-23/QA23B-01.txt` |
+| QA23B-02 | `evidence/phase-23/QA23B-02.txt` |
+| QA23B-03 | `evidence/phase-23/QA23B-03.txt` |
+| QA23B-04 | `evidence/phase-23/QA23B-04.txt` |
+| QA23B-05 | `evidence/phase-23/QA23B-05.txt` |
+| QA23B-06 | `evidence/phase-23/QA23B-06.txt` |
+| QA23C-01 | `evidence/phase-23/QA23C-01.txt` |
+| QA23C-02 | `evidence/phase-23/QA23C-02.txt` |
+| QA23C-03 | `evidence/phase-23/QA23C-03.txt` |
+| QA23C-04 | `evidence/phase-23/QA23C-04.txt` |
+| QA23C-05 | `evidence/phase-23/QA23C-05.txt` |
+| QA23C-06 | `evidence/phase-23/QA23C-06.txt` |
+| QA23C-07 | `evidence/phase-23/QA23C-07.txt` |
+| QA23C-08 | `evidence/phase-23/QA23C-08.txt` |
+| QA23D-01 | `evidence/phase-23/QA23D-01.txt` |
+| QA23D-02 | `evidence/phase-23/QA23D-02.txt` |
+| QA23D-03 | `evidence/phase-23/QA23D-03.txt` |
+| QA23D-04 | `evidence/phase-23/QA23D-04.txt` |
+| QA23D-05 | `evidence/phase-23/QA23D-05.txt` |
+| QA23D-06 | `evidence/phase-23/QA23D-06.txt` |
+| QA23D-07 | `evidence/phase-23/QA23D-07.txt` |
+
+## Section E — Phase 23E: Member visibility (`QA23E-01` … `QA23E-06`)
+
+**Status:** not started. Section E is appended by 23E.

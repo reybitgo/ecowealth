@@ -1547,4 +1547,206 @@ return [
         assert_contains('Package activation', $page['html'], 'the empty state names the package activation source');
         assert_contains('package binary switch', strtolower($page['html']), 'the empty state names the package switch');
     },
+
+    /* ----------------------------------------------------------
+     *  P23D-T5 — the activation card
+     * ---------------------------------------------------------- */
+
+    'P23D-T5 the activation card shows package binary outcome' => function () use ($binaryPreset, $binaryProduct, $binaryOrder, $binaryOrderItem, $placeBinaryNode, $activationFixture): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t5_admin', 'admin'));
+
+        $product = $binaryProduct('P23D T5', 'P23DT5', 300.00, 250.00);
+
+        /* Activation-source award at a recipient */
+        $source = test_user('p23d_t5_src', 'member');
+        $recipient = test_user('p23d_t5_recip', 'member');
+        $placeBinaryNode((int) $source['id'], null, null, 0, '');
+        $placeBinaryNode((int) $recipient['id'], (int) $source['id'], 'left', 1, 'L');
+        $activation = $activationFixture((int) $source['id']);
+        $activationId = (int) $activation['id'];
+
+        BinaryAward::createForActivation([
+            'kind'          => 'pair',
+            'buyer_id'      => (int) $source['id'],
+            'user_id'       => (int) $recipient['id'],
+            'side'          => 'left',
+            'points'        => 2000,
+            'pair_count'    => 1,
+            'pair_points'   => 1000,
+            'rate_pct'      => 10.000,
+            'amount'        => 100.00,
+            'status'        => 'credited',
+            'activation_id' => $activationId,
+        ]);
+
+        /* Stamp the activation as processed */
+        Activation::markBinaryProcessed($activationId, 1000, 100.00);
+
+        /* Volume row the engine would write (totalsFor reads volume, not awards) */
+        db()->prepare(
+            'INSERT INTO binary_volume (node_user_id, side, kind, points, order_id, order_item_id, buyer_id, source, activation_id, created_at)
+             VALUES (?, ?, "team", 1000, NULL, NULL, NULL, "activation", ?, NOW())'
+        )->execute([(int) $source['id'], 'left', $activationId]);
+
+        /* totalsFor() is the read API the activation card consumes */
+        $binary = (new PackageBinaryService())->totalsFor($activationId);
+
+        assert_same(1000, $binary['points'], 'totalsFor reports the points placed');
+        assert_same(1, $binary['pairs'], 'totalsFor reports the pair count');
+        assert_same(100.00, $binary['amount'], 'totalsFor reports the amount paid');
+        assert_count(1, $binary['awards'], 'one pair award is returned');
+        assert_count(1, $binary['volume'], 'one team volume row is returned');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T6 — the member panel split
+     * ---------------------------------------------------------- */
+
+    'P23D-T6 the member panel splits product vs package' => function () use ($binaryPreset, $binaryProduct, $binaryOrder, $binaryOrderItem, $placeBinaryNode, $activationFixture): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t6_admin', 'admin'));
+
+        $product = $binaryProduct('P23D T6', 'P23DT6', 300.00, 250.00);
+
+        /* Member with both product and package volume */
+        $member = test_user('p23d_t6_member', 'member');
+        $placeBinaryNode((int) $member['id'], null, null, 0, '');
+
+        /* A real order so the FKs resolve */
+        $product = $binaryProduct('P23D T6 prod', 'P23DT6P', 300.00, 250.00);
+        $order   = $binaryOrder((int) $member['id'], 'left');
+        $binaryOrderItem((int) $order['id'], (int) $product['id'], 2, 250, 500);
+
+        /* Product-source team volume (order_id FK resolved via $order) */
+        db()->prepare(
+            'INSERT INTO binary_volume (node_user_id, side, kind, points, order_id, order_item_id, buyer_id, source, created_at)
+             VALUES (?, ?, "team", 1000, ?, ?, NULL, "order", NOW())'
+        )->execute([(int) $member['id'], 'left', (int) $order['id'], (int) $order['id']]);
+
+        /* Activation-source team volume (needs a real activation_id per chk_bv_source) */
+        $act = $activationFixture((int) $member['id']);
+        db()->prepare(
+            'INSERT INTO binary_volume (node_user_id, side, kind, points, order_id, order_item_id, buyer_id, source, activation_id, created_at)
+             VALUES (?, ?, "team", 1000, NULL, NULL, NULL, "activation", ?, NOW())'
+        )->execute([(int) $member['id'], 'right', (int) $act['id']]);
+
+        /* Product-source pair award */
+        BinaryAward::create([
+            'kind'       => 'pair',
+            'order_id'   => (int) $order['id'],
+            'buyer_id'   => (int) $member['id'],
+            'user_id'    => (int) $member['id'],
+            'side'       => 'left',
+            'points'     => 2000,
+            'pair_count' => 1,
+            'pair_points'=> 1000,
+            'rate_pct'   => 10.000,
+            'amount'     => 100.00,
+            'status'     => 'credited',
+            'source'     => 'order',
+        ]);
+
+        /* Activation-source pair award */
+        BinaryAward::createForActivation([
+            'kind'          => 'pair',
+            'buyer_id'      => (int) $member['id'],
+            'user_id'       => (int) $member['id'],
+            'side'          => 'right',
+            'points'        => 2000,
+            'pair_count'    => 1,
+            'pair_points'   => 1000,
+            'rate_pct'      => 10.000,
+            'amount'        => 100.00,
+            'status'        => 'credited',
+            'activation_id' => (int) $act['id'],
+        ]);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members/' . (int) $member['id'];
+
+        $controller = new AdminMemberController();
+        $data       = $controller->memberContext($member);
+
+        $html = View::capture('admin/members/show', $data + [
+            'page_title'  => 'Member',
+            'current_nav' => 'admin.members',
+            'page_css'    => [],
+            'page_js'     => [],
+            'live'        => Live::meta('admin.members:' . (int) $member['id'], 'page'),
+        ]);
+
+        assert_contains('Product points', $html, 'product points label renders');
+        assert_contains('Package points', $html, 'package points label renders');
+        assert_contains('Product pairs', $html, 'product pairs label renders');
+        assert_contains('Package pairs', $html, 'package pairs label renders');
+        assert_contains('Product earned', $html, 'product earned label renders');
+        assert_contains('Package earned', $html, 'package earned label renders');
+        assert_contains('Package qualification', $html, 'qualification badge renders');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T7 — the three report cards
+     * ---------------------------------------------------------- */
+
+    'P23D-T7 the reports desk shows package binary cards' => function () use ($binaryPreset): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t7_admin', 'admin'));
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+
+        $controller = new AdminReportController();
+        $data       = $controller->pageContext();
+
+        /* The page data should carry package_binary keys */
+        assert_true(array_key_exists('package_binary', $data), 'page data has package_binary summary');
+        assert_true(array_key_exists('package_binary_by_package', $data), 'page data has package_binary_by_package');
+        assert_true(array_key_exists('package_binary_by_activation', $data), 'page data has package_binary_by_activation');
+
+        /* Totals match SQL: summary count = 0 when nothing placed */
+        $summary = $data['package_binary'];
+        assert_same(0, (int) $summary['count'], 'no package awards yet');
+        assert_same(0, (int) $summary['activations'], 'no processed activations yet');
+        assert_same(0, (int) $summary['points_placed'], 'no package points placed yet');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T9 — audit and reconcile unchanged
+     * ---------------------------------------------------------- */
+
+    'P23D-T9 binary audit and wallet reconcile exit 0 after reports' => function () use ($binaryPreset): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t9_admin', 'admin'));
+
+        /* binary_audit --check exits 0 */
+        $audit = shell_exec('php bin/binary_audit.php --check 2>&1');
+        assert_false(str_contains($audit, 'Error'), 'binary audit runs without error');
+
+        /* wallet_reconcile exits 0 */
+        $reconcile = shell_exec('php bin/wallet_reconcile.php 2>&1');
+        assert_false(str_contains($reconcile, 'Error'), 'wallet reconcile runs without error');
+
+        /* The reports never write — no new audit rows for package_binary.reverse */
+        $before = (int) db()->query(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'package_binary.reverse'"
+        )->fetchColumn();
+
+        /* Render the reports page (read-only) */
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/reports';
+        $controller = new AdminReportController();
+        $controller->index([]);
+
+        $after = (int) db()->query(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'package_binary.reverse'"
+        )->fetchColumn();
+
+        assert_same($before, $after, 'rendering reports writes no reversal audit rows');
+    },
 ];
+
