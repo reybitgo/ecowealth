@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Admin Product Binary ledger — rows (Phase 22E, plan §9).
+ * Admin Product Binary ledger — rows (Phase 22E, plan §9; Phase 23D adds
+ * the Source column).
  *
  * One row per (order, recipient, kind) decision: a `self` award paid to
  * the buyer on their own order, or a `pair` award paid at a node when
@@ -16,7 +17,7 @@ declare(strict_types=1);
  * and any shortfall flagged.
  *
  * @var list<array<string, mixed>> $awards
- * @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
+ * @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string, source:string} $filters
  */
 
 $filters = $filters ?? BinaryAward::filterDefaults();
@@ -27,7 +28,8 @@ $hasFilters = (string) $filters['kind'] !== ''
     || (string) $filters['product_id'] !== ''
     || (string) $filters['from'] !== ''
     || (string) $filters['to'] !== ''
-    || (string) $filters['q'] !== '';
+    || (string) $filters['q'] !== ''
+    || (string) $filters['source'] !== '';
 
 /** When a pending award is due: delivery (or completion) + its hold. */
 $dueAt = static function (array $award): ?string {
@@ -51,15 +53,16 @@ $dueAt = static function (array $award): ?string {
                     <tbody data-live-region="binary-rows">
 <?php if ($awards === []): ?>
                       <tr>
-                        <td colspan="12" class="py-0">
+                        <td colspan="13" class="py-0">
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-link-external',
         'title'        => $hasFilters ? 'No Product Binary awards match these filters' : 'No Product Binary has been paid',
         'text'         => $hasFilters
-            ? 'Try a different kind, status, side, product or date range.'
+            ? 'Try a different kind, status, side, product, source or date range.'
             : 'Turn the stream on in Settings, flag a product with a P.V., and place it on the binary tree. '
-                . 'Only a paid order pays the binary bonus, and only when both switches are on.',
+                . 'Only a paid order pays the binary bonus, and only when both switches are on. '
+                . 'Package activations also pay when the package binary switch is on.',
         'action_href'  => $hasFilters ? 'admin/commissions?ledger=binary' : 'admin/settings',
         'action_label' => $hasFilters ? 'Clear filters' : 'Open settings',
     ]);
@@ -77,6 +80,9 @@ $dueAt = static function (array $award): ?string {
     $reason    = trim((string) ($award['void_reason'] ?? ''));
     $reversed  = (float) ($award['reversed_amount'] ?? 0);
     $orderNo   = (string) ($award['order_no'] ?? '');
+    $activationId = (int) ($award['activation_id'] ?? 0);
+    $source    = (string) ($award['source'] ?? '');
+    $sourceLabel = $source === 'activation' ? 'Package activation' : ($source === 'order' ? 'Repeat purchase' : '—');
     $credited  = $status === 'credited';
     $pending   = $status === 'pending';
     $cancelled = $status === 'cancelled';
@@ -119,6 +125,9 @@ $dueAt = static function (array $award): ?string {
                         </td>
                         <td class="text-end text-nowrap">
                           <?= e(ucfirst((string) ($award['side'] ?? '—'))) ?>
+                        </td>
+                        <td class="text-end text-nowrap">
+                          <?= e($sourceLabel) ?>
                         </td>
                         <td class="text-end text-nowrap"><?= e((string) (int) $award['points']) ?></td>
                         <td class="text-end text-nowrap"><?= e(number_format($rate, 3, '.', '')) ?>%</td>

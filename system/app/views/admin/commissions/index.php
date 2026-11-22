@@ -273,7 +273,8 @@ if ($isRoyalty) {
         || (string) $filters['product_id'] !== ''
         || (string) $filters['from'] !== ''
         || (string) $filters['to'] !== ''
-        || (string) $filters['q'] !== '';
+        || (string) $filters['q'] !== ''
+        || (string) $filters['source'] !== '';
 } else {
     $filters = $filters ?? Commission::normaliseFilters([]);
     $pager   = $pager ?? Paginator::fromTableRequest(Commission::countAdmin($filters));
@@ -875,6 +876,15 @@ if ($isRoyalty) {
                       </select>
                     </div>
 
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-source">Source</label>
+                      <select name="source" id="binary-filter-source" class="form-select">
+<?php foreach ($source_options as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $filters['source'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
                     <div class="commission-filter-field commission-filter-wide">
                       <label class="form-label" for="binary-filter-product">Product</label>
                       <input
@@ -920,6 +930,7 @@ if ($isRoyalty) {
                           <th scope="col">Buyer</th>
                           <th scope="col">Product</th>
                           <th scope="col" class="text-end">Side</th>
+                          <th scope="col">Source</th>
                           <th scope="col" class="text-end">Points</th>
                           <th scope="col" class="text-end">Rate</th>
                           <th scope="col" class="text-end">Amount</th>

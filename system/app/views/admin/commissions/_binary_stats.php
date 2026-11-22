@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Admin Product Binary ledger — headline counters (Phase 22E, plan §9).
+ * Admin Product Binary ledger — headline counters (Phase 22E, plan §9;
+ * Phase 23D adds the source split).
  *
  * `credited` rows are released money (the wallet was credited at release).
  * `pending` rows are earned but not in a wallet yet; `cancelled` rows were
@@ -18,16 +19,20 @@ declare(strict_types=1);
  *   credited_total:float, this_month:float, credited:int, voided:int, unrecovered:float,
  *   recipients:int, average:float, pending_total:float, pending:int, cancelled:int,
  *   cancelled_total:float, total_awarded:float, next_release_at:?string, pending_recipients:int,
- *   self_total:float, pair_total:float
+ *   self_total:float, pair_total:float,
+ *   activation_credited_total:float, activation_pending_total:float, activation_pairs:int, activation_points:int,
+ *   order_credited_total:float, order_pending_total:float, order_pairs:int, order_points:int
  * } $stats
  */
 
 $stats = array_merge([
-    'credited_total'    => 0.0, 'this_month' => 0.0, 'credited' => 0, 'voided' => 0, 'unrecovered' => 0.0,
-    'recipients'        => 0,   'average'    => 0.0,
-    'pending_total'     => 0.0, 'pending'    => 0,   'cancelled' => 0, 'cancelled_total' => 0.0,
-    'total_awarded'     => 0.0, 'next_release_at' => null, 'pending_recipients' => 0,
-    'self_total'        => 0.0, 'pair_total' => 0.0,
+    'credited_total'           => 0.0, 'this_month' => 0.0, 'credited' => 0, 'voided' => 0, 'unrecovered' => 0.0,
+    'recipients'               => 0,   'average'    => 0.0,
+    'pending_total'            => 0.0, 'pending'    => 0,   'cancelled' => 0, 'cancelled_total' => 0.0,
+    'total_awarded'            => 0.0, 'next_release_at' => null, 'pending_recipients' => 0,
+    'self_total'               => 0.0, 'pair_total' => 0.0,
+    'activation_credited_total'=> 0.0, 'activation_pending_total' => 0.0, 'activation_pairs' => 0, 'activation_points' => 0,
+    'order_credited_total'     => 0.0, 'order_pending_total' => 0.0, 'order_pairs' => 0, 'order_points' => 0,
 ], $stats ?? []);
 
 $pendingCount      = (int) $stats['pending'];
@@ -102,6 +107,20 @@ $cards = [
         'value' => money($stats['pair_total']),
         'hint'  => 'Matched left against right at every node',
         'icon'  => 'bx-link-alt',
+        'tone'  => 'secondary',
+    ],
+    [
+        'label' => 'Package pairs',
+        'value' => (string) $stats['activation_pairs'],
+        'hint'  => 'Pairs paid from package activations · ' . money($stats['activation_credited_total']) . ' credited',
+        'icon'  => 'bx-package',
+        'tone'  => 'info',
+    ],
+    [
+        'label' => 'Package points',
+        'value' => (string) $stats['activation_points'] . ' pts',
+        'hint'  => 'Points placed by package activations',
+        'icon'  => 'bx-box',
         'tone'  => 'secondary',
     ],
     [

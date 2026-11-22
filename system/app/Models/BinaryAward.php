@@ -654,24 +654,43 @@ final class BinaryAward
     /**
      * Counters for the admin ledger header (22E).
      *
+     * When `$filters['source']` is set, the totals are narrowed to that
+     * source. Source-aware breakdown keys are always returned.
+     *
+     * @param array{source:string, ...} $filters
      * @return array{
      *   credited_total:float, this_month:float, credited:int,
      *   voided:int, unrecovered:float, recipients:int, average:float,
      *   pending_total:float, pending:int, cancelled:int,
      *   cancelled_total:float, total_awarded:float,
      *   next_release_at:?string, pending_recipients:int,
-     *   self_total:float, pair_total:float
+     *   self_total:float, pair_total:float,
+     *   activation_credited_total:float, activation_pending_total:float,
+     *   activation_pairs:int, activation_points:int,
+     *   order_credited_total:float, order_pending_total:float,
+     *   order_pairs:int, order_points:int
      * }
      */
-    public static function stats(?PDO $pdo = null): array
+    public static function stats(array $filters = [], ?PDO $pdo = null): array
     {
         $pdo = $pdo ?? db();
 
-        $row = $pdo->query(
+        $where   = ['1 = 1'];
+        $params  = [];
+
+        $source = (string) ($filters['source'] ?? '');
+        if ($source !== '' && in_array($source, self::SOURCES, true)) {
+            $where[]  = 'a.source = ?';
+            $params[] = $source;
+        }
+
+        $whereSql = implode(' AND ', $where);
+
+        $stmt = $pdo->prepare(
             "SELECT COALESCE(SUM(CASE WHEN a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS credited_total,
                     COALESCE(SUM(CASE WHEN a.status = 'credited'
                                        AND a.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                                      THEN a.amount ELSE 0 END), 0) AS this_month,
+                                       THEN a.amount ELSE 0 END), 0) AS this_month,
                     COUNT(CASE WHEN a.status = 'credited' THEN 1 END) AS credited_count,
                     COUNT(CASE WHEN a.status = 'voided' THEN 1 END) AS voided_count,
                     COALESCE(SUM(CASE WHEN a.status = 'voided'
@@ -689,34 +708,53 @@ final class BinaryAward
                                            INTERVAL a.hold_days DAY)
                          END) AS next_release_at,
                     COALESCE(SUM(CASE WHEN a.kind = 'self' AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0) AS self_total,
-                    COALESCE(SUM(CASE WHEN a.kind = 'pair' AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0) AS pair_total
+                    COALESCE(SUM(CASE WHEN a.kind = 'pair' AND a.status IN ('pending','credited') THEN a.amount ELSE 0 END), 0) AS pair_total,
+                    COALESCE(SUM(CASE WHEN a.source = 'activation' AND a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS activation_credited_total,
+                    COALESCE(SUM(CASE WHEN a.source = 'activation' AND a.status = 'pending' THEN a.amount ELSE 0 END), 0) AS activation_pending_total,
+                    COUNT(CASE WHEN a.source = 'activation' AND a.kind = 'pair' AND a.status IN ('pending','credited') THEN 1 END) AS activation_pairs,
+                    COALESCE(SUM(CASE WHEN a.source = 'activation' THEN a.points ELSE 0 END), 0) AS activation_points,
+                    COALESCE(SUM(CASE WHEN a.source = 'order' AND a.status = 'credited' THEN a.amount ELSE 0 END), 0) AS order_credited_total,
+                    COALESCE(SUM(CASE WHEN a.source = 'order' AND a.status = 'pending' THEN a.amount ELSE 0 END), 0) AS order_pending_total,
+                    COUNT(CASE WHEN a.source = 'order' AND a.kind = 'pair' AND a.status IN ('pending','credited') THEN 1 END) AS order_pairs,
+                    COALESCE(SUM(CASE WHEN a.source = 'order' THEN a.points ELSE 0 END), 0) AS order_points
                FROM binary_awards a
-               LEFT JOIN shop_orders o ON o.id = a.order_id"
-        )->fetch() ?: [];
+               LEFT JOIN shop_orders o ON o.id = a.order_id
+               WHERE " . $whereSql
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
         $credited = round((float) ($row['credited_total'] ?? 0), 2);
         $pending  = round((float) ($row['pending_total'] ?? 0), 2);
         $count    = (int) ($row['credited_count'] ?? 0);
 
         return [
-            'credited_total'    => $credited,
-            'this_month'        => round((float) ($row['this_month'] ?? 0), 2),
-            'credited'          => $count,
-            'voided'            => (int) ($row['voided_count'] ?? 0),
-            'unrecovered'       => round((float) ($row['unrecovered'] ?? 0), 2),
-            'recipients'        => (int) ($row['recipients'] ?? 0),
-            'average'           => $count === 0 ? 0.0 : round($credited / $count, 2),
-            'pending_total'     => $pending,
-            'pending'           => (int) ($row['pending_count'] ?? 0),
-            'cancelled'         => (int) ($row['cancelled_count'] ?? 0),
-            'cancelled_total'   => round((float) ($row['cancelled_total'] ?? 0), 2),
-            'total_awarded'     => round($credited + $pending, 2),
-            'next_release_at'   => ($row['next_release_at'] ?? null) === null
+            'credited_total'           => $credited,
+            'this_month'               => round((float) ($row['this_month'] ?? 0), 2),
+            'credited'                 => $count,
+            'voided'                   => (int) ($row['voided_count'] ?? 0),
+            'unrecovered'              => round((float) ($row['unrecovered'] ?? 0), 2),
+            'recipients'               => (int) ($row['recipients'] ?? 0),
+            'average'                  => $count === 0 ? 0.0 : round($credited / $count, 2),
+            'pending_total'            => $pending,
+            'pending'                  => (int) ($row['pending_count'] ?? 0),
+            'cancelled'                => (int) ($row['cancelled_count'] ?? 0),
+            'cancelled_total'          => round((float) ($row['cancelled_total'] ?? 0), 2),
+            'total_awarded'            => round($credited + $pending, 2),
+            'next_release_at'          => ($row['next_release_at'] ?? null) === null
                 ? null
                 : (string) $row['next_release_at'],
-            'pending_recipients'=> (int) ($row['pending_recipients'] ?? 0),
-            'self_total'        => round((float) ($row['self_total'] ?? 0), 2),
-            'pair_total'        => round((float) ($row['pair_total'] ?? 0), 2),
+            'pending_recipients'       => (int) ($row['pending_recipients'] ?? 0),
+            'self_total'               => round((float) ($row['self_total'] ?? 0), 2),
+            'pair_total'               => round((float) ($row['pair_total'] ?? 0), 2),
+            'activation_credited_total'=> round((float) ($row['activation_credited_total'] ?? 0), 2),
+            'activation_pending_total' => round((float) ($row['activation_pending_total'] ?? 0), 2),
+            'activation_pairs'         => (int) ($row['activation_pairs'] ?? 0),
+            'activation_points'        => (int) ($row['activation_points'] ?? 0),
+            'order_credited_total'     => round((float) ($row['order_credited_total'] ?? 0), 2),
+            'order_pending_total'      => round((float) ($row['order_pending_total'] ?? 0), 2),
+            'order_pairs'              => (int) ($row['order_pairs'] ?? 0),
+            'order_points'             => (int) ($row['order_points'] ?? 0),
         ];
     }
 
@@ -796,7 +834,7 @@ final class BinaryAward
         return [
             'Award', 'Date', 'Order', 'Buyer', 'Recipient', 'Product', 'Kind', 'Side',
             'Points', 'Pair count', 'Pair points', 'Rate %', 'Amount',
-            'Status', 'Hold days', 'Released at', 'Reversed',
+            'Status', 'Hold days', 'Released at', 'Reversed', 'Source',
         ];
     }
 
@@ -824,6 +862,7 @@ final class BinaryAward
                 (string) (int) ($row['hold_days'] ?? 0),
                 (string) ($row['credited_at'] ?? ''),
                 number_format((float) $row['reversed_amount'], 2, '.', ''),
+                (string) ($row['source'] ?? ''),
             ];
         }
 

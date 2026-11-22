@@ -478,11 +478,12 @@ final class AdminCommissionController
             'from'       => Request::string('from'),
             'to'         => Request::string('to'),
             'q'          => Request::string('q'),
+            'source'     => Request::string('source'),
         ]);
 
         $pager  = Paginator::fromTableRequest(BinaryAward::countAdmin($filters));
         $awards = BinaryAward::adminList($filters, $pager);
-        $stats  = BinaryAward::stats();
+        $stats  = BinaryAward::stats($filters);
 
         $hasFilters = (string) $filters['kind'] !== ''
             || (string) $filters['status'] !== ''
@@ -490,7 +491,8 @@ final class AdminCommissionController
             || (string) $filters['product_id'] !== ''
             || (string) $filters['from'] !== ''
             || (string) $filters['to'] !== ''
-            || (string) $filters['q'] !== '';
+            || (string) $filters['q'] !== ''
+            || (string) $filters['source'] !== '';
 
         $kindOptions = [['value' => '', 'label' => 'All kinds']];
         foreach (BinaryAward::KINDS as $kind) {
@@ -510,6 +512,14 @@ final class AdminCommissionController
             $sideOptions[] = ['value' => $side, 'label' => ucfirst($side)];
         }
 
+        $sourceOptions = [['value' => '', 'label' => 'All sources']];
+        foreach (BinaryAward::SOURCES as $source) {
+            $sourceOptions[] = [
+                'value' => $source,
+                'label' => $source === 'order' ? 'Repeat purchase' : 'Package activation',
+            ];
+        }
+
         return [
             'tab'         => self::TAB_BINARY,
             'ledger'      => self::TAB_BINARY,
@@ -520,6 +530,7 @@ final class AdminCommissionController
             'kind_options'   => $kindOptions,
             'status_options' => $statusOptions,
             'side_options'   => $sideOptions,
+            'source_options' => $sourceOptions,
             'has_filters'  => $hasFilters,
             'ledger_url'  => url('admin/commissions?ledger=binary'),
             'export_url'  => url('admin/commissions/export' . self::binaryQueryString($filters)),
@@ -1137,6 +1148,7 @@ final class AdminCommissionController
             'from'       => Request::string('from'),
             'to'         => Request::string('to'),
             'q'          => Request::string('q'),
+            'source'     => Request::string('source'),
         ]);
 
         $rows  = BinaryAward::exportRows(null, $filters);

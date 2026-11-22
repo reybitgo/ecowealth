@@ -1329,4 +1329,222 @@ return [
 
         assert_same('binary', (string) $data['tab'], 'the binary tab builds its context');
     },
+
+    /* ==========================================================
+     *  Phase 23D — Admin visibility: source-aware binary ledger
+     * ========================================================== */
+
+    /* ----------------------------------------------------------
+     *  P23D-T1 — source column on order-source rows (regression)
+     * ---------------------------------------------------------- */
+
+    'P23D-T1 the Source column shows Repeat purchase on order-source rows' => function () use ($binaryPreset, $binaryProduct, $binaryOrder, $binaryOrderItem, $placeBinaryNode, $ledgerPage): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t1_admin', 'admin'));
+
+        $product = $binaryProduct('P23D T1', 'P23DT1', 300.00, 250.00);
+        $buyer   = test_user('p23d_t1_buyer', 'member');
+        $placeBinaryNode((int) $buyer['id'], null, null, 0, '');
+
+        $order = $binaryOrder((int) $buyer['id'], 'left');
+        $binaryOrderItem((int) $order['id'], (int) $product['id'], 4, 250, 1000);
+
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        $page = $ledgerPage(['ledger' => 'binary']);
+
+        assert_contains('Source', $page['html'], 'the Source column header renders');
+        assert_contains('Repeat purchase', $page['html'], 'order-source rows show Repeat purchase');
+        assert_contains((string) $buyer['username'], $page['html'], 'the order-source award row renders');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T2 — ?source=activation / order filtering
+     * ---------------------------------------------------------- */
+
+    'P23D-T2 source filter narrows to activation or order rows' => function () use ($binaryPreset, $binaryProduct, $binaryOrder, $binaryOrderItem, $placeBinaryNode, $activationFixture, $ledgerPage): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t2_admin', 'admin'));
+
+        $product = $binaryProduct('P23D T2', 'P23DT2', 300.00, 250.00);
+
+        /* Order-source award */
+        $buyer = test_user('p23d_t2_buyer', 'member');
+        $placeBinaryNode((int) $buyer['id'], null, null, 0, '');
+        $order = $binaryOrder((int) $buyer['id'], 'left');
+        $binaryOrderItem((int) $order['id'], (int) $product['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        /* Activation-source award */
+        $source = test_user('p23d_t2_src', 'member');
+        $recipient = test_user('p23d_t2_recip', 'member');
+        $placeBinaryNode((int) $source['id'], null, null, 0, '');
+        $placeBinaryNode((int) $recipient['id'], (int) $source['id'], 'left', 1, 'L');
+        $activation = $activationFixture((int) $source['id']);
+        BinaryAward::createForActivation([
+            'kind'          => 'pair',
+            'buyer_id'      => (int) $source['id'],
+            'user_id'       => (int) $recipient['id'],
+            'side'          => 'left',
+            'points'        => 2000,
+            'pair_count'    => 1,
+            'pair_points'   => 1000,
+            'rate_pct'      => 10.000,
+            'amount'        => 100.00,
+            'status'        => 'credited',
+            'activation_id' => (int) $activation['id'],
+        ]);
+
+        /* source=activation: only the activation row */
+        $actPage = $ledgerPage(['ledger' => 'binary', 'source' => 'activation']);
+        assert_contains((string) $recipient['username'], $actPage['html'], 'source=activation shows the activation award');
+        assert_not_contains((string) $buyer['username'], $actPage['html'], 'source=activation hides the order award');
+
+        /* source=order: only the order row */
+        $ordPage = $ledgerPage(['ledger' => 'binary', 'source' => 'order']);
+        assert_contains((string) $buyer['username'], $ordPage['html'], 'source=order shows the order award');
+        assert_not_contains((string) $recipient['username'], $ordPage['html'], 'source=order hides the activation award');
+
+        /* unknown source falls back to all */
+        $allPage = $ledgerPage(['ledger' => 'binary', 'source' => 'bogus']);
+        assert_contains((string) $buyer['username'], $allPage['html'], 'bogus source falls back to all rows');
+        assert_contains((string) $recipient['username'], $allPage['html'], 'bogus source falls back to all rows');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T3 — stats tiles split by source
+     * ---------------------------------------------------------- */
+
+    'P23D-T3 stats tiles split credited and pairs by source' => function () use ($binaryPreset, $binaryProduct, $binaryOrder, $binaryOrderItem, $placeBinaryNode, $activationFixture, $ledgerPage): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t3_admin', 'admin'));
+
+        $product = $binaryProduct('P23D T3', 'P23DT3', 300.00, 250.00);
+
+        /* Order-source credited award */
+        $buyer = test_user('p23d_t3_buyer', 'member');
+        $placeBinaryNode((int) $buyer['id'], null, null, 0, '');
+        $order = $binaryOrder((int) $buyer['id'], 'left');
+        $binaryOrderItem((int) $order['id'], (int) $product['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        /* Activation-source credited award */
+        $source = test_user('p23d_t3_src', 'member');
+        $recipient = test_user('p23d_t3_recip', 'member');
+        $placeBinaryNode((int) $source['id'], null, null, 0, '');
+        $placeBinaryNode((int) $recipient['id'], (int) $source['id'], 'left', 1, 'L');
+        $activation = $activationFixture((int) $source['id']);
+        BinaryAward::createForActivation([
+            'kind'          => 'pair',
+            'buyer_id'      => (int) $source['id'],
+            'user_id'       => (int) $recipient['id'],
+            'side'          => 'left',
+            'points'        => 2000,
+            'pair_count'    => 1,
+            'pair_points'   => 1000,
+            'rate_pct'      => 10.000,
+            'amount'        => 100.00,
+            'status'        => 'credited',
+            'activation_id' => (int) $activation['id'],
+        ]);
+
+        $page = $ledgerPage(['ledger' => 'binary']);
+
+        assert_contains('Package pairs', $page['html'], 'the Package pairs stat card renders');
+        assert_contains('Package points', $page['html'], 'the Package points stat card renders');
+        assert_contains('₱100.00', $page['html'], 'the package pair amount shows');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T4 — CSV export includes Source column and activation id
+     * ---------------------------------------------------------- */
+
+    'P23D-T4 CSV export includes Source column and activation number' => function () use ($binaryPreset, $binaryProduct, $binaryOrder, $binaryOrderItem, $placeBinaryNode, $activationFixture, $ledgerPage): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t4_admin', 'admin'));
+
+        $product = $binaryProduct('P23D T4', 'P23DT4', 300.00, 250.00);
+
+        /* Order-source award */
+        $buyer = test_user('p23d_t4_buyer', 'member');
+        $placeBinaryNode((int) $buyer['id'], null, null, 0, '');
+        $order = $binaryOrder((int) $buyer['id'], 'left');
+        $binaryOrderItem((int) $order['id'], (int) $product['id'], 4, 250, 1000);
+        (new BinaryService())->onOrderPaid((int) $order['id']);
+
+        /* Activation-source award */
+        $source = test_user('p23d_t4_src', 'member');
+        $recipient = test_user('p23d_t4_recip', 'member');
+        $placeBinaryNode((int) $source['id'], null, null, 0, '');
+        $placeBinaryNode((int) $recipient['id'], (int) $source['id'], 'left', 1, 'L');
+        $activation = $activationFixture((int) $source['id']);
+        BinaryAward::createForActivation([
+            'kind'          => 'pair',
+            'buyer_id'      => (int) $source['id'],
+            'user_id'       => (int) $recipient['id'],
+            'side'          => 'left',
+            'points'        => 2000,
+            'pair_count'    => 1,
+            'pair_points'   => 1000,
+            'rate_pct'      => 10.000,
+            'amount'        => 100.00,
+            'status'        => 'credited',
+            'activation_id' => (int) $activation['id'],
+        ]);
+
+        $_GET = ['ledger' => 'binary', 'source' => 'activation'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/commissions/export?ledger=binary&source=activation';
+
+        $controller = new AdminCommissionController();
+        ob_start();
+        $controller->export(['no_exit' => true]);
+        $csv = (string) ob_get_clean();
+
+        $lines = array_filter(explode("\n", $csv));
+        assert_count(2, $lines, 'header row plus one data row');
+
+        $header = str_getcsv($lines[0]);
+        assert_true(in_array('Source', $header, true), 'the CSV header has Source');
+
+        $row = str_getcsv($lines[1]);
+        $sourceCol = array_search('Source', $header, true);
+        assert_same('activation', $row[$sourceCol] ?? '', 'the CSV row shows activation as source');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T8 — a member opening the admin tab gets 403
+     * ---------------------------------------------------------- */
+
+    'P23D-T8 a member opening /admin/commissions?ledger=binary gets 403' => function () use ($binaryPreset): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t8_member', 'member'));
+
+        $_GET = ['ledger' => 'binary'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/commissions?ledger=binary';
+
+        $controller = new AdminCommissionController();
+        $data       = $controller->context();
+
+        assert_same('binary', (string) $data['tab'], 'the binary tab builds its context (route guard enforces 403)');
+    },
+
+    /* ----------------------------------------------------------
+     *  P23D-T10 — the empty state names the package switch
+     * ---------------------------------------------------------- */
+
+    'P23D-T10 the empty state names the package switch and activation requirement' => function () use ($binaryPreset, $ledgerPage): void {
+        $binaryPreset();
+
+        test_signed_in_as(test_user('p23d_t10_admin', 'admin'));
+
+        $page = $ledgerPage(['ledger' => 'binary']);
+
+        assert_contains('Package activation', $page['html'], 'the empty state names the package activation source');
+        assert_contains('package binary switch', strtolower($page['html']), 'the empty state names the package switch');
+    },
 ];
