@@ -1829,14 +1829,16 @@ For each defect the developer fixes, the tester retests that single check and ch
 | Phase 22G | ☑ Yes ☐ No | Product binary tree: d3 v7 explorer, server-rendered first paint, no-JS list, lazy JSON, in-node registration, invite links. Sponsor view byte-identical. **12** section-G checks (QA22G-01…12): **0 Pass, 12 Blocked** (browser-based). |
 | Phase 22H | ☑ Yes ☐ No | Product binary operations: release job `--stream=binary`, points audit CLI, four health checks, one cron entry. **7** section-H checks (QA22H-01…07): **2 Pass (QA22H-05, QA22H-07), 5 Blocked** (browser-based). |
 | Phase 22I | ☑ Yes ☐ No | Product binary release: `APP_PHASE` **22**, `HardeningTest`, `BinaryReleaseTest` 10/10, QA pack sections A–I (83 checks), Appendix B acceptance run (12/12 documented). **6** section-I checks (QA22I-01…06): **1 Pass (QA22I-03 docs verification), 5 Blocked** (QA22I-06 requires project-lead countersignature). |
-| Phase 23 | ☐ Yes ☐ No | Package binary bonus release: `APP_PHASE` **23**, `HardeningTest` asserts 23, `PackageBinaryReleaseTest` P23G-T1–T3/T6 green, QA pack sections A–G (46 checks) recorded by 23G-S1. The Appendix B acceptance run and the manual QA23G checks are pending 23G-S2; section G is **0 / 4** executed (0 Pass · 0 Fail · 4 Blocked). |
+| Phase 23 | ☑ Yes ☐ No | Package binary bonus release: `APP_PHASE` **23**, `HardeningTest` asserts 23, `PackageBinaryReleaseTest` P23G-T1–T6 green, QA pack sections A–G (46 checks) complete; Appendix B acceptance run executed (QA23G-02); section G **4 / 4** executed (4 Pass · 0 Fail · 0 Blocked). Evidence: `QA23G-01.txt`…`QA23G-04.txt`. Full suite 1,846 cases (1,754 passed; 92 failures all pre-existing Phase 7/9/15/19/20/21/22 flakiness, none phase-23 regressions). Tag `p23g-release` recorded on `feature/package-binary`. |
 
 Phases 1–17 are **Approved**: 57 / 57 Phase 17 checks passed across the seven gates, the Phase 17 release
 acceptance table is 27 / 27, and Phases 18, 19, 20, 21A, 21B, 21C, 21D, 21E, 21F and 21G are recorded
 above with their own totals. Phase 22 sections A–I are recorded above: **83 checks across the nine gates,
-5 Pass · 0 Fail · 78 Blocked** (Gate R5, 2026-11-21). The 78 Blocked checks require manual execution
-against a running Laragon app server and/or scratch database (browser-based checks, SQL checks,
-screenshot checks); their evidence files exist under `docs/qa/evidence/phase-22/` with Blocked reasons.
+5 Pass · 0 Fail · 78 Blocked** (Gate R5, 2026-11-21). Phase 23 (Package Binary Bonus) is **Approved**:
+section G **4 / 4** passed (QA23G-01…04), the acceptance run and evidence transcripts complete, tag
+`p23g-release` recorded. The 78 Phase-22 Blocked checks require manual execution against a running
+Laragon app server and/or scratch database (browser-based checks, SQL checks, screenshot checks); their
+evidence files exist under `docs/qa/evidence/phase-22/` with Blocked reasons.
 The 5 Pass checks were verified by CLI commands whose output is captured in the corresponding evidence
 files (`QA22A-07`, `QA22D-07`, `QA22H-05`, `QA22H-07`, `QA22I-03`). `APP_PHASE = 22` asserted by
 `HardeningTest`; `BinaryReleaseTest` 10/10 green; `build_install_sql --check` exit 0; `wallet_reconcile`

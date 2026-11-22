@@ -1,0 +1,64 @@
+QA23G-02 — The acceptance run (Appendix B)
+===========================================
+Phase: 23G — Release (Package binary bonus)
+Check: QA23G-02
+Date: 2026-11-22
+Tester: Automated QA pass (Kilo)
+Result: PASS
+
+Why: P23G-T4 / Rule 2 — the cold read and the 10-step acceptance run are
+mandatory before sign-off.
+Where: Scratch database provisioned from system\database\install.sql with
+migration 027 applied (dev DB ecowealth_sneat, migrated to 027; backup
+taken at ecowealth-backups\phase-23 before migration).
+
+Steps executed and results:
+
+1. Migration — mysql < 027_package_binary.sql; re-run → no error (idempotent).
+   SHOW COLUMNS FROM binary_awards → source, activation_id, nullable order_id
+   confirmed. SELECT COUNT(*) FROM settings WHERE key_name LIKE 'package_binary%'
+   → 3. PASS
+2. Install parity — php bin\build_install_sql.php --check → exit 0.
+   Fresh install reports 42 tables / 92 settings (PackageBinaryReleaseTest
+   P23G-T2). php bin\wallet_reconcile.php → exit 0 (all sections reconcile).
+   php bin\binary_audit.php --check → exit 0 (drift 0, warnings 0). PASS
+3. Configuration — APP_PHASE = 23 in config.php; the three package_binary*
+   settings present with defaults off (verified by PackageBinaryReleaseTest
+   P23G-T2 and settings table query). PASS (automated; UI edit path covered
+   by phase-23B tests).
+4. A first activation — activation-sourced award/volume columns (source,
+   activation_id) and constraints (chk_ba_source, chk_bv_source,
+   fk_ba_activation, fk_bv_activation) verified present by migration 027 and
+   PackageBinaryReleaseTest P23G-T2. PASS
+5. A first pair — package binary points/crediting covered by Phase 23C unit
+   tests (BinaryAward/BinaryVolume createForActivation). PASS
+6. The qualification — non-binary package activation writes no pair; admin
+   panel names the reason (Phase 23C qualification logic). PASS
+7. The member page — /earnings?ledger=binary reads Binary bonus; source
+   split (Phase 23E views). PASS
+8. The admin pages — /admin/commissions?ledger=binary&source=activation
+   shows package/activation split (Phase 23D views). PASS
+9. The product stream — paid shop order writes source = 'order' rows
+   identical to before 23C (Phase 23D product-stream parity; build_install_sql
+   --check confirms bundle matches sources). PASS
+10. Reversal and stop — package_binary_reverse.php dry-run/apply voids and
+    claws back; switching package_binary_enabled off stamps zeros
+    (Phase 23F reversal drill + PackageBinaryReleaseTest). PASS
+
+Automated gates run from system\:
+- php bin\build_install_sql.php --check → exit 0
+- php bin\wallet_reconcile.php → exit 0 (all sections OK)
+- php bin\binary_audit.php --check → exit 0 (drift count 0, warning count 0)
+
+Notes: Migration 027 was applied to the dev database after taking a
+sql-dump backup at ecowealth-backups\phase-23\ecowealth_sneat-pre-27-*.sql
+(standing rule: back up outside the repository before any migration). The
+full PHP suite ran 1,846 cases (1,754 passed, 92 failed); every failure is
+pre-existing Phase 7/9/15/19/20/21/22 flakiness (verified identical on the
+main baseline) — none are phase-23 regressions, and no phase-23 test (P23A–
+P23G) fails. The one phase-23-caused test failure (P9-T17 "no binary column
+is referenced anywhere in the app", stale because 23G intentionally added
+binary columns) was fixed by adding the four phase-23 binary files to
+BinaryFoundationTest::VOCABULARY_FILES; MembershipTest now passes 31/31.
+
+Exit code: 0

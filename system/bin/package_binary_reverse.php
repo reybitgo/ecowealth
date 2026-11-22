@@ -255,13 +255,13 @@ try {
     $lines = [
         'EcoWealth package-binary reversal — refused',
         '  activation: #' . $options['activation'],
-        '  reason:     ' . $e->getReason() . ' — ' . $e->getMessage(),
+        '  reason:     ' . $e->reason . ' — ' . $e->getMessage(),
         '  Exit: 1',
     ];
     package_binary_reverse_emit($isCli, $options, $lines, [
         'ok'      => false,
         'error'   => $e->getMessage(),
-        'reason'  => $e->getReason(),
+        'reason'  => $e->reason,
     ]);
     exit(1);
 

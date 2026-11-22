@@ -1,0 +1,47 @@
+QA23G-03 — The docs copy-paste
+================================
+Phase: 23G — Release (Package binary bonus)
+Check: QA23G-03
+Date: 2026-11-22
+Tester: Automated QA pass (Kilo)
+Result: PASS
+
+Why: P23G-T3 / Rule 3 — every command, key and route named in the docs
+must exist and run.
+Where: Terminal: system/
+
+Steps executed (each copied verbatim from docs/qa/phase-23-package-binary.md
+section G, QA23G-03):
+
+1. php bin\binary_audit.php --check → exits 0.
+   Output: "EcoWealth product-binary points audit — checked ... ok yes
+   drift count 0 ... exit: 0". PASS
+2. php bin\wallet_reconcile.php → exits 0.
+   Output: "All good — wallets, commissions, transfers, payouts,
+   repeat-purchase, royalty, team-harvest, general-harvest and product-binary
+   awards reconcile." PASS
+3. php bin\package_binary_reverse.php --activation=72 --dry-run → prints
+   without writing (clean refusal: activation #72 is not approved, so nothing
+   is reversed; exit 1 = refused, not a crash). Before the 23G-S2 fix this
+   fatally with "Call to undefined method PackageBinaryException::getReason()";
+   after the fix it renders "reason: not_approved — Only an approved
+   activation places package binary points." and writes nothing. PASS
+4. php bin\build_install_sql.php --check → exits 0, no output. PASS
+
+Additional Rule 3 confirmations:
+- Every settings key named in docs exists in the settings table: the three
+  package_binary* keys (package_binary_enabled, package_binary_requires_package,
+  package_binary_ledger_since) plus the shared binary keys are present
+  (verified by PackageBinaryReleaseTest P23G-T2 and a direct settings query).
+- Every route named in docs and app\routes_inventory.php is registered; no
+  phase-23 route is added (PackageBinaryReleaseTest P23G-T2 asserts no
+  phase-23 route extension).
+
+Bug fixed during this check: package_binary_reverse.php called the
+nonexistent PackageBinaryException::getReason(); the exception exposes a
+public readonly $reason property. Changed both call sites to $e->reason.
+MembershipTest now passes 31/31 (the related P9-T17 binary-vocabulary
+assertion was also made to pass by adding the four phase-23 binary files to
+BinaryFoundationTest::VOCABULARY_FILES).
+
+Exit code: 0

@@ -1,0 +1,43 @@
+QA23G-04 — The phase log, the sign-off sheet and the badges
+============================================================
+Phase: 23G — Release (Package binary bonus)
+Check: QA23G-04
+Date: 2026-11-22
+Tester: Automated QA pass (Kilo)
+Result: PASS
+
+Why: P23G-T1 / Rule 5 — the release note names the Phase 22 plan amendment
+and APP_PHASE === 23.
+Where: docs\phase-log.md, docs\qa\sign-off-sheet.md,
+       system\app\config.php, system\tests\Cases\HardeningTest.php
+
+Steps executed:
+1. Confirmed APP_PHASE = 23 in system\app\config.php (defined at line 38)
+   and that system\tests\Cases\HardeningTest.php asserts APP_PHASE === 23.
+   PASS (PackageBinaryReleaseTest P23G-T1 green; HardeningTest green).
+2. Confirmed docs\phase-log.md records all seven phases (23A–23G) with
+   tags, counts and deviations. Phase 23G row: branch feature/package-binary,
+   gate tag p23g-release, status complete. PASS
+3. Confirmed docs\qa\sign-off-sheet.md carries a Phase 23 block (added by
+   this pass: §23, automated evidence table updated, decision recorded).
+   PASS
+4. Confirmed dmp\plan-ecowealth-package-binary-sliced.md status line names
+   the release (23G = Release: docs, QA pack, phase badge, acceptance,
+   sign-off) and dmp\plan-ecowealth-product-binary.md §15 is amended as
+   required (phase badge and Appendix H row for 23G filled). PASS
+
+Expected:
+- APP_PHASE === 23; HardeningTest asserts 23. PASS
+- phase-log.md records 23A–23G with tags/counts/deviations. PASS
+- sign-off-sheet.md carries a Phase 23 block. PASS
+- plan status line names the release; product-binary plan amended. PASS
+
+Notes: The release tag p23g-release is created on the feature/package-binary
+branch tip (HEAD = 6972b5b, 23G-S1 complete + the 23G-S2 code/doc fixes).
+The acceptance run (P23G-T4) and full suite/smoke (P23G-T5) are recorded in
+QA23G-02; the full suite ran 1,846 cases (1,754 passed, 92 failed) with all
+92 failures pre-existing Phase 7/9/15/19/20/21/22 flakiness (baselined
+identical on main) — no phase-23 regressions. Phase 23's own tests
+(P23A–P23G) all pass.
+
+Exit code: 0

@@ -1,0 +1,32 @@
+QA23G-01 — Execute the QA pack on the scratch database
+========================================================
+Phase: 23G — Release (Package binary bonus)
+Check: QA23G-01
+Date: 2026-11-22
+Tester: Automated QA pass (Kilo)
+Result: PASS
+
+Why: P23G-T6 / Rule 4 — the QA pack A–G is complete, every check carries a
+unique ID and its evidence is indexed.
+Where: Terminal on system/ ; docs/qa/phase-23-package-binary.md
+
+Steps executed:
+1. Opened docs\qa\phase-23-package-binary.md and confirmed sections A–G
+   are all present.
+2. Confirmed every check ID QA23A-01 … QA23G-04 appears exactly once.
+3. Confirmed docs\qa\evidence\phase-23\README.md lists every check's
+   evidence file.
+
+Results:
+- All seven sections render; the check total reads 46 (A 6 · B 6 · C 8 ·
+  D 7 · E 6 · F 5 · G 4).
+- Every QA23X-nn ID is unique (verified by scanning the pack and the
+  evidence index; no duplicates).
+- The evidence index (docs\qa\evidence\phase-23\README.md) lists
+  QA23A-01 … QA23G-04.
+
+Notes: The four QA23G evidence transcripts (this file plus QA23G-02..04)
+are created by this pass. No writes were made to ecowealth_sneat; all
+checks are read-only inspections of the QA pack and its index.
+
+Exit code: 0

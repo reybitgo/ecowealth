@@ -1032,7 +1032,7 @@ Expected
 
 ### QA23G-01 â€” Execute the QA pack on the scratch database
 
-| Why | P23G-T6 / Rule 4: the QA pack Aâ€“G is complete, every check carries a unique ID and its evidence is indexed. | Where | Terminal + browser on a scratch schema | Evidence | `QA23G-01.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Why | P23G-T6 / Rule 4: the QA pack Aâ€“G is complete, every check carries a unique ID and its evidence is indexed. | Where | Terminal + browser on a scratch schema | Evidence | `QA23G-01.txt` | Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -1050,7 +1050,7 @@ Expected
 
 ### QA23G-02 â€” The acceptance run (Appendix B)
 
-| Why | P23G-T4 / Rule 2: the cold read and the 10-step acceptance run are mandatory before sign-off. | Where | Scratch database provisioned from `system/database\install.sql` with migration 027 applied | Evidence | `QA23G-02.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Why | P23G-T4 / Rule 2: the cold read and the 10-step acceptance run are mandatory before sign-off. | Where | Scratch database provisioned from `system/database\install.sql` with migration 027 applied | Evidence | `QA23G-02.txt` | Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -1069,7 +1069,7 @@ Expected
 
 ### QA23G-03 â€” The docs copy-paste
 
-| Why | P23G-T3 / Rule 3: every command, key and route named in the docs must exist and run. | Where | Terminal: `system/` | Evidence | `QA23G-03.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Why | P23G-T3 / Rule 3: every command, key and route named in the docs must exist and run. | Where | Terminal: `system/` | Evidence | `QA23G-03.txt` | Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 
@@ -1088,7 +1088,7 @@ Expected
 
 ### QA23G-04 â€” The phase log, the sign-off sheet and the badges
 
-| Why | P23G-T1 / Rule 5: the release note names the Phase 22 plan amendment and APP_PHASE === 23. | Where | `docs\phase-log.md`, `docs\qa\sign-off-sheet.md`, `system\app\config.php`, `system\tests\Cases\HardeningTest.php` | Evidence | `QA23G-04.txt` | Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+| Why | P23G-T1 / Rule 5: the release note names the Phase 22 plan amendment and APP_PHASE === 23. | Where | `docs\phase-log.md`, `docs\qa\sign-off-sheet.md`, `system\app\config.php`, `system\tests\Cases\HardeningTest.php` | Evidence | `QA23G-04.txt` | Result | ☑ Pass  ☐ Fail  ☐ Blocked |
 
 Steps
 

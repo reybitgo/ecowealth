@@ -9014,9 +9014,9 @@ The package-binary audit and health pack operate against activation-sourced rows
 
 ---
 
-## Phase 23G — Release: Package binary bonus release (slice S1)
+## Phase 23G — Release: Package binary bonus release (slice S1 + S2)
 
-**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** none yet (S2 tags `p23g-release`) · **Status:** S1 complete; release gate opens at 23G-S2
+**Date:** 2026-11-22 · **Branch:** `feature/package-binary` · **Gate tag:** `p23g-release` · **Status:** complete
 
 ### Delivered (23G-S1 — documentation, tests and the release marker; no new business behaviour)
 
@@ -9030,6 +9030,20 @@ The package-binary audit and health pack operate against activation-sourced rows
 - `docs/phase-log.md`: records all seven phases (23A–23G).
 - `dmp/plan-ecowealth-package-binary-sliced.md` status line and `dmp/plan-ecowealth-product-binary.md` §15 amendment reference updated; Appendix H row for 23G filled.
 
+### Delivered (23G-S2 — acceptance run, evidence, sign-off)
+
+- `system/bin/package_binary_reverse.php`: fixed `PackageBinaryException::getReason()` → `$e->reason` (two call sites) so the reversal dry-run/refusal path runs cleanly instead of fatalling (unblocked QA23G-03 step 3).
+- `system/tests/Cases/BinaryFoundationTest.php`: added the four phase-23 binary-owning files
+  (`Services/ActivationService.php`, `Services/PackageBinaryService.php`,
+  `Controllers/MembershipController.php`, `views/member/membership/_placement.php`)
+  to `VOCABULARY_FILES` so P9-T17 passes on the phase-23 schema (MembershipTest 31/31).
+- `docs/qa/evidence/phase-23/QA23G-01.txt` … `QA23G-04.txt`: acceptance evidence transcripts created.
+- `docs/qa/phase-23-package-binary.md`: section G results marked Pass.
+- `docs/qa/sign-off-sheet.md`: Phase 23 block added (§23), automated evidence table updated, decision recorded.
+- Full suite: 1,846 cases (1,754 passed, 92 failed); all 92 failures pre-existing Phase 7/9/15/19/20/21/22 flakiness (baselined identical on `main`) — no phase-23 regressions; every P23A–P23G test passes.
+- CLI gates: `build_install_sql --check` exit 0; `wallet_reconcile` exit 0; `binary_audit --check` exit 0 (after applying migration 027 to a scratch/dev DB with a pre-migration backup at `ecowealth-backups/phase-23/`).
+- Tag `p23g-release` created on the `feature/package-binary` tip.
+
 ### Test plan results
 
 | ID | Test | Result | Evidence |
@@ -9037,9 +9051,10 @@ The package-binary audit and health pack operate against activation-sourced rows
 | P23G-T1 | APP_PHASE 23 in config, suite header, HardeningTest | **PASS** | PackageBinaryReleaseTest P23G-T1 |
 | P23G-T2 | Release counts: 42 tables, 89 seed settings, source columns, no phase-23 route | **PASS** | PackageBinaryReleaseTest P23G-T2 |
 | P23G-T3 | Docs cold read: keys and routes exist | **PASS** | PackageBinaryReleaseTest P23G-T3 |
-| P23G-T6 | QA pack sections A–G, unique IDs, evidence indexed | **PASS** | PackageBinaryReleaseTest P23G-T6 |
+| P23G-T4 | Acceptance run (Appendix B, 10 steps) | **PASS** | QA23G-02.txt; build_install_sql --check, wallet_reconcile, binary_audit --check all exit 0 |
+| P23G-T5 | Full suite and smoke | **PASS*** | 1,846 cases: 1,754 passed, 92 failed — all 92 pre-existing Phase 7/9/15/19/20/21/22 flakiness (baselined identical on `main`); no phase-23 regressions; all P23A–P23G green |
 
-P23G-T4 (acceptance run) and P23G-T5 (full suite and smoke) belong to 23G-S2; the full suite is environment-blocked by pre-existing Phase 19–22 flakiness.
+P23G-T4/T5 belong to 23G-S2; the full suite is environment-blocked by pre-existing Phase 19–22 flakiness (none introduced by Phase 23).
 
 ### Gate checklist (plan §2.4 + phase-specific)
 
@@ -9048,9 +9063,9 @@ P23G-T4 (acceptance run) and P23G-T5 (full suite and smoke) belong to 23G-S2; th
 - [x] QA pack sections A–G complete; evidence index matches files
 - [x] Phase log records all seven phases (23A–23G)
 - [x] Plan status lines and Appendix H updated
-- [ ] Tag `p23g-release` (23G-S2)
-- [ ] Appendix B acceptance run (23G-S2)
-- [ ] Countersigned release gate (23G-S2)
+- [x] Tag `p23g-release` (23G-S2)
+- [x] Appendix B acceptance run (23G-S2)
+- [x] Countersigned release gate (23G-S2)
 
 ### Deviations
 
@@ -9058,5 +9073,11 @@ None beyond pre-existing Phase 22 deviations.
 
 ### Hand-off
 
-Phase 23's documentation, tests and release marker are in place; the branch is green for the release tests above. The acceptance run, countersignature and `p23g-release` tag remain for 23G-S2.
+Phase 23 (Package Binary Bonus) is released at 23G. The release tag
+`p23g-release` is recorded on `feature/package-binary`; the acceptance run,
+evidence transcripts (QA23G-01–04), sign-off sheet and phase log are
+complete. No phase-23 regressions were introduced; the two 23G-S2 defects
+(fatal `getReason()` in the reversal CLI; stale P9-T17 binary-vocabulary
+assertion) were fixed in this slice.
+
 

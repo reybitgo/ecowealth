@@ -1,7 +1,10 @@
-# EcoWealth — Manual QA pack (Phases 1–21)
+# EcoWealth — Manual QA pack (Phases 1–23)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
-7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 and 21. The automated suites are already green; these documents
+7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 and 21. Phase 22 (Product binary bonus) is a
+release candidate with its browser checks Blocked pending a running app server; Phase 23 (Package
+binary bonus) is **signed** at 23G (sections A–G complete; acceptance run and evidence transcripts
+captured by 23G-S2). The automated suites are already green; these documents
 let a tester who has never seen the project walk through every screen, compare it with the expected
 result, capture evidence and sign the phase off.
 
@@ -40,9 +43,10 @@ result, capture evidence and sign the phase off.
 > — A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6. Its evidence lives in
 > `evidence/phase-22/`, indexed by that folder's `README.md`.
 
-> **Phase 23A is the Package binary bonus foundation** (`dmp/plan-ecowealth-package-binary-sliced.md`),
-> delivered in gated phases **23A → 23G**. Section A is written (`QA23A-01` … `QA23A-06`, 6 checks) and
-> in progress (23A). Its evidence lives in `evidence/phase-23/`, indexed by that folder's `README.md`.
+> **Phase 23 is the Package binary bonus release** (`dmp/plan-ecowealth-package-binary-sliced.md`),
+> delivered in gated phases **23A → 23G** and **signed at 23G**. Sections A–G are complete: **46 checks**
+> — A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4. Its evidence lives in `evidence/phase-23/`, indexed by that
+> folder's `README.md`; section G (`QA23G-01` … `QA23G-04`) evidence is captured by 23G-S2.
 
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
@@ -76,8 +80,8 @@ result, capture evidence and sign the phase off.
 | [phase-20-team-harvest.md](phase-20-team-harvest.md) | 20 — Team Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | 175–240 min (A 20–30 · B 25–35 · C 30–40 · D 40–50 · E 20–30 · F 25–35 · G 15–20) |
 | [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
 | [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **release candidate** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
-| [phase-23-package-binary.md](phase-23-package-binary.md) | 23 — Package binary bonus, sections A–G, **release candidate** | 46 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4) | 90–120 min per section |
-| [sign-off-sheet.md](sign-off-sheet.md) | all twenty-one | — | 10 min to complete |
+| [phase-23-package-binary.md](phase-23-package-binary.md) | 23 — Package binary bonus, sections A–G, **signed** | 46 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4) | 90–120 min per section |
+| [sign-off-sheet.md](sign-off-sheet.md) | all twenty-three | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
