@@ -47,6 +47,11 @@ $selfTotal  = round((float) ($binary['self_total']  ?? 0), 2);
 $pairTotal  = round((float) ($binary['pair_total']  ?? 0), 2);
 $earned     = round($selfTotal + $pairTotal, 2);
 
+$packagePairs   = (int) ($binary['package_pairs']   ?? 0);
+$packagePoints  = (int) ($binary['package_points']  ?? 0);
+$packageCredited= round((float) ($binary['package_credited'] ?? 0), 2);
+$hasPackage     = $packagePairs > 0 || $packagePoints > 0 || $packageCredited > 0;
+
 $canPair = $matching >= $pairPoints;
 $pairValue = money(round($pairPoints * (float) setting_float('binary_pair_pct', 10.0) / 100, 2));
 ?>
@@ -95,6 +100,21 @@ $pairValue = money(round($pairPoints * (float) setting_float('binary_pair_pct', 
                         <div class="small text-body-secondary">Pending until released</div>
                     </div>
                 </div>
+<?php if ($hasPackage): ?>
+                <hr class="my-3" />
+                <div class="row g-3">
+                    <div class="col-6 col-lg-4">
+                        <div class="small text-body-secondary">Package pairs earned</div>
+                        <div class="h5 mb-0 commission-num"><?= e((string) $packagePairs) ?></div>
+                        <div class="small text-body-secondary"><?= e(money($packageCredited)) ?> credited</div>
+                    </div>
+                    <div class="col-6 col-lg-4">
+                        <div class="small text-body-secondary">Package points placed</div>
+                        <div class="h5 mb-0 commission-num"><?= e((string) $packagePoints) ?> pts</div>
+                        <div class="small text-body-secondary">Team volume from your activations</div>
+                    </div>
+                </div>
+<?php endif; ?>
             </div>
             <div class="card-footer small text-body-secondary">
                 Points on both sides of your tree make a pair. You earn <?= e((string) $selfPct) ?>% of the

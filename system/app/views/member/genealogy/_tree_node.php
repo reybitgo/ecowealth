@@ -26,6 +26,8 @@ $side       = (string) ($node['side'] ?? null);
 $status     = (string) ($node['status'] ?? '');
 $points     = (array) ($node['points'] ?? []);
 $slots      = (array) ($node['slots'] ?? []);
+$package    = (string) ($node['package'] ?? '');
+$packageBinary = (bool) ($node['package_binary_enabled'] ?? false);
 
 $sideClass = $side === 'left' ? 'text-primary' : ($side === 'right' ? 'text-danger' : 'text-body-secondary');
 $sideLabel = $side === 'left' ? 'L' : ($side === 'right' ? 'R' : '—');
@@ -66,6 +68,11 @@ $memberName = $is_admin && $fullName !== ''
                 <span class="badge rounded-pill <?= $statusBadge($status) ?> small"><?= e(ucfirst($status)) ?></span>
                 <?php if ($isYou): ?><span class="badge bg-label-info small">You</span><?php endif; ?>
                 <span class="badge rounded-pill <?= $sideClass ?> small"><?= e($sideLabel) ?></span>
+                <?php if ($package !== '' && $packageBinary): ?>
+                <span class="badge rounded-pill bg-label-success small" title="Binary package">
+                    <i class="icon-base bx bx-package bx-xs"></i>
+                </span>
+                <?php endif; ?>
                 <span class="text-body-secondary small">depth <?= $nodeDepth ?></span>
             </div>
             <div class="fw-medium text-truncate"><?= $memberName ?></div>

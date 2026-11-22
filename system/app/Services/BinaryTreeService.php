@@ -106,6 +106,15 @@ final class BinaryTreeService
             $rootNode['member_status'] = (string) ($rootMember['member_status'] ?? '');
             $rootNode['role']          = (string) ($rootMember['role'] ?? 'member');
             $rootNode['joined']        = substr((string) ($rootMember['created_at'] ?? ''), 0, 10);
+            $rootNode['package_id']    = (int) ($rootMember['package_id'] ?? 0);
+
+            if ((int) ($rootNode['package_id'] ?? 0) > 0) {
+                $rootNode['package_binary_enabled'] = Package::binaryEnabled((int) $rootNode['package_id']) ? 1 : 0;
+                $rootPackage = Package::find((int) $rootNode['package_id']);
+                if ($rootPackage !== null) {
+                    $rootNode['package_name'] = (string) ($rootPackage['name'] ?? '');
+                }
+            }
         }
 
         $all = $this->fetchSubtreeRows($rootPath, $rootUserId);
@@ -424,7 +433,7 @@ final class BinaryTreeService
         $pdo = db();
         $stmt = $pdo->prepare(
             'SELECT n.*, u.username, u.full_name, u.member_status, u.is_active, u.role,
-                    u.referral_code, u.package_id, p.name AS package_name, DATE(u.created_at) AS joined,
+                    u.referral_code, u.package_id, p.name AS package_name, p.binary_enabled AS package_binary_enabled, DATE(u.created_at) AS joined,
                     n.left_points, n.right_points, n.left_credited, n.right_credited,
                     n.personal_points, n.pairs_paid, n.depth, n.path, n.user_id, n.side
                FROM ' . self::TABLE . ' n
@@ -543,23 +552,24 @@ final class BinaryTreeService
         }
 
         return [
-            'id'            => $userId,
-            'username'      => (string) ($node['username'] ?? ''),
-            'name'          => $isAdmin ? ((string) ($node['full_name'] ?? null)) : null,
-            'referral_code' => (string) ($node['referral_code'] ?? ''),
-            'side'          => (string) ($node['side'] ?? null),
-            'path'          => (string) ($node['path'] ?? ''),
-            'depth'         => $depth,
-            'status'        => (string) (($node['is_active'] ?? 0) === 1 ? 'active' : 'inactive'),
-            'member_status' => (string) ($node['member_status'] ?? ''),
-            'package'       => (string) ($node['package_name'] ?? ''),
-            'joined'        => (string) ($node['joined'] ?? ''),
-            'is_you'        => $userId === $viewer,
-            'points'        => $points,
-            'slots'         => $slots,
-            'can_move'      => $shape['can_move'] ?? false,
-            'has_more'      => $shape['has_more'] ?? false,
-            'children'      => $shape['children'] ?? [],
+            'id'                   => $userId,
+            'username'             => (string) ($node['username'] ?? ''),
+            'name'                 => $isAdmin ? ((string) ($node['full_name'] ?? null)) : null,
+            'referral_code'        => (string) ($node['referral_code'] ?? ''),
+            'side'                 => (string) ($node['side'] ?? null),
+            'path'                 => (string) ($node['path'] ?? ''),
+            'depth'                => $depth,
+            'status'               => (string) (($node['is_active'] ?? 0) === 1 ? 'active' : 'inactive'),
+            'member_status'        => (string) ($node['member_status'] ?? ''),
+            'package'              => (string) ($node['package_name'] ?? ''),
+            'package_binary_enabled' => (int) ($node['package_binary_enabled'] ?? 0) === 1,
+            'joined'               => (string) ($node['joined'] ?? ''),
+            'is_you'               => $userId === $viewer,
+            'points'               => $points,
+            'slots'                => $slots,
+            'can_move'             => $shape['can_move'] ?? false,
+            'has_more'             => $shape['has_more'] ?? false,
+            'children'             => $shape['children'] ?? [],
         ];
     }
 
@@ -578,12 +588,14 @@ final class BinaryTreeService
 
         $userId = (int) ($node['user_id'] ?? 0);
         $rows[] = [
-            'id'       => $userId,
-            'username' => (string) ($node['username'] ?? ''),
-            'side'     => (string) ($node['side'] ?? null),
-            'depth'    => (int) ($node['depth'] ?? 0),
-            'indent'   => max(0, (int) ($node['depth'] ?? 0) - $nodeDepth),
-            'points'   => [
+            'id'                   => $userId,
+            'username'             => (string) ($node['username'] ?? ''),
+            'side'                 => (string) ($node['side'] ?? null),
+            'depth'                => (int) ($node['depth'] ?? 0),
+            'indent'               => max(0, (int) ($node['depth'] ?? 0) - $nodeDepth),
+            'package'              => (string) ($node['package_name'] ?? ''),
+            'package_binary_enabled' => (int) ($node['package_binary_enabled'] ?? 0) === 1,
+            'points'               => [
                 'left'  => (int) ($node['left_points'] ?? 0),
                 'right' => (int) ($node['right_points'] ?? 0),
             ],

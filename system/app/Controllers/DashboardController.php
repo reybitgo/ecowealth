@@ -218,21 +218,55 @@ final class DashboardController
      * ledger would not report. Wrapped so a missing table or a bad read
      * hides the tile, never the page.
      *
+     * Phase 23E adds the package indicators: package pairs earned and
+     * package points placed, read from activation-sourced awards and
+     * volume for this member only.
+     *
      * @return array<string, mixed>|null
      */
     private function binarySummary(int $userId): ?array
     {
-        if (!BinaryService::enabled()) {
-            return null;
-        }
+        $totals = (new BinaryService())->totalsFor($userId);
 
-        try {
-            return (new BinaryService())->totalsFor($userId);
-        } catch (Throwable $e) {
-            error_log('[ecowealth] binary dashboard tile unavailable: ' . $e->getMessage());
+        $pdo = db();
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*)
+               FROM binary_awards
+              WHERE user_id = ?
+                AND source = 'activation'
+                AND kind = 'pair'
+                AND status IN ('pending','credited')"
+        );
+        $stmt->execute([$userId]);
+        $packagePairs = (int) $stmt->fetchColumn();
 
-            return null;
-        }
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(points), 0)
+               FROM binary_volume
+              WHERE node_user_id = ?
+                AND source = 'activation'
+                AND kind = 'team'
+                AND points > 0"
+        );
+        $stmt->execute([$userId]);
+        $packagePoints = (int) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(amount), 0)
+               FROM binary_awards
+              WHERE user_id = ?
+                AND source = 'activation'
+                AND kind = 'pair'
+                AND status = 'credited'"
+        );
+        $stmt->execute([$userId]);
+        $packageCredited = (float) $stmt->fetchColumn();
+
+        return $totals + [
+            'package_pairs'   => $packagePairs,
+            'package_points'  => $packagePoints,
+            'package_credited'=> round($packageCredited, 2),
+        ];
     }
 
     /**

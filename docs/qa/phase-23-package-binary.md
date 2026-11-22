@@ -772,6 +772,139 @@ Section D's claims are also asserted by the automated suite:
 | QA23D-06 | `evidence/phase-23/QA23D-06.txt` |
 | QA23D-07 | `evidence/phase-23/QA23D-07.txt` |
 
+---
+
 ## Section E — Phase 23E: Member visibility (`QA23E-01` … `QA23E-06`)
 
-**Status:** not started. Section E is appended by 23E.
+**Status:** not started. Section E is appended by 23E-S2; Section F follows in 23F.
+
+> **Where each check runs.** `QA23E-01` to `QA23E-06` run against the development copy at migration 027,
+> with at least one package flagged `binary_enabled = 1` with `binary_points > 0` and at least one
+> approved activation of that package producing package pairs for the viewer. No check touches
+> `ecowealth_sneat`.
+
+> **Notation.** `mysql` means `C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe`; `php` means
+> Laragon's PHP 8.3 CLI. Every command runs from `system/`.
+
+### QA23E-01 — The dashboard binary tile shows package indicators
+
+| Why | P23E-T6: the dashboard Product binary tile gains a package line showing package pairs earned and points placed. |
+|---|---|
+| Where | Browser: `/dashboard` |
+| Evidence | `QA23E-01.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Approve activations of a binary-enabled package so the viewer earns package pairs.
+2. Open `/dashboard`.
+3. Confirm the binary tile shows a **Package pairs earned** line and a **Package points placed** line when package pairs exist.
+4. Confirm no package line appears when the member has no package activity.
+
+Expected
+
+- The package line reads "N pair(s) earned · ₱m.m0 credited" and "N pts placed".
+- When `package_pairs = 0` and `package_points = 0`, the package lines are absent.
+
+### QA23E-02 — The tree node shows the package name and binary chip
+
+| Why | P23E-T6: the genealogy tree node card shows the member's package name; a binary-enabled package shows a chip badge. |
+|---|---|
+| Where | Browser: `/genealogy?view=binary` |
+| Evidence | `QA23E-02.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/genealogy?view=binary`.
+2. Confirm each node card shows the member's package name beside their points.
+3. Confirm a binary-enabled package node shows a small package chip badge.
+4. Confirm a non-binary-enabled package node shows no chip.
+
+Expected
+
+- Package name renders on every node that has a package.
+- The chip badge appears only when `packages.binary_enabled = 1`.
+
+### QA23E-03 — Stream off: no package card, no chip, tab falls back
+
+| Why | P23E-T7: when `package_binary_enabled = 0`, no package indicators appear anywhere on member pages. |
+|---|---|
+| Where | Browser: `/dashboard`, `/genealogy?view=binary`, `/earnings?ledger=binary` |
+| Evidence | `QA23E-03.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Set `package_binary_enabled = 0`.
+2. Open `/dashboard`: confirm the binary tile has no package line.
+3. Open `/genealogy?view=binary`: confirm no package chip on any node.
+4. Open `/earnings?ledger=binary`: confirm the tab reads **Binary bonus** and no package card appears.
+
+Expected
+
+- No package line on the dashboard tile.
+- No package chip on any tree node.
+- The earnings tab still renders (falls back to product-only shape at 0/0).
+
+### QA23E-04 — Product-only member: Phase 22 page plus 0/0 split
+
+| Why | P23E-T8: a member with no binary package activity sees the Phase 22 binary page with source split at 0/0. |
+|---|---|
+| Where | Browser: `/earnings?ledger=binary` |
+| Evidence | `QA23E-04.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/earnings?ledger=binary` as a member with product-only binary activity (or none).
+2. Confirm the tab reads **Binary bonus**.
+3. Confirm the stats show **Repeat purchases** and **Package activations** cards, the latter at 0/0.
+4. Confirm no **Package A** name appears anywhere (no package card).
+
+Expected
+
+- The page is the Phase 22 binary statement plus the additive source split.
+- The Package activations card reads "No package activation placed points yet".
+- No upline, sponsor, "Team chain" or "Level" words appear anywhere.
+
+### QA23E-05 — Source filter narrows awards, stats stay whole
+
+| Why | P23E-T5: `?source=activation` shows only package rows; the stats cards stay whole (balances not filtered). |
+|---|---|
+| Where | Browser: `/earnings?ledger=binary&source=activation` then `&source=order` |
+| Evidence | `QA23E-05.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Open `/earnings?ledger=binary`: note the total credited and award count.
+2. Open `&source=activation`: confirm only Package activation rows appear; stats unchanged.
+3. Open `&source=order`: confirm only Repeat purchase rows appear; stats unchanged.
+
+Expected
+
+- The Source column reads **Package activation** or **Repeat purchase** per row.
+- The stats cards show the same totals regardless of source filter.
+
+### QA23E-06 — JS off and mobile: cards stack, pagination works
+
+| Why | P23E-T9: without JavaScript and at 390 px width, the source filter, cards and pagination still work. |
+|---|---|
+| Where | Browser: resize to 390 px; disable JavaScript |
+| Evidence | `QA23E-06.txt` |
+| Result | ☐ Pass  ☐ Fail  ☐ Blocked |
+
+Steps
+
+1. Resize the browser to 390 px width.
+2. Confirm the stats cards stack vertically without horizontal scroll.
+3. Disable JavaScript and reload `/earnings?ledger=binary`.
+4. Confirm the source filter dropdown works (full-page GET), pagination works, and cards render.
+
+Expected
+
+- No horizontal scroll at 390 px.
+- Without JavaScript, the source filter submits a normal GET and paginates server-side.
+- All cards render without JavaScript hydration.
+
