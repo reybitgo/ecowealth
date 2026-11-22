@@ -13,7 +13,7 @@ declare(strict_types=1);
 ?>
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3" data-live-region="earnings-binary-header">
                   <div>
-                    <h5 class="mb-1">Product binary</h5>
+                    <h5 class="mb-1">Binary bonus</h5>
                     <p class="text-body-secondary mb-0 small">
                       Your own purchases place points on your left or your right team. A pair matches
                       1,000 points on each side and pays 10% of the matched value. You earn on your own

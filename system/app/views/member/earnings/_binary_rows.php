@@ -12,11 +12,13 @@ declare(strict_types=1);
  * is always the recipient.
  *
  * @var list<array<string, mixed>> $awards
- * @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string} $filters
+ * @var array{kind:string, status:string, side:string, product_id:string, from:string, to:string, q:string, source:string} $filters
  * @var string $wallet_url
+ * @var array{0:array{value:string,label:string}} $source_options
  */
 
 $filters = $filters ?? BinaryAward::filterDefaults();
+$sourceOptions = $source_options ?? [];
 
 $hasFilters = (string) $filters['kind'] !== ''
     || (string) $filters['status'] !== ''
@@ -24,7 +26,8 @@ $hasFilters = (string) $filters['kind'] !== ''
     || (string) $filters['product_id'] !== ''
     || (string) $filters['from'] !== ''
     || (string) $filters['to'] !== ''
-    || (string) $filters['q'] !== '';
+    || (string) $filters['q'] !== ''
+    || (string) $filters['source'] !== '';
 
 $releaseEnabled = setting_bool('binary_release_enabled', true);
 
@@ -82,19 +85,19 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
         return 'Being finalized — it is added on the next release run.';
     }
 
-    return 'Available after ' . format_date(date('Y-m-d H:i:s', $timestamp)) . '.';
+    return 'Available after ' . format_date(date('Y-m-d H:i:s', $timestamp)) . '';
 };
 ?>
                     <tbody data-live-region="earnings-binary-rows">
 <?php if ($awards === []): ?>
                       <tr>
-                        <td colspan="10" class="py-0">
+                        <td colspan="11" class="py-0">
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-git-branch',
-        'title'        => $hasFilters ? 'No awards match these filters' : 'No Product binary awards yet',
+        'title'        => $hasFilters ? 'No awards match these filters' : 'No Binary bonus awards yet',
         'text'         => $hasFilters
-            ? 'Try a different kind, status, side, product or date range.'
+            ? 'Try a different kind, status, side, product, source or date range.'
             : 'Your Self Bonus and your team’s pairs appear here once an order is paid. The awards '
                 . 'are released to your e-wallet after delivery and the hold window.',
         'action_href'  => $hasFilters ? 'earnings?ledger=binary' : 'shop',
@@ -119,6 +122,7 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
     $points    = (int) ($award['points'] ?? 0);
     $pairCount = (int) ($award['pair_count'] ?? 0);
     $rate      = (float) ($award['rate_pct'] ?? 0);
+    $source    = (string) ($award['source'] ?? '');
     $note      = $rowNote($award);
 ?>
                       <tr data-live-key="<?= $id ?>">
@@ -159,6 +163,11 @@ $rowNote = static function (array $award) use ($releaseEnabled): string {
 <?php if ($note !== ''): ?>
                           <div class="small text-body-secondary commission-reason"><?= e($note) ?></div>
 <?php endif; ?>
+                        </td>
+                        <td class="text-nowrap commission-col-source">
+                          <span class="badge bg-label-secondary text-capitalize">
+                            <?= e($source === 'activation' ? 'Package activation' : ($source === 'order' ? 'Repeat purchase' : '—')) ?>
+                          </span>
                         </td>
                         <td class="text-nowrap commission-col-order">
                           <span class="text-body-secondary"><?= e($orderNo) ?></span>

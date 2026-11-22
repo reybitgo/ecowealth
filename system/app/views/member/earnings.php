@@ -361,7 +361,7 @@ if ($isTeam) {
                     class="nav-link<?= $isBinary ? ' active' : '' ?>"
 <?= $isBinary ? ' aria-current="page"' : '' ?>
                   >
-                    <i class="icon-base bx bx-git-branch me-1"></i> Product binary
+                    <i class="icon-base bx bx-git-branch me-1"></i> Binary bonus
                   </a>
                 </li>
 <?php endif; ?>
@@ -772,6 +772,7 @@ if ($isTeam) {
     $binaryPager  = $pager ?? Paginator::fromTableRequest(count($awards ?? []));
     $binaryFilters= $filters ?? BinaryAward::filterDefaults();
     $binaryAwards = $awards ?? [];
+    $binarySourceOptions = $source_options ?? [];
 
     $hasFilters = (string) $binaryFilters['kind'] !== ''
         || (string) $binaryFilters['status'] !== ''
@@ -803,8 +804,17 @@ if ($isTeam) {
 <?= View::capture('member/earnings/_binary_stats', [
     'totals'  => $binaryTotals,
     'pending' => $binaryPending,
+    'stats'   => $stats ?? [],
 ]) ?>
 <?= View::capture('member/earnings/_binary_self', ['totals' => $binaryTotals]) ?>
+<?php
+    $packageCard = $package_card ?? null;
+    if ($packageCard !== null && $packageCard['has_package'] === true):
+?>
+<?= View::capture('member/earnings/_binary_package', [
+    'package_card' => $packageCard,
+]) ?>
+<?php endif; ?>
               </div>
 
 <?php
@@ -871,6 +881,16 @@ if ($isTeam) {
                       </select>
                     </div>
 
+                    <div class="commission-filter-field">
+                      <label class="form-label" for="binary-filter-source">Source</label>
+                      <select name="source" id="binary-filter-source" class="form-select">
+                        <option value="">All sources</option>
+<?php foreach ($binarySourceOptions as $option): ?>
+                        <option value="<?= e($option['value']) ?>" <?= $binaryFilters['source'] === $option['value'] ? 'selected' : '' ?>><?= e($option['label']) ?></option>
+<?php endforeach; ?>
+                      </select>
+                    </div>
+
                     <div class="commission-filter-field commission-filter-date">
                       <label class="form-label" for="binary-filter-from">From</label>
                       <input type="date" name="from" id="binary-filter-from" class="form-control" value="<?= e((string) $binaryFilters['from']) ?>" />
@@ -918,6 +938,7 @@ if ($isTeam) {
                         <th scope="col" class="text-end commission-col-rate">Rate</th>
                         <th scope="col" class="text-end">Amount</th>
                         <th scope="col">Status</th>
+                        <th scope="col" class="commission-col-source">Source</th>
                         <th scope="col" class="commission-col-order">Order</th>
                       </tr>
                     </thead>
@@ -925,6 +946,7 @@ if ($isTeam) {
     'awards'     => $binaryAwards,
     'filters'    => $binaryFilters,
     'wallet_url' => $wallet_url,
+    'source_options' => $binarySourceOptions,
 ]) ?>
                   </table>
                 </div>

@@ -253,7 +253,7 @@ return [
             $html = (string) ob_get_clean();
         }
 
-        assert_contains('Product binary', $html);
+        assert_contains('Binary bonus', $html);
         assert_contains('aria-current="page"', $html, 'the binary tab pill is active');
         assert_not_contains('Package commissions'.' aria-current', $html);
         assert_contains('Your self bonus', $html);

@@ -440,10 +440,13 @@ final class EarningsController
             'from'       => Request::string('from'),
             'to'         => Request::string('to'),
             'q'          => Request::string('q'),
+            'source'     => Request::string('source'),
         ]);
 
         $pager = Paginator::fromTableRequest(BinaryAward::countForUser($userId, $filters));
         $rows  = BinaryAward::pageForUser($userId, $filters, $pager);
+
+        $stats = BinaryAward::stats($filters);
 
         $node   = BinaryNode::forUser($userId);
         $leftPts  = (int) ($node['left_points']  ?? 0);
@@ -452,17 +455,61 @@ final class EarningsController
         $leftTeam  = $this->binarySideTeam($userId, 'left',  $leftPts);
         $rightTeam = $this->binarySideTeam($userId, 'right', $rightPts);
 
+        $packageCard = $this->binaryPackageCard($userId, $stats);
+
+        $kindOptions = [['value' => '', 'label' => 'All kinds']];
+        foreach (BinaryAward::KINDS as $kind) {
+            $kindOptions[] = [
+                'value' => $kind,
+                'label' => ucfirst($kind),
+            ];
+        }
+
+        $statusOptions = ['' => 'All statuses'];
+        foreach (BinaryAward::STATUSES as $status) {
+            $statusOptions[$status] = BinaryAward::STATUS_LABELS[$status] ?? ucfirst($status);
+        }
+
+        $sideOptions = [['value' => '', 'label' => 'All sides']];
+        foreach (['left', 'right'] as $side) {
+            $sideOptions[] = ['value' => $side, 'label' => ucfirst($side)];
+        }
+
+        $sourceOptions = [['value' => '', 'label' => 'All sources']];
+        foreach (BinaryAward::SOURCES as $source) {
+            $sourceOptions[] = [
+                'value' => $source,
+                'label' => $source === 'order' ? 'Repeat purchase' : 'Package activation',
+            ];
+        }
+
+        $hasFilters = (string) $filters['kind'] !== ''
+            || (string) $filters['status'] !== ''
+            || (string) $filters['side'] !== ''
+            || (string) $filters['product_id'] !== ''
+            || (string) $filters['from'] !== ''
+            || (string) $filters['to'] !== ''
+            || (string) $filters['q'] !== ''
+            || (string) $filters['source'] !== '';
+
         return [
             'tab'           => self::TAB_BINARY,
             'user_id'       => $userId,
             'totals'        => BinaryAward::totalsForUser($userId),
             'pending'       => BinaryAward::pendingSummaryForUser($userId),
             'breakdown'     => BinaryAward::sideBreakdown($userId),
+            'stats'         => $stats,
             'left_team'     => $leftTeam,
             'right_team'    => $rightTeam,
             'filters'       => $filters,
             'pager'         => $pager,
             'awards'        => $rows,
+            'package_card'  => $packageCard,
+            'kind_options'   => $kindOptions,
+            'status_options' => $statusOptions,
+            'side_options'   => $sideOptions,
+            'source_options' => $sourceOptions,
+            'has_filters'  => $hasFilters,
             'wallet_url'    => url('wallet'),
             'genealogy_url' => url('genealogy'),
             'package_url'   => url('earnings'),
@@ -473,6 +520,75 @@ final class EarningsController
             'binary_url'    => url('earnings?ledger=binary'),
             'statement_url' => url('earnings?ledger=binary'),
             'export_url'    => url('earnings/export' . self::binaryQueryString($filters)),
+        ];
+    }
+
+    /**
+     * The package card data for the member's Binary bonus tab (23E-S1).
+     *
+     * Downward-only copy: names the member's own package and their own
+     * package outcome, never who earned from their activation.
+     *
+     * @param array<string, mixed> $stats  BinaryAward::stats() output
+     * @return array{
+     *   has_package:bool, package_name:?string, binary_enabled:bool,
+     *   binary_points:int, qualification:bool, qualification_reason:?string,
+     *   pairs_earned:int, money_earned:float, last_activation:?array{id:int, points:int, total:float, processed_at:?string}
+     * }|null
+     */
+    private function binaryPackageCard(int $userId, array $stats): ?array
+    {
+        if (!PackageBinaryService::enabled()) {
+            return null;
+        }
+
+        $member = Member::find($userId);
+        if ($member === null) {
+            return null;
+        }
+
+        $packageId = (int) ($member['package_id'] ?? 0);
+        $package   = $packageId > 0 ? Package::find($packageId) : null;
+
+        $binaryEnabled = $package !== null && Package::binaryEnabled($packageId);
+        $binaryPoints  = $package !== null ? (int) Package::binaryPoints($packageId) : 0;
+        $service       = new PackageBinaryService();
+        $qualifies     = $binaryEnabled ? $service->qualifies($userId) : false;
+
+        $qualificationReason = null;
+        if (!$binaryEnabled) {
+            $qualificationReason = 'Your package is not in the binary: your activations place no points and package activations do not pay you package pairs.';
+        } elseif (!$qualifies) {
+            $qualificationReason = 'recipient package is not binary-enabled';
+        }
+
+        $pairsEarned   = (int) ($stats['activation_pairs'] ?? 0);
+        $moneyEarned   = round((float) ($stats['activation_credited_total'] ?? 0), 2);
+
+        $activations = Activation::forUser($userId);
+        $lastActivation = null;
+        foreach ($activations as $activation) {
+            if ((string) ($activation['binary_processed_at'] ?? '') !== '' || (int) ($activation['binary_points'] ?? 0) > 0) {
+                $lastActivation = [
+                    'id'          => (int) $activation['id'],
+                    'points'      => (int) ($activation['binary_points'] ?? 0),
+                    'total'       => round((float) ($activation['binary_total'] ?? 0), 2),
+                    'processed_at'=> (string) ($activation['binary_processed_at'] ?? ''),
+                ];
+                break;
+            }
+        }
+
+        return [
+            'has_package'         => $package !== null,
+            'package_name'        => $package !== null ? (string) ($package['name'] ?? '') : null,
+            'binary_enabled'      => $binaryEnabled,
+            'binary_points'       => $binaryPoints,
+            'qualification'       => $qualifies,
+            'qualification_reason'=> $qualificationReason,
+            'pairs_earned'        => $pairsEarned,
+            'money_earned'        => $moneyEarned,
+            'last_activation'     => $lastActivation,
         ];
     }
 

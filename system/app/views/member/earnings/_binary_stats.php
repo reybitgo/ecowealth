@@ -19,6 +19,11 @@ declare(strict_types=1);
  *   total:float, count:int, next_release_at:?string, undelivered:int,
  *   overdue:int, release_enabled:bool
  * } $pending
+ * @var array{
+ *   activation_credited_total:float, activation_pairs:int, activation_points:int,
+ *   order_credited_total:float, order_pairs:int, order_points:int,
+ *   ...
+ * } $stats
  */
 
 $totals = array_merge(
@@ -54,6 +59,18 @@ $pending = array_merge(
     $pending ?? []
 );
 
+$stats = array_merge(
+    [
+        'activation_credited_total' => 0.0,
+        'activation_pairs'          => 0,
+        'activation_points'         => 0,
+        'order_credited_total'      => 0.0,
+        'order_pairs'               => 0,
+        'order_points'              => 0,
+    ],
+    $stats ?? []
+);
+
 $credited     = round((float) $totals['credited'], 2);
 $pendingAmt   = round((float) $totals['pending'], 2);
 $pendingCount = (int) $totals['pending_count'];
@@ -64,6 +81,13 @@ $pairCount    = (int) $totals['pair_count'];
 $awardCount   = (int) $totals['count'] + $pendingCount;
 $nextRelease  = $totals['next_release_at'] ?? $pending['next_release_at'];
 $hasNext      = $nextRelease !== null && trim((string) $nextRelease) !== '';
+
+$activationCredited = round((float) $stats['activation_credited_total'], 2);
+$activationPairs    = (int) $stats['activation_pairs'];
+$activationPoints   = (int) $stats['activation_points'];
+$orderCredited      = round((float) $stats['order_credited_total'], 2);
+$orderPairs         = (int) $stats['order_pairs'];
+$orderPoints        = (int) $stats['order_points'];
 
 $cards = [
     [
@@ -109,6 +133,24 @@ $cards = [
             ? (int) $totals['count'] . ' credited'
             : (int) $totals['count'] . ' credited · ' . $pendingCount . ' pending release',
         'icon'  => 'bx-award',
+        'tone'  => 'info',
+    ],
+    [
+        'label' => 'Repeat purchases',
+        'value' => money($orderCredited),
+        'hint'  => $orderPairs === 0
+            ? 'No product orders placed points yet'
+            : $orderPairs . ' pair' . ($orderPairs === 1 ? '' : 's') . ' · ' . (string) $orderPoints . ' pts',
+        'icon'  => 'bx-cart',
+        'tone'  => 'info',
+    ],
+    [
+        'label' => 'Package activations',
+        'value' => money($activationCredited),
+        'hint'  => $activationPairs === 0
+            ? 'No package activation placed points yet'
+            : $activationPairs . ' pair' . ($activationPairs === 1 ? '' : 's') . ' · ' . (string) $activationPoints . ' pts',
+        'icon'  => 'bx-package',
         'tone'  => 'info',
     ],
 ];
