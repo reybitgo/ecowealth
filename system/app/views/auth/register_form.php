@@ -20,8 +20,12 @@ $binary_enabled = BinaryPlacementService::isEnabled();
 
 /* The binary upline defaults to the sponsor (prefilled or typed). A
  * posted value survives a field error via old(). */
-$binary_upline_default = old('binary_upline', $prefill_sponsor);
-$binary_position_default = old('binary_position', '');
+$binary_upline_default    = (string) old('binary_upline', $prefill_sponsor);
+$binary_position_default  = (string) old('binary_position', '');
+$binary_upline_is_default = trim($binary_upline_default) === '';
+$binary_upline_display    = $binary_upline_is_default
+    ? 'Your sponsor'
+    : '@' . ltrim($binary_upline_default, '@');
 
 /* Field errors are shown under their own inputs; the banner above the form
  * only carries a generic prompt (or a global failure such as a database
@@ -209,6 +213,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
             value="<?= old('sponsor', $prefill_sponsor) ?>"
             placeholder="e.g. juan or JUAN0001"
             autocomplete="off"
+            aria-describedby="sponsor-hint"
             data-sponsor-input
           />
         </div>
@@ -218,81 +223,18 @@ $feedback = static function (string $field, string $attributes = ''): string {
     : 'Defaults to your account, @' . (string) $registrar['username'] . '.'; ?>
         <div
           class="form-text"
+          id="sponsor-hint"
           data-sponsor-hint
           data-sponsor-default="<?= e($sponsorHintDefault) ?>"
+          aria-live="polite"
         ><?= e($sponsorHintDefault) ?></div>
       </div>
 
-      <?php if ($binary_enabled): ?>
-      <!-- Binary placement -->
-      <div class="mb-4">
-        <label class="form-label fw-semibold" for="binary_upline">
-          Your upline in the binary tree
-          <span class="text-body-secondary">(defaults to your sponsor)</span>
-        </label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="icon-base bx bx-share"></i></span>
-          <input
-            type="text"
-            class="<?= $fieldClass('binary_upline') ?>"
-            id="binary_upline"
-            name="binary_upline"
-            value="<?= e(old('binary_upline', $prefill_sponsor)) ?>"
-            placeholder="e.g. juan"
-            autocomplete="off"
-            data-binary-upline-input
-          />
-        </div>
-        <?= $feedback('binary_upline') ?>
-        <div class="form-text" id="binary-upline-hint">
-          Your position in the placement tree. Defaults to your sponsor, @<?= e((string) ($registrar !== null ? $registrar['username'] : 'admin')) ?>.
-        </div>
-      </div>
-
-      <div class="mb-4">
-        <label class="form-label fw-semibold" for="binary_position">
-          Position in the tree
-          <span class="required">*</span>
-        </label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="icon-base bx bx-tree"></i></span>
-          <div class="btn-group btn-group-toggle" data-toggle="buttons" role="radiogroup" aria-label="Left or right side of the tree">
-            <label class="btn btn-outline-secondary<?= $binary_position_default === 'left' ? ' active' : '' ?><?= has_error('binary_position') ? ' is-invalid' : '' ?>">
-              <input
-                type="radio"
-                name="binary_position"
-                value="left"
-                id="binary_position_left"
-                data-binary-position
-                <?= $binary_position_default === 'left' ? ' checked' : '' ?>
-                required
-              />
-              <i class="icon-base bx bx-chevron-left"></i> Left
-            </label>
-            <label class="btn btn-outline-secondary<?= $binary_position_default === 'right' ? ' active' : '' ?><?= has_error('binary_position') ? ' is-invalid' : '' ?>">
-              <input
-                type="radio"
-                name="binary_position"
-                value="right"
-                id="binary_position_right"
-                data-binary-position
-                <?= $binary_position_default === 'right' ? ' checked' : '' ?>
-                required
-              />
-              <i class="icon-base bx bx-chevron-right"></i> Right
-            </label>
-          </div>
-        </div>
-        <?= $feedback('binary_position') ?>
-        <div class="form-text" id="binary-position-hint">
-          Which side of your upline you sit on. A free slot is required; the choice is snapshotted on your first order.
-        </div>
-      </div>
-      <?php endif; ?>
+      <h6 class="register-section-title mt-5">Account details</h6>
 
       <div class="row g-4">
         <div class="col-sm-6">
-          <label class="form-label" for="username">Username</label>
+          <label class="form-label" for="username">Username <span class="required">*</span></label>
           <input
             type="text"
             class="<?= $fieldClass('username') ?>"
@@ -300,15 +242,16 @@ $feedback = static function (string $field, string $attributes = ''): string {
             name="username"
             value="<?= old('username') ?>"
             autocomplete="username"
+            aria-describedby="username-hint"
             data-username-input
             required
           />
           <?= $feedback('username') ?>
-          <div class="form-text" data-username-hint>3–50 letters, numbers, dot, underscore or dash.</div>
+          <div class="form-text" id="username-hint" data-username-hint aria-live="polite">3–50 letters, numbers, dot, underscore or dash.</div>
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label" for="email">Email</label>
+          <label class="form-label" for="email">Email <span class="required">*</span></label>
           <input
             type="email"
             class="<?= $fieldClass('email') ?>"
@@ -349,7 +292,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label" for="password">Password</label>
+          <label class="form-label" for="password">Password <span class="required">*</span></label>
           <div class="input-group input-group-merge">
             <input
               type="password"
@@ -365,7 +308,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label" for="password_confirm">Confirm password</label>
+          <label class="form-label" for="password_confirm">Confirm password <span class="required">*</span></label>
           <div class="input-group input-group-merge">
             <input
               type="password"
@@ -373,11 +316,13 @@ $feedback = static function (string $field, string $attributes = ''): string {
               id="password_confirm"
               name="password_confirm"
               autocomplete="new-password"
+              aria-describedby="password-confirm-hint"
               required
             />
             <span class="input-group-text cursor-pointer" data-password-toggle><i class="icon-base bx bx-hide"></i></span>
           </div>
           <?= $feedback('password_confirm') ?>
+          <div class="form-text" id="password-confirm-hint" data-password-confirm-hint aria-live="polite"></div>
         </div>
       </div>
 
@@ -396,12 +341,13 @@ $feedback = static function (string $field, string $attributes = ''): string {
               placeholder="XXXX-XXXX-XXXX"
               maxlength="14"
               autocomplete="off"
+              aria-describedby="reg-code-hint"
               data-code-input
             />
             <button class="btn btn-outline-primary" type="button" data-code-validate>Validate</button>
           </div>
           <?= $feedback('reg_code', ' data-code-feedback') ?>
-          <div class="form-text" data-code-hint>The code determines the package you activate.</div>
+          <div class="form-text" id="reg-code-hint" data-code-hint aria-live="polite">The code determines the package you activate.</div>
           <div class="alert alert-success d-none mt-3 mb-0 py-2 small" data-code-ok></div>
         </div>
       </div>
@@ -476,6 +422,158 @@ $feedback = static function (string $field, string $attributes = ''): string {
           </div>
         </div>
       </div>
+
+<?php if ($binary_enabled): ?>
+      <!-- Binary placement -->
+      <section class="binary-placement mt-5" aria-labelledby="binary-placement-title" data-binary-placement>
+        <div class="binary-placement-head">
+          <span class="binary-placement-icon" aria-hidden="true"><i class="icon-base bx bx-git-branch"></i></span>
+          <div class="binary-placement-heading">
+            <h6 class="binary-placement-title" id="binary-placement-title">Binary placement</h6>
+            <p class="binary-placement-subtitle">Every member joins one side of an upline’s tree. Set the upline, then pick an open side.</p>
+          </div>
+          <span class="binary-placement-badge">Required</span>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label" for="binary_upline">
+            Your upline in the binary tree
+            <span class="text-body-secondary">(optional)</span>
+          </label>
+          <div class="input-group">
+            <span class="input-group-text" aria-hidden="true"><i class="icon-base bx bx-user-circle"></i></span>
+            <input
+              type="text"
+              class="<?= $fieldClass('binary_upline') ?>"
+              id="binary_upline"
+              name="binary_upline"
+              value="<?= e($binary_upline_default) ?>"
+              placeholder="e.g. juan — leave blank for your sponsor"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+              aria-describedby="binary-upline-hint"
+              data-binary-upline-input
+            />
+            <span class="input-group-text binary-upline-state" data-upline-state aria-hidden="true">
+              <i class="icon-base bx bx-user-circle"></i>
+            </span>
+          </div>
+          <?= $feedback('binary_upline', ' data-upline-feedback') ?>
+          <div class="form-text" id="binary-upline-hint" data-binary-upline-hint aria-live="polite">
+            Leave blank to place under your sponsor’s node, or type another member to choose a different upline.
+          </div>
+        </div>
+
+        <div>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <span class="form-label mb-0" id="binary-position-label">
+              Position in the tree
+              <span class="required">*</span>
+            </span>
+            <span class="binary-position-note">
+              <i class="icon-base bx bx-lock-alt" aria-hidden="true"></i>
+              Set once at registration
+            </span>
+          </div>
+
+          <div class="binary-tree">
+            <div class="binary-tree-upline" aria-hidden="true">
+              <span class="binary-tree-node">
+                <span class="binary-tree-avatar"><i class="icon-base bx bx-user"></i></span>
+                <span class="binary-tree-node-text">
+                  <span class="binary-tree-node-label">Upline</span>
+                  <span class="binary-tree-node-name" data-upline-name><?= e($binary_upline_display) ?></span>
+                </span>
+                <span class="binary-tree-node-tag" data-upline-tag><?= $binary_upline_is_default ? 'Default' : 'Selected' ?></span>
+              </span>
+            </div>
+
+            <div
+              class="binary-slots<?= has_error('binary_position') ? ' is-invalid' : '' ?>"
+              data-binary-slots
+              role="radiogroup"
+              aria-labelledby="binary-position-label"
+              aria-describedby="binary-position-hint"
+              aria-required="true"
+<?= has_error('binary_position') ? '              aria-invalid="true"' : '' ?>
+            >
+              <label class="binary-slot" data-binary-slot="left">
+                <input
+                  type="radio"
+                  name="binary_position"
+                  value="left"
+                  id="binary_position_left"
+                  class="binary-slot-input"
+                  data-binary-position
+                  aria-label="Left side"
+                  aria-describedby="binary-slot-left-status binary-slot-left-meta"
+                  <?= $binary_position_default === 'left' ? ' checked' : '' ?>
+                  required
+                />
+                <span class="binary-slot-body">
+                  <span class="binary-slot-top">
+                    <span class="binary-slot-title"><i class="icon-base bx bx-chevron-left" aria-hidden="true"></i> Left side</span>
+                    <span class="binary-slot-reco d-none" data-slot-reco>Suggested</span>
+                    <span class="binary-slot-check" aria-hidden="true"><i class="icon-base bx bx-check"></i></span>
+                  </span>
+                  <span class="binary-slot-status is-neutral" id="binary-slot-left-status" data-slot-status>Select</span>
+                  <span class="binary-slot-meta" id="binary-slot-left-meta" data-slot-meta>Availability appears after the upline is checked.</span>
+                </span>
+              </label>
+
+              <label class="binary-slot" data-binary-slot="right">
+                <input
+                  type="radio"
+                  name="binary_position"
+                  value="right"
+                  id="binary_position_right"
+                  class="binary-slot-input"
+                  data-binary-position
+                  aria-label="Right side"
+                  aria-describedby="binary-slot-right-status binary-slot-right-meta"
+                  <?= $binary_position_default === 'right' ? ' checked' : '' ?>
+                  required
+                />
+                <span class="binary-slot-body">
+                  <span class="binary-slot-top">
+                    <span class="binary-slot-title"><i class="icon-base bx bx-chevron-right" aria-hidden="true"></i> Right side</span>
+                    <span class="binary-slot-reco d-none" data-slot-reco>Suggested</span>
+                    <span class="binary-slot-check" aria-hidden="true"><i class="icon-base bx bx-check"></i></span>
+                  </span>
+                  <span class="binary-slot-status is-neutral" id="binary-slot-right-status" data-slot-status>Select</span>
+                  <span class="binary-slot-meta" id="binary-slot-right-meta" data-slot-meta>Availability appears after the upline is checked.</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="invalid-feedback<?= has_error('binary_position') ? ' d-block' : '' ?>" id="binary-position-feedback" data-binary-position-feedback<?= has_error('binary_position') ? ' role="alert"' : '' ?>><?= has_error('binary_position') ? e(error_for('binary_position')) : '' ?></div>
+
+          <div class="binary-placement-summary d-none" data-placement-summary>
+            <span class="binary-placement-summary-icon" aria-hidden="true"><i class="icon-base bx bx-check-circle"></i></span>
+            <span class="binary-placement-summary-text">
+              <span class="binary-placement-summary-line">Placing this member under <strong data-summary-upline>your sponsor</strong></span>
+              <span class="binary-placement-summary-note">Changing this later needs an administrator.</span>
+            </span>
+            <span class="binary-placement-summary-side" data-summary-side>Left side</span>
+          </div>
+
+          <div class="form-text binary-position-hint" id="binary-position-hint" data-binary-position-hint aria-live="polite">
+            Pick an open side. The placement is written when the account is created.
+          </div>
+
+          <details class="binary-placement-help">
+            <summary>How placement works</summary>
+            <p>
+              Every member has two legs — one left slot, one right slot — and each slot holds a
+              single member. A side already taken by someone else cannot be chosen. The picker
+              marks which sides are open and suggests one; the final choice is yours.
+            </p>
+          </details>
+        </div>
+      </section>
+<?php endif; ?>
 
       <!-- Terms -->
       <div class="my-6">

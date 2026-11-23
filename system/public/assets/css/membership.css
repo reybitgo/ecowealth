@@ -172,6 +172,542 @@
   }
 }
 
+.register-section-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+/* ---------- Binary placement picker --------------------------- */
+/* A small tree sketch: the upline sits on top and two slot cards
+ * hang below it on connector lines. Availability is written by
+ * app-register.js (`is-open` / `is-occupied`); without JavaScript
+ * both slots stay selectable and the server validates the choice. */
+.binary-placement {
+  position: relative;
+  padding: 1.1rem;
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.22);
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(140% 120% at 100% 0%, rgba(var(--bs-primary-rgb), 0.09) 0%, rgba(var(--bs-primary-rgb), 0) 55%),
+    var(--bs-body-bg);
+}
+
+.binary-placement-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-bottom: 1.1rem;
+}
+
+.binary-placement-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.6rem;
+  background: rgba(var(--bs-primary-rgb), 0.12);
+  color: var(--bs-primary);
+  font-size: 1.25rem;
+}
+
+.binary-placement-heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.binary-placement-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--bs-heading-color);
+}
+
+.binary-placement-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  color: var(--bs-secondary-color);
+}
+
+.binary-placement-badge {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  color: var(--bs-primary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Upline field state icon */
+.binary-upline-state {
+  color: var(--bs-secondary-color);
+  transition: color 0.15s ease;
+}
+
+.binary-upline-state.is-checking {
+  color: var(--bs-primary);
+}
+
+.binary-upline-state.is-valid {
+  color: var(--bs-success);
+}
+
+.binary-upline-state.is-invalid {
+  color: var(--bs-danger);
+}
+
+/* Tree sketch */
+.binary-tree {
+  --binary-tree-gap: 1rem;
+  --binary-tree-line: rgba(var(--bs-primary-rgb), 0.3);
+  position: relative;
+}
+
+.binary-tree-upline {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 1.35rem;
+}
+
+.binary-tree-upline::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 2px;
+  height: 1.35rem;
+  background: var(--binary-tree-line);
+  transform: translateX(-50%);
+}
+
+.binary-tree-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.35);
+  border-radius: 0.65rem;
+  background: rgba(var(--bs-primary-rgb), 0.05);
+  box-shadow: 0 2px 6px -4px rgba(var(--bs-black-rgb), 0.35);
+}
+
+.binary-tree-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(var(--bs-primary-rgb), 0.14);
+  color: var(--bs-primary);
+  font-size: 1.05rem;
+}
+
+.binary-tree-node-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.binary-tree-node-label {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+.binary-tree-node-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--bs-heading-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.binary-tree-node-tag {
+  flex: 0 0 auto;
+  margin-left: 0.15rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bs-body-bg);
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.3);
+  color: var(--bs-primary);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.binary-slots {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--binary-tree-gap);
+  padding-top: 1.35rem;
+}
+
+.binary-slots::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(25% - (var(--binary-tree-gap) / 4));
+  right: calc(25% - (var(--binary-tree-gap) / 4));
+  height: 2px;
+  border-radius: 2px;
+  background: var(--binary-tree-line);
+}
+
+.binary-slot {
+  position: relative;
+  display: block;
+  margin: 0;
+  cursor: pointer;
+}
+
+.binary-slot::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -1.35rem;
+  width: 2px;
+  height: 1.35rem;
+  background: var(--binary-tree-line);
+  transform: translateX(-50%);
+}
+
+.binary-slot-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.binary-slot-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  height: 100%;
+  padding: 0.8rem 0.85rem;
+  border: 1.5px dashed var(--bs-border-color);
+  border-radius: 0.7rem;
+  background: var(--bs-body-bg);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.binary-slot:hover .binary-slot-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.5);
+}
+
+.binary-slot-input:focus-visible + .binary-slot-body {
+  outline: 2px solid rgba(var(--bs-primary-rgb), 0.55);
+  outline-offset: 2px;
+}
+
+/* A checked slot always wins over the availability tint. */
+.binary-slot-input:checked + .binary-slot-body {
+  border-style: solid;
+  border-color: rgba(var(--bs-primary-rgb), 0.9);
+  background: rgba(var(--bs-primary-rgb), 0.07);
+  box-shadow: 0 0 0 0.15rem rgba(var(--bs-primary-rgb), 0.12);
+}
+
+.binary-slot.is-open .binary-slot-body {
+  border-style: solid;
+  border-color: rgba(var(--bs-success-rgb), 0.45);
+  background: rgba(var(--bs-success-rgb), 0.04);
+}
+
+.binary-slot.is-open:hover .binary-slot-body {
+  border-color: rgba(var(--bs-success-rgb), 0.75);
+}
+
+.binary-slot.is-open .binary-slot-input:checked + .binary-slot-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.9);
+  background: rgba(var(--bs-primary-rgb), 0.07);
+}
+
+.binary-slot.is-occupied {
+  cursor: not-allowed;
+}
+
+.binary-slot.is-occupied .binary-slot-body {
+  border-style: solid;
+  border-color: var(--bs-border-color);
+  background: var(--bs-secondary-bg);
+  opacity: 0.72;
+}
+
+.binary-slot.is-occupied:hover .binary-slot-body {
+  border-color: var(--bs-border-color);
+}
+
+.binary-slot-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.binary-slot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--bs-heading-color);
+}
+
+.binary-slot-title .bx {
+  font-size: 1.15rem;
+  color: var(--bs-secondary-color);
+}
+
+.binary-slot-check {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--bs-primary);
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.binary-slot-input:checked + .binary-slot-body .binary-slot-check {
+  display: inline-flex;
+}
+
+.binary-slot-status {
+  align-self: flex-start;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.binary-slot-status.is-neutral {
+  background: rgba(var(--bs-secondary-rgb), 0.12);
+  color: var(--bs-secondary-color);
+}
+
+.binary-slot-status.is-open {
+  background: rgba(var(--bs-success-rgb), 0.14);
+  color: var(--bs-success-text-emphasis);
+}
+
+.binary-slot-status.is-occupied {
+  background: rgba(var(--bs-secondary-rgb), 0.1);
+  color: var(--bs-secondary-color);
+}
+
+.binary-slot-meta {
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--bs-secondary-color);
+}
+
+.binary-slot.is-open .binary-slot-meta {
+  color: var(--bs-body-color);
+}
+
+.binary-slots.is-invalid .binary-slot-body {
+  border-color: rgba(var(--bs-danger-rgb), 0.6);
+}
+
+.binary-position-hint {
+  margin-top: 0.6rem;
+}
+
+/* Right-hand note beside the "Position in the tree" label. */
+.binary-position-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+.binary-position-note .bx {
+  font-size: 0.95rem;
+}
+
+/* "Suggested" flag: a recommendation, never a silent choice. */
+.binary-slot-reco {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb), 0.12);
+  color: var(--bs-primary);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.binary-slot.is-suggested .binary-slot-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.6);
+  box-shadow: 0 0 0 0.16rem rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.binary-slot.is-suggested:hover .binary-slot-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.85);
+}
+
+.binary-slot.is-suggested .binary-slot-input:checked + .binary-slot-body {
+  border-color: rgba(var(--bs-primary-rgb), 0.9);
+  background: rgba(var(--bs-primary-rgb), 0.07);
+}
+
+/* Availability is re-checked on every upline edit; the slots say so. */
+.binary-slot.is-checking {
+  cursor: progress;
+}
+
+.binary-slot.is-checking .binary-slot-body {
+  border-style: dashed;
+  background: var(--bs-body-bg);
+  opacity: 0.75;
+}
+
+.binary-slot-status.is-checking {
+  background: rgba(var(--bs-primary-rgb), 0.1);
+  color: var(--bs-primary);
+}
+
+/* No side is legal under this upline: say it with colour, not only text. */
+.binary-slots.is-unavailable .binary-slot-body {
+  border-color: rgba(var(--bs-danger-rgb), 0.35);
+}
+
+/* One-sentence confirmation of what will be written. */
+.binary-placement-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(var(--bs-success-rgb), 0.35);
+  border-radius: 0.6rem;
+  background: rgba(var(--bs-success-rgb), 0.05);
+}
+
+.binary-placement-summary-icon {
+  flex: 0 0 auto;
+  color: var(--bs-success);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.binary-placement-summary-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.binary-placement-summary-line {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--bs-body-color);
+}
+
+.binary-placement-summary-note {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--bs-secondary-color);
+}
+
+.binary-placement-summary-side {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb), 0.12);
+  color: var(--bs-primary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Jargon has a home: collapsed by default, one tap when needed. */
+.binary-placement-help {
+  margin-top: 0.7rem;
+  font-size: 0.76rem;
+  color: var(--bs-secondary-color);
+}
+
+.binary-placement-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--bs-primary);
+}
+
+.binary-placement-help p {
+  margin: 0.4rem 0 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 575.98px) {
+  .binary-placement {
+    padding: 0.9rem;
+  }
+
+  .binary-slots {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 0;
+  }
+
+  .binary-tree-upline {
+    padding-bottom: 0.9rem;
+  }
+
+  .binary-tree-upline::after,
+  .binary-slots::before,
+  .binary-slot::before {
+    display: none;
+  }
+
+  .binary-position-note {
+    white-space: normal;
+  }
+
+  .binary-placement-summary {
+    flex-wrap: wrap;
+  }
+
+  .binary-placement-summary-side {
+    order: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .binary-slot-body,
+  .binary-upline-state {
+    transition: none;
+  }
+}
+
 /* ---------- Shared membership cards --------------------------- */
 .member-hero {
   background:

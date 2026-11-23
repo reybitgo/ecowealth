@@ -86,8 +86,8 @@ return [
         $port('do_register', 1, [$page('register')], 'Handled by public/register.php POST.'),
         $port('validate_code', 9, [$route('POST', '/register/validate-code')], 'JSON endpoint.'),
         $port('check_username', 9, [$route('POST', '/register/check-username')], 'JSON endpoint.'),
-        $port('check_upline', 9, [$route('POST', '/register/check-sponsor')], 'Re-specified as a sponsor check (no binary upline).'),
-        $drop('auto_select_upline', 'Binary placement helper — no binary tree in V3.0.'),
+        $port('check_upline', 9, [$route('POST', '/register/check-sponsor')], 'One resolver: sponsor check, plus a placement=1 binary-upline and open-slot check.'),
+        $drop('auto_select_upline', 'Not a separate route: the register form preselects a side from the open-slot check.'),
         $port('get_packages', 9, [$route('GET', '/register/packages')], 'JSON package list for the registration form.'),
 
         /* ---------- Super-login --------------------------------------- */

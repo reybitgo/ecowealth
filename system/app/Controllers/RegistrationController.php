@@ -11,9 +11,11 @@ declare(strict_types=1);
  *      POST /register/check-sponsor    reference check_upline, re-specified
  *      GET  /register/packages         reference get_packages
  *
- *  The binary-upline checker (auto_select_upline / check_upline) is
- *  NOT ported: V3.0 has no binary tree, so the endpoint answers a
- *  sponsor question instead.
+ *  The reference kept a separate `check_upline` / `auto_select_upline`
+ *  route. V3.0 folds the binary-upline lookup into check-sponsor:
+ *  posting `placement=1` asks about the binary upline instead of a
+ *  sponsor and answers with the immediate left/right slots. That keeps
+ *  the public route surface (and the parity inventory) unchanged.
  *
  *  The router already verified the CSRF token on each POST. These
  *  endpoints never write anything except flipping an expired code to
@@ -77,9 +79,23 @@ final class RegistrationController
         json_response(['ok' => true, 'available' => true, 'message' => 'Username is available.']);
     }
 
-    /** POST /register/check-sponsor — resolve a username OR referral code. */
+    /**
+     * POST /register/check-sponsor — resolve a username OR referral code.
+     *
+     * With `placement=1` the same request checks the binary upline
+     * instead: the `sponsor` field carries the upline identifier (or is
+     * blank to ask for the sponsor/company default), and the response
+     * carries the immediate left/right slots with their occupant names
+     * and legality.
+     */
     public function checkSponsor(array $params = []): void
     {
+        if (Request::string('placement') === '1') {
+            $this->checkPlacement();
+
+            return;
+        }
+
         $typed    = Request::string('sponsor');
         $sponsors = new SponsorService();
         $sponsor  = $sponsors->resolve($typed);
@@ -119,6 +135,141 @@ final class RegistrationController
                     'side'      => (string) $slots[0]['side'],
                 ]
                 : null,
+        ]);
+    }
+
+    /**
+     * The placement branch of check-sponsor: resolve the binary upline
+     * (a blank field means the sponsor's node, or the company root when
+     * the sponsor is staff / not placed) and report both immediate
+     * slots. A side is `legal` only when it is free **and** the current
+     * registrar may place there, so the picker never promises a slot
+     * the final validation would refuse.
+     */
+    private function checkPlacement(): void
+    {
+        $typed          = Request::string('sponsor');
+        $currentSponsor = Request::string('current_sponsor');
+        $sponsors       = new SponsorService();
+        $placement      = new BinaryPlacementService();
+
+        if (!$placement->isEnabled()) {
+            json_response([
+                'ok'      => true,
+                'valid'   => false,
+                'message' => 'Binary placement is not available right now.',
+            ]);
+        }
+
+        $contextSponsor = $currentSponsor === ''
+            ? $sponsors->defaultSponsor()
+            : $sponsors->resolve($currentSponsor);
+
+        if ($typed !== '') {
+            $upline = $placement->resolveUpline($typed);
+
+            if ($upline === null) {
+                json_response([
+                    'ok'      => true,
+                    'valid'   => false,
+                    'message' => 'No member matches that username or referral code.',
+                ]);
+            }
+        } else {
+            /* Mirror RegistrationService::placeBinaryNode(): the sponsor's
+             * node is the default upline; staff accounts and sponsors
+             * without a node fall back to the company root. */
+            $base = $contextSponsor;
+
+            if ($base === null) {
+                json_response([
+                    'ok'      => true,
+                    'valid'   => false,
+                    'message' => 'Enter a sponsor first, or choose an upline.',
+                ]);
+            }
+
+            if ((string) ($base['role'] ?? 'member') !== 'member') {
+                $root   = $placement->ensureRoot();
+                $upline = Member::find((int) $root['user_id']);
+            } else {
+                $upline = BinaryNode::forUser((int) $base['id']) === null
+                    ? Member::find((int) $placement->ensureRoot()['user_id'])
+                    : $base;
+            }
+        }
+
+        if ($upline === null) {
+            json_response([
+                'ok'      => true,
+                'valid'   => false,
+                'message' => 'That account could not be used as an upline.',
+            ]);
+        }
+
+        $uplineId = (int) $upline['id'];
+        $node     = BinaryNode::forUser($uplineId);
+
+        if ($node === null) {
+            json_response([
+                'ok'      => true,
+                'valid'   => false,
+                'message' => '@' . (string) $upline['username'] . ' is not placed in the binary tree yet.',
+            ]);
+        }
+
+        if (!$sponsors->isEligible($upline)) {
+            json_response([
+                'ok'      => true,
+                'valid'   => false,
+                'message' => '@' . (string) $upline['username'] . ' is not an active account.',
+            ]);
+        }
+
+        $root     = BinaryNode::root();
+        $rootId   = (int) ($root['user_id'] ?? 0);
+
+        if ((string) ($upline['role'] ?? 'member') !== 'member' && $uplineId !== $rootId) {
+            json_response([
+                'ok'      => true,
+                'valid'   => false,
+                'message' => 'Staff accounts cannot be a binary upline.',
+            ]);
+        }
+
+        if ((int) $node['depth'] + 1 > BinaryNode::MAX_DEPTH) {
+            json_response([
+                'ok'      => true,
+                'valid'   => false,
+                'message' => 'That placement would exceed the maximum tree depth.',
+            ]);
+        }
+
+        $registrar = auth_user();
+        $slots     = $placement->slotOccupants($uplineId);
+        $suggested = null;
+
+        foreach ($slots as $side => $slot) {
+            $legal = $slot['free'] && $placement->legalUpline($uplineId, 0, $side, [
+                'registrar' => $registrar,
+                'sponsor'   => $contextSponsor,
+            ]);
+
+            $slots[$side]['legal'] = $legal;
+
+            if ($legal && $suggested === null) {
+                $suggested = $side;
+            }
+        }
+
+        json_response([
+            'ok'        => true,
+            'valid'     => true,
+            'message'   => 'Upline found.',
+            'username'  => (string) $upline['username'],
+            'defaulted' => $typed === '',
+            'slots'     => $slots,
+            'suggested' => $suggested,
         ]);
     }
 

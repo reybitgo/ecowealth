@@ -138,7 +138,7 @@ return [
      * list, so Appendix A lists it as an extension. */
     ['POST', '/register/validate-code',          [RegistrationController::class, 'validateCode'],   'any'],   // validate_code
     ['POST', '/register/check-username',         [RegistrationController::class, 'checkUsername'],  'any'],   // check_username
-    ['POST', '/register/check-sponsor',          [RegistrationController::class, 'checkSponsor'],   'any'],   // check_upline (re-specified)
+    ['POST', '/register/check-sponsor',          [RegistrationController::class, 'checkSponsor'],   'any'],   // check_upline (placement=1: binary upline / open slots)
     ['GET',  '/register/packages',               [RegistrationController::class, 'packages'],       'any'],   // get_packages
     ['GET',  '/dashboard',                       [DashboardController::class, 'index'],             'member'], // dashboard (was standalone)
     ['GET',  '/membership',                      [MembershipController::class, 'index'],            'member'], // activate

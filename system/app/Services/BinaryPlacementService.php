@@ -282,6 +282,36 @@ final class BinaryPlacementService
     }
 
     /**
+     * The immediate left/right slots of one node, with the occupant's
+     * username when the side is taken. Used by the register form's live
+     * placement picker so the member sees "Open" or "Taken by @name"
+     * before submitting.
+     *
+     * @return array<string, array{free:bool, username:?string}>
+     */
+    public function slotOccupants(int $uplineId): array
+    {
+        $slots = [];
+
+        foreach (BinaryNode::SIDES as $side) {
+            $child    = BinaryNode::slotChild($uplineId, $side, $this->pdo);
+            $username = null;
+
+            if ($child !== null) {
+                $member   = Member::find((int) ($child['user_id'] ?? 0), $this->pdo);
+                $username = $member === null ? null : (string) $member['username'];
+            }
+
+            $slots[$side] = [
+                'free'     => $child === null,
+                'username' => $username,
+            ];
+        }
+
+        return $slots;
+    }
+
+    /**
      * Up to `$limit` free slots inside `$rootId`'s subtree, breadth-first
      * (shallow before deep, left before right). Each entry:
      * `{upline_id, upline, side, depth}`. Used by checkSponsor() to let
