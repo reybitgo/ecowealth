@@ -81,6 +81,7 @@ result, capture evidence and sign the phase off.
 | [phase-21-general-harvest.md](phase-21-general-harvest.md) | 21 — General Harvest bonus, sections A–G, **signed** | 58 (A 8 · B 9 · C 8 · D 10 · E 8 · F 9 · G 6) | ~150–200 min (A 20–30 · B 30–40 · C 40–50 · D 30–40 · E 20–30 · F 25–35 · G 15–20 min) |
 | [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **release candidate** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
 | [phase-23-package-binary.md](phase-23-package-binary.md) | 23 — Package binary bonus, sections A–G, **signed** | 46 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4) | 90–120 min per section |
+| [phase-24-package-commissions.md](phase-24-package-commissions.md) | 24 — registration, codes, manual approval; direct, indirect, binary package, team harvest and general harvest commissions | 29 (QA24-01 … QA24-29) | 2.5–3.5 h |
 | [sign-off-sheet.md](sign-off-sheet.md) | all twenty-three | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
