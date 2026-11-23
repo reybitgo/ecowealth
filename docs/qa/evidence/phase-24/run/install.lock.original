@@ -1,0 +1,11 @@
+{
+    "installed_at": "2026-11-23T12:10:23+08:00",
+    "database": "ecowealth_sneat_qa24",
+    "app_version": "1.0.0",
+    "install_sql_sha256": "fa2f997a2a329b08ea8fe051f574e6daeba0d5b208638a033d904018faf9e0bc",
+    "staff": [
+        "admin",
+        "superadmin"
+    ],
+    "channel": "cli"
+}

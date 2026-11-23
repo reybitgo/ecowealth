@@ -1,0 +1,10 @@
+key_name,value
+commission_direct_enabled,1
+commission_indirect_enabled,1
+commission_indirect_max_levels,10
+general_harvest_enabled,0
+general_harvest_max_levels,10
+package_binary_enabled,0
+team_harvest_enabled,0
+team_harvest_max_levels,10
+team_harvest_qualify_directs,3

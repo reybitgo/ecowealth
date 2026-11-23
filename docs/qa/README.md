@@ -1,4 +1,4 @@
-# EcoWealth — Manual QA pack (Phases 1–23)
+# EcoWealth — Manual QA pack (Phases 1–24)
 
 This pack is for the **manual browser sign-off** that is still outstanding for Phases 1, 2, 3, 4, 5, 6,
 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 and 21. Phase 22 (Product binary bonus) is a
@@ -48,6 +48,13 @@ result, capture evidence and sign the phase off.
 > — A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4. Its evidence lives in `evidence/phase-23/`, indexed by that
 > folder's `README.md`; section G (`QA23G-01` … `QA23G-04`) evidence is captured by 23G-S2.
 
+> **Phase 24 is the Package commissions end-to-end walkthrough**, executed on **2026-11-23** on a
+> fresh isolated schema (`ecowealth_sneat_qa24`) over a real HTTP server and the real CLIs: **29 of 30
+> assertions passed**. That run corrected six of the document's steps (the document is now **v3**) and
+> found one real product defect: the cleanup step is blocked by the `binary_volume → binary_awards`
+> foreign key. The report is [phase-24-run-report.md](phase-24-run-report.md); the driver, logs, CSVs and
+> final state are in `evidence/phase-24/run/`.
+
 > **Your job as tester: verify, record, report.** Do not change code, do not edit the database
 > except where a step explicitly tells you to, and never test on anything other than the local
 > development copy described below.
@@ -82,7 +89,7 @@ result, capture evidence and sign the phase off.
 | [phase-22-product-binary.md](phase-22-product-binary.md) | 22 — Product binary bonus, sections A–I, **release candidate** | 83 (A 8 · B 9 · C 10 · D 12 · E 9 · F 10 · G 12 · H 7 · I 6) | 90–120 min per section (~12 h in all) |
 | [phase-23-package-binary.md](phase-23-package-binary.md) | 23 — Package binary bonus, sections A–G, **signed** | 46 (A 6 · B 6 · C 8 · D 7 · E 6 · F 5 · G 4) | 90–120 min per section |
 | [phase-24-package-commissions.md](phase-24-package-commissions.md) | 24 — registration, codes, manual approval; direct, indirect, binary package, team harvest and general harvest commissions | 29 (QA24-01 … QA24-29) | 2.5–3.5 h |
-| [sign-off-sheet.md](sign-off-sheet.md) | all twenty-three | — | 10 min to complete |
+| [sign-off-sheet.md](sign-off-sheet.md) | all twenty-four | — | 10 min to complete |
 
 Keep `evidence/` for screenshots (create `evidence/phase-1` … `phase-15` inside it). Phases 4–12 also
 ship reference screenshots produced headlessly in a real browser — `evidence/phase-4/final-*.png`,
@@ -98,7 +105,9 @@ its screenshots and terminal transcripts in `evidence/install-reset/`, indexed b
 that folder's `README.md`; Phase 21 keeps all 58 checks' transcripts in `evidence/phase-21/`,
 indexed by that folder's `README.md` (sections A–G complete); Phase 22 keeps its 83 section A–I transcripts in `evidence/phase-22/`, indexed by that folder's
 `README.md`; Phase 23 keeps its section A transcripts (6) in `evidence/phase-23/`, indexed by that
-folder's `README.md`; section G (`QA23G-01` … `QA23G-04`) evidence is captured by 23G-S2.
+folder's `README.md`; section G (`QA23G-01` … `QA23G-04`) evidence is captured by 23G-S2. Phase 24
+keeps its executed run (driver, server log, run log, results JSON, CSVs and final state) in
+`evidence/phase-24/run/`, summarised by [phase-24-run-report.md](phase-24-run-report.md).
 
 ---
 
@@ -675,8 +684,10 @@ docs/qa/
 ├── phase-20-team-harvest.md           ← manual checks for Phase 20 (sections A–G, signed)
 ├── phase-21-general-harvest.md        ← manual checks for Phase 21 (sections A–C so far; D–G appended by their phases)
 ├── phase-23-package-binary.md           ← manual checks for Phase 23 (sections A–F, in progress)
+├── phase-24-package-commissions.md    ← manual checks for Phase 24 (29 checks, v3; executed 2026-11-23)
+├── phase-24-run-report.md             ← how that execution went (timeline, messages, findings, limits)
 ├── ../qa-unilevel-product.md          ← Phase 17 product walkthrough, v2 for the Phase 18 escrow (21 checks)
 ├── sign-off-sheet.md                  ← fill this in and hand it back
-├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + phase-21/ + phase-23/ + unilevel-escrow/)
+├── evidence/                          ← your screenshots (phase-1/ … phase-15/ + phase-17/ + phase-19/ + phase-20/ + phase-21/ + phase-23/ + phase-24/ + unilevel-escrow/)
 ```
 
