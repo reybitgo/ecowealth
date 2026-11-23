@@ -1,0 +1,5 @@
+username,side,points,kind
+QA25_Buyer,left,1000,own
+QA25_A,right,1000,team
+QA25_Boss,left,1000,team
+admin,left,1000,team

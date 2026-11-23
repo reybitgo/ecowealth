@@ -1,0 +1,6 @@
+level,recipient,amount,status,reason,hold_days,ledger_id,credited_at
+1,QA25_C,50.00,credited,,0,7,"2026-11-23 13:35:26"
+2,QA25_B,50.00,credited,,0,6,"2026-11-23 13:35:26"
+3,QA25_A,50.00,credited,,0,5,"2026-11-23 13:35:26"
+4,QA25_Boss,30.00,credited,,0,4,"2026-11-23 13:35:26"
+5,admin,30.00,skipped,"company account is not paid",0,,

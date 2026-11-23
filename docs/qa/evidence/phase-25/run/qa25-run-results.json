@@ -1,0 +1,224 @@
+{
+    "checks": [
+        {
+            "id": "QA25-01",
+            "title": "The two streams and their amounts are saved",
+            "pass": true,
+            "expected": "unilevel on, 10 levels, hold 0; binary on, 5%, 1000 pts, 10%, hold 0",
+            "actual": "unilevel=1\/10\/0 binary=1\/5.000\/1000\/10.000\/0"
+        },
+        {
+            "id": "QA25-02",
+            "title": "Coffee carries P.V., the ladder and the binary flag",
+            "pass": true,
+            "expected": "PV 250, ladder 5\/5\/5\/3\/3\/2\/2\/2\/1\/1, binary on",
+            "actual": "PV 250.00, ladder 5\/5\/5\/3\/3\/2\/2\/2\/1\/1, binary 1"
+        },
+        {
+            "id": "QA25-03a",
+            "title": "Six standard members, active, with the sponsor chain and binary slots",
+            "pass": true,
+            "expected": "6 active members; Buyer sponsored by C; Buyer2 right of B",
+            "actual": "6 members, 6 active"
+        },
+        {
+            "id": "QA25-03b",
+            "title": "Both buyers are funded and the upline wallets start empty",
+            "pass": true,
+            "expected": "buyers 1500.00 each; Boss withdrawable 0.00",
+            "actual": "QA25_Boss=0.00\/0.00 | QA25_Buyer=1500.00\/0.00 | QA25_Buyer2=1500.00\/0.00"
+        },
+        {
+            "id": "QA25-04",
+            "title": "The checkout preview quotes the repeat-purchase ladder and the binary points",
+            "pass": true,
+            "expected": "a repeat-purchase \"up to \u20b1\u2026\" line and a binary points line",
+            "actual": "repeat line: Up to \u20b1290.00 is earned by the members above you when this orde"
+        },
+        {
+            "id": "QA25-05",
+            "title": "An e-wallet order is paid once, at the wallet balance",
+            "pass": true,
+            "expected": "status paid, flash \"Order placed and paid. Thank you!\", wallet 1500\u22121200=300",
+            "actual": "status paid, msg \"Order placed and paid. Thank you!\", wallet 300.00"
+        },
+        {
+            "id": "QA25-06",
+            "title": "Five repeat-purchase decisions: four pending awards and the company-root skip",
+            "pass": true,
+            "expected": "C 50 pending, B 50 pending, A 50 pending, Boss 30 pending, admin 30 skipped",
+            "actual": "1:QA25_C 50.00 pending; 2:QA25_B 50.00 pending; 3:QA25_A 50.00 pending; 4:QA25_Boss 30.00 pending; 5:admin 30.00 skipped"
+        },
+        {
+            "id": "QA25-07",
+            "title": "The buyer earns nothing from their own purchase",
+            "pass": true,
+            "expected": "0 awards and 0 repeat-purchase ledger rows for the buyer",
+            "actual": "0 awards, 0 unilevel ledger rows"
+        },
+        {
+            "id": "QA25-08",
+            "title": "The order stamps 1,000 points, a pending Self Bonus and rolls volume up",
+            "pass": true,
+            "expected": "1,000 points; self \u20b150 pending; four volume rows (Buyer own, A, Boss, admin)",
+            "actual": "points 1000, self 50.00, 1 awards, 4 volume rows"
+        },
+        {
+            "id": "QA25-09a",
+            "title": "The dry run lists the due awards and changes nothing",
+            "pass": true,
+            "expected": "exit 0, four awards still pending",
+            "actual": "exit 0, pending 4"
+        },
+        {
+            "id": "QA25-09b",
+            "title": "Delivery plus hold 0 makes every award due; the release credits them",
+            "pass": true,
+            "expected": "order delivered; 4 unilevel credited; 1 binary credited",
+            "actual": "order delivered; 4\/5 unilevel credited; 1\/1 binary credited"
+        },
+        {
+            "id": "QA25-10",
+            "title": "Every credited award has exactly one withdrawable wallet movement",
+            "pass": true,
+            "expected": "C 50, B 50, A 50, Boss 30 in withdrawable; one ledger row each",
+            "actual": "QA25_A:50.00 | QA25_B:50.00 | QA25_Boss:30.00 | QA25_C:50.00"
+        },
+        {
+            "id": "QA25-11",
+            "title": "The admin repeat ledger renders the four credited rows",
+            "pass": true,
+            "expected": "HTTP 200, the Buyer source and \u20b150.00 visible",
+            "actual": "HTTP 200, buyer visible"
+        },
+        {
+            "id": "QA25-12",
+            "title": "The buyer's own repeat tab has no award for their purchase",
+            "pass": true,
+            "expected": "HTTP 200, no award row for the buyer",
+            "actual": "HTTP 200"
+        },
+        {
+            "id": "QA25-12b",
+            "title": "The recipient sees the award, the level and the amount",
+            "pass": true,
+            "expected": "HTTP 200, source QA25_Buyer, \u20b150.00",
+            "actual": "HTTP 200, source visible"
+        },
+        {
+            "id": "QA25-14a",
+            "title": "The admin binary ledger renders the credited Self Bonus",
+            "pass": true,
+            "expected": "HTTP 200, QA25_Buyer and Self bonus visible",
+            "actual": "HTTP 200, self visible"
+        },
+        {
+            "id": "QA25-14b",
+            "title": "The member binary tab shows the node and the credit",
+            "pass": true,
+            "expected": "HTTP 200, the buyer's binary view renders",
+            "actual": "HTTP 200"
+        },
+        {
+            "id": "QA25-15",
+            "title": "A manual order is not money until the proof is verified",
+            "pass": true,
+            "expected": "status pending, 0 awards, no binary stamp",
+            "actual": "status pending, 0 awards"
+        },
+        {
+            "id": "QA25-15b",
+            "title": "The proof moves the order to review and still pays nothing",
+            "pass": true,
+            "expected": "status payment_review, 0 awards",
+            "actual": "status payment_review, msg \"Payment proof submitted (attempt 1). We will verify it shortly.\""
+        },
+        {
+            "id": "QA25-16",
+            "title": "Verification pays the same ladder as the e-wallet path",
+            "pass": true,
+            "expected": "paid; five decisions; L1 \u20b150; L5 skipped",
+            "actual": "status paid, 5 rows, msg \"Payment verified \u2014 \u20b11,200.00 marked paid.\""
+        },
+        {
+            "id": "QA25-17",
+            "title": "The right leg completes one pair for Boss at 10% of 1,000 points",
+            "pass": true,
+            "expected": "Boss pair \u20b1100.00, pending, count 1",
+            "actual": "QA25_Boss 100.00 pending count 1"
+        },
+        {
+            "id": "QA25-18",
+            "title": "A replay of the payment hook pays nothing twice",
+            "pass": true,
+            "expected": "both hooks report replayed; the five award rows are unchanged",
+            "actual": "unilevel replayed true, binary replayed true, rows 5"
+        },
+        {
+            "id": "QA25-17b",
+            "title": "Releasing order 2 credits the pair to Boss",
+            "pass": true,
+            "expected": "Boss binary credited \u20b1100.00; withdrawable 30 + 30 + 100 = \u20b1160.00",
+            "actual": "binary credited 100.00, withdrawable 160.00"
+        },
+        {
+            "id": "QA25-19",
+            "title": "A disabled upline is skipped and consumes its level",
+            "pass": true,
+            "expected": "L1 C \u20b125 pending, L2 B \u20b125 skipped (\"recipient account is disabled\"), L3 A \u20b125 pending",
+            "actual": "1:QA25_C 25.00 pending (); 2:QA25_B 25.00 skipped (recipient account is disabled); 3:QA25_A 25.00 pending (); 4:QA25_Boss 15.00 pending (); 5:admin 15.00 skipped (company account is not paid)"
+        },
+        {
+            "id": "QA25-22",
+            "title": "Cancelling before release cancels the pending awards and moves no money",
+            "pass": true,
+            "expected": "order cancelled, no pending award remains, B wallet unchanged",
+            "actual": "order cancelled, [{\"status\":\"skipped\",\"n\":2},{\"status\":\"cancelled\",\"n\":3}], B 100.00"
+        },
+        {
+            "id": "QA25-20",
+            "title": "With both streams off the paid order is stamped, not paid",
+            "pass": true,
+            "expected": "paid; both stamps set; totals 0.00; no award rows",
+            "actual": "status paid, unilevel stamp 2026-11-23 13:35:39 total 0.00, binary points 0, rows 0\/0"
+        },
+        {
+            "id": "QA25-21",
+            "title": "A product with its switches off stamps a zero line and writes no award",
+            "pass": true,
+            "expected": "paid; repeat-purchase stamp set; total 0.00; 0 awards",
+            "actual": "status paid, stamp 2026-11-23 13:35:40, total 0.00, rows 0"
+        },
+        {
+            "id": "QA25-23",
+            "title": "The wallet reconciler accepts every stream",
+            "pass": true,
+            "expected": "exit 0",
+            "actual": "exit 0"
+        },
+        {
+            "id": "QA25-24a",
+            "title": "Credited awards and wallet ledger tie out in both streams",
+            "pass": true,
+            "expected": "unilevel awarded = unilevel ledger; binary awarded = binary ledger",
+            "actual": "unilevel 360.00\/360.00, binary 200.00\/200.00"
+        },
+        {
+            "id": "QA25-24b",
+            "title": "The QA data can be removed in the documented order",
+            "pass": true,
+            "expected": "cleanup exits ok and no QA25 account remains",
+            "actual": "ok; remaining 0"
+        }
+    ],
+    "pass": 30,
+    "total": 30,
+    "totals": {
+        "unilevel_credited": "360.00",
+        "unilevel_ledger": "360.00",
+        "binary_credited": "200.00",
+        "binary_ledger": "200.00",
+        "orders_paid": 4,
+        "orders_total": "3000.00"
+    }
+}

@@ -1,0 +1,2 @@
+kind,recipient,amount,status,pair_count,hold_days,ledger_id,credited_at
+self,QA25_Buyer,50.00,credited,0,0,8,"2026-11-23 13:35:26"

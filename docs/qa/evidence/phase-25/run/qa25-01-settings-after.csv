@@ -1,0 +1,12 @@
+key_name,value
+binary_daily_pair_cap,20
+binary_enabled,1
+binary_hold_days,0
+binary_pair_pct,10.000
+binary_pair_points,1000
+binary_requires_active,1
+binary_self_pct,5.000
+unilevel_enabled,1
+unilevel_hold_days,0
+unilevel_max_levels,10
+unilevel_requires_active_upline,1

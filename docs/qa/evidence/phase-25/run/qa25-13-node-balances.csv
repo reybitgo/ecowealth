@@ -1,0 +1,7 @@
+username,side,upline_id,left_points,right_points,pairs_paid,state
+QA25_Boss,left,1,0,0,1,placed
+QA25_A,left,3,0,1000,0,placed
+QA25_B,right,3,0,1000,0,placed
+QA25_C,left,4,0,0,0,placed
+QA25_Buyer,right,4,1000,0,0,placed
+QA25_Buyer2,right,5,0,1000,0,placed

@@ -1,0 +1,7 @@
+id,username,member_status,is_active,sponsor,side,upline
+3,QA25_Boss,active,1,admin,left,admin
+4,QA25_A,active,1,QA25_Boss,left,QA25_Boss
+5,QA25_B,active,1,QA25_A,right,QA25_Boss
+6,QA25_C,active,1,QA25_B,left,QA25_A
+7,QA25_Buyer,active,1,QA25_C,right,QA25_A
+8,QA25_Buyer2,active,1,QA25_C,right,QA25_B

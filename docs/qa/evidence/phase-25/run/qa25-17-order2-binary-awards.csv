@@ -1,0 +1,3 @@
+kind,recipient,amount,status,pair_count,hold_days,ledger_id,credited_at
+self,QA25_Buyer2,50.00,pending,0,0,,
+pair,QA25_Boss,100.00,pending,1,0,,

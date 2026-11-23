@@ -1,0 +1,233 @@
+[13:35:14] === Phase 25 walkthrough — automated execution ===
+[13:35:14] database: ecowealth_sneat_qa25 | app: http://127.0.0.1:8899
+[13:35:15] admin sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, admin! You are signed in.
+[13:35:15] --- Part 1 — settings, product and the fixture tree
+[13:35:15]   evidence: qa25-01-settings-before.csv (11 rows)
+[13:35:15]   settings before: {"binary_daily_pair_cap":"20","binary_enabled":"0","binary_hold_days":"7","binary_pair_pct":"10.000","binary_pair_points":"1000","binary_requires_active":"1","binary_self_pct":"5.000","unilevel_enabled":"0","unilevel_hold_days":"7","unilevel_max_levels":"10","unilevel_requires_active_upline":"1"}
+[13:35:15]   evidence: qa25-02-product-before.csv (1 rows)
+[13:35:15]   evidence: qa25-01-settings-after.csv (11 rows)
+[13:35:15] PASS QA25-01 — The two streams and their amounts are saved | expected: unilevel on, 10 levels, hold 0; binary on, 5%, 1000 pts, 10%, hold 0 | actual: unilevel=1/10/0 binary=1/5.000/1000/10.000/0
+[13:35:15]   evidence: qa25-02-product-ladder.csv (10 rows)
+[13:35:15] PASS QA25-02 — Coffee carries P.V., the ladder and the binary flag | expected: PV 250, ladder 5/5/5/3/3/2/2/2/1/1, binary on | actual: PV 250.00, ladder 5/5/5/3/3/2/2/2/1/1, binary 1
+[13:35:16]   register QA25_Boss        sponsor=(admin)      upline=(sponsor)    side=left  status=200 user=#3 msg=Welcome! Your standard account is ready — you can start shopping.
+[13:35:16]   register QA25_A           sponsor=QA25_Boss    upline=QA25_Boss    side=left  status=200 user=#4 msg=Welcome! Your standard account is ready — you can start shopping.
+[13:35:17]   register QA25_B           sponsor=QA25_A       upline=QA25_Boss    side=right status=200 user=#5 msg=Welcome! Your standard account is ready — you can start shopping.
+[13:35:18]   register QA25_C           sponsor=QA25_B       upline=QA25_A       side=left  status=200 user=#6 msg=Welcome! Your standard account is ready — you can start shopping.
+[13:35:19]   register QA25_Buyer       sponsor=QA25_C       upline=QA25_A       side=right status=200 user=#7 msg=Welcome! Your standard account is ready — you can start shopping.
+[13:35:20]   register QA25_Buyer2      sponsor=QA25_C       upline=QA25_B       side=right status=200 user=#8 msg=Welcome! Your standard account is ready — you can start shopping.
+[13:35:20]   evidence: qa25-03-fixture-tree.csv (6 rows)
+[13:35:20] PASS QA25-03a — Six standard members, active, with the sponsor chain and binary slots | expected: 6 active members; Buyer sponsored by C; Buyer2 right of B | actual: 6 members, 6 active
+[13:35:20]   top-up user #7 1500.00: status=200 msg=₱1,500.00 credited to @QA25_Buyer — the amount is spendable in the shop and non-withdrawable.
+[13:35:21]   top-up user #8 1500.00: status=200 msg=₱1,500.00 credited to @QA25_Buyer2 — the amount is spendable in the shop and non-withdrawable.
+[13:35:21]   evidence: qa25-03-wallets.csv (3 rows)
+[13:35:21] PASS QA25-03b — Both buyers are funded and the upline wallets start empty | expected: buyers 1500.00 each; Boss withdrawable 0.00 | actual: QA25_Boss=0.00/0.00 | QA25_Buyer=1500.00/0.00 | QA25_Buyer2=1500.00/0.00
+[13:35:21] --- Part 2 — the e-wallet order
+[13:35:21] QA25_Buyer sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA25_Buyer! You are signed in.
+[13:35:21]   cart add 4 x Coffee (order-1): status=200 msg=Added to cart.
+[13:35:22]   checkout order-1                method=ewallet status=200 → http://127.0.0.1:8899/orders/1 | Order placed and paid. Thank you!
+[13:35:22]   order order-1: #1 paid EW26112300001 total=1200.00
+[13:35:22] PASS QA25-04 — The checkout preview quotes the repeat-purchase ladder and the binary points | expected: a repeat-purchase "up to ₱…" line and a binary points line | actual: repeat line: Up to ₱290.00 is earned by the members above you when this orde
+[13:35:22] PASS QA25-05 — An e-wallet order is paid once, at the wallet balance | expected: status paid, flash "Order placed and paid. Thank you!", wallet 1500−1200=300 | actual: status paid, msg "Order placed and paid. Thank you!", wallet 300.00
+[13:35:22]   evidence: qa25-06-order1-unilevel-awards.csv (5 rows)
+[13:35:22] PASS QA25-06 — Five repeat-purchase decisions: four pending awards and the company-root skip | expected: C 50 pending, B 50 pending, A 50 pending, Boss 30 pending, admin 30 skipped | actual: 1:QA25_C 50.00 pending; 2:QA25_B 50.00 pending; 3:QA25_A 50.00 pending; 4:QA25_Boss 30.00 pending; 5:admin 30.00 skipped
+[13:35:22] PASS QA25-07 — The buyer earns nothing from their own purchase | expected: 0 awards and 0 repeat-purchase ledger rows for the buyer | actual: 0 awards, 0 unilevel ledger rows
+[13:35:22]   evidence: qa25-08-order1-binary-awards.csv (1 rows)
+[13:35:22]   evidence: qa25-08-order1-binary-volume.csv (4 rows)
+[13:35:22] PASS QA25-08 — The order stamps 1,000 points, a pending Self Bonus and rolls volume up | expected: 1,000 points; self ₱50 pending; four volume rows (Buyer own, A, Boss, admin) | actual: points 1000, self 50.00, 1 awards, 4 volume rows
+[13:35:22] --- Part 3 — delivery and release
+[13:35:25]   deliver order #1: status=delivered delivered_at=2026-11-23 13:35:25 | Packing started. The order is now Packing. / The order is packed and ready to ship. / Order shipped via J&amp;T Express — tracking QA251. The stock has been deducted. / Order marked delivered. The member can now confirm receipt.
+[13:35:25]   $ php bin/unilevel_release.php --dry-run --stream=all → exit 0
+[13:35:25]     | EcoWealth repeat-purchase release (dry run — nothing is changed)
+[13:35:25]     |   database:  ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:25]     |   enabled:   yes
+[13:35:25]     |   hold days: 0
+[13:35:25]     |   pending:   4 award(s) · ₱180.00
+[13:35:25]     |   candidates: 1 → orders 1
+[13:35:25]     |     order EW26112300001 (#1) → award #2 · QA25_Boss · level 4 · ₱30.00
+[13:35:25]     |     order EW26112300001 (#1) → award #3 · QA25_A · level 3 · ₱50.00
+[13:35:25]     |     order EW26112300001 (#1) → award #4 · QA25_B · level 2 · ₱50.00
+[13:35:25]     |     order EW26112300001 (#1) → award #5 · QA25_C · level 1 · ₱50.00
+[13:35:25]     | EcoWealth product-binary release (dry run — nothing is changed)
+[13:35:25]     |   database:  ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:25]     |   enabled:   yes
+[13:35:25]     |   hold days: 0
+[13:35:25]     |   pending:   1 award(s) · ₱50.00
+[13:35:25]     |   candidates: 1 → orders 1
+[13:35:25]     |     order EW26112300001 (#1) → award #1 · QA25_Buyer · self · ₱50.00
+[13:35:25] PASS QA25-09a — The dry run lists the due awards and changes nothing | expected: exit 0, four awards still pending | actual: exit 0, pending 4
+[13:35:26]   $ php bin/unilevel_release.php --stream=all --limit=200 → exit 0
+[13:35:26]     | EcoWealth repeat-purchase release
+[13:35:26]     |   database:   ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:26]     |   trigger:    cli
+[13:35:26]     |   hold days:  0
+[13:35:26]     |   candidates: 1
+[13:35:26]     |   released:   1 order(s) · 4 award(s) · ₱180.00
+[13:35:26]     |   skipped:    0
+[13:35:26]     |   errors:     0
+[13:35:26]     |   ids:        1
+[13:35:26]     |   duration:   231ms
+[13:35:26]     |   log:        C:\laragon\www\ecowealth\system/storage\logs\unilevel_release-2026-11.log
+[13:35:26]     | EcoWealth product-binary release
+[13:35:26]     |   database:   ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:26]     |   trigger:    cli
+[13:35:26]     |   hold days:  0
+[13:35:26]     |   candidates: 1
+[13:35:26]     |   released:   1 order(s) · 1 award(s) · ₱50.00
+[13:35:26]     |   skipped:    0
+[13:35:26]     |   errors:     0
+[13:35:26]     |   ids:        1
+[13:35:26]     |   duration:   288ms
+[13:35:26]     |   log:        C:\laragon\www\ecowealth\system/storage\logs\unilevel_release-2026-11.log
+[13:35:26]   evidence: qa25-09-order1-unilevel-after-release.csv (5 rows)
+[13:35:26]   evidence: qa25-09-order1-binary-after-release.csv (1 rows)
+[13:35:26] PASS QA25-09b — Delivery plus hold 0 makes every award due; the release credits them | expected: order delivered; 4 unilevel credited; 1 binary credited | actual: order delivered; 4/5 unilevel credited; 1/1 binary credited
+[13:35:26]   evidence: qa25-10-upline-wallets.csv (4 rows)
+[13:35:26] PASS QA25-10 — Every credited award has exactly one withdrawable wallet movement | expected: C 50, B 50, A 50, Boss 30 in withdrawable; one ledger row each | actual: QA25_A:50.00 | QA25_B:50.00 | QA25_Boss:30.00 | QA25_C:50.00
+[13:35:26] PASS QA25-11 — The admin repeat ledger renders the four credited rows | expected: HTTP 200, the Buyer source and ₱50.00 visible | actual: HTTP 200, buyer visible
+[13:35:26] PASS QA25-12 — The buyer's own repeat tab has no award for their purchase | expected: HTTP 200, no award row for the buyer | actual: HTTP 200
+[13:35:27] QA25_C sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA25_C! You are signed in.
+[13:35:27] PASS QA25-12b — The recipient sees the award, the level and the amount | expected: HTTP 200, source QA25_Buyer, ₱50.00 | actual: HTTP 200, source visible
+[13:35:27] PASS QA25-14a — The admin binary ledger renders the credited Self Bonus | expected: HTTP 200, QA25_Buyer and Self bonus visible | actual: HTTP 200, self visible
+[13:35:27] PASS QA25-14b — The member binary tab shows the node and the credit | expected: HTTP 200, the buyer's binary view renders | actual: HTTP 200
+[13:35:27] --- Part 4 — the manual order and the pair
+[13:35:28] QA25_Buyer2 sign-in: status 200 → http://127.0.0.1:8899/dashboard | Welcome back, QA25_Buyer2! You are signed in.
+[13:35:28]   cart add 4 x Coffee (order-2): status=200 msg=Added to cart.
+[13:35:29]   checkout order-2                method=gcash   status=200 → http://127.0.0.1:8899/orders/2 | Order placed. Your payment is pending — the payment window is shown on the order page.
+[13:35:29]   order order-2: #2 pending EW26112300002 total=1200.00
+[13:35:29] PASS QA25-15 — A manual order is not money until the proof is verified | expected: status pending, 0 awards, no binary stamp | actual: status pending, 0 awards
+[13:35:29]   proof order #2 QA25-GCASH-2: status=200 msg=Payment proof submitted (attempt 1). We will verify it shortly.
+[13:35:29] PASS QA25-15b — The proof moves the order to review and still pays nothing | expected: status payment_review, 0 awards | actual: status payment_review, msg "Payment proof submitted (attempt 1). We will verify it shortly."
+[13:35:30]   verify order #2 QA25-GCASH-2: status=200 msg=Payment verified — ₱1,200.00 marked paid.
+[13:35:30]   evidence: qa25-16-order2-unilevel-awards.csv (5 rows)
+[13:35:30]   evidence: qa25-17-order2-binary-awards.csv (2 rows)
+[13:35:30] PASS QA25-16 — Verification pays the same ladder as the e-wallet path | expected: paid; five decisions; L1 ₱50; L5 skipped | actual: status paid, 5 rows, msg "Payment verified — ₱1,200.00 marked paid."
+[13:35:30] PASS QA25-17 — The right leg completes one pair for Boss at 10% of 1,000 points | expected: Boss pair ₱100.00, pending, count 1 | actual: QA25_Boss 100.00 pending count 1
+[13:35:30]   replay: {"processed":false,"replayed":true} | binary replayed true
+[13:35:30] PASS QA25-18 — A replay of the payment hook pays nothing twice | expected: both hooks report replayed; the five award rows are unchanged | actual: unilevel replayed true, binary replayed true, rows 5
+[13:35:32]   deliver order #2: status=delivered delivered_at=2026-11-23 13:35:32 | Packing started. The order is now Packing. / The order is packed and ready to ship. / Order shipped via J&amp;T Express — tracking QA252. The stock has been deducted. / Order marked delivered. The member can now confirm receipt.
+[13:35:34]   $ php bin/unilevel_release.php --stream=all --limit=200 → exit 0
+[13:35:34]     | EcoWealth repeat-purchase release
+[13:35:34]     |   database:   ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:34]     |   trigger:    cli
+[13:35:34]     |   hold days:  0
+[13:35:34]     |   candidates: 1
+[13:35:34]     |   released:   1 order(s) · 4 award(s) · ₱180.00
+[13:35:34]     |   skipped:    0
+[13:35:34]     |   errors:     0
+[13:35:34]     |   ids:        2
+[13:35:34]     |   duration:   304ms
+[13:35:34]     |   log:        C:\laragon\www\ecowealth\system/storage\logs\unilevel_release-2026-11.log
+[13:35:34]     | EcoWealth product-binary release
+[13:35:34]     |   database:   ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:34]     |   trigger:    cli
+[13:35:34]     |   hold days:  0
+[13:35:34]     |   candidates: 1
+[13:35:34]     |   released:   1 order(s) · 2 award(s) · ₱150.00
+[13:35:34]     |   skipped:    0
+[13:35:34]     |   errors:     0
+[13:35:34]     |   ids:        2
+[13:35:34]     |   duration:   398ms
+[13:35:34]     |   log:        C:\laragon\www\ecowealth\system/storage\logs\unilevel_release-2026-11.log
+[13:35:34]   evidence: qa25-17-boss-pair.csv (1 rows)
+[13:35:34] PASS QA25-17b — Releasing order 2 credits the pair to Boss | expected: Boss binary credited ₱100.00; withdrawable 30 + 30 + 100 = ₱160.00 | actual: binary credited 100.00, withdrawable 160.00
+[13:35:34] --- Part 5 — refusals and switches
+[13:35:34]   top-up user #7 2000.00: status=200 msg=₱2,000.00 credited to @QA25_Buyer — the amount is spendable in the shop and non-withdrawable.
+[13:35:35]   top-up user #8 1000.00: status=200 msg=₱1,000.00 credited to @QA25_Buyer2 — the amount is spendable in the shop and non-withdrawable.
+[13:35:36]   suspend QA25_B: @QA25_B is now suspended — the account cannot sign in.
+[13:35:36]   cart add 2 x Coffee (order-3): status=200 msg=Added to cart.
+[13:35:37]   checkout order-3                method=ewallet status=200 → http://127.0.0.1:8899/orders/3 | Order placed and paid. Thank you!
+[13:35:37]   order order-3: #3 paid EW26112300003 total=600.00
+[13:35:37]   evidence: qa25-19-skipped-upline.csv (5 rows)
+[13:35:37] PASS QA25-19 — A disabled upline is skipped and consumes its level | expected: L1 C ₱25 pending, L2 B ₱25 skipped ("recipient account is disabled"), L3 A ₱25 pending | actual: 1:QA25_C 25.00 pending (); 2:QA25_B 25.00 skipped (recipient account is disabled); 3:QA25_A 25.00 pending (); 4:QA25_Boss 15.00 pending (); 5:admin 15.00 skipped (company account is not paid)
+[13:35:38]   restore QA25_B: @QA25_B is now active.
+[13:35:38]   cancel order #3: Order cancelled. ₱600.00 refunded to the member e-wallet. | awards [{"status":"skipped","n":2},{"status":"cancelled","n":3}]
+[13:35:38] PASS QA25-22 — Cancelling before release cancels the pending awards and moves no money | expected: order cancelled, no pending award remains, B wallet unchanged | actual: order cancelled, [{"status":"skipped","n":2},{"status":"cancelled","n":3}], B 100.00
+[13:35:39]   cart add 1 x Coffee (order-4): status=200 msg=Added to cart.
+[13:35:39]   checkout order-4                method=ewallet status=200 → http://127.0.0.1:8899/orders/4 | Order placed and paid. Thank you!
+[13:35:39]   order order-4: #4 paid EW26112300004 total=300.00
+[13:35:39]   switches off: order #4 unilevel_total=0.00 binary_total=0.00 rows=0/0
+[13:35:39] PASS QA25-20 — With both streams off the paid order is stamped, not paid | expected: paid; both stamps set; totals 0.00; no award rows | actual: status paid, unilevel stamp 2026-11-23 13:35:39 total 0.00, binary points 0, rows 0/0
+[13:35:39]   cart add 1 x Coffee (order-5): status=200 msg=Added to cart.
+[13:35:40]   checkout order-5                method=ewallet status=200 → http://127.0.0.1:8899/orders/5 | Order placed and paid. Thank you!
+[13:35:40]   order order-5: #5 paid EW26112300005 total=300.00
+[13:35:40]   product switches off: order #5 unilevel_total=0.00 rows=0
+[13:35:40] PASS QA25-21 — A product with its switches off stamps a zero line and writes no award | expected: paid; repeat-purchase stamp set; total 0.00; 0 awards | actual: status paid, stamp 2026-11-23 13:35:40, total 0.00, rows 0
+[13:35:40] --- Part 6 — reconcile, totals and cleanup
+[13:35:40]   $ php bin/wallet_reconcile.php → exit 0
+[13:35:40]     | EcoWealth finance reconciliation
+[13:35:40]     |   database:          ecowealth_sneat_qa25 (127.0.0.1)
+[13:35:40]     |   accounts checked:  8
+[13:35:40]     |   accounts with ledger: 6
+[13:35:40]     | 
+[13:35:40]     | Wallets
+[13:35:40]     |   OK — every wallet matches its ledger on both buckets.
+[13:35:40]     | 
+[13:35:40]     | Commissions
+[13:35:40]     |   credited awards:   0 (0.00)
+[13:35:40]     |   skipped awards:    0
+[13:35:40]     |   ledger total:      0.00
+[13:35:40]     |   OK — every credited award has its wallet movement and the totals agree.
+[13:35:40]     | 
+[13:35:40]     | Transfers
+[13:35:40]     |   transfers checked: 0
+[13:35:40]     |   OK — every transfer has its sender debit, recipient credit and fee credit.
+[13:35:40]     | 
+[13:35:40]     | Payouts
+[13:35:40]     |   requests checked:  0
+[13:35:40]     |   held by open requests: 0.00
+[13:35:40]     |   OK — every request has its hold, and every rejection its refund.
+[13:35:40]     | 
+[13:35:40]     | Repeat-purchase
+[13:35:40]     |   credited awards:   8 (360.00)
+[13:35:40]     |   pending awards:    0 (0.00) — earned, not in a wallet yet
+[13:35:40]     |   cancelled awards:  3 (65.00) — order cancelled before release, never paid
+[13:35:40]     |   skipped awards:    4
+[13:35:40]     |   voided awards:     0
+[13:35:40]     |   awarded total:     360.00 (pending + credited)
+[13:35:40]     |   unilevel ledger:   360.00
+[13:35:40]     |   reversals:         0.00
+[13:35:40]     |   OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+[13:35:40]     | 
+[13:35:40]     | Royalty
+[13:35:40]     |   periods:           0 (paid 0 · evaluated 0 · skipped 0)
+[13:35:40]     |   paid awards:       0 (0.00)
+[13:35:40]     |   pending awards:    0 (0.00) — evaluated, not in a wallet yet
+[13:35:40]     |   skipped awards:    0
+[13:35:40]     |   royalty ledger:    0.00
+[13:35:40]     |   OK — every paid award has its wallet movement and every period header agrees with its rows.
+[13:35:40]     | 
+[13:35:40]     | Team Harvest
+[13:35:40]     |   queued positions:  0
+[13:35:40]     |   credited awards:   0 (0.00)
+[13:35:40]     |   baseline awards:   0 (0.00) — complete before go-live, never paid
+[13:35:40]     |   team_harvest ledger: 0.00
+[13:35:40]     |   counter drift:     0 row(s) · 0 below the baseline
+[13:35:40]     |   warning:           [unseeded] the queue is not seeded; nothing can be evaluated until bin/harvest_queue_seed.php runs
+[13:35:40]     |   warning:           [stream_off] the Team Harvest bonus is switched off (team_harvest_enabled = 0)
+[13:35:40]     |   OK — every credited award has its wallet movement, every baseline row is unpaid, and the counters agree with a recount.
+[13:35:40]     | 
+[13:35:40]     | General Harvest
+[13:35:40]     |   credited awards:   0 (0.00)
+[13:35:40]     |   baseline awards:   0 (0.00)
+[13:35:40]     |   general_harvest ledger: 0.00
+[13:35:40]     |   warning:           [unarmed] the board is unarmed; nothing can pay until bin/general_harvest_arm.php runs
+[13:35:40]     |   warning:           [disabled] the stream is switched off (general_harvest_enabled = 0); the queue still records positions
+[13:35:40]     |   OK — every credited award has its wallet movement, every baseline row is unpaid, and the closed form agrees.
+[13:35:40]     | 
+[13:35:40]     | Product binary
+[13:35:40]     |   credited awards:   3 (200.00)
+[13:35:40]     |   pending awards:    0 (0.00) — earned, not in a wallet yet
+[13:35:40]     |   cancelled awards:  1 (25.00) — order cancelled before release, never paid
+[13:35:40]     |   voided awards:     0
+[13:35:40]     |   awarded total:     200.00 (pending + credited)
+[13:35:40]     |   binary ledger:     200.00
+[13:35:40]     |   reversals:         0.00
+[13:35:40]     |   OK — every award has its wallet movement, every reversal its debit, and the order totals agree.
+[13:35:40]     | 
+[13:35:40]     | All good — wallets, commissions, transfers, payouts, repeat-purchase, royalty, team-harvest, general-harvest and product-binary awards reconcile.
+[13:35:40] PASS QA25-23 — The wallet reconciler accepts every stream | expected: exit 0 | actual: exit 0
+[13:35:40]   evidence: qa25-23-totals.csv (1 rows)
+[13:35:40] PASS QA25-24a — Credited awards and wallet ledger tie out in both streams | expected: unilevel awarded = unilevel ledger; binary awarded = binary ledger | actual: unilevel 360.00/360.00, binary 200.00/200.00
+[13:35:41]   cleanup: ok
+[13:35:41] PASS QA25-24b — The QA data can be removed in the documented order | expected: cleanup exits ok and no QA25 account remains | actual: ok; remaining 0
+[13:35:41]   settings and Coffee restored to their before values
