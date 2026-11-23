@@ -84,7 +84,7 @@ a member carry enough points, that member earns a **pair** award. A member's bin
 
 Every award listed in this document must produce exactly **one award row, one wallet credit and one
 ledger row**, must pay a member only once per level, and must never pay a member who is not eligible.
-The same stream can pay more than one member in a run (Team Harvest pays both Sponsor and A here),
+The same stream can pay more than one member in a run (General Harvest pays the Sponsor at position #1 and `QA24_Member_A` at #2),
 but each member's level pays once, ever. That is what this document checks.
 
 ---
