@@ -206,6 +206,14 @@ $waiting = (int) ($teamStatus['pending_levels'] ?? 0);
                           </span>
                         </div>
 
+                        <?= View::capture('partials/ladder_toolbar', [
+                            'ladder_kind'      => 'team',
+                            'ladder_preset'    => $teamPreset,
+                            'ladder_amounts'   => $teamAmounts,
+                            'ladder_total'     => money(TeamHarvestLevel::total(TeamHarvestLevel::referencePreset())),
+                            'ladder_note'      => 'the values 20A seeded',
+                        ]) ?>
+
                         <div class="row g-4">
 <?php foreach ($rows as $row): ?>
 <?php
@@ -231,6 +239,7 @@ $waiting = (int) ($teamStatus['pending_levels'] ?? 0);
                                      value="<?= $amountValue($level) ?>"
                                      data-team-harvest-amount="<?= $level ?>"
                                      data-reference="<?= e((string) ($teamPreset[$level] ?? '')) ?>"
+                                     data-team-harvest-saved="<?= e(number_format((float) ($row['amount'] ?? 0), 2, '.', '')) ?>"
                                      aria-label="Level <?= $level ?> amount" />
                               <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                             </div>
@@ -250,19 +259,7 @@ $waiting = (int) ($teamStatus['pending_levels'] ?? 0);
                         <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
                           <span class="badge bg-label-<?= $overCeiling ? 'danger' : 'success' ?>" data-team-harvest-total data-team-harvest-total-badge><?= e(money($total)) ?></span>
                           <span class="small text-body-secondary">full ladder · ceiling <?= e(money(TeamHarvestLevel::MAX_TOTAL)) ?></span>
-                          <span class="ms-auto d-flex flex-wrap gap-2">
-                            <button type="button" class="btn btn-sm btn-label-primary" data-team-harvest-preset>
-                              <i class="icon-base bx bx-magic-wand me-1"></i> Load reference ladder
-                            </button>
-                            <button type="button" class="btn btn-sm btn-label-secondary" data-team-harvest-clear>
-                              <i class="icon-base bx bx-eraser me-1"></i> Clear
-                            </button>
-                          </span>
                         </div>
-                        <p class="text-body-secondary small mb-0 mt-2" data-team-harvest-reference>
-                          Reference ladder: <?= e(money(TeamHarvestLevel::total(TeamHarvestLevel::referencePreset()))) ?> in total across the ten levels — the values 20A seeded.
-                          Loading it fills the inputs; nothing is stored until you save the card.
-                        </p>
 <?php if (has_error(TeamHarvestLevel::SUM_KEY)): ?>
                         <div class="alert alert-danger py-2 mt-3" role="alert"><?= e(error_for(TeamHarvestLevel::SUM_KEY)) ?></div>
 <?php endif; ?>

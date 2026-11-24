@@ -33,10 +33,9 @@
   /* ----------------------------------------------------------
    *  Open from a + slot link or an invite action
    * ---------------------------------------------------------- */
-  function openFor(el) {
-    if (!el) { return; }
-    var upline = el.getAttribute('data-binary-upline') || '';
-    var side   = el.getAttribute('data-binary-side') || '';
+  function openPlacement(upline, side) {
+    upline = upline || '';
+    side   = side || '';
 
     var sponsorInput = formEl.querySelector('input[name="sponsor"]');
     var uplineInput  = formEl.querySelector('input[name="binary_upline"]');
@@ -64,11 +63,27 @@
     if (bsModal) { bsModal.show(); }
   }
 
-  document.querySelectorAll('[data-binary-modal-trigger]').forEach(function (el) {
-    el.addEventListener('click', function (event) {
-      event.preventDefault();
-      openFor(el);
-    });
+  function openFor(el) {
+    if (!el) { return; }
+    openPlacement(
+      el.getAttribute('data-binary-upline') || '',
+      el.getAttribute('data-binary-side') || ''
+    );
+  }
+
+  /* Expose a small API for the SVG explorer's tooltip, which creates its
+   * registration buttons after this script has loaded. */
+  window.EcoWealthBinaryRegister = { open: openPlacement };
+
+  /* Delegated so links rendered later (tooltip buttons, lazy branches)
+   * open the modal too. */
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('[data-binary-modal-trigger]') : null;
+    if (!trigger) {
+      return;
+    }
+    event.preventDefault();
+    openFor(trigger);
   });
 
   /* ----------------------------------------------------------

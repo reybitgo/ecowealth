@@ -870,6 +870,20 @@ return [
         setting_cache_clear();
 
         $sponsor = test_user('p20b_sponsor', 'member');
+
+        /* Placement is explicit and validated — there is no spillover, so a
+         * second "right" under the same upline is refused. The sponsor has no
+         * node yet, so the first direct lands on the company root's first free
+         * side; the other two go on that direct's left and right. */
+        $rootId   = (int) BinaryNode::root()['user_id'];
+        $rootFree = array_values(array_filter(
+            BinaryNode::freeSlots($rootId),
+            static fn (array $slot): bool => (bool) $slot['free']
+        ));
+        $rootSide      = (string) ($rootFree[0]['side'] ?? '');
+        $firstUsername = '';
+
+        assert_not_same('', $rootSide, 'the company root has a free side for the first direct');
         $walletBefore = (string) db()->query(
             "SELECT CONCAT(COALESCE(SUM(ewallet_balance), 0), '|', COALESCE(SUM(withdrawable_balance), 0)) FROM users"
         )->fetchColumn();
@@ -895,11 +909,16 @@ return [
                 'package_id'       => '',
                 'reg_code'         => '',
                 'terms'            => true,
-                'binary_position'  => 'right',
+                'binary_upline'    => $firstUsername,
+                'binary_position'  => $firstUsername === '' ? $rootSide : ($i === 2 ? 'left' : 'right'),
             ], null);
 
             assert_true((int) ($result['user_id'] ?? 0) > 0, 'registration ' . $i . ' succeeded');
             $registered++;
+
+            if ($firstUsername === '') {
+                $firstUsername = $username;
+            }
         }
 
         assert_same(3, $registered);
@@ -1034,5 +1053,51 @@ return [
 
         /* Ten rows still exist: cleared, never deleted. */
         assert_same(10, (int) db()->query('SELECT COUNT(*) FROM team_harvest_levels')->fetchColumn());
+    },
+
+    'P20B-T25 the reference toolbar carries its state, actions and stored values' => function () use ($commissions, $block): void {
+        test_signed_in_as(test_user('p20b_toolbar_admin', 'admin'));
+
+        $html = $block($commissions());
+
+        /* One panel, wired by data attributes for the shared script. */
+        assert_contains('data-ladder-toolbar', $html);
+        assert_contains('data-ladder-unit="money"', $html);
+        assert_contains('data-ladder-card="[data-team-harvest-card]"', $html);
+        assert_contains('data-ladder-field="[data-team-harvest-amount]"', $html);
+        assert_contains('data-ladder-saved="data-team-harvest-saved"', $html);
+        assert_contains('data-ladder-save-word="card"', $html);
+
+        /* The panel sits above the ten inputs it fills. */
+        assert_true(
+            strpos($html, 'data-ladder-toolbar') < strpos($html, 'name="team_harvest_amounts[1]"'),
+            'the panel sits above the ladder inputs'
+        );
+
+        /* Both actions, the copy that explains them, and the live region the
+         * script prints its confirmation into. */
+        assert_contains('data-ladder-preset', $html);
+        assert_contains('data-ladder-clear', $html);
+        assert_contains('aria-live="polite"', $html);
+        assert_contains('role="status"', $html);
+        assert_contains('id="team-harvest-reference-help"', $html);
+        assert_contains('aria-describedby="team-harvest-reference-help"', $html);
+
+        /* The badge is server-rendered from the stored ladder: a card that
+         * holds the reference says so without JavaScript. */
+        assert_contains('data-ladder-state', $html);
+        assert_contains('Matches reference', $html);
+        assert_not_contains('Unsaved changes', $html);
+
+        /* Every input carries both values the badge compares: the preset it
+         * would load, and the amount the card stores now. */
+        foreach (TeamHarvestLevel::referencePreset() as $level => $amount) {
+            $pattern = '/<input\\b[^>]*name="team_harvest_amounts\\[' . $level . '\\]"[^>]*>/';
+            $fixed   = number_format((float) $amount, 2, '.', '');
+
+            assert_same(1, preg_match($pattern, $html, $input), 'level ' . $level . ' amount input exists');
+            assert_contains('data-reference="' . $fixed . '"', $input[0], 'level ' . $level . ' rides the preset');
+            assert_contains('data-team-harvest-saved="' . $fixed . '"', $input[0], 'level ' . $level . ' rides the stored amount');
+        }
     },
 ];

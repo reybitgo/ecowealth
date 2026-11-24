@@ -387,10 +387,13 @@ return [
         assert_contains('Binary Tree', $html);
         assert_contains('Your placement tree', $html);
 
-        /* Server-rendered seed JSON. */
+        /* Server-rendered seed JSON. A script block is raw text: escaping it
+         * with e() produced &quot; and JSON.parse threw, so the explorer never
+         * started. The seed is JSON with JSON_HEX_TAG for the script context. */
         assert_contains('binaryTreeSeed', $html);
-        assert_contains('&quot;ok&quot;', $html);
-        assert_contains('&quot;root&quot;:' . $juanId, $html);
+        assert_contains('"ok":true', $html);
+        assert_contains('"root":' . $juanId, $html);
+        assert_not_contains('&quot;ok&quot;', $html, 'the seed is not HTML-escaped');
 
         /* No-JS semantic list. */
         assert_contains('role="tree"', $html);
@@ -709,6 +712,89 @@ return [
         assert_contains('admin/members/' . $mariaId, $html);
         assert_contains('View member', $html);
         assert_contains('Move placement', $html);
+    },
+
+    'the seed JSON inside the script block parses' => function () use ($adminUser, $renderView): void {
+        $admin = $adminUser();
+        assert_not_null($admin);
+
+        test_signed_in_as($admin);
+        $adminId = (int) $admin['id'];
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($adminId, 3, $adminId, true);
+
+        $html = $renderView('admin', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'admin.genealogy',
+            'member'      => $admin,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($adminId, 3, $adminId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $adminId,
+            'is_admin'    => true,
+            'admin_roots' => [],
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        assert_same(1, preg_match('/<script type="application\/json" id="binaryTreeSeed">(.*?)<\/script>/s', $html, $match));
+
+        /* A script element is raw text: HTML entities are never decoded there,
+         * so an e()-escaped seed made JSON.parse throw and the explorer never
+         * started (no class, no SVG, no notice). */
+        assert_not_contains('&quot;', $match[1], 'the seed carries no HTML entities');
+
+        $seed = json_decode($match[1], true);
+        assert_true(is_array($seed), 'the seed decodes');
+        assert_same($adminId, (int) $seed['root']);
+        assert_true(isset($seed['tree']['username']));
+    },
+
+    'every icon on the binary page is defined by the vendored font' => function () use ($adminUser, $renderView): void {
+        $admin = $adminUser();
+        assert_not_null($admin);
+
+        test_signed_in_as($admin);
+        $adminId = (int) $admin['id'];
+
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($adminId, 3, $adminId, true);
+
+        $html = $renderView('admin', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'admin.genealogy',
+            'member'      => $admin,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($adminId, 3, $adminId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $adminId,
+            'is_admin'    => true,
+            'admin_roots' => [],
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/vendor/css/boxicons/boxicons.min.css');
+        assert_not_same('', $css, 'the vendored Boxicons stylesheet is present');
+
+        preg_match_all('/\bbx-[a-z0-9-]+\b/', $html, $matches);
+
+        /* bx-spin, bx-xs… are animation and size utilities, not glyphs. */
+        $utilities = ['bx-spin', 'bx-xs', 'bx-sm', 'bx-md', 'bx-lg'];
+        $missing   = [];
+
+        foreach (array_unique($matches[0]) as $icon) {
+            if (in_array($icon, $utilities, true) || str_contains($css, '.' . $icon . ':before')) {
+                continue;
+            }
+
+            $missing[] = $icon;
+        }
+
+        /* A class the font does not define renders as a filled square: the
+         * toolbar's Fit / Expand all / Collapse all did exactly that. */
+        assert_same([], $missing, 'every bx-* class on the page exists in the font');
     },
 
     /* ---------- Phase 22G-S4: in-node registration modal and invite links ---------- */

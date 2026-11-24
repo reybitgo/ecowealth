@@ -9,13 +9,9 @@
  * still enforced by AdminSettingsController and TeamHarvestLevel on the
  * server (plan Rule 12).
  *
- * Two buttons help the operator fill the ladder:
- *   • Load reference ladder — ₱1,000 … ₱3,500,000 (₱5,095,000 in total).
- *   • Clear — every level back to blank (which saves as 0.00).
- *
- * The preset values are read from each input's `data-reference` attribute,
- * so the reference ladder lives in exactly one place — TeamHarvestLevel —
- * and this file carries no copy of it.
+ * The reference-ladder buttons, their state badge and their confirmation
+ * live in `app-ladder-toolbar.js`; this file only paints the numbers, and
+ * repaints them when that toolbar fills or clears the inputs.
  */
 (function () {
   'use strict';
@@ -91,28 +87,6 @@
     card.addEventListener('change', function () {
       render(card);
     });
-
-    var presetButton = card.querySelector('[data-team-harvest-preset]');
-
-    if (presetButton) {
-      presetButton.addEventListener('click', function () {
-        inputs(card).forEach(function (input) {
-          input.value = input.getAttribute('data-reference') || '';
-        });
-        render(card);
-      });
-    }
-
-    var clearButton = card.querySelector('[data-team-harvest-clear]');
-
-    if (clearButton) {
-      clearButton.addEventListener('click', function () {
-        inputs(card).forEach(function (input) {
-          input.value = '';
-        });
-        render(card);
-      });
-    }
 
     /* The first render is a no-op on a page that has not been typed into:
      * the server already printed the stored amounts and cumulative. */

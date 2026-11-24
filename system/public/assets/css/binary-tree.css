@@ -1,11 +1,40 @@
 /* ==============================================================
- *  Binary tree explorer (Phase 22G-S3)
+ *  Binary tree explorer (Phase 22G-S3, refreshed UI)
  *
  *  Styles for the d3 genealogy explorer on /genealogy?view=binary.
- *  The no-JS semantic list (22G-S2) stays in the document and is the
- *  screen-reader-first view; this stylesheet only dresses the SVG layer
- *  and the controls. d3 is vendored locally (system/public/assets/vendor/libs/d3).
+ *  The SVG stays deliberately quiet: a compact status-coloured
+ *  pill per member, plus a small expander and an optional "+" for
+ *  a free slot. Package, joined date, points, placement and the
+ *  actions live in the rich tooltip so deep trees never turn into
+ *  a wall of badges.
+ *
+ *  The no-JS semantic list (22G-S2) stays in the document and is
+ *  the screen-reader-first view; this stylesheet only dresses the
+ *  SVG layer, the tooltip and the controls.
  * ============================================================== */
+
+/* --------------------------------------------------------------
+ *  Design tokens
+ * -------------------------------------------------------------- */
+.binary-tree-explorer,
+.binary-tree-svg-wrap,
+.binary-tree-controls,
+.binary-tree-breadcrumb,
+.binary-tree-tooltip {
+  --bt-active: #10a56f;
+  --bt-active-deep: #0b7a53;
+  --bt-pending: #f59e0b;
+  --bt-pending-deep: #c2740a;
+  --bt-suspended: #ef4444;
+  --bt-suspended-deep: #b91c1c;
+  --bt-inactive: #94a3b8;
+  --bt-inactive-deep: #64748b;
+  --bt-ink: #0f172a;
+  --bt-muted: #64748b;
+  --bt-line: #cbd5e1;
+  --bt-surface: #ffffff;
+  --bt-radius: 1rem;
+}
 
 /* --------------------------------------------------------------
  *  Explorer shell
@@ -17,142 +46,568 @@
 .binary-tree-svg-wrap {
   position: relative;
   width: 100%;
-  min-height: 420px;
-  background: #fff;
-  border: 1px solid var(--border, #dee2e6);
-  border-radius: var(--radius, 0.375rem);
+  min-height: 520px;
+  background-color: var(--bs-body-bg, #fff);
+  background-image:
+    radial-gradient(rgba(var(--bs-primary-rgb, 59, 111, 240), 0.14) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: var(--bt-radius);
   overflow: hidden;
+  isolation: isolate;
 }
 
+/* The wrapper is sized by min-height, so `height: 100%` on the SVG falls back
+   to the SVG default (150px) and everything the fit centres below that line is
+   clipped. Pin the SVG to the wrapper's box instead. */
 .binary-svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
   font-family: inherit;
+  cursor: grab;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.binary-tree-svg-wrap.is-panning .binary-svg {
+  cursor: grabbing;
+}
+
+.binary-tree-svg-wrap.is-panning {
+  user-select: none;
 }
 
 /* --------------------------------------------------------------
- *  Links and nodes
+ *  Links
  * -------------------------------------------------------------- */
 .binary-link {
   fill: none;
-  stroke: #94a3b8;
+  stroke: var(--bt-line);
   stroke-width: 1.5px;
   stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
   transition: stroke 0.2s ease;
 }
 
+body.binary-compact .binary-link {
+  stroke-width: 1.25px;
+}
+
+/* --------------------------------------------------------------
+ *  Nodes
+ *
+ *  Geometry is set from JS (rect x/y/width/height); colour and
+ *  interaction live here so the server seed never needs visuals.
+ * -------------------------------------------------------------- */
 .binary-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.binary-node:focus {
+  outline: none;
+}
+
+/* Soft ring used for "you", focus and the inspected node. */
+.binary-node .binary-node-halo {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 2px;
+  pointer-events: none;
+  transition: fill 0.18s ease, stroke 0.18s ease;
+}
+
+.binary-node.is-you .binary-node-halo {
+  fill: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.12);
+  stroke: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.55);
+}
+
+.binary-node:focus-visible .binary-node-halo,
+.binary-node.is-focused .binary-node-halo,
+.binary-node.is-inspected .binary-node-halo {
+  fill: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.14);
+  stroke: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.75);
+}
+
+.binary-node .binary-node-card {
+  stroke-width: 1.5px;
+  pointer-events: all;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: stroke 0.16s ease, filter 0.16s ease, transform 0.16s ease;
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.14));
+}
+
+/* Status fills. The gradients are declared by the explorer script; the flat
+   colour in front of each is a graceful fallback for print/forced colours. */
+.binary-node.is-active .binary-node-card {
+  fill: var(--bt-active);
+  fill: url(#binaryGradActive);
+  stroke: var(--bt-active-deep);
+}
+
+.binary-node.is-pending .binary-node-card {
+  fill: var(--bt-pending);
+  fill: url(#binaryGradPending);
+  stroke: var(--bt-pending-deep);
+}
+
+.binary-node.is-suspended .binary-node-card {
+  fill: var(--bt-suspended);
+  fill: url(#binaryGradSuspended);
+  stroke: var(--bt-suspended-deep);
+}
+
+.binary-node.is-inactive .binary-node-card {
+  fill: var(--bt-inactive);
+  fill: url(#binaryGradInactive);
+  stroke: var(--bt-inactive-deep);
+}
+
+.binary-node.is-inactive .binary-node-card {
+  opacity: 0.86;
+}
+
+.binary-node:hover .binary-node-card,
+.binary-node:focus-visible .binary-node-card {
+  stroke: var(--bt-ink);
+  transform: scale(1.025);
+  filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.22));
+}
+
+.binary-node.is-inspected .binary-node-card {
+  stroke: var(--bt-ink);
+  filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.24));
+}
+
+.binary-node-name {
+  fill: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  pointer-events: none;
+  user-select: none;
+}
+
+body.binary-compact .binary-node-name {
+  font-size: 12px;
+}
+
+.binary-node.is-inactive .binary-node-name {
+  fill: #f8fafc;
+}
+
+/* --------------------------------------------------------------
+ *  Node accessories: free-slot "+" and expander
+ * -------------------------------------------------------------- */
+.binary-node-add,
+.binary-node-toggle {
+  cursor: pointer;
+  outline: none;
+}
+
+.binary-node-add circle {
+  fill: var(--bt-surface);
+  stroke: var(--bt-active);
+  stroke-width: 1.75px;
+  transition: fill 0.16s ease, stroke 0.16s ease;
+}
+
+.binary-node-add text,
+.binary-node-toggle text {
+  pointer-events: none;
+  user-select: none;
+}
+
+.binary-node-add-icon {
+  fill: var(--bt-active-deep);
+  font-size: 14px;
+  font-weight: 700;
+  transition: fill 0.16s ease;
+}
+
+.binary-node-add:hover circle,
+.binary-node-add:focus-visible circle {
+  fill: var(--bt-active-deep);
+  stroke: var(--bt-active-deep);
+}
+
+.binary-node-add:hover .binary-node-add-icon,
+.binary-node-add:focus-visible .binary-node-add-icon {
+  fill: #fff;
+}
+
+.binary-node-toggle circle {
+  fill: var(--bt-surface);
+  stroke: var(--bt-line);
+  stroke-width: 1.5px;
+  transition: fill 0.16s ease, stroke 0.16s ease;
+}
+
+.binary-node-toggle-icon {
+  fill: var(--bt-muted);
+  font-size: 15px;
+  font-weight: 700;
+  transition: fill 0.16s ease;
+}
+
+.binary-node-toggle:hover circle,
+.binary-node-toggle:focus-visible circle,
+.binary-node-toggle.is-open circle {
+  fill: #eef2ff;
+  stroke: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.7);
+}
+
+.binary-node-toggle:hover .binary-node-toggle-icon,
+.binary-node-toggle:focus-visible .binary-node-toggle-icon,
+.binary-node-toggle.is-open .binary-node-toggle-icon {
+  fill: var(--bs-primary, #3b6ff0);
+}
+
+.binary-node-toggle.is-loading circle {
+  stroke-dasharray: 4 3;
+}
+
+/* --------------------------------------------------------------
+ *  Rich tooltip
+ * -------------------------------------------------------------- */
+.binary-tree-tooltip {
+  position: fixed;
+  z-index: 1090;
+  top: 0;
+  left: 0;
+  width: 312px;
+  max-width: calc(100vw - 20px);
+  padding: 0.9rem 1rem 0.85rem;
+  border-radius: 14px;
+  background: linear-gradient(165deg, #16203a 0%, #0c1322 100%);
+  color: #f8fafc;
+  box-shadow:
+    0 24px 48px -16px rgba(2, 6, 23, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(5px) scale(0.985);
+  transform-origin: top left;
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+}
+
+.binary-tree-tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+}
+
+.bt-tip-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding-right: 1.35rem;
+}
+
+.bt-tip-avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--bt-active);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.bt-tip-avatar.is-pending { background: linear-gradient(145deg, #f59e0b, #d97706); }
+.bt-tip-avatar.is-suspended { background: linear-gradient(145deg, #ef4444, #b91c1c); }
+.bt-tip-avatar.is-inactive { background: linear-gradient(145deg, #94a3b8, #64748b); }
+.bt-tip-avatar.is-active { background: linear-gradient(145deg, #16a34a, #0b7a53); }
+
+.bt-tip-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.bt-tip-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.bt-tip-you {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.2);
+  color: #93c5fd;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 0.12em;
+}
+
+.bt-tip-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+}
+
+.bt-tip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.18);
+}
+
+.bt-tip-dot.is-pending { background: #fbbf24; box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.18); }
+.bt-tip-dot.is-suspended { background: #f87171; box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.18); }
+.bt-tip-dot.is-inactive { background: #94a3b8; box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.18); }
+
+.bt-tip-sep {
+  margin: 0 0.05rem;
+  opacity: 0.45;
+}
+
+.bt-tip-close {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.bt-tip-close:hover,
+.bt-tip-close:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  outline: none;
+}
+
+.bt-tip-fullname {
+  margin-top: 0.5rem;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.bt-tip-rows {
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  display: grid;
+  gap: 0.32rem;
+}
+
+.bt-tip-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.74rem;
+}
+
+.bt-tip-row span {
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.bt-tip-row strong {
+  font-weight: 600;
+  color: #f1f5f9;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.bt-tip-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 0.7rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bt-tip-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.45rem 0.2rem 0.4rem;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.bt-tip-stat span {
+  color: #94a3b8;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.bt-tip-stat strong {
+  color: #f8fafc;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.bt-tip-open {
+  margin-top: 0.7rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bt-tip-open-label {
+  width: 100%;
+  color: #94a3b8;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.bt-tip-btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.38rem 0.6rem;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #a7f3d0;
+  font-size: 0.73rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.bt-tip-btn:hover,
+.bt-tip-btn:focus-visible {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+  outline: none;
+}
+
+.bt-tip-plus {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.bt-tip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.85rem;
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.bt-tip-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #93c5fd;
+  font-size: 0.73rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.binary-node.collapsed rect.binary-node-card,
-.binary-node.collapsed foreignObject.binary-node-card {
-  opacity: 0.85;
+.bt-tip-link:hover,
+.bt-tip-link:focus-visible {
+  color: #dbeafe;
+  text-decoration: underline;
+  outline: none;
 }
 
-.binary-node rect.binary-node-card {
-  fill: #ffffff;
-  stroke: var(--border, #dee2e6);
-  stroke-width: 1.5px;
-  rx: 8px;
-  ry: 8px;
-  pointer-events: all;
-  transition: fill 0.15s ease, stroke 0.15s ease, box-shadow 0.15s ease;
-}
-
-.binary-node.focused rect.binary-node-card,
-.binary-node.focused foreignObject.binary-node-card {
-  stroke: var(--primary, #3b6ff0);
-  stroke-width: 2.5px;
-}
-
-.binary-node.you rect.binary-node-card,
-.binary-node.you foreignObject.binary-node-card {
-  stroke: var(--info, #0d6efd);
-  stroke-width: 2px;
-}
-
-.binary-node.inactive rect.binary-node-card,
-.binary-node.inactive foreignObject.binary-node-card {
-  opacity: 0.6;
-  filter: grayscale(0.4);
-}
-
-/* Node card (HTML inside foreignObject) */
-.binary-node-card-content {
-  width: 170px;
-  font-size: 0.85rem;
-  line-height: 1.25;
-  color: var(--foreground, #111);
-}
-
-.binary-node-card-content .node-username {
-  font-weight: 600;
-  font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.binary-node-card-content .node-name {
+/* --------------------------------------------------------------
+ *  Canvas hint
+ * -------------------------------------------------------------- */
+.binary-tree-canvas-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 0.9rem;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px -12px rgba(15, 23, 42, 0.4);
+  color: var(--bt-muted);
   font-size: 0.72rem;
-  color: var(--muted-foreground, #6b7280);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
 }
 
-.binary-node-card-content .node-meta {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 4px;
+.binary-tree-canvas-hint strong {
+  color: var(--bt-ink);
 }
 
-.binary-node-card-content .badge {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 10px;
-  white-space: nowrap;
+.binary-tree-hint-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bt-active);
+  box-shadow: 0 0 0 3px rgba(16, 165, 111, 0.15);
 }
 
-.binary-node-card-content .badge.you {
-  background: var(--info, #0d6efd);
-  color: #fff;
+.binary-tree-hint-sep {
+  opacity: 0.4;
 }
 
-.binary-node-card-content .side-left { color: var(--primary, #3b6ff0); }
-.binary-node-card-content .side-right { color: var(--danger, #dc3545); }
-
-.binary-node-card-content .points {
-  margin-top: 6px;
-  font-size: 0.75rem;
-  color: var(--muted-foreground, #6b7280);
-}
-
-.binary-node-card-content .points .pts {
-  font-weight: 700;
-  margin-right: 8px;
-}
-
-.binary-node-card-content .pts.left { color: var(--primary, #3b6ff0); }
-.binary-node-card-content .pts.right { color: var(--danger, #dc3545); }
-.binary-node-card-content .pts.pairs { color: var(--success, #198754); }
-.binary-node-card-content .pts.today { color: var(--info, #0d6efd); }
-
-.binary-node-card-content .joined {
-  font-size: 0.68rem;
-  color: var(--muted-foreground, #6b7280);
-  margin-top: 4px;
-}
-
-/* Slot "+" indicator on a node card */
-.binary-slot-hint {
-  margin-top: 6px;
-  font-size: 0.7rem;
-  color: var(--success, #198754);
+.binary-tree-svg-wrap.is-empty .binary-tree-canvas-hint {
+  bottom: 1.1rem;
+  font-size: 0.76rem;
 }
 
 /* --------------------------------------------------------------
@@ -166,9 +621,48 @@
   margin-bottom: 0.75rem;
 }
 
+.binary-tree-controls.card {
+  display: block;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.9rem;
+  background: var(--bs-body-bg, #fff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.binary-tree-controls .card-body {
+  padding: 0.65rem 0.8rem;
+}
+
 .binary-tree-controls .btn {
-  font-size: 0.8rem;
-  padding: 0.35rem 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.62rem;
+  border-color: var(--bs-border-color, #dee2e6);
+  background: var(--bs-body-bg, #fff);
+  color: var(--bs-secondary-color, #64748b);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.binary-tree-controls .btn:hover,
+.binary-tree-controls .btn:focus-visible {
+  border-color: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.45);
+  background: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.06);
+  color: var(--bs-primary, #3b6ff0);
+}
+
+.binary-tree-controls .btn i {
+  font-size: 0.95rem;
+}
+
+.binary-tree-controls .form-select-sm,
+.binary-tree-controls .form-control-sm {
+  min-height: 32px;
+  font-size: 0.78rem;
 }
 
 .binary-tree-controls .binary-toolbar-deep {
@@ -179,46 +673,78 @@
   align-items: center;
 }
 
+.binary-tree-root-select form {
+  margin-bottom: 0;
+}
+
+.binary-tree-root-select .form-select-sm {
+  max-width: 13rem;
+}
+
 .binary-tree-depth-select {
   font-size: 0.8rem;
   padding: 0.35rem 0.5rem;
 }
 
+.binary-tree-depth-select-wrap .form-select-sm {
+  width: auto;
+}
+
 .binary-tree-search {
   position: relative;
   margin-left: auto;
+  min-width: 11rem;
 }
 
 .binary-tree-search input {
-  font-size: 0.8rem;
-  padding: 0.35rem 0.7rem;
-  width: 190px;
+  width: 200px;
+  padding-right: 2rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
 }
 
 .binary-tree-search .btn {
   position: absolute;
-  right: 2px;
-  top: 2px;
-  bottom: 2px;
-  font-size: 0.7rem;
-  padding: 0 0.55rem;
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--bt-muted);
+}
+
+.binary-tree-search .btn:hover,
+.binary-tree-search .btn:focus-visible {
+  background: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.08);
+  color: var(--bs-primary, #3b6ff0);
 }
 
 /* --------------------------------------------------------------
  *  Breadcrumb
  * -------------------------------------------------------------- */
 .binary-tree-breadcrumb {
-  font-size: 0.82rem;
-  color: var(--muted-foreground, #6b7280);
-  margin-bottom: 0.5rem;
-  padding: 0.35rem 0.75rem;
-  background: var(--muted, #f3f4f6);
-  border-radius: var(--radius, 0.375rem);
-  border: 1px solid var(--border, #dee2e6);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.1rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0.65rem;
+  padding: 0.32rem 0.8rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 999px;
+  background: rgba(var(--bs-primary-rgb, 59, 111, 240), 0.04);
+  color: var(--bt-muted);
+  font-size: 0.78rem;
 }
 
 .binary-tree-breadcrumb a {
-  color: var(--primary, #3b6ff0);
+  color: var(--bs-primary, #3b6ff0);
   text-decoration: none;
 }
 
@@ -227,18 +753,23 @@
 }
 
 .binary-tree-breadcrumb .sep {
-  margin: 0 0.4rem;
-  opacity: 0.6;
+  margin: 0 0.35rem;
+  opacity: 0.5;
+}
+
+.binary-tree-breadcrumb .current {
+  color: var(--bt-ink);
+  font-weight: 600;
 }
 
 /* --------------------------------------------------------------
  *  Notices
  * -------------------------------------------------------------- */
 .binary-tree-notice {
-  padding: 0.6rem 0.9rem;
-  margin: 0.5rem 0;
-  border-radius: var(--radius, 0.375rem);
-  font-size: 0.85rem;
+  padding: 0.55rem 0.85rem;
+  margin: 0.5rem 0 0;
+  border-radius: 0.65rem;
+  font-size: 0.82rem;
 }
 
 .binary-tree-notice.info {
@@ -256,22 +787,15 @@
 /* --------------------------------------------------------------
  *  Compact mode
  * -------------------------------------------------------------- */
-body.binary-compact .binary-node-card-content {
-  width: 140px;
-  font-size: 0.75rem;
+body.binary-compact .binary-tree-svg-wrap {
+  min-height: 440px;
 }
-
-body.binary-compact .binary-node-card-content .node-username {
-  font-size: 0.8rem;
-}
-
-body.binary-compact .binary-link { stroke-width: 1px; }
 
 /* --------------------------------------------------------------
  *  Orientation: horizontal layout hints
  * -------------------------------------------------------------- */
 body.binary-horizontal .binary-tree-svg-wrap {
-  min-height: 300px;
+  min-height: 380px;
 }
 
 /* --------------------------------------------------------------
@@ -283,7 +807,7 @@ body.binary-horizontal .binary-tree-svg-wrap {
   background: #fdf3f3;
   border: 1px solid #f5c6c6;
   color: #b3261e;
-  border-radius: var(--radius, 0.375rem);
+  border-radius: var(--bt-radius);
   font-size: 0.85rem;
   margin-top: 1rem;
 }
@@ -311,28 +835,211 @@ body.binary-horizontal .binary-tree-svg-wrap {
   .binary-tree-controls,
   .binary-tree-breadcrumb,
   .binary-tree-notice,
+  .binary-tree-canvas-hint,
+  .binary-tree-tooltip,
   .binary-tree-d3-unavailable {
     display: none !important;
   }
+
   .binary-tree-svg-wrap { display: none !important; }
-  #binaryTreeListWrap { position: static !important; width: auto !important; height: auto !important; margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: normal !important; }
+
+  #binaryTreeListWrap {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+  }
 }
 
 /* --------------------------------------------------------------
  *  Reduced motion
  * -------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  .binary-link, .binary-node rect.binary-node-card, .binary-node foreignObject.binary-node-card {
+  .binary-link,
+  .binary-node .binary-node-card,
+  .binary-node .binary-node-halo,
+  .binary-node-add circle,
+  .binary-node-add-icon,
+  .binary-node-toggle circle,
+  .binary-node-toggle-icon,
+  .binary-tree-tooltip,
+  .bt-tip-close,
+  .bt-tip-btn,
+  .binary-tree-controls .btn {
     transition: none !important;
+  }
+
+  .binary-node:hover .binary-node-card,
+  .binary-node:focus-visible .binary-node-card {
+    transform: none;
   }
 }
 
 /* --------------------------------------------------------------
- *  Responsive: compact list below 576px
+ *  Responsive
  * -------------------------------------------------------------- */
-@media (max-width: 576px) {
-  .binary-tree-svg-wrap { min-height: 340px; }
-  .binary-tree-search input { width: 150px; }
+@media (max-width: 991.98px) {
+  .binary-tree-svg-wrap {
+    min-height: 480px;
+  }
+
+  .binary-tree-search {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .binary-tree-svg-wrap {
+    min-height: 430px;
+    background-size: 18px 18px;
+    border-radius: 0.9rem;
+  }
+
+  .binary-node-name {
+    font-size: 12px;
+  }
+
+  .binary-tree-canvas-hint {
+    bottom: 0.65rem;
+    font-size: 0.66rem;
+  }
+
+  /* The tooltip becomes a bottom sheet, so the tree stays visible above it
+     and the close/action targets are comfortable for a thumb. The huge
+     shadow dims the page behind it without a separate backdrop node. */
+  .binary-tree-tooltip.is-visible {
+    top: auto !important;
+    right: 0.6rem;
+    bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    left: 0.6rem !important;
+    width: auto;
+    max-width: none;
+    max-height: min(68vh, 540px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 18px;
+    padding: 1rem 1.05rem 0.95rem;
+    transform-origin: bottom center;
+    box-shadow:
+      0 0 0 100vmax rgba(15, 23, 42, 0.32),
+      0 22px 48px -14px rgba(2, 6, 23, 0.6);
+    clip-path: inset(0 -100vmax);
+  }
+
+  .binary-tree-tooltip {
+    transform: translateY(14px) scale(0.99);
+  }
+
+  .binary-tree-tooltip.is-visible {
+    transform: translateY(0) scale(1);
+  }
+
+  .bt-tip-avatar {
+    width: 42px;
+    height: 42px;
+    font-size: 0.86rem;
+  }
+
+  .bt-tip-name {
+    font-size: 1rem;
+  }
+
+  .bt-tip-close {
+    width: 34px;
+    height: 34px;
+    font-size: 1.3rem;
+  }
+
+  .bt-tip-row {
+    font-size: 0.78rem;
+  }
+
+  .bt-tip-stat {
+    padding: 0.5rem 0.2rem;
+  }
+
+  .bt-tip-stat strong {
+    font-size: 1rem;
+  }
+
+  .bt-tip-btn {
+    min-height: 38px;
+    font-size: 0.78rem;
+  }
+
+  .bt-tip-link {
+    font-size: 0.78rem;
+    padding: 0.2rem 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .binary-tree-controls .card-body {
+    padding: 0.55rem 0.6rem;
+  }
+
+  /* Icon-only toolbar: the labels stay in title/aria-label, the row
+     stops wrapping into four lines on a phone. */
+  .binary-tree-controls .btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+    gap: 0;
+  }
+
+  .binary-tree-controls .btn i {
+    font-size: 1.05rem;
+  }
+
+  .binary-tree-controls .form-label {
+    font-size: 0.72rem;
+  }
+
+  .binary-tree-root-select .form-select-sm {
+    max-width: 9.5rem;
+  }
+
+  .binary-tree-search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .binary-tree-search input {
+    width: 100%;
+  }
+
+  .binary-tree-breadcrumb {
+    width: 100%;
+    border-radius: 0.7rem;
+    font-size: 0.74rem;
+  }
+
+  /* Keep the no-JS list and toolbar groups wrapping instead of scrolling
+     the whole page sideways. */
+  .binary-tree-controls .d-flex,
+  .binary-tree-node-row,
+  .binary-tree-node-row .d-flex {
+    flex-wrap: wrap;
+  }
+
   .binary-tree-card-content,
-  body.binary-compact .binary-node-card-content { width: 150px; }
+  body.binary-compact .binary-node-card-content {
+    width: 150px;
+  }
+}
+
+/* Very short landscape phones: keep the canvas usable. */
+@media (max-width: 767.98px) and (max-height: 480px) {
+  .binary-tree-svg-wrap {
+    min-height: 320px;
+  }
+
+  .binary-tree-tooltip.is-visible {
+    max-height: 78vh;
+  }
 }

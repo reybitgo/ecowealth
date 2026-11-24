@@ -103,19 +103,37 @@ final class GenealogyController
         /* Phase 22G-S2: binary tree page — server-rendered first paint + no-JS list.
          * The sponsor view is never affected by this branch. */
         if (Request::string('view') === 'binary') {
-            $rootId  = (int) Request::query('root', $userId);
-            $depth   = max(1, min(BinaryTreeService::MAX_DEPTH, (int) Request::query('depth', BinaryTreeService::DEFAULT_DEPTH)));
+            $requestedRoot = Request::query('root', null);
+            $rootId        = $requestedRoot === null ? $userId : (int) $requestedRoot;
+            $depth         = max(1, min(BinaryTreeService::MAX_DEPTH, (int) Request::query('depth', BinaryTreeService::DEFAULT_DEPTH)));
 
-            try {
-                $payload = (new BinaryTreeService())->subtree($rootId, $depth, $userId, $isAdmin);
-            } catch (BinaryException $e) {
-                /* Privacy: a member who asks for another member's tree is
-                 * sent back to their own tree — no error page, no leak (P22G-T33). */
-                redirect('genealogy?view=binary');
-                return;
+            /* The admin selector's "Company tree" is value 0: resolve it to
+             * the company root node. Members never see the selector. */
+            $companyRoot   = BinaryNode::root();
+            $companyRootId = $companyRoot === null ? 0 : (int) ($companyRoot['user_id'] ?? 0);
+
+            if ($isAdmin && $rootId === 0) {
+                $rootId = $companyRootId > 0 ? $companyRootId : $userId;
             }
 
-            $listRows = (new BinaryTreeService())->listRows($rootId, $depth, $userId);
+            $payload            = null;
+            $listRows           = [];
+            $unavailable        = '';
+            $unavailableMessage = '';
+
+            try {
+                $payload  = (new BinaryTreeService())->subtree($rootId, $depth, $userId, $isAdmin);
+                $listRows = (new BinaryTreeService())->listRows($rootId, $depth, $userId);
+            } catch (BinaryException $e) {
+                /* No redirect here. A member with no binary node (or one who
+                 * asks for somebody else's tree) used to be sent back to this
+                 * same URL, so the browser gave up with
+                 * ERR_TOO_MANY_REDIRECTS. The page renders the reason and the
+                 * next step instead, and says nothing about the requested
+                 * root — the privacy answer P22G-T33 wanted, without the loop. */
+                $unavailable        = $e->reason;
+                $unavailableMessage = $e->getMessage();
+            }
 
             /* Admin root selector: company tree plus every member with a node (P22G-T21). */
             $adminRoots = [];
@@ -149,11 +167,24 @@ final class GenealogyController
                     'binary_list' => $listRows,
                     'binary_depth'=> $depth,
                     'binary_root_id' => $rootId,
+                    'binary_company_root' => $companyRootId,
+                    'binary_unavailable' => $unavailable,
+                    'binary_unavailable_message' => $unavailableMessage,
                     'admin_roots' => $adminRoots,
-                    'live'        => Live::meta(
-                        Live::binarySurface($userId),
-                        $this->binaryScope($rootId, $depth, $userId)
-                    ),
+                    /* An unplaced member has no tree to poll: the feed would
+                     * answer 403 on every tick. */
+                    'live'        => $unavailable !== ''
+                        ? [
+                            'surface'  => Live::binarySurface($userId),
+                            'enabled'  => false,
+                            'revision' => 0,
+                            'etag'     => '',
+                            'interval' => 30000,
+                        ]
+                        : Live::meta(
+                            Live::binarySurface($userId),
+                            $this->binaryScope($rootId, $depth, $userId)
+                        ),
                 ]
             ));
             return;

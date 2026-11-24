@@ -786,6 +786,50 @@ return [
         assert_same(9000.0, GeneralHarvestLevel::amount(3));
     },
 
+    'P21B-T36 the reference toolbar freezes with the board' => function () use ($commissions, $block, $armBoard, $disarmBoard): void {
+        test_signed_in_as(test_user('p21b_toolbar_admin', 'admin'));
+
+        $html = $block($commissions());
+
+        /* One panel, wired by data attributes for the shared script. */
+        assert_contains('data-ladder-toolbar', $html);
+        assert_contains('data-ladder-unit="money"', $html);
+        assert_contains('data-ladder-card="[data-general-harvest-card]"', $html);
+        assert_contains('data-ladder-field="[data-general-harvest-amount]"', $html);
+        assert_contains('data-ladder-saved="data-general-harvest-saved"', $html);
+        assert_contains('data-ladder-save-word="card"', $html);
+        assert_contains('data-ladder-preset', $html);
+        assert_contains('data-ladder-clear', $html);
+        assert_contains('aria-live="polite"', $html);
+        assert_contains('role="status"', $html);
+        assert_contains('id="general-harvest-reference-help"', $html);
+        assert_contains('aria-describedby="general-harvest-reference-help"', $html);
+        assert_contains('₱8,381,000.00 in total across the ten levels', $html);
+        assert_contains('Loading it fills the inputs', $html);
+
+        /* Every input carries both values the badge compares. */
+        foreach (range(1, 10) as $level) {
+            $pattern = '/<input\\b[^>]*name="general_harvest_amounts\\[' . $level . '\\]"[^>]*>/';
+
+            assert_same(1, preg_match($pattern, $html, $input), 'level ' . $level . ' amount input exists');
+            assert_contains('data-reference="', $input[0], 'level ' . $level . ' rides the preset');
+            assert_contains('data-general-harvest-saved=', $input[0], 'level ' . $level . ' rides the stored amount');
+        }
+
+        /* An armed board offers no fill and no clear: the panel says why. */
+        $armBoard(0);
+
+        $frozen = $block($commissions());
+
+        assert_contains('data-ladder-toolbar', $frozen, 'the panel stays, so the state is still explained');
+        assert_contains('Frozen while the board is armed', $frozen);
+        assert_not_contains('data-ladder-preset', $frozen, 'no fill on a frozen ladder');
+        assert_not_contains('data-ladder-clear', $frozen, 'no clear on a frozen ladder');
+        assert_not_contains('Loading it fills the inputs', $frozen);
+
+        $disarmBoard();
+    },
+
     'P21B-T28 a card that does not post a ladder never clears it, and an empty array does' => function () use ($posted, $storedLadder, $reference): void {
         test_signed_in_as(test_user('p21b_partial_admin', 'admin'));
 
@@ -1244,6 +1288,20 @@ return [
         setting_cache_clear();
 
         $sponsor      = test_user('p21b_sponsor', 'member');
+
+        /* Placement is explicit and validated — there is no spillover, so a
+         * second "right" under the same upline is refused. The sponsor has no
+         * node yet, so the first direct lands on the company root's first free
+         * side; the other two go on that direct's left and right. */
+        $rootId   = (int) BinaryNode::root()['user_id'];
+        $rootFree = array_values(array_filter(
+            BinaryNode::freeSlots($rootId),
+            static fn (array $slot): bool => (bool) $slot['free']
+        ));
+        $rootSide      = (string) ($rootFree[0]['side'] ?? '');
+        $firstUsername = '';
+
+        assert_not_same('', $rootSide, 'the company root has a free side for the first direct');
         $walletBefore = (string) db()->query(
             "SELECT CONCAT(COALESCE(SUM(ewallet_balance), 0), '|', COALESCE(SUM(withdrawable_balance), 0)) FROM users"
         )->fetchColumn();
@@ -1266,10 +1324,15 @@ return [
                 'package_id'       => '',
                 'reg_code'         => '',
                 'terms'            => true,
-                'binary_position'  => 'right',
+                'binary_upline'    => $firstUsername,
+                'binary_position'  => $firstUsername === '' ? $rootSide : ($i === 2 ? 'left' : 'right'),
             ], null);
 
             assert_true((int) ($result['user_id'] ?? 0) > 0, 'registration ' . $i . ' succeeded');
+
+            if ($firstUsername === '') {
+                $firstUsername = $username;
+            }
         }
 
         /* Phase 20's hook queues the sponsor; nothing else happens. */

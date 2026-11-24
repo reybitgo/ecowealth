@@ -220,6 +220,7 @@ final class AdminProductController
             'page_js'     => [
                 'assets/js/app-product-unilevel.js',
                 'assets/js/app-product-binary.js',
+                'assets/js/app-ladder-toolbar.js',
             ],
         ]);
     }
@@ -247,6 +248,7 @@ final class AdminProductController
             'page_js'     => [
                 'assets/js/app-product-unilevel.js',
                 'assets/js/app-product-binary.js',
+                'assets/js/app-ladder-toolbar.js',
             ],
         ]);
     }

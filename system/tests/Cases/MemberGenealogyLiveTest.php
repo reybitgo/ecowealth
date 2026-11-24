@@ -574,4 +574,57 @@ return [
 
         assert_not_contains('Harvest #', $unqualifiedPayload['fragments']['genealogy-header']);
     },
+
+    'an unplaced member gets the binary tree page, not a redirect loop' => function () use ($makeMember): void {
+        $unplaced = $makeMember('mgl_binary_unplaced_' . bin2hex(random_bytes(3)));
+        test_signed_in_as($unplaced);
+
+        assert_null(BinaryNode::forUser((int) $unplaced['id']), 'the fixture member holds no binary node');
+
+        $_GET['view'] = 'binary';
+
+        ob_start();
+
+        try {
+            (new GenealogyController())->index();
+        } finally {
+            $html = (string) ob_get_clean();
+            unset($_GET['view'], $_GET['root'], $_GET['depth']);
+        }
+
+        /* The page answers with a next step instead of redirecting the member
+         * back to this same URL until the browser gives up
+         * (ERR_TOO_MANY_REDIRECTS). */
+        assert_contains('You are not in a binary tree yet', $html);
+        assert_contains('Open my sponsor genealogy', $html);
+        assert_not_contains('Binary placement tree', $html);
+        assert_contains('data-live-enabled="0"', $html, 'nothing polls a tree that does not exist yet');
+    },
+
+    'a company-tree root of 0 resolves to the company root for an admin' => function () use ($makeMember): void {
+        $admin = $makeMember('mgl_binary_admin_' . bin2hex(random_bytes(3)), 'admin');
+        test_signed_in_as($admin);
+
+        $root = BinaryNode::root();
+        assert_not_null($root, 'the company root exists');
+
+        $_GET['view']  = 'binary';
+        $_GET['root']  = '0';
+        $_GET['depth'] = '2';
+
+        ob_start();
+
+        try {
+            (new GenealogyController())->index();
+        } finally {
+            $html = (string) ob_get_clean();
+            unset($_GET['view'], $_GET['root'], $_GET['depth']);
+        }
+
+        /* "Company tree" is the selector's value 0; the page used to throw
+         * that straight into subtree() and bounce. */
+        assert_not_contains('This tree is not available', $html);
+        assert_contains('data-tree-root="' . (int) $root['user_id'] . '"', $html, 'the company tree, not the viewer row');
+        assert_contains('value="0" selected', $html, 'the selector names the company tree');
+    },
 ];

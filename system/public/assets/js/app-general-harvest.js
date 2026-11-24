@@ -16,14 +16,10 @@
  *     paid(L, N)    = max(0, floor((N − (3^L − 1)/2) / 3^L))
  *     boardTotal(N) = Σ_L amount(L) · paid(L, N)
  *
- * Two buttons help the operator fill the ladder:
- *   • Load reference ladder — ₱2,000 … ₱5,000,000 (₱8,381,000 in total).
- *   • Clear — every level back to blank (which saves as 0.00).
- *
- * The preset values are read from each input's `data-reference` attribute,
- * so the reference ladder lives in exactly one place — GeneralHarvestLevel —
- * and this file carries no copy of it. Centavos, never floats, are summed:
- * a typed ladder is money.
+ * The reference-ladder buttons, their state badge and their confirmation
+ * live in `app-ladder-toolbar.js`; this file only paints the numbers, and
+ * repaints them when that toolbar fills or clears the inputs. Centavos,
+ * never floats, are summed: a typed ladder is money.
  */
 (function () {
   'use strict';
@@ -191,28 +187,6 @@
     card.addEventListener('change', function () {
       render(card);
     });
-
-    var presetButton = card.querySelector('[data-general-harvest-preset]');
-
-    if (presetButton) {
-      presetButton.addEventListener('click', function () {
-        inputs(card).forEach(function (input) {
-          input.value = input.getAttribute('data-reference') || '';
-        });
-        render(card);
-      });
-    }
-
-    var clearButton = card.querySelector('[data-general-harvest-clear]');
-
-    if (clearButton) {
-      clearButton.addEventListener('click', function () {
-        inputs(card).forEach(function (input) {
-          input.value = '';
-        });
-        render(card);
-      });
-    }
 
     /* The first render is a no-op on a page that has not been typed into:
      * the server already printed the stored ladder and the calculator's

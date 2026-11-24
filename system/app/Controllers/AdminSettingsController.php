@@ -790,7 +790,7 @@ final class AdminSettingsController
             'page_title'  => 'Settings',
             'current_nav' => 'admin.settings',
             'page_css'    => ['assets/css/orders.css'],
-            'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js', 'assets/js/app-team-harvest.js', 'assets/js/app-general-harvest.js'],
+            'page_js'     => ['assets/js/admin-live.js', 'assets/js/admin-settings.js', 'assets/js/app-team-harvest.js', 'assets/js/app-general-harvest.js', 'assets/js/app-ladder-toolbar.js'],
             'live'        => Live::meta('admin.settings', Live::scope($_GET, (int) (auth_user()['id'] ?? 0))),
         ]);
     }

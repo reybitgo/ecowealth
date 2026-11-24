@@ -272,6 +272,15 @@ $positionRows   = is_array($ghPositions['rows'] ?? null) ? $ghPositions['rows'] 
     </span>
   </div>
 
+  <?= View::capture('partials/ladder_toolbar', [
+      'ladder_kind'      => 'general',
+      'ladder_preset'    => $ghPreset,
+      'ladder_amounts'   => $ghAmounts,
+      'ladder_total'     => money($referenceTotal),
+      'ladder_note'      => 'the values 21A seeded',
+      'ladder_locked'    => $armed,
+  ]) ?>
+
   <div class="row g-4">
 <?php foreach ($rows as $row): ?>
 <?php
@@ -301,6 +310,7 @@ $positionRows   = is_array($ghPositions['rows'] ?? null) ? $ghPositions['rows'] 
                value="<?= $amountValue($level) ?>"
                data-general-harvest-amount="<?= $level ?>"
                data-reference="<?= e((string) ($ghPreset[$level] ?? '')) ?>"
+               data-general-harvest-saved="<?= e(number_format((float) ($row['amount'] ?? 0), 2, '.', '')) ?>"
                <?= $armed ? 'disabled' : '' ?>
                aria-label="Level <?= $level ?> amount" />
         <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
@@ -321,23 +331,7 @@ $positionRows   = is_array($ghPositions['rows'] ?? null) ? $ghPositions['rows'] 
   <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
     <span class="badge bg-label-<?= $overCeiling ? 'danger' : 'success' ?>" data-general-harvest-total data-general-harvest-total-badge><?= e(money($total)) ?></span>
     <span class="small text-body-secondary">full ladder · ceiling <?= e(money(GeneralHarvestLevel::MAX_TOTAL)) ?></span>
-<?php if (!$armed): ?>
-    <span class="ms-auto d-flex flex-wrap gap-2">
-      <button type="button" class="btn btn-sm btn-label-primary" data-general-harvest-preset>
-        <i class="icon-base bx bx-magic-wand me-1"></i> Load reference ladder
-      </button>
-      <button type="button" class="btn btn-sm btn-label-secondary" data-general-harvest-clear>
-        <i class="icon-base bx bx-eraser me-1"></i> Clear
-      </button>
-    </span>
-<?php endif; ?>
   </div>
-  <p class="text-body-secondary small mb-0 mt-2" data-general-harvest-reference>
-    Reference ladder: <?= e(money($referenceTotal)) ?> in total across the ten levels — the values 21A seeded.
-<?php if (!$armed): ?>
-    Loading it fills the inputs; nothing is stored until you save the card.
-<?php endif; ?>
-  </p>
 <?php if (has_error(GeneralHarvestLevel::SUM_KEY)): ?>
   <div class="alert alert-danger py-2 mt-3" role="alert" data-general-harvest-sum-error><?= e(error_for(GeneralHarvestLevel::SUM_KEY)) ?></div>
 <?php endif; ?>

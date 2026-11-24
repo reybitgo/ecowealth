@@ -48,6 +48,11 @@ $rateLabel = static function (float $value): string {
 
     return $text === '' ? '0' : $text;
 };
+
+/* The reference ladder rides on each input's `data-reference`, so the preset
+ * lives only in ProductUnilevel::referencePreset() — never in a script. */
+$preset      = ProductUnilevel::referencePreset();
+$presetTotal = array_sum($preset);
 ?>
                     <div class="card mb-6" data-unilevel-card>
                       <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -114,6 +119,15 @@ $rateLabel = static function (float $value): string {
                           </div>
                         </div>
 
+                        <?= View::capture('partials/ladder_toolbar', [
+                            'ladder_kind'      => 'unilevel',
+                            'ladder_preset'    => $preset,
+                            'ladder_amounts'   => $unilevel,
+                            'ladder_total'     => $rateLabel((float) $presetTotal) . '%',
+                            'ladder_note'      => 'the reference preset ' . implode(' / ', array_map($rateLabel, $preset)),
+                            'ladder_save_word' => 'product',
+                        ]) ?>
+
                         <div class="table-responsive">
                           <table class="table align-middle mb-0">
                             <thead>
@@ -145,6 +159,8 @@ $rateLabel = static function (float $value): string {
                                       value="<?= e($value) ?>"
                                       aria-label="Level <?= $level ?> rate"
                                       data-unilevel-rate="<?= $level ?>"
+                                      data-reference="<?= e($rateLabel((float) ($preset[$level] ?? 0))) ?>"
+                                      data-unilevel-saved="<?= e($value) ?>"
                                     />
                                     <span class="input-group-text">%</span>
                                   </div>
@@ -178,18 +194,6 @@ $rateLabel = static function (float $value): string {
                               </tr>
                             </tfoot>
                           </table>
-                        </div>
-
-                        <div class="d-flex flex-wrap gap-2 mt-4">
-                          <button type="button" class="btn btn-sm btn-label-primary" data-unilevel-preset>
-                            <i class="icon-base bx bx-magic-wand me-1"></i> Load reference ladder
-                          </button>
-                          <button type="button" class="btn btn-sm btn-label-secondary" data-unilevel-clear>
-                            <i class="icon-base bx bx-eraser me-1"></i> Clear
-                          </button>
-                          <span class="small text-body-secondary align-self-center ms-1">
-                            Reference: 5 / 5 / 5 / 3 / 3 / 2 / 2 / 2 / 1 / 1 — 29% in total.
-                          </span>
                         </div>
 
                         <p class="text-body-secondary small mb-0 mt-4">

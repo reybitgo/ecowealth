@@ -24,6 +24,7 @@ declare(strict_types=1);
  * @var int                        $team_count
  * @var int                        $levels_used
  * @var int|null                   $harvest_position  the reader's own Harvest position (Phase 20F)
+ * @var list<array<string, mixed>> $admin_roots       admins only: every member with a node, for the root selector
  * @var array<int, int>            $harvest_positions user_id => position, for the rows' badges
  * @var string                     $referral_code
  * @var string                     $referral_link
@@ -50,8 +51,12 @@ $recruits_pager    = $recruits_pager ?? Paginator::make(count($direct), 1, Pagin
 $view           = $view ?? null;
 $binary_root    = $binary_root ?? null;
 $binary_list    = $binary_list ?? [];
+$admin_roots    = $admin_roots ?? [];
 $binary_depth   = $binary_depth ?? BinaryTreeService::DEFAULT_DEPTH;
 $binary_root_id = $binary_root_id ?? (int) ($member['id'] ?? 0);
+$binary_company_root        = $binary_company_root ?? 0;
+$binary_unavailable         = $binary_unavailable ?? '';
+$binary_unavailable_message = $binary_unavailable_message ?? '';
 
 $live = $live ?? [
     'surface'  => Live::genealogySurface((int) ($member['id'] ?? 0)),
@@ -78,6 +83,7 @@ $live = $live ?? [
                 $rootId     = (int) ($binary_root['root'] ?? $binary_root_id);
                 $viewerId   = (int) ($binary_root['viewer'] ?? $rootId);
                 $isAdmin    = (bool) ($binary_root['is_admin'] ?? false);
+                $notPlaced  = !$isAdmin && $binary_unavailable === 'not_placed';
                 $canReg     = (bool) ($binary_root['can_register'] ?? false);
                 $truncated  = (bool) ($binary_root['truncated'] ?? false);
                 $nodes      = (int) ($binary_root['nodes'] ?? 0);
@@ -94,15 +100,18 @@ $live = $live ?? [
                   <div>
                     <h4 class="mb-1">Binary Tree</h4>
                     <p class="text-body-secondary mb-0">
-                      Your placement tree — left and right legs, points and pairs.
-                      Server-rendered on first paint; works without JavaScript.
+                      <?= $isAdmin ? 'The placement tree' : 'Your placement tree' ?> — left and right legs,
+                      points and pairs. Server-rendered on first paint; works without JavaScript.
                     </p>
+<?php if ($binary_unavailable === ''): ?>
                     <div class="small text-body-secondary mt-2">
                       <strong><?= $nodes ?> node<?= $nodes === 1 ? '' : 's' ?></strong>
                       in tree · depth <?= (int) $binary_depth ?>
                       <?= $truncated ? '· some branches hidden (expand to load more)' : '' ?>
                     </div>
+<?php endif; ?>
                   </div>
+<?php if ($binary_unavailable === ''): ?>
                   <div class="d-flex gap-2">
                     <a
                       href="<?= url('genealogy?view=binary&depth=' . max(1, (int) $binary_depth - 1)) ?>"
@@ -123,21 +132,24 @@ $live = $live ?? [
                       aria-label="Reset view"
                     ><i class="icon-base bx bx-reset"></i></a>
                   </div>
+<?php endif; ?>
                 </div>
+
+<?php if ($binary_unavailable === ''): ?>
 
                 <!-- Controls toolbar (Phase 22G-S3) — plain links/buttons work without JS;
                  the explorer script enhances them. -->
                 <div class="binary-tree-controls card mb-3">
                   <div class="card-body py-3">
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                      <?php if ($is_admin && $admin_roots !== []): ?>
+                      <?php if ($isAdmin): ?>
                       <div class="binary-tree-root-select d-flex align-items-center gap-2">
                         <form method="GET" action="<?= url('genealogy') ?>" class="d-flex align-items-center gap-2 mb-0">
                           <input type="hidden" name="view" value="binary" />
                           <input type="hidden" name="depth" value="<?= (int) $binary_depth ?>" />
                           <label class="form-label mb-0 small text-body-secondary" for="binaryTreeRoot">Root</label>
                           <select class="form-select form-select-sm" id="binaryTreeRoot" name="root" aria-label="Tree root" onchange="this.form.submit()">
-                            <option value="0"<?= $rootId === 0 || $rootId === (int) ($binary_root['root'] ?? 0) ? ' selected' : '' ?>>Company tree</option>
+                            <option value="0"<?= $binary_company_root > 0 && $rootId === $binary_company_root ? ' selected' : '' ?>>Company tree</option>
                             <?php foreach ($admin_roots as $adminRoot): ?>
                             <option value="<?= (int) ($adminRoot['id'] ?? 0) ?>"<?= (int) ($adminRoot['id'] ?? 0) === $rootId ? ' selected' : '' ?>>
                               @<?= e((string) ($adminRoot['username'] ?? '')) ?>
@@ -149,14 +161,14 @@ $live = $live ?? [
                       </div>
                       <?php endif; ?>
                       <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="fit" title="Fit tree to screen" aria-label="Fit tree to screen"><i class="icon-base bx bx-fit-screen"></i> Fit</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="fit" title="Fit tree to screen" aria-label="Fit tree to screen"><i class="icon-base bx bx-fullscreen"></i> Fit</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="zoomin" title="Zoom in" aria-label="Zoom in"><i class="icon-base bx bx-search-alt"></i> Zoom in</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="zoomout" title="Zoom out" aria-label="Zoom out"><i class="icon-base bx bx-minus"></i> Zoom out</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="reset" title="Reset pan and zoom" aria-label="Reset pan and zoom"><i class="icon-base bx bx-reset"></i> Reset</button>
                       </div>
                       <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="expandall" title="Expand all branches" aria-label="Expand all branches"><i class="icon-base bx bx-plus-square"></i> Expand all</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="collapseall" title="Collapse all branches" aria-label="Collapse all branches"><i class="icon-base bx bx-minus-square"></i> Collapse all</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="expandall" title="Expand all branches" aria-label="Expand all branches"><i class="icon-base bx bx-expand-alt"></i> Expand all</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="collapseall" title="Collapse all branches" aria-label="Collapse all branches"><i class="icon-base bx bx-collapse-alt"></i> Collapse all</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="orientation" title="Toggle tree orientation" aria-label="Toggle tree orientation"><i class="icon-base bx bx-rotate-right"></i> Orientation</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="compact" title="Toggle compact mode" aria-label="Toggle compact mode"><i class="icon-base bx bx-layer"></i> Compact</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="backtome" title="Center on your node" aria-label="Center on your node"><i class="icon-base bx bx-user"></i> Back to me</button>
@@ -193,7 +205,9 @@ $live = $live ?? [
                   </div>
                   <div class="card-body p-0 position-relative">
                     <!-- Server-rendered seed: d3 hydrates this when it loads. -->
-                    <script type="application/json" id="binaryTreeSeed"><?= e(json_encode($binary_root)) ?></script>
+                    <!-- A script block is raw text: HTML entities are never decoded, so the
+                         JSON must be escaped for the script context, not with e(). -->
+                    <script type="application/json" id="binaryTreeSeed"><?= json_encode($binary_root, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
 
                     <!-- SVG explorer (d3, Phase 22G-S3). Hidden until d3 loads; the list stays otherwise. -->
                     <div id="binaryTreeSvgWrap" class="binary-tree-svg-wrap" style="display:none" aria-hidden="true"></div>
@@ -242,6 +256,31 @@ $live = $live ?? [
                     </p>
                   </div>
                 </div>
+<?php else: ?>
+                <div class="card">
+                  <div class="card-body text-center py-5">
+                    <i class="icon-base bx bx-git-branch fs-1 text-body-secondary d-block mb-2"></i>
+                    <h5 class="mb-2"><?= $notPlaced ? 'You are not in a binary tree yet' : 'This tree is not available' ?></h5>
+                    <p class="text-body-secondary mb-4 mx-auto" style="max-width: 34rem;">
+<?php if ($notPlaced): ?>
+                      A binary tree shows the members placed under you — left and right legs, points and pairs.
+                      Your node appears here once your sponsor or an administrator places you under a binary
+                      upline; nothing else about your membership changes.
+<?php else: ?>
+                      <?= e($binary_unavailable_message) ?>
+<?php endif; ?>
+                    </p>
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
+                      <a href="<?= url($isAdmin ? 'admin/members' : 'genealogy') ?>" class="btn btn-sm btn-primary">
+                        <i class="icon-base bx bx-<?= $isAdmin ? 'group' : 'git-branch' ?> me-1"></i>
+                        <?= $isAdmin ? 'Open members' : 'Open my sponsor genealogy' ?>
+                      </a>
+                      <a href="<?= url('dashboard') ?>" class="btn btn-sm btn-label-secondary">Back to dashboard</a>
+                    </div>
+                  </div>
+                </div>
+<?php endif; ?>
+
 <?php else: ?>
                 <!-- ============================ Sponsor genealogy (unchanged) ============================ -->
                 <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">

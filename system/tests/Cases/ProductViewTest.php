@@ -315,4 +315,87 @@ return [
         assert_not_contains('direct_unilevel', $html);
         assert_not_contains('indirect_unilevel', $html);
     },
+
+    'P17B-T21 the ladder card carries the reference toolbar and its preset' => function () use ($render, $product): void {
+        test_signed_in_as(test_user('catalog_admin', 'admin'));
+
+        $form = ProductUnilevel::forForm(ProductUnilevel::referencePreset());
+        $html = $render('admin', 'admin/products/form', [
+            'product'  => $product(['unilevel_enabled' => 0, 'unilevel_base' => 'auto']),
+            'current'  => $product(['unilevel_enabled' => 0, 'unilevel_base' => 'auto']),
+            'unilevel' => $form,
+        ]);
+
+        /* One panel, wired by data attributes so the shared script can serve
+         * a rate ladder (thousandths of a percent) as well as a money one. */
+        assert_contains('data-ladder-toolbar', $html);
+        assert_contains('data-ladder-unit="percent"', $html);
+        assert_contains('data-ladder-card="[data-unilevel-card]"', $html);
+        assert_contains('data-ladder-field="[data-unilevel-rate]"', $html);
+        assert_contains('data-ladder-saved="data-unilevel-saved"', $html);
+        assert_contains('data-ladder-save-word="product"', $html);
+
+        /* The panel sits inside the card, above the table it fills. */
+        $cardStart = strpos($html, 'data-unilevel-card');
+        assert_true($cardStart !== false);
+        assert_true(strpos($html, 'data-ladder-toolbar') > $cardStart, 'the panel is inside the ladder card');
+        assert_true(
+            strpos($html, 'data-ladder-toolbar') < strpos($html, 'data-unilevel-rate="1"'),
+            'the panel sits above the ladder inputs'
+        );
+
+        /* The preset's total and its ten values are on the panel — never in
+         * the script. */
+        assert_contains('29% in total across the ten levels', $html);
+        assert_contains('the reference preset 5 / 5 / 5 / 3 / 3 / 2 / 2 / 2 / 1 / 1', $html);
+
+        /* Both actions, their explanation, and a live confirmation region. */
+        assert_contains('data-ladder-preset', $html);
+        assert_contains('data-ladder-clear', $html);
+        assert_contains('data-unilevel-preset', $html);
+        assert_contains('data-unilevel-clear', $html);
+        assert_contains('aria-live="polite"', $html);
+        assert_contains('role="status"', $html);
+        assert_contains('id="unilevel-reference-help"', $html);
+        assert_contains('aria-describedby="unilevel-reference-help"', $html);
+
+        /* A ladder that already holds the preset says so before any click —
+         * and the badge is server-rendered, so it is right with JS off. */
+        assert_contains('data-ladder-state', $html);
+        assert_contains('Matches reference', $html);
+        assert_not_contains('Unsaved changes', $html);
+
+        /* Every input carries both values the badge compares: the preset it
+         * would load, and the rate the form currently holds. */
+        foreach (ProductUnilevel::referencePreset() as $level => $rate) {
+            $pattern = '/<input\\b[^>]*data-unilevel-rate="' . $level . '"[^>]*>/';
+
+            assert_same(1, preg_match($pattern, $html, $input), 'level ' . $level . ' rate input exists');
+            assert_contains('data-reference="' . $rate . '"', $input[0], 'level ' . $level . ' rides the preset');
+            assert_contains('data-unilevel-saved="' . $form[$level] . '"', $input[0], 'level ' . $level . ' rides the stored rate');
+        }
+    },
+
+    'P17B-T22 the badge tells the preset, a custom ladder and an empty one apart' => function () use ($render, $product): void {
+        test_signed_in_as(test_user('catalog_admin', 'admin'));
+
+        $custom = $render('admin', 'admin/products/form', [
+            'product'  => $product(),
+            'current'  => $product(),
+            'unilevel' => array_fill(1, 10, '1'),
+        ]);
+
+        assert_contains('Custom ladder', $custom);
+        assert_not_contains('Matches reference', $custom);
+        assert_not_contains('Empty ladder', $custom);
+
+        $empty = $render('admin', 'admin/products/form', [
+            'product' => $product(),
+            'current' => $product(),
+        ]);
+
+        assert_contains('Empty ladder', $empty);
+        assert_not_contains('Custom ladder', $empty);
+        assert_not_contains('Matches reference', $empty);
+    },
 ];

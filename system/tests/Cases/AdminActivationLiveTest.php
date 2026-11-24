@@ -81,15 +81,24 @@ return [
         $queueBefore  = Live::revision('admin.activations');
         $listBefore   = Live::revision('admin.members');
         $memberBefore = Live::revision(Live::memberSurface((int) $member['id']));
+        $ledgerBefore = (int) db()->query('SELECT COALESCE(MAX(id), 0) FROM ewallet_ledger')->fetchColumn();
 
         (new ActivationService())->approve((int) $request['activation_id'], $admin);
 
         assert_same($queueBefore + 1, Live::revision('admin.activations'));
         assert_same($memberBefore + 1, Live::revision(Live::memberSurface((int) $member['id'])));
 
-        /* The directory moved twice: the activated member's row and the
-         * sponsor's wallet balance (the commission credit). */
-        assert_same($listBefore + 2, Live::revision('admin.members'));
+        /* The directory moves once for the activated member's row and once per
+         * wallet credited. The package matrix pays the sponsor and its uplines
+         * (P11 pays levels 1–10), so the number of credits follows the chain —
+         * this used to hard-code two, which only held for a sponsor with no
+         * eligible uplines. */
+        $credited = (int) db()->query(
+            'SELECT COUNT(DISTINCT user_id) FROM ewallet_ledger WHERE id > ' . $ledgerBefore
+        )->fetchColumn();
+
+        assert_true($credited > 0, 'the approval credited at least one wallet');
+        assert_same($listBefore + 1 + $credited, Live::revision('admin.members'));
     },
 
     'a rejection bumps the queue and the member page' => function () use ($pendingMember, $proofFile, $manualRequest): void {

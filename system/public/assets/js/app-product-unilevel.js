@@ -8,9 +8,9 @@
  * form still saves and every rule is still enforced by Product and
  * ProductUnilevel on the server.
  *
- * Two buttons help the operator fill the ladder:
- *   • Load reference ladder — 5/5/5/3/3/2/2/2/1/1 (29%), the plan's preset.
- *   • Clear — every level back to blank (which saves as 0.000).
+ * The reference-ladder buttons, their state badge and their confirmation live
+ * in `app-ladder-toolbar.js`, which reads the preset from each input's
+ * `data-reference` — this file carries no copy of it.
  *
  * The unit base follows the *Bonus base* select: P.V. when it is above
  * zero for Auto, the price when it is not. It has to match
@@ -19,7 +19,6 @@
 (function () {
   'use strict';
 
-  var PRESET = [5, 5, 5, 3, 3, 2, 2, 2, 1, 1];
   var MAX_SUM = 100;
 
   function number(input) {
@@ -89,10 +88,6 @@
     }
   }
 
-  function rates(card) {
-    return Array.prototype.slice.call(card.querySelectorAll('[data-unilevel-rate]'));
-  }
-
   document.addEventListener('DOMContentLoaded', function () {
     var card = document.querySelector('[data-unilevel-card]');
 
@@ -121,28 +116,6 @@
         });
       }
     });
-
-    var presetButton = card.querySelector('[data-unilevel-preset]');
-
-    if (presetButton) {
-      presetButton.addEventListener('click', function () {
-        rates(card).forEach(function (input, index) {
-          input.value = PRESET[index] === undefined ? '' : String(PRESET[index]);
-        });
-        render(card);
-      });
-    }
-
-    var clearButton = card.querySelector('[data-unilevel-clear]');
-
-    if (clearButton) {
-      clearButton.addEventListener('click', function () {
-        rates(card).forEach(function (input) {
-          input.value = '';
-        });
-        render(card);
-      });
-    }
 
     render(card);
   });
