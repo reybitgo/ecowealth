@@ -150,6 +150,8 @@ return [
         assert_contains('name="quantity"', $html);
         assert_contains('class="input-group product-qty-group"', $html);
         assert_not_contains('Online checkout opens soon', $html);
+        assert_not_contains('Phase 6', $html);
+        assert_contains('continue to checkout', $html);
         assert_contains(url('shop'), $html);
 
         /* "Back to shop" lives in the breadcrumb row, above the card, exactly once. */

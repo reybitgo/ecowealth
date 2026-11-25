@@ -100,7 +100,7 @@ $sku     = trim((string) ($product['sku'] ?? ''));
 <?php elseif ($soldOut): ?>
                         This product is out of stock. Check back soon.
 <?php else: ?>
-                        Added items stay in your cart — checkout opens in Phase 6.
+                        Added items stay in your cart — <a href="<?= e(url('cart')) ?>">continue to checkout</a> when you are ready.
 <?php endif; ?>
                       </p>
 
