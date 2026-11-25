@@ -539,6 +539,12 @@ return [
         assert_contains('Room today', $html);
         assert_contains('20', $html);
 
+        /* UX-05: the tree link is a live link, not a cosmetic disabled state. */
+        assert_contains('Open in tree', $html);
+        assert_contains('view=binary&amp;root=' . (int) $member['id'], $html);
+        assert_not_contains('Phase 22G', $html);
+        assert_not_contains('aria-disabled="true"', $html);
+
         test_signed_in_as(null);
     },
 

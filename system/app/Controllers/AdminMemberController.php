@@ -586,7 +586,6 @@ final class AdminMemberController
                         'blocked'       => [],
                         'pairs_today'   => 0,
                         'daily_cap'     => setting_int('binary_daily_pair_cap', 20),
-                        'tree_link_disabled' => true,
                     ],
                 ]),
             ],
@@ -766,7 +765,6 @@ final class AdminMemberController
      *   blocked:list<array<string,mixed>>,
      *   pairs_today:int,
      *   daily_cap:int,
-     *   tree_link_disabled:bool
      * }
      */
     private function binaryMemberPanel(int $userId): array
@@ -804,7 +802,6 @@ final class AdminMemberController
             'blocked'          => $blocked,
             'pairs_today'      => $pairsToday,
             'daily_cap'        => $dailyCap,
-            'tree_link_disabled' => true,
         ];
     }
 

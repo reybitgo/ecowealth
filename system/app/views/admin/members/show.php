@@ -176,7 +176,6 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
         'blocked'       => [],
         'pairs_today'   => 0,
         'daily_cap'     => setting_int('binary_daily_pair_cap', 20),
-        'tree_link_disabled' => true,
     ],
 ]) ?>
 

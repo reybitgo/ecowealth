@@ -12,8 +12,8 @@ declare(strict_types=1);
  * is derived from a cache that the audit cannot explain.
  *
  * The member's own node is shown (upline, side) because that is the
- * admin's job; the tree itself is not rendered — 22G owns the explorer,
- * and the *Open in tree* link stays disabled until it ships.
+ * admin's job; the tree itself is not rendered here — the *Open in tree*
+ * link opens the binary explorer rooted at this member.
  *
  * @var array{
  *   node:array<string,mixed>|null,
@@ -24,7 +24,6 @@ declare(strict_types=1);
  *   blocked:list<array<string,mixed>>,
  *   pairs_today:int,
  *   daily_cap:int,
- *   tree_link_disabled:bool
  * } $binary
  * @var array<string,mixed> $member
  * @var int                 $member_id
@@ -62,7 +61,6 @@ $volume    = $binary['volume'];
 $blocked   = $binary['blocked'];
 $pairsToday= (int) ($binary['pairs_today'] ?? 0);
 $dailyCap  = (int) ($binary['daily_cap'] ?? 0);
-$treeLink  = (bool) ($binary['tree_link_disabled'] ?? true);
 
 $uplineId   = (int) ($node['upline_id'] ?? 0);
 $side       = (string) ($node['side'] ?? '');
@@ -451,21 +449,16 @@ $qualifiedLabel  = $qualified
                       <div class="mt-3">
                         <a
                           href="<?= e(url('genealogy?view=binary&root=' . (int) $member['id'])) ?>"
-                          class="btn btn-sm btn-label-outline-secondary disabled"
-                          data-confirm
-                          data-confirm-title="Open the binary tree?"
-                          data-confirm-text="The binary genealogy explorer ships in Phase 22G. Until then this link is disabled."
-                          data-confirm-button="Open"
-                          aria-disabled="true"
+                          class="btn btn-sm btn-label-primary"
                         >
                           Open in tree
                         </a>
                         <span class="text-body-secondary small ms-2">
-                          Tree navigation arrives in Phase 22G.
+                          Opens the binary tree rooted at this member.
                         </span>
                       </div>
 
                     </div>
                   </div>
 
-<?php unset($node, $totals, $awards, $volume, $blocked, $uplineId, $side, $depth, $path, $state, $placedAt, $placedById, $moves, $leftPts, $rightPts, $personal, $pairsPaid, $matched, $uplName, $uplRow, $placedByName, $pbRow, $pairsToday, $dailyCap, $treeLink); ?>
+<?php unset($node, $totals, $awards, $volume, $blocked, $uplineId, $side, $depth, $path, $state, $placedAt, $placedById, $moves, $leftPts, $rightPts, $personal, $pairsPaid, $matched, $uplName, $uplRow, $placedByName, $pbRow, $pairsToday, $dailyCap); ?>
