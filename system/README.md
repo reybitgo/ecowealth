@@ -1056,10 +1056,10 @@ and the referral-link signup; it is editable on the **Commissions** card.
   inside the same unit and converts the cart. Any failure rolls the whole attempt back — no order, no
   reservation, no debit, cart intact.
 - **The checkout page** pre-selects the e-wallet only when its balance covers the total and always shows that
-  balance inside the e-wallet option. The terms are ticked by default; unticking them disables **Place order**
-  (`app-checkout.js`), and the server still validates the checkbox.
+  balance inside the e-wallet option. The terms start unticked, so **Place order** starts disabled; ticking
+  them enables it (`app-checkout.js`), and the server still validates the checkbox.
 - **Typed details survive the detour.** `app-checkout.js` mirrors the delivery fields, the payment choice and the
-  two checkboxes into `sessionStorage` (per member, per tab) while the member edits them, and fills them back in
+  save-address checkbox into `sessionStorage` (per member, per tab) while the member edits them, and fills them back in
   when the checkout is opened again. Pressing **Back to cart** and returning no longer means retyping; a notice
   confirms the restore and offers **Start over**. The draft is dropped on submit and when a saved address is
   picked, and the server-rendered posted values always win over it.

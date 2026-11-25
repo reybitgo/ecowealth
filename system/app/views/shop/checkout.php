@@ -38,9 +38,9 @@ $value = static function (string $key, string $default = '') use ($posted, $pref
     return e((string) ($prefill[$key] ?? $default));
 };
 
-/* Terms are accepted by default; a failed submit keeps the unticked state
- * so the member sees exactly what they need to fix. */
-$termsChecked = array_key_exists('terms', $posted) ? (string) $posted['terms'] === '1' : true;
+/* Terms start unticked so consent is an affirmative act; a failed submit
+ * keeps the posted state so the member sees exactly what they need to fix. */
+$termsChecked = array_key_exists('terms', $posted) && (string) $posted['terms'] === '1';
 $saveAddressDefault = array_key_exists('save_address', $posted)
     ? (bool) $posted['save_address']
     : $addresses === [];

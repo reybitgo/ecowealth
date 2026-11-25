@@ -166,7 +166,7 @@ return [
         assert_contains('data-wallet-balance', $html, 'the e-wallet option shows the balance');
         assert_contains(money(1000), $html);
         assert_contains('app-checkout.js', $html);
-        assert_contains('checked', $tag($html, 'terms'), 'the terms start ticked');
+        assert_not_contains('checked', $tag($html, 'terms'), 'the terms start unticked: consent is an affirmative act');
 
         /* The form is the anchor of the draft behaviour: a page hook so
          * app-checkout.js can scope its key, a hidden notice it reveals
@@ -180,9 +180,10 @@ return [
 
         $placeOrder = $tag($html, 'placeOrder', 'button');
         assert_true($placeOrder !== '', 'the Place order button must render');
-        assert_not_contains('disabled', $placeOrder, 'the button starts enabled');
+        assert_contains('disabled', $placeOrder, 'the button starts disabled until the terms are ticked');
 
         assert_contains('data-terms-hint', $html);
+        assert_contains('Tick the terms above to place your order.', $html, 'the hint explains why the button is inert');
         assert_contains('Place order', $html);
         assert_contains('action="' . url('checkout') . '"', $html);
     },
@@ -326,6 +327,7 @@ return [
          * selected. */
         assert_contains("type !== 'hidden'", $js);
         assert_contains('!field.disabled', $js);
+        assert_contains("field.name !== 'terms'", $js, 'the terms tick is never drafted');
 
         /* Typing saves on a short debounce and flushes before the page
          * goes away; a submit drops the draft, Start over resets it. */

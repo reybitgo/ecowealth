@@ -78,8 +78,9 @@ address book, missing-terms and cancellation paths.
 - **Delivery details** prefilled from the member's default address (or from the profile name on a first order).
 - **Payment method**: **E-wallet** shows **Balance ₱…** and is selected when the balance covers the total;
   GCash, Maya and Bank transfer are available too.
-- **Terms** checkbox is **ticked by default** and **Place order** is enabled. Unticking the terms greys the
-  button out, shows **“Tick the terms above to place your order.”**, and ticking it again re-enables it.
+- **Terms** checkbox starts **unticked**, so **Place order** starts greyed out and the hint
+  **“Tick the terms above to place your order.”** is shown. Ticking the terms enables the button; unticking
+  it greys the button out again.
 - The page source (DevTools → Elements) contains **`name="idempotency_key"`** with a 32-character value.
 
 ### QA6-02 — The profile saves addresses and payout accounts
@@ -126,7 +127,7 @@ address book, missing-terms and cancellation paths.
 
 **Steps**
 
-1. On checkout, clear **Recipient name** and **Street address** (leave the **Terms** ticked).
+1. On checkout, clear **Recipient name** and **Street address** (tick the **Terms** first).
 2. Click **Place order**.
 3. Look at the form that comes back.
 4. Untick **Terms**, then tick it again.

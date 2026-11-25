@@ -865,7 +865,7 @@ Recorded as a **Minor** presentation note per Appendix B.2; the check is **Pass*
    **Street address** `123 QA Street`, **Billing name** `QA Tester`.
 8. Confirm **E-wallet** is selected under **Payment method** and shows a balance of at least
    **₱300.00**.
-9. Leave the terms checkbox ticked.
+9. Tick the terms checkbox.
 10. Click **Place order**.
 
 **You should see**

@@ -127,7 +127,8 @@
 
   /* The idempotency key and the CSRF token are hidden and must never be
    * restored from a draft: the server owns both. Disabled controls (an
-   * unaffordable e-wallet) are skipped for the same reason. */
+   * unaffordable e-wallet) are skipped for the same reason, and the terms
+   * tick is never drafted: consent is given on every checkout. */
   function isTracked(field) {
     var type = typeOf(field);
 
@@ -136,7 +137,8 @@
       && type !== 'button'
       && type !== 'reset'
       && type !== 'file'
-      && !field.disabled;
+      && !field.disabled
+      && field.name !== 'terms';
   }
 
   function collect() {
