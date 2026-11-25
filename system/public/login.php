@@ -122,23 +122,21 @@ require __DIR__ . '/../app/layout/auth_header.php';
                   </div>
                 </div>
                 <div class="mb-7">
-                  <div class="d-flex justify-content-between">
-                    <div class="form-check mb-0">
-                      <input
-                        class="form-check-input"
-                        type="checkbox"
-                        id="remember-me"
-                        name="remember-me"
-                        value="1"
-                      />
-                      <label class="form-check-label" for="remember-me">
-                        Remember Me
-                      </label>
-                    </div>
-                    <a href="javascript:;" onclick="alert('Password reset is not part of this basic demo.');">
-                      <span>Forgot Password?</span>
-                    </a>
+                  <div class="form-check mb-0">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="remember-me"
+                      name="remember-me"
+                      value="1"
+                    />
+                    <label class="form-check-label" for="remember-me">
+                      Remember Me
+                    </label>
                   </div>
+                  <p class="small text-body-secondary mt-3 mb-0">
+                    Forgot your password? Contact your administrator to have it reset.
+                  </p>
                 </div>
                 <div class="mb-6">
                   <button class="btn btn-primary d-grid w-100" type="submit" <?= $attemptsLeft <= 0 ? 'disabled' : '' ?>>
