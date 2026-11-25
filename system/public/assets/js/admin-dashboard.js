@@ -66,16 +66,41 @@
     catalogue = catalogue || {};
 
     var barEl = document.querySelector('#catalogueValueChart');
-    var hasCatalogue = Array.isArray(catalogue.labels) && catalogue.labels.length > 0;
+    var hasCatalogue = Array.isArray(catalogue.labels) && catalogue.labels.length > 0
+      && (catalogue.values || []).reduce(function (sum, value) { return sum + Number(value || 0); }, 0) > 0;
 
     if (!barEl || !window.ApexCharts || !hasCatalogue) {
       return;
     }
 
+    /* Size the canvas to the rows instead of a fixed 390px: a short list then
+     * sits centred instead of floating in empty space, and a longer one gets
+     * room for readable labels. Eight rows plus the total row is the cap the
+     * server sends. */
+    var rows    = catalogue.labels.length;
+    var height  = Math.max(220, Math.min(420, rows * 44 + 32));
+    var compact = window.matchMedia('(max-width: 575.98px)').matches;
+
+    /* Long product names would push the plot off a phone screen, so the axis
+     * shortens them and the tooltip keeps the full name. The folded row reads
+     * "Other +131" instead of "Other 131 products". */
+    var axisLabel = function (value) {
+      var text  = String(value);
+      var other = text.match(/^Other (\d+) products?$/);
+
+      if (other) {
+        return compact ? 'Other +' + other[1] : text;
+      }
+
+      var max = compact ? 14 : 28;
+
+      return text.length > max ? text.slice(0, max - 1) + '…' : text;
+    };
+
     catalogueChart = new window.ApexCharts(barEl, {
       chart: {
         type: 'bar',
-        height: 390,
+        height: height,
         parentHeightOffset: 0,
         toolbar: { show: false },
         animations: { speed: 350 }
@@ -85,19 +110,30 @@
       plotOptions: {
         bar: {
           horizontal: true,
-          barHeight: '58%',
+          barHeight: '56%',
           borderRadius: 5,
-          borderRadiusApplication: 'end'
+          borderRadiusApplication: 'end',
+          /* Value sits just past the end of each bar, never inside it. */
+          dataLabels: { position: 'right' }
         }
       },
-      dataLabels: { enabled: false },
+      dataLabels: {
+        /* A phone has room for bars or for values, not both; tap shows the
+         * value through the tooltip. */
+        enabled: !compact,
+        textAnchor: 'start',
+        offsetX: 8,
+        formatter: phpCompact,
+        style: { fontSize: '11px', fontWeight: 600, colors: [muted] }
+      },
       stroke: { width: 0 },
       grid: {
         borderColor: border,
         strokeDashArray: 4,
         xaxis: { lines: { show: true } },
         yaxis: { lines: { show: false } },
-        padding: { left: 8, right: 12, top: -8, bottom: 0 }
+        /* Room on the right for the value labels. */
+        padding: { left: 8, right: compact ? 12 : 52, top: -8, bottom: 0 }
       },
       xaxis: {
         categories: catalogue.labels,
@@ -111,7 +147,8 @@
       },
       yaxis: {
         labels: {
-          maxWidth: 160,
+          maxWidth: compact ? 110 : 220,
+          formatter: axisLabel,
           style: { colors: muted, fontSize: '12px' }
         }
       },

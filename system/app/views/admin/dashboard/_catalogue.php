@@ -17,6 +17,7 @@ $chart = array_merge(['labels' => [], 'values' => [], 'stock' => []], $chart ?? 
 
 $topProduct = (string) ($chart['labels'][0] ?? '');
 $topValue   = (float) ($chart['values'][0] ?? 0);
+$hasStock   = $chart['labels'] !== [] && array_sum(array_map('floatval', $chart['values'])) > 0;
 ?>
                 <div class="col-xl-8" data-live-region="dashboard-catalogue">
                   <div class="card h-100">
@@ -30,7 +31,18 @@ $topValue   = (float) ($chart['values'][0] ?? 0);
                       </span>
                     </div>
                     <div class="card-body pt-2">
+<?php if (!$hasStock): ?>
+                      <div class="dashboard-chart d-flex align-items-center justify-content-center text-center">
+                        <div>
+                          <i class="icon-base bx bx-cube text-body-secondary" style="font-size: 2rem" aria-hidden="true"></i>
+                          <p class="text-body-secondary small mb-0 mt-2">
+                            No stock on hand yet. Catalogue value appears once products carry units.
+                          </p>
+                        </div>
+                      </div>
+<?php else: ?>
                       <div id="catalogueValueChart" class="dashboard-chart"></div>
+<?php endif; ?>
 
                       <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 border-top pt-4 mt-2">
                         <div class="d-flex align-items-center gap-3">

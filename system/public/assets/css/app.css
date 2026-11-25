@@ -268,8 +268,10 @@ table tr.is-live-updated > td {
 }
 
 /* ---------- Dashboard: chart shells ---------- */
+/* The catalogue chart sizes itself to its rows (admin-dashboard.js), so the
+   shell only needs a floor for the shortest lists. */
 .dashboard-chart {
-  min-height: 315px;
+  min-height: 220px;
 }
 
 .dashboard-chart-sm {
@@ -278,7 +280,7 @@ table tr.is-live-updated > td {
 
 @media (max-width: 575.98px) {
   .dashboard-chart {
-    min-height: 260px;
+    min-height: 200px;
   }
 }
 

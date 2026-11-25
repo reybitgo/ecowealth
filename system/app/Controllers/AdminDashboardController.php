@@ -200,6 +200,22 @@ final class AdminDashboardController
             $chart['stock'][]  = $row['stock'];
         }
 
+        /* A bar per product stops being readable past a handful of rows: the
+         * labels collide and the bars collapse to hairlines. The chart keeps
+         * the eight most valuable lines and folds the rest into one row, so
+         * the bars still add up to the catalogue value in the card header.
+         * The card footer reads the single top product from the full list. */
+        $chartTop  = array_slice($chartRows, 0, 8);
+        $chartRest = array_slice($chartRows, 8);
+
+        if ($chartRest !== []) {
+            $chartTop[] = [
+                'label' => 'Other ' . count($chartRest) . (count($chartRest) === 1 ? ' product' : ' products'),
+                'value' => array_sum(array_column($chartRest, 'value')),
+                'stock' => array_sum(array_column($chartRest, 'stock')),
+            ];
+        }
+
         /* Items that deserve a second look: zero or low stock, lowest first. */
         $attention = array_values(array_filter(
             $products,
@@ -222,8 +238,8 @@ final class AdminDashboardController
 
         $chartData = [
             'catalogue' => [
-                'labels' => array_values($chart['labels']),
-                'values' => array_values(array_map('floatval', $chart['values'])),
+                'labels' => array_map(static fn (array $row): string => (string) $row['label'], $chartTop),
+                'values' => array_map(static fn (array $row): float => round((float) $row['value'], 2), $chartTop),
             ],
             'stock' => [
                 'labels' => ['Healthy', 'Low stock', 'Out of stock'],
