@@ -160,7 +160,9 @@ final class GenealogyController
                 [
                     'page_title'  => 'Binary Tree',
                     'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
-                    'page_css'    => ['assets/css/membership.css', 'assets/css/binary-tree.css'],
+                    /* commissions.css carries the view-tab pills shared with the
+                     * earnings/commissions view switchers (UX-07). */
+                    'page_css'    => ['assets/css/membership.css', 'assets/css/binary-tree.css', 'assets/css/commissions.css'],
                     'page_js'     => ['assets/vendor/libs/d3/d3.v7.min.js', 'assets/js/app-binary-tree.js', 'assets/js/app-binary-register.js'],
                     'view'        => 'binary',
                     'binary_root' => $payload,
@@ -204,7 +206,7 @@ final class GenealogyController
         View::page($isAdmin ? 'admin' : 'member', 'member/genealogy', $this->genealogyContext($member) + [
             'page_title'  => 'Genealogy',
             'current_nav' => $isAdmin ? 'admin.genealogy' : 'genealogy',
-            'page_css'    => ['assets/css/membership.css'],
+            'page_css'    => ['assets/css/membership.css', 'assets/css/commissions.css'],
             'page_js'     => ['assets/js/app-table-scroll.js'],
             'live'        => Live::meta(
                 Live::genealogySurface($userId),

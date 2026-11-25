@@ -572,6 +572,91 @@ return [
         assert_not_contains('binary-tree-node', $html);
     },
 
+    /* ---------- UX-07: discoverable view switcher ---------- */
+
+    'UX-07 sponsor genealogy shows the view switcher and links to the binary tree' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $sponsors = new SponsorService();
+        $team     = $sponsors->downline((int) $juan['id']);
+
+        $byLevel = [];
+        foreach ($team as $row) {
+            $byLevel[(int) $row['level']][] = $row;
+        }
+
+        $teamLevels = $byLevel;
+        $direct     = $byLevel[1] ?? [];
+        unset($byLevel[1]);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'    => 'Genealogy',
+            'current_nav'   => 'genealogy',
+            'member'        => $juan,
+            'team_levels'   => $teamLevels,
+            'direct'        => $direct,
+            'recruits_pager' => Paginator::make(count($direct), 1, Paginator::DEFAULT_PER_PAGE),
+            'deeper'        => $byLevel,
+            'team_count'    => count($team),
+            'levels_used'   => $byLevel === [] ? 0 : max(array_keys($byLevel)),
+            'referral_code' => (string) ($juan['referral_code'] ?? ''),
+            'referral_link' => absolute_url('register?ref=' . (string) ($juan['referral_code'] ?? '')),
+            'live'          => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        preg_match('/<ul class="nav nav-pills[^"]*commission-tabs"[\s\S]*?<\/ul>/', $html, $match);
+        $tabs = $match[0] ?? '';
+
+        assert_contains('commission-tabs', $tabs, 'the genealogy view switcher renders');
+        assert_contains('Sponsor tree', $tabs);
+        assert_contains('Binary tree', $tabs);
+        assert_contains('href="' . e(url('genealogy?view=binary')) . '"', $tabs, 'the binary view is linked');
+        assert_same(1, preg_match('/class="nav-link active"[^>]*>[\s\S]*?Sponsor tree/', $tabs), 'the sponsor view is current');
+        assert_same(1, substr_count($tabs, 'aria-current="page"'), 'exactly one view is current');
+
+        $heading = strpos($html, '<h4 class="mb-1">Genealogy</h4>');
+        assert_true($heading !== false && strpos($html, 'commission-tabs') > $heading, 'the switcher follows the page heading');
+    },
+
+    'UX-07 binary genealogy shows the view switcher and links back to the sponsor tree' => function () use ($demoUser, $renderView): void {
+        $juan = $demoUser('juan');
+        assert_not_null($juan);
+
+        test_signed_in_as($juan);
+
+        $juanId  = (int) $juan['id'];
+        $service = new BinaryTreeService();
+        $payload = $service->subtree($juanId, 3, $juanId, false);
+
+        $html = $renderView('member', 'member/genealogy', [
+            'page_title'  => 'Binary Tree',
+            'current_nav' => 'genealogy',
+            'member'      => $juan,
+            'view'        => 'binary',
+            'binary_root' => $payload,
+            'binary_list' => $service->listRows($juanId, 3, $juanId),
+            'binary_depth'=> 3,
+            'binary_root_id' => $juanId,
+            'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
+        ]);
+
+        preg_match('/<ul class="nav nav-pills[^"]*commission-tabs"[\s\S]*?<\/ul>/', $html, $match);
+        $tabs = $match[0] ?? '';
+
+        assert_contains('commission-tabs', $tabs, 'the genealogy view switcher renders');
+        assert_contains('Sponsor tree', $tabs);
+        assert_contains('Binary tree', $tabs);
+        assert_contains('href="' . e(url('genealogy')) . '"', $tabs, 'the sponsor view is linked');
+        assert_same(1, preg_match('/class="nav-link active"[^>]*>[\s\S]*?Binary tree/', $tabs), 'the binary view is current');
+        assert_same(1, substr_count($tabs, 'aria-current="page"'), 'exactly one view is current');
+
+        $heading = strpos($html, '<h4 class="mb-1">Binary Tree</h4>');
+        assert_true($heading !== false && strpos($html, 'commission-tabs') > $heading, 'the switcher follows the page heading');
+    },
+
     'P22G-T32 routes: no new route in this phase, guard is member' => function (): void {
         $router = new Router(require dirname(__DIR__, 2) . '/app/routes.php');
 

@@ -135,6 +135,10 @@ $live = $live ?? [
 <?php endif; ?>
                 </div>
 
+                <!-- View switcher (UX-07): the sponsor tree is the default, the binary
+                     placement tree lives at ?view=binary. Both views render it. -->
+<?= View::capture('member/genealogy/_view_tabs', ['is_binary' => true]) ?>
+
 <?php if ($binary_unavailable === ''): ?>
 
                 <!-- Controls toolbar (Phase 22G-S3) — plain links/buttons work without JS;
@@ -298,6 +302,10 @@ $live = $live ?? [
     'harvest_position' => $harvest_position ?? null,
 ]) ?>
                 </div>
+
+                <!-- View switcher (UX-07): the sponsor tree is the default, the binary
+                     placement tree lives at ?view=binary. Both views render it. -->
+<?= View::capture('member/genealogy/_view_tabs', ['is_binary' => false]) ?>
 
                 <div class="row g-4">
                   <!-- Team chain -->
