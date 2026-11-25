@@ -2,23 +2,32 @@
 declare(strict_types=1);
 
 /**
- * Change password — the member's own account (Phase 1).
- * Reference: admin_change_password.
+ * Change password — shared by the member portal and the back office.
+ * The controller picks the layout, so an administrator keeps their
+ * sidebar and navigation context here.
+ *
+ * @var array<string, mixed>|null $user
  */
 
-$me = auth_user();
+$me = $user ?? auth_user();
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
+              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
+                <div>
+                  <h4 class="mb-1">Change password</h4>
+                  <p class="text-body-secondary mb-0">
+                    Signed in as <strong><?= e($me['username'] ?? '') ?></strong>.
+                    Changing your password signs out other remembered devices.
+                  </p>
+                </div>
+                <a href="<?= e(url('profile')) ?>" class="btn btn-label-secondary">
+                  <i class="icon-base bx bx-arrow-back me-1"></i> Back to profile
+                </a>
+              </div>
+
               <div class="row justify-content-center">
                 <div class="col-md-8 col-xl-6">
                   <div class="card">
-                    <div class="card-header">
-                      <h5 class="mb-1">Change password</h5>
-                      <p class="text-body-secondary mb-0 small">
-                        Signed in as <strong><?= e($me['username'] ?? '') ?></strong>.
-                        Changing your password signs out other remembered devices.
-                      </p>
-                    </div>
                     <div class="card-body">
                       <form method="POST" action="<?= e(url('profile/password')) ?>" novalidate>
                         <?= csrf_field() ?>
@@ -73,7 +82,7 @@ $me = auth_user();
 
                         <div class="d-flex gap-2">
                           <button type="submit" class="btn btn-primary">Update password</button>
-                          <a href="<?= e(url('dashboard')) ?>" class="btn btn-label-secondary">Cancel</a>
+                          <a href="<?= e(url('profile')) ?>" class="btn btn-label-secondary">Cancel</a>
                         </div>
                       </form>
                     </div>

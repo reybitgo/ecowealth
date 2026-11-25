@@ -243,6 +243,27 @@ return [
         assert_contains('menu-item active', $html);
     },
 
+    'UX-08 an admin changing their password stays in the back-office layout' => function (): void {
+        test_signed_in_as(test_user('layout_admin_password', 'admin'));
+
+        ob_start();
+
+        try {
+            (new ProfileController())->password();
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        assert_contains('id="layout-menu"', $html);
+        assert_contains('E-wallet monitor', $html, 'the back-office sidebar is in use');
+        assert_contains('My profile', $html);
+        assert_contains('menu-item active', $html);
+        assert_not_contains('My orders', $html, 'admin pages never show member-only menu items');
+        assert_contains('<h4 class="mb-1">Change password</h4>', $html, 'the page has a normal page header');
+        assert_contains('Back to profile', $html);
+        assert_contains('href="' . url('profile') . '" class="btn btn-label-secondary">Cancel</a>', $html);
+    },
+
     'View::page renders the password form with CSRF protection' => function () use ($render): void {
         test_signed_in_as(test_user('layout_member'));
 

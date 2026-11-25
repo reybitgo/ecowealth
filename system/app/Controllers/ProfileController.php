@@ -349,9 +349,12 @@ final class ProfileController
     /** @param array<string, string> $params */
     public function password(array $params = []): void
     {
-        View::page('member', 'profile/password', [
+        $user    = $this->member();
+        $isAdmin = is_admin($user);
+
+        View::page($isAdmin ? 'admin' : 'member', 'profile/password', [
             'page_title'  => 'Change password',
-            'current_nav' => 'password',
+            'current_nav' => $isAdmin ? 'admin.password' : 'password',
         ]);
     }
 
