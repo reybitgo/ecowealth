@@ -154,7 +154,6 @@ $action = url('admin/settings');
                         <h5 class="mb-1">General</h5>
                         <p class="text-body-secondary small mb-0">Identity and availability</p>
                       </div>
-                      <span class="badge bg-label-secondary">Phase 15</span>
                     </div>
 <?= View::capture('admin/settings/_general', [
     'settings'         => $settings,
@@ -291,7 +290,6 @@ $action = url('admin/settings');
                         <h5 class="mb-1">Commissions</h5>
                         <p class="text-body-secondary small mb-0">Direct, unilevel, repeat-purchase, Royalty, Team Harvest, General Harvest and registration rules</p>
                       </div>
-                      <span class="badge bg-label-secondary">Phase 15 · 19B · 20B · 21B</span>
                     </div>
 <?= View::capture('admin/settings/_commissions', [
     'settings'           => $settings,
@@ -342,7 +340,6 @@ $action = url('admin/settings');
                         <h5 class="mb-1">Transfers</h5>
                         <p class="text-body-secondary small mb-0">Member-to-member fee and limits</p>
                       </div>
-                      <span class="badge bg-label-secondary">Phase 15</span>
                     </div>
 <?= View::capture('admin/settings/_transfers', [
     'settings'        => $settings,

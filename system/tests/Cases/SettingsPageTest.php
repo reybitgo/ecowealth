@@ -101,6 +101,22 @@ return [
         assert_contains('aria-label="Save transfer settings"', $html);
     },
 
+    'UX-06 the settings cards never show build-phase numbers' => function () use ($render): void {
+        test_signed_in_as(test_user('st_admin', 'admin'));
+
+        $html = $render();
+
+        /* Scan the text an administrator actually reads: comments and
+           script/style bodies are developer-facing and out of scope. */
+        $markup = preg_replace('/<!--.*?-->/s', '', $html);
+        $markup = preg_replace('/<(script|style)\b[^>]*>.*?<\/\1>/is', '', $markup);
+        $visible = strip_tags((string) $markup);
+
+        preg_match_all('/\bPhase\s*\d[0-9A-Za-z]*/i', $visible, $matches);
+
+        assert_same([], $matches[0], 'no build-phase numbers reach the settings UI');
+    },
+
     'P7-T4 a card only contains its own fields' => function () use ($render, $form): void {
         test_signed_in_as(test_user('st_admin', 'admin'));
 

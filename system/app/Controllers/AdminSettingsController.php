@@ -686,7 +686,7 @@ final class AdminSettingsController
     private const BINARY_TOGGLES = [
         'binary_enabled' => [
             'label' => 'Product binary enabled',
-            'hint'  => 'Off hides the offer and stops new awards. Nothing is paid by this phase — the payment engine arrives with Phase 22D, and the switch stays off until its gate passes.',
+            'hint'  => 'Off hides the offer and stops new awards. Pairs already in the ledger are unaffected.',
         ],
         'binary_requires_active' => [
             'label' => 'Require the monthly Active rule',
@@ -718,7 +718,7 @@ final class AdminSettingsController
     private const PACKAGE_BINARY_TOGGLES = [
         'package_binary_enabled' => [
             'label' => 'Package binary enabled',
-            'hint'  => 'Off stops every package activation from placing points and paying pairs. Nothing is paid by this phase — the payment engine arrives with Phase 23C, and the switch stays off until its gate passes.',
+            'hint'  => 'Off stops every package activation from placing points and paying pairs. Pairs already in the ledger are unaffected.'
         ],
         'package_binary_requires_package' => [
             'label' => 'Require a binary package to earn package pairs',
