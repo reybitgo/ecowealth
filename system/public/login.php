@@ -76,7 +76,8 @@ require __DIR__ . '/../app/layout/auth_header.php';
                   <i class="icon-base bx bx-error fs-4"></i>
                   <span>Too many failed attempts. Please wait 15 minutes before trying again.</span>
                 </div>
-              <?php else: ?>
+              <?php elseif (APP_DEBUG): ?>
+                <?php /* Development helper only — never rendered for a deployed (APP_ENV=production) build. */ ?>
                 <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                   <i class="icon-base bx bx-info-circle fs-4"></i>
                   <div>
