@@ -39,7 +39,7 @@ $allPending = $pendingShown && $withdrawable <= 0;
                     <div class="d-flex align-items-center justify-content-between mb-3">
                       <div>
                         <span class="text-body-secondary small d-block">Withdrawable</span>
-                        <h2 class="mb-0 wallet-stat-value"><?= e(money($withdrawable)) ?></h2>
+                        <h4 class="mb-0 stat-value"><?= e(money($withdrawable)) ?></h4>
                       </div>
                       <span class="avatar avatar-md">
                         <span class="avatar-initial rounded-circle bg-label-success">

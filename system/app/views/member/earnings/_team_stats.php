@@ -81,20 +81,7 @@ $cards = [
               <div class="row g-6 mb-6" data-live-region="earnings-team-stats">
 <?php foreach ($cards as $card): ?>
                 <div class="col-sm-6 col-xl">
-                  <div class="card h-100 commission-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small text-end"><?= e($card['label']) ?></span>
-                      </div>
-                      <h4 class="mb-2 commission-stat-value"><?= e($card['value']) ?></h4>
-                      <p class="text-body-secondary small mb-0"><?= e($card['hint']) ?></p>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', $card) ?>
                 </div>
 <?php endforeach; ?>
               </div>

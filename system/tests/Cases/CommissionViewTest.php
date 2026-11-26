@@ -187,7 +187,7 @@ return [
         assert_contains('not paid', $html, 'the row marks the amount as unpaid');
 
         /* The stat card must not claim money for a skipped row. */
-        assert_contains('commission-stat-value">' . e(money(0)) . '<', $html);
+        assert_contains('<h4 class="stat-value mb-2">' . e(money(0)) . '</h4>', $html);
     },
 
     'P10-T7 the earnings filters keep their values and offer Clear' => function () use ($renderView, $earningsData, $pendingMember, $activate): void {

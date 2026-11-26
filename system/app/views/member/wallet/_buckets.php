@@ -74,64 +74,29 @@ $cards = [
               <div class="row g-6 mb-6" data-live-region="member-wallet-buckets">
 <?php foreach ($cards as $card): ?>
                 <div class="col-12 col-md-4">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small"><?= e($card['label']) ?></span>
-                      </div>
-                      <h3 class="mb-2 wallet-stat-value"><?= e($card['value']) ?></h3>
-                      <p class="text-body-secondary small mb-0"><?= e($card['hint']) ?></p>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', $card) ?>
                 </div>
 <?php endforeach; ?>
 <?php if ($pendingShown): ?>
                 <div class="col-12 col-md-6">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-info">
-                            <i class="icon-base <?= e(icon_class('bx-time-five')) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small">Pending release</span>
-                      </div>
-                      <h3 class="mb-2 wallet-stat-value"><?= e(money($pendingTotal)) ?></h3>
-                      <p class="text-body-secondary small mb-0">
-                        Repeat-purchase bonus that is not withdrawable yet.
-<?php if ($pendingMeta !== ''): ?>
-                        <span class="d-block mt-1"><?= e($pendingMeta) ?></span>
-<?php endif; ?>
-                        <a href="<?= e($statement) ?>" class="d-inline-block mt-1">
-                          See the repeat-purchase statement
-                        </a>
-                      </p>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', [
+                      'label' => 'Pending release',
+                      'value' => money($pendingTotal),
+                      'hint'  => 'Repeat-purchase bonus that is not withdrawable yet.'
+                          . ($pendingMeta !== '' ? '<span class="d-block mt-1">' . e($pendingMeta) . '</span>' : '')
+                          . '<a href="' . e($statement) . '" class="d-inline-block mt-1">See the repeat-purchase statement</a>',
+                      'icon'  => 'bx-time-five',
+                      'tone'  => 'info',
+                  ]) ?>
                 </div>
                 <div class="col-12 col-md-6">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-secondary">
-                            <i class="icon-base <?= e(icon_class('bx-coin-stack')) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small">Total funds</span>
-                      </div>
-                      <h3 class="mb-2 wallet-stat-value"><?= e(money($totalFunds)) ?></h3>
-                      <p class="text-body-secondary small mb-0">
-                        Wallet balance + pending release. Pending release is not spendable or withdrawable yet.
-                      </p>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', [
+                      'label' => 'Total funds',
+                      'value' => money($totalFunds),
+                      'hint'  => 'Wallet balance + pending release. Pending release is not spendable or withdrawable yet.',
+                      'icon'  => 'bx-coin-stack',
+                      'tone'  => 'secondary',
+                  ]) ?>
                 </div>
 <?php endif; ?>
               </div>

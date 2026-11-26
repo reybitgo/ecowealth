@@ -6,18 +6,6 @@
  *  Loaded through page_css on /earnings and /admin/commissions.
  * ============================================================== */
 
-/* ---------- Summary cards ---------- */
-.commission-stat-card .commission-stat-value,
-.commission-stat-card h4 {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-.commission-stat-card .avatar-initial {
-  display: grid;
-  place-items: center;
-}
-
 /* ---------- Award table ---------- */
 .commission-table {
   font-size: 0.925rem;

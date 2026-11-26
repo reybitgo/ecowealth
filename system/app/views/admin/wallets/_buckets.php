@@ -35,43 +35,28 @@ $pendingAwards = $pendingCount . ' award' . ($pendingCount === 1 ? '' : 's');
 ?>
               <div class="row g-6 mb-6" data-live-region="wallet-buckets">
                 <div class="col-12 col-md-4">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-primary"><i class="icon-base bx bx-wallet"></i></span>
-                        </span>
-                        <span class="text-body-secondary small">Total balance</span>
-                      </div>
-                      <h4 class="mb-0"><?= e(money($total)) ?></h4>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', [
+                      'label' => 'Total balance',
+                      'value' => money($total),
+                      'icon'  => 'bx-wallet',
+                      'tone'  => 'primary',
+                  ]) ?>
                 </div>
                 <div class="col-12 col-md-4">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-success"><i class="icon-base bx bx-money-withdraw"></i></span>
-                        </span>
-                        <span class="text-body-secondary small">Withdrawable</span>
-                      </div>
-                      <h4 class="mb-0"><?= e(money($withdrawable)) ?></h4>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', [
+                      'label' => 'Withdrawable',
+                      'value' => money($withdrawable),
+                      'icon'  => 'bx-money-withdraw',
+                      'tone'  => 'success',
+                  ]) ?>
                 </div>
                 <div class="col-12 col-md-4">
-                  <div class="card h-100 wallet-stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-3">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-warning"><i class="icon-base bx bx-lock-alt"></i></span>
-                        </span>
-                        <span class="text-body-secondary small">Non-withdrawable</span>
-                      </div>
-                      <h4 class="mb-0"><?= e(money($locked)) ?></h4>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', [
+                      'label' => 'Non-withdrawable',
+                      'value' => money($locked),
+                      'icon'  => 'bx-lock-alt',
+                      'tone'  => 'warning',
+                  ]) ?>
                 </div>
 <?php if ($pendingTotal > 0.0): ?>
                 <div class="col-12">

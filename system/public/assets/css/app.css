@@ -95,7 +95,13 @@
   text-transform: uppercase;
 }
 
-/* ---------- Dashboard: KPI cards ---------- */
+/* ---------- Stat cards ----------
+ * One card family for every KPI row in the product (UX-10). The commerce,
+ * commission, wallet, report and dashboard tiles used to carry four
+ * near-identical implementations (.stat-card, .commission-stat-card,
+ * .wallet-stat-card, .report-kpi-card) with the figure at three heading
+ * levels; every tile now renders through partials/stat_card.php and these
+ * two classes. */
 .stat-card {
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -111,8 +117,14 @@
   justify-content: center;
 }
 
-.stat-card .stat-value {
+/* The figure is tabular and clamped, so a seven-figure total and a
+ * two-digit count share one size across pages. Kept standalone rather than
+ * scoped to .stat-card: the transfer and payout balance cards show the
+ * same kind of number outside a KPI tile. */
+.stat-value {
   font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }

@@ -71,23 +71,7 @@ $cards = [
               <div class="row g-6 mb-6" data-live-region="dashboard-kpis">
 <?php foreach ($cards as $card): ?>
                 <div class="col-6 col-xl-3">
-                  <div class="card h-100 stat-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-start justify-content-between mb-4">
-                        <span class="avatar avatar-md">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?> icon-md"></i>
-                          </span>
-                        </span>
-                        <span class="badge rounded-pill bg-label-<?= e($card['badge_tone']) ?>">
-                          <i class="icon-base <?= e(icon_class($card['badge_icon'])) ?> me-1"></i><?= e($card['badge']) ?>
-                        </span>
-                      </div>
-                      <p class="text-body-secondary mb-1"><?= e($card['label']) ?></p>
-                      <h4 class="mb-2 text-heading stat-value"><?= e($card['value']) ?></h4>
-                      <small class="text-body-secondary"><?= e($card['hint']) ?></small>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', $card) ?>
                 </div>
 <?php endforeach; ?>
               </div>

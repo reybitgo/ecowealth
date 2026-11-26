@@ -95,20 +95,7 @@ $cards = [
               <div class="row g-6 mb-6" data-live-region="report-kpis">
 <?php foreach ($cards as $card): ?>
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card h-100 report-kpi-card">
-                    <div class="card-body">
-                      <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="avatar avatar-sm">
-                          <span class="avatar-initial rounded bg-label-<?= e($card['tone']) ?>">
-                            <i class="icon-base <?= e(icon_class($card['icon'])) ?>"></i>
-                          </span>
-                        </span>
-                        <span class="text-body-secondary small text-end"><?= e($card['label']) ?></span>
-                      </div>
-                      <h4 class="mb-1 report-kpi-value"><?= e($card['value']) ?></h4>
-                      <p class="text-body-secondary small mb-0"><?= e($card['hint']) ?></p>
-                    </div>
-                  </div>
+                  <?= View::partial('stat_card', $card) ?>
                 </div>
 <?php endforeach; ?>
               </div>

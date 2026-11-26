@@ -6,19 +6,6 @@
  *  /admin/wallets/{id}.
  * ============================================================== */
 
-/* ---------- Balance cards ---------- */
-.wallet-stat-card .wallet-stat-value,
-.wallet-stat-card h4,
-.wallet-stat-card h3 {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-
-.wallet-stat-card .avatar-initial {
-  display: grid;
-  place-items: center;
-}
-
 /* ---------- Statement ---------- */
 .wallet-ledger-table {
   font-size: 0.925rem;
@@ -170,11 +157,6 @@
 }
 
 /* ---------- Send funds (Phase 12) ---------- */
-.transfer-page .wallet-transfer-balance h2 {
-  font-size: 2rem;
-  line-height: 1.1;
-}
-
 .transfer-facts li {
   border-color: var(--bs-border-color);
 }
@@ -206,10 +188,6 @@
 
 /* ---------- Small screens ---------- */
 @media (max-width: 575.98px) {
-  .transfer-page .wallet-transfer-balance h2 {
-    font-size: 1.6rem;
-  }
-
   .wallet-transfer-history .table th,
   .wallet-transfer-history .table td {
     padding: 0.55rem 0.4rem;
@@ -218,11 +196,6 @@
 }
 
 /* ---------- Payouts (Phase 13) ---------- */
-.payout-page .payout-balance h2 {
-  font-size: 2rem;
-  line-height: 1.1;
-}
-
 .payout-facts li {
   border-color: var(--bs-border-color);
 }
@@ -264,10 +237,6 @@
 
 /* ---------- Small screens ---------- */
 @media (max-width: 575.98px) {
-  .payout-page .payout-balance h2 {
-    font-size: 1.6rem;
-  }
-
   .payout-history-table .table th,
   .payout-history-table .table td {
     padding: 0.55rem 0.4rem;

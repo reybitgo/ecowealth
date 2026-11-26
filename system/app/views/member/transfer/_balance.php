@@ -22,7 +22,7 @@ $fee          = (float) ($limits['fee'] ?? 0);
                     <div class="d-flex align-items-center justify-content-between mb-3">
                       <div>
                         <span class="text-body-secondary small d-block">Wallet balance</span>
-                        <h2 class="mb-0 wallet-stat-value"><?= e(money($balance)) ?></h2>
+                        <h4 class="mb-0 stat-value"><?= e(money($balance)) ?></h4>
                       </div>
                       <span class="avatar avatar-md">
                         <span class="avatar-initial rounded-circle bg-label-primary">
