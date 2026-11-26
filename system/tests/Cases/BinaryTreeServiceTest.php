@@ -607,10 +607,10 @@ return [
             'live'          => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
         ]);
 
-        preg_match('/<ul class="nav nav-pills[^"]*commission-tabs"[\s\S]*?<\/ul>/', $html, $match);
+        preg_match('/<ul class="nav nav-pills[^"]*view-tabs"[\s\S]*?<\/ul>/', $html, $match);
         $tabs = $match[0] ?? '';
 
-        assert_contains('commission-tabs', $tabs, 'the genealogy view switcher renders');
+        assert_contains('view-tabs', $tabs, 'the genealogy view switcher renders');
         assert_contains('Sponsor tree', $tabs);
         assert_contains('Binary tree', $tabs);
         assert_contains('href="' . e(url('genealogy?view=binary')) . '"', $tabs, 'the binary view is linked');
@@ -618,7 +618,7 @@ return [
         assert_same(1, substr_count($tabs, 'aria-current="page"'), 'exactly one view is current');
 
         $heading = strpos($html, '<h4 class="mb-1">Genealogy</h4>');
-        assert_true($heading !== false && strpos($html, 'commission-tabs') > $heading, 'the switcher follows the page heading');
+        assert_true($heading !== false && strpos($html, 'view-tabs') > $heading, 'the switcher follows the page heading');
     },
 
     'UX-07 binary genealogy shows the view switcher and links back to the sponsor tree' => function () use ($demoUser, $renderView): void {
@@ -643,10 +643,10 @@ return [
             'live'        => ['surface' => 'x', 'enabled' => false, 'revision' => 0, 'etag' => '', 'interval' => 30000],
         ]);
 
-        preg_match('/<ul class="nav nav-pills[^"]*commission-tabs"[\s\S]*?<\/ul>/', $html, $match);
+        preg_match('/<ul class="nav nav-pills[^"]*view-tabs"[\s\S]*?<\/ul>/', $html, $match);
         $tabs = $match[0] ?? '';
 
-        assert_contains('commission-tabs', $tabs, 'the genealogy view switcher renders');
+        assert_contains('view-tabs', $tabs, 'the genealogy view switcher renders');
         assert_contains('Sponsor tree', $tabs);
         assert_contains('Binary tree', $tabs);
         assert_contains('href="' . e(url('genealogy')) . '"', $tabs, 'the sponsor view is linked');
@@ -654,7 +654,7 @@ return [
         assert_same(1, substr_count($tabs, 'aria-current="page"'), 'exactly one view is current');
 
         $heading = strpos($html, '<h4 class="mb-1">Binary Tree</h4>');
-        assert_true($heading !== false && strpos($html, 'commission-tabs') > $heading, 'the switcher follows the page heading');
+        assert_true($heading !== false && strpos($html, 'view-tabs') > $heading, 'the switcher follows the page heading');
     },
 
     'P22G-T32 routes: no new route in this phase, guard is member' => function (): void {

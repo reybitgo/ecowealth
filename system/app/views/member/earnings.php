@@ -295,7 +295,7 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
         . '</div>',
 ]) ?>
 
-              <ul class="nav nav-pills mb-4 commission-tabs" role="list">
+              <ul class="nav nav-pills view-tabs" role="list">
                 <li class="nav-item" role="listitem">
                   <a
                     href="<?= e($package_url) ?>"

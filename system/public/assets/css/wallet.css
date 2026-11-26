@@ -109,17 +109,6 @@
   flex: 0 1 11rem;
 }
 
-/* ---------- Monitor tabs ---------- */
-.wallet-tabs .nav-link {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-
-.wallet-tabs .badge {
-  font-size: 0.68rem;
-}
-
 /* Mobile collapses the ledger to three columns: the date and the
  * credit/debit tag move under the source, and the running balance moves
  * under the amount. The full table stays available above 576px. */

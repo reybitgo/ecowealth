@@ -336,7 +336,7 @@ return [
          * General Harvest one), and the phase-20 ones are where they were. */
         assert_same(
             1,
-            preg_match('/<ul class="nav nav-pills mb-4 commission-tabs"[^>]*>(.*?)<\/ul>/s', $html, $tabs)
+            preg_match('/<ul class="nav nav-pills view-tabs"[^>]*>(.*?)<\/ul>/s', $html, $tabs)
         );
         assert_same(6, preg_match_all('/class="nav-link/s', $tabs[1]));
     },

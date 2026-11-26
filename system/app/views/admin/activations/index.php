@@ -57,17 +57,15 @@ $live = $live ?? [
 
 <?= View::capture('admin/activations/_stats', ['stats' => $stats]) ?>
 
-              <div class="card">
-                <div class="card-header">
-                  <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
 <?= View::capture('admin/activations/_tabs', [
     'filters'    => $filters,
     'stats'      => $stats,
     'tab_counts' => $tab_counts,
 ]) ?>
-                </div>
 
-                <div class="card-body py-3 border-top">
+              <div class="card">
+                <div class="card-body py-3">
+                  <span class="small text-body-secondary d-block mb-2" data-live-status aria-live="polite"></span>
                   <form method="GET" action="<?= e(url('admin/activations')) ?>" class="membership-filters">
                     <?= per_page_hidden() ?>
                     <input type="hidden" name="status" value="<?= e($status) ?>" />

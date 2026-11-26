@@ -15,14 +15,13 @@ $tabs = [
     'ledger'    => ['label' => 'All movements', 'icon' => 'bx-list-ul'],
 ];
 ?>
-              <ul class="nav nav-pills mb-4 wallet-tabs" role="tablist" data-live-region="wallet-tabs">
+              <ul class="nav nav-pills view-tabs" role="list" data-live-region="wallet-tabs">
 <?php foreach ($tabs as $key => $meta): ?>
-                <li class="nav-item" role="presentation">
+                <li class="nav-item" role="listitem">
                   <a
                     class="nav-link <?= $tab === $key ? 'active' : '' ?>"
                     href="<?= e(url('admin/wallets?tab=' . $key)) ?>"
-                    role="tab"
-                    aria-selected="<?= $tab === $key ? 'true' : 'false' ?>"
+<?= $tab === $key ? ' aria-current="page"' : '' ?>
                   >
                     <i class="icon-base <?= e(icon_class($meta['icon'])) ?> me-1"></i> <?= e($meta['label']) ?>
                     <span class="badge rounded-pill bg-label-primary ms-1"><?= (int) ($tab_counts[$key] ?? 0) ?></span>

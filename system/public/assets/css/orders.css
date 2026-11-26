@@ -289,24 +289,9 @@
   font-size: 0.78rem;
 }
 
-/* Section menu above the cards. It sticks to the fixed navbar so a card
- * can be reached from anywhere on the page, while each card reserves the
- * same space with scroll-margin-top for tab jumps and save redirects. */
-.settings-tabs {
-  border: 1px solid var(--bs-border-color);
-  background-color: var(--bs-paper-bg, var(--bs-body-bg));
-}
-
-.settings-tab-list {
-  padding-block: 0.125rem;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.settings-tab-list .nav-link {
-  display: inline-flex;
-  align-items: center;
-}
+/* Section menu above the cards. The sticky bar and its anchor-link styling
+ * come from the shared `.section-nav` pattern in app.css; each card reserves
+ * the same space with scroll-margin-top for tab jumps and save redirects. */
 
 /* Laptops with the fixed sidebar leave roughly 950 px for the cards, which
  * is narrower than the eight full-size pills. A slightly tighter pill keeps
@@ -324,12 +309,6 @@
 }
 
 @media (min-width: 768px) {
-  .settings-tabs {
-    position: sticky;
-    z-index: 8;
-    inset-block-start: 5rem;
-  }
-
   .settings-page .settings-form {
     scroll-margin-top: 10rem;
   }

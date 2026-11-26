@@ -11,8 +11,8 @@ declare(strict_types=1);
  * member record, so a member could not discover that a second view
  * existed.
  *
- * The pills follow the same pattern as the earnings and commissions view
- * tabs: `nav nav-pills` above the content, one link active with
+ * The pills use the shared `.view-tabs` pattern (app.css) like every other
+ * view switcher: pills above the content, one link active with
  * `aria-current="page"`. The binary pill is offered only when placement
  * is on (the binary_nodes table exists); without it there is no tree to
  * open, and the binary page would only say so.
@@ -29,7 +29,7 @@ if (!$show_binary) {
     return;
 }
 ?>
-              <ul class="nav nav-pills mb-4 commission-tabs" role="list">
+              <ul class="nav nav-pills view-tabs" role="list">
                 <li class="nav-item" role="listitem">
                   <a
                     href="<?= e(url('genealogy')) ?>"

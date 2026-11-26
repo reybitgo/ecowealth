@@ -184,17 +184,10 @@
   text-decoration: underline;
 }
 
-/* ---------- Tabs (Phase 17E) ----------
- * Two pills on a 390 px screen are wider than the page: let the second
- * wrap onto its own row instead of pushing the page sideways. */
-.commission-tabs {
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.commission-tabs .nav-link {
-  white-space: nowrap;
-}
+/* ---------- Tabs ----------
+ * The statement's pills use the shared `.view-tabs` pattern in app.css, so
+ * they wrap at 390 px and stay identical to every other view switcher
+ * (UX-11). */
 
 /* ---------- Repeat-purchase tab (Phase 17E) ----------
  * The member statement reuses the level grid and the row table, but its
@@ -268,7 +261,7 @@
 }
 
 /* The third pill already wraps on a 390 px screen (the Phase 17E
- * `.commission-tabs` rule above). The monthly row is wider than the
+ * shared `.view-tabs` rule). The monthly row is wider than the
  * repeat row — group sales, personal sales, the quota and two rates —
  * so on a phone those money columns step aside and the month cell keeps
  * the rank it was judged at, leaving month, amount, status and paid date

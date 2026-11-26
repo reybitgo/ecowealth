@@ -21,15 +21,16 @@ $tabs = [
     'rejected'       => ['label' => 'Rejected', 'count' => $tab_counts['rejected']],
 ];
 ?>
-                  <ul class="nav nav-pills card-header-pills gap-1 flex-nowrap overflow-auto" data-live-region="activation-tabs">
+              <ul class="nav nav-pills view-tabs" role="list" data-live-region="activation-tabs">
 <?php foreach ($tabs as $value => $tab): ?>
-                    <li class="nav-item">
-                      <a
-                        class="nav-link text-nowrap <?= $status === $value ? 'active' : '' ?>"
-                        href="<?= e(url('admin/activations' . ($value === '' ? '' : '?status=' . rawurlencode($value)))) ?>"
-                      ><?= e($tab['label']) ?>
-                        <span class="badge bg-label-secondary ms-1"><?= (int) $tab['count'] ?></span>
-                      </a>
-                    </li>
+                <li class="nav-item" role="listitem">
+                  <a
+                    class="nav-link <?= $status === $value ? 'active' : '' ?>"
+                    href="<?= e(url('admin/activations' . ($value === '' ? '' : '?status=' . rawurlencode($value)))) ?>"
+<?= $status === $value ? ' aria-current="page"' : '' ?>
+                  ><?= e($tab['label']) ?>
+                    <span class="badge bg-label-secondary ms-1"><?= (int) $tab['count'] ?></span>
+                  </a>
+                </li>
 <?php endforeach; ?>
-                  </ul>
+              </ul>

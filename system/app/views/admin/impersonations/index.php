@@ -100,42 +100,41 @@ $tabUrl = static function (string $status) use ($audit_url): string {
               </div>
 <?php endif; ?>
 
-              <div class="card">
-                <div class="card-header border-bottom pb-0">
-                  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                    <ul class="nav nav-tabs card-header-tabs mb-0" role="tablist">
+              <ul class="nav nav-pills view-tabs" role="list">
 <?php foreach ($tabs as $status => $tab): ?>
-                      <li class="nav-item" role="presentation">
-                        <a
-                          class="nav-link <?= $filters['status'] === $status ? 'active' : '' ?>"
-                          href="<?= e($tabUrl($status)) ?>"
-<?= $filters['status'] === $status ? ' aria-selected="true"' : '' ?>
-                        >
-                          <?= e($tab['label']) ?>
-                          <span class="badge rounded-pill bg-label-secondary ms-1"><?= (int) $tab['count'] ?></span>
-                        </a>
-                      </li>
+                <li class="nav-item" role="listitem">
+                  <a
+                    class="nav-link <?= $filters['status'] === $status ? 'active' : '' ?>"
+                    href="<?= e($tabUrl($status)) ?>"
+<?= $filters['status'] === $status ? ' aria-current="page"' : '' ?>
+                  >
+                    <?= e($tab['label']) ?>
+                    <span class="badge rounded-pill bg-label-secondary ms-1"><?= (int) $tab['count'] ?></span>
+                  </a>
+                </li>
 <?php endforeach; ?>
-                    </ul>
-                    <form method="GET" action="<?= e($audit_url) ?>" class="d-flex flex-wrap gap-2 py-3">
-                      <input type="hidden" name="status" value="<?= e($filters['status']) ?>" />
-                      <?= per_page_hidden() ?>
-                      <input
-                        type="search"
-                        name="q"
-                        class="form-control"
-                        value="<?= e($filters['q']) ?>"
-                        placeholder="Superadmin, member, IP or device…"
-                        aria-label="Search the S-Login audit"
-                      />
-                      <input type="date" name="from" class="form-control" value="<?= e($filters['from']) ?>" aria-label="From date" />
-                      <input type="date" name="to" class="form-control" value="<?= e($filters['to']) ?>" aria-label="To date" />
-                      <button type="submit" class="btn btn-label-primary">Filter</button>
+              </ul>
+
+              <div class="card">
+                <div class="card-header">
+                  <form method="GET" action="<?= e($audit_url) ?>" class="d-flex flex-wrap gap-2">
+                    <input type="hidden" name="status" value="<?= e($filters['status']) ?>" />
+                    <?= per_page_hidden() ?>
+                    <input
+                      type="search"
+                      name="q"
+                      class="form-control"
+                      value="<?= e($filters['q']) ?>"
+                      placeholder="Superadmin, member, IP or device…"
+                      aria-label="Search the S-Login audit"
+                    />
+                    <input type="date" name="from" class="form-control" value="<?= e($filters['from']) ?>" aria-label="From date" />
+                    <input type="date" name="to" class="form-control" value="<?= e($filters['to']) ?>" aria-label="To date" />
+                    <button type="submit" class="btn btn-label-primary">Filter</button>
 <?php if ($filters['q'] !== '' || $filters['from'] !== '' || $filters['to'] !== ''): ?>
-                      <a href="<?= e($tabUrl($filters['status'])) ?>" class="btn btn-label-secondary">Clear</a>
+                    <a href="<?= e($tabUrl($filters['status'])) ?>" class="btn btn-label-secondary">Clear</a>
 <?php endif; ?>
-                    </form>
-                  </div>
+                  </form>
                 </div>
 
                 <div class="table-responsive">

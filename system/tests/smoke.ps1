@@ -2725,7 +2725,7 @@ try {
     # The bare URL must open the pending work queue, not "all requests".
     $p13Queue       = Invoke-App -Path '/admin/payouts' -Session 'admin'
     $p13AdminToken  = Get-Csrf $p13Queue.Body
-    $p13PendingActive = ($p13Queue.Body -match 'href="[^"]*admin/payouts\?status=pending"[^>]*aria-selected="true"') `
+    $p13PendingActive = ($p13Queue.Body -match 'href="[^"]*admin/payouts\?status=pending"[^>]*aria-current="page"') `
         -and ($p13Queue.Body -match 'data-live-surface="admin.payouts"')
     $p13QueueOk = ($p13Queue.Status -eq 200) -and ($p13Queue.Body -match '@juan') `
         -and ($p13Queue.Body -match 'Pending review') -and ($p13Queue.Body -match 'Approve') `
@@ -3871,18 +3871,20 @@ try {
             -and $p19eTileOff.Body -notmatch 'data-live-region="dashboard-royalty"') `
         "the Royalty tile renders while the stream is on and hides when it is off with no history (on=$($p19eTileOn.Status), off=$($p19eTileOff.Status))"
 
-    # P19E-T14 / QA19E-09 - phone-safe: the three pills wrap (the Phase 17E
-    # rule) and the monthly money columns step aside below 768 px, so the
-    # statement never scrolls sideways at 390 px.
-    $p19eCss = Invoke-App -Path '/assets/css/commissions.css' -Session 'member'
+    # P19E-T14 / QA19E-09 - phone-safe: the three pills wrap (the shared
+    # `.view-tabs` rule) and the monthly money columns step aside below
+    # 768 px, so the statement never scrolls sideways at 390 px.
+    $p19eCss     = Invoke-App -Path '/assets/css/commissions.css' -Session 'member'
+    $p19eTabsCss = Invoke-App -Path '/assets/css/app.css' -Session 'member'
     Assert-That 'P19E-T14' ($p19eCss.Status -eq 200 `
-            -and $p19eCss.Body -match '\.commission-tabs\s*\{[^}]*flex-wrap:\s*wrap' `
+            -and $p19eTabsCss.Status -eq 200 `
+            -and $p19eTabsCss.Body -match '\.view-tabs\s*\{[^}]*flex-wrap:\s*wrap' `
             -and $p19eCss.Body -match '\.commission-col-gs' `
             -and $p19eCss.Body -match '\.commission-col-quota' `
             -and $p19eTab.Body -match 'Package commissions' `
             -and $p19eTab.Body -match 'Repeat-purchase bonus' `
             -and $p19eTab.Body -match '>\s*<i class="icon-base bx bx-crown me-1"></i>\s*Royalty') `
-        "the third pill wraps with the others and the monthly columns collapse on a phone (css=$($p19eCss.Status))"
+        "the third pill wraps with the others and the monthly columns collapse on a phone (tabs=$($p19eTabsCss.Status), css=$($p19eCss.Status))"
 
     # ---- Phase 19F: the Royalty close's operations surface --------------
     # The URL entry must be the same job as the CLI (plan 19F Rule 1): the
