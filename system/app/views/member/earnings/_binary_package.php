@@ -27,7 +27,7 @@ $money  = round((float) ($card['money_earned'] ?? 0), 2);
 $last   = $card['last_activation'] ?? null;
 ?>
 
-<div class="row g-4 mb-4" data-live-region="earnings-binary-package">
+<div class="row g-6 mb-6" data-live-region="earnings-binary-package">
 <?php if (!$has || !$card['binary_enabled']): ?>
   <?php if (!$has): ?>
     <div class="col-12">

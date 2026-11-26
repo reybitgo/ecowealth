@@ -53,7 +53,7 @@ $nextAmount = $next === null ? 0.0 : (float) ($next['amount'] ?? 0);
 $nextNeeds  = $next === null ? 0 : (int) ($next['needs_n'] ?? 0);
 $percent    = $next === null ? 0.0 : max(0.0, min(100.0, (float) ($next['percent'] ?? 0.0)));
 ?>
-              <div class="row g-4 mb-4" data-live-region="dashboard-general-harvest">
+              <div class="row g-6 mb-6" data-live-region="dashboard-general-harvest">
                 <div class="col-12">
                   <div class="card h-100">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">

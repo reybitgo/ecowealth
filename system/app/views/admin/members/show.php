@@ -89,7 +89,7 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
     'statement_url' => $statement_url,
 ]) ?>
 
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
                 <!-- Account -->
                 <div class="col-xl-4">
 <?= View::capture('admin/members/_account', [
@@ -122,7 +122,7 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
                 </div>
               </div>
 
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
                 <div class="col-12">
 <?= View::capture('admin/members/_royalty', [
     'member'  => $member,
@@ -131,7 +131,7 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
                 </div>
               </div>
 
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
                 <div class="col-12">
 <?= View::capture('admin/members/_team_harvest', [
     'member'       => $member,
@@ -145,7 +145,7 @@ $referral_link = $referral_link ?? ($member['referral_code'] === null
                 </div>
               </div>
 
-              <div class="row g-4">
+              <div class="row g-6">
                 <!-- Activations -->
                 <div class="col-xl-8">
 <?= View::capture('admin/members/_activations', [

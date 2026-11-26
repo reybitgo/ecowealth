@@ -45,26 +45,20 @@ $staff = (bool) ($limits['staff'] ?? false);
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Send funds</h4>
-                  <p class="text-body-secondary mb-0">
-                    Move money to another member’s e-wallet instantly. The recipient cannot withdraw a transfer;
-                    they can spend it in the shop.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-<?php if ($staff): ?>
-                  <span class="badge bg-label-warning">
-                    <i class="icon-base bx bx-shield-quarter me-1"></i> Staff transfer — no fee, no limit
-                  </span>
-<?php endif; ?>
-                  <a href="<?= e($statement_url) ?>" class="btn btn-label-primary">
-                    <i class="icon-base bx bx-list-ul me-1"></i> Open statement
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Send funds',
+    'description' => 'Move money to another member’s e-wallet instantly. The recipient cannot withdraw a transfer;'
+        . ' they can spend it in the shop.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<div class="d-flex flex-wrap align-items-center gap-2">'
+        . ($staff
+            ? '<span class="badge bg-label-warning"><i class="icon-base bx bx-shield-quarter me-1"></i>'
+                . ' Staff transfer — no fee, no limit</span>'
+            : '')
+        . '<a href="' . e($statement_url) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-list-ul me-1"></i> Open statement</a>'
+        . '</div>',
+]) ?>
 
               <div class="row g-6 mb-6">
                 <div class="col-12 col-xl-5">

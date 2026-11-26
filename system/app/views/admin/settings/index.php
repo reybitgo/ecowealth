@@ -125,19 +125,16 @@ $action = url('admin/settings');
                 </div>
               </div>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Settings</h4>
-                  <p class="text-body-secondary mb-0">
-                    Identity, where buyers send manual payments, how withdrawals are paid out, how long a buyer has to
-                    pay, whether an order may be cancelled, what appears on the printed invoice, how commissions,
-                    the Royalty bonus and the Team Harvest bonus are earned and what transfers may move.
-                    Each card saves on its own and every change is recorded in the audit log.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <span class="badge bg-label-primary text-wrap text-start">General, payments, payouts, fulfilment, commissions &amp; transfers</span>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Settings',
+    'description' => 'Identity, where buyers send manual payments, how withdrawals are paid out, how long a buyer has to'
+        . ' pay, whether an order may be cancelled, what appears on the printed invoice, how commissions,'
+        . ' the Royalty bonus and the Team Harvest bonus are earned and what transfers may move.'
+        . ' Each card saves on its own and every change is recorded in the audit log.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<span class="badge bg-label-primary text-wrap text-start">'
+        . 'General, payments, payouts, fulfilment, commissions &amp; transfers</span>',
+]) ?>
 
 <?= View::capture('admin/settings/_tabs') ?>
 

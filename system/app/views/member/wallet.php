@@ -66,18 +66,13 @@ $live = $live ?? [
                 </div>
               </div>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">E-wallet</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every peso comes from one ledger. Nothing here can be edited — corrections are new entries.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <span class="badge bg-label-primary fs-6">
-                  <i class="icon-base bx bx-user-circle me-1"></i> <?= e((string) $account['username']) ?>
-                </span>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'E-wallet',
+    'description' => 'Every peso comes from one ledger. Nothing here can be edited — corrections are new entries.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<span class="badge bg-label-primary fs-6">'
+        . '<i class="icon-base bx bx-user-circle me-1"></i> ' . e((string) $account['username']) . '</span>',
+]) ?>
 
 <?= View::capture('member/wallet/_buckets', [
     'account'        => $account,

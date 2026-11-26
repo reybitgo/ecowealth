@@ -13,7 +13,7 @@ declare(strict_types=1);
  */
 ?>
               <div
-                class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4"
+                class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6"
                 data-live-region="member-heading"
               >
                 <div>

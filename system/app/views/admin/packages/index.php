@@ -38,18 +38,14 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Packages</h4>
-                  <p class="text-body-secondary mb-0">
-                    Associate packages, their referral ladder and their contents.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <a href="<?= e(url('admin/packages/new')) ?>" class="btn btn-primary">
-                  <i class="icon-base bx bx-plus me-1"></i> New package
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Packages',
+    'description' => 'Associate packages, their referral ladder and their contents.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'align'       => 'center',
+    'actions'     => '<a href="' . e(url('admin/packages/new')) . '" class="btn btn-primary">'
+        . '<i class="icon-base bx bx-plus me-1"></i> New package</a>',
+]) ?>
 
 <?= View::capture('admin/packages/_stats', ['stats' => $stats]) ?>
 

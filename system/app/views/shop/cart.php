@@ -63,18 +63,13 @@ $live = $live ?? [
                 </div>
               </div>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Your cart</h4>
-                  <p class="text-body-secondary mb-0">
-                    Prices and stock stay in sync with the catalogue while this page is open.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <a href="<?= e(url('shop')) ?>" class="btn btn-label-primary">
-                  <i class="icon-base bx bx-arrow-back me-1"></i> Continue shopping
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Your cart',
+    'description' => 'Prices and stock stay in sync with the catalogue while this page is open.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<a href="' . e(url('shop')) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-arrow-back me-1"></i> Continue shopping</a>',
+]) ?>
 
 <?= View::capture('shop/cart/_content', ['state' => $state, 'shop_open' => $shop_open]) ?>
             </div>

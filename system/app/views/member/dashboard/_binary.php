@@ -55,7 +55,7 @@ $hasPackage     = $packagePairs > 0 || $packagePoints > 0 || $packageCredited > 
 $canPair = $matching >= $pairPoints;
 $pairValue = money(round($pairPoints * (float) setting_float('binary_pair_pct', 10.0) / 100, 2));
 ?>
-<div class="row g-4 mb-4" data-live-region="dashboard-binary">
+<div class="row g-6 mb-6" data-live-region="dashboard-binary">
     <div class="col-12">
         <div class="card h-100">
             <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">

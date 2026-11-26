@@ -27,7 +27,7 @@ declare(strict_types=1);
 <?php if ($can_activate && $open_activation === null): ?>
               <?= View::capture('member/membership/_placement', ['placement_needed' => $placement_needed]) ?>
               <!-- Activation paths -->
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
                 <!-- 1. Registration code -->
                 <div class="col-lg-4">
                   <div class="activation-method h-100 d-flex flex-column">

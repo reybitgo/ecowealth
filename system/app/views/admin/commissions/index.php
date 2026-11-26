@@ -305,6 +305,21 @@ if ($isRoyalty) {
         $statuses[$status] = ucfirst($status);
     }
 }
+
+$headerTitle = match (true) {
+    $isRoyalty     => 'Royalty bonus',
+    $isTeamHarvest => 'Team Harvest bonus',
+    $isRepeat      => 'Repeat-purchase bonus',
+    default        => 'Commissions',
+};
+$headerDescription = match (true) {
+    $isRoyalty => 'Every Royalty award, one per member per closed month, with the closed-month cards and'
+        . ' the open-month preview. Never per order.',
+    $isTeamHarvest => 'One row per level a member completed, with the ten-level distribution and the open liability.'
+        . ' It never depends on purchases, rank or the month — only on who qualified, and when.',
+    $isRepeat => 'Every award a paid order earned, with its release state. One row per line, recipient and level 1–10.',
+    default => 'Every referral award, credited or skipped. One row per activation, recipient and level.',
+};
 ?>
             <div
               class="container-xxl flex-grow-1 container-p-y commission-page"
@@ -316,41 +331,16 @@ if ($isRoyalty) {
             >
               <?= flash_render() ?>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                <div>
-<?php if ($isRoyalty): ?>
-                  <h4 class="mb-1">Royalty bonus</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every Royalty award, one per member per closed month, with the closed-month cards and
-                    the open-month preview. Never per order.
-                  </p>
-<?php elseif ($isTeamHarvest): ?>
-                  <h4 class="mb-1">Team Harvest bonus</h4>
-                  <p class="text-body-secondary mb-0">
-                    One row per level a member completed, with the ten-level distribution and the open liability.
-                    It never depends on purchases, rank or the month — only on who qualified, and when.
-                  </p>
-<?php elseif ($isRepeat): ?>
-                  <h4 class="mb-1">Repeat-purchase bonus</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every award a paid order earned, with its release state. One row per line, recipient and level 1–10.
-                  </p>
-<?php else: ?>
-                  <h4 class="mb-1">Commissions</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every referral award, credited or skipped. One row per activation, recipient and level.
-                  </p>
-<?php endif; ?>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                  <a href="<?= e($export_url) ?>" class="btn btn-label-secondary">
-                    <i class="icon-base bx bx-download me-1"></i> Export CSV
-                  </a>
-                  <a href="<?= e($wallet_url) ?>" class="btn btn-label-primary">
-                    <i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => $headerTitle,
+    'description' => $headerDescription,
+    'actions'     => '<div class="d-flex flex-wrap gap-2">'
+        . '<a href="' . e($export_url) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-download me-1"></i> Export CSV</a>'
+        . '<a href="' . e($wallet_url) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor</a>'
+        . '</div>',
+]) ?>
 
               <ul class="nav nav-pills mb-4 commission-tabs" role="list">
                 <li class="nav-item" role="listitem">

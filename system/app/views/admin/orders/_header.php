@@ -14,20 +14,10 @@ declare(strict_types=1);
 
 $inReview = (int) ($stats['in_review'] ?? 0);
 ?>
-              <div
-                class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6"
-                data-live-region="order-header"
-              >
-                <div>
-                  <h4 class="mb-1">Orders</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every order, newest first. Open an order to verify or reject a manual payment proof.
-                  </p>
-                </div>
-                <a
-                  href="<?= e(url('admin/orders?status=payment_review')) ?>"
-                  class="badge bg-label-info text-decoration-none"
-                >
-                  <i class="icon-base bx bx-search-alt me-1"></i><?= $inReview ?> awaiting review
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Orders',
+    'description' => 'Every order, newest first. Open an order to verify or reject a manual payment proof.',
+    'attributes'  => ['data-live-region' => 'order-header'],
+    'actions'     => '<a href="' . e(url('admin/orders?status=payment_review')) . '" class="badge bg-label-info text-decoration-none">'
+        . '<i class="icon-base bx bx-search-alt me-1"></i>' . $inReview . ' awaiting review</a>',
+]) ?>

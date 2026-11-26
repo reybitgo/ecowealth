@@ -49,7 +49,7 @@ $cards = [
 $usdtRate = (float) ($facts['usdt_rate'] ?? 0);
 ?>
               <div data-live-region="payout-stats">
-                <div class="row g-6 mb-4">
+                <div class="row g-6 mb-6">
 <?php foreach ($cards as $card): ?>
                   <div class="col-6 col-xl-3">
                     <div class="card h-100 wallet-stat-card">

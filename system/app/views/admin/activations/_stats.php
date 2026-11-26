@@ -7,7 +7,7 @@ declare(strict_types=1);
  * @var array{total:int, review:int, approved:int, rejected:int, amount_review:float, amount_approved:float} $stats
  */
 ?>
-              <div class="row g-4 mb-4" data-live-region="activation-stats">
+              <div class="row g-6 mb-6" data-live-region="activation-stats">
                 <div class="col-sm-6 col-xl-3">
                   <div class="card h-100">
                     <div class="card-body">

@@ -55,19 +55,15 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
             >
               <?= flash_render() ?>
 
-              <div class="d-flex align-items-start align-items-sm-center justify-content-between flex-column flex-sm-row gap-3 mb-4">
-                <div>
-                  <h4 class="mb-1">Welcome back, <?= e($displayName) ?><?= $status === 'active' ? ' &#x1f44b;' : '' ?></h4>
-                  <p class="text-body-secondary mb-0">
-                    Your membership, wallet and orders in one place.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-<?= View::capture('member/dashboard/_header', ['member' => $member]) ?>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Welcome back, ' . $displayName . ($status === 'active' ? " \u{1F44B}" : ''),
+    'description' => 'Your membership, wallet and orders in one place.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => View::capture('member/dashboard/_header', ['member' => $member]),
+]) ?>
 
               <!-- Referral card -->
-              <div class="card member-hero mb-4">
+              <div class="card member-hero mb-6">
                 <div class="card-body">
                   <div class="row g-4 align-items-center">
                     <div class="col-lg-5">
@@ -144,7 +140,7 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
 
 <?= View::capture('member/dashboard/_binary', ['binary' => $binary ?? null]) ?>
 
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
                 <!-- Membership -->
                 <div class="col-xl-6">
 <?= View::capture('member/dashboard/_membership', [
@@ -164,7 +160,7 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
                 </div>
               </div>
 
-              <div class="row g-4">
+              <div class="row g-6">
                 <!-- Recent orders -->
                 <div class="col-xl-8">
 <?= View::capture('member/dashboard/_orders', [

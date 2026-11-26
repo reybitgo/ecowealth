@@ -37,18 +37,13 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">My orders</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every order you have placed, newest first. Open one to see its items, delivery details and history.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <a href="<?= e(url('shop')) ?>" class="btn btn-label-primary">
-                  <i class="icon-base bx bx-store me-1"></i> Continue shopping
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'My orders',
+    'description' => 'Every order you have placed, newest first. Open one to see its items, delivery details and history.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<a href="' . e(url('shop')) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-store me-1"></i> Continue shopping</a>',
+]) ?>
 
               <div class="card">
                 <div class="card-header">

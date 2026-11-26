@@ -60,16 +60,12 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">E-wallet monitor</h4>
-                  <p class="text-body-secondary mb-0">
-                    The float, both buckets and every movement. Top-ups are audited; ledger rows are immutable.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-<?= View::capture('admin/wallets/_metrics', ['totals' => $totals]) ?>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'E-wallet monitor',
+    'description' => 'The float, both buckets and every movement. Top-ups are audited; ledger rows are immutable.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => View::capture('admin/wallets/_metrics', ['totals' => $totals]),
+]) ?>
 
               <div
                 class="alert alert-warning d-flex align-items-start gap-2 mb-6 d-none"

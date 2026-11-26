@@ -249,6 +249,20 @@ if ($isTeam) {
         $statuses[$status] = ucfirst($status);
     }
 }
+
+$headerTitle = match (true) {
+    $isTeam    => 'Your Team Harvest bonus',
+    $isRoyalty => 'Your Royalty bonus',
+    $isRepeat  => 'Repeat-purchase bonus',
+    default    => 'Earnings',
+};
+$headerDescription = match (true) {
+    $isTeam => 'A private 3×10 matrix: levels fill with qualified teammates and each level pays once, when its block is full.',
+    $isRoyalty => "Royalty is paid once a month, after the month closes, when your rank and your team's group sales meet the quota.",
+    $isRepeat => 'Every repeat-purchase award your <strong>Team chain</strong>\'s paid purchases earned you.',
+    default => 'Every commission comes from one activation and moves real wallet money. Awards are final.',
+};
+$headerDescription .= ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>';
 ?>
             <div
               class="container-xxl flex-grow-1 container-p-y commission-page"
@@ -263,50 +277,20 @@ if ($isTeam) {
             >
               <?= flash_render() ?>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                <div>
-<?php if ($isTeam): ?>
-                  <h4 class="mb-1">Your Team Harvest bonus</h4>
-                  <p class="text-body-secondary mb-0">
-                    A private 3×10 matrix: levels fill with qualified teammates and each level pays once,
-                    when its block is full.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-<?php elseif ($isRoyalty): ?>
-                  <h4 class="mb-1">Your Royalty bonus</h4>
-                  <p class="text-body-secondary mb-0">
-                    Royalty is paid once a month, after the month closes, when your rank and your team's
-                    group sales meet the quota.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-<?php elseif ($isRepeat): ?>
-                  <h4 class="mb-1">Repeat-purchase bonus</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every repeat-purchase award your <strong>Team chain</strong>'s paid purchases earned you.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-<?php else: ?>
-                  <h4 class="mb-1">Earnings</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every commission comes from one activation and moves real wallet money. Awards are final.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-<?php endif; ?>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                  <a href="<?= e($export_url) ?>" class="btn btn-label-secondary">
-                    <i class="icon-base bx bx-download me-1"></i> Export CSV
-                  </a>
-<?php if ($isRepeat || $isRoyalty || $isTeam): ?>
-                  <a href="<?= e($genealogy_url ?? url('genealogy')) ?>" class="btn btn-label-secondary">
-                    <i class="icon-base bx bx-git-branch me-1"></i> Genealogy
-                  </a>
-<?php endif; ?>
-                  <a href="<?= e($wallet_url) ?>" class="btn btn-primary">
-                    <i class="icon-base bx bx-wallet me-1"></i> Open e-wallet
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => $headerTitle,
+    'description' => $headerDescription,
+    'actions'     => '<div class="d-flex flex-wrap gap-2">'
+        . '<a href="' . e($export_url) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-download me-1"></i> Export CSV</a>'
+        . (($isRepeat || $isRoyalty || $isTeam)
+            ? '<a href="' . e($genealogy_url ?? url('genealogy')) . '" class="btn btn-label-secondary">'
+                . '<i class="icon-base bx bx-git-branch me-1"></i> Genealogy</a>'
+            : '')
+        . '<a href="' . e($wallet_url) . '" class="btn btn-primary">'
+        . '<i class="icon-base bx bx-wallet me-1"></i> Open e-wallet</a>'
+        . '</div>',
+]) ?>
 
               <ul class="nav nav-pills mb-4 commission-tabs" role="list">
                 <li class="nav-item" role="listitem">
@@ -800,7 +784,7 @@ if ($isTeam) {
                 </div>
               </div>
 <?php else: ?>
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
 <?= View::capture('member/earnings/_binary_stats', [
     'totals'  => $binaryTotals,
     'pending' => $binaryPending,

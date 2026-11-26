@@ -82,35 +82,28 @@ $query       = '?from=' . rawurlencode((string) $range['from']) . '&to=' . rawur
             >
               <?= flash_render() ?>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                <div>
-                  <h4 class="mb-1">Reports</h4>
-                  <p class="text-body-secondary mb-0">
-                    Sales, commissions, wallets, withdrawals and registration codes for
-                    <strong><?= e($range['label']) ?></strong>.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                  <div class="dropdown">
-                    <button class="btn btn-label-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                      <i class="icon-base bx bx-download me-1"></i> Export CSV
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-<?php foreach ($exportTypes as $type => $label): ?>
-                      <li>
-                        <a class="dropdown-item" href="<?= e($exportUrl . $query . '&type=' . rawurlencode((string) $type)) ?>">
-                          <i class="icon-base bx bx-file me-2"></i><?= e($label) ?>
-                        </a>
-                      </li>
-<?php endforeach; ?>
-                    </ul>
-                  </div>
-                  <a href="<?= e(url('admin/wallets')) ?>" class="btn btn-label-primary">
-                    <i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Reports',
+    'description' => 'Sales, commissions, wallets, withdrawals and registration codes for'
+        . ' <strong>' . e($range['label']) . '</strong>.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<div class="d-flex flex-wrap align-items-center gap-2">'
+        . '<div class="dropdown">'
+        . '<button class="btn btn-label-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">'
+        . '<i class="icon-base bx bx-download me-1"></i> Export CSV</button>'
+        . '<ul class="dropdown-menu dropdown-menu-end">'
+        . implode('', array_map(
+            static fn (string $type, string $label): string => '<li><a class="dropdown-item" href="'
+                . e($exportUrl . $query . '&type=' . rawurlencode($type)) . '">'
+                . '<i class="icon-base bx bx-file me-2"></i>' . e($label) . '</a></li>',
+            array_keys($exportTypes),
+            array_values($exportTypes)
+        ))
+        . '</ul></div>'
+        . '<a href="' . e(url('admin/wallets')) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor</a>'
+        . '</div>',
+]) ?>
 
               <div class="card mb-6">
                 <div class="card-body">

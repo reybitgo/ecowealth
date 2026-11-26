@@ -47,19 +47,14 @@ $live = $live ?? [
               data-live-interval="<?= (int) $live['interval'] ?>"
               data-live-config="config"
             >
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Payouts</h4>
-                  <p class="text-body-secondary mb-0">
-                    Approve, reject or settle withdrawal requests. The money is held when the member asks, refunded on
-                    rejection and never debited twice.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <a href="<?= e(url('admin/wallets')) ?>" class="btn btn-label-primary">
-                  <i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Payouts',
+    'description' => 'Approve, reject or settle withdrawal requests. The money is held when the member asks, refunded on'
+        . ' rejection and never debited twice.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<a href="' . e(url('admin/wallets')) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-wallet me-1"></i> E-wallet monitor</a>',
+]) ?>
 
 <?= View::capture('admin/payouts/_stats', ['totals' => $totals, 'facts' => $facts]) ?>
 

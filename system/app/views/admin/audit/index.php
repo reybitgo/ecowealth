@@ -81,25 +81,19 @@ $cards = [
             <div class="container-xxl flex-grow-1 container-p-y audit-page">
               <?= flash_render() ?>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                <div>
-                  <h4 class="mb-1">Audit log</h4>
-                  <p class="text-body-secondary mb-0">
-                    Every audited admin and money action, newest first. The table is append-only — an audit entry is
-                    never edited or deleted.
-                  </p>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                  <a href="<?= e(url('admin/impersonations')) ?>" class="btn btn-label-secondary">
-                    <i class="icon-base bx bx-shield-quarter me-1"></i> S-Login sessions
-                  </a>
-                  <a href="<?= e(url('admin/reports')) ?>" class="btn btn-label-primary">
-                    <i class="icon-base bx bx-bar-chart-alt-2 me-1"></i> Reports
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Audit log',
+    'description' => 'Every audited admin and money action, newest first. The table is append-only — an audit entry is'
+        . ' never edited or deleted.',
+    'actions'     => '<div class="d-flex flex-wrap gap-2">'
+        . '<a href="' . e(url('admin/impersonations')) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-shield-quarter me-1"></i> S-Login sessions</a>'
+        . '<a href="' . e(url('admin/reports')) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-bar-chart-alt-2 me-1"></i> Reports</a>'
+        . '</div>',
+]) ?>
 
-              <div class="row g-4 mb-6">
+              <div class="row g-6 mb-6">
 <?php foreach ($cards as $card): ?>
                 <div class="col-6 col-xl-3">
                   <div class="card h-100 report-kpi-card">

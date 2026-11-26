@@ -73,7 +73,7 @@ $kpis = [
     ],
 ];
 ?>
-              <div class="row g-4 mb-4" data-live-region="dashboard-kpis">
+              <div class="row g-6 mb-6" data-live-region="dashboard-kpis">
 <?= View::capture('member/dashboard/_kpi', ['kpi' => $kpis[0]]) ?>
 <?= View::capture('member/dashboard/_wallet_kpi', ['balance' => $balance, 'withdrawable' => $withdrawable]) ?>
 <?= View::capture('member/dashboard/_kpi', ['kpi' => $kpis[1]]) ?>

@@ -120,7 +120,7 @@ if ($preview_mode) {
     return;
 }
 ?>
-              <div class="row g-4 mb-4" data-live-region="commission-royalty-stats">
+              <div class="row g-6 mb-6" data-live-region="commission-royalty-stats">
 <?php
 $cards = [
     [

@@ -155,7 +155,7 @@ $cards = [
     ],
 ];
 ?>
-              <div class="row g-4 mb-4" data-live-region="earnings-binary-stats">
+              <div class="row g-6 mb-6" data-live-region="earnings-binary-stats">
 <?php foreach ($cards as $card): ?>
                 <div class="col-sm-6 col-lg-4 col-xl">
                   <div class="card h-100 commission-stat-card">

@@ -65,24 +65,18 @@ $live = $live ?? [
                 </div>
               </div>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Payouts</h4>
-                  <p class="text-body-secondary mb-0">
-                    Cash out the withdrawable part of your e-wallet. The amount is held as soon as you ask for it,
-                    so you cannot spend it twice.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                  <a href="<?= e($profile_url) ?>" class="btn btn-label-secondary">
-                    <i class="icon-base bx bx-credit-card me-1"></i> Payout details
-                  </a>
-                  <a href="<?= e($statement_url) ?>" class="btn btn-label-primary">
-                    <i class="icon-base bx bx-list-ul me-1"></i> Open statement
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Payouts',
+    'description' => 'Cash out the withdrawable part of your e-wallet. The amount is held as soon as you ask for it,'
+        . ' so you cannot spend it twice.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<div class="d-flex flex-wrap align-items-center gap-2">'
+        . '<a href="' . e($profile_url) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-credit-card me-1"></i> Payout details</a>'
+        . '<a href="' . e($statement_url) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-list-ul me-1"></i> Open statement</a>'
+        . '</div>',
+]) ?>
 
               <div class="row g-6 mb-6">
                 <div class="col-12 col-xl-5">

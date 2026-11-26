@@ -30,7 +30,7 @@ $rightPager = Paginator::make((int) ($rightTeam['pager']['total'] ?? 0), (int) (
 $leftInvite  = '<a href="' . e(url('shop')) . '" class="text-primary text-decoration-none">Start by placing a purchase on the left</a>.';
 $rightInvite = '<a href="' . e(url('shop')) . '" class="text-primary text-decoration-none">Start by placing a purchase on the right</a>.';
 ?>
-              <div class="row g-4 mb-4" data-live-region="earnings-binary-teams">
+              <div class="row g-6 mb-6" data-live-region="earnings-binary-teams">
                 <div class="col-xl-6">
                   <div class="card h-100">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">

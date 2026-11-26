@@ -127,7 +127,7 @@ $live = $live ?? [
     'free_registration' => $free_registration,
 ]) ?>
 
-              <div class="row g-4">
+              <div class="row g-6">
                 <!-- Referral -->
                 <div class="col-lg-5">
                   <div class="card h-100">

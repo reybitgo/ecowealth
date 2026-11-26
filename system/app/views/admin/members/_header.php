@@ -10,15 +10,11 @@ declare(strict_types=1);
  * @var array{total:int, active:int, pending:int, suspended:int, with_package:int, new_week:int} $stats
  */
 ?>
-              <div
-                class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4"
-                data-live-region="member-header"
-              >
-                <div>
-                  <h4 class="mb-1">Members</h4>
-                  <p class="text-body-secondary mb-0">
-                    Sponsor chain, package, status, Royalty rank and wallet for every member account.
-                  </p>
-                </div>
-                <span class="badge rounded-pill bg-label-primary"><?= (int) $stats['new_week'] ?> joined this week</span>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Members',
+    'description' => 'Sponsor chain, package, status, Royalty rank and wallet for every member account.',
+    'attributes'  => ['data-live-region' => 'member-header'],
+    'align'       => 'center',
+    'actions'     => '<span class="badge rounded-pill bg-label-primary">'
+        . (int) $stats['new_week'] . ' joined this week</span>',
+]) ?>

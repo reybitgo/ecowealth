@@ -15,7 +15,7 @@ $cards = [
     ['label' => 'Revenue (used)', 'value' => money($stats['revenue']), 'icon' => 'bx-line-chart', 'tone' => 'warning'],
 ];
 ?>
-              <div class="row g-4 mb-4" data-live-region="code-stats">
+              <div class="row g-6 mb-6" data-live-region="code-stats">
 <?php foreach ($cards as $card): ?>
                 <div class="col-6 col-xl">
                   <div class="card h-100">

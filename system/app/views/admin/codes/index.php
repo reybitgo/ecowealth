@@ -49,24 +49,17 @@ $live = $live ?? [
             >
               <?= flash_render() ?>
 
-              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-                <div>
-                  <h4 class="mb-1">Registration codes</h4>
-                  <p class="text-body-secondary mb-0">
-                    Package-bound, one-time codes sold offline. Redemption is single-use and audited.
-                  </p>
-                </div>
-                <a
-                  href="<?= e(url('admin/codes/export' . ($exportQuery === '' ? '' : '?' . $exportQuery))) ?>"
-                  class="btn btn-label-primary"
-                >
-                  <i class="icon-base bx bx-download me-1"></i> Export CSV
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Registration codes',
+    'description' => 'Package-bound, one-time codes sold offline. Redemption is single-use and audited.',
+    'align'       => 'center',
+    'actions'     => '<a href="' . e(url('admin/codes/export' . ($exportQuery === '' ? '' : '?' . $exportQuery))) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-download me-1"></i> Export CSV</a>',
+]) ?>
 
 <?= View::capture('admin/codes/_stats', ['stats' => $stats]) ?>
 
-              <div class="row g-4 mb-4">
+              <div class="row g-6 mb-6">
                 <!-- Issue -->
                 <div class="col-xl-7">
                   <div class="card h-100" id="codes-issue">

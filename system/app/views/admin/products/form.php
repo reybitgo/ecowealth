@@ -24,19 +24,15 @@ $errors   = errors_all();
 $unilevel = $unilevel ?? [];
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
-              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1"><?= $isEdit ? 'Edit product' : 'New product' ?></h4>
-                  <p class="text-body-secondary mb-0">
-                    <?= $isEdit
-                        ? 'Update the catalogue entry — changes show in the shop immediately.'
-                        : 'Add a product to the catalogue. It goes live as soon as it is saved as active.' ?>
-                  </p>
-                </div>
-                <a href="<?= e(url('admin/products')) ?>" class="btn btn-label-secondary">
-                  <i class="icon-base bx bx-arrow-back me-1"></i> Back to products
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => $isEdit ? 'Edit product' : 'New product',
+    'description' => $isEdit
+        ? 'Update the catalogue entry — changes show in the shop immediately.'
+        : 'Add a product to the catalogue. It goes live as soon as it is saved as active.',
+    'align'       => 'center',
+    'actions'     => '<a href="' . e(url('admin/products')) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-arrow-back me-1"></i> Back to products</a>',
+]) ?>
 
 <?php if ($errors !== []): ?>
               <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">

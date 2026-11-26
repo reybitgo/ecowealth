@@ -31,18 +31,13 @@ $tabUrl = static function (string $status) use ($audit_url): string {
 };
 ?>
             <div class="container-xxl flex-grow-1 container-p-y sl-audit-page">
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Super-login audit</h4>
-                  <p class="text-body-secondary mb-0">
-                    Who opened whose member portal, from where, and how the session ended.
-                    The URL token is stored only as a SHA-256 hash and is never shown.
-                  </p>
-                </div>
-                <a href="<?= e($console_url) ?>" class="btn btn-label-primary">
-                  <i class="icon-base bx bx-shield-quarter me-1"></i> S-Login console
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Super-login audit',
+    'description' => 'Who opened whose member portal, from where, and how the session ended.'
+        . ' The URL token is stored only as a SHA-256 hash and is never shown.',
+    'actions'     => '<a href="' . e($console_url) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-shield-quarter me-1"></i> S-Login console</a>',
+]) ?>
 
               <div class="row g-6 mb-6">
                 <div class="col-6 col-xl-3">

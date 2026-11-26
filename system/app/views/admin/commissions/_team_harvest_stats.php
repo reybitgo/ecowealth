@@ -80,7 +80,7 @@ $cards = [
     ],
 ];
 ?>
-              <div class="row g-4 mb-4" data-live-region="team-harvest-stats">
+              <div class="row g-6 mb-6" data-live-region="team-harvest-stats">
 <?php foreach ($cards as $card): ?>
                 <div class="col-6 col-md-4 col-xl-2">
                   <div class="card h-100 commission-stat-card">

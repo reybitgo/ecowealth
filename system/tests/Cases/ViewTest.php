@@ -357,6 +357,50 @@ return [
         assert_not_contains('PHP ' . PHP_VERSION, $html);
     },
 
+    'UX-09 the shared page header sets one page rhythm' => function (): void {
+        $html = View::partial('page_header', [
+            'title'       => 'Reports',
+            'description' => 'Sales and payouts.',
+            'attributes'  => ['data-live-region' => 'page-header'],
+            'actions'     => '<a href="/reports.csv" class="btn btn-primary">Export</a>',
+        ]);
+
+        assert_contains('class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6"', $html);
+        assert_contains('<h4 class="mb-1">Reports</h4>', $html);
+        assert_contains('data-live-region="page-header"', $html);
+        assert_contains('class="btn btn-primary"', $html);
+        assert_not_contains('mb-4', $html);
+    },
+
+    'UX-09 portal pages do not hand-roll the old tighter page rhythm' => function (): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+
+        foreach (['admin', 'member', 'profile'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . '/' . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $source = (string) file_get_contents($file->getPathname());
+
+                if (preg_match('/class="d-flex[^"]*align-items-(?:start|center)[^"]*justify-content-between[^"]*gap-3 mb-4"/', $source) === 1) {
+                    $offenders[] = $file->getPathname() . ': page header uses mb-4';
+                }
+
+                if (preg_match('/class="row g-4 mb-[46]"[^>]*data-live-region/', $source) === 1) {
+                    $offenders[] = $file->getPathname() . ': section grid uses g-4';
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'page headers and first-level card grids share the 24px rhythm');
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,

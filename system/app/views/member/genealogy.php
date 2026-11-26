@@ -96,44 +96,36 @@ $live = $live ?? [
                     }
                 }
                 ?>
-                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                  <div>
-                    <h4 class="mb-1">Binary Tree</h4>
-                    <p class="text-body-secondary mb-0">
-                      <?= $isAdmin ? 'The placement tree' : 'Your placement tree' ?> — left and right legs,
-                      points and pairs. Server-rendered on first paint; works without JavaScript.
-                    </p>
-<?php if ($binary_unavailable === ''): ?>
-                    <div class="small text-body-secondary mt-2">
-                      <strong><?= $nodes ?> node<?= $nodes === 1 ? '' : 's' ?></strong>
-                      in tree · depth <?= (int) $binary_depth ?>
-                      <?= $truncated ? '· some branches hidden (expand to load more)' : '' ?>
-                    </div>
-<?php endif; ?>
-                  </div>
-<?php if ($binary_unavailable === ''): ?>
-                  <div class="d-flex gap-2">
-                    <a
-                      href="<?= url('genealogy?view=binary&depth=' . max(1, (int) $binary_depth - 1)) ?>"
-                      class="btn btn-sm btn-outline-secondary"
-                      title="Shallower view"
-                      aria-label="Shallower view"
-                    ><i class="icon-base bx bx-chevron-up"></i></a>
-                    <a
-                      href="<?= url('genealogy?view=binary&depth=' . min(BinaryTreeService::MAX_DEPTH, (int) $binary_depth + 1)) ?>"
-                      class="btn btn-sm btn-outline-secondary"
-                      title="Deeper view"
-                      aria-label="Deeper view"
-                    ><i class="icon-base bx bx-chevron-down"></i></a>
-                    <a
-                      href="<?= url('genealogy?view=binary&root=' . $rootId) ?>"
-                      class="btn btn-sm btn-outline-secondary"
-                      title="Reset view"
-                      aria-label="Reset view"
-                    ><i class="icon-base bx bx-reset"></i></a>
-                  </div>
-<?php endif; ?>
-                </div>
+<?php
+$binaryDescription = ($isAdmin ? 'The placement tree' : 'Your placement tree')
+    . ' — left and right legs, points and pairs. Server-rendered on first paint; works without JavaScript.';
+if ($binary_unavailable === '') {
+    $binaryDescription .= '<span class="d-block small text-body-secondary mt-2">'
+        . '<strong>' . $nodes . ' node' . ($nodes === 1 ? '' : 's') . '</strong>'
+        . ' in tree · depth ' . (int) $binary_depth
+        . ($truncated ? ' · some branches hidden (expand to load more)' : '')
+        . '</span>';
+}
+$binaryActions = '';
+if ($binary_unavailable === '') {
+    $binaryActions = '<div class="d-flex gap-2">'
+        . '<a href="' . url('genealogy?view=binary&depth=' . max(1, (int) $binary_depth - 1)) . '"'
+        . ' class="btn btn-sm btn-outline-secondary" title="Shallower view" aria-label="Shallower view">'
+        . '<i class="icon-base bx bx-chevron-up"></i></a>'
+        . '<a href="' . url('genealogy?view=binary&depth=' . min(BinaryTreeService::MAX_DEPTH, (int) $binary_depth + 1)) . '"'
+        . ' class="btn btn-sm btn-outline-secondary" title="Deeper view" aria-label="Deeper view">'
+        . '<i class="icon-base bx bx-chevron-down"></i></a>'
+        . '<a href="' . url('genealogy?view=binary&root=' . $rootId) . '"'
+        . ' class="btn btn-sm btn-outline-secondary" title="Reset view" aria-label="Reset view">'
+        . '<i class="icon-base bx bx-reset"></i></a>'
+        . '</div>';
+}
+?>
+<?= View::partial('page_header', [
+    'title'       => 'Binary Tree',
+    'description' => $binaryDescription,
+    'actions'     => $binaryActions,
+]) ?>
 
                 <!-- View switcher (UX-07): the sponsor tree is the default, the binary
                      placement tree lives at ?view=binary. Both views render it. -->
@@ -287,27 +279,23 @@ $live = $live ?? [
 
 <?php else: ?>
                 <!-- ============================ Sponsor genealogy (unchanged) ============================ -->
-                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-                  <div>
-                    <h4 class="mb-1">Genealogy</h4>
-                    <p class="text-body-secondary mb-0">
-                      Your team by level — direct recruits at level 1, their recruits at level 2, and so on.
-                      Commissions follow this chain — one sponsor per member.
-                      <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                    </p>
-                  </div>
-<?= View::capture('member/genealogy/_header', [
-    'team_count'       => $team_count,
-    'levels_used'      => $levels_used,
-    'harvest_position' => $harvest_position ?? null,
+<?= View::partial('page_header', [
+    'title'       => 'Genealogy',
+    'description' => 'Your team by level — direct recruits at level 1, their recruits at level 2, and so on.'
+        . ' Commissions follow this chain — one sponsor per member.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => View::capture('member/genealogy/_header', [
+        'team_count'       => $team_count,
+        'levels_used'      => $levels_used,
+        'harvest_position' => $harvest_position ?? null,
+    ]),
 ]) ?>
-                </div>
 
                 <!-- View switcher (UX-07): the sponsor tree is the default, the binary
                      placement tree lives at ?view=binary. Both views render it. -->
 <?= View::capture('member/genealogy/_view_tabs', ['is_binary' => false]) ?>
 
-                <div class="row g-4">
+                <div class="row g-6">
                   <!-- Team chain -->
                   <div class="col-xl-6">
                     <div class="card h-100">

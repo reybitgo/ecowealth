@@ -92,7 +92,7 @@ $cards = [
     ],
 ];
 ?>
-              <div class="row g-4 mb-6" data-live-region="report-kpis">
+              <div class="row g-6 mb-6" data-live-region="report-kpis">
 <?php foreach ($cards as $card): ?>
                 <div class="col-6 col-md-4 col-xl-2">
                   <div class="card h-100 report-kpi-card">

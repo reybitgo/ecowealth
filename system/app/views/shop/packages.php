@@ -38,14 +38,14 @@ CSS;
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="mb-6">
-                <h4 class="mb-1">Associate packages</h4>
-                <p class="text-body-secondary mb-0" style="max-width: 46rem">
-                  Packages define your entry point: the products you receive, the direct referral
-                  bonus you earn, and the level income your Team chain earns you up to ten levels deep.
-                  <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                </p>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Associate packages',
+    'description' => '<span style="max-width: 46rem">'
+        . 'Packages define your entry point: the products you receive, the direct referral'
+        . ' bonus you earn, and the level income your Team chain earns you up to ten levels deep.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>'
+        . '</span>',
+]) ?>
 
               <div class="alert alert-info d-flex align-items-start gap-2 mb-6" role="alert">
                 <i class="icon-base bx bx-info-circle fs-4"></i>

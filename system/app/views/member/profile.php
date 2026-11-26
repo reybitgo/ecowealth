@@ -60,23 +60,17 @@ $live = $live ?? [
                 </div>
               </div>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Profile</h4>
-                  <p class="text-body-secondary mb-0">
-                    Your account details, payout accounts and the addresses checkout pre-fills.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                  <a href="<?= e(url('wallet')) ?>" class="btn btn-label-primary">
-                    <i class="icon-base bx bx-wallet me-1"></i> E-wallet
-                  </a>
-                  <a href="<?= e(url('profile/password')) ?>" class="btn btn-label-secondary">
-                    <i class="icon-base bx bx-lock-alt me-1"></i> Change password
-                  </a>
-                </div>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Profile',
+    'description' => 'Your account details, payout accounts and the addresses checkout pre-fills.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<div class="d-flex flex-wrap gap-2">'
+        . '<a href="' . e(url('wallet')) . '" class="btn btn-label-primary">'
+        . '<i class="icon-base bx bx-wallet me-1"></i> E-wallet</a>'
+        . '<a href="' . e(url('profile/password')) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-lock-alt me-1"></i> Change password</a>'
+        . '</div>',
+]) ?>
 
               <div class="row g-6">
                 <div class="col-lg-4">

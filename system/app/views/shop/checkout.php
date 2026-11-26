@@ -79,18 +79,13 @@ $live = $live ?? [
                 </div>
               </div>
 
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Checkout</h4>
-                  <p class="text-body-secondary mb-0">
-                    Review your items, choose how to pay, and tell us where to deliver.
-                    <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
-                  </p>
-                </div>
-                <a href="<?= e(url('cart')) ?>" class="btn btn-label-secondary">
-                  <i class="icon-base bx bx-arrow-back me-1"></i> Back to cart
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Checkout',
+    'description' => 'Review your items, choose how to pay, and tell us where to deliver.'
+        . ' <span class="small text-body-secondary" data-live-status aria-live="polite"></span>',
+    'actions'     => '<a href="' . e(url('cart')) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-arrow-back me-1"></i> Back to cart</a>',
+]) ?>
 
               <div class="alert alert-info d-flex align-items-start gap-2 mb-4 d-none" data-checkout-draft role="status" aria-live="polite">
                 <i class="icon-base bx bx-history fs-5"></i>

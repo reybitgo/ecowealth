@@ -43,15 +43,13 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Products</h4>
-                  <p class="text-body-secondary mb-0">Manage the catalogue members see in the shop.</p>
-                </div>
-                <a href="<?= e(url('admin/products/new')) ?>" class="btn btn-primary">
-                  <i class="icon-base bx bx-plus me-1"></i> New product
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Products',
+    'description' => 'Manage the catalogue members see in the shop.',
+    'align'       => 'center',
+    'actions'     => '<a href="' . e(url('admin/products/new')) . '" class="btn btn-primary">'
+        . '<i class="icon-base bx bx-plus me-1"></i> New product</a>',
+]) ?>
 
 <?= View::capture('admin/products/_stats', ['stats' => $stats]) ?>
 

@@ -12,18 +12,13 @@ declare(strict_types=1);
 $me = $user ?? auth_user();
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1">Change password</h4>
-                  <p class="text-body-secondary mb-0">
-                    Signed in as <strong><?= e($me['username'] ?? '') ?></strong>.
-                    Changing your password signs out other remembered devices.
-                  </p>
-                </div>
-                <a href="<?= e(url('profile')) ?>" class="btn btn-label-secondary">
-                  <i class="icon-base bx bx-arrow-back me-1"></i> Back to profile
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => 'Change password',
+    'description' => 'Signed in as <strong>' . e($me['username'] ?? '') . '</strong>.'
+        . ' Changing your password signs out other remembered devices.',
+    'actions'     => '<a href="' . e(url('profile')) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-arrow-back me-1"></i> Back to profile</a>',
+]) ?>
 
               <div class="row justify-content-center">
                 <div class="col-md-8 col-xl-6">

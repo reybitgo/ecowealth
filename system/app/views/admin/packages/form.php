@@ -41,19 +41,15 @@ $renderOptions = static function (int|string $selected) use ($content_options): 
 $contentRows = $contents === [] ? [['product_id' => 0, 'quantity' => 1]] : $contents;
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
-              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-6">
-                <div>
-                  <h4 class="mb-1"><?= $isEdit ? 'Edit package' : 'New package' ?></h4>
-                  <p class="text-body-secondary mb-0">
-                    <?= $isEdit
-                        ? 'Update the package, its referral ladder and its contents.'
-                        : 'Define an associate package, the referral amounts it pays and what it contains.' ?>
-                  </p>
-                </div>
-                <a href="<?= e(url('admin/packages')) ?>" class="btn btn-label-secondary">
-                  <i class="icon-base bx bx-arrow-back me-1"></i> Back to packages
-                </a>
-              </div>
+<?= View::partial('page_header', [
+    'title'       => $isEdit ? 'Edit package' : 'New package',
+    'description' => $isEdit
+        ? 'Update the package, its referral ladder and its contents.'
+        : 'Define an associate package, the referral amounts it pays and what it contains.',
+    'align'       => 'center',
+    'actions'     => '<a href="' . e(url('admin/packages')) . '" class="btn btn-label-secondary">'
+        . '<i class="icon-base bx bx-arrow-back me-1"></i> Back to packages</a>',
+]) ?>
 
 <?php if ($errors !== []): ?>
               <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
