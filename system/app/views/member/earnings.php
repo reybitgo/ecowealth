@@ -222,7 +222,10 @@ if ($isTeam) {
     foreach (UnilevelAward::STATUSES as $statusKey) {
         $statusOptions[$statusKey] = UnilevelAward::STATUS_LABELS[$statusKey] ?? ucfirst($statusKey);
     }
-} else {
+} elseif (!$isBinary) {
+    /* Package commissions — the default tab. The binary tab keeps its own
+     * filter shape (`kind`, `status`, `side`, `source`, no `type`) and builds
+     * its own $hasFilters from $binaryFilters before it renders. */
     $hasFilters = $filters['type'] !== ''
         || $filters['level'] !== ''
         || $filters['status'] !== ''
