@@ -55,6 +55,23 @@
     });
   }
 
+  /* UX-12: the member statement switcher collapses to one select on a
+   * phone; changing it loads the chosen statement. The noscript button
+   * keeps the same form usable without JavaScript. */
+  document.addEventListener('change', function (event) {
+    var select = event.target;
+
+    if (!select || !select.matches || !select.matches('[data-statement-select]')) {
+      return;
+    }
+
+    var form = select.form || (select.closest ? select.closest('form') : null);
+
+    if (form) {
+      form.submit();
+    }
+  });
+
   document.addEventListener('click', function (event) {
     var trigger = event.target.closest('[data-commission]');
 

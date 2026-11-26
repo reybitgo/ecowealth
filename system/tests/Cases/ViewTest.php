@@ -436,6 +436,78 @@ return [
         assert_same([], $offenders, 'card sections share the 24px page rhythm');
     },
 
+    'UX-12 the member earnings tabs keep two primary pills and one statement menu' => function () use ($render): void {
+        $user = test_user('ux12_member');
+        test_signed_in_as($user);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings';
+
+        $controller = new EarningsController();
+
+        try {
+            $html = $render('member', 'member/earnings', $controller->earningsContext((int) $user['id']) + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+            ]);
+        } finally {
+            $_GET = [];
+        }
+
+        /* Two primary statements stay as pills; the rest are one menu. */
+        assert_contains('class="nav nav-pills view-tabs earnings-tabs d-none d-md-flex"', $html);
+
+        preg_match('/<ul class="nav nav-pills view-tabs earnings-tabs[^"]*"[\s\S]*?<li class="nav-item dropdown"/', $html, $pills);
+
+        assert_same(2, preg_match_all('/class="nav-link(?: active)?"/', $pills[0] ?? ''), 'only the two primary statements are pills');
+        assert_contains('Package commissions', $pills[0] ?? '');
+        assert_contains('Repeat-purchase bonus', $pills[0] ?? '');
+
+        /* The overflow menu carries the secondary streams. */
+        assert_contains('id="earnings-more-statements"', $html);
+        assert_contains('More statements', $html);
+
+        preg_match('/<ul class="dropdown-menu" aria-labelledby="earnings-more-statements">([\s\S]*?)<\/ul>/', $html, $menu);
+        assert_true($menu !== [], 'the More statements menu renders');
+
+        preg_match_all('/<a\s+href="([^"]+)"/', $menu[1], $menuLinks);
+
+        assert_same(url('earnings?ledger=royalty'), $menuLinks[1][0] ?? null);
+        assert_same(url('earnings?ledger=team_harvest'), $menuLinks[1][1] ?? null);
+        assert_same(url('earnings?ledger=general_harvest'), $menuLinks[1][2] ?? null);
+
+        /* A phone gets one select over the same statements. */
+        preg_match('/<select[^>]*data-statement-select[^>]*>([\s\S]*?)<\/select>/', $html, $select);
+        assert_true($select !== [], 'the phone statement select renders');
+
+        preg_match('/<optgroup label="Main statements">([\s\S]*?)<\/optgroup>/', $select[1], $mainGroup);
+        preg_match('/<optgroup label="More statements">([\s\S]*?)<\/optgroup>/', $select[1], $moreGroup);
+
+        assert_same(2, preg_match_all('/<option /', $mainGroup[1] ?? ''), 'two primary statements');
+        assert_same(
+            count($menuLinks[1]),
+            preg_match_all('/<option /', $moreGroup[1] ?? ''),
+            'the select and the menu list the same secondary statements'
+        );
+        assert_contains('<option value="package" selected>', $select[1]);
+
+        /* A secondary tab keeps both switchers on that statement. */
+        $_GET = ['ledger' => 'royalty'];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings?ledger=royalty';
+
+        try {
+            $royalty = $render('member', 'member/earnings', $controller->royaltyContext((int) $user['id']) + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+            ]);
+        } finally {
+            $_GET = [];
+        }
+
+        assert_contains('class="nav-link dropdown-toggle active"', $royalty, 'the menu names the active stream');
+        assert_contains('<option value="royalty" selected>', $royalty, 'the phone select shows the active stream');
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,

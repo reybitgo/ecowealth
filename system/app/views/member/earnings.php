@@ -7,7 +7,9 @@ declare(strict_types=1);
  * plan §9; Phase 19E adds the Royalty tab; Phase 20F adds the Team
  * Harvest tab).
  *
- * Four tabs, one URL:
+ * Six statements, one URL. The two primary ones stay as pills; the
+ * four secondary streams share one "More statements" menu, and on a
+ * phone the whole switcher becomes a single select (UX-12):
  *
  *   Package commissions      every activation award, credited or
  *                            skipped, with its level breakdown.
@@ -32,6 +34,8 @@ declare(strict_types=1);
  *                            amount each level pays, the next block's
  *                            progress and how far the queue still has to
  *                            grow, the paginated award rows and the CSV.
+ *   Binary bonus             the product binary: the self bonus, pairs,
+ *                            team points and one row per award.
  *
  * The package tab is the Phase 10–11 statement, unchanged below the
  * new tab pills. The repeat tab is Team chain directed (plan §9): the
@@ -49,13 +53,16 @@ declare(strict_types=1);
  * refresh never discards an unsubmitted filter and never rewrites the tab
  * the member is on.
  *
- * @var string $tab 'package' (default), 'repeat', 'royalty' or 'team_harvest'
+ * @var string $tab 'package' (default), 'repeat', 'royalty', 'team_harvest',
+ *                  'general_harvest' or 'binary'
  * @var string $wallet_url
  * @var string $genealogy_url
  * @var string $package_url
  * @var string $repeat_url
  * @var string $royalty_url
  * @var string $team_harvest_url
+ * @var string $general_harvest_url
+ * @var string $binary_url
  * @var string $statement_url  this tab's URL
  * @var string $export_url     this tab's CSV export URL
  * @var array{surface:string, enabled:bool, revision:int, etag:string, interval:int} $live
@@ -295,7 +302,31 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
         . '</div>',
 ]) ?>
 
-              <ul class="nav nav-pills view-tabs" role="list">
+<?php
+/* UX-12: the two primary statements stay as pills; the four secondary
+ * streams share one "More statements" menu, and below md the same
+ * statements are one native select instead of a six-pill row that wraps
+ * three times before any content. */
+$primaryStatements = [
+    ['value' => 'package', 'url' => $package_url, 'tab' => 'package', 'label' => 'Package commissions', 'icon' => 'bx-line-chart'],
+    ['value' => 'repeat', 'url' => $repeat_url, 'tab' => 'repeat', 'label' => 'Repeat-purchase bonus', 'icon' => 'bx-gift'],
+];
+$moreStatements = [
+    ['value' => 'royalty', 'url' => $royalty_url, 'tab' => 'royalty', 'label' => 'Royalty', 'icon' => 'bx-crown'],
+    ['value' => 'team_harvest', 'url' => $team_harvest_url, 'tab' => 'team_harvest', 'label' => 'Team Harvest', 'icon' => 'bx-trophy'],
+    ['value' => 'general_harvest', 'url' => $general_harvest_url, 'tab' => 'general_harvest', 'label' => 'General Harvest', 'icon' => 'bx-grid-alt'],
+];
+if (BinaryService::enabled()) {
+    $moreStatements[] = ['value' => 'binary', 'url' => $binary_url, 'tab' => 'binary', 'label' => 'Binary bonus', 'icon' => 'bx-git-branch'];
+}
+$activeMore = null;
+foreach ($moreStatements as $moreStatement) {
+    if ($moreStatement['tab'] === $tab) {
+        $activeMore = $moreStatement;
+    }
+}
+?>
+              <ul class="nav nav-pills view-tabs earnings-tabs d-none d-md-flex" role="list">
                 <li class="nav-item" role="listitem">
                   <a
                     href="<?= e($package_url) ?>"
@@ -314,45 +345,53 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
                     <i class="icon-base bx bx-gift me-1"></i> Repeat-purchase bonus
                   </a>
                 </li>
-                <li class="nav-item" role="listitem">
-                  <a
-                    href="<?= e($royalty_url) ?>"
-                    class="nav-link<?= $isRoyalty ? ' active' : '' ?>"
-<?= $isRoyalty ? ' aria-current="page"' : '' ?>
+                <li class="nav-item dropdown" role="listitem">
+                  <button
+                    type="button"
+                    class="nav-link dropdown-toggle<?= $activeMore !== null ? ' active' : '' ?>"
+                    id="earnings-more-statements"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
                   >
-                    <i class="icon-base bx bx-crown me-1"></i> Royalty
-                  </a>
+                    <i class="icon-base bx <?= e($activeMore['icon'] ?? 'bx-collection') ?> me-1"></i> <?= e($activeMore['label'] ?? 'More statements') ?>
+<?php if ($activeMore !== null): ?><span class="visually-hidden"> (current)</span><?php endif; ?>
+                  </button>
+                  <ul class="dropdown-menu" aria-labelledby="earnings-more-statements">
+                    <li><h6 class="dropdown-header">More statements</h6></li>
+<?php foreach ($moreStatements as $statement): ?>
+                    <li>
+                      <a
+                        href="<?= e($statement['url']) ?>"
+                        class="dropdown-item<?= $statement['tab'] === $tab ? ' active' : '' ?>"
+<?= $statement['tab'] === $tab ? ' aria-current="page"' : '' ?>
+                      >
+                        <i class="icon-base bx <?= e($statement['icon']) ?> me-1"></i> <?= e($statement['label']) ?>
+                      </a>
+                    </li>
+<?php endforeach; ?>
+                  </ul>
                 </li>
-                <li class="nav-item" role="listitem">
-                  <a
-                    href="<?= e($team_harvest_url) ?>"
-                    class="nav-link<?= $isTeam ? ' active' : '' ?>"
-<?= $isTeam ? ' aria-current="page"' : '' ?>
-                  >
-                    <i class="icon-base bx bx-trophy me-1"></i> Team Harvest
-                  </a>
-                </li>
-                <li class="nav-item" role="listitem">
-                  <a
-                    href="<?= e($general_harvest_url) ?>"
-                    class="nav-link<?= $isGeneral ? ' active' : '' ?>"
-<?= $isGeneral ? ' aria-current="page"' : '' ?>
-                  >
-                    <i class="icon-base bx bx-grid-alt me-1"></i> General Harvest
-                  </a>
-                </li>
-<?php if (BinaryService::enabled()): ?>
-                <li class="nav-item" role="listitem">
-                  <a
-                    href="<?= e($binary_url) ?>"
-                    class="nav-link<?= $isBinary ? ' active' : '' ?>"
-<?= $isBinary ? ' aria-current="page"' : '' ?>
-                  >
-                    <i class="icon-base bx bx-git-branch me-1"></i> Binary bonus
-                  </a>
-                </li>
-<?php endif; ?>
               </ul>
+
+              <!-- UX-12: below md the same statements are one select. -->
+              <form method="GET" action="<?= e($package_url) ?>" class="d-md-none mb-6">
+                <label class="form-label" for="earnings-statement">Statement</label>
+                <select class="form-select" id="earnings-statement" name="ledger" data-statement-select>
+                  <optgroup label="Main statements">
+<?php foreach ($primaryStatements as $statement): ?>
+                    <option value="<?= e($statement['value']) ?>" <?= $statement['tab'] === $tab ? 'selected' : '' ?>><?= e($statement['label']) ?></option>
+<?php endforeach; ?>
+                  </optgroup>
+                  <optgroup label="More statements">
+<?php foreach ($moreStatements as $statement): ?>
+                    <option value="<?= e($statement['value']) ?>" <?= $statement['tab'] === $tab ? 'selected' : '' ?>><?= e($statement['label']) ?></option>
+<?php endforeach; ?>
+                  </optgroup>
+                </select>
+                <noscript>
+                  <button type="submit" class="btn btn-sm btn-label-secondary mt-2">Show statement</button>
+                </noscript>
+              </form>
 
 <?php if ($isTeam): ?>
 <?php $teamQueued = (bool) ($team_harvest['queued'] ?? false); ?>
