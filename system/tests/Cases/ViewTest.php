@@ -264,6 +264,30 @@ return [
         assert_contains('href="' . url('profile') . '" class="btn btn-label-secondary">Cancel</a>', $html);
     },
 
+    'UX-13 the member password page opens with the standard page header' => function () use ($render): void {
+        $user = test_user('ux13_member');
+        test_signed_in_as($user);
+
+        $html = $render('member', 'profile/password', ['current_nav' => 'password']);
+
+        $heading = '<h4 class="mb-1">Change password</h4>';
+
+        assert_contains($heading, $html, 'the page opens with the page-level heading');
+        assert_contains('Signed in as <strong>' . e((string) $user['username']) . '</strong>', $html);
+        assert_contains('Changing your password signs out other remembered devices.', $html);
+        assert_not_contains('<h5 class="mb-1">Change password</h5>', $html, 'the title is not an in-card widget');
+        assert_contains('Back to profile</a>', $html, 'the header carries the way back');
+        assert_contains('href="' . url('profile') . '" class="btn btn-label-secondary">Cancel</a>', $html, 'Cancel returns to Profile');
+
+        $headingAt = strpos($html, $heading);
+        $formAt    = strpos($html, 'name="current_password"');
+
+        assert_true(
+            $headingAt !== false && $formAt !== false && $headingAt < $formAt,
+            'the page header precedes the form card'
+        );
+    },
+
     'View::page renders the password form with CSRF protection' => function () use ($render): void {
         test_signed_in_as(test_user('layout_member'));
 
