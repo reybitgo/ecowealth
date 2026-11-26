@@ -41,7 +41,7 @@ $ledgerUrl = url('admin/commissions?ledger=general_harvest');
 $catchUp   = 'bin/general_harvest_catchup.php';
 $armJob    = 'bin/general_harvest_arm.php';
 ?>
-              <div class="card mb-4" data-live-region="member-general-harvest">
+              <div class="card mb-6" data-live-region="member-general-harvest">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">General Harvest board</h5>

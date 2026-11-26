@@ -32,7 +32,7 @@ $next     = is_array($general_harvest['next'] ?? null) ? $general_harvest['next'
 $rule4    = (bool) ($general_harvest['rule4'] ?? false);
 ?>
 <?php if (!$queued): ?>
-              <div class="card mb-4" data-live-region="earnings-general-progress">
+              <div class="card mb-6" data-live-region="earnings-general-progress">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2">
                   <h5 class="card-title mb-0">Get your node</h5>
                 </div>
@@ -55,7 +55,7 @@ $rule4    = (bool) ($general_harvest['rule4'] ?? false);
                 </div>
               </div>
 <?php else: ?>
-              <div class="card mb-4" data-live-region="earnings-general-progress">
+              <div class="card mb-6" data-live-region="earnings-general-progress">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2">
                   <h5 class="card-title mb-0">Your next block</h5>
                   <span class="badge bg-label-primary text-nowrap">Position #<?= (int) $position ?></span>

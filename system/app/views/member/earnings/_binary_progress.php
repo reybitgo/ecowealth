@@ -23,7 +23,7 @@ $pairRate   = (float) setting_float('binary_pair_pct', 10);
 $pairValue  = money(round($pairPoints * $pairRate / 100, 2));
 $canPair    = $matching >= $pairPoints;
 ?>
-              <div class="card mb-4" data-live-region="earnings-binary-progress">
+              <div class="card mb-6" data-live-region="earnings-binary-progress">
                 <div class="card-body">
                   <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="text-body-secondary small">Your next pair</span>

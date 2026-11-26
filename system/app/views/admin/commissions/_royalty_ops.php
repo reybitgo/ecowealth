@@ -61,7 +61,7 @@ $previewSkipped = $preview === null ? 0 : (int) ($preview['skipped'] ?? 0);
 
 $next = $ops['next'] ?? null;
 ?>
-              <div class="card mb-4" data-live-region="commission-royalty-ops">
+              <div class="card mb-6" data-live-region="commission-royalty-ops">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Operations</h5>

@@ -36,7 +36,7 @@ $rosterUrl = static fn (int $target): string => url(
     'earnings?ledger=general_harvest&roster_level=' . $level . '&roster_page=' . $target
 );
 ?>
-              <div class="card mb-4" data-live-region="earnings-general-roster">
+              <div class="card mb-6" data-live-region="earnings-general-roster">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <h5 class="card-title mb-0">Members in your level <?= $level ?> block</h5>
                   <span class="badge bg-label-info text-nowrap">

@@ -109,7 +109,7 @@ $nextCopy = match (true) {
     ),
 };
 ?>
-              <div class="card mb-4" data-live-region="earnings-repeat-status">
+              <div class="card mb-6" data-live-region="earnings-repeat-status">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <div>
                     <h5 class="mb-1">Your Active status</h5>

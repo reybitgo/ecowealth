@@ -34,7 +34,7 @@ declare(strict_types=1);
  */
 
 if (!$binary['has_node']): ?>
-                  <div class="card mb-4" data-live-region="member-binary">
+                  <div class="card mb-6" data-live-region="member-binary">
                     <div class="card-header"><h5 class="card-title mb-0">Product binary</h5></div>
                     <div class="card-body">
                       <p class="text-body-secondary small mb-0">
@@ -136,7 +136,7 @@ $qualifiedLabel  = $qualified
     ? 'Binary package — earns package pairs'
     : 'No binary package — package activations place no points here';
 ?>
-                  <div class="card mb-4" data-live-region="member-binary">
+                  <div class="card mb-6" data-live-region="member-binary">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <h5 class="card-title mb-0">Product binary</h5>
                       <span class="badge bg-label-<?= e(BinaryNode::STATUS_BADGES[$state] ?? 'secondary') ?>">

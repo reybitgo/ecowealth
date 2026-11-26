@@ -21,7 +21,7 @@ $queueN   = (int) ($general_harvest['queue_n'] ?? 0);
 $enabled  = (bool) ($general_harvest['enabled'] ?? false);
 $armed    = (bool) ($general_harvest['armed'] ?? false);
 ?>
-              <div class="card mb-4" data-live-region="earnings-general-blocks">
+              <div class="card mb-6" data-live-region="earnings-general-blocks">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2">
                   <h5 class="card-title mb-0">Your ten blocks</h5>
                   <span class="badge bg-label-info text-nowrap">Queue at <?= number_format($queueN) ?></span>

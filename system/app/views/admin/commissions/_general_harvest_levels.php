@@ -32,7 +32,7 @@ foreach ($frontier as $row) {
     $frontierByLevel[(int) $row['level']] = $row;
 }
 ?>
-              <div class="card mb-4" data-live-region="general-harvest-levels">
+              <div class="card mb-6" data-live-region="general-harvest-levels">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Level distribution</h5>

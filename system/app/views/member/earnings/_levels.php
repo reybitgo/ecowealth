@@ -30,7 +30,7 @@ for ($level = Commission::LEVEL_MIN; $level <= Commission::LEVEL_MAX; $level++) 
     $indirectAmount += (float) ($levels[$level]['amount'] ?? 0);
 }
 ?>
-              <div class="card mb-4" data-live-region="earnings-levels">
+              <div class="card mb-6" data-live-region="earnings-levels">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <div>
                     <h5 class="mb-1">Unilevel breakdown</h5>

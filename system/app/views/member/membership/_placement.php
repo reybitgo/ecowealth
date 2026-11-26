@@ -13,7 +13,7 @@ declare(strict_types=1);
  */
 ?>
 <?php if ($placement_needed): ?>
-              <div class="card mb-4">
+              <div class="card mb-6">
                 <div class="card-header">
                   <h5 class="card-title mb-0"><i class="icon-base bx bx-shield-quarter me-1"></i> Binary placement</h5>
                 </div>

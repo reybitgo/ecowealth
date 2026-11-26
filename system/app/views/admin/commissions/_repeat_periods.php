@@ -20,7 +20,7 @@ $monthLabel = static function (string $period): string {
     return $ts === false ? $period : date('M Y', $ts);
 };
 ?>
-              <div class="card mb-4" data-live-region="repeat-periods">
+              <div class="card mb-6" data-live-region="repeat-periods">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Closed months</h5>

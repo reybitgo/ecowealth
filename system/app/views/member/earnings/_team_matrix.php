@@ -52,7 +52,7 @@ $tones = [
  * teammate. The zero-based `slot` is the plan's arithmetic (§12.5). */
 $slotLabel = static fn (int $slot): string => 'Slot ' . ($slot + 1);
 ?>
-              <div class="card mb-4" data-live-region="earnings-team-matrix">
+              <div class="card mb-6" data-live-region="earnings-team-matrix">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Your Team matrix</h5>

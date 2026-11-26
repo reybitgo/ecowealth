@@ -18,7 +18,7 @@ $baselineLevels = (int) ($general_harvest['baseline_levels'] ?? 0);
 $creditedAmount = (float) ($general_harvest['credited_amount'] ?? 0.0);
 $baselineAmount = (float) ($general_harvest['baseline_earned'] ?? 0.0);
 ?>
-              <div class="card mb-4" data-live-region="earnings-general-stats">
+              <div class="card mb-6" data-live-region="earnings-general-stats">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2">
                   <h5 class="card-title mb-0">Your blocks</h5>
                 </div>

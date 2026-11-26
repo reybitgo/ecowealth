@@ -13,7 +13,7 @@ declare(strict_types=1);
  */
 
 if (!$binary_placement['has_node']): ?>
-                  <div class="card mb-4" data-live-region="member-placement">
+                  <div class="card mb-6" data-live-region="member-placement">
                     <div class="card-header"><h5 class="card-title mb-0">Binary placement</h5></div>
                     <div class="card-body">
                       <p class="text-body-secondary small mb-0">
@@ -40,7 +40,7 @@ if ($upline > 0) {
     $uplName = $uplRow !== null ? (string) $uplRow['username'] : '#' . $upline;
 }
 ?>
-                  <div class="card mb-4" data-live-region="member-placement">
+                  <div class="card mb-6" data-live-region="member-placement">
                     <div class="card-header">
                       <h5 class="card-title mb-0">Binary placement</h5>
                       <span class="badge bg-label-<?= e(BinaryNode::STATUS_BADGES[$state] ?? 'secondary') ?>">

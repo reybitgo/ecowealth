@@ -29,7 +29,7 @@ $monthLabel = static function (string $period): string {
 $openLabel = $open === '' ? '' : $monthLabel($open);
 $openLink  = $open === '' ? '' : url('admin/commissions?ledger=royalty&period=' . rawurlencode($open));
 ?>
-              <div class="card mb-4" data-live-region="commission-royalty-periods">
+              <div class="card mb-6" data-live-region="commission-royalty-periods">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Closed months</h5>

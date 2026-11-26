@@ -9,7 +9,7 @@ declare(strict_types=1);
  * @var bool   $has_package
  */
 ?>
-              <div class="card member-hero mb-4" data-live-region="membership-current">
+              <div class="card member-hero mb-6" data-live-region="membership-current">
                 <div class="card-body">
                   <div class="row g-4 align-items-center">
                     <div class="col-lg-6">

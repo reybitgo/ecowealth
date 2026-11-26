@@ -63,7 +63,7 @@ for ($level = UnilevelAward::LEVEL_MIN; $level <= UnilevelAward::LEVEL_MAX; $lev
     $awards  += (int) ($levels[$level]['count'] ?? 0);
 }
 ?>
-              <div class="card mb-4" data-live-region="earnings-repeat-levels">
+              <div class="card mb-6" data-live-region="earnings-repeat-levels">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                   <div>
                     <h5 class="mb-1">Repeat-purchase by level</h5>

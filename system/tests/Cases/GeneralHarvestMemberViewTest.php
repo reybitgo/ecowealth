@@ -844,12 +844,12 @@ assert_same('credited', $levels[2]['status'], 'level 3 is credited');
 
         assert_same(
             1,
-            preg_match('/<div class="card mb-4" data-live-region="earnings-general-blocks">.*?<div class="table-responsive">\s*<table/s', $html),
+            preg_match('/<div class="card mb-6" data-live-region="earnings-general-blocks">.*?<div class="table-responsive">\s*<table/s', $html),
             'the ten-block table is wrapped'
         );
         assert_same(
             1,
-            preg_match('/<div class="card mb-4" data-live-region="earnings-general-roster">.*?<div class="table-responsive">\s*<table/s', $html),
+            preg_match('/<div class="card mb-6" data-live-region="earnings-general-roster">.*?<div class="table-responsive">\s*<table/s', $html),
             'the roster table is wrapped'
         );
         assert_same(
@@ -866,7 +866,7 @@ assert_same('credited', $levels[2]['status'], 'level 3 is credited');
         /* Every table sits in its own card, so a narrow column scrolls the
          * table and never the page. */
         assert_same(3, substr_count($html, '<div class="table-responsive">'), 'three tables, three wrappers');
-        assert_true(substr_count($html, 'card mb-4') >= 3, 'the tables live in cards');
+        assert_true(substr_count($html, 'card mb-6') >= 3, 'the tables live in cards');
         assert_contains('data-live-region="earnings-general-blocks"', $html);
     },
 

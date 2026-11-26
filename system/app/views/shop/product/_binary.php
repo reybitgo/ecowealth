@@ -23,7 +23,7 @@ if (!$streamOn || !$enabled || $pv <= 0) {
 $unitPoints = (int) round($pv);
 $selfPct    = round((float) setting_float('binary_self_pct', 5.0), 3);
 ?>
-<div class="card mb-4 product-binary-panel" data-live-region="shop-product-binary">
+<div class="card mb-6 product-binary-panel" data-live-region="shop-product-binary">
     <div class="card-body">
         <div class="d-flex align-items-start gap-3">
             <span class="avatar avatar-sm flex-shrink-0">

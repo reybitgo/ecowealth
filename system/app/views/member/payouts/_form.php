@@ -227,7 +227,7 @@ $amount = old('amount');
                       <div class="alert alert-danger py-2" role="alert"><?= e(error_for('account')) ?></div>
 <?php endif; ?>
 
-                      <div class="card bg-label-secondary border-0 mb-4 payout-preview" data-payout-preview>
+                      <div class="card bg-label-secondary border-0 mb-6 payout-preview" data-payout-preview>
                         <div class="card-body py-3">
                           <div class="d-flex justify-content-between small">
                             <span class="text-body-secondary">You request</span>

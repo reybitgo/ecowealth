@@ -41,7 +41,7 @@ if ($nothingPlaced) {
     }
 }
 ?>
-                  <div class="card mb-4" data-live-region="activation-binary-<?= $activationId ?>">
+                  <div class="card mb-6" data-live-region="activation-binary-<?= $activationId ?>">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                       <h5 class="card-title mb-0">Package binary</h5>
                       <span class="badge bg-label-<?= $hasBinary ? 'success' : 'secondary' ?>">

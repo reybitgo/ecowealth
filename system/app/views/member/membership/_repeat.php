@@ -44,7 +44,7 @@ $requires    = (bool) ($status['requires_active'] ?? true);
 ?>
               <div data-live-region="membership-repeat">
 <?php if ($show): ?>
-                <div class="card mb-4">
+                <div class="card mb-6">
                   <div class="card-body">
                     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
                       <div>

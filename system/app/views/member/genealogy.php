@@ -375,7 +375,7 @@ if ($binary_unavailable === '') {
               </div>
 
               <!-- Team by level -->
-              <div class="card mt-4">
+              <div class="card mt-6">
                 <div class="card-header">
                   <h5 class="card-title mb-0">Team by level</h5>
                   <small class="text-body-secondary">Breadth-first through sponsor links, up to ten levels.</small>

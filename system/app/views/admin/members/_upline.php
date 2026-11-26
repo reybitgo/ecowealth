@@ -7,7 +7,7 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $upline
  */
 ?>
-                  <div class="card mb-4" data-live-region="member-upline">
+                  <div class="card mb-6" data-live-region="member-upline">
                     <div class="card-header"><h5 class="card-title mb-0">Upline</h5></div>
                     <div class="card-body">
 <?php if ($upline === []): ?>

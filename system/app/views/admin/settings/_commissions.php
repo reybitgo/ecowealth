@@ -404,7 +404,7 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                       $onZeroPv  = (int) ($readiness['binary_on_zero_pv'] ?? 0);
                       $off       = (int) ($readiness['binary_off'] ?? 0);
                       ?>
-                      <div class="card mt-4">
+                      <div class="card mt-6">
                         <div class="card-header"><h6 class="mb-0">Product binary readiness</h6></div>
                         <div class="card-body py-3">
                           <div class="row g-3">
@@ -515,7 +515,7 @@ $pairPctLabel    = rtrim(rtrim(number_format((float) $pairPct, 3, '.', ''), '0')
                       $onZeroPts  = (int) ($packageReadiness['binary_on_zero_points'] ?? 0);
                       $pkgOff     = (int) ($packageReadiness['binary_off'] ?? 0);
                       ?>
-                      <div class="card mt-4">
+                      <div class="card mt-6">
                         <div class="card-header"><h6 class="mb-0">Package binary readiness</h6></div>
                         <div class="card-body py-3">
                           <div class="row g-3">

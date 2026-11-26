@@ -76,7 +76,7 @@ $nextPercent = $need > 0 ? (int) max(0, min(100, intdiv($have * 100, $need))) : 
 $quotaMet    = $group >= $quota;   // the engine's rule: quota 0 is met (₱0 quota is legal)
 $gap         = round(max(0.0, $quota - $group), 2);
 ?>
-              <div class="card mb-4" data-live-region="earnings-royalty-rank">
+              <div class="card mb-6" data-live-region="earnings-royalty-rank">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Your rank</h5>

@@ -57,7 +57,7 @@ $gatePct   = $gate > 0 ? (int) max(0, min(100, intdiv($directs * 100, $gate))) :
 $nextLevel = $next === null ? 0 : (int) $next['level'];
 $percent   = $next === null ? 0.0 : (float) $next['percent'];
 ?>
-              <div class="card mb-4" data-live-region="earnings-team-progress">
+              <div class="card mb-6" data-live-region="earnings-team-progress">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
                   <div>
                     <h5 class="mb-1">Your Team Harvest bonus</h5>

@@ -446,7 +446,7 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
 <?php endif; ?>
 
               <!-- Member FAQ (plan Appendix C.9): the six questions every member asks. -->
-              <div class="card mt-4">
+              <div class="card mt-6">
                 <div class="card-header">
                   <h5 class="card-title mb-0">Team Harvest questions</h5>
                 </div>
@@ -770,7 +770,7 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
         || (string) $binaryFilters['q'] !== '';
 ?>
 <?php if ($binaryNode === null): ?>
-              <div class="card mt-4">
+              <div class="card mt-6">
                 <div class="card-header">
                   <h5 class="card-title mb-0">Product binary</h5>
                 </div>

@@ -401,6 +401,41 @@ return [
         assert_same([], $offenders, 'page headers and first-level card grids share the 24px rhythm');
     },
 
+    'UX-09 card sections use the 24px page rhythm' => function (): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            preg_match_all('/class="([^"]*)"/', $source, $matches);
+
+            foreach ($matches[1] as $classList) {
+                $classes = preg_split('/\s+/', trim($classList)) ?: [];
+
+                if (!in_array('card', $classes, true)) {
+                    continue;
+                }
+
+                foreach (['mb-4', 'mt-4'] as $spacing) {
+                    if (in_array($spacing, $classes, true)) {
+                        $offenders[] = $file->getPathname() . ': card uses ' . $spacing;
+                    }
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'card sections share the 24px page rhythm');
+    },
+
     'Escaping is applied everywhere user text is printed' => function (): void {
         $html = View::capture('errors/404', [
             'code'    => 404,

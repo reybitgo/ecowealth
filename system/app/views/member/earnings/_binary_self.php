@@ -34,7 +34,7 @@ $totals = array_merge(
 $selfTotal = round((float) $totals['self_total'], 2);
 $selfCount = (int) $totals['self_count'];
 ?>
-              <div class="card mb-4" data-live-region="earnings-binary-self">
+              <div class="card mb-6" data-live-region="earnings-binary-self">
                 <div class="card-body">
                   <div class="d-flex align-items-start justify-content-between gap-3">
                     <div>

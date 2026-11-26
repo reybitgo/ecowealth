@@ -196,7 +196,7 @@ declare(strict_types=1);
               </div>
 
               <!-- Receiving accounts -->
-              <div class="card mb-4">
+              <div class="card mb-6">
                 <div class="card-header">
                   <h5 class="card-title mb-0">Company receiving accounts</h5>
                   <small class="text-body-secondary">Use these for the payment-proof path.</small>

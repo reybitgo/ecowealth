@@ -151,7 +151,7 @@ $note      = old('note');
                         </div>
                       </div>
 
-                      <div class="card bg-label-secondary border-0 mb-4 transfer-preview" data-transfer-preview>
+                      <div class="card bg-label-secondary border-0 mb-6 transfer-preview" data-transfer-preview>
                         <div class="card-body py-3">
                           <div class="d-flex justify-content-between small">
                             <span class="text-body-secondary">You send</span>
