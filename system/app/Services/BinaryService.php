@@ -525,6 +525,24 @@ final class BinaryService
              VALUES ' . implode(', ', $marks)
         )->execute($params);
 
+        /* Personal points for the buyer (orders only; activations are
+         * team-only — the buyer's own activation does not earn them
+         * personal points). (immutability rule in 22C)
+         *
+         * Folded into the node-cache UPDATE below so the order hook keeps
+         * its constant statement count (P22D-T71). $points above is the
+         * per-ancestor team value (0 on the order path), so the buyer's
+         * figure comes from $totalPoints — reading $points here silently
+         * left every order buyer at 0. */
+        $personalSet    = '';
+        $personalParams = [];
+
+        if (! $teamOnly && $totalPoints > 0) {
+            $personalSet    = ',
+                       personal_points = CASE user_id WHEN ? THEN personal_points + ? ELSE personal_points END';
+            $personalParams = [(int) ($nodeList[0]['node']['user_id'] ?? 0), $totalPoints];
+        }
+
         /* Node-cache updates: one batched UPDATE. */
         $cacheUpdates = [];
         foreach ($volumeRows as $row) {
@@ -568,20 +586,11 @@ final class BinaryService
             $pdo->prepare(
                 'UPDATE binary_nodes
                    SET left_points  = CASE user_id ' . implode(' ', $leftPairs) . ' ELSE left_points END,
-                       right_points = CASE user_id ' . implode(' ', $rightPairs) . ' ELSE right_points END,
+                       right_points = CASE user_id ' . implode(' ', $rightPairs) . ' ELSE right_points END'
+                    . $personalSet . ',
                        updated_at   = NOW()
                  WHERE user_id IN (' . $marks . ')'
-            )->execute(array_merge($leftParams, $rightParams, $userIds));
-        }
-
-        /* Personal points for the buyer (orders only; activations are
-         * team-only — the buyer's own activation does not earn them
-         * personal points). (immutability rule in 22C) */
-        if (! $teamOnly && $points > 0) {
-            $buyerIdNode = (int) ($nodeList[0]['node']['user_id'] ?? 0);
-            $pdo->prepare(
-                'UPDATE binary_nodes SET personal_points = personal_points + ?, updated_at = NOW() WHERE user_id = ?'
-            )->execute([$points, $buyerIdNode]);
+            )->execute(array_merge($leftParams, $rightParams, $personalParams, $userIds));
         }
     }
 
