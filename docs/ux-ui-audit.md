@@ -6,6 +6,8 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
+**Status (26 November 2026):** UX-01–UX-13 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+
 ---
 
 ## Summary
@@ -38,48 +40,56 @@ Counts exclude UX-40, which is a process follow-up rather than a separate screen
 **Evidence:** `system/public/login.php:139` — `<a href="javascript:;" onclick="alert('Password reset is not part of this basic demo.');">`.
 **Impact:** a primary recovery path, offered next to the password field, does nothing except show a browser alert. Members who forget a password have no route forward, and the alert exposes prototype copy on a production-looking sign-in screen.
 **Fix:** either wire the existing `reset.php`/reset flow into a real request page, or remove the link and replace it with support contact copy. Never ship a dead recovery affordance.
+**Status:** Fixed in `41b2052` — the dead link is now support copy: "Forgot your password? Contact your administrator to have it reset."
 
 ### UX-02 — Demo admin credentials are printed on the login page (High)
 
 **Evidence:** `system/public/login.php:80-86` — an always-visible info alert reads "Demo account · Email / username: `admin` · Password: `Admin@123`".
 **Impact:** if this build is reachable by anyone other than the developer, it advertises a working administrator account; even in a demo it trains users to expect shared credentials. It also puts a large block ahead of the form.
 **Fix:** gate the block behind `APP_DEBUG` (or a `DEMO_MODE` setting) and remove it entirely for any deployed build.
+**Status:** Fixed in `6947e0f` — the demo-credentials alert renders only when `APP_DEBUG` is on, so a deployed build shows no credentials.
 
 ### UX-03 — Terms acceptance is pre-ticked at checkout (High)
 
 **Evidence:** `system/app/views/shop/checkout.php:43` — `$termsChecked = … : true;` and `:238` renders `checked` by default.
 **Impact:** the member places an order without an affirmative act of consent. That is a consent-by-default pattern and a legal/traceability weakness for a commerce flow that records a terms version (`$terms_version`).
 **Fix:** default to unchecked on a fresh checkout; keep the posted state only after a validation error. Leave the "Place order" button disabled until it is ticked.
+**Status:** Fixed in `4660c91` — terms start unticked, "Place order" stays disabled until they are ticked, and a failed submit keeps the posted state.
 
 ### UX-04 — Product page advertises a feature that has shipped as if it has not (High)
 
 **Evidence:** `system/app/views/shop/product/_card.php:103` — "Added items stay in your cart — checkout opens in Phase 6."
 **Impact:** every member on every product page reads a stale build note; checkout has existed for many phases. It reads as an unfinished product.
 **Fix:** replace with the real next step, e.g. "Added items stay in your cart — continue to checkout when you are ready", linking to `cart`.
+**Status:** Fixed in `0d4e40d` — the note now reads "Added items stay in your cart — continue to checkout when you are ready" and links to the cart.
 
 ### UX-05 — "Open in tree" is disabled and cites a phase that already shipped (High)
 
 **Evidence:** `system/app/views/admin/members/_binary.php:448-465` — an anchor to `genealogy?view=binary&root=…` carries `disabled`/`aria-disabled="true"`, a confirmation dialog whose text says "ships in Phase 22G", and a caption "Tree navigation arrives in Phase 22G."
 **Impact:** the binary explorer is implemented and routable (`?view=binary`), yet the one link an administrator would use is presented as unavailable. Worse, the anchor still has an `href`, so the disabled state is only cosmetic — the control contradicts itself.
 **Fix:** remove the disabled state and phase copy; make it a normal link. If the tree must stay hidden for some roles, remove the anchor rather than faking a disabled link.
+**Status:** Fixed in `92f21ff` — the admin member record links to the binary tree with no disabled state and no phase copy.
 
 ### UX-06 — Settings exposes internal phase numbers (High)
 
 **Evidence:** `system/app/views/admin/settings/index.php:157`, `:294`, `:345` — badges read "Phase 15", "Phase 15 · 19B · 20B · 21B".
 **Impact:** internal project bookkeeping is shown to administrators as if it were product information. It has no operational meaning and dates the screen.
 **Fix:** delete these badges. If provenance is useful, use a user-facing label such as "Last updated" with a date.
+**Status:** Fixed in `7925ee6` — the build-phase badges are removed from Settings.
 
 ### UX-07 — The binary tree has no discoverable member entry point (High)
 
 **Evidence:** `system/app/views/member/genealogy.php:80` renders the binary view only when `$view === 'binary'`; the sponsor view (`:284` onward) has no link to it. A search for `view=binary` finds links only inside the binary view itself, the registration return URL, and the disabled admin button (UX-05).
 **Impact:** members cannot find a major feature. The sidebar item is "Genealogy", which lands on the sponsor tree; nothing suggests a second view exists.
 **Fix:** add a visible view switcher in the Genealogy heading ("Sponsor tree" / "Binary tree") using the same pattern as the earnings/commissions tabs, and link to it from the admin member record.
+**Status:** Fixed in `c502596` — Genealogy carries a Sponsor tree / Binary tree switcher, and the admin member record links into the tree.
 
 ### UX-08 — Admin change-password drops the admin into the member portal (High)
 
 **Evidence:** `system/app/Controllers/ProfileController.php:352` renders `profile/password` with `View::page('member', …)`, unlike every other shared page (`profile`, `wallet`, `payouts`, `checkout`, `orders`), which select `$isAdmin ? 'admin' : 'member'`.
 **Impact:** an administrator clicks "Change password" in the back-office sidebar or user menu and the sidebar changes to the member portal, losing their place. The page is the only one in the admin's Account section with this behaviour.
 **Fix:** pass the same layout decision as the rest of the shared pages (`$isAdmin ? 'admin' : 'member'`), and give the page a normal page header consistent with Profile.
+**Status:** Fixed in `3aa68ad` — the controller picks the back-office layout for staff, the `admin.password` nav item is active, and the page uses the same header as Profile.
 
 ---
 
@@ -107,6 +117,7 @@ The template uses two spacing steps in parallel: `mb-4`/`g-4` and `mb-6`/`g-6`. 
 
 **Impact:** moving between Dashboard → E-wallet → Membership produces a visible jump in heading-to-content spacing and card gutters. The report and audit pages are visibly tighter than the catalogue pages.
 **Fix:** choose one page rhythm (the 24 px `mb-6`/`g-6` is the dominant one in commerce screens) and apply it to the page header, the first row and the gaps between sections. Encode it once in a page-header partial so new pages cannot drift.
+**Status:** Fixed in `30e3eae` and `4f52afa` — the shared `partials/page_header.php` and the 24 px `mb-6`/`g-6` rhythm now cover the portal, admin and shop views, with a test that rejects the old spacing.
 
 ### UX-10 — Four stat-card implementations and three heading levels for the same object (Medium)
 
@@ -121,6 +132,7 @@ The markup also changes the value's heading level and size: `<h2>` in `member/tr
 
 **Impact:** four slightly different card paddings, number sizes and icon treatments appear across the product; the same "total money" figure changes size depending on which page you are on.
 **Fix:** keep one stat-card partial with a `size`/`tone` option (or one CSS class family), and standardise the value on a single heading level. Delete the three copies.
+**Status:** Fixed in `116e3cb` — every KPI row renders `partials/stat_card.php` with the single `.stat-card`/`.stat-value` family; the three duplicate card implementations are deleted.
 
 ### UX-11 — Four tab treatments and two placements (Medium)
 
@@ -134,18 +146,21 @@ The markup also changes the value's heading level and size: `<h2>` in `member/tr
 
 **Impact:** tabs that change the page's dataset (commissions, payouts) and tabs that merely scroll the page (settings) look alike; one page uses underline tabs while every other multi-view page uses pills; one puts pills inside the card header while the rest put them above the card.
 **Fix:** define two patterns: (a) **view tabs** — pills above the card, changing the dataset; (b) **section nav** — sticky anchors, explicitly styled as navigation. Convert impersonations and activations to the matching one.
+**Status:** Fixed in `07b172e` — view switches are `.view-tabs` pills above the card; the Settings anchors are a labelled sticky `.section-nav`; activations and impersonations use the shared patterns.
 
 ### UX-12 — Six long tabs on the member earnings page (Medium)
 
 **Evidence:** `system/app/views/member/earnings.php:311-374` — "Package commissions", "Repeat-purchase bonus", "Royalty", "Team Harvest", "General Harvest", "Binary bonus".
 **Impact:** on a phone the tab row wraps into three lines before any content; the labels are long and two of them ("Team Harvest", "General Harvest") mean nothing to a new member without the page copy. The admin ledger has the same six-tab structure (`admin/commissions/index.php:355`).
 **Fix:** group the secondary streams (Royalty, Team Harvest, General Harvest, Binary) under a "More statements" overflow, or use a select on small screens. Keep Package commissions and Repeat-purchase as the primary two.
+**Status:** Fixed in `2c5bcf1` — Package commissions and Repeat-purchase bonus stay as pills, the other four statements sit behind a "More statements" menu (a select below `md`), and a regression test keeps the two in sync.
 
 ### UX-13 — "Change password" has no page header (Medium)
 
 **Evidence:** `system/app/views/profile/password.php:16` starts with a card whose title is `<h5 class="mb-1">Change password</h5>`; every other member page opens with a page-level `<h4>` + description, then cards.
 **Impact:** the page reads like a widget dropped into the layout; its title is smaller than the card titles on Profile, and the "Cancel" link goes to the dashboard (not back to Profile), so the page has no consistent entry/exit.
 **Fix:** add the standard page header ("Change password" + one-line description) and make Cancel return to `profile`, where the user came from.
+**Status:** Fixed — the page opens with the shared page header (title plus the "Signed in as …" description) and both Back to profile and Cancel return to `profile`. Verified in a browser on 26 November 2026 (`docs/qa/ux-13-change-password.png`); `system/tests/Cases/ViewTest.php` pins it (`f8eb955`).
 
 ### UX-14 — Reports is a 15+ section page with no section navigation (Medium)
 
@@ -417,6 +432,8 @@ Three separate screens show build-phase numbers to end users: the product page, 
 | UX-48 | Dashboard and earnings repeat the same "View statement"/"Open statement"/"Open e-wallet" destination with three labels | `member/dashboard/_binary.php`, `member/wallet.php`, `member/earnings.php:306` | One label, one style |
 | UX-49 | Success/error flash alerts use `mb-6` while in-page stale/info banners use `mb-4`, so stacked notices have uneven gaps | `helpers.php:309`, page banners | One notice spacing token |
 | UX-50 | Storefront search and admin product search use different visual patterns (input group with button vs plain search + Filter) | `shop/catalog.php:43-62`, `admin/products/index.php:55-80` | Keep the labelled filter bar pattern; make the storefront search a labelled field too |
+
+**Fixed since the audit:** UX-45 — Cancel on Change password returns to Profile (commit `3aa68ad`); the page was checked in a browser on 26 November 2026.
 
 ---
 
