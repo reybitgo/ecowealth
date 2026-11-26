@@ -68,8 +68,13 @@ return [
      */
     'clean' => static function () use ($reference): void {
         db()->exec('DELETE FROM general_harvest_awards');
-        db()->exec('TRUNCATE harvest_queue');
-        db()->exec('ALTER TABLE harvest_queue AUTO_INCREMENT = 1');
+
+        /* DELETE, never TRUNCATE/ALTER: DDL commits the case's transaction
+         * implicitly, and a case that then wraps a settlement in a savepoint
+         * (P21D-T33) would find it gone. Every queue write here carries an
+         * explicit id, so the AUTO_INCREMENT counter does not matter. */
+        db()->exec('DELETE FROM harvest_queue');
+
         db()->exec("DELETE FROM users WHERE role = 'member'");
         db()->exec(
             'UPDATE general_harvest_board

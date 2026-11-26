@@ -504,6 +504,13 @@ return [
          * 21C ships no settlement, and the switch is off. */
         $sponsor = test_user('p21c_t9_sponsor', 'member');
 
+        /* One sponsor, three directs: a sponsor without a binary node falls
+         * back to the company root, which has two slots, so the third signup
+         * is placed under the first direct. Sponsorship — not the binary
+         * side — is what qualifies the sponsor. */
+        $sides      = ['left', 'right', 'left'];
+        $firstDirect = '';
+
         for ($i = 1; $i <= 3; $i++) {
             $username = 'p21c_t9_direct_' . $i . '_' . bin2hex(random_bytes(3));
 
@@ -519,10 +526,15 @@ return [
                 'package_id'       => '',
                 'reg_code'         => '',
                 'terms'            => true,
-                'binary_position'  => 'right',
+                'binary_upline'    => $i === 3 ? $firstDirect : '',
+                'binary_position'  => $sides[$i - 1],
             ], null);
 
             assert_true((int) ($created['user_id'] ?? 0) > 0, 'registration ' . $i . ' succeeded');
+
+            if ($i === 1) {
+                $firstDirect = $username;
+            }
         }
 
         assert_same(41, GeneralHarvestBoard::queueN()['n'], 'the sponsor is queued after the arm');

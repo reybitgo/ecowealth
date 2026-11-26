@@ -116,18 +116,32 @@ return [
     },
 
     'live publish queues surfaces and ignores stale entries' => function (): void {
-        $_SESSION['_live_publish'] = [];
+        /* publish() writes to the session and is a no-op without one; a CLI
+         * request has none, so the case opens one for itself. */
+        $startedSession = session_status() !== PHP_SESSION_ACTIVE;
 
-        Live::publish(['a.surface', 'b.surface']);
-        assert_same(['a.surface', 'b.surface'], Live::takePublished());
-        assert_same([], Live::takePublished());
+        if ($startedSession) {
+            session_start();
+        }
 
-        $_SESSION['_live_publish'] = [
-            'old.surface'   => time() - 400,
-            'fresh.surface' => time(),
-        ];
+        try {
+            $_SESSION['_live_publish'] = [];
 
-        assert_same(['fresh.surface'], Live::takePublished());
+            Live::publish(['a.surface', 'b.surface']);
+            assert_same(['a.surface', 'b.surface'], Live::takePublished());
+            assert_same([], Live::takePublished());
+
+            $_SESSION['_live_publish'] = [
+                'old.surface'   => time() - 400,
+                'fresh.surface' => time(),
+            ];
+
+            assert_same(['fresh.surface'], Live::takePublished());
+        } finally {
+            if ($startedSession) {
+                session_write_close();
+            }
+        }
     },
 
     'the product feed renders stats, rows and pagination fragments' => function () use ($product): void {
@@ -149,6 +163,7 @@ return [
                 2 => ['orders' => 0, 'carts' => 0, 'packages' => 0],
             ],
             'available'  => [1 => 50, 2 => 0],
+            'repeat_totals' => [1 => 0.0, 2 => 0.0],
         ];
 
         $payload = (new AdminProductController())->feedPayload(7, '"admin.products:7:abc"', $data);
@@ -200,6 +215,7 @@ return [
             'stats'      => ['total' => 0, 'active' => 0, 'inactive' => 0, 'out_of_stock' => 0],
             'references' => [],
             'available'  => [],
+            'repeat_totals' => [],
         ]);
 
         $rows = $payload['fragments']['product-rows'];

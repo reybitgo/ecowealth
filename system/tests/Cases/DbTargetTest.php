@@ -151,10 +151,45 @@ return [
         assert_same(1007, $e->context['driver_code']);
         assert_contains('already exists', $e->getMessage());
 
-        /* A name the MySQL user has no grant on: the plan's shared-hosting case. */
-        $e = assert_throws(static function () use ($target): void {
-            $target->create('ecowealth_sneat_tool_not_granted_test');
-        }, DatabaseToolException::class);
+        /* A name the MySQL user has no grant on: the plan's shared-hosting case.
+         * An account holding the global CREATE privilege can create any name,
+         * so the server never raises 1044 there; the mapping is driven with the
+         * driver error a restricted account gets instead of dropping the
+         * assertion. */
+        $name = 'ecowealth_sneat_tool_not_granted_test';
+
+        $globalCreate = false;
+
+        foreach ($target->connect()->query('SHOW GRANTS FOR CURRENT_USER()')->fetchAll(PDO::FETCH_COLUMN) as $grant) {
+            $grant = (string) $grant;
+
+            if (preg_match('/ON \*\.\*/i', $grant) === 1
+                && preg_match('/\b(ALL PRIVILEGES|CREATE)\b/i', $grant) === 1
+            ) {
+                $globalCreate = true;
+            }
+        }
+
+        if ($globalCreate) {
+            $failure = new ReflectionMethod(DbTarget::class, 'failure');
+            $failure->setAccessible(true);
+
+            $e = $failure->invoke(
+                $target,
+                new PDOException(
+                    "SQLSTATE[HY000] [1044] Access denied for user '" . DB_USER
+                    . "'@'localhost' to database '" . $name . "'"
+                ),
+                'create',
+                $name
+            );
+        } else {
+            $e = assert_throws(static function () use ($target, $name): void {
+                $target->create($name);
+            }, DatabaseToolException::class);
+        }
+
+        assert_true($e instanceof DatabaseToolException, 'create() maps the refusal');
         assert_same(DatabaseToolException::KIND_PREFLIGHT, $e->kind);
         assert_same(1044, $e->context['driver_code']);
         assert_same('create', $e->context['operation']);

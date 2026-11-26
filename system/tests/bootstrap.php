@@ -470,16 +470,26 @@ function test_reset_app_database(): void
     $pdo = test_pdo();
     test_recreate_database($pdo, DB_NAME);
 
-    $databaseDir = dirname(__DIR__) . '/database/';
-
-    test_run_sql_file($pdo, $databaseDir . 'schema.sql');
-    test_run_sql_file($pdo, $databaseDir . 'seeds/001_settings.sql');
-    test_run_sql_file($pdo, $databaseDir . 'seeds/002_accounts.sql');
-    test_run_sql_file($pdo, $databaseDir . 'seeds/003_products.sql');
-    test_run_sql_file($pdo, $databaseDir . 'seeds/004_packages.sql');
-    test_run_sql_file($pdo, $databaseDir . 'seeds/005_demo_tree.sql');
+    test_run_sql_file($pdo, dirname(__DIR__) . '/database/schema.sql');
+    test_run_seed_files($pdo);
 
     unset($GLOBALS['__settings_cache']);
+}
+
+/** The production seed files every database build (and every reset) runs. */
+function test_run_seed_files(PDO $pdo): void
+{
+    $databaseDir = dirname(__DIR__) . '/database/';
+
+    foreach ([
+        'seeds/001_settings.sql',
+        'seeds/002_accounts.sql',
+        'seeds/003_products.sql',
+        'seeds/004_packages.sql',
+        'seeds/005_demo_tree.sql',
+    ] as $seed) {
+        test_run_sql_file($pdo, $databaseDir . $seed);
+    }
 }
 
 /* --------------------------------------------------------------
@@ -686,11 +696,100 @@ function test_signed_in_as(?array $user): void{
     auth_cache_reset();
 }
 
+/**
+ * Row counts of every base table in the harness schema.
+ *
+ * The suite's isolation is one transaction per case, which a case that
+ * commits (concurrency and CLI fixtures must) or that runs DDL silently
+ * ends. Comparing these counts to the seeded baseline detects rows that
+ * survived the rollback, whether they were written by the case's own
+ * connection or by a second one it opened.
+ *
+ * @return array<string, int>
+ */
+function test_table_counts_snapshot(): array
+{
+    $pdo    = db();
+    $tables = $pdo->query(
+        "SELECT table_name FROM information_schema.tables
+          WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+    )->fetchAll(PDO::FETCH_COLUMN);
+
+    $counts = [];
+
+    foreach ($tables as $table) {
+        $counts[(string) $table] = (int) $pdo->query(
+            'SELECT COUNT(*) FROM `' . (string) $table . '`'
+        )->fetchColumn();
+    }
+
+    ksort($counts, SORT_STRING);
+
+    return $counts;
+}
+
+/** Put the seeded baseline back after a case leaked rows or schema. */
+function test_restore_baseline(): void
+{
+    $pdo            = db();
+    $baselineTables = array_keys($GLOBALS['__test_baseline_counts'] ?? []);
+    $tables         = array_keys(test_table_counts_snapshot());
+    sort($tables, SORT_STRING);
+
+    if ($tables === $baselineTables) {
+        /* Same schema, leaked rows: empty the tables and reseed. Truncating
+         * avoids the schema import, which is the slow half. */
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            foreach ($tables as $table) {
+                $pdo->exec('TRUNCATE TABLE `' . $table . '`');
+            }
+        } finally {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+        }
+
+        test_run_seed_files($pdo);
+    } else {
+        /* A case dropped or added a table: rebuild the schema. */
+        test_reset_app_database();
+
+        /* test_reset_app_database() drops and recreates the schema through
+         * its own connection; the app's connection must be pointed at it
+         * again. */
+        $pdo->exec('USE `' . DB_NAME . '`');
+    }
+
+    unset($GLOBALS['__settings_cache']);
+
+    $GLOBALS['__test_baseline_counts'] = test_table_counts_snapshot();
+}
+
+/** Has anything survived the transaction since the baseline was taken? */
+function test_schema_differs_from_baseline(): bool
+{
+    $baseline = $GLOBALS['__test_baseline_counts'] ?? null;
+
+    if (!is_array($baseline)) {
+        $GLOBALS['__test_baseline_counts'] = test_table_counts_snapshot();
+
+        return false;
+    }
+
+    try {
+        $counts = test_table_counts_snapshot();
+    } catch (Throwable) {
+        /* A case dropped a table or lost the schema outright. */
+        return true;
+    }
+
+    return $counts !== $baseline;
+}
+
 /** Run a case inside a transaction that is rolled back afterwards. */
 function test_run_isolated(callable $case): void
 {
-    $pdo     = db();
-    $started = false;
+    $pdo = db();
 
     /* Isolation: registration under Phase 22C writes binary_nodes that
      * the outer rollback does not always undo (savepoint release).
@@ -701,10 +800,16 @@ function test_run_isolated(callable $case): void
         /* Table may not exist in pre-22 phases; ignore. */
     }
 
-    if (!$pdo->inTransaction()) {
-        $pdo->beginTransaction();
-        $started = true;
+    /* A case that left its transaction open must not hand it to this one. */
+    if ($pdo->inTransaction()) {
+        try {
+            $pdo->rollBack();
+        } catch (Throwable) {
+            /* Nothing to undo. */
+        }
     }
+
+    $pdo->beginTransaction();
 
     /* Every case starts signed out, with no pending flash/old input and
      * no S-Login transport state left over from the previous case. */
@@ -737,14 +842,28 @@ function test_run_isolated(callable $case): void
     try {
         $case();
     } finally {
-        if ($started) {
-            try {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-            } catch (Throwable) {
-                /* DDL cases may have committed implicitly — nothing to undo. */
+        $leaked = false;
+
+        try {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            } else {
+                /* The case committed or ran DDL: its transaction is gone. */
+                $leaked = true;
             }
+        } catch (Throwable) {
+            $leaked = true;
+        }
+
+        /* Committed rows survive the rollback and a later case would inherit
+         * them (the General Harvest group used to read a board an earlier
+         * group had armed). Restore the seeded baseline before the next case. */
+        if (!$leaked && test_schema_differs_from_baseline()) {
+            $leaked = true;
+        }
+
+        if ($leaked) {
+            test_restore_baseline();
         }
 
         /* Never let a rolled-back settings change linger in the cache. */
@@ -762,6 +881,9 @@ function test_run_isolated(callable $case): void
 test_reset_app_database();
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
+
+/* The baseline every case starts and ends on (see test_run_isolated()). */
+$GLOBALS['__test_baseline_counts'] = test_table_counts_snapshot();
 
 /* Upload fixture: a real 1×1 PNG, plus a scratch storage root. */
 define('TEST_PNG_BYTES', base64_decode(

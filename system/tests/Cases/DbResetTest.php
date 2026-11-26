@@ -239,8 +239,9 @@ $build = static function (string $slot, array $files) use ($appRoot): array {
  * human comparing two screens (plan IR-7-T4, D-IR-15). `audit_log` and
  * `live_revisions` are excluded because a reset appends an audit row and
  * bumps 18 surfaces while a fresh build has neither; `last_reset_*` and
- * the dynamic `commission_ledger_since` are excluded from settings for
- * the same reason.
+ * the dynamic `<stream>_ledger_since` baselines are excluded from settings
+ * for the same reason (each seed stamps them with NOW(), so two builds a
+ * few seconds apart differ).
  *
  * @param bool $withDemo include the demo members, codes and ledger rows
  * @return array<string, array<string, mixed>>
@@ -276,7 +277,11 @@ $naturalSnapshot = static function (PDO $pdo, bool $withDemo = false): array {
 
     $settings = $pdo->query('SELECT key_name, value FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
 
-    foreach (['last_reset_at', 'last_reset_by', 'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since', 'team_harvest_ledger_since', 'binary_ledger_since'] as $dynamic) {
+    foreach ([
+        'last_reset_at', 'last_reset_by',
+        'commission_ledger_since', 'unilevel_ledger_since', 'royalty_ledger_since',
+        'team_harvest_ledger_since', 'binary_ledger_since', 'package_binary_ledger_since',
+    ] as $dynamic) {
         unset($settings[$dynamic]);
     }
 

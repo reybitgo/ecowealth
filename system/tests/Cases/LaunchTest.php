@@ -13,8 +13,13 @@ declare(strict_types=1);
  *  P15-T11 commissions + purchases + transfers + payouts reconcile
  */
 
-/** Register through the demo Package A code (real service path). */
-$registerWithCode = static function (string $sponsor = 'peter'): array {
+/**
+ * Register through the demo Package A code (real service path).
+ *
+ * `$binaryUpline` defaults to the sponsor; pass a member with a free slot
+ * when the sponsor's own two are already taken by the demo tree.
+ */
+$registerWithCode = static function (string $sponsor = 'peter', string $binaryUpline = ''): array {
     $username = 'uat_' . bin2hex(random_bytes(4));
 
     $result = (new RegistrationService())->register([
@@ -29,6 +34,7 @@ $registerWithCode = static function (string $sponsor = 'peter'): array {
         'package_id'       => '',
         'reg_code'         => 'DEMO-PKGA-2A7K',
         'terms'            => true,
+        'binary_upline'    => $binaryUpline,
         'binary_position'  => 'left',
     ], null);
 
@@ -220,7 +226,10 @@ return [
         $walletBefore       = $wallet->balance($juanId);
         $withdrawableBefore = $wallet->withdrawable($juanId);
 
-        $member = $registerWithCode('juan');
+        /* The demo tree fills juan's own slots (maria left, david right), so
+         * the new member takes a free slot in juan's team; the sponsor — and
+         * therefore the direct bonus under test — stays juan. */
+        $member = $registerWithCode('juan', 'peter');
         $memberId = (int) $member['id'];
 
         assert_same('active', (string) $member['member_status'], 'a code registration lands active');

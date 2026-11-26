@@ -22,8 +22,15 @@ return [
         assert_same(0, Throttle::remaining('probe:throttle', 3, 900));
 
         /* The refused attempt is not recorded, so a later attempt after
-         * the window slides in is allowed again. */
-        $_SESSION['_throttle']['probe:throttle'] = [time() - 901];
+         * the window slides in is allowed again. Seed the store the limiter
+         * reads: a browser session when there is one, the CLI fallback
+         * ($GLOBALS) otherwise. */
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['_throttle']['probe:throttle'] = [time() - 901];
+        } else {
+            $GLOBALS['__throttle']['probe:throttle'] = [time() - 901];
+        }
+
         assert_true(Throttle::hit('probe:throttle', 3, 900), 'an expired window is forgotten');
 
         Throttle::clear('probe:throttle');
