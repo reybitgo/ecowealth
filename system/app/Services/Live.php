@@ -812,18 +812,23 @@ final class Live
      */
     public static function publish(string|array $surfaces): void
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            return;
-        }
-
-        $surfaces = is_array($surfaces) ? $surfaces : [$surfaces];
-        $now      = time();
+        $surfaces  = is_array($surfaces) ? $surfaces : [$surfaces];
+        $now       = time();
+        $inSession = session_status() === PHP_SESSION_ACTIVE;
 
         foreach ($surfaces as $surface) {
             $surface = trim((string) $surface);
 
-            if ($surface !== '') {
+            if ($surface === '') {
+                continue;
+            }
+
+            if ($inSession) {
                 $_SESSION['_live_publish'][$surface] = $now;
+            } else {
+                /* No session (CLI tests, cron): keep the queue in the process
+                 * so the same request can still take it, like Throttle. */
+                $GLOBALS['__live_publish'][$surface] = $now;
             }
         }
     }
@@ -837,8 +842,13 @@ final class Live
      */
     public static function takePublished(): array
     {
-        $queued = $_SESSION['_live_publish'] ?? [];
-        unset($_SESSION['_live_publish']);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $queued = $_SESSION['_live_publish'] ?? [];
+            unset($_SESSION['_live_publish']);
+        } else {
+            $queued = $GLOBALS['__live_publish'] ?? [];
+            unset($GLOBALS['__live_publish']);
+        }
 
         if (!is_array($queued)) {
             return [];

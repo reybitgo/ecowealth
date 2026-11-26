@@ -116,32 +116,30 @@ return [
     },
 
     'live publish queues surfaces and ignores stale entries' => function (): void {
-        /* publish() writes to the session and is a no-op without one; a CLI
-         * request has none, so the case opens one for itself. */
-        $startedSession = session_status() !== PHP_SESSION_ACTIVE;
+        /* publish() keeps its queue in the session, or in $GLOBALS when a CLI
+         * request has none; seed whichever store this run uses. */
+        $inSession = session_status() === PHP_SESSION_ACTIVE;
 
-        if ($startedSession) {
-            session_start();
-        }
-
-        try {
-            $_SESSION['_live_publish'] = [];
-
-            Live::publish(['a.surface', 'b.surface']);
-            assert_same(['a.surface', 'b.surface'], Live::takePublished());
-            assert_same([], Live::takePublished());
-
-            $_SESSION['_live_publish'] = [
-                'old.surface'   => time() - 400,
-                'fresh.surface' => time(),
-            ];
-
-            assert_same(['fresh.surface'], Live::takePublished());
-        } finally {
-            if ($startedSession) {
-                session_write_close();
+        $seed = static function (array $queued) use ($inSession): void {
+            if ($inSession) {
+                $_SESSION['_live_publish'] = $queued;
+            } else {
+                $GLOBALS['__live_publish'] = $queued;
             }
-        }
+        };
+
+        $seed([]);
+
+        Live::publish(['a.surface', 'b.surface']);
+        assert_same(['a.surface', 'b.surface'], Live::takePublished());
+        assert_same([], Live::takePublished());
+
+        $seed([
+            'old.surface'   => time() - 400,
+            'fresh.surface' => time(),
+        ]);
+
+        assert_same(['fresh.surface'], Live::takePublished());
     },
 
     'the product feed renders stats, rows and pagination fragments' => function () use ($product): void {

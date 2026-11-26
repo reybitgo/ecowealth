@@ -836,7 +836,7 @@ function test_run_isolated(callable $case): void
         $GLOBALS['__form_errors'],
         $GLOBALS['__old_payload']
     );
-    unset($GLOBALS['__throttle']);
+    unset($GLOBALS['__throttle'], $GLOBALS['__live_publish']);
     auth_cache_reset();
 
     try {
