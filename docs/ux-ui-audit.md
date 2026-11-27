@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-19, UX-21–UX-23 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-24, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -279,6 +279,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 
 **Impact:** small, but columns of numbers that do not align make comparison slower, and inconsistent header semantics hurt screen-reader table navigation.
 **Fix:** add `scope="col"` to every `<th>` in list tables, right-align all numeric columns (including "Lvl" if you keep it numeric), and choose one table density per context (list vs report).
+**Status:** Fixed in `278cdf1` — every header cell in `app/views` carries a `scope`: `col` in the list, report and widget tables, and `row` in the member placement panel's definition table. The numeric columns sit on the same right edge as the money columns: `Lvl` in the repeat-purchase ledger (`admin/commissions/index.php` and `_repeat_rows.php`) and in the order ladder (`admin/orders/_unilevel.php`), the activation history's `#` (`admin/members/_activations.php`), and the placement panel's depth and move count. Every table under `admin/reports/` now uses the same compact density (`table-sm` plus `report-table`), as does the audit log, while the page-level lists keep the default row height. `ViewTest` sweeps every view for a `<th>` without a `scope` and for a report table outside that density, and pins both `Lvl` headers and the order ladder's level cell; the assertions that pinned the old markup were updated (`AdminCommissionLiveTest`, `AdminMemberLiveTest`, `GeneralHarvestAdminViewTest`, `RoyaltyAdminMemberViewTest`, `tests/smoke.ps1`). `php -l` passes on every changed PHP file; the UX-24 case, `AdminMemberLiveTest` (12 cases), `AdminCodeLiveTest` (5), `ReportViewTest` (11), `AuditLogTest` (10), `MemberGenealogyLiveTest` (10) and the `P17D-T2`, `P21E-T7` and `P19B-T23` cases pass on 27 November 2026. The whole `ViewTest` group was not run to completion (it exceeded the three-minute command limit), the smoke script was not run, and no browser pass was made.
 
 ---
 
@@ -394,6 +395,7 @@ Evidence in user-visible labels:
 **Evidence:** `admin/products/index.php` and `admin/orders/index.php` use `scope="col"` on every header; `admin/members/index.php:91-101`, `admin/activations/index.php:99-108` and the dashboard widget tables omit it.
 **Impact:** screen readers lose column associations in the tables operators use most.
 **Fix:** add `scope="col"` consistently (see UX-24).
+**Status:** Covered by the UX-24 change — every `<th>` in `app/views` carries a `scope`, and `ViewTest` now rejects an unscoped header cell.
 
 ### What is already accessible and should be kept
 
