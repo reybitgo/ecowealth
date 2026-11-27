@@ -1407,7 +1407,7 @@ Read-only and scoped to the session member; no page offers a repeat-purchase act
   minimum** and the sentence that the member's own purchase does not pay them. Level 1 is the reader's
   direct recruit; levels 2–10 are their Team chain. It is absent while the product's ladder or the
   global master is off.
-- **The catalogue badge** (`Up to 29% repeat bonus`) reads the batched `totalsMap()` — one query for the
+- **The catalogue badge** (`Up to 29% repeat-purchase bonus`) reads the batched `totalsMap()` — one query for the
   page, not one per card.
 - **The checkout line** (`/checkout`) previews the cart's whole ladder — "up to ₱X is earned by the
   members above you when this order is paid. It is released to their e-wallets after the return

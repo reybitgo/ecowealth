@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-31, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-32, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -357,6 +357,8 @@ Evidence in user-visible labels:
 **Evidence:** the catalogue badge says "Up to N% repeat bonus" (`partials/product_card.php:81`), while every statement, ledger and settings card says "Repeat-purchase bonus".
 **Impact:** minor, but the catalogue is the first place a member meets the program and it uses a shorthand used almost nowhere else.
 **Fix:** use "repeat-purchase bonus" on the card, or add the short form consistently after first mention.
+
+**Status:** Fixed — the catalogue card names the program in full: **Up to 29% repeat-purchase bonus** (`partials/product_card.php`), the same term every statement, ledger and settings card uses, so the first place a member meets the program matches the rest of the product. The compact back-office labels are unchanged (`Repeat bonus 29%` on the product list, `Repeat bonus (30 d)` on `/dashboard`, `Pending repeat bonuses` in the wallet monitor): each is a table-cell or KPI-tile label, not the member-facing first mention the finding cites. `ViewTest`'s new `UX-32` case pins the card's badge and sweeps the shop templates and shared partials for the retired shorthand; `UnilevelMemberViewTest`'s `P17E-T3` and `smoke.ps1`'s `P17E-T3` now expect the full term, and `system/README.md`, `docs/admin-guide.md` and `docs/deploy.md` follow. `php -l` passes on the changed PHP files, and the `UX-32` and `P17E-T3` cases pass in `ViewTest` and `UnilevelMemberViewTest` on 27 November 2026; the full `ViewTest` suite was not re-run because it exceeds the local command timeout. No browser pass was made.
 
 ### UX-33 — Login copy is generic template text (Low)
 

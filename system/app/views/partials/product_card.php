@@ -65,7 +65,7 @@ $soldOut    = $stock['key'] === 'out';
 
 <?php if ($bonusTotal > 0): ?>
                   <span class="badge bg-label-info product-card-bonus">
-                    Up to <?= (int) round($bonusTotal) ?>% repeat bonus
+                    Up to <?= (int) round($bonusTotal) ?>% repeat-purchase bonus
                   </span>
 <?php endif; ?>
 

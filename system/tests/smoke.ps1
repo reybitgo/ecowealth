@@ -4047,9 +4047,9 @@ try {
     # P17E-T3 - the catalogue badge says "up to", never "you will earn".
     $p17eCatalog = Invoke-App -Path "/shop?q=$p17bSku" -Session 'member'
     Assert-That 'P17E-T3' ($p17eCatalog.Status -eq 200 `
-            -and $p17eCatalog.Body -match 'Up to 29% repeat bonus' `
+            -and $p17eCatalog.Body -match 'Up to 29% repeat-purchase bonus' `
             -and $p17eCatalog.Body -match 'product-card-bonus') `
-        "GET /shop?q={sku} renders the Up to 29% repeat bonus badge (status=$($p17eCatalog.Status))"
+        "GET /shop?q={sku} renders the Up to 29% repeat-purchase bonus badge (status=$($p17eCatalog.Status))"
 
     # P17E-T4 / QA17E-02 - two units in the cart preview exactly twice the
     # panel's per-unit total, and the line says the money is paid when the

@@ -331,7 +331,7 @@ changes or claims a bonus; every number comes from the same engine and ledger th
 | Surface | What it shows | Where |
 |---|---|---|
 | **Product page panel** | all ten levels with the per-unit rate and amount on the product's bonus base, the "up to" total, the monthly minimum, and the sentence that the member's own purchase does not pay them; it says the level income is **earned when the order is paid** and **released after the return window** | any product whose switch is on |
-| **Catalogue badge** | *Up to 29% repeat bonus* on a card whose ladder is on | Shop |
+| **Catalogue badge** | *Up to 29% repeat-purchase bonus* on a card whose ladder is on | Shop |
 | **Checkout preview** | "Up to ₱145.00 is earned by the members above you when this order is paid. It is released to their e-wallets after the return window." — the whole cart's ladder, one line — then the Team chain pivot | Checkout |
 | **Order page card** | the order's total that is **reserved** (or **was released**) for the members above the buyer, with the estimated release date once the order is delivered; never which member received which amount | `/orders/{id}` |
 | **Earnings → Repeat-purchase bonus** | the member's own awards, a **Pending release** tile and a **Next release** line, pending/cancelled notes, the Team chain by level and a two-clock Active panel | `/earnings?ledger=repeat` |

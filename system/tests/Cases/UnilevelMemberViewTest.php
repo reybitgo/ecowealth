@@ -9,7 +9,7 @@ declare(strict_types=1);
  *      product     the Team chain ladder panel, all ten levels, the
  *                  per-unit amounts, the "up to" total and the monthly
  *                  minimum note
- *      catalogue   the one-query "Up to 29% repeat bonus" badge
+ *      catalogue   the one-query "Up to 29% repeat-purchase bonus" badge
  *      checkout    the batched "up to ₱… is paid to the members above
  *                  you" line, the Team chain pivot, paid-when-paid copy,
  *                  absent when nothing pays
@@ -294,7 +294,7 @@ return [
             'page_css'    => ['assets/css/shop.css'],
         ]);
 
-        assert_contains('Up to 29% repeat bonus', $html);
+        assert_contains('Up to 29% repeat-purchase bonus', $html);
         assert_contains('product-card-bonus', $html);
 
         /* One batched ladder query: the page's statement cost does not
@@ -317,7 +317,7 @@ return [
             'current_nav' => 'shop',
         ]);
 
-        assert_not_contains('Up to 29% repeat bonus', $off);
+        assert_not_contains('Up to 29% repeat-purchase bonus', $off);
         assert_not_contains('product-card-bonus', $off);
     },
 

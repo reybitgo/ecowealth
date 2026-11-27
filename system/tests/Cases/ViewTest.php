@@ -480,6 +480,43 @@ return [
         assert_contains('<th scope="col" class="text-end">Package binary</th>', $packages, 'the package column names the package binary');
     },
 
+    'UX-32 the catalogue names the repeat-purchase bonus in full' => function (): void {
+        $root = dirname(__DIR__, 2);
+
+        $card = (string) file_get_contents($root . '/app/views/partials/product_card.php');
+        assert_contains('% repeat-purchase bonus', $card, 'the catalogue badge uses the program name');
+
+        /* The shop is the first place a member meets the program, so no
+         * member-facing shop template may fall back to the short form. */
+        $offenders = [];
+
+        foreach (['/app/views/shop', '/app/views/partials'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $source = (string) file_get_contents($file->getPathname());
+
+                if (preg_match('/(?<!repeat-purchase )repeat bonus/i', $source) === 1) {
+                    $offenders[] = str_replace($root . '/', '', $file->getPathname());
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'the shop uses the program name, not the shorthand');
+
+        assert_contains(
+            "'label' => 'Repeat-purchase bonus'",
+            (string) file_get_contents($root . '/app/views/member/earnings.php'),
+            'the statement names the same program'
+        );
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',
