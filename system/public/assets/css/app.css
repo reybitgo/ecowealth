@@ -316,6 +316,49 @@
   box-shadow: none;
 }
 
+/* ---------- Touch targets (UX-38) ---------------------------
+ * Icon-only controls were 28 px (`btn-sm btn-icon`), 38 px (`.btn-icon`) or
+ * 26 px (the tree search clear) — well under the 44 × 44 px touch guidance,
+ * so adjacent row actions are easy to mis-tap on a phone. Short labels (
+ * `btn-sm` with text, e.g. the tree toolbar) only reach ~32 px high. Below the
+ * `lg` breakpoint every one of them grows its hit area to 44 px while the
+ * glyph stays small; mouse-sized controls return above `lg`. The tag selectors
+ * cover `a.btn` and `button.btn`, which outrank a bare `.btn-icon` class rule.
+ * Pages that set their own fixed size (the tree toolbar and its search clear)
+ * carry the same rule next to that size in binary-tree.css. */
+@media (max-width: 991.98px) {
+  a.btn-icon,
+  button.btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  a.btn-sm:not(.btn-icon),
+  button.btn-sm:not(.btn-icon) {
+    min-height: 44px;
+  }
+}
+
+/* Destructive/suspend row actions get clearance from the actions beside them
+ * so a thumb cannot land on the wrong one. */
+.member-row-actions .btn-label-danger,
+.member-row-actions .btn-label-warning {
+  margin-inline-start: 0.375rem;
+}
+
+@media (max-width: 575.98px) {
+  /* A 44 px icon keeps the pair adjacent inside a narrow table cell. */
+  .member-row-actions {
+    gap: 0.5rem !important;
+  }
+
+  /* The referral field and its copy button stack instead of squeezing the
+   * field to make room for a 44 px button. */
+  .referral-box .referral-link-input {
+    flex-basis: 100%;
+  }
+}
+
 /* ---------- Admin product thumbnails ---------- */
 .admin-product-thumb {
   display: block;

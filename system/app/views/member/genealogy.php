@@ -183,7 +183,7 @@ if ($binary_unavailable === '') {
                       </div>
                       <div class="binary-tree-search d-flex align-items-center">
                         <input type="search" class="form-control form-control-sm" id="binaryTreeSearchInput" placeholder="Search members…" aria-label="Search members in this tree" />
-                        <button type="button" class="btn btn-sm btn-label-secondary" id="binaryTreeSearchClear" title="Clear search" aria-label="Clear search"><i class="icon-base bx bx-x"></i></button>
+                        <button type="button" class="btn btn-sm btn-label-secondary binary-tree-search-clear" id="binaryTreeSearchClear" title="Clear search" aria-label="Clear search"><i class="icon-base bx bx-x"></i></button>
                       </div>
                     </div>
                   </div>

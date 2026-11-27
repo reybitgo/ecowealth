@@ -982,14 +982,22 @@ body.binary-horizontal .binary-tree-svg-wrap {
   }
 
   /* Icon-only toolbar: the labels stay in title/aria-label, the row
-     stops wrapping into four lines on a phone. */
+     stops wrapping into four lines on a phone. 44px square satisfies the
+     touch-target guidance (UX-38). */
   .binary-tree-controls .btn {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     justify-content: center;
     font-size: 0;
     gap: 0;
+  }
+
+  /* The toolbar's short labels are hidden on a phone, so the text-height
+     growth in app.css does not reach them; give every one the full target. */
+  .binary-tree-controls a.btn,
+  .binary-tree-controls button.btn {
+    min-height: 44px;
   }
 
   .binary-tree-controls .btn i {
@@ -1011,6 +1019,15 @@ body.binary-horizontal .binary-tree-svg-wrap {
 
   .binary-tree-search input {
     width: 100%;
+  }
+
+  /* 44px touch target for the clear search button (UX-38); the input's
+     padding-right already reserves this much room. */
+  .binary-tree-search .binary-tree-search-clear {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    right: 2px;
   }
 
   .binary-tree-breadcrumb {

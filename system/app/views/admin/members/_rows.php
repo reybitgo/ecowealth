@@ -133,7 +133,7 @@ foreach (Member::filterDefaults() as $key => $default) {
                           <span class="member-meta"><?= e(format_datetime((string) $row['created_at'])) ?></span>
                         </td>
                         <td class="text-end">
-                          <div class="d-inline-flex align-items-center gap-1">
+                          <div class="member-row-actions d-inline-flex align-items-center gap-1">
                             <a
                               href="<?= e(url('admin/members/' . $id)) ?>"
                               class="btn btn-sm btn-icon btn-label-primary"

@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-37, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -408,6 +408,7 @@ The browser pass the same day (Laragon Apache build at `http://localhost/ecoweal
 **Evidence:** row actions use `btn btn-sm btn-icon` (e.g. `admin/members/_rows.php:113-137`), the tree toolbar uses `btn-sm` icon controls (`member/genealogy.php:150-175`), and the wallet copy affordance is `btn btn-icon` (`member/dashboard.php`). Many carry good `title`/`aria-label`, which is a strength, but the rendered hit area is well below the 44×44 px guidance.
 **Impact:** on phones and for motor-impaired users, adjacent destructive/suspend actions are easy to mis-tap.
 **Fix:** raise the touch area to at least 44×44 px on small screens (padding or a min-size utility) and keep more space between destructive actions.
+**Status:** Fixed — below the `lg` breakpoint every icon-only control (`a.btn-icon` / `button.btn-icon`, which includes the 28 px `btn-sm btn-icon` row actions and the 38 px wallet copy button) now grows to a 44 × 44 px hit area while the glyph keeps its size; short labelled `btn-sm` buttons (the tree toolbar) get 44 px height. The tree toolbar and its search clear set fixed sizes of their own, so they carry the 44 px square next to those rules in `binary-tree.css`; on phones the referral field and its copy button stack instead of squeezing the field, and the member directory's actions carry `.member-row-actions` with a 0.5 rem gap plus extra clearance before a destructive/suspend action. `ViewTest`'s new `UX-38` case pins the media-scoped rule, the tree sizes (and the absence of the old 34 px ones) and the row-action spacing. `ViewTest` and `node --check`-free CSS only, so no script changed; no browser pass was made — the rendered hit areas were not measured in a browser.
 
 ### UX-39 — Table header semantics are inconsistent (Low)
 

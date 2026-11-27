@@ -688,6 +688,50 @@ return [
         );
     },
 
+    'UX-38 icon-only controls meet the touch-target guidance on small screens' => function (): void {
+        $root = dirname(__DIR__, 2);
+        $css  = (string) file_get_contents($root . '/public/assets/css/app.css');
+        $tree = (string) file_get_contents($root . '/public/assets/css/binary-tree.css');
+
+        /* The rule that grows icon buttons must sit below the `lg` breakpoint
+         * (phones and tablets) and give the box at least 44px each way. */
+        assert_same(
+            1,
+            preg_match(
+                '/@media\s*\(max-width:\s*991\.98px\)\s*\{[^{}]*a\.btn-icon,\s*button\.btn-icon\s*\{[^{}]*min-width:\s*44px;[^{}]*min-height:\s*44px;/',
+                $css
+            ),
+            'icon-only buttons grow to a 44px box below lg'
+        );
+        assert_contains('button.btn-sm:not(.btn-icon)', $css, 'short text buttons get the same height');
+
+        /* The tree toolbar and its search clear set their own fixed sizes, so
+         * they carry the target next to those sizes instead. */
+        assert_same(
+            1,
+            preg_match('/\.binary-tree-controls \.btn\s*\{\s*width:\s*44px;\s*height:\s*44px;/', $tree),
+            'the tree toolbar buttons are 44px square'
+        );
+        assert_same(
+            1,
+            preg_match('/\.binary-tree-search \.binary-tree-search-clear\s*\{[^{}]*width:\s*44px;[^{}]*height:\s*44px;/', $tree),
+            'the tree search clear is a 44px target'
+        );
+        assert_same(
+            0,
+            preg_match('/\.binary-tree-controls \.btn\s*\{\s*width:\s*3[0-9]px;/', $tree),
+            'no undersized fixed toolbar size is left'
+        );
+
+        /* The member row's adjacent view/suspend actions keep clearance. */
+        $rows = (string) file_get_contents($root . '/app/views/admin/members/_rows.php');
+        assert_contains('class="member-row-actions d-inline-flex', $rows, 'the row actions are grouped for spacing');
+        assert_contains('.member-row-actions .btn-label-danger,', $css, 'a destructive row action is spaced from its neighbour');
+
+        $genealogy = (string) file_get_contents($root . '/app/views/member/genealogy.php');
+        assert_contains('binary-tree-search-clear', $genealogy, 'the search clear carries its target class');
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',
