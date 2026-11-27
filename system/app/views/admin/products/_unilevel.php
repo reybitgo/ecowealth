@@ -179,7 +179,7 @@ $presetTotal = array_sum($preset);
                             </tbody>
                             <tfoot>
                               <tr class="fw-semibold">
-                                <th scope="row">Total</th>
+                                <th scope="row" class="fw-semibold">Total</th>
                                 <td>
                                   <span class="badge bg-label-<?= $totalRate > ProductUnilevel::MAX_SUM ? 'danger' : 'success' ?>" data-unilevel-total>
                                     <?= e(number_format($totalRate, 3, '.', '')) ?>%

@@ -1211,7 +1211,7 @@ return [
          * cells, as in every report totals row. */
         $totals = (string) file_get_contents($root . '/admin/products/_unilevel.php');
 
-        assert_contains('<th scope="row">Total</th>', $totals, 'the ladder totals row names itself');
+        assert_contains('<th scope="row" class="fw-semibold">Total</th>', $totals, 'the ladder totals row names itself');
         assert_same(1, preg_match_all('/<th scope="row"/', $totals), 'only the totals row label is a row header');
         assert_same(
             1,
