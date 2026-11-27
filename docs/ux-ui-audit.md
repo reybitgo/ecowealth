@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-19, UX-21 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-19, UX-21, UX-22 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -262,6 +262,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 **Evidence:** `admin/members/_rows.php:17-21` computes `$hasFilters` from `q`, `status`, `package`, `harvest` and `board` — but not `placement`, although `admin/members/_filters.php:63` exposes a "Binary placement" filter.
 **Impact:** filtering by "Floating nodes" or "No binary node" and getting no rows shows the first-run message "No members yet — members appear here as soon as they register," which is false.
 **Fix:** include `placement` in `$hasFilters` (better: build `$hasFilters` from the same defaults array the controller uses).
+**Status:** Fixed — `admin/members/_rows.php` no longer lists the filters by hand: `$hasFilters` walks `Member::filterDefaults()`, the same defaults the controller normalises against, so `placement` (and any filter added later) counts. A placement-only result now shows "No members match these filters" with the Clear filters action instead of the first-run copy, and that copy's explanation no longer enumerates a partial filter list ("Try a different search, or clear a filter to see more members."). `AdminMemberLiveTest` gains a `UX-22` case that renders the rows with only `placement=floating`, `placement=no-node` or `board=paid` set and requires the filtered state, then with the defaults and requires the first-run state. `php -l` passes on every changed PHP file; `AdminMemberLiveTest` (12 cases), `RoyaltyAdminMemberViewTest`, `MembershipViewTest`, `GeneralHarvestAdminViewTest` and `TeamHarvestAdminViewTest` pass on 27 November 2026; no browser pass was made.
 
 ### UX-23 — "GH" is an unexplained abbreviation in the member table (Low)
 
