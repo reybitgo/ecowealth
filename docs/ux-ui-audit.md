@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-19, UX-21, UX-22 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-19, UX-21–UX-23 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -269,6 +269,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 **Evidence:** `system/app/views/admin/members/index.php:95` — column header `GH`; the cells show `N / 10` (`_rows.php:102-107`).
 **Impact:** only someone who knows "General Harvest" can interpret the column, and the `N / 10` value has no unit or tooltip. The neighbouring "Harvest" column at least has a `title`.
 **Fix:** label the column "General Harvest" (or "GH levels" with a `title`/tooltip and a header note), and give the cell a `title` describing what N/10 counts.
+**Status:** Fixed — the column header reads **General Harvest** (`AdminMemberController::DIRECTORY_COLUMNS`) instead of `GH`, and the credited cell's badge takes its ten from `GeneralHarvestLevel::LEVEL_MAX` rather than a literal, carrying `title="N of 10 General Harvest levels credited"`; a member with no credited level keeps the `—` and now carries `title="No General Harvest levels credited"`. `GeneralHarvestAdminViewTest` (`P21E-T7`) requires the spelled-out header, the absence of the bare `GH` header and both titles. `php -l` passes on every changed PHP file; `GeneralHarvestAdminViewTest` (19 cases), `RoyaltyAdminMemberViewTest` (5 cases) and `AdminMemberLiveTest` (12 cases) pass on 27 November 2026; no browser pass was made.
 
 ### UX-24 — Numeric alignment and header `scope` drift (Low)
 
