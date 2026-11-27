@@ -42,7 +42,18 @@ foreach ($orders as $row) {
                       </tr>
 <?php endforeach; ?>
 <?php if ($orders === []): ?>
-                      <tr><td colspan="3" class="text-body-secondary">No orders yet.</td></tr>
+                      <tr>
+                        <td colspan="3" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-receipt',
+        'title'   => 'No orders yet',
+        'text'    => 'Orders appear here after the first checkout.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                     <tfoot>

@@ -38,7 +38,16 @@ $roleTone = static fn (string $role): string => match ($role) {
                         <tbody>
 <?php if ($recent === []): ?>
                           <tr>
-                            <td colspan="5" class="text-center text-body-secondary py-6">No accounts yet.</td>
+                            <td colspan="5" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-group',
+        'title'   => 'No accounts yet',
+        'text'    => 'Accounts appear here as soon as someone registers.',
+    ]);
+?>
+                            </td>
                           </tr>
 <?php endif; ?>
 <?php foreach ($recent as $row): ?>

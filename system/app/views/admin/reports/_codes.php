@@ -68,7 +68,18 @@ foreach ($codes as $row) {
                       </tr>
 <?php endforeach; ?>
 <?php if ($codes === []): ?>
-                      <tr><td colspan="8" class="text-body-secondary">No packages are configured yet.</td></tr>
+                      <tr>
+                        <td colspan="8" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-purchase-tag',
+        'title'   => 'No packages are configured yet',
+        'text'    => 'Code revenue appears once a package exists and codes are issued.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                     <tfoot>

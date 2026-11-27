@@ -40,10 +40,14 @@ foreach ($byDay as $day) {
                 </div>
                 <div class="card-body">
 <?php if ($byDay === [] || $sales['orders'] === 0): ?>
-                  <div class="text-center text-body-secondary py-6">
-                    <i class="icon-base bx bx-bar-chart-alt-2 icon-xl d-block mb-2"></i>
-                    No paid sales in this window yet.
-                  </div>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-bar-chart-alt-2',
+        'title'   => 'No paid sales in this window yet',
+        'text'    => 'The chart fills in once a paid order lands in the window.',
+    ]);
+?>
 <?php else: ?>
                   <div id="reportSalesChart" class="report-chart" aria-label="Sales by day chart"></div>
 <?php endif; ?>
@@ -71,7 +75,18 @@ foreach ($byDay as $day) {
                             </tr>
 <?php endforeach; ?>
 <?php if ($byMethod === []): ?>
-                            <tr><td colspan="3" class="text-body-secondary">No paid orders in this window.</td></tr>
+                            <tr>
+                              <td colspan="3" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-credit-card',
+        'title'   => 'No paid orders in this window',
+        'text'    => 'Paid orders split by payment method once a checkout completes.',
+    ]);
+?>
+                              </td>
+                            </tr>
 <?php endif; ?>
                           </tbody>
                         </table>

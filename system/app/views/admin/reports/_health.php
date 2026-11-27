@@ -62,7 +62,16 @@ $health = array_merge(
                     </li>
 <?php endforeach; ?>
 <?php if ($health['sections'] === []): ?>
-                    <li class="text-body-secondary small">The checks have not run yet.</li>
+                    <li class="p-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-shield-quarter',
+        'title'   => 'The checks have not run yet',
+        'text'    => 'Health checks appear here after the next scheduled run.',
+    ]);
+?>
+                    </li>
 <?php endif; ?>
                   </ul>
                 </div>

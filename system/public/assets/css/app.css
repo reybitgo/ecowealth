@@ -715,6 +715,17 @@ table tr.is-live-updated > td {
   cursor: default;
 }
 
+/* Compact empty states (dashboard widgets, report cards): the same
+ * illustration and copy at a smaller scale, so a "nothing here" condition
+ * reads the same inside a small card as it does on a full page. */
+.empty-state-compact .empty-state-title {
+  font-size: 0.9375rem;
+}
+
+.empty-state-compact .empty-state-text {
+  font-size: 0.8125rem;
+}
+
 /* The drawer uses the shared .cart-qty-group sizing (fit-content); no narrower
  * override here, otherwise a two-digit quantity gets clipped again. */
 

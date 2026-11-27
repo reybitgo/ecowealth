@@ -26,7 +26,14 @@ $actorLabel = static function (array $event): string {
 };
 ?>
 <?php if ($events === []): ?>
-              <p class="text-body-secondary small mb-0">No status changes recorded yet.</p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-time-five',
+        'title'   => 'No status changes recorded yet',
+        'text'    => 'The order history appears here after its first status change.',
+    ]);
+?>
 <?php else: ?>
               <ol class="order-timeline list-unstyled mb-0">
 <?php foreach ($events as $event): ?>

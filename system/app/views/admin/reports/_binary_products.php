@@ -25,7 +25,14 @@ $range          = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => '
                 </div>
                 <div class="card-body">
 <?php if ($binaryProducts === []): ?>
-                  <p class="small text-body-secondary mb-0">No product has placed binary points in this window.</p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-package',
+        'title'   => 'No product has placed binary points in this window',
+        'text'    => 'Points appear once an order or activation places binary volume.',
+    ]);
+?>
 <?php else: ?>
                   <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0">

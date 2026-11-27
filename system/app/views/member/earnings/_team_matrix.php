@@ -131,9 +131,14 @@ $slotLabel = static fn (int $slot): string => 'Slot ' . ($slot + 1);
                   </div>
 
 <?php if ($roster === []): ?>
-                  <p class="small text-body-secondary mb-0">
-                    No teammates yet. Your first one is the next member below you who qualifies after you did.
-                  </p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-group',
+        'title'   => 'No teammates yet',
+        'text'    => 'Your first one is the next member below you who qualifies after you did.',
+    ]);
+?>
 <?php else: ?>
                   <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle mb-0">

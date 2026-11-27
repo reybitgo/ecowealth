@@ -20,10 +20,14 @@ $products = (array) ($commerce['top_products'] ?? []);
                 </div>
                 <div class="card-body">
 <?php if ($products === []): ?>
-                  <div class="text-center text-body-secondary py-6">
-                    <i class="icon-base bx bx-package icon-xl d-block mb-2"></i>
-                    No product has sold in the last 30 days.
-                  </div>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-package',
+        'title'   => 'No product has sold in the last 30 days',
+        'text'    => 'Units sold on paid orders appear here.',
+    ]);
+?>
 <?php else: ?>
                   <ul class="list-unstyled mb-0 dashboard-top-list">
 <?php foreach ($products as $index => $product): ?>

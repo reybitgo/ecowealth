@@ -27,9 +27,14 @@ $range = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => ''];
                 </div>
                 <div class="card-body">
 <?php if ($package_binary_by_package === []): ?>
-                  <p class="text-body-secondary small text-center mb-0">
-                    No package activations in this window. Turn the stream on, flag a package and approve an activation.
-                  </p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-package',
+        'title'   => 'No package activations in this window',
+        'text'    => 'Turn the stream on, flag a package and approve an activation.',
+    ]);
+?>
 <?php else: ?>
                   <table class="table table-sm align-middle mb-0">
                     <thead>

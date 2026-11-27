@@ -203,9 +203,17 @@ $cards = [
 <?php endforeach; ?>
 <?php if ($entries === []): ?>
                       <tr>
-                        <td colspan="6" class="text-center text-body-secondary py-6">
-                          No audit entries match these filters.
-                        </td>
+                        <td colspan="6" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact'      => true,
+        'icon'         => 'bx bx-history',
+        'title'        => 'No audit entries match these filters',
+        'text'         => 'Try a different action, subject, actor or date range.',
+        'action_href'  => $has_filters ? 'admin/audit' : '',
+        'action_label' => $has_filters ? 'Clear filters' : '',
+    ]);
+?>
                       </tr>
 <?php endif; ?>
                     </tbody>

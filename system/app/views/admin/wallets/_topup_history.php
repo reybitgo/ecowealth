@@ -24,7 +24,16 @@ declare(strict_types=1);
                         <tbody>
 <?php if ($topups === []): ?>
                           <tr>
-                            <td colspan="3" class="text-center text-body-secondary small py-4">No top-ups yet.</td>
+                            <td colspan="3" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-wallet',
+        'title'   => 'No top-ups yet',
+        'text'    => 'Manual top-ups appear here after an admin credits this wallet.',
+    ]);
+?>
+                            </td>
                           </tr>
 <?php endif; ?>
 <?php foreach ($topups as $topup): ?>

@@ -75,7 +75,18 @@ $average = $totals['paid_rows'] === 0 ? 0.0 : round($totals['paid'] / $totals['p
                       </tr>
 <?php endforeach; ?>
 <?php if ($rows === []): ?>
-                      <tr><td colspan="6" class="text-body-secondary">No Royalty rank row in this window.</td></tr>
+                      <tr>
+                        <td colspan="6" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-award',
+        'title'   => 'No Royalty rank row in this window',
+        'text'    => 'Supervisor, Manager and Director appear here once the first month closes.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                     <tfoot>

@@ -309,7 +309,7 @@ return [
             'has_filters' => true,
         ]);
 
-        assert_contains('No audit entries match these filters.', $html);
+        assert_contains('No audit entries match these filters', $html);
         assert_contains('Clear', $html);
     },
 

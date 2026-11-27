@@ -153,9 +153,15 @@ $tabUrl = static function (string $status) use ($audit_url): string {
                     <tbody>
 <?php if ($sessions === []): ?>
                       <tr>
-                        <td colspan="7" class="text-center text-body-secondary py-6">
-                          No session matches these filters.
-                        </td>
+                        <td colspan="7" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-user-check',
+        'title'   => 'No session matches these filters',
+        'text'    => 'Try a different superadmin, member, status or date range.',
+    ]);
+?>
                       </tr>
 <?php endif; ?>
 <?php foreach ($sessions as $row): ?>

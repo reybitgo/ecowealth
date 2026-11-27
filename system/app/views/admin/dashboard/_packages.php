@@ -20,11 +20,16 @@ $packages = $packages ?? [];
                     </div>
                     <div class="card-body pt-2">
 <?php if ($packages === []): ?>
-                      <div class="text-center text-body-secondary py-6">
-                        <i class="icon-base bx bx-box icon-lg d-block mb-2"></i>
-                        <p class="mb-3">No packages yet.</p>
-                        <a href="<?= e(url('admin/packages/new')) ?>" class="btn btn-sm btn-primary">Create the first package</a>
-                      </div>
+<?php
+    echo View::partial('empty_state', [
+        'compact'      => true,
+        'icon'         => 'bx bx-box',
+        'title'        => 'No packages yet',
+        'text'         => 'Entry packages members can activate appear here.',
+        'action_href'  => 'admin/packages/new',
+        'action_label' => 'Create the first package',
+    ]);
+?>
 <?php else: ?>
 <?php $lastPackage = count($packages) - 1; ?>
 <?php foreach ($packages as $index => $package): ?>

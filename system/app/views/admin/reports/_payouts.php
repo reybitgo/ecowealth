@@ -60,7 +60,18 @@ $range = $range ?? ['label' => ''];
                       </tr>
 <?php endforeach; ?>
 <?php if ($payouts['by_status'] === []): ?>
-                      <tr><td colspan="4" class="text-body-secondary">No withdrawal requests in this window.</td></tr>
+                      <tr>
+                        <td colspan="4" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-wallet',
+        'title'   => 'No withdrawal requests in this window',
+        'text'    => 'Requests appear here as soon as a member asks for a payout.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                   </table>
@@ -68,7 +79,14 @@ $range = $range ?? ['label' => ''];
                 <div class="card-body border-top">
                   <p class="text-body-secondary small mb-2">By method</p>
 <?php if ($payouts['by_method'] === []): ?>
-                  <p class="text-body-secondary small mb-0">Nothing requested in this window.</p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-credit-card',
+        'title'   => 'Nothing requested in this window',
+        'text'    => 'Requests split by method once a payout is asked for.',
+    ]);
+?>
 <?php else: ?>
                   <ul class="list-unstyled mb-0 report-method-list">
 <?php foreach ($payouts['by_method'] as $row): ?>

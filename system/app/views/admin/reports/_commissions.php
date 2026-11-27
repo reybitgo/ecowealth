@@ -64,7 +64,18 @@ ksort($byLevel);
                       </tr>
 <?php endforeach; ?>
 <?php if ($byLevel === []): ?>
-                      <tr><td colspan="5" class="text-body-secondary">No awards in this window.</td></tr>
+                      <tr>
+                        <td colspan="5" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-line-chart',
+        'title'   => 'No awards in this window',
+        'text'    => 'Commission awards appear once an activation or order pays a level.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                     <tfoot>

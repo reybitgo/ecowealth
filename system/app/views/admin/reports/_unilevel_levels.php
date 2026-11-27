@@ -76,7 +76,18 @@ $totals['pending_amount'] = round($totals['pending_amount'], 2);
                       </tr>
 <?php endforeach; ?>
 <?php if ($rows === []): ?>
-                      <tr><td colspan="5" class="text-body-secondary">No repeat-purchase award in this window.</td></tr>
+                      <tr>
+                        <td colspan="5" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-layer',
+        'title'   => 'No repeat-purchase award in this window',
+        'text'    => 'Awards appear when a Team chain order pays one of the ten levels.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                     <tfoot>

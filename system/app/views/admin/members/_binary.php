@@ -358,7 +358,16 @@ $qualifiedLabel  = $qualified
                                 <tbody>
 <?php if ($volume === []): ?>
                                   <tr>
-                                    <td colspan="6" class="text-body-secondary text-center py-2">No volume rows yet.</td>
+                                    <td colspan="6" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-transfer',
+        'title'   => 'No volume rows yet',
+        'text'    => 'Binary volume appears once an order or activation places points.',
+    ]);
+?>
+                                    </td>
                                   </tr>
 <?php else: ?>
 <?php foreach (array_slice($volume, 0, 8) as $row): ?>
@@ -409,7 +418,16 @@ $qualifiedLabel  = $qualified
                                 <tbody>
 <?php if ($awards === []): ?>
                                   <tr>
-                                    <td colspan="6" class="text-body-secondary text-center py-2">No award rows yet.</td>
+                                    <td colspan="6" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-award',
+        'title'   => 'No award rows yet',
+        'text'    => 'Binary awards appear once left and right volume match.',
+    ]);
+?>
+                                    </td>
                                   </tr>
 <?php else: ?>
 <?php foreach (array_slice($awards, 0, 8) as $row): ?>

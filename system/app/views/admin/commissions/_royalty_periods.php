@@ -83,12 +83,18 @@ $openLink  = $open === '' ? '' : url('admin/commissions?ledger=royalty&period=' 
 <?php endforeach; ?>
 <?php if ($periods === []): ?>
                       <tr>
-                        <td colspan="9" class="text-body-secondary">
-                          No Royalty periods yet. The first period closes after the first full
-                          month following installation.
-<?php if ($open !== ''): ?>
-                          Until then, <a href="<?= e($openLink) ?>"><?= e($openLabel) ?></a> is only a preview.
-<?php endif; ?>
+                        <td colspan="9" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact'      => true,
+        'icon'         => 'bx bx-calendar',
+        'title'        => 'No Royalty periods yet',
+        'text'         => 'The first period closes after the first full month following installation.'
+            . ($open === '' ? '' : ' Until then, ' . $openLabel . ' is only a preview.'),
+        'action_href'  => $open === '' ? '' : 'admin/commissions?ledger=royalty&period=' . rawurlencode($open),
+        'action_label' => $open === '' ? '' : 'Preview ' . $openLabel,
+    ]);
+?>
                         </td>
                       </tr>
 <?php endif; ?>

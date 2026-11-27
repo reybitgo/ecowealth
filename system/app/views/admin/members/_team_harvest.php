@@ -285,9 +285,15 @@ $statusTones = [
 <?php endforeach; ?>
 <?php if ($awards === []): ?>
                           <tr>
-                            <td colspan="7" class="text-body-secondary small">
-                              No level has completed yet. The first one needs
-                              <?= TeamHarvestLevel::threshold(1) ?> qualified teammates.
+                            <td colspan="7" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-layer',
+        'title'   => 'No level has completed yet',
+        'text'    => 'The first one needs ' . TeamHarvestLevel::threshold(1) . ' qualified teammates.',
+    ]);
+?>
                             </td>
                           </tr>
 <?php endif; ?>

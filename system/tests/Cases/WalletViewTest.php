@@ -405,6 +405,6 @@ return [
         assert_contains('value="-5"', $html);
         assert_contains('is-invalid', $html);
         assert_contains('Bad input', $html);
-        assert_contains('No top-ups yet.', $html);
+        assert_contains('No top-ups yet', $html);
     },
 ];

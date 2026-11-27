@@ -286,9 +286,15 @@ $statusTones = [
 <?php endforeach; ?>
 <?php if ($awards === []): ?>
                           <tr>
-                            <td colspan="7" class="text-body-secondary small">
-                              No level has completed yet. The first one completes when the queue reaches
-                              its block's last position.
+                            <td colspan="7" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-layer',
+        'title'   => 'No level has completed yet',
+        'text'    => "The first one completes when the queue reaches its block's last position.",
+    ]);
+?>
                             </td>
                           </tr>
 <?php endif; ?>

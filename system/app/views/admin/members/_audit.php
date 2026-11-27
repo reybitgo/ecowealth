@@ -11,7 +11,16 @@ declare(strict_types=1);
                     <div class="card-header"><h5 class="card-title mb-0">Recent audit</h5></div>
                     <ul class="list-group list-group-flush">
 <?php if ($audits === []): ?>
-                      <li class="list-group-item text-body-secondary small">No audit entries yet.</li>
+                      <li class="list-group-item p-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-history',
+        'title'   => 'No audit entries yet',
+        'text'    => 'Changes to this member appear here.',
+    ]);
+?>
+                      </li>
 <?php endif; ?>
 <?php foreach ($audits as $entry): ?>
                       <li class="list-group-item">

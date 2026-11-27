@@ -51,9 +51,14 @@ foreach ($team_levels as $rows) {
                     <?= status_badge((string) $member['member_status']) ?>
                   </div>
 <?php if ($team_levels === []): ?>
-                  <div class="alert alert-secondary py-3 mb-0 small">
-                    No team yet — share your referral link to start building it.
-                  </div>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-group',
+        'title'   => 'No team yet',
+        'text'    => 'Share your referral link to start building it.',
+    ]);
+?>
 <?php else: ?>
 <?php foreach ($team_levels as $level => $rows): ?>
 <?php

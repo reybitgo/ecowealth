@@ -56,9 +56,15 @@ $rosterUrl = static fn (int $target): string => url(
                     <tbody data-live-region="earnings-general-roster-rows">
 <?php if ($rows === []): ?>
                       <tr>
-                        <td colspan="3" class="py-3 text-body-secondary text-center">
-                          No member has reached this block yet. It fills in the order members
-                          qualified, from the whole network.
+                        <td colspan="3" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-group',
+        'title'   => 'No member has reached this block yet',
+        'text'    => 'It fills in the order members qualified, from the whole network.',
+    ]);
+?>
                         </td>
                       </tr>
 <?php endif; ?>

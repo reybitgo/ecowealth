@@ -52,9 +52,16 @@ $monthLabel = static function (string $period): string {
 <?php endforeach; ?>
 <?php if ($periods === []): ?>
                       <tr>
-                        <td colspan="4" class="text-body-secondary">
-                          No month has been closed yet. Until a month is closed, a member with no
-                          snapshot is treated as Active — the live fallback keeps payouts correct.
+                        <td colspan="4" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-calendar',
+        'title'   => 'No month has been closed yet',
+        'text'    => 'Until a month is closed, a member with no snapshot is treated as Active —'
+            . ' the live fallback keeps payouts correct.',
+    ]);
+?>
                         </td>
                       </tr>
 <?php endif; ?>

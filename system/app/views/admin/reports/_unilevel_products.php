@@ -65,7 +65,18 @@ $range = $range ?? ['label' => ''];
                       </tr>
 <?php endforeach; ?>
 <?php if ($rows === []): ?>
-                      <tr><td colspan="5" class="text-body-secondary">No product paid a repeat-purchase bonus in this window.</td></tr>
+                      <tr>
+                        <td colspan="5" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-purchase-tag',
+        'title'   => 'No repeat-purchase bonus in this window',
+        'text'    => 'A product appears once a Team chain order pays a level.',
+    ]);
+?>
+                        </td>
+                      </tr>
 <?php endif; ?>
                     </tbody>
                   </table>

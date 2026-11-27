@@ -28,7 +28,14 @@ $range        = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => '']
                 </div>
                 <div class="card-body">
 <?php if ($binaryByKind === []): ?>
-                  <p class="small text-body-secondary mb-0">No binary awards in this window.</p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-award',
+        'title'   => 'No binary awards in this window',
+        'text'    => 'Self and pair awards appear once left and right volume match.',
+    ]);
+?>
 <?php else: ?>
                   <div class="table-responsive mb-4">
                     <table class="table table-sm align-middle mb-0">

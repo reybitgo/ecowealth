@@ -30,7 +30,16 @@ declare(strict_types=1);
                         <tbody>
 <?php if ($activations === []): ?>
                           <tr>
-                            <td colspan="6" class="text-center text-body-secondary py-5">No activation requests.</td>
+                            <td colspan="6" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-package',
+        'title'   => 'No activation requests',
+        'text'    => 'Package activation requests appear here as members submit them.',
+    ]);
+?>
+                            </td>
                           </tr>
 <?php endif; ?>
 <?php foreach ($activations as $activation): ?>

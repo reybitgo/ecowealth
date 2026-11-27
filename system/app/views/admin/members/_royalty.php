@@ -198,8 +198,15 @@ $ledgerUrl = url('admin/commissions?ledger=royalty&q=' . rawurlencode($username)
 <?php endforeach; ?>
 <?php if ($history === []): ?>
                           <tr>
-                            <td colspan="5" class="text-body-secondary">
-                              No Royalty awards yet. Royalty is paid after the month closes.
+                            <td colspan="5" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-award',
+        'title'   => 'No Royalty awards yet',
+        'text'    => 'Royalty is paid after the month closes.',
+    ]);
+?>
                             </td>
                           </tr>
 <?php endif; ?>

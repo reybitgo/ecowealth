@@ -318,7 +318,7 @@ return [
         ]);
 
         assert_contains('href="' . url('earnings') . '"', $html);
-        assert_contains('see earnings', $html);
+        assert_contains('See earnings', $html);
         assert_contains('No commissions yet', $html);
         assert_not_contains('arrive with the next phase', $html);
     },

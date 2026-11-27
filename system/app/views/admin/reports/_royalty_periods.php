@@ -60,9 +60,15 @@ $monthLabel = static function (string $period): string {
 <?php endforeach; ?>
 <?php if ($periods === []): ?>
                       <tr>
-                        <td colspan="7" class="text-body-secondary">
-                          No Royalty month has closed yet. The first period closes after the first full
-                          month following installation.
+                        <td colspan="7" class="py-0">
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-calendar',
+        'title'   => 'No Royalty month has closed yet',
+        'text'    => 'The first period closes after the first full month following installation.',
+    ]);
+?>
                         </td>
                       </tr>
 <?php endif; ?>

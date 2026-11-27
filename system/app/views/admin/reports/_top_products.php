@@ -18,10 +18,14 @@ $range = $range ?? ['label' => ''];
                 </div>
                 <div class="card-body">
 <?php if ($topProducts === []): ?>
-                  <div class="text-center text-body-secondary py-6">
-                    <i class="icon-base bx bx-package icon-xl d-block mb-2"></i>
-                    No product has sold in this window.
-                  </div>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-package',
+        'title'   => 'No product has sold in this window',
+        'text'    => 'Paid order lines appear here once a sale completes.',
+    ]);
+?>
 <?php else: ?>
                   <ul class="list-unstyled report-top-list mb-0">
 <?php foreach ($topProducts as $index => $product): ?>

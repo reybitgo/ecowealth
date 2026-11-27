@@ -27,9 +27,14 @@ $range = $range ?? ['from' => '', 'to' => '', 'days' => 0, 'label' => ''];
                 </div>
                 <div class="card-body">
 <?php if ($package_binary_by_activation === []): ?>
-                  <p class="text-body-secondary small text-center mb-0">
-                    No processed package activations in this window.
-                  </p>
+<?php
+    echo View::partial('empty_state', [
+        'compact' => true,
+        'icon'    => 'bx bx-package',
+        'title'   => 'No processed package activations in this window',
+        'text'    => 'Each approved activation appears here once it places points.',
+    ]);
+?>
 <?php else: ?>
                   <table class="table table-sm align-middle mb-0">
                     <thead>

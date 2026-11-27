@@ -113,9 +113,17 @@ $repeatPendingNote .= '.';
 <?php endforeach; ?>
                       </ul>
 <?php else: ?>
-                      <div class="alert alert-info py-2 small mb-0 mt-3">
-                        No commissions yet. A direct referral is credited the moment someone you sponsored
-                        activates a package — <a href="<?= e(url('earnings')) ?>">see earnings</a>.
+                      <div class="mt-3">
+<?php
+    echo View::partial('empty_state', [
+        'compact'      => true,
+        'icon'         => 'bx bx-line-chart',
+        'title'        => 'No commissions yet',
+        'text'         => 'A direct referral is credited the moment someone you sponsored activates a package.',
+        'action_href'  => 'earnings',
+        'action_label' => 'See earnings',
+    ]);
+?>
                       </div>
 <?php endif; ?>
 
