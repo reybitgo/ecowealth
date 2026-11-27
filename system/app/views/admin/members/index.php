@@ -86,16 +86,9 @@ $generalHarvest = $general_harvest ?? null;
                   <table class="table table-hover align-middle mb-0">
                     <thead>
                       <tr>
-                        <th>Member</th>
-                        <th>Package</th>
-                        <th>Sponsor</th>
-                        <th>Status</th>
-                        <th>Rank</th>
-                        <th>Harvest</th>
-                        <th class="text-nowrap">GH</th>
-                        <th class="text-end">Wallet</th>
-                        <th>Joined</th>
-                        <th class="text-end">Actions</th>
+<?php foreach (AdminMemberController::DIRECTORY_COLUMNS as $column): ?>
+                        <th<?= $column['class'] !== '' ? ' class="' . e($column['class']) . '"' : '' ?>><?= e($column['label']) ?></th>
+<?php endforeach; ?>
                       </tr>
                     </thead>
 <?= View::capture('admin/members/_rows', ['members' => $members, 'filters' => $filters]) ?>

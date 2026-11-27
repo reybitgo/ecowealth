@@ -16,6 +16,9 @@ declare(strict_types=1);
  * @var array{q:string, status:string, package:string, harvest:string} $filters
  */
 
+/* The header and this empty row both come from one column list (UX-21). */
+$columns = count(AdminMemberController::DIRECTORY_COLUMNS);
+
 $hasFilters = (string) $filters['q'] !== ''
     || (string) $filters['status'] !== ''
     || (string) $filters['package'] !== ''
@@ -25,7 +28,7 @@ $hasFilters = (string) $filters['q'] !== ''
                     <tbody data-live-region="member-rows">
 <?php if ($members === []): ?>
                       <tr>
-                        <td colspan="9" class="py-0">
+                        <td colspan="<?= $columns ?>" class="py-0">
 <?php
     echo View::partial('empty_state', [
         'icon'         => 'bx bx-group',

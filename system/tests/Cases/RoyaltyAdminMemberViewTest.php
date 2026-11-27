@@ -177,14 +177,29 @@ return [
         assert_contains('bg-label-success">Director<', $rows);
         assert_contains('bg-label-secondary">Member<', $rows);
 
-        /* The empty state spans every column: eight in 19B, nine since 20E
-         * added the Harvest column. */
+        /* The empty state spans every column. The count is read from the
+         * rendered header, so a new column with a stale colspan fails here
+         * first (UX-21 — ten columns since 21E added GH). */
+        preg_match_all('#<thead>(.*?)</thead>#s', $html, $heads);
+
+        $directoryHead = '';
+
+        foreach ($heads[1] as $head) {
+            if (strpos($head, '<th>Rank</th>') !== false) {
+                $directoryHead = $head;
+                break;
+            }
+        }
+
+        $columns = substr_count($directoryHead, '<th');
+        assert_same(10, $columns, 'the directory header renders ten columns');
+
         $_GET = ['q' => 'no-such-member-in-any-tree'];
         $_SERVER['REQUEST_URI'] = '/ecowealth/system/admin/members?q=no-such-member-in-any-tree';
 
         $empty = $controller->feedPayload(3, '"etag"', $controller->listContext())['fragments']['member-rows'];
 
-        assert_contains('colspan="9"', $empty);
+        assert_contains('colspan="' . $columns . '"', $empty);
         assert_contains('No members match these filters', $empty);
     },
 

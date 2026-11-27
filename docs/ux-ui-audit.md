@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-19 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-19, UX-21 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -255,6 +255,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 **Evidence:** `system/app/views/admin/members/index.php:91-101` defines **10** columns (Member, Package, Sponsor, Status, Rank, Harvest, GH, Wallet, Joined, Actions). `system/app/views/admin/members/_rows.php:28` renders the empty row with `colspan="9"`.
 **Impact:** with no members (or a filter that matches none), the empty-state panel stops one column short and leaves a visible blank cell at the right edge of the table.
 **Fix:** change to `colspan="10"`, or derive the count from a shared constant so the header and the empty row cannot drift again.
+**Status:** Fixed — the directory's ten columns are now declared once in `AdminMemberController::DIRECTORY_COLUMNS`; the table head in `admin/members/index.php` renders that list and `admin/members/_rows.php` takes its length for the empty row's `colspan`, so adding a column widens the empty state automatically. The empty state now spans all 10 columns instead of 9. `RoyaltyAdminMemberViewTest` (`P19B-T23`) now reads the column count from the rendered `<thead>` and requires the empty state to span exactly that many columns, so a stale `colspan` fails the case. `php -l` passes on every changed PHP file; `RoyaltyAdminMemberViewTest`, `AdminMemberLiveTest` (11 cases) and `GeneralHarvestAdminViewTest` (19 cases) pass on 27 November 2026, as do `TeamHarvestAdminViewTest` and `MembershipViewTest`. No browser pass was made.
 
 ### UX-22 — Member directory empty-state text ignores one of its own filters (Medium)
 

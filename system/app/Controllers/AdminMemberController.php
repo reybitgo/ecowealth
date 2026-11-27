@@ -24,6 +24,26 @@ declare(strict_types=1);
 
 final class AdminMemberController
 {
+    /**
+     * The member directory table's columns, in order: the header label and
+     * any extra `<th>` classes. The header renders this list and the empty
+     * row's colspan is its length, so the two cannot drift apart (UX-21).
+     *
+     * @var list<array{label:string, class:string}>
+     */
+    public const DIRECTORY_COLUMNS = [
+        ['label' => 'Member',  'class' => ''],
+        ['label' => 'Package', 'class' => ''],
+        ['label' => 'Sponsor', 'class' => ''],
+        ['label' => 'Status',  'class' => ''],
+        ['label' => 'Rank',    'class' => ''],
+        ['label' => 'Harvest', 'class' => ''],
+        ['label' => 'GH',      'class' => 'text-nowrap'],
+        ['label' => 'Wallet',  'class' => 'text-end'],
+        ['label' => 'Joined',  'class' => ''],
+        ['label' => 'Actions', 'class' => 'text-end'],
+    ];
+
     private WalletService $wallet;
 
     public function __construct()
