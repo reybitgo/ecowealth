@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-25, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-27, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -304,6 +304,7 @@ No `.required` rule exists in the application's CSS (custom or vendor), so the r
 **Evidence:** `app/layout/nav.php:89-129` — Finance contains "E-wallet monitor", "My e-wallet", "Payouts", "My payouts"; System contains "My profile" and "Change password"; Membership contains "My membership", "Register", "My genealogy" next to "Members", "Activations", "Codes".
 **Impact:** "Payouts" (the approval queue) and "My payouts" (the admin's own withdrawals) differ by one word and sit two rows apart; on a phone the sidebar collapses and the distinction is easy to miss.
 **Fix:** group the admin's personal destinations into one "My account" section at the bottom (profile, wallet, payouts, membership, genealogy, password), separate from the operational sections. Keep "Payouts" for the queue.
+**Status:** Fixed — the back-office sidebar now ends with a **My account** section (My profile, Change password, My e-wallet, Send funds, My payouts, My membership, Register, My genealogy, Sign out), and the operational sections keep only back-office screens: Finance is Commissions, E-wallet monitor, Payouts (the queue) and Reports; System is Settings and Audit log (S-Login console for a superadmin); Commerce carries Orders, Members, Activations and Codes. The admin "Membership" section is gone, so "Payouts" and "My payouts" can no longer sit two rows apart, and Register — a standalone member flow — moved with the personal group. `ViewTest`'s `UX-27` case renders the back-office layout, splits the sidebar into its labelled sections and requires that order, the exact personal list and no personal destination in an operational section. `php -l` passes on `app/layout/nav.php` and `tests/Cases/ViewTest.php`; `UX-27` plus the layout and sidebar-reading cases (`View::page` 11, `UX-08`, `UX-25`, `P5-T7` 8, `P13-T12` 3, `P4-T13` 9, `P12-T1` 12, `P6-T10` 3) pass on 27 November 2026 (49 cases); no browser pass was made.
 
 ### UX-28 — Two genealogy experiences with different chrome and no switcher (Medium)
 
