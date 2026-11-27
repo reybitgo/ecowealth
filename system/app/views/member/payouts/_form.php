@@ -107,7 +107,7 @@ $amount = old('amount');
 <?php endif; ?>
 
                       <div class="mb-4">
-                        <label class="form-label" for="payoutAmount">Amount</label>
+                        <label class="form-label" for="payoutAmount">Amount <?= required_marker() ?></label>
                         <div class="input-group has-validation">
                           <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                           <input

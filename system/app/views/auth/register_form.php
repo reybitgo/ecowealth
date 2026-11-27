@@ -234,7 +234,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
 
       <div class="row g-4">
         <div class="col-sm-6">
-          <label class="form-label" for="username">Username <span class="required">*</span></label>
+          <label class="form-label" for="username">Username <?= required_marker() ?></label>
           <input
             type="text"
             class="<?= $fieldClass('username') ?>"
@@ -251,7 +251,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label" for="email">Email <span class="required">*</span></label>
+          <label class="form-label" for="email">Email <?= required_marker() ?></label>
           <input
             type="email"
             class="<?= $fieldClass('email') ?>"
@@ -292,7 +292,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label" for="password">Password <span class="required">*</span></label>
+          <label class="form-label" for="password">Password <?= required_marker() ?></label>
           <div class="input-group input-group-merge">
             <input
               type="password"
@@ -308,7 +308,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label" for="password_confirm">Confirm password <span class="required">*</span></label>
+          <label class="form-label" for="password_confirm">Confirm password <?= required_marker() ?></label>
           <div class="input-group input-group-merge">
             <input
               type="password"
@@ -469,7 +469,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
             <span class="form-label mb-0" id="binary-position-label">
               Position in the tree
-              <span class="required">*</span>
+              <?= required_marker() ?>
             </span>
             <span class="binary-position-note">
               <i class="icon-base bx bx-lock-alt" aria-hidden="true"></i>
@@ -588,7 +588,7 @@ $feedback = static function (string $field, string $attributes = ''): string {
             required
           />
           <label class="form-check-label" for="terms-conditions">
-            I agree to the <a href="javascript:;">privacy policy &amp; terms</a>
+            I agree to the <a href="javascript:;">privacy policy &amp; terms</a> <?= required_marker() ?>
           </label>
           <?= $feedback('terms') ?>
         </div>

@@ -28,7 +28,7 @@ $me = $user ?? auth_user();
                         <?= csrf_field() ?>
 
                         <div class="mb-4">
-                          <label for="current_password" class="form-label">Current password</label>
+                          <label for="current_password" class="form-label">Current password <?= required_marker() ?></label>
                           <input
                             type="password"
                             class="form-control <?= e(invalid_class('current_password')) ?>"
@@ -43,7 +43,7 @@ $me = $user ?? auth_user();
                         </div>
 
                         <div class="mb-4">
-                          <label for="new_password" class="form-label">New password</label>
+                          <label for="new_password" class="form-label">New password <?= required_marker() ?></label>
                           <input
                             type="password"
                             class="form-control <?= e(invalid_class('new_password')) ?>"
@@ -60,7 +60,7 @@ $me = $user ?? auth_user();
                         </div>
 
                         <div class="mb-5">
-                          <label for="confirm_password" class="form-label">Confirm new password</label>
+                          <label for="confirm_password" class="form-label">Confirm new password <?= required_marker() ?></label>
                           <input
                             type="password"
                             class="form-control <?= e(invalid_class('confirm_password')) ?>"

@@ -18,7 +18,7 @@ $fullName = old('full_name') !== ''
                       <form method="POST" action="<?= e(url('profile')) ?>">
                         <?= csrf_field() ?>
                         <div class="mb-4">
-                          <label class="form-label" for="full_name">Full name</label>
+                          <label class="form-label" for="full_name">Full name <?= required_marker() ?></label>
                           <input type="text" id="full_name" name="full_name" maxlength="100" required
                                  class="form-control <?= e(invalid_class('full_name')) ?>" value="<?= $fullName ?>" />
 <?php if (has_error('full_name')): ?>

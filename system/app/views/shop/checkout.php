@@ -121,7 +121,7 @@ $live = $live ?? [
                       <div class="card-body">
                         <div class="row g-4">
                           <div class="col-md-6">
-                            <label class="form-label" for="shipping_name">Recipient name <span class="text-danger">*</span></label>
+                            <label class="form-label" for="shipping_name">Recipient name <?= required_marker() ?></label>
                             <input type="text" id="shipping_name" name="shipping_name" maxlength="120" required
                                    class="form-control <?= e(invalid_class('shipping_name')) ?>" value="<?= $value('shipping_name') ?>" />
 <?php if (has_error('shipping_name')): ?>
@@ -137,7 +137,7 @@ $live = $live ?? [
 <?php endif; ?>
                           </div>
                           <div class="col-12">
-                            <label class="form-label" for="shipping_address">Street address <span class="text-danger">*</span></label>
+                            <label class="form-label" for="shipping_address">Street address <?= required_marker() ?></label>
                             <input type="text" id="shipping_address" name="shipping_address" maxlength="255" required
                                    placeholder="House / unit, street, subdivision"
                                    class="form-control <?= e(invalid_class('shipping_address')) ?>" value="<?= $value('shipping_address') ?>" />
@@ -181,7 +181,7 @@ $live = $live ?? [
                           <div class="col-12"><hr class="my-2" /></div>
 
                           <div class="col-md-6">
-                            <label class="form-label" for="billing_name">Billing name <span class="text-danger">*</span></label>
+                            <label class="form-label" for="billing_name">Billing name <?= required_marker() ?></label>
                             <input type="text" id="billing_name" name="billing_name" maxlength="120" required
                                    class="form-control <?= e(invalid_class('billing_name')) ?>" value="<?= $value('billing_name') ?>" />
 <?php if (has_error('billing_name')): ?>
@@ -232,7 +232,7 @@ $live = $live ?? [
                         <div class="form-check<?= has_error('terms') ? ' is-invalid' : '' ?>">
                           <input class="form-check-input <?= e(invalid_class('terms')) ?>" type="checkbox" name="terms" id="terms" value="1" <?= $termsChecked ? 'checked' : '' ?> required />
                           <label class="form-check-label" for="terms">
-                            I agree to the <?= e(APP_NAME) ?> terms (<?= e($terms_version) ?>) and confirm the delivery details above are correct.
+                            I agree to the <?= e(APP_NAME) ?> terms (<?= e($terms_version) ?>) and confirm the delivery details above are correct. <?= required_marker() ?>
                           </label>
 <?php if (has_error('terms')): ?>
                           <div class="invalid-feedback d-block"><?= e(error_for('terms')) ?></div>

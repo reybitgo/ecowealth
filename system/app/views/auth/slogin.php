@@ -87,7 +87,7 @@ $live = $live ?? [
                       <form method="POST" action="<?= e(url('slogin')) ?>" novalidate data-slogin-form>
                         <?= csrf_field() ?>
                         <div class="mb-4">
-                          <label class="form-label" for="sloginUsername">Member username</label>
+                          <label class="form-label" for="sloginUsername">Member username <?= required_marker() ?></label>
                           <div class="input-group">
                             <span class="input-group-text"><i class="icon-base bx bx-user"></i></span>
                             <input

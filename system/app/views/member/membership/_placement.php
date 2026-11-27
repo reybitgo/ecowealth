@@ -23,7 +23,7 @@ declare(strict_types=1);
                     This cannot be changed once you have activated.
                   </p>
 
-                  <label class="form-label">Binary upline</label>
+                  <label class="form-label">Binary upline <?= required_marker() ?></label>
                   <div class="input-group mb-3">
                     <span class="input-group-text"><i class="icon-base bx bx-user"></i></span>
                     <input

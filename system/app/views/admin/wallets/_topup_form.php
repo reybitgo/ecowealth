@@ -36,7 +36,7 @@ declare(strict_types=1);
                         <?= csrf_field() ?>
 
                         <div class="mb-4">
-                          <label class="form-label" for="topup-amount">Amount</label>
+                          <label class="form-label" for="topup-amount">Amount <?= required_marker() ?></label>
                           <div class="input-group">
                             <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                             <input

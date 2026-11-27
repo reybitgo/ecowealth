@@ -69,7 +69,7 @@ $contentRows = $contents === [] ? [['product_id' => 0, 'quantity' => 1]] : $cont
                       <div class="card-body">
                         <div class="row">
                           <div class="col-md-8 mb-4">
-                            <label for="packageName" class="form-label">Package name <span class="text-danger">*</span></label>
+                            <label for="packageName" class="form-label">Package name <?= required_marker() ?></label>
                             <input
                               type="text"
                               class="form-control <?= e(invalid_class('name')) ?>"
@@ -246,7 +246,7 @@ $contentRows = $contents === [] ? [['product_id' => 0, 'quantity' => 1]] : $cont
                       <div class="card-header"><h5 class="mb-0">Pricing &amp; bonuses</h5></div>
                       <div class="card-body">
                         <div class="mb-4">
-                          <label for="packagePrice" class="form-label">Price <span class="text-danger">*</span></label>
+                          <label for="packagePrice" class="form-label">Price <?= required_marker() ?></label>
                           <div class="input-group">
                             <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                             <input
@@ -286,7 +286,7 @@ $contentRows = $contents === [] ? [['product_id' => 0, 'quantity' => 1]] : $cont
                         </div>
 
                         <div class="mb-4">
-                          <label for="packageDirect" class="form-label">Direct referral bonus (level 1) <span class="text-danger">*</span></label>
+                          <label for="packageDirect" class="form-label">Direct referral bonus (level 1) <?= required_marker() ?></label>
                           <div class="input-group">
                             <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                             <input
@@ -324,7 +324,7 @@ $contentRows = $contents === [] ? [['product_id' => 0, 'quantity' => 1]] : $cont
                         </div>
 
                         <div class="mb-4">
-                          <label for="packageStatus" class="form-label">Status <span class="text-danger">*</span></label>
+                          <label for="packageStatus" class="form-label">Status <?= required_marker() ?></label>
 <?php $currentStatus = (string) ($current['status'] ?? 'active'); ?>
                           <select class="form-select <?= e(invalid_class('status')) ?>" id="packageStatus" name="status">
                             <option value="active" <?= $currentStatus === 'active' ? 'selected' : '' ?>>Active — offered to members</option>

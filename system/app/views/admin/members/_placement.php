@@ -87,7 +87,7 @@ if ($upline > 0) {
                         <?= csrf_field() ?>
                         <div class="row g-3">
                           <div class="col-md-4">
-                            <label class="form-label">New binary upline</label>
+                            <label class="form-label">New binary upline <?= required_marker() ?></label>
                             <input
                               type="text"
                               name="binary_upline"

@@ -51,7 +51,7 @@ $unilevel = $unilevel ?? [];
                       <div class="card-header"><h5 class="mb-0">Details</h5></div>
                       <div class="card-body">
                         <div class="mb-4">
-                          <label for="productName" class="form-label">Product name <span class="text-danger">*</span></label>
+                          <label for="productName" class="form-label">Product name <?= required_marker() ?></label>
                           <input
                             type="text"
                             class="form-control <?= e(invalid_class('name')) ?>"
@@ -145,7 +145,7 @@ $unilevel = $unilevel ?? [];
                       <div class="card-header"><h5 class="mb-0">Pricing &amp; stock</h5></div>
                       <div class="card-body">
                         <div class="mb-4">
-                          <label for="productPrice" class="form-label">Price <span class="text-danger">*</span></label>
+                          <label for="productPrice" class="form-label">Price <?= required_marker() ?></label>
                           <div class="input-group">
                             <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                             <input
@@ -190,7 +190,7 @@ $unilevel = $unilevel ?? [];
                         </div>
 
                         <div class="mb-4">
-                          <label for="productStock" class="form-label">Stock on hand <span class="text-danger">*</span></label>
+                          <label for="productStock" class="form-label">Stock on hand <?= required_marker() ?></label>
                           <input
                             type="number"
                             class="form-control <?= e(invalid_class('stock')) ?>"
@@ -225,7 +225,7 @@ $unilevel = $unilevel ?? [];
                         </div>
 
                         <div class="mb-0">
-                          <label for="productStatus" class="form-label">Status <span class="text-danger">*</span></label>
+                          <label for="productStatus" class="form-label">Status <?= required_marker() ?></label>
 <?php $currentStatus = old('status', (string) ($current['status'] ?? 'active')); ?>
                           <select class="form-select <?= e(invalid_class('status')) ?>" id="productStatus" name="status">
                             <option value="active" <?= $currentStatus === 'active' ? 'selected' : '' ?>>Active — visible in the shop</option>

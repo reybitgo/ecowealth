@@ -84,7 +84,7 @@ $pairs      = $pairPoints > 0 ? (int) floor($points / $pairPoints) : 0;
                           </div>
 
                           <div class="col-md-5">
-                            <label class="form-label" for="packageBinaryPoints">Points per activation <span class="text-danger">*</span></label>
+                            <label class="form-label" for="packageBinaryPoints">Points per activation <?= required_marker() ?></label>
                             <div class="input-group input-group-sm" style="max-width: 11rem">
                               <span class="input-group-text"><?= e(CURRENCY_SYMBOL ?? '₱') ?></span>
                               <input

@@ -264,6 +264,17 @@
   gap: 0.5rem;
 }
 
+/* ---------- Required-field marker (UX-18) -------------------- */
+/*
+ * One marker for every required field: a red asterisk from
+ * required_marker(), with the accessible "(required)" text beside it.
+ * Optional fields stay the minority and say "(optional)".
+ */
+.required {
+  color: var(--bs-danger);
+  font-weight: 600;
+}
+
 /* ---------- List toolbars (products, packages) ---------- */
 .catalog-filter .filter-field {
   max-width: 12rem;

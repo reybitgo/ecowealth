@@ -114,7 +114,7 @@ $proofBadge = static fn (string $proofStatus): string => status_badge($proofStat
                               <?= csrf_field() ?>
                               <input type="hidden" name="to" value="paid" />
                               <div class="col-sm-6">
-                                <label class="form-label" for="verify-amount">Amount received</label>
+                                <label class="form-label" for="verify-amount">Amount received <?= required_marker() ?></label>
                                 <input type="text" inputmode="decimal" name="amount_received" id="verify-amount"
                                        class="form-control <?= invalid_class('amount_received') ?>"
                                        value="<?= old('amount_received', money_amount((float) $order['total'])) ?>" required />
@@ -123,7 +123,7 @@ $proofBadge = static fn (string $proofStatus): string => status_badge($proofStat
 <?php endif; ?>
                               </div>
                               <div class="col-sm-6">
-                                <label class="form-label" for="verify-reference">Payment reference</label>
+                                <label class="form-label" for="verify-reference">Payment reference <?= required_marker() ?></label>
                                 <input type="text" name="payment_reference" id="verify-reference" maxlength="40"
                                        class="form-control <?= invalid_class('payment_reference') ?>"
                                        value="<?= old('payment_reference', (string) ($latestProof['reference_no'] ?? '')) ?>" required />

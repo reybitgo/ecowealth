@@ -61,7 +61,7 @@ $isDefaultChecked = array_key_exists('is_default', $posted)
 <?php endif; ?>
                           </div>
                           <div class="col-md-6">
-                            <label class="form-label" for="address-recipient">Recipient name <span class="text-danger">*</span></label>
+                            <label class="form-label" for="address-recipient">Recipient name <?= required_marker() ?></label>
                             <input type="text" id="address-recipient" name="recipient_name" maxlength="120" required class="form-control <?= e(invalid_class('recipient_name')) ?>" value="<?= $field('recipient_name') ?>" />
 <?php if (has_error('recipient_name')): ?>
                             <div class="invalid-feedback"><?= e(error_for('recipient_name')) ?></div>
@@ -82,7 +82,7 @@ $isDefaultChecked = array_key_exists('is_default', $posted)
 <?php endif; ?>
                           </div>
                           <div class="col-12">
-                            <label class="form-label" for="address-line">Street address <span class="text-danger">*</span></label>
+                            <label class="form-label" for="address-line">Street address <?= required_marker() ?></label>
                             <input type="text" id="address-line" name="address_line" maxlength="255" required class="form-control <?= e(invalid_class('address_line')) ?>" value="<?= $field('address_line') ?>" placeholder="House / unit, street, subdivision" />
 <?php if (has_error('address_line')): ?>
                             <div class="invalid-feedback"><?= e(error_for('address_line')) ?></div>

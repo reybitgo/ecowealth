@@ -99,7 +99,7 @@ $courierOther  = e(FulfilmentService::OTHER_COURIER);
                             data-confirm-cancel="Not yet">
                         <?= csrf_field() ?>
                         <div class="col-sm-6">
-                          <label class="form-label" for="ship-courier">Courier</label>
+                          <label class="form-label" for="ship-courier">Courier <?= required_marker() ?></label>
                           <select name="courier" id="ship-courier" autocomplete="off"
                                   class="form-select <?= invalid_class('courier') ?>" required>
                             <option value="">Choose a courier…</option>
@@ -113,7 +113,7 @@ $courierOther  = e(FulfilmentService::OTHER_COURIER);
 <?php endif; ?>
                         </div>
                         <div class="col-sm-6">
-                          <label class="form-label" for="ship-tracking">Tracking number</label>
+                          <label class="form-label" for="ship-tracking">Tracking number <?= required_marker() ?></label>
                           <input type="text" name="tracking_number" id="ship-tracking" maxlength="80" autocomplete="off"
                                  class="form-control <?= invalid_class('tracking_number') ?>"
                                  value="<?= old('tracking_number') ?>" placeholder="e.g. JT1234567890" required />

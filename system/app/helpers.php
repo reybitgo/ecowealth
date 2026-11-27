@@ -216,6 +216,20 @@ function absolute_url(string $path = '/'): string
     return app_origin() . url($path, false);
 }
 
+/**
+ * Required-field marker for a form label (UX-18).
+ *
+ * Every required field carries the same red asterisk, and the asterisk
+ * is paired with a screen-reader-only "(required)" so the marker never
+ * depends on colour or on the glyph alone. Optional fields are the
+ * minority and say "(optional)" instead.
+ */
+function required_marker(): string
+{
+    return '<span class="required" aria-hidden="true">*</span>'
+        . '<span class="visually-hidden"> (required)</span>';
+}
+
 /** HTML-escape a value for safe output. */
 function e(null|string $value): string
 {

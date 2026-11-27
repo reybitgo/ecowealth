@@ -41,7 +41,7 @@ declare(strict_types=1);
                     <form method="POST" action="<?= e(url('membership/activate')) ?>" class="mt-auto">
                       <?= csrf_field() ?>
                       <input type="hidden" name="method" value="code" />
-                      <label class="form-label" for="act-code">Code</label>
+                      <label class="form-label" for="act-code">Code <?= required_marker() ?></label>
                       <input
                         type="text"
                         class="form-control<?= has_error('reg_code') ? ' is-invalid' : '' ?>"
@@ -80,7 +80,7 @@ declare(strict_types=1);
                     <form method="POST" action="<?= e(url('membership/activate')) ?>" class="mt-auto">
                       <?= csrf_field() ?>
                       <input type="hidden" name="method" value="ewallet" />
-                      <label class="form-label" for="act-package">Package</label>
+                      <label class="form-label" for="act-package">Package <?= required_marker() ?></label>
                       <select
                         class="form-select<?= has_error('package_id') ? ' is-invalid' : '' ?>"
                         id="act-package"
@@ -132,7 +132,7 @@ declare(strict_types=1);
                       <?= csrf_field() ?>
                       <input type="hidden" name="method" value="manual" />
 
-                      <label class="form-label" for="act-channel">Channel</label>
+                      <label class="form-label" for="act-channel">Channel <?= required_marker() ?></label>
                       <select
                         class="form-select<?= has_error('channel') ? ' is-invalid' : '' ?>"
                         id="act-channel"
@@ -147,7 +147,7 @@ declare(strict_types=1);
                       <div class="invalid-feedback"><?= e(error_for('channel')) ?></div>
 <?php endif; ?>
 
-                      <label class="form-label mt-2" for="act-package-manual">Package</label>
+                      <label class="form-label mt-2" for="act-package-manual">Package <?= required_marker() ?></label>
                       <select
                         class="form-select<?= has_error('package_id') ? ' is-invalid' : '' ?>"
                         id="act-package-manual"
@@ -160,7 +160,7 @@ declare(strict_types=1);
 <?php endforeach; ?>
                       </select>
 
-                      <label class="form-label mt-2" for="act-reference">Reference number</label>
+                      <label class="form-label mt-2" for="act-reference">Reference number <?= required_marker() ?></label>
                       <input
                         type="text"
                         class="form-control<?= has_error('reference_no') ? ' is-invalid' : '' ?>"
@@ -174,7 +174,7 @@ declare(strict_types=1);
                       <div class="invalid-feedback"><?= e(error_for('reference_no')) ?></div>
 <?php endif; ?>
 
-                      <label class="form-label mt-2" for="act-proof">Proof (JPG, PNG, WebP or PDF)</label>
+                      <label class="form-label mt-2" for="act-proof">Proof (JPG, PNG, WebP or PDF) <?= required_marker() ?></label>
                       <input
                         type="file"
                         class="form-control<?= has_error('proof_image') ? ' is-invalid' : '' ?>"

@@ -535,6 +535,46 @@ return [
         assert_same([], $offenders, 'every filter control names itself in a visible label');
     },
 
+    'UX-18 every required field uses the one required marker' => function (): void {
+        assert_same(
+            '<span class="required" aria-hidden="true">*</span><span class="visually-hidden"> (required)</span>',
+            required_marker(),
+            'the marker pairs the asterisk with an accessible label'
+        );
+
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+        $markers   = 0;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            if (str_contains($source, '<span class="required">*</span>')) {
+                $offenders[] = $file->getPathname() . ': the old unstyled asterisk is back';
+            }
+
+            if (str_contains($source, '<span class="text-danger">*</span>')) {
+                $offenders[] = $file->getPathname() . ': a red asterisk bypasses required_marker()';
+            }
+
+            $markers += (int) preg_match_all('/required_marker\(\)/', $source);
+        }
+
+        assert_same([], $offenders, 'no view hand-rolls a required marker');
+        assert_true($markers >= 50, 'the marker is applied across the forms');
+
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/app.css');
+        assert_contains('.required {', $css, 'the marker is styled once in the application CSS');
+    },
+
     'UX-12 the member earnings tabs keep two primary pills and one statement menu' => function () use ($render): void {
         $user = test_user('ux12_member');
         test_signed_in_as($user);

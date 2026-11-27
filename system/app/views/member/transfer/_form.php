@@ -59,7 +59,7 @@ $note      = old('note');
                       <?= csrf_field() ?>
 
                       <div class="mb-4">
-                        <label class="form-label" for="transferRecipient">Recipient username</label>
+                        <label class="form-label" for="transferRecipient">Recipient username <?= required_marker() ?></label>
                         <div class="input-group has-validation">
                           <span class="input-group-text">@</span>
                           <input
@@ -83,7 +83,7 @@ $note      = old('note');
                       </div>
 
                       <div class="mb-4">
-                        <label class="form-label" for="transferAmount">Amount</label>
+                        <label class="form-label" for="transferAmount">Amount <?= required_marker() ?></label>
                         <div class="input-group has-validation">
                           <span class="input-group-text"><?= e(CURRENCY_SYMBOL) ?></span>
                           <input
@@ -124,7 +124,7 @@ $note      = old('note');
                       </div>
 
                       <div class="mb-4">
-                        <label class="form-label" for="transferPassword">Confirm with your password</label>
+                        <label class="form-label" for="transferPassword">Confirm with your password <?= required_marker() ?></label>
                         <div class="input-group has-validation">
                           <input
                             type="password"

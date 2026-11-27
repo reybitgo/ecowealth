@@ -80,7 +80,7 @@ $live = $live ?? [
                       <?= csrf_field() ?>
                       <div class="row g-3">
                         <div class="col-md-6">
-                          <label class="form-label" for="code-package">Package</label>
+                          <label class="form-label" for="code-package">Package <?= required_marker() ?></label>
                           <select
                             class="form-select<?= has_error('package_id') ? ' is-invalid' : '' ?>"
                             id="code-package"
@@ -103,7 +103,7 @@ $live = $live ?? [
                         </div>
 
                         <div class="col-md-3">
-                          <label class="form-label" for="code-quantity">Quantity</label>
+                          <label class="form-label" for="code-quantity">Quantity <?= required_marker() ?></label>
                           <input
                             type="number"
                             class="form-control<?= has_error('quantity') ? ' is-invalid' : '' ?>"
@@ -121,7 +121,7 @@ $live = $live ?? [
                         </div>
 
                         <div class="col-md-3">
-                          <label class="form-label" for="code-price">Price each</label>
+                          <label class="form-label" for="code-price">Price each <?= required_marker() ?></label>
                           <input
                             type="text"
                             inputmode="decimal"

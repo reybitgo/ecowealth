@@ -115,7 +115,7 @@ if (!array_key_exists($mode, $modes)) { $mode = array_key_first($modes) ?: 'code
 
           <div class="row g-3">
             <div class="col-sm-6">
-              <label class="form-label" for="binaryModalUsername">Username</label>
+              <label class="form-label" for="binaryModalUsername">Username <?= required_marker() ?></label>
               <input
                 type="text"
                 class="<?= $fieldClass('username') ?>"
@@ -131,7 +131,7 @@ if (!array_key_exists($mode, $modes)) { $mode = array_key_first($modes) ?: 'code
             </div>
 
             <div class="col-sm-6">
-              <label class="form-label" for="binaryModalEmail">Email</label>
+              <label class="form-label" for="binaryModalEmail">Email <?= required_marker() ?></label>
               <input
                 type="email"
                 class="<?= $fieldClass('email') ?>"
@@ -172,7 +172,7 @@ if (!array_key_exists($mode, $modes)) { $mode = array_key_first($modes) ?: 'code
             </div>
 
             <div class="col-sm-6">
-              <label class="form-label" for="binaryModalPassword">Password</label>
+              <label class="form-label" for="binaryModalPassword">Password <?= required_marker() ?></label>
               <div class="input-group input-group-merge">
                 <input
                   type="password"
@@ -188,7 +188,7 @@ if (!array_key_exists($mode, $modes)) { $mode = array_key_first($modes) ?: 'code
             </div>
 
             <div class="col-sm-6">
-              <label class="form-label" for="binaryModalPasswordConfirm">Confirm password</label>
+              <label class="form-label" for="binaryModalPasswordConfirm">Confirm password <?= required_marker() ?></label>
               <div class="input-group input-group-merge">
                 <input
                   type="password"
@@ -280,7 +280,7 @@ if (!array_key_exists($mode, $modes)) { $mode = array_key_first($modes) ?: 'code
                 required
               />
               <label class="form-check-label" for="binaryModalTerms">
-                I agree to the <a href="javascript:;">privacy policy &amp; terms</a>
+                I agree to the <a href="javascript:;">privacy policy &amp; terms</a> <?= required_marker() ?>
               </label>
               <?= $feedback('terms') ?>
             </div>

@@ -293,7 +293,7 @@ $overdue        = (bool) ($overdue ?? false);
                         <form method="POST" action="<?= e(url('orders/' . $orderId . '/proof')) ?>" enctype="multipart/form-data" class="row g-3 order-proof-form">
                           <?= csrf_field() ?>
                           <div class="col-sm-6">
-                            <label class="form-label" for="proof-amount">Amount sent</label>
+                            <label class="form-label" for="proof-amount">Amount sent <?= required_marker() ?></label>
                             <input type="text" inputmode="decimal" name="amount_sent" id="proof-amount"
                                    class="form-control <?= invalid_class('amount_sent') ?>"
                                    value="<?= old('amount_sent', money_amount((float) $order['total'])) ?>"
@@ -303,7 +303,7 @@ $overdue        = (bool) ($overdue ?? false);
 <?php endif; ?>
                           </div>
                           <div class="col-sm-6">
-                            <label class="form-label" for="proof-reference">Reference number</label>
+                            <label class="form-label" for="proof-reference">Reference number <?= required_marker() ?></label>
                             <input type="text" name="reference_no" id="proof-reference" maxlength="40"
                                    class="form-control <?= invalid_class('reference_no') ?>"
                                    value="<?= old('reference_no') ?>" placeholder="GCash / bank reference" required />
@@ -321,7 +321,7 @@ $overdue        = (bool) ($overdue ?? false);
 <?php endif; ?>
                           </div>
                           <div class="col-sm-6">
-                            <label class="form-label" for="proof-file">Proof file</label>
+                            <label class="form-label" for="proof-file">Proof file <?= required_marker() ?></label>
                             <input type="file" name="proof_image" id="proof-file" accept=".jpg,.jpeg,.png,.webp,.pdf"
                                    class="form-control <?= invalid_class('proof_image') ?>" required />
 <?php if (has_error('proof_image')): ?>
