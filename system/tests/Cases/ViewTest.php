@@ -633,6 +633,33 @@ return [
         assert_contains("\$auth_page_js = ['assets/js/app-login.js'];", $login, 'the page loads its toggle script');
     },
 
+    'UX-36 the login fields are validatable and autocompletable' => function (): void {
+        $login = (string) file_get_contents(dirname(__DIR__, 2) . '/public/login.php');
+
+        /* Password managers key off autocomplete names, and the browser can
+         * only refuse an empty submit when the fields are required. */
+        assert_contains("id=\"email\"", $login, 'the identifier input is still there');
+        assert_contains("name=\"email-username\"", $login, 'the identifier posts under the expected name');
+        assert_contains('autocomplete="username"', $login, 'the identifier is autocompleted as a username');
+        assert_contains('autocomplete="current-password"', $login, 'the password is autocompleted as the current password');
+        assert_not_contains('autocomplete="off"', $login, 'neither login field opts out of autofill');
+        /* The inputs carry PHP in their value attributes, so drop the tags
+         * before reading the markup. */
+        $markup = (string) preg_replace('/<\?(?:php|=)?.*?\?>/s', '', $login);
+        preg_match_all('/id="(email|password)"[^>]*\srequired\b/', $markup, $required, PREG_SET_ORDER);
+        assert_same(['email', 'password'], array_column($required, 1), 'both login fields are required');
+        assert_contains(
+            '<label for="email" class="form-label">Email or Username <?= required_marker() ?></label>',
+            $login,
+            'the identifier label carries the shared required marker'
+        );
+        assert_contains(
+            '<label class="form-label" for="password">Password <?= required_marker() ?></label>',
+            $login,
+            'the password label carries the shared required marker'
+        );
+    },
+
     'UX-09 the shared page header sets one page rhythm' => function (): void {
         $html = View::partial('page_header', [
             'title'       => 'Reports',

@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-33, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-36, UX-39 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -391,6 +391,7 @@ Evidence in user-visible labels:
 **Evidence:** `public/login.php` — the username input has no `autocomplete="username"` and neither field has `required`; the page relies on a server round-trip to report empties.
 **Impact:** password managers fill less reliably, and the browser cannot help with an empty submit, unlike every other form in the app.
 **Fix:** add `autocomplete="username"` / `autocomplete="current-password"` and `required`.
+**Status:** Fixed — the identifier input on `public/login.php` is `autocomplete="username"` and the password is `autocomplete="current-password"`, so a password manager offers the right pair instead of guessing from a field named `email-username`. Both inputs are now `required`, so an empty submit stays on the page with the browser's own message instead of taking a server round-trip; the server-side empty check is unchanged as the fallback for a client that skips validation. Both labels carry the shared `required_marker()` the other required fields use, so the required state is visible as well as announced. `ViewTest`'s new `UX-36` case pins both autocomplete tokens, requires `required` on both inputs, rejects `autocomplete="off"` and requires the marker on both labels. `php -l` passes on `public/login.php` and `tests/Cases/ViewTest.php`; the `UX-30`–`UX-36` filter run and the `UX-18` required-marker case pass on 27 November 2026. No browser pass was made.
 
 ### UX-37 — The quick-view modal is not named (Low)
 

@@ -96,7 +96,7 @@ require __DIR__ . '/../app/layout/auth_header.php';
               >
                 <?= csrf_field() ?>
                 <div class="mb-6 form-control-validation">
-                  <label for="email" class="form-label">Email or Username</label>
+                  <label for="email" class="form-label">Email or Username <?= required_marker() ?></label>
                   <input
                     type="text"
                     class="form-control"
@@ -104,11 +104,13 @@ require __DIR__ . '/../app/layout/auth_header.php';
                     name="email-username"
                     placeholder="Enter your email or username"
                     value="<?= old('email-username') ?>"
+                    autocomplete="username"
+                    required
                     autofocus
                   />
                 </div>
                 <div class="mb-6 form-control-validation">
-                  <label class="form-label" for="password">Password</label>
+                  <label class="form-label" for="password">Password <?= required_marker() ?></label>
                   <div class="input-group input-group-merge">
                     <input
                       type="password"
@@ -116,6 +118,8 @@ require __DIR__ . '/../app/layout/auth_header.php';
                       class="form-control"
                       name="password"
                       placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
+                      autocomplete="current-password"
+                      required
                     />
                     <button
                       type="button"
