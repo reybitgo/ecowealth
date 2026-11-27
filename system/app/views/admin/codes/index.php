@@ -53,7 +53,7 @@ $live = $live ?? [
     'title'       => 'Registration codes',
     'description' => 'Package-bound, one-time codes sold offline. Redemption is single-use and audited.',
     'align'       => 'center',
-    'actions'     => '<a href="' . e(url('admin/codes/export' . ($exportQuery === '' ? '' : '?' . $exportQuery))) . '" class="btn btn-label-primary">'
+    'actions'     => '<a href="' . e(url('admin/codes/export' . ($exportQuery === '' ? '' : '?' . $exportQuery))) . '" class="btn btn-label-secondary">'
         . '<i class="icon-base bx bx-download me-1"></i> Export CSV</a>',
 ]) ?>
 

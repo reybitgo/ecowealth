@@ -575,6 +575,77 @@ return [
         assert_contains('.required {', $css, 'the marker is styled once in the application CSS');
     },
 
+    'UX-19 same-role actions share one emphasis' => function () use ($render): void {
+        $root      = dirname(__DIR__, 2) . '/app/views';
+        $offenders = [];
+        $exports   = 0;
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+
+            /* The class attribute and the label sit in one tag, possibly
+             * across a few concatenated lines. */
+            if (preg_match_all(
+                '/<(?:a|button)\b[^>]*class="(btn[^"]*)"[^>]*>(?:(?!<\/a>|<\/button>)[\s\S]){0,240}?Export CSV/',
+                $source,
+                $matches,
+                PREG_SET_ORDER
+            ) === 0) {
+                continue;
+            }
+
+            foreach ($matches as $match) {
+                $exports++;
+                $classes = preg_split('/\s+/', trim($match[1])) ?: [];
+
+                if (!in_array('btn-label-secondary', $classes, true)) {
+                    $offenders[] = $file->getPathname() . ': Export CSV uses "' . $match[1] . '"';
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'every export action is the same quiet secondary button');
+        assert_same(4, $exports, 'the sweep finds the four export actions');
+
+        /* A forward cross-link keeps the label weight instead of borrowing
+         * the page's primary action. */
+        $user = test_user('ux19_member');
+        test_signed_in_as($user);
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/ecowealth/system/earnings';
+
+        $controller = new EarningsController();
+
+        try {
+            $html = $render('member', 'member/earnings', $controller->earningsContext((int) $user['id']) + [
+                'page_title'  => 'Earnings',
+                'current_nav' => 'earnings',
+            ]);
+        } finally {
+            $_GET = [];
+        }
+
+        assert_contains(
+            'class="btn btn-label-primary"><i class="icon-base bx bx-wallet me-1"></i> Open e-wallet</a>',
+            $html,
+            'the e-wallet cross-link matches the statement links'
+        );
+        assert_not_contains(
+            'class="btn btn-primary"><i class="icon-base bx bx-wallet me-1"></i> Open e-wallet</a>',
+            $html,
+            'the cross-link does not take the page primary'
+        );
+    },
+
     'UX-12 the member earnings tabs keep two primary pills and one statement menu' => function () use ($render): void {
         $user = test_user('ux12_member');
         test_signed_in_as($user);

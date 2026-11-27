@@ -297,7 +297,7 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
             ? '<a href="' . e($genealogy_url ?? url('genealogy')) . '" class="btn btn-label-secondary">'
                 . '<i class="icon-base bx bx-git-branch me-1"></i> Genealogy</a>'
             : '')
-        . '<a href="' . e($wallet_url) . '" class="btn btn-primary">'
+        . '<a href="' . e($wallet_url) . '" class="btn btn-label-primary">'
         . '<i class="icon-base bx bx-wallet me-1"></i> Open e-wallet</a>'
         . '</div>',
 ]) ?>
