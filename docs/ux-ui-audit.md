@@ -188,6 +188,7 @@ The same "apply the filters" action is styled `btn-primary` on some pages and `b
 
 **Impact:** the strongest colour in the toolbar appears on different controls from page to page, and the vocabulary changes. Users cannot build a reliable "the blue button applies my filter" habit.
 **Fix:** standardise on one label ("Filter") and one style for the primary action inside a filter bar; use `Apply` only where the control is not filtering (e.g. a date window, if you keep that concept).
+**Status:** Fixed in `5afc3ff` — every filter bar's submit is now `btn-primary` labelled `Filter`: admin products, packages, activations, members, payouts and impersonations (were `btn-label-primary`), the e-wallet monitor's members, transfers and top-ups tabs (the top-ups button also read `Search`), codes (was `Apply filters`) and the storefront catalogue (was `Search`). The reports window keeps the non-filtering wording as `Apply` (was `Apply window`), matching the pagination rows-per-page fallback. `php -l` passes on all ten views, and `ReportViewTest` (11/11), `AdminWalletLiveTest` (9/9), `AdminCodeLiveTest` (5/5) and `ProductViewTest` (14/14) pass on 27 November 2026; no browser pass was made.
 
 ### UX-16 — "Clear" means five different things (Medium)
 
