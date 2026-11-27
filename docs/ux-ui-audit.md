@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (26 November 2026):** UX-01–UX-13 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-14 and UX-45 have been fixed since the audit. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -167,6 +167,7 @@ The markup also changes the value's heading level and size: `<h2>` in `member/tr
 **Evidence:** `system/app/views/admin/reports/index.php` stacks at least 15 captures (`_kpis`, `_health`, `_orders`, `_sales`, `_top_products`, `_commissions`, `_payouts`, `_unilevel`, `_unilevel_levels`, `_unilevel_products`, `_unilevel_periods`, `_royalty`, `_royalty_ranks`, `_royalty_periods`, `_team_harvest`, …). There is no tab strip, jump menu or table of contents.
 **Impact:** the page is a very long scroll; reaching "Royalty" or "Binary" means scanning past everything else. Settings solved the same problem with sticky anchor pills; Reports did not.
 **Fix:** reuse the settings section-nav pattern (sticky pills with the section names), or split the report families into tabs like Commissions.
+**Status:** Fixed in `8917e7d` — the page opens with the shared `.section-nav` bar ("On this page") under the window filter. Its ten links jump to Overview, Health, Sales, Commissions, Repeat purchase, Royalty, Team Harvest, General Harvest, Binary and Codes; each target carries `scroll-margin-top` so a jump clears the sticky bar. `assets/js/admin-reports.js` smooth-scrolls, writes the hash, tracks the section in view and keeps `aria-current` on the active link. `ReportViewTest` pins the menu, its targets and their order.
 
 ---
 
