@@ -47,8 +47,6 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <?= flash_render() ?>
-
 <?= View::partial('page_header', [
     'title'       => 'Registration codes',
     'description' => 'Package-bound, one-time codes sold offline. Redemption is single-use and audited.',

@@ -1277,6 +1277,65 @@ return [
         assert_true($files >= 300, 'the sweep reads the whole view tree');
     },
 
+    'UX-41 the layout is the one place a flash message renders' => function () use ($render): void {
+        /* app_header.php includes views/partials/flash.php, which drains the
+         * queue before the page. A page template that calls flash_render()
+         * again emits nothing today and would swallow the message if the
+         * render order ever changed. The auth pages keep their own call:
+         * auth_header.php serves no flash partial. */
+        $root    = dirname(__DIR__, 2);
+        $allowed = [
+            'app/views/partials/flash.php',
+            'app/views/auth/register_form.php',
+            'public/login.php',
+        ];
+        $offenders = [];
+
+        foreach (['/app/views', '/public'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root . $directory)
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                /* Normalise separators so the allowlist matches on every OS. */
+                $name = str_replace('\\', '/', $file->getPathname());
+                $name = str_replace(str_replace('\\', '/', $root) . '/', '', $name);
+
+                if (in_array($name, $allowed, true)) {
+                    continue;
+                }
+
+                if (preg_match('/\bflash_render\s*\(/', (string) file_get_contents($file->getPathname())) === 1) {
+                    $offenders[] = $name;
+                }
+            }
+        }
+
+        assert_same([], $offenders, 'only the layout and the auth pages render flashes');
+
+        /* The layout is the single render point: one pending message reaches
+         * the page once, and the queue is empty afterwards. */
+        test_signed_in_as(test_user('ux41_member'));
+        flash_set('success', 'UX-41 rendered once');
+
+        $html = $render('member', 'shop/catalog', [
+            'products'    => [],
+            'available'   => [],
+            'pager'       => new Paginator(0, 12, 1),
+            'filters'     => ['q' => ''],
+            'shop_open'   => true,
+            'page_title'  => 'Shop',
+            'current_nav' => 'shop',
+        ]);
+
+        assert_same(1, substr_count($html, 'UX-41 rendered once'), 'the layout renders the message exactly once');
+        assert_same('', flash_render(), 'the layout drained the queue before the page');
+    },
+
     'UX-25 the notification bell only renders when it has something to show' => function () use ($render): void {
         test_signed_in_as(test_user('ux25_member'));
 

@@ -117,8 +117,6 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <?= flash_render() ?>
-
               <div class="text-end">
                 <span class="small text-body-secondary" data-live-status aria-live="polite"></span>
               </div>

@@ -51,8 +51,6 @@ $live = $live ?? [
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <?= flash_render() ?>
-
 <?= View::capture('admin/activations/_header', ['stats' => $stats]) ?>
 
 <?= View::capture('admin/activations/_stats', ['stats' => $stats]) ?>

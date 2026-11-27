@@ -79,8 +79,6 @@ $cards = [
 ];
 ?>
             <div class="container-xxl flex-grow-1 container-p-y audit-page">
-              <?= flash_render() ?>
-
 <?= View::partial('page_header', [
     'title'       => 'Audit log',
     'description' => 'Every audited admin and money action, newest first. The table is append-only — an audit entry is'

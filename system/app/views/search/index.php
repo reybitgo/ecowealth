@@ -23,8 +23,6 @@ $scope  = (string) ($scope ?? 'products and your orders');
 $hint   = (string) ($hint ?? 'Type what you are looking for in the search box above.');
 ?>
             <div class="container-xxl flex-grow-1 container-p-y">
-              <?= flash_render() ?>
-
 <?= View::partial('page_header', [
     'title'       => 'Search',
     'description' => 'One query across ' . e($scope) . '. Open a result or use its destination for the full, filterable list.',

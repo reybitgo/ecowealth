@@ -6,7 +6,7 @@
 
 **What this audit did not do:** it did not click through the running application or take screenshots. Every finding below is reproducible from the source. No data-state, responsive or browser testing was performed.
 
-**Status (27 November 2026):** UX-01–UX-40 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
+**Status (27 November 2026):** UX-01–UX-41 and UX-45 have been fixed since the audit; UX-38's rendered hit areas are measured in a browser pass. Each fixed finding keeps its original evidence and ends with a **Status** line naming the change; the remaining findings remain as originally reported.
 
 ---
 
@@ -441,6 +441,7 @@ Three separate screens show build-phase numbers to end users: the product page, 
 **Evidence:** the layout renders `partials/flash.php` (which calls `flash_render()`) before the page; 14 page templates call it again, e.g. `member/dashboard.php:56`, `admin/members/index.php:48`, `admin/commissions/index.php:317`, `admin/codes/index.php:50`.
 **Impact:** currently harmless because `flash_render()` drains the session messages on the first call, so the page call returns an empty string. But the second call is dead code, and any future change to render order would duplicate or swallow messages silently.
 **Fix:** remove the page-level calls and keep one render point in the layout; document the invariant in the helper.
+**Status:** Fixed — the app layout is the only render point for the 14 page templates that repeated the call (`shop/product.php`, `shop/order.php`, `search/index.php`, `member/dashboard.php`, `member/membership.php`, `member/genealogy.php`, `member/earnings.php`, `admin/codes/index.php`, `admin/audit/index.php`, `admin/activations/index.php`, `admin/reports/index.php`, `admin/members/index.php`, `admin/members/show.php`, `admin/commissions/index.php`); `app/views/partials/flash.php` renders the queue once from `app_header.php`. `flash_render()`'s docblock now states the invariant and its one exception: the auth pages (`public/login.php` and `app/views/auth/register_form.php`) call it themselves because `auth_header.php` includes no flash partial. `ViewTest`'s new `UX-41` case sweeps `app/views` and `public` for a second call and renders a page with one pending message, asserting it appears exactly once and the queue is drained. No user-visible change: every removed call only ever returned an empty string. `php -l` passes on the changed files and the `UX-41` case passes on 27 November 2026.
 
 ### UX-42 — The admin welcome copy describes a different dashboard (Low)
 

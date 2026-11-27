@@ -53,8 +53,6 @@ $displayName  = trim((string) ($member['full_name'] ?? '')) ?: (string) $member[
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <?= flash_render() ?>
-
 <?= View::partial('page_header', [
     'title'       => 'Welcome back, ' . $displayName . ($status === 'active' ? " \u{1F44B}" : ''),
     'description' => 'Your membership, wallet and orders in one place.'

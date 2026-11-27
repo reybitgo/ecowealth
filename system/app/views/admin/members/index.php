@@ -45,8 +45,6 @@ $generalHarvest = $general_harvest ?? null;
               data-live-etag="<?= e((string) $live['etag']) ?>"
               data-live-interval="<?= (int) $live['interval'] ?>"
             >
-              <?= flash_render() ?>
-
               <div
                 class="alert alert-warning d-flex align-items-start gap-2 mb-4 d-none"
                 data-live-stale

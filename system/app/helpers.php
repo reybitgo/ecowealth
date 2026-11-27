@@ -307,7 +307,18 @@ function flash_all(): array
     return $messages;
 }
 
-/** Render Bootstrap dismissible alerts for every pending flash message. */
+/**
+ * Render Bootstrap dismissible alerts for every pending flash message.
+ *
+ * The call drains the queue, so render it exactly once per response:
+ * app/layout/app_header.php includes views/partials/flash.php for every
+ * routed page, before the page template. A page template under app/views
+ * must not call it again — the repeat call only emits an empty string today
+ * and would swallow the message if the render order ever changed. The auth
+ * pages (public/login.php and views/auth/register_form.php) are the one
+ * exception: they call it themselves because auth_header.php includes no
+ * flash partial.
+ */
 function flash_render(): string
 {
     $map = [

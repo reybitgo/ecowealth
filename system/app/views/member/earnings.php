@@ -284,8 +284,6 @@ $headerDescription .= ' <span class="small text-body-secondary" data-live-status
               data-live-config="<?= e(Live::GENEALOGY_TEAM) ?>"
 <?php endif; ?>
             >
-              <?= flash_render() ?>
-
 <?= View::partial('page_header', [
     'title'       => $headerTitle,
     'description' => $headerDescription,
